@@ -15,10 +15,12 @@ import appCss from "../styles.css?url";
 import { AppSidebar, AppSidebarProvider, SidebarInset } from "@/components/portal/app-sidebar";
 import { TopStrip } from "@/components/portal/top-strip";
 import { useAuth } from "@/hooks/use-auth";
+import { useCompany } from "@/hooks/use-company";
 import { supabase } from "@/integrations/supabase/client";
 import { vault } from "@/lib/vault";
 
 const PUBLIC_ROUTES = new Set(["/login", "/signup"]);
+const ONBOARDING_ROUTE = "/onboarding";
 
 function NotFoundComponent() {
   return (
