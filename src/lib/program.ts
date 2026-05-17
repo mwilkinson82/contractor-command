@@ -10,6 +10,7 @@ export type Session = {
   zoomUrl: string;
   zoomId?: string;
   description: string;
+  agenda?: string[];
 };
 
 export type Replay = {
@@ -23,17 +24,37 @@ export type Replay = {
   zoomUrl?: string; // missing = "replay pending"
 };
 
+// Biweekly cadence: every other Sunday, 5:00 PM Eastern.
+// Anchor: 2026-05-24 17:00 ET (EDT = UTC-4) → 2026-05-24T21:00:00.000Z.
+const BIWEEKLY_ANCHOR_UTC = "2026-05-24T21:00:00.000Z";
+
+function nextBiweeklyFromAnchor(): { date: string } {
+  const anchor = new Date(BIWEEKLY_ANCHOR_UTC).getTime();
+  const now = Date.now();
+  const period = 14 * 86_400_000;
+  let t = anchor;
+  // If we're past the start of the anchor day's call, roll forward by 14d
+  // until the next future call. Always returns a date >= now.
+  while (t < now) t += period;
+  return { date: new Date(t).toISOString() };
+}
+
 // --- Upcoming sessions (edit these as the calendar moves) ---
 export const UPCOMING: Session[] = [
   {
     kind: "Biweekly Call",
-    title: "Open issues — bring one that's stuck.",
-    date: "2026-05-21T18:00:00.000Z", // Thu May 21, 11:00 AM PT
+    title: "Bi-weekly working session",
+    date: nextBiweeklyFromAnchor().date,
     durationMin: 90,
     zoomUrl: "https://zoom.us/j/0000000000",
     zoomId: "000 0000 0000",
     description:
       "Open-room session. Members bring one specific business issue. We work two or three of them live.",
+    agenda: [
+      "Quick room check-in — what shifted this week?",
+      "Member issues: two or three worked live.",
+      "Marshall's read + the next move for each.",
+    ],
   },
   {
     kind: "Monthly Bootcamp",
