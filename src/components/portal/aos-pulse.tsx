@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 import { getAosSnapshot, type AosResult, type AosCompany } from "@/lib/aos.functions";
 import { AOS_URL } from "@/lib/program";
 import { ArrowUpRight, Compass, Target, AlertCircle, CheckSquare, TrendingUp, ChevronDown } from "lucide-react";
@@ -13,13 +14,30 @@ export function AosPulse() {
     if (typeof window === "undefined") return null;
     return window.localStorage.getItem(COMPANY_KEY);
   });
+  const [waitingForLink, setWaitingForLink] = useState(false);
+  const wasLinkedRef = useRef<boolean | null>(null);
 
-  const { data, isLoading } = useQuery<AosResult>({
+  const { data, isLoading, refetch, isFetching } = useQuery<AosResult>({
     queryKey: ["aos-snapshot", companyId],
     queryFn: () => fn({ data: { companyId: companyId ?? undefined } }),
     staleTime: 60_000,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
+    // While the user is finishing sign-in in another tab, poll every 4s
+    refetchInterval: waitingForLink ? 4000 : false,
   });
+
+  // Detect transition unlinked -> linked and notify the user
+  useEffect(() => {
+    if (!data || !data.ok) return;
+    const linkedNow = data.snapshot.linked;
+    if (wasLinkedRef.current === false && linkedNow) {
+      toast.success("AOS connected", {
+        description: "Your scorecard, rocks, and to-dos are now live.",
+      });
+      setWaitingForLink(false);
+    }
+    wasLinkedRef.current = linkedNow;
+  }, [data]);
 
   // Auto-select the only company if none chosen yet
   useEffect(() => {
