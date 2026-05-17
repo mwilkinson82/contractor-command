@@ -105,8 +105,10 @@ function WorkspacePicker({
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
+        title="Switch AOS workspace"
       >
-        <span className="max-w-[160px] truncate">{selected?.name ?? "Workspace"}</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Workspace:</span>
+        <span className="max-w-[160px] truncate">{selected?.name ?? "Select"}</span>
         <ChevronDown className="h-3 w-3" />
       </button>
       {open && (
