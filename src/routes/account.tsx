@@ -185,6 +185,92 @@ function AccountPage() {
         </div>
       </div>
 
+      {/* Company */}
+      <div className="mt-5 rounded-2xl border border-border bg-card p-7">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="label-mono">Company</p>
+            <h3 className="mt-2 font-display text-xl">
+              Name, address & greeting icon.
+            </h3>
+            <p className="mt-1 max-w-xl text-[13px] text-muted-foreground">
+              How Marshall greets you on the command center.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-5 md:grid-cols-2">
+          <div>
+            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+              Company name
+            </label>
+            <div className="relative mt-2">
+              <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                value={coName}
+                onChange={(e) => setCoName(e.target.value)}
+                placeholder="ACME Construction Co."
+                className="w-full rounded-md border border-border bg-background pl-10 pr-3 py-2.5 text-[14px] focus:border-ink focus:outline-none"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+              Address <span className="text-muted-foreground/60">· optional</span>
+            </label>
+            <input
+              value={coAddress}
+              onChange={(e) => setCoAddress(e.target.value)}
+              placeholder="123 Main St, Vancouver, BC"
+              className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2.5 text-[14px] focus:border-ink focus:outline-none"
+            />
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            Greeting icon
+          </label>
+          <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
+            {GREETING_ICONS.map(({ key, label, Icon }) => {
+              const active = coIcon === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setCoIcon(key)}
+                  className={`flex flex-col items-center gap-1.5 rounded-xl border px-2 py-3 transition-all ${
+                    active
+                      ? "border-ink bg-ink text-cream shadow-sm"
+                      : "border-border bg-background text-foreground/70 hover:border-foreground/40 hover:bg-muted"
+                  }`}
+                  aria-pressed={active}
+                  aria-label={label}
+                >
+                  <Icon className="h-6 w-6" />
+                  <span className="font-mono text-[9px] uppercase tracking-[0.18em]">
+                    {label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-border pt-5">
+          <button
+            onClick={saveCompany}
+            disabled={coSaving}
+            className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-cream hover:opacity-90 disabled:opacity-50"
+          >
+            {coSaving ? "Saving…" : "Save changes"}
+          </button>
+          {coMsg && (
+            <p className="text-[12px] text-foreground/70">{coMsg}</p>
+          )}
+        </div>
+      </div>
+
       {/* AOS link */}
       <div className="mt-5 rounded-2xl border border-border bg-card p-7">
         <div className="flex flex-wrap items-start justify-between gap-3">
