@@ -33,10 +33,14 @@ export type AosIssue = {
   owner?: string | null;
 };
 
+export type AosCompany = { id: string; name: string };
+
 export type AosSnapshot =
   | {
       linked: true;
+      company_id: string | null;
       company_name: string | null;
+      companies: AosCompany[];
       last_login_at: string | null;
       next_meeting: { date: string; kind: string } | null;
       scorecard: AosMeasurable[];
@@ -44,15 +48,16 @@ export type AosSnapshot =
       issues_open: AosIssue[];
       todos_due_this_week: AosTodo[];
     }
-  | { linked: false; reason: string };
+  | { linked: false; reason: string; companies?: AosCompany[] };
 
 export type AosResult =
   | { ok: true; snapshot: AosSnapshot; fetched_at: string }
   | { ok: false; error: string };
 
-export const getAosSnapshot = createServerFn({ method: "GET" })
+export const getAosSnapshot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<AosResult> => {
+  .inputValidator((input: { companyId?: string } | undefined) => input ?? {})
+  .handler(async ({ data, context }): Promise<AosResult> => {
     const baseUrl = process.env.AOS_BASE_URL;
     const secret = process.env.AOS_SHARED_SECRET;
     if (!baseUrl || !secret) {
@@ -77,7 +82,13 @@ export const getAosSnapshot = createServerFn({ method: "GET" })
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: email.toLowerCase(), ts, sig }),
+          redirect: "manual",
+          body: JSON.stringify({
+            email: email.toLowerCase(),
+            ts,
+            sig,
+            company_id: data.companyId ?? null,
+          }),
         },
       );
 
