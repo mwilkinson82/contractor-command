@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 import { getAosSnapshot, type AosResult, type AosCompany } from "@/lib/aos.functions";
 import { AOS_URL } from "@/lib/program";
 import { ArrowUpRight, Compass, Target, AlertCircle, CheckSquare, TrendingUp, ChevronDown } from "lucide-react";
@@ -13,13 +14,30 @@ export function AosPulse() {
     if (typeof window === "undefined") return null;
     return window.localStorage.getItem(COMPANY_KEY);
   });
+  const [waitingForLink, setWaitingForLink] = useState(false);
+  const wasLinkedRef = useRef<boolean | null>(null);
 
-  const { data, isLoading } = useQuery<AosResult>({
+  const { data, isLoading, refetch, isFetching } = useQuery<AosResult>({
     queryKey: ["aos-snapshot", companyId],
     queryFn: () => fn({ data: { companyId: companyId ?? undefined } }),
     staleTime: 60_000,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
+    // While the user is finishing sign-in in another tab, poll every 4s
+    refetchInterval: waitingForLink ? 4000 : false,
   });
+
+  // Detect transition unlinked -> linked and notify the user
+  useEffect(() => {
+    if (!data || !data.ok) return;
+    const linkedNow = data.snapshot.linked;
+    if (wasLinkedRef.current === false && linkedNow) {
+      toast.success("AOS connected", {
+        description: "Your scorecard, rocks, and to-dos are now live.",
+      });
+      setWaitingForLink(false);
+    }
+    wasLinkedRef.current = linkedNow;
+  }, [data]);
 
   // Auto-select the only company if none chosen yet
   useEffect(() => {
@@ -79,7 +97,16 @@ export function AosPulse() {
         ) : !data || !data.ok ? (
           <ErrorState message={data && !data.ok ? data.error : "Loading failed."} />
         ) : !data.snapshot.linked ? (
-          <UnlinkedState reason={data.snapshot.reason} />
+          <UnlinkedState
+            reason={data.snapshot.reason}
+            waiting={waitingForLink}
+            isFetching={isFetching}
+            onOpenAos={() => {
+              setWaitingForLink(true);
+              window.open(AOS_URL, "_blank", "noopener,noreferrer");
+            }}
+            onRecheck={() => refetch()}
+          />
         ) : (
           <PulseGrid snapshot={data.snapshot} />
         )}
@@ -189,22 +216,60 @@ function PulseSkeleton() {
   );
 }
 
-function UnlinkedState({ reason }: { reason: string }) {
+function UnlinkedState({
+  reason,
+  waiting,
+  isFetching,
+  onOpenAos,
+  onRecheck,
+}: {
+  reason: string;
+  waiting: boolean;
+  isFetching: boolean;
+  onOpenAos: () => void;
+  onRecheck: () => void;
+}) {
   return (
     <div className="rounded-xl border border-dashed border-border bg-background/60 p-5">
       <p className="font-display text-[15px]">Connect your AOS workspace</p>
       <p className="mt-1 text-[12px] text-muted-foreground">
         {reason ||
-          "We couldn't match your Circle email to an AOS account. Open AOS and sign in with the same email you use here — once you're in, your scorecard, rocks, and to-dos will appear in this panel automatically."}
+          "We couldn't match your Circle email to an AOS account yet. Follow the two steps below — we'll detect the connection automatically and light up this panel."}
       </p>
-      <a
-        href={AOS_URL}
-        target="_blank"
-        rel="noreferrer"
-        className="mt-3 inline-flex items-center gap-1 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90"
-      >
-        Open AOS <ArrowUpRight className="h-3 w-3" />
-      </a>
+
+      <ol className="mt-4 space-y-2 text-[12px] text-foreground/80">
+        <li className="flex gap-2">
+          <span className="font-mono text-[10px] text-muted-foreground">01</span>
+          <span>Click <b>Open AOS</b>. It opens in a new tab — keep this tab open.</span>
+        </li>
+        <li className="flex gap-2">
+          <span className="font-mono text-[10px] text-muted-foreground">02</span>
+          <span>Sign in to AOS using the <b>same email</b> you use here, then come back to this tab.</span>
+        </li>
+      </ol>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={onOpenAos}
+          className="inline-flex items-center gap-1 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90"
+        >
+          Open AOS in new tab <ArrowUpRight className="h-3 w-3" />
+        </button>
+        <button
+          type="button"
+          onClick={onRecheck}
+          className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
+        >
+          {isFetching ? "Checking…" : "I've signed in — check now"}
+        </button>
+      </div>
+
+      {waiting && (
+        <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+          Waiting for AOS sign-in · auto-checking every few seconds
+        </p>
+      )}
     </div>
   );
 }
