@@ -68,14 +68,12 @@ export function HomeHero({
           </p>
         </div>
 
-        <h1 className="reveal-up mt-8 flex flex-wrap items-center gap-3 font-display text-[2.25rem] leading-[1.05] tracking-tight sm:text-[3.25rem]">
-          <span>
-            {greeting}, {companyName}.
-          </span>
+        <h1 className="reveal-up mt-8 font-display text-[2.25rem] leading-[1.05] tracking-tight sm:text-[3.25rem]">
+          {greeting}, {companyName}.
           {greetingIcon && (
             <GreetingIcon
               iconKey={greetingIcon}
-              className="shrink-0 text-[2.5rem] sm:text-[3rem]"
+              className="ml-3 inline-block align-middle text-[2rem] sm:text-[2.75rem]"
             />
           )}
         </h1>
