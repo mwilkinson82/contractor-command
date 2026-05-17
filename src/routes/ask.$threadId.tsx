@@ -13,6 +13,8 @@ import {
   type AskMessage,
 } from "@/lib/ask.functions";
 import { ArrowUp, Plus, Trash2, MessageCircle, Check, Sparkles } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 export const Route = createFileRoute("/ask/$threadId")({
   head: () => ({
