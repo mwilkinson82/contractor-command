@@ -54,7 +54,7 @@ export type AosResult =
   | { ok: true; snapshot: AosSnapshot; fetched_at: string }
   | { ok: false; error: string };
 
-export const getAosSnapshot = createServerFn({ method: "GET" })
+export const getAosSnapshot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { companyId?: string } | undefined) => input ?? {})
   .handler(async ({ data, context }): Promise<AosResult> => {
