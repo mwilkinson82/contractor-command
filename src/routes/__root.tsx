@@ -14,6 +14,7 @@ import { useEffect } from "react";
 import appCss from "../styles.css?url";
 import { AppSidebar, AppSidebarProvider, SidebarInset } from "@/components/portal/app-sidebar";
 import { TopStrip } from "@/components/portal/top-strip";
+import { ToolDrawerProvider } from "@/components/portal/tool-drawer";
 import { useAuth } from "@/hooks/use-auth";
 import { useCompany } from "@/hooks/use-company";
 import { supabase } from "@/integrations/supabase/client";
@@ -106,15 +107,17 @@ function RootComponent() {
         {(showShell) =>
           showShell ? (
             <AppSidebarProvider>
-              <div className="bg-background text-foreground">
-                <AppSidebar />
-                <SidebarInset>
-                  <TopStrip />
-                  <main>
-                    <Outlet />
-                  </main>
-                </SidebarInset>
-              </div>
+              <ToolDrawerProvider>
+                <div className="bg-background text-foreground">
+                  <AppSidebar />
+                  <SidebarInset>
+                    <TopStrip />
+                    <main>
+                      <Outlet />
+                    </main>
+                  </SidebarInset>
+                </div>
+              </ToolDrawerProvider>
             </AppSidebarProvider>
           ) : (
             <Outlet />

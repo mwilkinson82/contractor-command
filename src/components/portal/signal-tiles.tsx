@@ -14,6 +14,7 @@ import {
   toolsByGroup,
 } from "@/lib/command-tools";
 import type { Packet } from "@/lib/vault";
+import { hasToolDrawer, useToolDrawer } from "@/components/portal/tool-drawer";
 
 type LatestBySource = Record<string, Packet | undefined>;
 
@@ -55,6 +56,8 @@ function Tile({ tool, packet }: { tool: CommandTool; packet?: Packet }) {
   const Icon = tool.icon;
   const isLive = tool.status === "live";
   const hasRun = isLive && !!packet;
+  const drawer = useToolDrawer();
+  const usesDrawer = hasToolDrawer(tool.id);
 
   const finding =
     packet && packet.kind === "command"
@@ -63,30 +66,36 @@ function Tile({ tool, packet }: { tool: CommandTool; packet?: Packet }) {
         ? packet.needsPressure
         : undefined;
 
+  const sharedClass =
+    "group relative flex h-full flex-col rounded-2xl border-2 border-border bg-transparent p-4 text-left transition-all hover:-translate-y-0.5 hover:border-foreground/25 hover:bg-card";
+
   // Live tool, never run yet
   if (isLive && !hasRun) {
-    return (
-      <Link
-        to={tool.route as "/tools/growth-constraint"}
-        className="group relative flex h-full flex-col rounded-2xl border-2 border-border bg-transparent p-4 transition-all hover:-translate-y-0.5 hover:border-foreground/25 hover:bg-card"
-      >
+    const body = (
+      <>
         <TileHeader Icon={Icon} status="ready" />
         <h3 className="mt-3 font-display text-[17px] leading-snug">{tool.name}</h3>
         <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">{tool.blurb}</p>
         <p className="mt-auto pt-3 text-[11px] font-medium text-gold">
           Not run yet — takes 4 min →
         </p>
+      </>
+    );
+    return usesDrawer ? (
+      <button type="button" onClick={() => drawer.open(tool.id)} className={sharedClass}>
+        {body}
+      </button>
+    ) : (
+      <Link to={tool.route as "/tools/growth-constraint"} className={sharedClass}>
+        {body}
       </Link>
     );
   }
 
   // Live tool, already has a packet
   if (isLive && hasRun) {
-    return (
-      <Link
-        to={tool.route as "/tools/growth-constraint"}
-        className="group relative flex h-full flex-col rounded-2xl border-2 border-border bg-transparent p-4 transition-all hover:-translate-y-0.5 hover:border-foreground/25 hover:bg-card"
-      >
+    const body = (
+      <>
         <TileHeader Icon={Icon} status="live" />
         <h3 className="mt-3 font-display text-[17px] leading-snug">{tool.name}</h3>
         <p
@@ -99,6 +108,15 @@ function Tile({ tool, packet }: { tool: CommandTool; packet?: Packet }) {
           <span className="font-mono">{relative(packet!.createdAt)}</span>
           <ArrowUpRight className="h-3 w-3 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
         </div>
+      </>
+    );
+    return usesDrawer ? (
+      <button type="button" onClick={() => drawer.open(tool.id)} className={sharedClass}>
+        {body}
+      </button>
+    ) : (
+      <Link to={tool.route as "/tools/growth-constraint"} className={sharedClass}>
+        {body}
       </Link>
     );
   }

@@ -70,8 +70,9 @@ export const COMMAND_TOOLS: CommandTool[] = [
     name: "Estimate Throughput Tracker",
     blurb: "See whether estimates are keeping up with the revenue target.",
     group: "Make more money",
-    status: "coming-next",
+    status: "live",
     icon: Calculator,
+    vaultSource: "Estimate Throughput Tracker",
   },
   {
     id: "proposal-scorecard",
