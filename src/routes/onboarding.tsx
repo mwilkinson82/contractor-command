@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useCompany, logoPublicUrl } from "@/hooks/use-company";
 import { Building2, Upload, Loader2, Image as ImageIcon } from "lucide-react";
+import { GREETING_ICONS, type GreetingIconKey } from "@/components/portal/greeting-icon";
 
 export const Route = createFileRoute("/onboarding")({
   head: () => ({ meta: [{ title: "Set up your Command Center" }] }),
