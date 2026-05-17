@@ -1,57 +1,98 @@
-## What you'll see when this ships
 
-1. **Today:** The home hero will stop saying "Start your AOS" and instead say *"We found 5 AOS workspaces under wilkinson.marshall@gmail.com — which one is this Command Center for?"* with a picker. Click ALP → it locks in forever, hero collapses, AOS Pulse lights up. This unblocks you right now.
+# Ask Marshall — the front door of the Command Center
 
-2. **One-time onboarding (first login after this ships):** A single welcoming screen — *"Let's set up your command center."* Three fields: **company name**, **company address**, **logo upload**. Skippable but nudged. Takes 30 seconds.
+Reframe: "Ask Marshall" isn't a button in the corner — it's the **hero of the home page**. When a member logs in, the first thing they see is a greeting in their company's name and a prompt box ready to talk to you. Everything we've built so far (AOS hero, signal tiles, today's move, field tools) slides below the fold, the way Lovable's dashboard puts the prompt first and recent projects underneath.
 
-3. **Everywhere after:** Top of every page reads `[logo] ACME Construction · Command Center`. The greeting moves to a smaller secondary line: *"Good afternoon, Marshall."* The sidebar brand swaps from the generic "Contractor Circle" lockup to **your** logo + company name. Browser tab title becomes *"ACME Construction · Command Center"*.
+## What the user sees on `/`
 
-4. **Account page** splits into two tabs: **Company** (logo, name, address, AOS workspace) and **You** (your name, email, password, sign out). The AOS workspace selector lives in the Company tab so it's set-and-forget.
+**Above the fold (full viewport height, minus top strip):**
 
----
+```text
+┌──────────────────────────────────────────────────────────┐
+│  TOP STRIP                                               │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│                                                          │
+│            Good afternoon, ACME Construction.            │   ← display font, large
+│            Let's talk.                                   │   ← softer subtitle
+│                                                          │
+│   ┌────────────────────────────────────────────────┐    │
+│   │ Ask Marshall anything…                       ↵ │    │   ← PromptInput
+│   └────────────────────────────────────────────────┘    │
+│                                                          │
+│   [ Pricing a job slow ]  [ PM not owning the schedule ] │   ← starter chips
+│   [ Cash is tight ]       [ I need to hire a #2 ]        │
+│                                                          │
+│                          ▼ scroll                        │
+└──────────────────────────────────────────────────────────┘
+```
 
-## Order of work (4 chunks, each shippable on its own)
+- Greeting: `{timeOfDay}, {company.name}.` — company name is the headline, not the person.
+- Tagline below: rotates between **"Let's talk."**, **"What's stuck?"**, **"Bring one issue."** (picked per-session, not animated).
+- Prompt box: AI Elements `PromptInput` + `PromptInputTextarea` + `PromptInputFooter` with submit on the right. Autofocus on page load.
+- 4 starter chips, page-context-aware. On the home page they pull from common owner pain points; on a tool result page (next pass) they'll reference the packet.
+- Submitting from the home prompt:
+  1. Creates a new thread.
+  2. Navigates to `/ask/$threadId`.
+  3. Streams the reply immediately — no extra click.
 
-### Chunk 1 — AOS workspace picker on the hero *(small, unblocks you today)*
-- Update `AosHero` to accept the `companies[]` array from the snapshot.
-- When `linked: false` *and* `companies.length > 0`: render a workspace picker instead of the "Start AOS" CTA. *"We found N AOS workspaces. Pick the one this Command Center belongs to."*
-- When `linked: false` *and* `companies.length === 0`: keep the current "Start your AOS" hero unchanged.
-- Picking a workspace writes `aos.company_id` to localStorage AND `aos_links.company_id` in the DB (new column — added in Chunk 2's migration, but Chunk 1 can ship using localStorage only).
-- Home's `useQuery` reads `aos.company_id` from localStorage and passes it as `companyId`, so it dedupes with `AosPulse` and the hero collapses immediately.
+**Below the fold (existing dashboard, lightly compressed):**
 
-### Chunk 2 — Company schema + storage bucket
-- New `companies` table: `id`, `owner_user_id` (unique — one company per user for v1), `name`, `address`, `logo_path`, `created_at`, `updated_at`. RLS: owner can read/write their row.
-- New `company-logos` storage bucket, **public read**, RLS: owner can upload/update/delete their own folder (`{user_id}/logo.*`).
-- Add `company_id` columns to `aos_links` and `vault_packets` (nullable for backfill safety). Backfill the existing row(s).
-- A small `useCompany()` hook + a `getCompany` / `upsertCompany` server fn (or direct Supabase calls — owner-scoped, RLS does the work).
+The full home page we already built — AOS hero / workspace picker, signal tiles, today's move, field tools — slides down into a second section with a soft section header ("Your command center") and the same content beneath it. Nothing is deleted; the order is preserved.
 
-### Chunk 3 — Onboarding screen + Company-centric chrome
-- New route `/onboarding` (or an inline modal on `/` first visit). Triggered when `companies` row missing OR `name` empty.
-- Fields: company name (required), address (optional), logo (optional, upload to bucket).
-- After save → redirect to `/`.
-- **Header rewrite:** Sidebar brand block + home greeting band both read from `useCompany()`. Logo on the left, company name as the primary, "Command Center" as the eyebrow, "Good afternoon, {firstName}" as the small secondary line. Browser tab title via `<head>` updates to `{company} · Command Center`.
+Scroll cue at the bottom of the hero (subtle ▼ + label) so users discover the dashboard below.
 
-### Chunk 4 — Account page split (Company / You)
-- Tabs at the top of `/account`: **Company** | **You** | **Membership**.
-- **Company**: editable name/address/logo + AOS workspace picker (pulls list from snapshot, persists to `aos_links.company_id`).
-- **You**: name, email (read-only), password change, sign out.
-- **Membership**: existing Stripe portal + billing card.
+## How threads work
 
----
+- **Slide-over is removed from the plan.** The home prompt is the entry point; full conversations live at `/ask/$threadId`.
+- `/ask` (no param) → creates a new thread and redirects.
+- `/ask` route shows: thread sidebar (collapsible) + chat window. Same components, same data as before.
+- Top strip keeps a small **"Ask Marshall"** link → goes to most recent thread, or `/ask` if none exist. Lets users get back into a conversation from any page.
+- Threads are listed in the sidebar with auto-generated titles and last-message timestamps. Pinned/saved threads can be exported to the Vault.
+
+## What changes in the build
+
+Compared to the previous plan, the only differences are presentation:
+
+- **Home page rewrite** (`src/routes/index.tsx`):
+  - New `<HomeHero />` containing greeting + `<HomePrompt />` + starter chips. Sized to `min-h-[calc(100vh-{topstrip})]`.
+  - Existing AOS hero / signal tiles / today's move / field tools move into a `<HomeDashboard />` section below, with a section divider and "Your command center" eyebrow.
+  - Scroll-cue (small chevron + label) anchored to the hero bottom.
+- **`<HomePrompt />`** (new): thin client component using AI Elements primitives. On submit, calls a `createThread` server fn, then `navigate({ to: "/ask/$threadId", params: { threadId } })` and passes the first message via router state so `/ask/$threadId` sends it immediately without a second round trip.
+- **`<StarterChips />`** (new): for v1, static array of 6–8 prompts per route. Page-context awareness lands when we wire tool-result starters.
+- **Top strip**: small text link "Ask Marshall" (no big button, no slide-over).
+- **No slide-over panel.** Drop `ask-marshall/panel.tsx`, `thread-list.tsx`, and root-shell mounting from the prior plan. The dedicated `/ask` and `/ask/$threadId` routes carry the full chat UX.
+
+Everything else from the previous plan stands as-is:
+
+- Server route `src/routes/api/ask.ts` (streaming, `toUIMessageStreamResponse`).
+- `ask_threads` / `ask_messages` / `marshall_chunks` tables with RLS.
+- Lovable AI Gateway + `google/gemini-3-flash-preview` default.
+- First-person system prompt + curated method corpus in `src/content/marshall/*.md`.
+- Replay transcript ingestion → embeddings in `marshall_chunks`.
+- Retrieval: top-6 chunks injected per turn with light citation.
+- Auto-title threads after first reply.
+- Rate limiting + 429/402 error toasts.
+- Save-to-Vault on a thread.
 
 ## Technical notes
 
-- **One company per user (v1).** Schema keeps `owner_user_id UNIQUE`. To go multi-company later, add a `company_members` join table — nothing breaks because every read already goes through `useCompany()`.
-- **Storage:** logos go to `company-logos/{user_id}/logo.{ext}`. Public bucket so `<img>` works without signed URLs. Owner-only write via storage RLS using the user-id-as-first-folder convention.
-- **AOS link:** `aos_links.company_id` becomes the source of truth; localStorage is just a hydration cache so the first paint isn't blank. If the localStorage value disagrees with the DB after fetch, DB wins.
-- **No breaking change to vault_packets** — `company_id` is added nullable and stamped on new inserts. Existing packets stay readable by `user_id`.
-- **Why a screen and not a modal** for onboarding: it's the first impression of "this is *your* company's command center" — selling that frame is worth a full screen.
+- **First-message handoff:** router state (TanStack `navigate({ state: { firstMessage } })`) is the cleanest path. `/ask/$threadId` checks for it on mount, sends it via `useChat.sendMessage`, then clears it. Falls back gracefully if a user opens the route directly.
+- **Autofocus + reduced motion:** focus the textarea on `/` mount and after the AOS hero/onboarding redirects settle. Respect `prefers-reduced-motion` for the scroll cue.
+- **Onboarding:** `useCompany().needsOnboarding` still routes to `/onboarding` before the hero ever renders.
+- **AOS hero behavior unchanged** — it just lives in the second section now. When workspaces are picked, the dashboard below the prompt becomes meaningfully populated, which is exactly the "Marshall + your business" pairing the home page promises.
+- **SEO / `head()`:** title becomes `"{company.name} · Command Center"` (already wired via `useCompany`). Add `og:title` and `og:description` accordingly.
+- **Mobile:** hero collapses to `min-h-[80vh]`, prompt remains the focal element, chips wrap to 2 columns, dashboard below stacks as today.
 
----
+## Build order (revised)
 
-## What I'll ask you mid-build (only if I hit ambiguity)
+1. Migration (tables + `vector` extension + RLS) — unchanged.
+2. System prompt + 6 starter method docs + ingest job.
+3. `/api/ask` streaming route + thread/message CRUD.
+4. `/ask` and `/ask/$threadId` chat pages (AI Elements).
+5. **Home hero rewrite**: greeting + `<HomePrompt />` + starter chips above existing dashboard.
+6. First-message handoff from home → new thread.
+7. Top strip link to most-recent thread.
+8. Save-to-Vault + auto-title + rate limiting.
 
-- For the address field — single line, or split into street/city/state/zip? My default: **single line** for v1 (faster onboarding, can split later if we ever need to format invoices/letters from it).
-- Logo upload: do you want auto-background-removal/cropping helpers, or just "upload an image, we'll display it as-is"? My default: **as-is** with a circular mask + max-height — keeps onboarding under 30 seconds.
-
-If those defaults are fine, I won't stop to ask. Approve and I'll start with Chunk 1 so AOS connects for you in this same turn, then move through 2 → 3 → 4.
+This makes the product unmistakably *Marshall's*. The first thing every member sees, every day, is an invitation to talk to you — and the rest of the operating system is right under it when they're ready.
