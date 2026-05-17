@@ -146,7 +146,7 @@ export const vault = {
           source: full.source,
           title: full.title,
           status: full.status,
-          payload: packetToPayload(full),
+          payload: packetToPayload(full) as never,
         })
         .select("id, created_at")
         .single();
