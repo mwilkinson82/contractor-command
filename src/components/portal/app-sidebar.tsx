@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   Home,
   Video,
@@ -14,8 +14,10 @@ import {
   PanelLeftClose,
   PanelLeft,
   Circle,
+  LogOut,
 } from "lucide-react";
 import { nextAny, relativeDay } from "@/lib/program";
+import { supabase } from "@/integrations/supabase/client";
 
 type Ctx = { collapsed: boolean; toggle: () => void };
 const SidebarCtx = createContext<Ctx>({ collapsed: false, toggle: () => {} });
