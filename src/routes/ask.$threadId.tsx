@@ -65,7 +65,7 @@ function AskThreadPage() {
             Conversations
           </p>
           <Link
-            to="/ask"
+            to="/ask/new"
             className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-[11px] hover:bg-muted"
           >
             <Plus className="h-3 w-3" /> New

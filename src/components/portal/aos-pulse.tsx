@@ -218,9 +218,14 @@ function PulseGrid({ snapshot }: { snapshot: Extract<AosResult, { ok: true }>["s
 function Tile({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string; sub: string }) {
   return (
     <div className="rounded-xl border border-border bg-background/60 p-4">
-      <div className="flex items-center gap-2 text-foreground/70">
+      <div className="flex items-center gap-2 text-foreground">
         {icon}
-        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">{label}</p>
+        <p
+          className="text-[15px] font-semibold leading-none"
+          style={{ fontFamily: "var(--font-serif)" }}
+        >
+          {label}
+        </p>
       </div>
       <p className="mt-3 font-display text-2xl leading-none">{value}</p>
       <p className="mt-2 truncate text-[11px] text-muted-foreground">{sub}</p>
