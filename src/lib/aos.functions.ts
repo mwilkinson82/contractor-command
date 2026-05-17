@@ -56,7 +56,8 @@ export type AosResult =
 
 export const getAosSnapshot = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<AosResult> => {
+  .inputValidator((input: { companyId?: string } | undefined) => input ?? {})
+  .handler(async ({ data, context }): Promise<AosResult> => {
     const baseUrl = process.env.AOS_BASE_URL;
     const secret = process.env.AOS_SHARED_SECRET;
     if (!baseUrl || !secret) {
@@ -81,7 +82,13 @@ export const getAosSnapshot = createServerFn({ method: "GET" })
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: email.toLowerCase(), ts, sig }),
+          redirect: "manual",
+          body: JSON.stringify({
+            email: email.toLowerCase(),
+            ts,
+            sig,
+            company_id: data.companyId ?? null,
+          }),
         },
       );
 
