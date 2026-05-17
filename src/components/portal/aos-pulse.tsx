@@ -105,8 +105,10 @@ function WorkspacePicker({
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
+        title="Switch AOS workspace"
       >
-        <span className="max-w-[160px] truncate">{selected?.name ?? "Workspace"}</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Workspace:</span>
+        <span className="max-w-[160px] truncate">{selected?.name ?? "Select"}</span>
         <ChevronDown className="h-3 w-3" />
       </button>
       {open && (
@@ -190,9 +192,10 @@ function PulseSkeleton() {
 function UnlinkedState({ reason }: { reason: string }) {
   return (
     <div className="rounded-xl border border-dashed border-border bg-background/60 p-5">
-      <p className="font-display text-[15px]">Link your AOS account</p>
+      <p className="font-display text-[15px]">Connect your AOS workspace</p>
       <p className="mt-1 text-[12px] text-muted-foreground">
-        {reason || "We couldn't find an AOS account for your email."} Sign in to AOS with the same email to connect.
+        {reason ||
+          "We couldn't match your Circle email to an AOS account. Open AOS and sign in with the same email you use here — once you're in, your scorecard, rocks, and to-dos will appear in this panel automatically."}
       </p>
       <a
         href={AOS_URL}
