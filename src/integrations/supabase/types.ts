@@ -90,6 +90,8 @@ export type Database = {
           company_id: string | null
           created_at: string
           id: string
+          summary: string | null
+          summary_message_count: number
           title: string
           updated_at: string
           user_id: string
@@ -98,6 +100,8 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           id?: string
+          summary?: string | null
+          summary_message_count?: number
           title?: string
           updated_at?: string
           user_id: string
@@ -106,6 +110,8 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           id?: string
+          summary?: string | null
+          summary_message_count?: number
           title?: string
           updated_at?: string
           user_id?: string
