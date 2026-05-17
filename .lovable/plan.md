@@ -1,108 +1,57 @@
-# Bringing AOS into the Circle (AOS Pulse)
+## What you'll see when this ships
 
-Goal: When a member signs in, the dashboard pulls their **live AOS** data
-(scorecard, rocks, issues, todos, meetings) from the ALPOS project and shows
-it as the centerpiece of the Command Center.
+1. **Today:** The home hero will stop saying "Start your AOS" and instead say *"We found 5 AOS workspaces under wilkinson.marshall@gmail.com — which one is this Command Center for?"* with a picker. Click ALP → it locks in forever, hero collapses, AOS Pulse lights up. This unblocks you right now.
 
-## Architecture
+2. **One-time onboarding (first login after this ships):** A single welcoming screen — *"Let's set up your command center."* Three fields: **company name**, **company address**, **logo upload**. Skippable but nudged. Takes 30 seconds.
 
-Two separate Lovable projects, two separate databases:
+3. **Everywhere after:** Top of every page reads `[logo] ACME Construction · Command Center`. The greeting moves to a smaller secondary line: *"Good afternoon, Marshall."* The sidebar brand swaps from the generic "Contractor Circle" lockup to **your** logo + company name. Browser tab title becomes *"ACME Construction · Command Center"*.
 
-```text
-[Circle portal]                        [AOS / ALPOS]
-  user signs in                          owns the real data
-  needs AOS data  ── HTTPS+HMAC ──▶      /api/public/circle/snapshot
-  renders dashboard                      returns JSON snapshot for that user
-```
+4. **Account page** splits into two tabs: **Company** (logo, name, address, AOS workspace) and **You** (your name, email, password, sign out). The AOS workspace selector lives in the Company tab so it's set-and-forget.
 
-We do NOT cross-query databases. Circle asks AOS over the network, signed
-with a shared secret, scoped to one user at a time.
+---
 
-## Step 1 — Add the snapshot endpoint in AOS (ALPOS project)
+## Order of work (4 chunks, each shippable on its own)
 
-I'll prepare the code; you paste it into the ALPOS project (I can't write
-to it from here). It's one file:
+### Chunk 1 — AOS workspace picker on the hero *(small, unblocks you today)*
+- Update `AosHero` to accept the `companies[]` array from the snapshot.
+- When `linked: false` *and* `companies.length > 0`: render a workspace picker instead of the "Start AOS" CTA. *"We found N AOS workspaces. Pick the one this Command Center belongs to."*
+- When `linked: false` *and* `companies.length === 0`: keep the current "Start your AOS" hero unchanged.
+- Picking a workspace writes `aos.company_id` to localStorage AND `aos_links.company_id` in the DB (new column — added in Chunk 2's migration, but Chunk 1 can ship using localStorage only).
+- Home's `useQuery` reads `aos.company_id` from localStorage and passes it as `companyId`, so it dedupes with `AosPulse` and the hero collapses immediately.
 
-`src/routes/api/public/circle.snapshot.ts`
+### Chunk 2 — Company schema + storage bucket
+- New `companies` table: `id`, `owner_user_id` (unique — one company per user for v1), `name`, `address`, `logo_path`, `created_at`, `updated_at`. RLS: owner can read/write their row.
+- New `company-logos` storage bucket, **public read**, RLS: owner can upload/update/delete their own folder (`{user_id}/logo.*`).
+- Add `company_id` columns to `aos_links` and `vault_packets` (nullable for backfill safety). Backfill the existing row(s).
+- A small `useCompany()` hook + a `getCompany` / `upsertCompany` server fn (or direct Supabase calls — owner-scoped, RLS does the work).
 
-- `POST { email, ts, sig }` where `sig = HMAC_SHA256(email|ts, CIRCLE_SHARED_SECRET)`
-- Rejects requests older than 5 minutes (replay protection)
-- Looks up the AOS user by email → returns:
-  - `scorecard`: last 4 weeks per-measurable with status (on/off track)
-  - `rocks`: this quarter's rocks with % complete and on/off-track
-  - `issues_open`: count + top 3
-  - `todos_due_this_week`: count + top 3
-  - `next_meeting`: date + type (L10, quarterly, annual)
-  - `last_login_at`
-- Adds secret `CIRCLE_SHARED_SECRET` to ALPOS
+### Chunk 3 — Onboarding screen + Company-centric chrome
+- New route `/onboarding` (or an inline modal on `/` first visit). Triggered when `companies` row missing OR `name` empty.
+- Fields: company name (required), address (optional), logo (optional, upload to bucket).
+- After save → redirect to `/`.
+- **Header rewrite:** Sidebar brand block + home greeting band both read from `useCompany()`. Logo on the left, company name as the primary, "Command Center" as the eyebrow, "Good afternoon, {firstName}" as the small secondary line. Browser tab title via `<head>` updates to `{company} · Command Center`.
 
-If the email isn't in AOS yet, endpoint returns `{ linked: false }` and the
-Circle shows a "Link your AOS account" CTA instead.
+### Chunk 4 — Account page split (Company / You)
+- Tabs at the top of `/account`: **Company** | **You** | **Membership**.
+- **Company**: editable name/address/logo + AOS workspace picker (pulls list from snapshot, persists to `aos_links.company_id`).
+- **You**: name, email (read-only), password change, sign out.
+- **Membership**: existing Stripe portal + billing card.
 
-## Step 2 — Circle-side server function
+---
 
-`src/lib/aos.functions.ts` → `getAosSnapshot()`:
+## Technical notes
 
-- Requires Supabase auth
-- Reads `aos_links` row for the user (email-match by default, link-code
-  fallback — we already built this)
-- Calls AOS `/api/public/circle/snapshot` with HMAC
-- Returns a typed DTO to the client
-- Caches per-user for 60s to keep the dashboard snappy
-- Records `last_sync_at` and any sync errors on `aos_links`
+- **One company per user (v1).** Schema keeps `owner_user_id UNIQUE`. To go multi-company later, add a `company_members` join table — nothing breaks because every read already goes through `useCompany()`.
+- **Storage:** logos go to `company-logos/{user_id}/logo.{ext}`. Public bucket so `<img>` works without signed URLs. Owner-only write via storage RLS using the user-id-as-first-folder convention.
+- **AOS link:** `aos_links.company_id` becomes the source of truth; localStorage is just a hydration cache so the first paint isn't blank. If the localStorage value disagrees with the DB after fetch, DB wins.
+- **No breaking change to vault_packets** — `company_id` is added nullable and stamped on new inserts. Existing packets stay readable by `user_id`.
+- **Why a screen and not a modal** for onboarding: it's the first impression of "this is *your* company's command center" — selling that frame is worth a full screen.
 
-Secrets to add in Circle:
-- `AOS_BASE_URL` = `https://eos-builder-buddy.lovable.app`
-- `AOS_SHARED_SECRET` (same value as ALPOS)
+---
 
-## Step 3 — Make AOS the dashboard centerpiece
+## What I'll ask you mid-build (only if I hit ambiguity)
 
-Rebuild the home (`/`) layout around AOS Pulse:
+- For the address field — single line, or split into street/city/state/zip? My default: **single line** for v1 (faster onboarding, can split later if we ever need to format invoices/letters from it).
+- Logo upload: do you want auto-background-removal/cropping helpers, or just "upload an image, we'll display it as-is"? My default: **as-is** with a circular mask + max-height — keeps onboarding under 30 seconds.
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│  Hello, {first name}     ·     Week of {Mon date}            │
-│                                                              │
-│  ╔════════════ AOS PULSE ═════════════╗   ┌─ Next session ┐ │
-│  ║ Scorecard (4-week strip)            ║   │ Date · Topic  │ │
-│  ║ ▮▮▯▮  ▮▮▮▮  ▯▯▮▮  ▮▮▮▮              ║   └───────────────┘ │
-│  ║                                     ║   ┌─ Open issues ┐ │
-│  ║ Quarterly Rocks       3 / 5 on-track║   │ count · top 1 │ │
-│  ║ ────────── 60% ─────                ║   └───────────────┘ │
-│  ║                                     ║   ┌─ Todos due    ┐ │
-│  ║ [Open AOS →]                        ║   │ count · top 1 │ │
-│  ╚═════════════════════════════════════╝   └───────────────┘ │
-│                                                              │
-│  Tools · Templates · Vault · Community  (mini-rows)          │
-└─────────────────────────────────────────────────────────────┘
-```
-
-Empty / unlinked states:
-- **Not linked yet** → AOS Pulse becomes a "Link your AOS account" panel
-  pointing to `/account`.
-- **Linked, no data yet** → "AOS is connected. Add your first rock to see
-  your dashboard light up." with a direct link into AOS.
-- **Sync failed** → muted error strip with "Retry" and timestamp.
-
-A dedicated `/aos` route gets the full breakdown (per-measurable charts,
-all rocks, all issues, all todos), with deep links back into the AOS app.
-
-## Step 4 — Polish + go-live readiness
-
-- Loading skeletons matching the editorial layout (no spinners).
-- "Last synced 2m ago · refresh" affordance.
-- Sidebar shows AOS status dot (green/yellow/red) so members can tell at a
-  glance whether the bridge is healthy.
-- Sign-out path tested.
-- Auth emails still using Lovable defaults — fine for go-live; we can
-  brand them later via the email-templates scaffold.
-
-## What I need from you
-
-1. Approve adding the two Circle secrets (`AOS_BASE_URL`,
-   `AOS_SHARED_SECRET`) — I'll prompt the secret entry when you say go.
-2. After I generate the snapshot endpoint code, paste it into the ALPOS
-   project and add `CIRCLE_SHARED_SECRET` there (same value).
-
-Once both sides are wired, the dashboard goes live with real per-member
-AOS data. Ready to start with Step 1?
+If those defaults are fine, I won't stop to ask. Approve and I'll start with Chunk 1 so AOS connects for you in this same turn, then move through 2 → 3 → 4.
