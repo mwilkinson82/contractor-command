@@ -24,11 +24,56 @@ type AosLink = {
 
 function AccountPage() {
   const { user } = useAuth();
+  const { company, refetch: refetchCompany } = useCompany();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [link, setLink] = useState<AosLink | null>(null);
   const [code, setCode] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+
+  // Company edit state
+  const [coName, setCoName] = useState("");
+  const [coAddress, setCoAddress] = useState("");
+  const [coIcon, setCoIcon] = useState<GreetingIconKey>("wave");
+  const [coSaving, setCoSaving] = useState(false);
+  const [coMsg, setCoMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!company) return;
+    setCoName(company.name ?? "");
+    setCoAddress(company.address ?? "");
+    if (company.greeting_icon) {
+      setCoIcon(company.greeting_icon as GreetingIconKey);
+    }
+  }, [company]);
+
+  async function saveCompany() {
+    if (!user) return;
+    const trimmed = coName.trim();
+    if (!trimmed) {
+      setCoMsg("Company name is required.");
+      return;
+    }
+    setCoSaving(true);
+    setCoMsg(null);
+    const { error } = await supabase
+      .from("companies")
+      .upsert(
+        {
+          owner_user_id: user.id,
+          name: trimmed,
+          address: coAddress.trim() || null,
+          greeting_icon: coIcon,
+        },
+        { onConflict: "owner_user_id" },
+      );
+    if (error) setCoMsg(error.message);
+    else {
+      await refetchCompany();
+      setCoMsg("Saved.");
+    }
+    setCoSaving(false);
+  }
 
   useEffect(() => {
     if (!user) return;
