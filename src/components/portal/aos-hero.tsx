@@ -2,19 +2,27 @@
 // isn't yet linked to an AOS workspace. AOS is the stickiest thing in
 // the program — until it's running, the Command Center can't actually
 // read the business, so the home page should be dominated by this hook.
+//
+// When AOS already knows about the user but they have multiple
+// workspaces, this turns into a workspace picker instead.
 
 import { useState } from "react";
 import { AOS_URL } from "@/lib/program";
-import { ArrowUpRight, Compass, Sparkles } from "lucide-react";
+import type { AosCompany } from "@/lib/aos.functions";
+import { ArrowUpRight, Compass, Sparkles, Building2 } from "lucide-react";
 
 export function AosHero({
   previouslyLinked,
   isChecking,
   onRecheck,
+  companies = [],
+  onPickCompany,
 }: {
   previouslyLinked: boolean;
   isChecking: boolean;
   onRecheck: () => void;
+  companies?: AosCompany[];
+  onPickCompany?: (id: string) => void;
 }) {
   const [opened, setOpened] = useState(false);
 
@@ -22,6 +30,10 @@ export function AosHero({
     setOpened(true);
     window.open(AOS_URL, "_blank", "noopener,noreferrer");
   };
+
+  // When AOS knows the user but multiple workspaces exist, show the picker
+  // instead of the "Start AOS" CTA — they're already running it.
+  const showPicker = companies.length > 0 && !!onPickCompany;
 
   return (
     <section className="relative overflow-hidden rounded-3xl bg-ink text-cream shadow-[var(--shadow-focus)]">
@@ -45,41 +57,67 @@ export function AosHero({
         <div className="lg:col-span-7">
           <p className="label-mono !text-cream/55">
             <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-gold align-middle animate-signal-pulse" />
-            {previouslyLinked ? "Reconnect AOS" : "Step 01 · The operating system"}
+            {showPicker
+              ? `Step 02 · Pick your workspace`
+              : previouslyLinked
+              ? "Reconnect AOS"
+              : "Step 01 · The operating system"}
           </p>
 
           <h1 className="mt-5 font-display text-[2.25rem] leading-[1.04] tracking-tight text-cream sm:text-[3.25rem]">
-            {previouslyLinked
+            {showPicker
+              ? `We found ${companies.length} AOS workspace${companies.length === 1 ? "" : "s"} for you.`
+              : previouslyLinked
               ? "Your AOS session needs a refresh."
               : "Your business isn't visible yet."}
           </h1>
 
           <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-cream/75">
-            {previouslyLinked
+            {showPicker
+              ? "Pick the workspace this Command Center belongs to. We'll lock it in for next time — you won't see this again."
+              : previouslyLinked
               ? "We've connected your AOS before. Open it, sign back in, and we'll relight the Command Center automatically."
               : "AOS is where the business becomes legible — scorecard, rocks, issues, weekly L10. Until it's running, the Command Center is flying blind. Start it now and every tile on this page comes alive."}
           </p>
 
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={openAos}
-              className="inline-flex items-center gap-2 rounded-md bg-gold px-5 py-3 text-[14px] font-medium text-ink hover:opacity-90"
-            >
-              <Compass className="h-4 w-4" />
-              {previouslyLinked ? "Open AOS to refresh" : "Start your AOS"}
-              <ArrowUpRight className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={onRecheck}
-              className="inline-flex items-center gap-2 rounded-md border border-cream/20 px-4 py-3 text-[13px] text-cream/85 hover:bg-cream/5"
-            >
-              {isChecking ? "Checking…" : opened ? "I've signed in — check now" : "Already started? Check now"}
-            </button>
-          </div>
+          {showPicker ? (
+            <ul className="mt-7 grid gap-2 sm:grid-cols-2">
+              {companies.map((c) => (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    onClick={() => onPickCompany?.(c.id)}
+                    className="group flex w-full items-center gap-3 rounded-md border border-cream/15 bg-cream/[0.04] px-4 py-3 text-left text-[13px] text-cream/90 hover:border-gold/60 hover:bg-cream/[0.08]"
+                  >
+                    <Building2 className="h-4 w-4 shrink-0 text-cream/60 group-hover:text-gold" />
+                    <span className="flex-1 truncate">{c.name}</span>
+                    <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-cream/40 group-hover:text-gold" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={openAos}
+                className="inline-flex items-center gap-2 rounded-md bg-gold px-5 py-3 text-[14px] font-medium text-ink hover:opacity-90"
+              >
+                <Compass className="h-4 w-4" />
+                {previouslyLinked ? "Open AOS to refresh" : "Start your AOS"}
+                <ArrowUpRight className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={onRecheck}
+                className="inline-flex items-center gap-2 rounded-md border border-cream/20 px-4 py-3 text-[13px] text-cream/85 hover:bg-cream/5"
+              >
+                {isChecking ? "Checking…" : opened ? "I've signed in — check now" : "Already started? Check now"}
+              </button>
+            </div>
+          )}
 
-          {opened && (
+          {opened && !showPicker && (
             <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.22em] text-cream/55">
               Waiting for AOS · auto-checking every few seconds
             </p>
