@@ -146,6 +146,26 @@ export const expressIntensiveInterest = createServerFn({ method: "POST" })
     return { ok: true, alreadyOpen: false };
   });
 
+export const DAILY_ASK_LIMIT = 30;
+
+export const getDailyAskUsage = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(
+    async ({ context }): Promise<{ used: number; limit: number; remaining: number }> => {
+      const { supabase } = context;
+      const startOfDay = new Date();
+      startOfDay.setUTCHours(0, 0, 0, 0);
+      const { count } = await supabase
+        .from("ask_messages")
+        .select("id", { count: "exact", head: true })
+        .eq("role", "user")
+        .gte("created_at", startOfDay.toISOString());
+      const used = count ?? 0;
+      const limit = DAILY_ASK_LIMIT;
+      return { used, limit, remaining: Math.max(0, limit - used) };
+    },
+  );
+
 export const deleteThread = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(z.object({ threadId: z.string().uuid() }).parse)
