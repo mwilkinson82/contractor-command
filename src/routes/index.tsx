@@ -12,6 +12,7 @@ import {
 } from "@/lib/program";
 import { vault, type Packet } from "@/lib/vault";
 import { GridField } from "@/components/portal/grid-field";
+import { AosPulse } from "@/components/portal/aos-pulse";
 import {
   ArrowUpRight,
   Calendar,
@@ -109,6 +110,8 @@ function HomePage() {
       {/* Live tiles */}
       <section className="relative px-6 pb-10">
         <div className="mx-auto grid w-full max-w-[1180px] gap-4 md:grid-cols-3">
+          {/* AOS Pulse — centerpiece */}
+          <AosPulse />
           {/* Next session — ink panel */}
           <article className="relative overflow-hidden rounded-2xl bg-ink p-6 text-cream md:col-span-2 shadow-[var(--shadow-focus)]">
             <div className="pointer-events-none absolute inset-0 opacity-[0.06]" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, var(--cream) 1px, transparent 0)", backgroundSize: "22px 22px" }} />
