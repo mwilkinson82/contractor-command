@@ -6,7 +6,7 @@ export function TopStrip() {
     <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-4 border-b border-border/70 bg-background/70 px-6 backdrop-blur-md">
       <div className="flex items-center gap-3">
         <p
-          className="text-[14px] italic text-muted-foreground"
+          className="text-[14px] text-muted-foreground"
           style={{ fontFamily: "var(--font-serif)" }}
         >
           <span className="text-signal">●</span> Live · Contractor Circle
