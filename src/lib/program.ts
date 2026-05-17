@@ -101,7 +101,7 @@ export function relativeDay(iso: string): string {
   const days = Math.round(ms / 86_400_000);
   if (days === 0) return "today";
   if (days === 1) return "tomorrow";
-  if (days > 1 && days < 7) return `in ${days} days`;
+  if (days > 1 && days <= 14) return `in ${days} days`;
   if (days < 0) return "now";
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
