@@ -44,6 +44,8 @@ const COMPANY_KEY = "aos.company_id";
 function HomePage() {
   const session = nextAny();
   const latestReplay = REPLAYS[0];
+  const { company } = useCompany();
+  const { user } = useAuth();
 
   const [hello, setHello] = useState<string>("Welcome");
   const [today, setToday] = useState<string>("");
@@ -51,6 +53,12 @@ function HomePage() {
   const [replayDate, setReplayDate] = useState<string>("");
   const [packets, setPackets] = useState<Packet[]>([]);
   const [companyId, setCompanyId] = useState<string | null>(null);
+
+  const firstName =
+    (user?.user_metadata?.full_name as string | undefined)?.split(" ")[0] ||
+    user?.email?.split("@")[0] ||
+    "there";
+  const companyName = company?.name?.trim() || "Your Command Center";
 
   // Hydrate company id from localStorage (avoids SSR mismatch)
   useEffect(() => {
