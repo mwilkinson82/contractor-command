@@ -50,8 +50,8 @@ export function EstimateThroughputTool({ onClose }: { onClose: () => void }) {
     setSavedId(null);
   }
 
-  async function savePacket() {
-    const id = await vault.save({
+  function savePacket() {
+    const saved = vault.save({
       kind: "command",
       source: "Estimate Throughput Tracker",
       title: result.headline,
@@ -70,9 +70,8 @@ export function EstimateThroughputTool({ onClose }: { onClose: () => void }) {
           : "Where do you actually lose the estimating hours each week?",
       intensiveRecommended: result.status === "short",
       inputs: { ...inputs },
-      status: "Open",
-    } as Parameters<typeof vault.save>[0]);
-    setSavedId(id);
+    });
+    setSavedId(saved.id);
   }
 
   return (
