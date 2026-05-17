@@ -130,18 +130,12 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
 
       // Persist the link the first time we confirm it (and refresh last_sync_at)
       if (snapshot.linked) {
-        const companyId =
-          data.companyId ??
-          snapshot.company_id ??
-          snapshot.companies?.[0]?.id ??
-          null;
         await supabase.from("aos_links").upsert(
           {
             user_id: userId,
             aos_email: normalizedEmail,
             verified_at: existingLink?.verified_at ?? new Date().toISOString(),
             last_sync_at: new Date().toISOString(),
-            link_code: companyId,
           },
           { onConflict: "user_id" },
         );
