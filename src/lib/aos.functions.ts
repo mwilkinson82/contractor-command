@@ -33,10 +33,14 @@ export type AosIssue = {
   owner?: string | null;
 };
 
+export type AosCompany = { id: string; name: string };
+
 export type AosSnapshot =
   | {
       linked: true;
+      company_id: string | null;
       company_name: string | null;
+      companies: AosCompany[];
       last_login_at: string | null;
       next_meeting: { date: string; kind: string } | null;
       scorecard: AosMeasurable[];
@@ -44,7 +48,7 @@ export type AosSnapshot =
       issues_open: AosIssue[];
       todos_due_this_week: AosTodo[];
     }
-  | { linked: false; reason: string };
+  | { linked: false; reason: string; companies?: AosCompany[] };
 
 export type AosResult =
   | { ok: true; snapshot: AosSnapshot; fetched_at: string }
