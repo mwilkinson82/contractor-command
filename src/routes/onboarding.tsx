@@ -27,6 +27,7 @@ function OnboardingPage() {
   const [address, setAddress] = useState("");
   const [logoPath, setLogoPath] = useState<string | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [greetingIcon, setGreetingIcon] = useState<GreetingIconKey>("wave");
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
