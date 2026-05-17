@@ -116,7 +116,7 @@ export const Route = createFileRoute("/api/ask")({
               ) {
                 try {
                   const titleRes = await generateText({
-                    model,
+                    model: utilityModel,
                     prompt: `Summarize this construction-business question as a 3–6 word title, no quotes, no punctuation at the end. Question: "${lastUserText.slice(0, 400)}"`,
                   });
                   const title = titleRes.text.trim().replace(/^["']|["']$/g, "").slice(0, 80);
