@@ -281,17 +281,17 @@ function HomePage() {
       {/* Signal tiles — every command tool, live or coming */}
       <section className="relative px-6 pb-16">
         <div className="mx-auto w-full max-w-[1180px]">
-          <div className="mb-5 flex items-end justify-between gap-3">
-            <div>
-              <p className="label-mono">Instrument panel</p>
-              <h2 className="mt-2 font-display text-2xl">Command tools</h2>
+          <div className="mb-5">
+            <p className="label-mono">Instrument panel</p>
+            <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-2">
+              <h2 className="font-display text-2xl">Command tools</h2>
+              <Link
+                to="/vault"
+                className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 font-serif italic text-[13px] text-cream hover:opacity-90"
+              >
+                <Archive className="h-3 w-3" /> Company Vault
+              </Link>
             </div>
-            <Link
-              to="/vault"
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
-            >
-              <Archive className="h-3 w-3" /> Company Vault
-            </Link>
           </div>
           <SignalTiles packets={packets} />
         </div>

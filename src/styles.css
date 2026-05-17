@@ -14,7 +14,7 @@
 
 @theme inline {
   --font-sans: "Helvetica Neue", Helvetica, Arial, "Liberation Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Helvetica Neue", Helvetica, Arial, "Liberation Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Instrument Serif", ui-serif, Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
 
@@ -133,8 +133,8 @@
   }
   h1, h2, h3, .font-display {
     font-family: var(--font-display);
-    font-weight: 500;
-    letter-spacing: -0.02em;
+    font-weight: 400;
+    letter-spacing: -0.01em;
   }
   .font-mono, .mono {
     font-family: var(--font-mono);
