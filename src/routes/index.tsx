@@ -126,9 +126,8 @@ function HomePage() {
           | undefined}
       />
 
-      {/* Section divider — everything below is the dashboard */}
-      <section className="relative border-t border-border/60 px-6 pt-10 pb-2">
-        <GridField />
+      {/* Command center band — flows from hero, no hard divider */}
+      <section className="relative px-6 pt-8 pb-2">
         <div className="relative mx-auto w-full max-w-[1180px]">
           <p className="label-mono">Your command center</p>
           <h2 className="mt-2 font-display text-[1.75rem] leading-tight">
