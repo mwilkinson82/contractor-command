@@ -206,7 +206,7 @@ function ChatPane({
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-3.5rem)] flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-8 sm:px-8">
         <div className="mx-auto w-full max-w-[760px] space-y-6">
           {messages.length === 0 && (
