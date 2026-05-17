@@ -119,6 +119,15 @@ export function HomeHero({
             </button>
           ))}
         </div>
+
+        <p
+          className="reveal-up mt-6 max-w-[640px] text-[11px] leading-relaxed text-muted-foreground"
+          style={{ animationDelay: "420ms" }}
+        >
+          You're talking to me. This is trained on my own playbooks, SOPs, field
+          notes, and the lessons from $2.5B in built work — not a generic
+          chatbot wearing my name.
+        </p>
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 bottom-6 flex justify-center">
