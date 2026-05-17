@@ -234,6 +234,7 @@ function ChatPane({
           {messages.map((m) => (
             <MessageBubble key={m.id} message={m} threadId={threadId} />
           ))}
+          {busy && <ProcessingSteps messages={messages} status={status} />}
           {error && (
             <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-[13px] text-destructive">
               {String(error.message || error)}
