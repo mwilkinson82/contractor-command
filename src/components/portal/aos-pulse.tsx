@@ -99,6 +99,7 @@ export function AosPulse() {
         ) : !data.snapshot.linked ? (
           <UnlinkedState
             reason={data.snapshot.reason}
+            previouslyLinked={data.previously_linked}
             waiting={waitingForLink}
             isFetching={isFetching}
             onOpenAos={() => {
