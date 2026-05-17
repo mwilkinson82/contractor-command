@@ -12,7 +12,7 @@ import {
   expressIntensiveInterest,
   type AskMessage,
 } from "@/lib/ask.functions";
-import { ArrowUp, Plus, Trash2, MessageCircle, Check, Sparkles, Megaphone, Copy } from "lucide-react";
+import { ArrowUp, Plus, Trash2, MessageCircle, Check, Sparkles, Megaphone, Copy, BookOpen, Brain, Wand2, CheckCircle2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
