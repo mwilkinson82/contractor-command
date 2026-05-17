@@ -54,6 +54,7 @@ const GROUPS: Group[] = [
     label: "Daily",
     items: [
       { to: "/", label: "Home", icon: Home },
+      { to: "/ask", label: "Ask Marshall", icon: Megaphone, match: "/ask" },
       { to: "/aos", label: "AOS", icon: Compass },
       { to: "/calls", label: "Calls", icon: Video },
       { to: "/community", label: "Community", icon: MessagesSquare },
