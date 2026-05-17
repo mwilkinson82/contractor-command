@@ -22,8 +22,10 @@ import { Route as CallsRouteImport } from './routes/calls'
 import { Route as AosRouteImport } from './routes/aos'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AskIndexRouteImport } from './routes/ask.index'
 import { Route as ToolsOwnerDependencyRouteImport } from './routes/tools.owner-dependency'
 import { Route as ToolsGrowthConstraintRouteImport } from './routes/tools.growth-constraint'
+import { Route as AskThreadIdRouteImport } from './routes/ask.$threadId'
 import { Route as ApiAskRouteImport } from './routes/api/ask'
 
 const WorkWithMarshallRoute = WorkWithMarshallRouteImport.update({
@@ -91,6 +93,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AskIndexRoute = AskIndexRouteImport.update({
+  id: '/ask/',
+  path: '/ask/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ToolsOwnerDependencyRoute = ToolsOwnerDependencyRouteImport.update({
   id: '/owner-dependency',
   path: '/owner-dependency',
@@ -100,6 +107,11 @@ const ToolsGrowthConstraintRoute = ToolsGrowthConstraintRouteImport.update({
   id: '/growth-constraint',
   path: '/growth-constraint',
   getParentRoute: () => ToolsRoute,
+} as any)
+const AskThreadIdRoute = AskThreadIdRouteImport.update({
+  id: '/ask/$threadId',
+  path: '/ask/$threadId',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAskRoute = ApiAskRouteImport.update({
   id: '/api/ask',
@@ -122,8 +134,10 @@ export interface FileRoutesByFullPath {
   '/vault': typeof VaultRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/api/ask': typeof ApiAskRoute
+  '/ask/$threadId': typeof AskThreadIdRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
   '/tools/owner-dependency': typeof ToolsOwnerDependencyRoute
+  '/ask/': typeof AskIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -140,8 +154,10 @@ export interface FileRoutesByTo {
   '/vault': typeof VaultRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/api/ask': typeof ApiAskRoute
+  '/ask/$threadId': typeof AskThreadIdRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
   '/tools/owner-dependency': typeof ToolsOwnerDependencyRoute
+  '/ask': typeof AskIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -159,8 +175,10 @@ export interface FileRoutesById {
   '/vault': typeof VaultRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/api/ask': typeof ApiAskRoute
+  '/ask/$threadId': typeof AskThreadIdRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
   '/tools/owner-dependency': typeof ToolsOwnerDependencyRoute
+  '/ask/': typeof AskIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -179,8 +197,10 @@ export interface FileRouteTypes {
     | '/vault'
     | '/work-with-marshall'
     | '/api/ask'
+    | '/ask/$threadId'
     | '/tools/growth-constraint'
     | '/tools/owner-dependency'
+    | '/ask/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -197,8 +217,10 @@ export interface FileRouteTypes {
     | '/vault'
     | '/work-with-marshall'
     | '/api/ask'
+    | '/ask/$threadId'
     | '/tools/growth-constraint'
     | '/tools/owner-dependency'
+    | '/ask'
   id:
     | '__root__'
     | '/'
@@ -215,8 +237,10 @@ export interface FileRouteTypes {
     | '/vault'
     | '/work-with-marshall'
     | '/api/ask'
+    | '/ask/$threadId'
     | '/tools/growth-constraint'
     | '/tools/owner-dependency'
+    | '/ask/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -234,6 +258,8 @@ export interface RootRouteChildren {
   VaultRoute: typeof VaultRoute
   WorkWithMarshallRoute: typeof WorkWithMarshallRoute
   ApiAskRoute: typeof ApiAskRoute
+  AskThreadIdRoute: typeof AskThreadIdRoute
+  AskIndexRoute: typeof AskIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -329,6 +355,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ask/': {
+      id: '/ask/'
+      path: '/ask'
+      fullPath: '/ask/'
+      preLoaderRoute: typeof AskIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tools/owner-dependency': {
       id: '/tools/owner-dependency'
       path: '/owner-dependency'
@@ -342,6 +375,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/tools/growth-constraint'
       preLoaderRoute: typeof ToolsGrowthConstraintRouteImport
       parentRoute: typeof ToolsRoute
+    }
+    '/ask/$threadId': {
+      id: '/ask/$threadId'
+      path: '/ask/$threadId'
+      fullPath: '/ask/$threadId'
+      preLoaderRoute: typeof AskThreadIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/ask': {
       id: '/api/ask'
@@ -380,6 +420,8 @@ const rootRouteChildren: RootRouteChildren = {
   VaultRoute: VaultRoute,
   WorkWithMarshallRoute: WorkWithMarshallRoute,
   ApiAskRoute: ApiAskRoute,
+  AskThreadIdRoute: AskThreadIdRoute,
+  AskIndexRoute: AskIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
