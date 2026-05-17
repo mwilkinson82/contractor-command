@@ -152,20 +152,44 @@ function HomePage() {
         </section>
       )}
 
-      {/* Today's move + AOS pulse row (when connected) */}
-      <section className="relative px-6 pb-10">
+      {/* EOS Pulse first — anchor of the dashboard */}
+      {aosLinked && (
+        <section className="relative px-6 pb-6">
+          <div className="mx-auto w-full max-w-[1180px]">
+            <AosPulse />
+          </div>
+        </section>
+      )}
+
+      {/* Today's move (2/3) + Next call (1/3) */}
+      <section className="relative px-6 pb-6">
         <div className="mx-auto grid w-full max-w-[1180px] gap-4 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <TodaysMove packets={packets} />
           </div>
           <article className="relative overflow-hidden rounded-2xl border border-border bg-card p-5">
-            <p className="label-mono">Next session</p>
+            <p className="label-mono">Next {session.kind === "Biweekly Call" ? "bi-weekly call" : "bootcamp"}</p>
             <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-signal align-middle mr-2 animate-signal-pulse" />
-              {session.kind} · {relativeDay(session.date)}
+              {relativeDay(session.date)} · every other Sunday
             </p>
             <h3 className="mt-3 font-display text-[18px] leading-snug">{session.title}</h3>
             <p className="mt-2 text-[12px] text-muted-foreground">{sessionWhen || "\u00A0"}</p>
+
+            {session.agenda && session.agenda.length > 0 && (
+              <div className="mt-4 rounded-lg border border-border/70 bg-background/50 p-3">
+                <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground">Agenda</p>
+                <ul className="mt-2 space-y-1.5">
+                  {session.agenda.map((item, i) => (
+                    <li key={i} className="flex gap-2 text-[12px] text-foreground/85 leading-snug">
+                      <span className="font-mono text-[10px] text-muted-foreground mt-0.5">{String(i + 1).padStart(2, "0")}</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <div className="mt-5 flex flex-wrap gap-2">
               <a
                 href={session.zoomUrl}
@@ -181,21 +205,46 @@ function HomePage() {
                 rel="noreferrer"
                 className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
               >
-                <Calendar className="h-3 w-3" /> Add
+                <Calendar className="h-3 w-3" /> Add to calendar
               </a>
             </div>
           </article>
         </div>
       </section>
 
-      {/* AOS Pulse — full read when connected */}
-      {aosLinked && (
-        <section className="relative px-6 pb-10">
-          <div className="mx-auto w-full max-w-[1180px]">
-            <AosPulse />
-          </div>
-        </section>
-      )}
+      {/* Open issues — submit topics for next call / bootcamp */}
+      <section className="relative px-6 pb-10">
+        <div className="mx-auto w-full max-w-[1180px]">
+          <article className="relative overflow-hidden rounded-2xl border border-dashed border-border bg-card/60 p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="max-w-[640px]">
+                <p className="label-mono">Open issues — your queue for the room</p>
+                <h3 className="mt-2 font-display text-[18px] leading-snug">
+                  Submit a topic for the bi-weekly call or bootcamp.
+                </h3>
+                <p className="mt-2 text-[12px] text-muted-foreground">
+                  Bring one issue that's stuck. Marshall picks two or three per call to work live. Anything you submit also feeds the bootcamp shortlist.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  to="/calls"
+                  hash="submit-topic"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90"
+                >
+                  Submit a topic <ArrowUpRight className="h-3 w-3" />
+                </Link>
+                <Link
+                  to="/calls"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/70 px-3 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
+                >
+                  See submitted
+                </Link>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
 
       {/* Signal tiles — every command tool, live or coming */}
       <section className="relative px-6 pb-10">

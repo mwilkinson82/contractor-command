@@ -119,7 +119,7 @@ export function HomeHero({
         </form>
 
         <div
-          className="reveal-up mt-5 flex flex-wrap gap-2"
+          className="reveal-up mt-5 flex flex-wrap justify-center gap-2"
           style={{ animationDelay: "320ms" }}
         >
           {STARTERS.map((s) => (
