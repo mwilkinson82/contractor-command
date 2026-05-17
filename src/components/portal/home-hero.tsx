@@ -122,7 +122,8 @@ export function HomeHero({
               type="button"
               onClick={() => void send(s)}
               disabled={busy}
-              className="rounded-full border border-border bg-card px-3 py-1.5 text-[12px] text-foreground/80 transition-colors hover:bg-muted disabled:opacity-50"
+              className="rounded-full border border-border bg-card px-3.5 py-1.5 text-[14px] italic text-foreground/85 transition-colors hover:bg-muted disabled:opacity-50"
+              style={{ fontFamily: "var(--font-serif)" }}
             >
               {s}
             </button>
