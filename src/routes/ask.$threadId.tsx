@@ -315,11 +315,8 @@ function MessageBubble({ message, threadId }: { message: UIMessage; threadId: st
         </span>
       </div>
       <div
-        className="w-full max-w-[680px] text-[15px] leading-[1.7] text-foreground"
-        style={{
-          fontFamily:
-            '"Helvetica Neue", Helvetica, Arial, "Liberation Sans", sans-serif',
-        }}
+        className="w-full max-w-[680px] text-[17px] leading-[1.65] text-foreground"
+        style={{ fontFamily: "var(--font-serif)" }}
       >
         <div className="prose-marshall">
           <ReactMarkdown

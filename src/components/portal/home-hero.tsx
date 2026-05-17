@@ -54,16 +54,10 @@ export function HomeHero({
     <section className="relative flex min-h-[calc(100vh-3.5rem)] flex-col justify-center px-6 py-14">
       <div className="relative mx-auto w-full max-w-[820px]">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <p
-            className="text-[15px] italic text-muted-foreground"
-            style={{ fontFamily: "var(--font-serif)" }}
-          >
+          <p className="text-[12px] uppercase tracking-[0.18em] text-muted-foreground">
             · Ask Marshall · {today || "\u00A0"}
           </p>
-          <p
-            className="text-[13px] italic text-muted-foreground"
-            style={{ fontFamily: "var(--font-serif)" }}
-          >
+          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
             v4
           </p>
         </div>
@@ -128,7 +122,8 @@ export function HomeHero({
               type="button"
               onClick={() => void send(s)}
               disabled={busy}
-              className="rounded-full border border-border bg-card px-3 py-1.5 text-[12px] text-foreground/80 transition-colors hover:bg-muted disabled:opacity-50"
+              className="rounded-full border border-border bg-card px-3.5 py-1.5 text-[14px] italic text-foreground/85 transition-colors hover:bg-muted disabled:opacity-50"
+              style={{ fontFamily: "var(--font-serif)" }}
             >
               {s}
             </button>
