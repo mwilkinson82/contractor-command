@@ -252,6 +252,13 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Compute theater ticker line — same reveal, mono-styled */
+.ticker-line {
+  opacity: 0;
+  transform: translateY(2px);
+  animation: compute-in 220ms ease-out forwards;
+}
+
 /* Typewriter-ish stagger for revealed headings */
 .reveal-up {
   opacity: 0;
