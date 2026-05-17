@@ -426,15 +426,22 @@ function AttentionCard({
         ? "border-signal-success/30"
         : "border-border";
   return (
-    <div className={`rounded-2xl border ${ring} bg-background/60 p-5`}>
+    <a
+      href={AOS_URL}
+      target="_blank"
+      rel="noreferrer"
+      className={`group block rounded-2xl border ${ring} bg-background/60 p-5 transition-colors hover:bg-muted/40 hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+      title={`Open ${label} in AOS`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 text-foreground">
           {icon}
           <p
-            className="text-[15px] font-semibold leading-none"
+            className="inline-flex items-center gap-1 text-[15px] font-semibold leading-none"
             style={{ fontFamily: "var(--font-serif)" }}
           >
             {label}
+            <ArrowUpRight className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
           </p>
         </div>
         <div className="text-right leading-none">
@@ -445,7 +452,7 @@ function AttentionCard({
         </div>
       </div>
       <div className="mt-4 text-[13px] text-foreground/85">{children}</div>
-    </div>
+    </a>
   );
 }
 
