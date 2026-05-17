@@ -90,6 +90,7 @@ function OnboardingPage() {
           name: trimmed,
           address: address.trim() || null,
           logo_path: logoPath,
+          greeting_icon: greetingIcon,
         },
         { onConflict: "owner_user_id" },
       );
