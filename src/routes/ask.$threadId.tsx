@@ -9,9 +9,10 @@ import {
   listThreads,
   getThread,
   deleteThread,
+  expressIntensiveInterest,
   type AskMessage,
 } from "@/lib/ask.functions";
-import { ArrowUp, Plus, Trash2, MessageCircle } from "lucide-react";
+import { ArrowUp, Plus, Trash2, MessageCircle, Check, Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/ask/$threadId")({
   head: () => ({
