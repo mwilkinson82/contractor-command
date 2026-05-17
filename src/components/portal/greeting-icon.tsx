@@ -62,7 +62,7 @@ export type GreetingIconKey =
   | "scale"
   | "brick";
 
-type IconComp = LucideIcon | ((p: SVGProps<SVGSVGElement>) => JSX.Element);
+type IconComp = LucideIcon | ((p: SVGProps<SVGSVGElement>) => ReactElement);
 
 export const GREETING_ICONS: {
   key: GreetingIconKey;
