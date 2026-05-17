@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   Home,
   Video,
@@ -14,8 +14,10 @@ import {
   PanelLeftClose,
   PanelLeft,
   Circle,
+  LogOut,
 } from "lucide-react";
 import { nextAny, relativeDay } from "@/lib/program";
+import { supabase } from "@/integrations/supabase/client";
 
 type Ctx = { collapsed: boolean; toggle: () => void };
 const SidebarCtx = createContext<Ctx>({ collapsed: false, toggle: () => {} });
@@ -81,7 +83,13 @@ const GROUPS: Group[] = [
 export function AppSidebar() {
   const { collapsed, toggle } = useAppSidebar();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
   const next = nextAny();
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    navigate({ to: "/login" });
+  }
 
   return (
     <aside
@@ -170,6 +178,14 @@ export function AppSidebar() {
               <span>Collapse</span>
             </>
           )}
+        </button>
+        <button
+          onClick={handleSignOut}
+          title={collapsed ? "Sign out" : undefined}
+          className="mt-1 flex w-full items-center justify-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+        >
+          <LogOut className="h-3.5 w-3.5" />
+          {!collapsed && <span>Sign out</span>}
         </button>
       </div>
     </aside>

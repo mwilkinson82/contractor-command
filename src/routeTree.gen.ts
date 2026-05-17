@@ -13,6 +13,8 @@ import { Route as WorkWithMarshallRouteImport } from './routes/work-with-marshal
 import { Route as VaultRouteImport } from './routes/vault'
 import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as TemplatesRouteImport } from './routes/templates'
+import { Route as SignupRouteImport } from './routes/signup'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as FieldToolsRouteImport } from './routes/field-tools'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as CallsRouteImport } from './routes/calls'
@@ -40,6 +42,16 @@ const ToolsRoute = ToolsRouteImport.update({
 const TemplatesRoute = TemplatesRouteImport.update({
   id: '/templates',
   path: '/templates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FieldToolsRoute = FieldToolsRouteImport.update({
@@ -90,6 +102,8 @@ export interface FileRoutesByFullPath {
   '/calls': typeof CallsRoute
   '/community': typeof CommunityRoute
   '/field-tools': typeof FieldToolsRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
   '/vault': typeof VaultRoute
@@ -104,6 +118,8 @@ export interface FileRoutesByTo {
   '/calls': typeof CallsRoute
   '/community': typeof CommunityRoute
   '/field-tools': typeof FieldToolsRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
   '/vault': typeof VaultRoute
@@ -119,6 +135,8 @@ export interface FileRoutesById {
   '/calls': typeof CallsRoute
   '/community': typeof CommunityRoute
   '/field-tools': typeof FieldToolsRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
   '/vault': typeof VaultRoute
@@ -135,6 +153,8 @@ export interface FileRouteTypes {
     | '/calls'
     | '/community'
     | '/field-tools'
+    | '/login'
+    | '/signup'
     | '/templates'
     | '/tools'
     | '/vault'
@@ -149,6 +169,8 @@ export interface FileRouteTypes {
     | '/calls'
     | '/community'
     | '/field-tools'
+    | '/login'
+    | '/signup'
     | '/templates'
     | '/tools'
     | '/vault'
@@ -163,6 +185,8 @@ export interface FileRouteTypes {
     | '/calls'
     | '/community'
     | '/field-tools'
+    | '/login'
+    | '/signup'
     | '/templates'
     | '/tools'
     | '/vault'
@@ -178,6 +202,8 @@ export interface RootRouteChildren {
   CallsRoute: typeof CallsRoute
   CommunityRoute: typeof CommunityRoute
   FieldToolsRoute: typeof FieldToolsRoute
+  LoginRoute: typeof LoginRoute
+  SignupRoute: typeof SignupRoute
   TemplatesRoute: typeof TemplatesRoute
   ToolsRoute: typeof ToolsRouteWithChildren
   VaultRoute: typeof VaultRoute
@@ -212,6 +238,20 @@ declare module '@tanstack/react-router' {
       path: '/templates'
       fullPath: '/templates'
       preLoaderRoute: typeof TemplatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/field-tools': {
@@ -292,6 +332,8 @@ const rootRouteChildren: RootRouteChildren = {
   CallsRoute: CallsRoute,
   CommunityRoute: CommunityRoute,
   FieldToolsRoute: FieldToolsRoute,
+  LoginRoute: LoginRoute,
+  SignupRoute: SignupRoute,
   TemplatesRoute: TemplatesRoute,
   ToolsRoute: ToolsRouteWithChildren,
   VaultRoute: VaultRoute,

@@ -42,6 +42,7 @@ function HomePage() {
   const [hello, setHello] = useState<string>("Welcome");
   const [today, setToday] = useState<string>("");
   const [sessionWhen, setSessionWhen] = useState<string>("");
+  const [replayDate, setReplayDate] = useState<string>("");
   const [packets, setPackets] = useState<Packet[]>([]);
 
   useEffect(() => {
@@ -54,11 +55,12 @@ function HomePage() {
       }),
     );
     setSessionWhen(formatSessionDate(session.date));
+    setReplayDate(new Date(latestReplay.date).toLocaleDateString());
     const load = () => setPackets(vault.list());
     load();
     window.addEventListener("vault:changed", load);
     return () => window.removeEventListener("vault:changed", load);
-  }, []);
+  }, [session.date, latestReplay.date]);
 
   return (
     <div className="relative">
@@ -172,7 +174,7 @@ function HomePage() {
               </p>
               <h3 className="mt-1.5 font-display text-[15px] leading-snug">{latestReplay.title}</h3>
               <p className="mt-2 text-[11px] text-muted-foreground">
-                {latestReplay.kind} · {new Date(latestReplay.date).toLocaleDateString()}
+                {latestReplay.kind} · {replayDate || "\u00A0"}
               </p>
             </Link>
 

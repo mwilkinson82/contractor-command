@@ -1,37 +1,123 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { PageHeader, Container } from "@/components/portal/page-header";
 import { STRIPE_PORTAL_URL } from "@/lib/program";
-import { ArrowUpRight } from "lucide-react";
+import { AOS_URL } from "@/lib/vault";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { ArrowUpRight, Check, AlertCircle, KeyRound } from "lucide-react";
 
 export const Route = createFileRoute("/account")({
   head: () => ({ meta: [{ title: "Account — ALP Contractor Circle" }] }),
   component: AccountPage,
 });
 
+type Profile = { full_name: string | null; email: string };
+type AosLink = {
+  aos_email: string | null;
+  link_code: string | null;
+  verified_at: string | null;
+  last_sync_at: string | null;
+};
+
 function AccountPage() {
+  const { user } = useAuth();
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [link, setLink] = useState<AosLink | null>(null);
+  const [code, setCode] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const [{ data: p }, { data: l }] = await Promise.all([
+        supabase.from("profiles").select("full_name, email").eq("id", user.id).maybeSingle(),
+        supabase.from("aos_links").select("aos_email, link_code, verified_at, last_sync_at").eq("user_id", user.id).maybeSingle(),
+      ]);
+      setProfile(p as Profile | null);
+      setLink(l as AosLink | null);
+    })();
+  }, [user]);
+
+  async function ensureLinkRow() {
+    if (!user) return;
+    if (!link) {
+      const { data, error } = await supabase
+        .from("aos_links")
+        .insert({ user_id: user.id, aos_email: user.email })
+        .select("aos_email, link_code, verified_at, last_sync_at")
+        .single();
+      if (!error && data) setLink(data as AosLink);
+    }
+  }
+
+  async function useEmailMatch() {
+    if (!user) return;
+    setSaving(true);
+    setMsg(null);
+    await ensureLinkRow();
+    const { data, error } = await supabase
+      .from("aos_links")
+      .update({ aos_email: user.email, link_code: null, updated_at: new Date().toISOString() })
+      .eq("user_id", user.id)
+      .select("aos_email, link_code, verified_at, last_sync_at")
+      .single();
+    if (error) setMsg(error.message);
+    else if (data) {
+      setLink(data as AosLink);
+      setMsg("Saved. We'll match by your login email when the AOS connector goes live.");
+    }
+    setSaving(false);
+  }
+
+  async function saveLinkCode() {
+    if (!user) return;
+    const trimmed = code.trim();
+    if (!trimmed) return;
+    setSaving(true);
+    setMsg(null);
+    await ensureLinkRow();
+    const { data, error } = await supabase
+      .from("aos_links")
+      .update({ link_code: trimmed, updated_at: new Date().toISOString() })
+      .eq("user_id", user.id)
+      .select("aos_email, link_code, verified_at, last_sync_at")
+      .single();
+    if (error) setMsg(error.message);
+    else if (data) {
+      setLink(data as AosLink);
+      setCode("");
+      setMsg("Link code saved.");
+    }
+    setSaving(false);
+  }
+
   return (
     <Container>
       <PageHeader
         eyebrow="Account"
-        title="Profile & billing."
-        lede="Your Contractor Circle membership and billing details."
+        title="Profile, AOS link & billing."
+        lede="Your Contractor Circle membership, the AOS account it's wired to, and billing details."
       />
+
       <div className="mt-10 grid gap-5 lg:grid-cols-2">
+        {/* Profile */}
         <div className="rounded-2xl border border-border bg-card p-7">
           <p className="label-mono">Profile</p>
           <dl className="mt-4 space-y-3 text-sm">
-            <Row k="Name" v="Member" />
-            <Row k="Company" v="Demo Construction Co." />
-            <Row k="Email" v="member@example.com" />
+            <Row k="Name" v={profile?.full_name ?? "—"} />
+            <Row k="Email" v={profile?.email ?? user?.email ?? "—"} />
           </dl>
         </div>
+
+        {/* Membership */}
         <div className="rounded-2xl border border-border bg-card p-7">
           <p className="label-mono">Membership</p>
           <dl className="mt-4 space-y-3 text-sm">
             <Row k="Plan" v="Contractor Circle" />
             <Row k="Rate" v="$497 / month" />
             <Row k="Status" v="Active" />
-            <Row k="Next renewal" v="June 1, 2026" />
           </dl>
           <div className="mt-6 flex flex-wrap gap-2 border-t border-border pt-5">
             <a
@@ -49,10 +135,92 @@ function AccountPage() {
               Billing question
             </a>
           </div>
-          <p className="mt-4 text-xs text-muted-foreground">
-            Card updates, invoices, and cancellation are handled through the Stripe customer portal.
-          </p>
         </div>
+      </div>
+
+      {/* AOS link */}
+      <div className="mt-5 rounded-2xl border border-border bg-card p-7">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="label-mono">AOS connection</p>
+            <h3 className="mt-2 font-display text-xl">Link your AOS account.</h3>
+            <p className="mt-1 max-w-xl text-[13px] text-muted-foreground">
+              Your scorecard, rocks, and open issues will surface inside the Command Center once linked.
+              Try email match first — paste a link code if your AOS email is different.
+            </p>
+          </div>
+          <a
+            href={AOS_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-[12px] hover:bg-muted"
+          >
+            Open AOS <ArrowUpRight className="h-3.5 w-3.5" />
+          </a>
+        </div>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <div className="rounded-xl border border-border bg-background p-5">
+            <div className="flex items-center gap-2">
+              <Check className="h-4 w-4 text-foreground/70" />
+              <p className="font-display text-[14px]">Match by email</p>
+            </div>
+            <p className="mt-2 text-[12px] text-muted-foreground">
+              Use the same email you sign into AOS with: <span className="text-foreground">{user?.email}</span>
+            </p>
+            <button
+              onClick={useEmailMatch}
+              disabled={saving}
+              className="mt-4 inline-flex rounded-md bg-ink px-3 py-1.5 text-[12px] text-cream hover:opacity-90 disabled:opacity-50"
+            >
+              Use this email
+            </button>
+            {link?.aos_email && !link.link_code && (
+              <p className="mt-3 text-[11px] text-foreground/70">
+                Linked to <span className="font-medium">{link.aos_email}</span>
+              </p>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-border bg-background p-5">
+            <div className="flex items-center gap-2">
+              <KeyRound className="h-4 w-4 text-foreground/70" />
+              <p className="font-display text-[14px]">Paste link code</p>
+            </div>
+            <p className="mt-2 text-[12px] text-muted-foreground">
+              Generate a code inside AOS → Settings, then paste it here.
+            </p>
+            <div className="mt-3 flex gap-2">
+              <input
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="e.g. AOS-XXXX-XXXX"
+                className="w-full rounded-md border border-border bg-card px-3 py-2 text-[12px] focus:border-ink focus:outline-none"
+              />
+              <button
+                onClick={saveLinkCode}
+                disabled={saving || !code.trim()}
+                className="rounded-md bg-ink px-3 py-2 text-[12px] text-cream hover:opacity-90 disabled:opacity-50"
+              >
+                Save
+              </button>
+            </div>
+            {link?.link_code && (
+              <p className="mt-3 text-[11px] text-foreground/70">
+                Code on file: <span className="font-mono">{link.link_code}</span>
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-wrap items-center gap-2 rounded-md bg-foreground/[0.03] px-3 py-2 text-[11px] text-muted-foreground">
+          <AlertCircle className="h-3.5 w-3.5" />
+          <span>
+            AOS data sync is wiring up — once the AOS endpoint is live, your scorecard and rocks will surface on Home and in the Vault.
+          </span>
+        </div>
+
+        {msg && <p className="mt-3 text-[12px] text-foreground/70">{msg}</p>}
       </div>
     </Container>
   );

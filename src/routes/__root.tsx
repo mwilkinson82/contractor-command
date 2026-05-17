@@ -6,11 +6,19 @@ import {
   useRouter,
   HeadContent,
   Scripts,
+  useRouterState,
+  useNavigate,
 } from "@tanstack/react-router";
+import { useEffect } from "react";
 
 import appCss from "../styles.css?url";
 import { AppSidebar, AppSidebarProvider, SidebarInset } from "@/components/portal/app-sidebar";
 import { TopStrip } from "@/components/portal/top-strip";
+import { useAuth } from "@/hooks/use-auth";
+import { supabase } from "@/integrations/supabase/client";
+import { vault } from "@/lib/vault";
+
+const PUBLIC_ROUTES = new Set(["/login", "/signup"]);
 
 function NotFoundComponent() {
   return (
@@ -92,17 +100,71 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
-      <AppSidebarProvider>
-        <div className="bg-background text-foreground">
-          <AppSidebar />
-          <SidebarInset>
-            <TopStrip />
-            <main>
-              <Outlet />
-            </main>
-          </SidebarInset>
-        </div>
-      </AppSidebarProvider>
+      <AuthGate>
+        {(showShell) =>
+          showShell ? (
+            <AppSidebarProvider>
+              <div className="bg-background text-foreground">
+                <AppSidebar />
+                <SidebarInset>
+                  <TopStrip />
+                  <main>
+                    <Outlet />
+                  </main>
+                </SidebarInset>
+              </div>
+            </AppSidebarProvider>
+          ) : (
+            <Outlet />
+          )
+        }
+      </AuthGate>
     </QueryClientProvider>
   );
+}
+
+function AuthGate({ children }: { children: (showShell: boolean) => React.ReactNode }) {
+  const { session, loading } = useAuth();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
+  const router = useRouter();
+  const isPublic = PUBLIC_ROUTES.has(pathname);
+
+  // Invalidate router caches + sync vault when auth changes
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+      router.invalidate();
+      if (s?.user?.id) {
+        void vault.hydrateFor(s.user.id);
+      } else {
+        vault.reset();
+      }
+    });
+    return () => sub.subscription.unsubscribe();
+  }, [router]);
+
+  useEffect(() => {
+    if (session?.user?.id) void vault.hydrateFor(session.user.id);
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (!session && !isPublic) {
+      navigate({ to: "/login" });
+    }
+  }, [loading, session, isPublic, navigate]);
+
+  if (loading) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-background">
+        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+          Loading workspace…
+        </p>
+      </div>
+    );
+  }
+
+  if (isPublic) return <>{children(false)}</>;
+  if (!session) return null;
+  return <>{children(true)}</>;
 }
