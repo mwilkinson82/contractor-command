@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { nextAny, relativeDay } from "@/lib/program";
 import { supabase } from "@/integrations/supabase/client";
+import { useCompany } from "@/hooks/use-company";
 
 type Ctx = { collapsed: boolean; toggle: () => void };
 const SidebarCtx = createContext<Ctx>({ collapsed: false, toggle: () => {} });
