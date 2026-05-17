@@ -113,7 +113,7 @@ function TopBar() {
             return (
               <Link
                 key={item.to}
-                to={item.to}
+                to={item.to as "/"}
                 className={`rounded-md px-3 py-1.5 text-[13px] transition-colors ${
                   active ? "bg-ink text-cream" : "text-foreground/75 hover:bg-muted hover:text-foreground"
                 }`}
