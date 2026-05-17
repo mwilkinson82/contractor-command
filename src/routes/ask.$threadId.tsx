@@ -215,6 +215,10 @@ function ChatPane({
               <p className="mt-1 text-[13px] text-muted-foreground">
                 Bring one issue. I'll give you the read and a next move.
               </p>
+              <p className="mx-auto mt-4 max-w-[440px] text-[11px] leading-relaxed text-muted-foreground">
+                Trained on Marshall's own playbooks, SOPs, and field notes from
+                $2.5B in built work. You're talking to him.
+              </p>
             </div>
           )}
           {messages.map((m) => (
