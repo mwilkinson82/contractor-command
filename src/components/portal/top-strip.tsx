@@ -1,7 +1,21 @@
 import { Link } from "@tanstack/react-router";
-import { Command, Sparkles } from "lucide-react";
+import { Sparkles, MessageCircle } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { getDailyAskUsage } from "@/lib/ask.functions";
 
 export function TopStrip() {
+  const usageFn = useServerFn(getDailyAskUsage);
+  const { data } = useQuery({
+    queryKey: ["ask-usage"],
+    queryFn: () => usageFn(),
+    refetchOnWindowFocus: true,
+    staleTime: 30_000,
+  });
+  const remaining = data?.remaining ?? null;
+  const limit = data?.limit ?? 30;
+  const low = remaining !== null && remaining <= 5;
+
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-4 border-b border-border/70 bg-background/70 px-6 backdrop-blur-md">
       <div className="flex items-center gap-3">
@@ -21,15 +35,29 @@ export function TopStrip() {
           <Sparkles className="h-3.5 w-3.5" />
           <span className="text-[15px] italic leading-none">Ask Marshall</span>
         </Link>
-        <button
-          type="button"
-          className="hidden items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] text-muted-foreground hover:bg-muted sm:inline-flex"
-          aria-label="Command palette (coming soon)"
+
+        <Link
+          to="/ask"
+          title={`${remaining ?? "—"} of ${limit} messages with Marshall left today`}
+          className={`hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors sm:inline-flex ${
+            low
+              ? "border-signal/40 bg-gold-soft text-signal hover:bg-gold-soft/80"
+              : "border-border bg-card text-foreground/80 hover:bg-muted"
+          }`}
         >
-          <Command className="h-3 w-3" />
-          <span>Jump to…</span>
-          <span className="ml-1 rounded border border-border bg-background px-1 font-mono text-[9px]">⌘K</span>
-        </button>
+          <MessageCircle className="h-3 w-3" />
+          <span className="font-mono tabular-nums">
+            {remaining ?? "—"}
+            <span className="text-muted-foreground">/{limit}</span>
+          </span>
+          <span
+            className="italic text-muted-foreground"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
+            today
+          </span>
+        </Link>
+
         <Link
           to="/account"
           className="flex items-center gap-2 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] hover:bg-muted"
