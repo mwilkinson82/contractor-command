@@ -4,7 +4,6 @@
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { EstimateThroughputTool } from "@/components/portal/tools/estimate-throughput-tool";
 
 /** Add a tool here to make it openable as a drawer. Key is CommandTool.id. */
