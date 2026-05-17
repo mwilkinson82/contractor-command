@@ -15,6 +15,7 @@ import {
   PanelLeft,
   Circle,
   LogOut,
+  Megaphone,
 } from "lucide-react";
 import { nextAny, relativeDay } from "@/lib/program";
 import { supabase } from "@/integrations/supabase/client";
@@ -53,6 +54,7 @@ const GROUPS: Group[] = [
     label: "Daily",
     items: [
       { to: "/", label: "Home", icon: Home },
+      { to: "/ask", label: "Ask Marshall", icon: Megaphone, match: "/ask" },
       { to: "/aos", label: "AOS", icon: Compass },
       { to: "/calls", label: "Calls", icon: Video },
       { to: "/community", label: "Community", icon: MessagesSquare },
