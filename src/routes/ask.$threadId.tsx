@@ -284,13 +284,61 @@ function MessageBubble({ message, threadId }: { message: UIMessage; threadId: st
   return (
     <div className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
       <div
-        className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-[14px] leading-relaxed ${
+        className={`max-w-[85%] rounded-2xl px-4 py-3 text-[14px] leading-relaxed ${
           isUser
-            ? "bg-ink text-cream"
+            ? "whitespace-pre-wrap bg-ink text-cream"
             : "border border-border bg-card text-foreground"
         }`}
       >
-        {text}
+        {isUser ? (
+          text
+        ) : (
+          <div className="prose-marshall">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                p: ({ children }) => (
+                  <p className="mb-3 last:mb-0 leading-relaxed">{children}</p>
+                ),
+                strong: ({ children }) => (
+                  <strong className="font-semibold text-foreground">{children}</strong>
+                ),
+                em: ({ children }) => <em className="italic">{children}</em>,
+                ul: ({ children }) => (
+                  <ul className="mb-3 list-disc space-y-1.5 pl-5 last:mb-0">{children}</ul>
+                ),
+                ol: ({ children }) => (
+                  <ol className="mb-3 list-decimal space-y-1.5 pl-5 last:mb-0">{children}</ol>
+                ),
+                li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                h1: ({ children }) => (
+                  <h3 className="mb-2 mt-4 font-display text-[17px] font-medium first:mt-0">{children}</h3>
+                ),
+                h2: ({ children }) => (
+                  <h3 className="mb-2 mt-4 font-display text-[16px] font-medium first:mt-0">{children}</h3>
+                ),
+                h3: ({ children }) => (
+                  <h4 className="mb-2 mt-3 font-display text-[15px] font-medium first:mt-0">{children}</h4>
+                ),
+                code: ({ children }) => (
+                  <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[12.5px]">{children}</code>
+                ),
+                pre: ({ children }) => (
+                  <pre className="mb-3 overflow-x-auto rounded-lg bg-muted p-3 font-mono text-[12.5px] last:mb-0">{children}</pre>
+                ),
+                blockquote: ({ children }) => (
+                  <blockquote className="mb-3 border-l-2 border-signal/40 pl-3 italic text-foreground/85 last:mb-0">{children}</blockquote>
+                ),
+                a: ({ children, href }) => (
+                  <a href={href} target="_blank" rel="noreferrer" className="text-signal underline underline-offset-2">{children}</a>
+                ),
+                hr: () => <hr className="my-4 border-border" />,
+              }}
+            >
+              {text}
+            </ReactMarkdown>
+          </div>
+        )}
       </div>
       {mentionsIntensive && (
         <IntensiveInterestCTA threadId={threadId} />
