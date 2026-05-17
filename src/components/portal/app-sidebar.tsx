@@ -15,6 +15,7 @@ import {
   PanelLeft,
   Circle,
   LogOut,
+  Megaphone,
 } from "lucide-react";
 import { nextAny, relativeDay } from "@/lib/program";
 import { supabase } from "@/integrations/supabase/client";
