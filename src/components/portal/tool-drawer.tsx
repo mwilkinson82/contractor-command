@@ -50,10 +50,10 @@ export function ToolDrawerProvider({ children }: { children: ReactNode }) {
           side="right"
           className="w-full max-w-none sm:max-w-none border-l p-0 overflow-y-auto bg-background"
         >
-          <VisuallyHidden>
-            <SheetTitle>Command Tool</SheetTitle>
-            <SheetDescription>Run a command tool and save findings to your vault.</SheetDescription>
-          </VisuallyHidden>
+          <SheetTitle className="sr-only">Command Tool</SheetTitle>
+          <SheetDescription className="sr-only">
+            Run a command tool and save findings to your vault.
+          </SheetDescription>
           {render ? render({ onClose: handleClose }) : null}
         </SheetContent>
       </Sheet>
