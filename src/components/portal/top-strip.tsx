@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Command } from "lucide-react";
+import { Command, Sparkles } from "lucide-react";
 
 export function TopStrip() {
   return (
@@ -10,6 +10,13 @@ export function TopStrip() {
         </p>
       </div>
       <div className="flex items-center gap-2">
+        <Link
+          to="/ask"
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] text-foreground/80 hover:bg-muted"
+        >
+          <Sparkles className="h-3 w-3" />
+          <span>Ask Marshall</span>
+        </Link>
         <button
           type="button"
           className="hidden items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] text-muted-foreground hover:bg-muted sm:inline-flex"

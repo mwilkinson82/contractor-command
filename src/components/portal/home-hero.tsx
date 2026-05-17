@@ -1,0 +1,134 @@
+import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { ArrowUp, ChevronDown } from "lucide-react";
+import { createThread } from "@/lib/ask.functions";
+
+const STARTERS = [
+  "Pricing a job is too slow",
+  "PM isn't owning the schedule",
+  "Cash is tight this month",
+  "I need to hire a #2",
+  "We're chasing too many bids",
+  "Margin slipped on the last job",
+];
+
+export function HomeHero({
+  companyName,
+  greeting,
+  firstName,
+  today,
+}: {
+  companyName: string;
+  greeting: string;
+  firstName: string;
+  today: string;
+}) {
+  const navigate = useNavigate();
+  const createThreadFn = useServerFn(createThread);
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const send = async (text: string) => {
+    const message = text.trim();
+    if (!message || busy) return;
+    setBusy(true);
+    try {
+      const { id } = await createThreadFn({ data: {} });
+      // Stash first message in history state so the thread page can auto-send.
+      window.history.replaceState(
+        { ...(window.history.state ?? {}), firstMessage: message },
+        "",
+      );
+      navigate({ to: "/ask/$threadId", params: { threadId: id } });
+    } catch (e) {
+      console.error(e);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="relative flex min-h-[calc(100vh-3.5rem)] flex-col justify-center px-6 py-14">
+      <div className="relative mx-auto w-full max-w-[820px]">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+            · Ask Marshall · {today || "\u00A0"}
+          </p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+            v4
+          </p>
+        </div>
+
+        <h1 className="reveal-up mt-8 font-display text-[2.25rem] leading-[1.05] tracking-tight sm:text-[3.25rem]">
+          {greeting}, {companyName}.
+        </h1>
+        <p
+          className="reveal-up mt-3 text-[15px] text-muted-foreground"
+          style={{ animationDelay: "120ms" }}
+        >
+          Bring me one issue, {firstName}. I'll give you the read and a next move.
+        </p>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void send(input);
+          }}
+          className="reveal-up mt-8"
+          style={{ animationDelay: "220ms" }}
+        >
+          <div className="flex items-end gap-2 rounded-2xl border border-border bg-card p-2 shadow-sm focus-within:border-foreground/40">
+            <textarea
+              autoFocus
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  void send(input);
+                }
+              }}
+              placeholder="Ask Marshall anything…"
+              rows={1}
+              className="max-h-40 flex-1 resize-none bg-transparent px-3 py-2 text-[15px] outline-none placeholder:text-muted-foreground"
+            />
+            <button
+              type="submit"
+              disabled={busy || !input.trim()}
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ink text-cream transition-opacity disabled:opacity-40"
+              aria-label="Send"
+            >
+              <ArrowUp className="h-4 w-4" />
+            </button>
+          </div>
+        </form>
+
+        <div
+          className="reveal-up mt-5 flex flex-wrap gap-2"
+          style={{ animationDelay: "320ms" }}
+        >
+          {STARTERS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => void send(s)}
+              disabled={busy}
+              className="rounded-full border border-border bg-card px-3 py-1.5 text-[12px] text-foreground/80 transition-colors hover:bg-muted disabled:opacity-50"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-6 flex justify-center">
+        <div className="flex flex-col items-center gap-1 text-muted-foreground">
+          <span className="font-mono text-[9px] uppercase tracking-[0.24em]">
+            Your command center
+          </span>
+          <ChevronDown className="h-4 w-4 animate-bounce" />
+        </div>
+      </div>
+    </section>
+  );
+}
