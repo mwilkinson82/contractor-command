@@ -85,6 +85,7 @@
    */
 
   --cream: oklch(0.965 0.005 80);            /* #F4F3EF paper bg */
+  --paper-deep: oklch(0.945 0.006 80);       /* slightly deeper paper for chrome */
   --ink: oklch(0.21 0.005 60);               /* #1A1918 ink */
   --ink-panel: oklch(0.26 0.005 60);         /* #252422 panel */
   --signal: oklch(0.66 0.17 36);             /* #E4573D orange-red */
@@ -192,3 +193,58 @@
 .bracket-corners > .bc-tr { top: 1rem; right: 1rem; border-top: 1px solid; border-right: 1px solid; border-top-right-radius: calc(var(--radius) + 0.25rem); }
 .bracket-corners > .bc-bl { bottom: 1rem; left: 1rem; border-bottom: 1px solid; border-left: 1px solid; border-bottom-left-radius: calc(var(--radius) + 0.25rem); }
 .bracket-corners > .bc-br { bottom: 1rem; right: 1rem; border-bottom: 1px solid; border-right: 1px solid; border-bottom-right-radius: calc(var(--radius) + 0.25rem); }
+
+/* ===== Command Center v3 — portal ambience ===== */
+
+/* Signal pulse — used for "live" dots in nav and headers */
+@keyframes signal-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 oklch(0.66 0.17 36 / 0.5); }
+  50%      { opacity: 0.7; transform: scale(1.05); box-shadow: 0 0 0 6px oklch(0.66 0.17 36 / 0); }
+}
+.animate-signal-pulse { animation: signal-pulse 2.4s ease-in-out infinite; }
+
+@keyframes cursor-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.animate-cursor-blink { animation: cursor-blink 0.9s steps(1) infinite; }
+
+/* Ambient grid for hero band */
+.grid-field-dots {
+  background-image:
+    radial-gradient(circle at 1px 1px, oklch(0.21 0.005 60 / 0.08) 1px, transparent 0);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 35%, black 35%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 35%, black 35%, transparent 75%);
+}
+.grid-field-glow {
+  background:
+    radial-gradient(circle at 18% 20%, oklch(0.66 0.17 36 / 0.10), transparent 45%),
+    radial-gradient(circle at 80% 30%, oklch(0.78 0.14 165 / 0.08), transparent 50%);
+  animation: drift 18s ease-in-out infinite alternate;
+}
+@keyframes drift {
+  0%   { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(0, -10px, 0); }
+}
+
+/* Compute stream lines (AI-style typewriter reveal) */
+.compute-line {
+  font-family: var(--font-mono);
+  opacity: 0;
+  transform: translateY(2px);
+  animation: compute-in 240ms ease-out forwards;
+}
+@keyframes compute-in {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Typewriter-ish stagger for revealed headings */
+.reveal-up {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: reveal-up 600ms cubic-bezier(.2,.7,.2,1) forwards;
+}
+@keyframes reveal-up {
+  to { opacity: 1; transform: translateY(0); }
+}
