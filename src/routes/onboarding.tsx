@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useCompany, logoPublicUrl } from "@/hooks/use-company";
 import { Building2, Upload, Loader2, Image as ImageIcon } from "lucide-react";
+import { GREETING_ICONS, type GreetingIconKey } from "@/components/portal/greeting-icon";
 
 export const Route = createFileRoute("/onboarding")({
   head: () => ({ meta: [{ title: "Set up your Command Center" }] }),
@@ -26,6 +27,7 @@ function OnboardingPage() {
   const [address, setAddress] = useState("");
   const [logoPath, setLogoPath] = useState<string | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [greetingIcon, setGreetingIcon] = useState<GreetingIconKey>("wave");
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -37,6 +39,9 @@ function OnboardingPage() {
     setAddress(company.address ?? "");
     setLogoPath(company.logo_path);
     setLogoPreview(logoPublicUrl(company.logo_path));
+    if (company.greeting_icon) {
+      setGreetingIcon(company.greeting_icon as GreetingIconKey);
+    }
   }, [company]);
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -85,6 +90,7 @@ function OnboardingPage() {
           name: trimmed,
           address: address.trim() || null,
           logo_path: logoPath,
+          greeting_icon: greetingIcon,
         },
         { onConflict: "owner_user_id" },
       );
@@ -173,6 +179,39 @@ function OnboardingPage() {
                   PNG, JPG, or SVG. Under 2MB. Square or wide works best.
                 </p>
               </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+              Greeting icon
+            </label>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Pick the icon Marshall greets you with on your dashboard.
+            </p>
+            <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
+              {GREETING_ICONS.map(({ key, label, Icon }) => {
+                const active = greetingIcon === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setGreetingIcon(key)}
+                    className={`group flex flex-col items-center gap-1.5 rounded-xl border px-2 py-3 transition-all ${
+                      active
+                        ? "border-ink bg-ink text-cream shadow-sm"
+                        : "border-border bg-card text-foreground/70 hover:border-foreground/40 hover:bg-muted"
+                    }`}
+                    aria-pressed={active}
+                    aria-label={label}
+                  >
+                    <Icon className="h-6 w-6" />
+                    <span className="font-mono text-[9px] uppercase tracking-[0.18em]">
+                      {label}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 

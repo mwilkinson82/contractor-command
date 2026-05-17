@@ -15,6 +15,7 @@ export type Company = {
   name: string;
   address: string | null;
   logo_path: string | null;
+  greeting_icon: string | null;
   created_at: string;
   updated_at: string;
 };

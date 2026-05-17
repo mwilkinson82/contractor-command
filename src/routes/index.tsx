@@ -115,6 +115,15 @@ function HomePage() {
         greeting={hello}
         firstName={firstName}
         today={today}
+        greetingIcon={company?.greeting_icon as
+          | "wave"
+          | "crane"
+          | "bulldozer"
+          | "hammer"
+          | "scale"
+          | "brick"
+          | null
+          | undefined}
       />
 
       {/* Section divider — everything below is the dashboard */}

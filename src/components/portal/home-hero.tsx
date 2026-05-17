@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowUp, ChevronDown } from "lucide-react";
 import { createThread } from "@/lib/ask.functions";
+import { GreetingIcon, type GreetingIconKey } from "@/components/portal/greeting-icon";
 
 const STARTERS = [
   "Pricing a job is too slow",
@@ -18,11 +19,13 @@ export function HomeHero({
   greeting,
   firstName,
   today,
+  greetingIcon,
 }: {
   companyName: string;
   greeting: string;
   firstName: string;
   today: string;
+  greetingIcon?: GreetingIconKey | null;
 }) {
   const navigate = useNavigate();
   const createThreadFn = useServerFn(createThread);
@@ -59,8 +62,16 @@ export function HomeHero({
           </p>
         </div>
 
-        <h1 className="reveal-up mt-8 font-display text-[2.25rem] leading-[1.05] tracking-tight sm:text-[3.25rem]">
-          {greeting}, {companyName}.
+        <h1 className="reveal-up mt-8 flex flex-wrap items-center gap-3 font-display text-[2.25rem] leading-[1.05] tracking-tight sm:text-[3.25rem]">
+          {greetingIcon && (
+            <GreetingIcon
+              iconKey={greetingIcon}
+              className="h-10 w-10 shrink-0 text-foreground/80 sm:h-12 sm:w-12"
+            />
+          )}
+          <span>
+            {greeting}, {companyName}.
+          </span>
         </h1>
         <p
           className="reveal-up mt-3 text-[15px] text-muted-foreground"
@@ -120,14 +131,22 @@ export function HomeHero({
           ))}
         </div>
 
-        <p
-          className="reveal-up mt-6 max-w-[640px] text-[11px] leading-relaxed text-muted-foreground"
+        <div
+          className="reveal-up mt-10 flex justify-center"
           style={{ animationDelay: "420ms" }}
         >
-          You're talking to me. This is trained on my own playbooks, SOPs, field
-          notes, and the lessons from $2.5B in built work — not a generic
-          chatbot wearing my name.
-        </p>
+          <p
+            className="max-w-[620px] rounded-2xl border border-border bg-card px-6 py-4 text-center text-[13px] leading-relaxed text-foreground/85"
+            style={{
+              fontFamily: "var(--font-serif)",
+              boxShadow:
+                "0 14px 40px -18px color-mix(in oklab, var(--ink) 35%, transparent), 0 2px 6px -2px color-mix(in oklab, var(--ink) 18%, transparent)",
+            }}
+          >
+            You're talking to me. This is trained on my own playbooks, SOPs,
+            field notes, and lessons from $2.5B in construction.
+          </p>
+        </div>
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 bottom-6 flex justify-center">
