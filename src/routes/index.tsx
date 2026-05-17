@@ -152,7 +152,7 @@ function HomePage() {
         </section>
       )}
 
-      {/* EOS Pulse first — anchor of the dashboard */}
+      {/* AOS Pulse first — anchor of the dashboard */}
       {aosLinked && (
         <section className="relative px-6 pb-6">
           <div className="mx-auto w-full max-w-[1180px]">
@@ -167,19 +167,7 @@ function HomePage() {
           {/* LEFT — symmetrical center column */}
           <div className="flex flex-col gap-5">
             {/* Today's move — hero of the dashboard */}
-            <div className="relative">
-              <div
-                aria-hidden
-                className="pointer-events-none absolute -inset-px rounded-2xl"
-                style={{
-                  background:
-                    "linear-gradient(180deg, color-mix(in oklab, var(--signal) 18%, transparent), transparent 40%)",
-                }}
-              />
-              <div className="relative">
-                <TodaysMove packets={packets} />
-              </div>
-            </div>
+            <TodaysMove packets={packets} />
 
             {/* Open issues — same width as Today's move */}
             <article className="relative overflow-hidden rounded-2xl border border-dashed border-border bg-card/60 p-6">
