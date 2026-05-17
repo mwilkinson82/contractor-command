@@ -131,14 +131,22 @@ export function HomeHero({
           ))}
         </div>
 
-        <p
-          className="reveal-up mt-6 max-w-[640px] text-[11px] leading-relaxed text-muted-foreground"
+        <div
+          className="reveal-up mt-10 flex justify-center"
           style={{ animationDelay: "420ms" }}
         >
-          You're talking to me. This is trained on my own playbooks, SOPs, field
-          notes, and the lessons from $2.5B in built work — not a generic
-          chatbot wearing my name.
-        </p>
+          <p
+            className="max-w-[620px] rounded-2xl border border-border bg-card px-6 py-4 text-center text-[13px] leading-relaxed text-foreground/85"
+            style={{
+              fontFamily: "var(--font-serif)",
+              boxShadow:
+                "0 14px 40px -18px color-mix(in oklab, var(--ink) 35%, transparent), 0 2px 6px -2px color-mix(in oklab, var(--ink) 18%, transparent)",
+            }}
+          >
+            You're talking to me. This is trained on my own playbooks, SOPs,
+            field notes, and lessons from $2.5B in construction.
+          </p>
+        </div>
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 bottom-6 flex justify-center">
