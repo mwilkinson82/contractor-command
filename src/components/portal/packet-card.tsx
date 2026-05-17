@@ -85,8 +85,8 @@ export function PacketCard({
         </a>
         {packet.kind === "command" ? (
           <Link
-            to="/bring-one-issue"
-            search={{ seed: packet.bringOneIssuePrompt } as never}
+            to="/calls"
+            hash="submit-topic"
             className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs hover:bg-muted"
           >
             Bring to session
