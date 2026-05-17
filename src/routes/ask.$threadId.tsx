@@ -57,7 +57,7 @@ function AskThreadPage() {
   );
 
   return (
-    <div className="grid min-h-[calc(100vh-3.5rem)] grid-cols-1 md:grid-cols-[260px_1fr]">
+    <div className="grid h-[calc(100vh-3.5rem)] grid-cols-1 md:grid-cols-[260px_1fr]">
       {/* Thread sidebar */}
       <aside className="hidden border-r border-border bg-card/40 md:flex md:flex-col">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
