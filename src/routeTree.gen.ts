@@ -9,38 +9,246 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WorkWithMarshallRouteImport } from './routes/work-with-marshall'
+import { Route as VaultRouteImport } from './routes/vault'
+import { Route as ToolsRouteImport } from './routes/tools'
+import { Route as TemplatesRouteImport } from './routes/templates'
+import { Route as FieldToolsRouteImport } from './routes/field-tools'
+import { Route as CallsRouteImport } from './routes/calls'
+import { Route as BringOneIssueRouteImport } from './routes/bring-one-issue'
+import { Route as AosRouteImport } from './routes/aos'
+import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ToolsOwnerDependencyRouteImport } from './routes/tools.owner-dependency'
+import { Route as ToolsGrowthConstraintRouteImport } from './routes/tools.growth-constraint'
 
+const WorkWithMarshallRoute = WorkWithMarshallRouteImport.update({
+  id: '/work-with-marshall',
+  path: '/work-with-marshall',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VaultRoute = VaultRouteImport.update({
+  id: '/vault',
+  path: '/vault',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ToolsRoute = ToolsRouteImport.update({
+  id: '/tools',
+  path: '/tools',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TemplatesRoute = TemplatesRouteImport.update({
+  id: '/templates',
+  path: '/templates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FieldToolsRoute = FieldToolsRouteImport.update({
+  id: '/field-tools',
+  path: '/field-tools',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CallsRoute = CallsRouteImport.update({
+  id: '/calls',
+  path: '/calls',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BringOneIssueRoute = BringOneIssueRouteImport.update({
+  id: '/bring-one-issue',
+  path: '/bring-one-issue',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AosRoute = AosRouteImport.update({
+  id: '/aos',
+  path: '/aos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountRoute = AccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ToolsOwnerDependencyRoute = ToolsOwnerDependencyRouteImport.update({
+  id: '/owner-dependency',
+  path: '/owner-dependency',
+  getParentRoute: () => ToolsRoute,
+} as any)
+const ToolsGrowthConstraintRoute = ToolsGrowthConstraintRouteImport.update({
+  id: '/growth-constraint',
+  path: '/growth-constraint',
+  getParentRoute: () => ToolsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/account': typeof AccountRoute
+  '/aos': typeof AosRoute
+  '/bring-one-issue': typeof BringOneIssueRoute
+  '/calls': typeof CallsRoute
+  '/field-tools': typeof FieldToolsRoute
+  '/templates': typeof TemplatesRoute
+  '/tools': typeof ToolsRouteWithChildren
+  '/vault': typeof VaultRoute
+  '/work-with-marshall': typeof WorkWithMarshallRoute
+  '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
+  '/tools/owner-dependency': typeof ToolsOwnerDependencyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/account': typeof AccountRoute
+  '/aos': typeof AosRoute
+  '/bring-one-issue': typeof BringOneIssueRoute
+  '/calls': typeof CallsRoute
+  '/field-tools': typeof FieldToolsRoute
+  '/templates': typeof TemplatesRoute
+  '/tools': typeof ToolsRouteWithChildren
+  '/vault': typeof VaultRoute
+  '/work-with-marshall': typeof WorkWithMarshallRoute
+  '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
+  '/tools/owner-dependency': typeof ToolsOwnerDependencyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/account': typeof AccountRoute
+  '/aos': typeof AosRoute
+  '/bring-one-issue': typeof BringOneIssueRoute
+  '/calls': typeof CallsRoute
+  '/field-tools': typeof FieldToolsRoute
+  '/templates': typeof TemplatesRoute
+  '/tools': typeof ToolsRouteWithChildren
+  '/vault': typeof VaultRoute
+  '/work-with-marshall': typeof WorkWithMarshallRoute
+  '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
+  '/tools/owner-dependency': typeof ToolsOwnerDependencyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/account'
+    | '/aos'
+    | '/bring-one-issue'
+    | '/calls'
+    | '/field-tools'
+    | '/templates'
+    | '/tools'
+    | '/vault'
+    | '/work-with-marshall'
+    | '/tools/growth-constraint'
+    | '/tools/owner-dependency'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/account'
+    | '/aos'
+    | '/bring-one-issue'
+    | '/calls'
+    | '/field-tools'
+    | '/templates'
+    | '/tools'
+    | '/vault'
+    | '/work-with-marshall'
+    | '/tools/growth-constraint'
+    | '/tools/owner-dependency'
+  id:
+    | '__root__'
+    | '/'
+    | '/account'
+    | '/aos'
+    | '/bring-one-issue'
+    | '/calls'
+    | '/field-tools'
+    | '/templates'
+    | '/tools'
+    | '/vault'
+    | '/work-with-marshall'
+    | '/tools/growth-constraint'
+    | '/tools/owner-dependency'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AccountRoute: typeof AccountRoute
+  AosRoute: typeof AosRoute
+  BringOneIssueRoute: typeof BringOneIssueRoute
+  CallsRoute: typeof CallsRoute
+  FieldToolsRoute: typeof FieldToolsRoute
+  TemplatesRoute: typeof TemplatesRoute
+  ToolsRoute: typeof ToolsRouteWithChildren
+  VaultRoute: typeof VaultRoute
+  WorkWithMarshallRoute: typeof WorkWithMarshallRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/work-with-marshall': {
+      id: '/work-with-marshall'
+      path: '/work-with-marshall'
+      fullPath: '/work-with-marshall'
+      preLoaderRoute: typeof WorkWithMarshallRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/vault': {
+      id: '/vault'
+      path: '/vault'
+      fullPath: '/vault'
+      preLoaderRoute: typeof VaultRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tools': {
+      id: '/tools'
+      path: '/tools'
+      fullPath: '/tools'
+      preLoaderRoute: typeof ToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/templates': {
+      id: '/templates'
+      path: '/templates'
+      fullPath: '/templates'
+      preLoaderRoute: typeof TemplatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/field-tools': {
+      id: '/field-tools'
+      path: '/field-tools'
+      fullPath: '/field-tools'
+      preLoaderRoute: typeof FieldToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/calls': {
+      id: '/calls'
+      path: '/calls'
+      fullPath: '/calls'
+      preLoaderRoute: typeof CallsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bring-one-issue': {
+      id: '/bring-one-issue'
+      path: '/bring-one-issue'
+      fullPath: '/bring-one-issue'
+      preLoaderRoute: typeof BringOneIssueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/aos': {
+      id: '/aos'
+      path: '/aos'
+      fullPath: '/aos'
+      preLoaderRoute: typeof AosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account': {
+      id: '/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AccountRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,22 +256,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tools/owner-dependency': {
+      id: '/tools/owner-dependency'
+      path: '/owner-dependency'
+      fullPath: '/tools/owner-dependency'
+      preLoaderRoute: typeof ToolsOwnerDependencyRouteImport
+      parentRoute: typeof ToolsRoute
+    }
+    '/tools/growth-constraint': {
+      id: '/tools/growth-constraint'
+      path: '/growth-constraint'
+      fullPath: '/tools/growth-constraint'
+      preLoaderRoute: typeof ToolsGrowthConstraintRouteImport
+      parentRoute: typeof ToolsRoute
+    }
   }
 }
 
+interface ToolsRouteChildren {
+  ToolsGrowthConstraintRoute: typeof ToolsGrowthConstraintRoute
+  ToolsOwnerDependencyRoute: typeof ToolsOwnerDependencyRoute
+}
+
+const ToolsRouteChildren: ToolsRouteChildren = {
+  ToolsGrowthConstraintRoute: ToolsGrowthConstraintRoute,
+  ToolsOwnerDependencyRoute: ToolsOwnerDependencyRoute,
+}
+
+const ToolsRouteWithChildren = ToolsRoute._addFileChildren(ToolsRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AccountRoute: AccountRoute,
+  AosRoute: AosRoute,
+  BringOneIssueRoute: BringOneIssueRoute,
+  CallsRoute: CallsRoute,
+  FieldToolsRoute: FieldToolsRoute,
+  TemplatesRoute: TemplatesRoute,
+  ToolsRoute: ToolsRouteWithChildren,
+  VaultRoute: VaultRoute,
+  WorkWithMarshallRoute: WorkWithMarshallRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
