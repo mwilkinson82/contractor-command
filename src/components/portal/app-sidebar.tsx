@@ -52,6 +52,7 @@ const GROUPS: Group[] = [
     label: "Daily",
     items: [
       { to: "/", label: "Home", icon: Home },
+      { to: "/aos", label: "AOS", icon: Compass },
       { to: "/calls", label: "Calls", icon: Video },
       { to: "/community", label: "Community", icon: MessagesSquare },
     ],
@@ -67,7 +68,6 @@ const GROUPS: Group[] = [
     label: "Command",
     items: [
       { to: "/tools/growth-constraint", label: "Tools", icon: Wrench, match: "/tools" },
-      { to: "/aos", label: "AOS", icon: Compass },
       { to: "/vault", label: "Vault", icon: Archive },
     ],
   },
