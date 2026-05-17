@@ -90,6 +90,62 @@ export const renameThread = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const expressIntensiveInterest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    z.object({
+      threadId: z.string().uuid(),
+      note: z.string().max(2000).optional(),
+    }).parse,
+  )
+  .handler(async ({ data, context }): Promise<{ ok: true; alreadyOpen: boolean }> => {
+    const { supabase, userId } = context;
+
+    // Avoid duplicate open leads per thread
+    const { data: existing } = await supabase
+      .from("vault_packets")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("kind", "intensive_lead")
+      .eq("status", "Open")
+      .contains("payload", { thread_id: data.threadId })
+      .maybeSingle();
+
+    if (existing) return { ok: true, alreadyOpen: true };
+
+    // Pull thread + last few messages for context
+    const { data: thread } = await supabase
+      .from("ask_threads")
+      .select("id,title,company_id")
+      .eq("id", data.threadId)
+      .maybeSingle();
+
+    const { data: recent } = await supabase
+      .from("ask_messages")
+      .select("role,content,created_at")
+      .eq("thread_id", data.threadId)
+      .order("created_at", { ascending: false })
+      .limit(8);
+
+    const { error } = await supabase.from("vault_packets").insert({
+      user_id: userId,
+      company_id: thread?.company_id ?? null,
+      kind: "intensive_lead",
+      source: "ask_marshall",
+      status: "Open",
+      title: `Intensive interest — ${thread?.title ?? "Ask Marshall"}`,
+      payload: {
+        thread_id: data.threadId,
+        thread_title: thread?.title ?? null,
+        note: data.note ?? null,
+        recent_messages: (recent ?? []).reverse(),
+        captured_at: new Date().toISOString(),
+      },
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true, alreadyOpen: false };
+  });
+
 export const deleteThread = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(z.object({ threadId: z.string().uuid() }).parse)
