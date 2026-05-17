@@ -1,17 +1,47 @@
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getAosSnapshot, type AosResult } from "@/lib/aos.functions";
+import { getAosSnapshot, type AosResult, type AosCompany } from "@/lib/aos.functions";
 import { AOS_URL } from "@/lib/program";
-import { ArrowUpRight, Compass, Target, AlertCircle, CheckSquare, TrendingUp } from "lucide-react";
+import { ArrowUpRight, Compass, Target, AlertCircle, CheckSquare, TrendingUp, ChevronDown } from "lucide-react";
+
+const COMPANY_KEY = "aos.company_id";
 
 export function AosPulse() {
   const fn = useServerFn(getAosSnapshot);
+  const [companyId, setCompanyId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return window.localStorage.getItem(COMPANY_KEY);
+  });
+
   const { data, isLoading } = useQuery<AosResult>({
-    queryKey: ["aos-snapshot"],
-    queryFn: () => fn(),
+    queryKey: ["aos-snapshot", companyId],
+    queryFn: () => fn({ data: { companyId: companyId ?? undefined } }),
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });
+
+  // Auto-select the only company if none chosen yet
+  useEffect(() => {
+    if (companyId || !data || !data.ok) return;
+    const list = data.snapshot.linked ? data.snapshot.companies : data.snapshot.companies ?? [];
+    if (list.length === 1) {
+      setCompanyId(list[0].id);
+      window.localStorage.setItem(COMPANY_KEY, list[0].id);
+    }
+  }, [data, companyId]);
+
+  const companies: AosCompany[] =
+    data?.ok
+      ? data.snapshot.linked
+        ? data.snapshot.companies
+        : (data.snapshot.companies ?? [])
+      : [];
+
+  const onPick = (id: string) => {
+    setCompanyId(id);
+    window.localStorage.setItem(COMPANY_KEY, id);
+  };
 
   return (
     <article className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 md:col-span-3">
@@ -24,14 +54,23 @@ export function AosPulse() {
             AOS Pulse · live from your operating system
           </p>
         </div>
-        <a
-          href={AOS_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
-        >
-          Open AOS <ArrowUpRight className="h-3 w-3" />
-        </a>
+        <div className="flex items-center gap-2">
+          {companies.length > 1 && (
+            <WorkspacePicker
+              companies={companies}
+              current={companyId}
+              onPick={onPick}
+            />
+          )}
+          <a
+            href={AOS_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
+          >
+            Open AOS <ArrowUpRight className="h-3 w-3" />
+          </a>
+        </div>
       </div>
 
       <div className="mt-5">
@@ -46,6 +85,50 @@ export function AosPulse() {
         )}
       </div>
     </article>
+  );
+}
+
+function WorkspacePicker({
+  companies,
+  current,
+  onPick,
+}: {
+  companies: AosCompany[];
+  current: string | null;
+  onPick: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = companies.find((c) => c.id === current) ?? companies[0];
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
+      >
+        <span className="max-w-[160px] truncate">{selected?.name ?? "Workspace"}</span>
+        <ChevronDown className="h-3 w-3" />
+      </button>
+      {open && (
+        <div className="absolute right-0 z-20 mt-1 w-56 overflow-hidden rounded-md border border-border bg-popover shadow-lg">
+          {companies.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => {
+                onPick(c.id);
+                setOpen(false);
+              }}
+              className={`block w-full truncate px-3 py-2 text-left text-[12px] hover:bg-muted ${
+                c.id === current ? "bg-muted/60 font-medium" : ""
+              }`}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
