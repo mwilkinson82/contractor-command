@@ -179,6 +179,14 @@ export function AppSidebar() {
             </>
           )}
         </button>
+        <button
+          onClick={handleSignOut}
+          title={collapsed ? "Sign out" : undefined}
+          className="mt-1 flex w-full items-center justify-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+        >
+          <LogOut className="h-3.5 w-3.5" />
+          {!collapsed && <span>Sign out</span>}
+        </button>
       </div>
     </aside>
   );
