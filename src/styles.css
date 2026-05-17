@@ -56,6 +56,7 @@
   --color-blue-soft: var(--blue-soft);
   --color-signal: var(--signal);
   --color-signal-green: var(--signal-green);
+  --color-signal-success: var(--signal-success);
   --color-paper-edge: var(--paper-edge);
 
   --shadow-elegant: 0 10px 40px -20px oklch(0.18 0.005 60 / 0.25);
@@ -91,6 +92,7 @@
   --ink-panel: oklch(0.26 0.005 60);         /* #252422 panel */
   --signal: oklch(0.66 0.17 36);             /* #E4573D orange-red */
   --signal-green: oklch(0.78 0.14 165);      /* #34D399 */
+  --signal-success: oklch(0.72 0.17 148);    /* Manus "task completed" green */
   --gold: oklch(0.66 0.17 36);               /* alias → signal (legacy name) */
   --gold-soft: oklch(0.94 0.04 40);          /* warm peach tint */
   --blue: oklch(0.78 0.14 165);              /* alias → signal-green (legacy) */
@@ -259,3 +261,19 @@
 @keyframes reveal-up {
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Processing step pulse — Manus-style "step is running" indicator */
+@keyframes step-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.9); }
+  50%      { opacity: 1;   transform: scale(1.1); }
+}
+.animate-step-pulse { animation: step-pulse 1.2s ease-in-out infinite; }
+
+/* Thinking dots — three dots that fade in sequence */
+@keyframes thinking-dot {
+  0%, 80%, 100% { opacity: 0.25; }
+  40%           { opacity: 1; }
+}
+.thinking-dot { animation: thinking-dot 1.4s ease-in-out infinite; }
+.thinking-dot:nth-child(2) { animation-delay: 0.18s; }
+.thinking-dot:nth-child(3) { animation-delay: 0.36s; }

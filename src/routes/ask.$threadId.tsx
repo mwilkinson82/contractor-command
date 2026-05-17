@@ -12,7 +12,7 @@ import {
   expressIntensiveInterest,
   type AskMessage,
 } from "@/lib/ask.functions";
-import { ArrowUp, Plus, Trash2, MessageCircle, Check, Sparkles, Megaphone, Copy } from "lucide-react";
+import { ArrowUp, Plus, Trash2, MessageCircle, Check, Sparkles, Megaphone, Copy, BookOpen, Brain, Wand2, CheckCircle2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -234,6 +234,7 @@ function ChatPane({
           {messages.map((m) => (
             <MessageBubble key={m.id} message={m} threadId={threadId} />
           ))}
+          {busy && <ProcessingSteps messages={messages} status={status} />}
           {error && (
             <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-[13px] text-destructive">
               {String(error.message || error)}
@@ -416,5 +417,111 @@ function IntensiveInterestCTA({ threadId }: { threadId: string }) {
           ? "Try again"
           : "I'm interested in the 6-week intensive"}
     </button>
+  );
+}
+
+/**
+ * Manus-style "the agent is working" indicator.
+ *
+ * Shows a live list of steps while waiting for / receiving the first tokens.
+ * The last user message is read so the steps feel grounded in what was asked.
+ * Steps advance on a timer; the final step flips to "complete" once Marshall
+ * actually starts streaming text.
+ */
+function ProcessingSteps({
+  messages,
+  status,
+}: {
+  messages: UIMessage[];
+  status: string;
+}) {
+  // Hide as soon as assistant has produced any text — the message bubble takes over.
+  const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
+  const assistantText =
+    lastAssistant?.parts
+      .map((p) => (p.type === "text" ? p.text : ""))
+      .join("")
+      .trim() ?? "";
+  if (status === "streaming" && assistantText.length > 0) return null;
+
+  const lastUser = [...messages].reverse().find((m) => m.role === "user");
+  const userText =
+    lastUser?.parts.map((p) => (p.type === "text" ? p.text : "")).join("") ?? "";
+  const preview = userText.length > 80 ? userText.slice(0, 78) + "…" : userText;
+
+  const steps = [
+    { icon: BookOpen, label: "Reading your message", detail: preview || "Parsing the question" },
+    { icon: Brain, label: "Pulling from playbooks", detail: "SOPs, field notes, $2.5B in lessons" },
+    { icon: Wand2, label: "Composing the read", detail: "Marshall's voice, your situation" },
+  ];
+
+  const [active, setActive] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => {
+      setActive((i) => Math.min(i + 1, steps.length - 1));
+    }, 1100);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <div className="group flex flex-col items-start">
+      <div className="mb-2 flex items-center gap-2 text-foreground/80">
+        <Megaphone className="h-4 w-4" />
+        <span
+          className="text-[15px] italic"
+          style={{ fontFamily: "var(--font-serif)" }}
+        >
+          Marshall
+        </span>
+        <span className="ml-1 inline-flex items-center gap-1 text-muted-foreground">
+          <span className="thinking-dot inline-block h-1 w-1 rounded-full bg-current" />
+          <span className="thinking-dot inline-block h-1 w-1 rounded-full bg-current" />
+          <span className="thinking-dot inline-block h-1 w-1 rounded-full bg-current" />
+        </span>
+      </div>
+
+      <ul className="w-full max-w-[680px] space-y-2 rounded-2xl border border-border bg-card/60 p-4">
+        {steps.map((s, i) => {
+          const Icon = s.icon;
+          const done = i < active;
+          const running = i === active;
+          return (
+            <li key={s.label} className="flex items-start gap-3">
+              <span
+                className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full ${
+                  done
+                    ? "bg-signal-success/15 text-signal-success"
+                    : running
+                      ? "bg-signal/15 text-signal animate-step-pulse"
+                      : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {done ? (
+                  <CheckCircle2 className="h-3 w-3" />
+                ) : (
+                  <Icon className="h-3 w-3" />
+                )}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p
+                  className={`text-[13px] ${
+                    done
+                      ? "text-muted-foreground line-through decoration-muted-foreground/40"
+                      : running
+                        ? "text-foreground"
+                        : "text-muted-foreground"
+                  }`}
+                >
+                  {s.label}
+                </p>
+                {(done || running) && s.detail && (
+                  <p className="truncate text-[11px] text-muted-foreground">{s.detail}</p>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

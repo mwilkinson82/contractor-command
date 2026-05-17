@@ -14,7 +14,6 @@ import {
 import { vault, type Packet } from "@/lib/vault";
 import { useCompany } from "@/hooks/use-company";
 import { useAuth } from "@/hooks/use-auth";
-import { GridField } from "@/components/portal/grid-field";
 import { AosPulse } from "@/components/portal/aos-pulse";
 import { AosHero } from "@/components/portal/aos-hero";
 import { HomeHero } from "@/components/portal/home-hero";
@@ -126,9 +125,8 @@ function HomePage() {
           | undefined}
       />
 
-      {/* Section divider — everything below is the dashboard */}
-      <section className="relative border-t border-border/60 px-6 pt-10 pb-2">
-        <GridField />
+      {/* Command center band — flows from hero, no hard divider */}
+      <section className="relative px-6 pt-8 pb-2">
         <div className="relative mx-auto w-full max-w-[1180px]">
           <p className="label-mono">Your command center</p>
           <h2 className="mt-2 font-display text-[1.75rem] leading-tight">
@@ -152,7 +150,7 @@ function HomePage() {
         </section>
       )}
 
-      {/* EOS Pulse first — anchor of the dashboard */}
+      {/* AOS Pulse first — anchor of the dashboard */}
       {aosLinked && (
         <section className="relative px-6 pb-6">
           <div className="mx-auto w-full max-w-[1180px]">
@@ -167,19 +165,7 @@ function HomePage() {
           {/* LEFT — symmetrical center column */}
           <div className="flex flex-col gap-5">
             {/* Today's move — hero of the dashboard */}
-            <div className="relative">
-              <div
-                aria-hidden
-                className="pointer-events-none absolute -inset-px rounded-2xl"
-                style={{
-                  background:
-                    "linear-gradient(180deg, color-mix(in oklab, var(--signal) 18%, transparent), transparent 40%)",
-                }}
-              />
-              <div className="relative">
-                <TodaysMove packets={packets} />
-              </div>
-            </div>
+            <TodaysMove packets={packets} />
 
             {/* Open issues — same width as Today's move */}
             <article className="relative overflow-hidden rounded-2xl border border-dashed border-border bg-card/60 p-6">
