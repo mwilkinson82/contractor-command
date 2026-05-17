@@ -161,93 +161,125 @@ function HomePage() {
         </section>
       )}
 
-      {/* Today's move (2/3) + Next call (1/3) */}
-      <section className="relative px-6 pb-6">
-        <div className="mx-auto grid w-full max-w-[1180px] gap-4 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <TodaysMove packets={packets} />
-          </div>
-          <article className="relative overflow-hidden rounded-2xl border border-border bg-card p-5">
-            <p className="label-mono">Next {session.kind === "Biweekly Call" ? "bi-weekly call" : "bootcamp"}</p>
-            <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-signal align-middle mr-2 animate-signal-pulse" />
-              {relativeDay(session.date)} · every other Sunday
-            </p>
-            <h3 className="mt-3 font-display text-[18px] leading-snug">{session.title}</h3>
-            <p className="mt-2 text-[12px] text-muted-foreground">{sessionWhen || "\u00A0"}</p>
+      {/* Centered spine + right rail (Perplexity-style) */}
+      <section className="relative px-6 pb-10">
+        <div className="mx-auto grid w-full max-w-[1180px] gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+          {/* LEFT — symmetrical center column */}
+          <div className="flex flex-col gap-5">
+            {/* Today's move — hero of the dashboard */}
+            <div className="relative">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -inset-px rounded-2xl"
+                style={{
+                  background:
+                    "linear-gradient(180deg, color-mix(in oklab, var(--signal) 18%, transparent), transparent 40%)",
+                }}
+              />
+              <div className="relative">
+                <TodaysMove packets={packets} />
+              </div>
+            </div>
 
-            {session.agenda && session.agenda.length > 0 && (
-              <div className="mt-4 rounded-lg border border-border/70 bg-background/50 p-3">
-                <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground">Agenda</p>
-                <ul className="mt-2 space-y-1.5">
-                  {session.agenda.map((item, i) => (
+            {/* Open issues — same width as Today's move */}
+            <article className="relative overflow-hidden rounded-2xl border border-dashed border-border bg-card/60 p-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="max-w-[520px]">
+                  <p className="label-mono">Open issues — your queue for the room</p>
+                  <h3 className="mt-2 font-display text-[18px] leading-snug">
+                    Submit a topic for the bi-weekly call or bootcamp.
+                  </h3>
+                  <p className="mt-2 text-[13px] text-muted-foreground">
+                    Bring one issue that's stuck. Marshall picks two or three per call to work live. Anything you submit also feeds the bootcamp shortlist.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    to="/calls"
+                    hash="submit-topic"
+                    className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90"
+                  >
+                    Submit a topic <ArrowUpRight className="h-3 w-3" />
+                  </Link>
+                  <Link
+                    to="/calls"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/70 px-3 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
+                  >
+                    See submitted
+                  </Link>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          {/* RIGHT RAIL — odd-shaped/secondary cards */}
+          <aside className="flex flex-col gap-4">
+            {/* Next call */}
+            <article className="relative overflow-hidden rounded-2xl border border-border bg-card p-5">
+              <p className="label-mono">Next {session.kind === "Biweekly Call" ? "bi-weekly call" : "bootcamp"}</p>
+              <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-signal align-middle mr-2 animate-signal-pulse" />
+                {relativeDay(session.date)}
+              </p>
+              <h3 className="mt-2 font-display text-[16px] leading-snug">{session.title}</h3>
+              <p className="mt-1 text-[12px] text-muted-foreground">{sessionWhen || "\u00A0"}</p>
+
+              {session.agenda && session.agenda.length > 0 && (
+                <ul className="mt-3 space-y-1.5">
+                  {session.agenda.slice(0, 3).map((item, i) => (
                     <li key={i} className="flex gap-2 text-[12px] text-foreground/85 leading-snug">
                       <span className="font-mono text-[10px] text-muted-foreground mt-0.5">{String(i + 1).padStart(2, "0")}</span>
                       <span>{item}</span>
                     </li>
                   ))}
                 </ul>
-              </div>
-            )}
+              )}
 
-            <div className="mt-5 flex flex-wrap gap-2">
-              <a
-                href={session.zoomUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90"
-              >
-                <Video className="h-3 w-3" /> Join
-              </a>
-              <a
-                href={addToCalendarUrl(session)}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
-              >
-                <Calendar className="h-3 w-3" /> Add to calendar
-              </a>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      {/* Open issues — submit topics for next call / bootcamp */}
-      <section className="relative px-6 pb-10">
-        <div className="mx-auto w-full max-w-[1180px]">
-          <article className="relative overflow-hidden rounded-2xl border border-dashed border-border bg-card/60 p-5">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="max-w-[640px]">
-                <p className="label-mono">Open issues — your queue for the room</p>
-                <h3 className="mt-2 font-display text-[18px] leading-snug">
-                  Submit a topic for the bi-weekly call or bootcamp.
-                </h3>
-                <p className="mt-2 text-[12px] text-muted-foreground">
-                  Bring one issue that's stuck. Marshall picks two or three per call to work live. Anything you submit also feeds the bootcamp shortlist.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Link
-                  to="/calls"
-                  hash="submit-topic"
+              <div className="mt-4 flex flex-wrap gap-2">
+                <a
+                  href={session.zoomUrl}
+                  target="_blank"
+                  rel="noreferrer"
                   className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90"
                 >
-                  Submit a topic <ArrowUpRight className="h-3 w-3" />
-                </Link>
-                <Link
-                  to="/calls"
-                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/70 px-3 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
+                  <Video className="h-3 w-3" /> Join
+                </a>
+                <a
+                  href={addToCalendarUrl(session)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
                 >
-                  See submitted
-                </Link>
+                  <Calendar className="h-3 w-3" /> Add
+                </a>
               </div>
-            </div>
-          </article>
+            </article>
+
+            <RailRow
+              to="/calls"
+              icon={<Video className="h-3.5 w-3.5" />}
+              title="Latest replay"
+              desc={`${latestReplay.title}${replayDate ? ` · ${replayDate}` : ""}`}
+            />
+            <RailRow
+              to="/templates"
+              icon={<FileText className="h-3.5 w-3.5" />}
+              title="Templates"
+              desc="Sell · Estimate · Contract · Launch · Bill"
+            />
+            <RailRow
+              to="/community"
+              icon={<MessagesSquare className="h-3.5 w-3.5" />}
+              title="The room"
+              desc="Discord between sessions"
+              extHref={DISCORD_URL}
+            />
+          </aside>
         </div>
       </section>
 
       {/* Signal tiles — every command tool, live or coming */}
-      <section className="relative px-6 pb-10">
+      <section className="relative px-6 pb-16">
         <div className="mx-auto w-full max-w-[1180px]">
           <div className="mb-5 flex items-end justify-between gap-3">
             <div>
@@ -264,25 +296,11 @@ function HomePage() {
           <SignalTiles packets={packets} />
         </div>
       </section>
-
-      {/* Secondary rows */}
-      <section className="px-6 pb-16">
-        <div className="mx-auto w-full max-w-[1180px] grid gap-3 md:grid-cols-3">
-          <MiniRow
-            to="/calls"
-            icon={<Video className="h-3.5 w-3.5" />}
-            title="Latest replay"
-            desc={`${latestReplay.title} · ${replayDate || ""}`}
-          />
-          <MiniRow to="/templates" icon={<FileText className="h-3.5 w-3.5" />} title="Templates" desc="Sell · Estimate · Contract · Launch · Bill" />
-          <MiniRow to="/community" icon={<MessagesSquare className="h-3.5 w-3.5" />} title="The room" desc="Discord between sessions" extHref={DISCORD_URL} />
-        </div>
-      </section>
     </div>
   );
 }
 
-function MiniRow({
+function RailRow({
   to,
   extHref,
   icon,
@@ -296,7 +314,7 @@ function MiniRow({
   desc: string;
 }) {
   return (
-    <div className="group flex items-center justify-between gap-4 rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:bg-muted/50">
+    <div className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:bg-muted/50">
       <Link to={to as "/"} className="flex items-center gap-3 min-w-0 flex-1">
         <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-foreground/5">{icon}</span>
         <div className="min-w-0">
