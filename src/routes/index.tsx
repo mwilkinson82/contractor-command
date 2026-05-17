@@ -109,28 +109,22 @@ function HomePage() {
 
   return (
     <div className="relative">
-      {/* Greeting band */}
-      <section className="relative px-6 pt-10 pb-6 sm:pt-14">
+      {/* Ask Marshall hero — the front door */}
+      <HomeHero
+        companyName={companyName}
+        greeting={hello}
+        firstName={firstName}
+        today={today}
+      />
+
+      {/* Section divider — everything below is the dashboard */}
+      <section className="relative border-t border-border/60 px-6 pt-10 pb-2">
         <GridField />
         <div className="relative mx-auto w-full max-w-[1180px]">
-          <div className="flex flex-wrap items-baseline justify-between gap-3">
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
-              · Command Center · {today || "\u00A0"}
-            </p>
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
-              v4
-            </p>
-          </div>
-
-          <h1 className="mt-6 font-display text-[2.5rem] leading-[1.02] tracking-tight sm:text-[3.5rem]">
-            <span className="reveal-up inline-block">{companyName}.</span>
-          </h1>
-          <p className="reveal-up mt-3 text-[14px] text-foreground/70" style={{ animationDelay: "120ms" }}>
-            {hello}, {firstName}.
-          </p>
-          <p className="reveal-up mt-4 max-w-xl text-[15px] text-muted-foreground" style={{ animationDelay: "220ms" }}>
-            One screen. One next move. Run the company from here.
-          </p>
+          <p className="label-mono">Your command center</p>
+          <h2 className="mt-2 font-display text-[1.75rem] leading-tight">
+            {companyName}
+          </h2>
         </div>
       </section>
 
