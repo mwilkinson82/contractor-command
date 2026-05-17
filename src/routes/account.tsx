@@ -5,7 +5,9 @@ import { STRIPE_PORTAL_URL } from "@/lib/program";
 import { AOS_URL } from "@/lib/vault";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { ArrowUpRight, Check, AlertCircle, KeyRound } from "lucide-react";
+import { useCompany } from "@/hooks/use-company";
+import { GREETING_ICONS, type GreetingIconKey } from "@/components/portal/greeting-icon";
+import { ArrowUpRight, Check, AlertCircle, KeyRound, Building2 } from "lucide-react";
 
 export const Route = createFileRoute("/account")({
   head: () => ({ meta: [{ title: "Account — ALP Contractor Circle" }] }),
