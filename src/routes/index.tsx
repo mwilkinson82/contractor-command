@@ -266,23 +266,19 @@ function MiniRow({
   desc: string;
 }) {
   return (
-    <Link
-      to={to as "/"}
-      className="group flex items-center justify-between gap-4 rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:bg-muted/50"
-    >
-      <div className="flex items-center gap-3 min-w-0">
+    <div className="group flex items-center justify-between gap-4 rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:bg-muted/50">
+      <Link to={to as "/"} className="flex items-center gap-3 min-w-0 flex-1">
         <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-foreground/5">{icon}</span>
         <div className="min-w-0">
           <p className="truncate font-display text-[13px]">{title}</p>
           <p className="truncate text-[11px] text-muted-foreground">{desc}</p>
         </div>
-      </div>
+      </Link>
       {extHref ? (
         <a
           href={extHref}
           target="_blank"
           rel="noreferrer"
-          onClick={(e) => e.stopPropagation()}
           className="rounded-md border border-border bg-background px-2 py-1 text-[10px] text-muted-foreground hover:bg-muted"
         >
           Open
@@ -290,6 +286,6 @@ function MiniRow({
       ) : (
         <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
       )}
-    </Link>
+    </div>
   );
 }
