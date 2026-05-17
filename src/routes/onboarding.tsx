@@ -39,6 +39,9 @@ function OnboardingPage() {
     setAddress(company.address ?? "");
     setLogoPath(company.logo_path);
     setLogoPreview(logoPublicUrl(company.logo_path));
+    if (company.greeting_icon) {
+      setGreetingIcon(company.greeting_icon as GreetingIconKey);
+    }
   }, [company]);
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
