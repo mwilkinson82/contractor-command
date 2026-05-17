@@ -246,7 +246,7 @@ function ChatPane({
         onSubmit={submit}
         className="border-t border-border bg-background px-4 py-4 sm:px-8"
       >
-        <div className="mx-auto flex w-full max-w-[760px] items-end gap-2 rounded-2xl border border-border bg-card p-2 focus-within:border-foreground/30">
+        <div className="mx-auto flex w-full max-w-[760px] items-end gap-2 rounded-2xl border border-border bg-white p-2 shadow-sm focus-within:border-foreground/30">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -258,7 +258,7 @@ function ChatPane({
             }}
             placeholder="Ask Marshall anything…"
             rows={1}
-            className="max-h-40 flex-1 resize-none bg-transparent px-3 py-2 text-[14px] outline-none placeholder:text-muted-foreground"
+            className="max-h-40 flex-1 resize-none bg-transparent px-3 py-2 text-[14px] text-ink outline-none placeholder:text-muted-foreground"
           />
           <button
             type="submit"
@@ -270,6 +270,117 @@ function ChatPane({
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function MessageBubble({ message, threadId }: { message: UIMessage; threadId: string }) {
+  const text = message.parts
+    .map((p) => (p.type === "text" ? p.text : ""))
+    .join("");
+  const isUser = message.role === "user";
+  const mentionsIntensive =
+    !isUser && /6[-\s]?week intensive/i.test(text);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // ignore
+    }
+  };
+
+  if (isUser) {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-ink px-4 py-3 text-[14px] leading-relaxed text-cream">
+          {text}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="group flex flex-col items-start">
+      <div className="mb-2 flex items-center gap-2 text-foreground/80">
+        <Megaphone className="h-4 w-4" />
+        <span
+          className="text-[15px] italic"
+          style={{ fontFamily: "var(--font-serif)" }}
+        >
+          Marshall
+        </span>
+      </div>
+      <div
+        className="w-full max-w-[680px] text-[15px] leading-[1.7] text-foreground"
+        style={{
+          fontFamily:
+            '"Helvetica Neue", Helvetica, Arial, "Liberation Sans", sans-serif',
+        }}
+      >
+        <div className="prose-marshall">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              p: ({ children }) => (
+                <p className="mb-3 last:mb-0 leading-[1.7]">{children}</p>
+              ),
+              strong: ({ children }) => (
+                <strong className="font-semibold text-foreground">{children}</strong>
+              ),
+              em: ({ children }) => <em className="italic">{children}</em>,
+              ul: ({ children }) => (
+                <ul className="mb-3 list-disc space-y-1.5 pl-5 last:mb-0">{children}</ul>
+              ),
+              ol: ({ children }) => (
+                <ol className="mb-3 list-decimal space-y-1.5 pl-5 last:mb-0">{children}</ol>
+              ),
+              li: ({ children }) => <li className="leading-[1.7]">{children}</li>,
+              h1: ({ children }) => (
+                <h3 className="mb-2 mt-4 text-[18px] font-semibold first:mt-0">{children}</h3>
+              ),
+              h2: ({ children }) => (
+                <h3 className="mb-2 mt-4 text-[17px] font-semibold first:mt-0">{children}</h3>
+              ),
+              h3: ({ children }) => (
+                <h4 className="mb-2 mt-3 text-[16px] font-semibold first:mt-0">{children}</h4>
+              ),
+              code: ({ children }) => (
+                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[12.5px]">{children}</code>
+              ),
+              pre: ({ children }) => (
+                <pre className="mb-3 overflow-x-auto rounded-lg bg-muted p-3 font-mono text-[12.5px] last:mb-0">{children}</pre>
+              ),
+              blockquote: ({ children }) => (
+                <blockquote className="mb-3 border-l-2 border-signal/40 pl-3 italic text-foreground/85 last:mb-0">{children}</blockquote>
+              ),
+              a: ({ children, href }) => (
+                <a href={href} target="_blank" rel="noreferrer" className="text-signal underline underline-offset-2">{children}</a>
+              ),
+              hr: () => <hr className="my-4 border-border" />,
+            }}
+          >
+            {text}
+          </ReactMarkdown>
+        </div>
+        <div className="mt-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="Copy response"
+          >
+            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
+      </div>
+      {mentionsIntensive && (
+        <IntensiveInterestCTA threadId={threadId} />
+      )}
     </div>
   );
 }
