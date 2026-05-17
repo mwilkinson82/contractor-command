@@ -16,6 +16,7 @@ import { AppSidebar, AppSidebarProvider, SidebarInset } from "@/components/porta
 import { TopStrip } from "@/components/portal/top-strip";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
+import { vault } from "@/lib/vault";
 
 const PUBLIC_ROUTES = new Set(["/login", "/signup"]);
 
@@ -129,13 +130,22 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
   const router = useRouter();
   const isPublic = PUBLIC_ROUTES.has(pathname);
 
-  // Invalidate router caches on auth changes so per-user data refetches
+  // Invalidate router caches + sync vault when auth changes
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       router.invalidate();
+      if (s?.user?.id) {
+        void vault.hydrateFor(s.user.id);
+      } else {
+        vault.reset();
+      }
     });
     return () => sub.subscription.unsubscribe();
   }, [router]);
+
+  useEffect(() => {
+    if (session?.user?.id) void vault.hydrateFor(session.user.id);
+  }, [session?.user?.id]);
 
   useEffect(() => {
     if (loading) return;
