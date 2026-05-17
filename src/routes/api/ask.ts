@@ -58,6 +58,23 @@ export const Route = createFileRoute("/api/ask")({
           return new Response("Forbidden", { status: 403 });
         }
 
+        // Daily message cap (per-user, UTC day). Keeps cost predictable.
+        const DAILY_USER_MESSAGE_CAP = 30;
+        const startOfDay = new Date();
+        startOfDay.setUTCHours(0, 0, 0, 0);
+        const { count: todayCount } = await supabaseAdmin
+          .from("ask_messages")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .eq("role", "user")
+          .gte("created_at", startOfDay.toISOString());
+        if ((todayCount ?? 0) >= DAILY_USER_MESSAGE_CAP) {
+          return new Response(
+            `You've hit today's limit of ${DAILY_USER_MESSAGE_CAP} messages with Marshall. Come back tomorrow — or upgrade for more.`,
+            { status: 429 },
+          );
+        }
+
         // Persist the newest user message (last in array).
         const lastUser = [...messages].reverse().find((m) => m.role === "user");
         const lastUserText = lastUser ? extractText(lastUser) : "";
@@ -72,6 +89,8 @@ export const Route = createFileRoute("/api/ask")({
 
         const gateway = createLovableAiGatewayProvider(key);
         const model = gateway("google/gemini-3-flash-preview");
+        // Cheap model for non-user-facing utility calls (titles, summaries).
+        const utilityModel = gateway("google/gemini-3.1-flash-lite-preview");
 
         const result = streamText({
           model,
