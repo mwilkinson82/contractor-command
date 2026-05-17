@@ -92,6 +92,7 @@
   --ink-panel: oklch(0.26 0.005 60);         /* #252422 panel */
   --signal: oklch(0.66 0.17 36);             /* #E4573D orange-red */
   --signal-green: oklch(0.78 0.14 165);      /* #34D399 */
+  --signal-success: oklch(0.72 0.17 148);    /* Manus "task completed" green */
   --gold: oklch(0.66 0.17 36);               /* alias → signal (legacy name) */
   --gold-soft: oklch(0.94 0.04 40);          /* warm peach tint */
   --blue: oklch(0.78 0.14 165);              /* alias → signal-green (legacy) */
