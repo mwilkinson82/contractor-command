@@ -12,10 +12,11 @@ export function TopStrip() {
       <div className="flex items-center gap-2">
         <Link
           to="/ask"
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] text-foreground/80 hover:bg-muted"
+          className="group inline-flex items-center gap-1.5 rounded-full bg-ink px-3.5 py-1.5 text-cream shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md"
+          style={{ fontFamily: "var(--font-serif)" }}
         >
-          <Sparkles className="h-3 w-3" />
-          <span>Ask Marshall</span>
+          <Sparkles className="h-3.5 w-3.5" />
+          <span className="text-[14px] italic leading-none">Ask Marshall</span>
         </Link>
         <button
           type="button"
