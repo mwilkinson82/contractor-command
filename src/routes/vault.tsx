@@ -30,8 +30,8 @@ function VaultPage() {
             <Link to="/tools/growth-constraint" className="rounded-lg border border-border bg-card px-4 py-2.5 text-sm hover:bg-muted">
               Run a command tool
             </Link>
-            <Link to="/bring-one-issue" className="rounded-lg bg-ink px-4 py-2.5 text-sm text-cream hover:opacity-90">
-              Bring one issue
+            <Link to="/calls" hash="submit-topic" className="rounded-lg bg-ink px-4 py-2.5 text-sm text-cream hover:opacity-90">
+              Submit a topic
             </Link>
           </>
         }
