@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { GridField } from "@/components/portal/grid-field";
 import { AosPulse } from "@/components/portal/aos-pulse";
 import { AosHero } from "@/components/portal/aos-hero";
+import { HomeHero } from "@/components/portal/home-hero";
 import { SignalTiles } from "@/components/portal/signal-tiles";
 import { TodaysMove } from "@/components/portal/todays-move";
 import { getAosSnapshot, type AosResult } from "@/lib/aos.functions";
