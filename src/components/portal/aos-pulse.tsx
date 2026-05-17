@@ -4,7 +4,18 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { getAosSnapshot, type AosResult, type AosCompany } from "@/lib/aos.functions";
 import { AOS_URL } from "@/lib/program";
-import { ArrowUpRight, Compass, Target, AlertCircle, CheckSquare, TrendingUp, ChevronDown } from "lucide-react";
+import {
+  ArrowUpRight,
+  Compass,
+  Target,
+  AlertCircle,
+  CheckSquare,
+  TrendingUp,
+  ChevronDown,
+  Play,
+  CheckCircle2,
+  CircleDashed,
+} from "lucide-react";
 
 const COMPANY_KEY = "aos.company_id";
 
@@ -22,11 +33,9 @@ export function AosPulse() {
     queryFn: () => fn({ data: { companyId: companyId ?? undefined } }),
     staleTime: 60_000,
     refetchOnWindowFocus: true,
-    // While the user is finishing sign-in in another tab, poll every 4s
     refetchInterval: waitingForLink ? 4000 : false,
   });
 
-  // Detect transition unlinked -> linked and notify the user
   useEffect(() => {
     if (!data || !data.ok) return;
     const linkedNow = data.snapshot.linked;
@@ -39,7 +48,6 @@ export function AosPulse() {
     wasLinkedRef.current = linkedNow;
   }, [data]);
 
-  // Auto-select the only company if none chosen yet
   useEffect(() => {
     if (companyId || !data || !data.ok) return;
     const list = data.snapshot.linked ? data.snapshot.companies : data.snapshot.companies ?? [];
@@ -63,30 +71,27 @@ export function AosPulse() {
 
   return (
     <article
-      className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 md:col-span-3 shadow-[var(--shadow-soft)]"
-      style={{
-        backgroundImage:
-          "radial-gradient(120% 80% at 0% 0%, color-mix(in oklab, var(--signal) 6%, transparent) 0%, transparent 55%), radial-gradient(100% 60% at 100% 100%, color-mix(in oklab, var(--signal-green) 5%, transparent) 0%, transparent 60%)",
-      }}
+      className="relative overflow-hidden rounded-3xl border border-border bg-card shadow-[var(--shadow-soft)]"
     >
-      {/* Corner brackets — quiet "instrument" framing */}
+      {/* Corner brackets — quiet instrument framing */}
       <span aria-hidden className="pointer-events-none absolute left-2 top-2 h-3 w-3 border-l border-t border-paper-edge" />
       <span aria-hidden className="pointer-events-none absolute right-2 top-2 h-3 w-3 border-r border-t border-paper-edge" />
       <span aria-hidden className="pointer-events-none absolute left-2 bottom-2 h-3 w-3 border-l border-b border-paper-edge" />
       <span aria-hidden className="pointer-events-none absolute right-2 bottom-2 h-3 w-3 border-r border-b border-paper-edge" />
 
-      <div className="flex items-center justify-between gap-3">
+      {/* Header strip */}
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-6 py-4">
         <div className="flex items-center gap-3">
-          <span className="grid h-8 w-8 place-items-center rounded-md bg-ink text-cream">
+          <span className="grid h-9 w-9 place-items-center rounded-md bg-ink text-cream">
             <Compass className="h-4 w-4" />
           </span>
           <div className="leading-tight">
             <p
-              className="text-[15px] italic text-foreground"
+              className="text-[16px] italic text-foreground"
               style={{ fontFamily: "var(--font-serif)" }}
             >
-              <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-signal align-middle animate-signal-pulse" />
-              EOS Pulse
+              <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-signal-success align-middle animate-signal-pulse" />
+              AOS Pulse
             </p>
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
               Live from your operating system
@@ -95,24 +100,20 @@ export function AosPulse() {
         </div>
         <div className="flex items-center gap-2">
           {companies.length > 1 && (
-            <WorkspacePicker
-              companies={companies}
-              current={companyId}
-              onPick={onPick}
-            />
+            <WorkspacePicker companies={companies} current={companyId} onPick={onPick} />
           )}
           <a
             href={AOS_URL}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1 rounded-md border border-border bg-background/70 px-3 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
+            className="inline-flex items-center gap-1 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90"
           >
-            Open AOS <ArrowUpRight className="h-3 w-3" />
+            <Play className="h-3 w-3" /> Open AOS <ArrowUpRight className="h-3 w-3" />
           </a>
         </div>
-      </div>
+      </header>
 
-      <div className="mt-5">
+      <div className="px-6 py-6">
         {isLoading ? (
           <PulseSkeleton />
         ) : !data || !data.ok ? (
@@ -130,7 +131,7 @@ export function AosPulse() {
             onRecheck={() => refetch()}
           />
         ) : (
-          <PulseGrid snapshot={data.snapshot} />
+          <PulseBoard snapshot={data.snapshot} companyName={data.snapshot.company_name} />
         )}
       </div>
     </article>
@@ -183,62 +184,331 @@ function WorkspacePicker({
   );
 }
 
-function PulseGrid({ snapshot }: { snapshot: Extract<AosResult, { ok: true }>["snapshot"] & { linked: true } }) {
-  const rocksOnTrack = snapshot.rocks.filter((r) => r.status === "on-track" || r.status === "done").length;
+function PulseBoard({
+  snapshot,
+  companyName,
+}: {
+  snapshot: Extract<AosResult, { ok: true }>["snapshot"] & { linked: true };
+  companyName: string | null;
+}) {
+  const offTrackRocks = snapshot.rocks.filter((r) => r.status === "off-track");
+  const onTrackRocks = snapshot.rocks.filter(
+    (r) => r.status === "on-track" || r.status === "done",
+  );
+  const overdueTodos = snapshot.todos_due_this_week.filter(
+    (t) => t.due_date && new Date(t.due_date) < new Date(),
+  );
+  const topIssues = snapshot.issues_open.slice(0, 3);
+
+  const weekLabel = new Date().toLocaleDateString(undefined, {
+    weekday: undefined,
+    month: "long",
+    day: "numeric",
+  });
+
+  const attentionCount =
+    (offTrackRocks.length > 0 ? 1 : 0) +
+    (topIssues.length > 0 ? 1 : 0) +
+    (overdueTodos.length > 0 ? 1 : 0);
+
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <Tile
-        icon={<TrendingUp className="h-3.5 w-3.5" />}
-        label="Scorecard"
-        value={`${snapshot.scorecard.length}`}
-        sub="measurables tracked"
-      />
-      <Tile
-        icon={<Target className="h-3.5 w-3.5" />}
-        label="Rocks"
-        value={`${rocksOnTrack}/${snapshot.rocks.length}`}
-        sub="on track this quarter"
-      />
-      <Tile
-        icon={<AlertCircle className="h-3.5 w-3.5" />}
-        label="Open issues"
-        value={`${snapshot.issues_open.length}`}
-        sub={snapshot.issues_open[0]?.title ?? "Nothing flagged"}
-      />
-      <Tile
-        icon={<CheckSquare className="h-3.5 w-3.5" />}
-        label="To-dos this week"
-        value={`${snapshot.todos_due_this_week.length}`}
-        sub={snapshot.todos_due_this_week[0]?.title ?? "All clear"}
-      />
+    <div className="space-y-6">
+      {/* Title block, mirrors the AOS dashboard hero */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            {companyName ?? "Your workspace"} · Week of {weekLabel}
+          </p>
+          <h3 className="mt-2 font-display text-[1.6rem] leading-tight">
+            What needs your attention this week
+          </h3>
+          <p className="mt-1 text-[13px] text-muted-foreground">
+            A quick read on the operating system before you scale the work.
+          </p>
+        </div>
+        <span
+          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12px] ${
+            attentionCount > 0
+              ? "border-signal/40 bg-signal/10 text-signal"
+              : "border-signal-success/40 bg-signal-success/10 text-signal-success"
+          }`}
+        >
+          {attentionCount > 0 ? (
+            <>
+              <AlertCircle className="h-3.5 w-3.5" />
+              {attentionCount} area{attentionCount > 1 ? "s" : ""} to review
+            </>
+          ) : (
+            <>
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              All clear this week
+            </>
+          )}
+        </span>
+      </div>
+
+      {/* 2x2 attention grid */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <AttentionCard
+          icon={<TrendingUp className="h-3.5 w-3.5" />}
+          label="Scorecard"
+          count={snapshot.scorecard.length}
+          countLabel="measurables tracked"
+          tone="neutral"
+        >
+          {snapshot.scorecard.length === 0 ? (
+            <Empty>Nothing tracked yet.</Empty>
+          ) : (
+            <ul className="space-y-1.5">
+              {snapshot.scorecard.slice(0, 3).map((m) => {
+                const last = m.weeks[m.weeks.length - 1]?.value ?? null;
+                const miss =
+                  typeof m.goal === "number" && typeof last === "number" && last < m.goal;
+                return (
+                  <Row
+                    key={m.id}
+                    title={m.name}
+                    badge={
+                      miss ? (
+                        <Pill tone="warn">miss</Pill>
+                      ) : (
+                        <Pill tone="ok">on goal</Pill>
+                      )
+                    }
+                    meta={
+                      typeof last === "number"
+                        ? `${last}${m.unit ?? ""}${typeof m.goal === "number" ? ` · goal ${m.goal}${m.unit ?? ""}` : ""}`
+                        : "no value this week"
+                    }
+                  />
+                );
+              })}
+            </ul>
+          )}
+        </AttentionCard>
+
+        <AttentionCard
+          icon={<Target className="h-3.5 w-3.5" />}
+          label="Rocks"
+          count={`${onTrackRocks.length}/${snapshot.rocks.length}`}
+          countLabel="on track this quarter"
+          tone={offTrackRocks.length > 0 ? "warn" : "ok"}
+        >
+          {snapshot.rocks.length === 0 ? (
+            <Empty>No rocks for this quarter yet.</Empty>
+          ) : offTrackRocks.length > 0 ? (
+            <ul className="space-y-1.5">
+              {offTrackRocks.slice(0, 3).map((r) => (
+                <Row
+                  key={r.id}
+                  title={r.title}
+                  badge={<Pill tone="warn">off track</Pill>}
+                  meta={`${r.owner ?? "Unassigned"} · ${r.percent_complete}%`}
+                />
+              ))}
+            </ul>
+          ) : (
+            <p className="inline-flex items-center gap-2 text-[12px] text-signal-success">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              All rocks on track.
+            </p>
+          )}
+        </AttentionCard>
+
+        <AttentionCard
+          icon={<AlertCircle className="h-3.5 w-3.5" />}
+          label="Top issues"
+          count={snapshot.issues_open.length}
+          countLabel={`open${snapshot.issues_open.length === 1 ? "" : ""}`}
+          tone={snapshot.issues_open.length > 0 ? "warn" : "ok"}
+        >
+          {topIssues.length === 0 ? (
+            <p className="inline-flex items-center gap-2 text-[12px] text-signal-success">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Nothing flagged.
+            </p>
+          ) : (
+            <ul className="space-y-1.5">
+              {topIssues.map((i, idx) => (
+                <Row
+                  key={i.id}
+                  rank={`#${idx + 1}`}
+                  title={i.title}
+                  meta={i.owner ?? "Unassigned"}
+                />
+              ))}
+            </ul>
+          )}
+        </AttentionCard>
+
+        <AttentionCard
+          icon={<CheckSquare className="h-3.5 w-3.5" />}
+          label="To-Dos"
+          count={snapshot.todos_due_this_week.length}
+          countLabel="due this week"
+          tone={overdueTodos.length > 0 ? "warn" : "neutral"}
+        >
+          {snapshot.todos_due_this_week.length === 0 ? (
+            <p className="inline-flex items-center gap-2 text-[12px] text-signal-success">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              All clear.
+            </p>
+          ) : (
+            <ul className="space-y-1.5">
+              {snapshot.todos_due_this_week.slice(0, 3).map((t) => {
+                const overdue =
+                  t.due_date && new Date(t.due_date) < new Date();
+                return (
+                  <Row
+                    key={t.id}
+                    title={t.title}
+                    badge={
+                      overdue ? (
+                        <Pill tone="warn">overdue</Pill>
+                      ) : null
+                    }
+                    meta={t.owner ?? "Unassigned"}
+                  />
+                );
+              })}
+            </ul>
+          )}
+        </AttentionCard>
+      </div>
+
+      {/* Jump to chips */}
+      <div>
+        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+          Jump into AOS
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {[
+            { label: "Scorecard", icon: <TrendingUp className="h-3 w-3" /> },
+            { label: "Rocks", icon: <Target className="h-3 w-3" /> },
+            { label: "Issues", icon: <AlertCircle className="h-3 w-3" /> },
+            { label: "To-Dos", icon: <CheckSquare className="h-3 w-3" /> },
+          ].map((c) => (
+            <a
+              key={c.label}
+              href={AOS_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/70 px-3 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
+            >
+              {c.icon} {c.label}
+            </a>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
 
-function Tile({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string; sub: string }) {
+function AttentionCard({
+  icon,
+  label,
+  count,
+  countLabel,
+  tone,
+  children,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  count: number | string;
+  countLabel: string;
+  tone: "ok" | "warn" | "neutral";
+  children: React.ReactNode;
+}) {
+  const ring =
+    tone === "warn"
+      ? "border-signal/30"
+      : tone === "ok"
+        ? "border-signal-success/30"
+        : "border-border";
   return (
-    <div className="rounded-xl border border-border bg-background/60 p-4">
-      <div className="flex items-center gap-2 text-foreground">
-        {icon}
-        <p
-          className="text-[15px] font-semibold leading-none"
-          style={{ fontFamily: "var(--font-serif)" }}
-        >
-          {label}
-        </p>
+    <div className={`rounded-2xl border ${ring} bg-background/60 p-5`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2 text-foreground">
+          {icon}
+          <p
+            className="text-[15px] font-semibold leading-none"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
+            {label}
+          </p>
+        </div>
+        <div className="text-right leading-none">
+          <p className="font-display text-2xl">{count}</p>
+          <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+            {countLabel}
+          </p>
+        </div>
       </div>
-      <p className="mt-3 font-display text-2xl leading-none">{value}</p>
-      <p className="mt-2 truncate text-[11px] text-muted-foreground">{sub}</p>
+      <div className="mt-4 text-[13px] text-foreground/85">{children}</div>
     </div>
   );
+}
+
+function Row({
+  title,
+  meta,
+  badge,
+  rank,
+}: {
+  title: string;
+  meta?: string;
+  badge?: React.ReactNode;
+  rank?: string;
+}) {
+  return (
+    <li className="flex items-start gap-2">
+      {rank ? (
+        <span className="mt-0.5 font-mono text-[10px] text-muted-foreground">{rank}</span>
+      ) : (
+        <CircleDashed className="mt-1 h-3 w-3 shrink-0 text-muted-foreground" />
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13px] text-foreground">{title}</p>
+        {meta && (
+          <p className="truncate text-[11px] text-muted-foreground">{meta}</p>
+        )}
+      </div>
+      {badge}
+    </li>
+  );
+}
+
+function Pill({
+  tone,
+  children,
+}: {
+  tone: "ok" | "warn";
+  children: React.ReactNode;
+}) {
+  const cls =
+    tone === "warn"
+      ? "border-signal/30 bg-signal/10 text-signal"
+      : "border-signal-success/30 bg-signal-success/10 text-signal-success";
+  return (
+    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide ${cls}`}>
+      {children}
+    </span>
+  );
+}
+
+function Empty({ children }: { children: React.ReactNode }) {
+  return <p className="text-[12px] text-muted-foreground">{children}</p>;
 }
 
 function PulseSkeleton() {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {[0, 1, 2, 3].map((i) => (
-        <div key={i} className="h-[104px] animate-pulse rounded-xl border border-border bg-muted/40" />
-      ))}
+    <div className="space-y-4">
+      <div className="h-6 w-1/2 animate-pulse rounded bg-muted/50" />
+      <div className="grid gap-4 md:grid-cols-2">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="h-[140px] animate-pulse rounded-2xl border border-border bg-muted/40" />
+        ))}
+      </div>
     </div>
   );
 }
