@@ -54,6 +54,10 @@ export type AosResult =
   | { ok: true; snapshot: AosSnapshot; fetched_at: string }
   | { ok: false; error: string };
 
+function secretVariants(secret: string) {
+  return Array.from(new Set([secret, secret.trim()]));
+}
+
 export const getAosSnapshot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { companyId?: string } | undefined) => input ?? {})
@@ -72,25 +76,38 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
     }
 
     const ts = Math.floor(Date.now() / 1000).toString();
-    const sig = createHmac("sha256", secret)
-      .update(`${email.toLowerCase()}|${ts}`)
-      .digest("hex");
+    const normalizedEmail = email.toLowerCase().trim();
 
     try {
-      const res = await fetch(
-        `${baseUrl.replace(/\/$/, "")}/api/public/circle/snapshot`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          redirect: "manual",
-          body: JSON.stringify({
-            email: email.toLowerCase(),
-            ts,
-            sig,
-            company_id: data.companyId ?? null,
-          }),
-        },
-      );
+      let res: Response | null = null;
+      for (const signingSecret of secretVariants(secret)) {
+        const sig = createHmac("sha256", signingSecret)
+          .update(`${normalizedEmail}|${ts}`)
+          .digest("hex");
+
+        res = await fetch(
+          `${baseUrl.replace(/\/$/, "")}/api/public/circle/snapshot`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            redirect: "manual",
+            body: JSON.stringify({
+              email: normalizedEmail,
+              ts,
+              sig,
+              company_id: data.companyId ?? null,
+            }),
+          },
+        );
+
+        if (res.ok || signingSecret === secret.trim()) break;
+        const text = await res.clone().text().catch(() => "");
+        if (!text.includes("Bad signature")) break;
+      }
+
+      if (!res) {
+        return { ok: false, error: "Could not reach AOS." };
+      }
 
       if (!res.ok) {
         const text = await res.text().catch(() => "");
