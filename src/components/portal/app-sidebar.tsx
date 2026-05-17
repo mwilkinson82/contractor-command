@@ -83,7 +83,13 @@ const GROUPS: Group[] = [
 export function AppSidebar() {
   const { collapsed, toggle } = useAppSidebar();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
   const next = nextAny();
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    navigate({ to: "/login" });
+  }
 
   return (
     <aside
