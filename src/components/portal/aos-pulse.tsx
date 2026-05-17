@@ -97,7 +97,16 @@ export function AosPulse() {
         ) : !data || !data.ok ? (
           <ErrorState message={data && !data.ok ? data.error : "Loading failed."} />
         ) : !data.snapshot.linked ? (
-          <UnlinkedState reason={data.snapshot.reason} />
+          <UnlinkedState
+            reason={data.snapshot.reason}
+            waiting={waitingForLink}
+            isFetching={isFetching}
+            onOpenAos={() => {
+              setWaitingForLink(true);
+              window.open(AOS_URL, "_blank", "noopener,noreferrer");
+            }}
+            onRecheck={() => refetch()}
+          />
         ) : (
           <PulseGrid snapshot={data.snapshot} />
         )}
