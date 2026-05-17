@@ -41,6 +41,7 @@ function HomePage() {
   // Defer time-dependent strings to client mount to avoid SSR hydration mismatch.
   const [hello, setHello] = useState<string>("Welcome");
   const [today, setToday] = useState<string>("");
+  const [sessionWhen, setSessionWhen] = useState<string>("");
   const [packets, setPackets] = useState<Packet[]>([]);
 
   useEffect(() => {
@@ -52,6 +53,7 @@ function HomePage() {
         day: "numeric",
       }),
     );
+    setSessionWhen(formatSessionDate(session.date));
     const load = () => setPackets(vault.list());
     load();
     window.addEventListener("vault:changed", load);
@@ -121,7 +123,7 @@ function HomePage() {
               <h2 className="mt-5 font-display text-2xl leading-[1.15] text-cream sm:text-3xl">
                 {session.title}
               </h2>
-              <p className="mt-3 text-[13px] text-cream/65">{formatSessionDate(session.date)}</p>
+              <p className="mt-3 text-[13px] text-cream/65">{sessionWhen || "\u00A0"}</p>
               <p className="mt-4 max-w-prose text-[13px] leading-relaxed text-cream/75">
                 {session.description}
               </p>
