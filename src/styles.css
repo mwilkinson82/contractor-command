@@ -141,7 +141,7 @@
   }
   .label-mono {
     font-family: var(--font-serif);
-    font-style: italic;
+    font-style: normal;
     font-size: 0.95rem;
     font-weight: 400;
     letter-spacing: 0;
