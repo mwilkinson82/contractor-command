@@ -1,58 +1,8 @@
-import { Hand, Hammer, Scale, BrickWall } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import type { SVGProps, ReactElement } from "react";
-
-// Simple inline SVGs for icons not in lucide (crane, bulldozer).
-function CraneIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      {/* mast */}
-      <path d="M5 21V4" />
-      {/* horizontal jib */}
-      <path d="M5 6h14" />
-      {/* counter jib */}
-      <path d="M5 6L2 9" />
-      {/* hoist cable + hook */}
-      <path d="M15 6v5" />
-      <path d="M14 11h2v2h-2z" />
-      {/* base */}
-      <path d="M3 21h6" />
-    </svg>
-  );
-}
-
-function BulldozerIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      {/* cab */}
-      <path d="M8 12V8h5l2 4" />
-      {/* body */}
-      <path d="M6 16h12v-4H6z" />
-      {/* blade */}
-      <path d="M3 17V9" />
-      <path d="M3 17l3-1" />
-      {/* tracks */}
-      <circle cx="9" cy="18" r="1.5" />
-      <circle cx="15" cy="18" r="1.5" />
-    </svg>
-  );
-}
+// Greeting icons — native color emoji. They render with the OS's full-color
+// emoji font (Apple Color Emoji on macOS/iOS, Segoe UI Emoji on Windows,
+// Noto Color Emoji on Android/Linux) so we get the friendly, recognizable
+// "👋 hey, good morning" look with zero asset weight and no extra deps.
+import type { CSSProperties } from "react";
 
 export type GreetingIconKey =
   | "wave"
@@ -62,20 +12,66 @@ export type GreetingIconKey =
   | "scale"
   | "brick";
 
-type IconComp = LucideIcon | ((p: SVGProps<SVGSVGElement>) => ReactElement);
+const EMOJI_FONT_STACK =
+  '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", "EmojiOne Color", "Android Emoji", sans-serif';
 
+type Entry = {
+  key: GreetingIconKey;
+  label: string;
+  emoji: string;
+};
+
+const ENTRIES: Entry[] = [
+  { key: "wave", label: "Wave", emoji: "👋" },
+  { key: "crane", label: "Crane", emoji: "🏗️" },
+  { key: "bulldozer", label: "Bulldozer", emoji: "🚜" },
+  { key: "hammer", label: "Hammer", emoji: "🔨" },
+  { key: "scale", label: "Scale", emoji: "⚖️" },
+  { key: "brick", label: "Brick", emoji: "🧱" },
+];
+
+function EmojiIcon({
+  emoji,
+  className,
+  style,
+}: {
+  emoji: string;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  return (
+    <span
+      role="img"
+      aria-hidden
+      className={className}
+      style={{
+        fontFamily: EMOJI_FONT_STACK,
+        lineHeight: 1,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        ...style,
+      }}
+    >
+      {emoji}
+    </span>
+  );
+}
+
+// Public list used by the onboarding/account icon pickers.
+// `Icon` is a render-component compatible with the prior lucide-style API:
+// it accepts `className` and renders the colored emoji at the inherited font-size.
 export const GREETING_ICONS: {
   key: GreetingIconKey;
   label: string;
-  Icon: IconComp;
-}[] = [
-  { key: "wave", label: "Wave", Icon: Hand },
-  { key: "crane", label: "Crane", Icon: CraneIcon },
-  { key: "bulldozer", label: "Bulldozer", Icon: BulldozerIcon },
-  { key: "hammer", label: "Hammer", Icon: Hammer },
-  { key: "scale", label: "Scale", Icon: Scale },
-  { key: "brick", label: "Brick", Icon: BrickWall },
-];
+  Icon: (props: { className?: string }) => React.ReactElement;
+}[] = ENTRIES.map(({ key, label, emoji }) => ({
+  key,
+  label,
+  Icon: ({ className }: { className?: string }) => (
+    <EmojiIcon emoji={emoji} className={className} />
+  ),
+}));
 
 export function GreetingIcon({
   iconKey,
@@ -85,8 +81,7 @@ export function GreetingIcon({
   className?: string;
 }) {
   if (!iconKey) return null;
-  const entry = GREETING_ICONS.find((g) => g.key === iconKey);
+  const entry = ENTRIES.find((g) => g.key === iconKey);
   if (!entry) return null;
-  const Icon = entry.Icon;
-  return <Icon className={className} aria-hidden />;
+  return <EmojiIcon emoji={entry.emoji} className={className} />;
 }

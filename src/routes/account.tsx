@@ -247,7 +247,7 @@ function AccountPage() {
                   aria-pressed={active}
                   aria-label={label}
                 >
-                  <Icon className="h-6 w-6" />
+                  <Icon className="text-[1.75rem]" />
                   <span className="font-mono text-[9px] uppercase tracking-[0.18em]">
                     {label}
                   </span>
