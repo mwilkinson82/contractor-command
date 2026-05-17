@@ -62,15 +62,36 @@ export function AosPulse() {
   };
 
   return (
-    <article className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 md:col-span-3">
+    <article
+      className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 md:col-span-3 shadow-[var(--shadow-soft)]"
+      style={{
+        backgroundImage:
+          "radial-gradient(120% 80% at 0% 0%, color-mix(in oklab, var(--signal) 6%, transparent) 0%, transparent 55%), radial-gradient(100% 60% at 100% 100%, color-mix(in oklab, var(--signal-green) 5%, transparent) 0%, transparent 60%)",
+      }}
+    >
+      {/* Corner brackets — quiet "instrument" framing */}
+      <span aria-hidden className="pointer-events-none absolute left-2 top-2 h-3 w-3 border-l border-t border-paper-edge" />
+      <span aria-hidden className="pointer-events-none absolute right-2 top-2 h-3 w-3 border-r border-t border-paper-edge" />
+      <span aria-hidden className="pointer-events-none absolute left-2 bottom-2 h-3 w-3 border-l border-b border-paper-edge" />
+      <span aria-hidden className="pointer-events-none absolute right-2 bottom-2 h-3 w-3 border-r border-b border-paper-edge" />
+
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="grid h-7 w-7 place-items-center rounded-md bg-foreground/5 text-foreground/80">
-            <Compass className="h-3.5 w-3.5" />
+        <div className="flex items-center gap-3">
+          <span className="grid h-8 w-8 place-items-center rounded-md bg-ink text-cream">
+            <Compass className="h-4 w-4" />
           </span>
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
-            AOS Pulse · live from your operating system
-          </p>
+          <div className="leading-tight">
+            <p
+              className="text-[15px] italic text-foreground"
+              style={{ fontFamily: "var(--font-serif)" }}
+            >
+              <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-signal align-middle animate-signal-pulse" />
+              EOS Pulse
+            </p>
+            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+              Live from your operating system
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {companies.length > 1 && (
@@ -84,7 +105,7 @@ export function AosPulse() {
             href={AOS_URL}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
+            className="inline-flex items-center gap-1 rounded-md border border-border bg-background/70 px-3 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
           >
             Open AOS <ArrowUpRight className="h-3 w-3" />
           </a>
