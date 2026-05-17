@@ -87,7 +87,7 @@ function RootShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-const NAV = [
+const NAV: { to: string; label: string; match?: string }[] = [
   { to: "/", label: "Home" },
   { to: "/tools/growth-constraint", label: "Command Tools", match: "/tools" },
   { to: "/bring-one-issue", label: "Bring One Issue" },
@@ -96,7 +96,7 @@ const NAV = [
   { to: "/calls", label: "Calls" },
   { to: "/templates", label: "Templates" },
   { to: "/work-with-marshall", label: "Work With Marshall" },
-] as const;
+];
 
 function TopBar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
