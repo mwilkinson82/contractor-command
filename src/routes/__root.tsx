@@ -15,10 +15,12 @@ import appCss from "../styles.css?url";
 import { AppSidebar, AppSidebarProvider, SidebarInset } from "@/components/portal/app-sidebar";
 import { TopStrip } from "@/components/portal/top-strip";
 import { useAuth } from "@/hooks/use-auth";
+import { useCompany } from "@/hooks/use-company";
 import { supabase } from "@/integrations/supabase/client";
 import { vault } from "@/lib/vault";
 
 const PUBLIC_ROUTES = new Set(["/login", "/signup"]);
+const ONBOARDING_ROUTE = "/onboarding";
 
 function NotFoundComponent() {
   return (
@@ -125,10 +127,12 @@ function RootComponent() {
 
 function AuthGate({ children }: { children: (showShell: boolean) => React.ReactNode }) {
   const { session, loading } = useAuth();
+  const { needsOnboarding, loading: companyLoading } = useCompany();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const router = useRouter();
   const isPublic = PUBLIC_ROUTES.has(pathname);
+  const isOnboarding = pathname === ONBOARDING_ROUTE;
 
   // Invalidate router caches + sync vault when auth changes
   useEffect(() => {
@@ -151,8 +155,12 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
     if (loading) return;
     if (!session && !isPublic) {
       navigate({ to: "/login" });
+      return;
     }
-  }, [loading, session, isPublic, navigate]);
+    if (session && !companyLoading && needsOnboarding && !isOnboarding) {
+      navigate({ to: "/onboarding" });
+    }
+  }, [loading, session, isPublic, isOnboarding, companyLoading, needsOnboarding, navigate]);
 
   if (loading) {
     return (
@@ -166,5 +174,7 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
 
   if (isPublic) return <>{children(false)}</>;
   if (!session) return null;
+  // Onboarding renders without the app shell — it's a focused setup screen.
+  if (isOnboarding) return <>{children(false)}</>;
   return <>{children(true)}</>;
 }

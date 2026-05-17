@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { nextAny, relativeDay } from "@/lib/program";
 import { supabase } from "@/integrations/supabase/client";
+import { useCompany } from "@/hooks/use-company";
 
 type Ctx = { collapsed: boolean; toggle: () => void };
 const SidebarCtx = createContext<Ctx>({ collapsed: false, toggle: () => {} });
@@ -85,6 +86,9 @@ export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const next = nextAny();
+  const { company, logoUrl } = useCompany();
+  const brandName = company?.name?.trim() || "Contractor Circle";
+  const brandInitial = brandName.charAt(0).toUpperCase();
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -97,16 +101,20 @@ export function AppSidebar() {
       className="group/sidebar fixed inset-y-0 left-0 z-30 flex flex-col border-r border-border/70 bg-[var(--paper-deep)] transition-[width] duration-300 ease-[cubic-bezier(.2,.7,.2,1)]"
       style={{ width: collapsed ? "60px" : "248px" }}
     >
-      {/* Brand */}
+      {/* Brand — company logo + name (falls back to Circle lockup) */}
       <div className="flex h-14 items-center gap-2 border-b border-border/70 px-3">
         <Link to="/" className="flex items-center gap-2 overflow-hidden">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-ink text-cream font-display text-[13px]">
-            A
+          <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-md bg-ink text-cream font-display text-[13px]">
+            {logoUrl ? (
+              <img src={logoUrl} alt={brandName} className="h-full w-full object-contain" />
+            ) : (
+              brandInitial
+            )}
           </span>
           {!collapsed && (
             <span className="flex flex-col leading-tight">
-              <span className="font-display text-[13px] tracking-tight">Contractor Circle</span>
-              <span className="font-mono text-[9px] tracking-[0.2em] text-muted-foreground uppercase">· 001 ·</span>
+              <span className="truncate font-display text-[13px] tracking-tight" title={brandName}>{brandName}</span>
+              <span className="font-mono text-[9px] tracking-[0.2em] text-muted-foreground uppercase">Command Center</span>
             </span>
           )}
         </Link>

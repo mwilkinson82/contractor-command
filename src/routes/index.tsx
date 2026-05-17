@@ -12,6 +12,8 @@ import {
   relativeDay,
 } from "@/lib/program";
 import { vault, type Packet } from "@/lib/vault";
+import { useCompany } from "@/hooks/use-company";
+import { useAuth } from "@/hooks/use-auth";
 import { GridField } from "@/components/portal/grid-field";
 import { AosPulse } from "@/components/portal/aos-pulse";
 import { AosHero } from "@/components/portal/aos-hero";
@@ -37,22 +39,40 @@ export const Route = createFileRoute("/")({
   component: HomePage,
 });
 
+const COMPANY_KEY = "aos.company_id";
+
 function HomePage() {
   const session = nextAny();
   const latestReplay = REPLAYS[0];
+  const { company } = useCompany();
+  const { user } = useAuth();
 
   const [hello, setHello] = useState<string>("Welcome");
   const [today, setToday] = useState<string>("");
   const [sessionWhen, setSessionWhen] = useState<string>("");
   const [replayDate, setReplayDate] = useState<string>("");
   const [packets, setPackets] = useState<Packet[]>([]);
+  const [companyId, setCompanyId] = useState<string | null>(null);
+
+  const firstName =
+    (user?.user_metadata?.full_name as string | undefined)?.split(" ")[0] ||
+    user?.email?.split("@")[0] ||
+    "there";
+  const companyName = company?.name?.trim() || "Your Command Center";
+
+  // Hydrate company id from localStorage (avoids SSR mismatch)
+  useEffect(() => {
+    try {
+      setCompanyId(window.localStorage.getItem(COMPANY_KEY));
+    } catch {}
+  }, []);
 
   // AOS query — shares cache key with <AosPulse /> so they dedupe automatically.
   const aosFn = useServerFn(getAosSnapshot);
   const { data: aosData, refetch: refetchAos, isFetching: aosFetching } =
     useQuery<AosResult>({
-      queryKey: ["aos-snapshot", null],
-      queryFn: () => aosFn({ data: {} }),
+      queryKey: ["aos-snapshot", companyId],
+      queryFn: () => aosFn({ data: { companyId: companyId ?? undefined } }),
       staleTime: 60_000,
       refetchOnWindowFocus: true,
     });
@@ -60,6 +80,14 @@ function HomePage() {
   const aosLinked = aosData?.ok && aosData.snapshot.linked;
   const aosPreviouslyLinked = aosData?.ok ? aosData.previously_linked : false;
   const aosUnknown = !aosData; // still loading first time
+  const aosCompanies =
+    aosData?.ok && !aosData.snapshot.linked ? aosData.snapshot.companies ?? [] : [];
+
+  const pickCompany = (id: string) => {
+    try { window.localStorage.setItem(COMPANY_KEY, id); } catch {}
+    setCompanyId(id);
+    // Query will refire because the key includes companyId
+  };
 
   useEffect(() => {
     setHello(greeting());
@@ -86,26 +114,26 @@ function HomePage() {
         <div className="relative mx-auto w-full max-w-[1180px]">
           <div className="flex flex-wrap items-baseline justify-between gap-3">
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
-              · Workspace · {today || "\u00A0"}
+              · Command Center · {today || "\u00A0"}
             </p>
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
-              v4 · Command Center
+              v4
             </p>
           </div>
 
           <h1 className="mt-6 font-display text-[2.5rem] leading-[1.02] tracking-tight sm:text-[3.5rem]">
-            <span className="reveal-up inline-block">{hello},</span>{" "}
-            <span className="reveal-up inline-block text-foreground/70" style={{ animationDelay: "120ms" }}>
-              Marshall.
-            </span>
+            <span className="reveal-up inline-block">{companyName}.</span>
           </h1>
+          <p className="reveal-up mt-3 text-[14px] text-foreground/70" style={{ animationDelay: "120ms" }}>
+            {hello}, {firstName}.
+          </p>
           <p className="reveal-up mt-4 max-w-xl text-[15px] text-muted-foreground" style={{ animationDelay: "220ms" }}>
             One screen. One next move. Run the company from here.
           </p>
         </div>
       </section>
 
-      {/* Unconnected AOS users see a dominant Start-AOS hero */}
+      {/* Unconnected AOS users see a dominant Start-AOS hero (or workspace picker) */}
       {!aosUnknown && !aosLinked && (
         <section className="relative px-6 pb-8">
           <div className="relative mx-auto w-full max-w-[1180px]">
@@ -113,6 +141,8 @@ function HomePage() {
               previouslyLinked={aosPreviouslyLinked}
               isChecking={aosFetching}
               onRecheck={() => refetchAos()}
+              companies={aosCompanies}
+              onPickCompany={pickCompany}
             />
           </div>
         </section>
