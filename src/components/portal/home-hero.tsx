@@ -19,11 +19,13 @@ export function HomeHero({
   greeting,
   firstName,
   today,
+  greetingIcon,
 }: {
   companyName: string;
   greeting: string;
   firstName: string;
   today: string;
+  greetingIcon?: GreetingIconKey | null;
 }) {
   const navigate = useNavigate();
   const createThreadFn = useServerFn(createThread);
