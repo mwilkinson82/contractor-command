@@ -99,6 +99,7 @@ export function AosPulse() {
         ) : !data.snapshot.linked ? (
           <UnlinkedState
             reason={data.snapshot.reason}
+            previouslyLinked={data.previously_linked}
             waiting={waitingForLink}
             isFetching={isFetching}
             onOpenAos={() => {
@@ -218,17 +219,51 @@ function PulseSkeleton() {
 
 function UnlinkedState({
   reason,
+  previouslyLinked,
   waiting,
   isFetching,
   onOpenAos,
   onRecheck,
 }: {
   reason: string;
+  previouslyLinked: boolean;
   waiting: boolean;
   isFetching: boolean;
   onOpenAos: () => void;
   onRecheck: () => void;
 }) {
+  if (previouslyLinked) {
+    return (
+      <div className="rounded-xl border border-dashed border-border bg-background/60 p-5">
+        <p className="font-display text-[15px]">Reconnect to AOS</p>
+        <p className="mt-1 text-[12px] text-muted-foreground">
+          You've connected before — your AOS session just needs a quick refresh. Open AOS, then come back. We'll detect it automatically.
+        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenAos}
+            className="inline-flex items-center gap-1 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90"
+          >
+            Refresh AOS session <ArrowUpRight className="h-3 w-3" />
+          </button>
+          <button
+            type="button"
+            onClick={onRecheck}
+            className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
+          >
+            {isFetching ? "Checking…" : "Check now"}
+          </button>
+        </div>
+        {waiting && (
+          <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            Waiting for AOS · auto-checking every few seconds
+          </p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-xl border border-dashed border-border bg-background/60 p-5">
       <p className="font-display text-[15px]">Connect your AOS workspace</p>

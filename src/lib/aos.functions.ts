@@ -51,7 +51,7 @@ export type AosSnapshot =
   | { linked: false; reason: string; companies?: AosCompany[] };
 
 export type AosResult =
-  | { ok: true; snapshot: AosSnapshot; fetched_at: string }
+  | { ok: true; snapshot: AosSnapshot; fetched_at: string; previously_linked: boolean }
   | { ok: false; error: string };
 
 function secretVariants(secret: string) {
@@ -118,7 +118,35 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
       }
 
       const snapshot = (await res.json()) as AosSnapshot;
-      return { ok: true, snapshot, fetched_at: new Date().toISOString() };
+
+      // Look up any previously-verified link for this Circle user
+      const { supabase, userId } = context;
+      const { data: existingLink } = await supabase
+        .from("aos_links")
+        .select("verified_at")
+        .eq("user_id", userId)
+        .maybeSingle();
+      const previously_linked = Boolean(existingLink?.verified_at);
+
+      // Persist the link the first time we confirm it (and refresh last_sync_at)
+      if (snapshot.linked) {
+        await supabase.from("aos_links").upsert(
+          {
+            user_id: userId,
+            aos_email: normalizedEmail,
+            verified_at: existingLink?.verified_at ?? new Date().toISOString(),
+            last_sync_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" },
+        );
+      }
+
+      return {
+        ok: true,
+        snapshot,
+        fetched_at: new Date().toISOString(),
+        previously_linked: previously_linked || snapshot.linked,
+      };
     } catch (err) {
       console.error("AOS snapshot fetch failed:", err);
       return { ok: false, error: "Could not reach AOS." };
