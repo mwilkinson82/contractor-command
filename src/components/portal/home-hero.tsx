@@ -157,7 +157,10 @@ export function HomeHero({
 
       <div className="pointer-events-none absolute inset-x-0 bottom-6 flex justify-center">
         <div className="flex flex-col items-center gap-1 text-muted-foreground">
-          <span className="font-mono text-[9px] uppercase tracking-[0.24em]">
+          <span
+            className="text-[14px] italic"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
             Your command center
           </span>
           <ChevronDown className="h-4 w-4 animate-bounce" />
