@@ -16,7 +16,9 @@ export type Database = {
     Tables: {
       aos_links: {
         Row: {
+          aos_company_id: string | null
           aos_email: string | null
+          company_id: string | null
           created_at: string
           last_sync_at: string | null
           link_code: string | null
@@ -25,7 +27,9 @@ export type Database = {
           verified_at: string | null
         }
         Insert: {
+          aos_company_id?: string | null
           aos_email?: string | null
+          company_id?: string | null
           created_at?: string
           last_sync_at?: string | null
           link_code?: string | null
@@ -34,13 +38,45 @@ export type Database = {
           verified_at?: string | null
         }
         Update: {
+          aos_company_id?: string | null
           aos_email?: string | null
+          company_id?: string | null
           created_at?: string
           last_sync_at?: string | null
           link_code?: string | null
           updated_at?: string
           user_id?: string
           verified_at?: string | null
+        }
+        Relationships: []
+      }
+      companies: {
+        Row: {
+          address: string | null
+          created_at: string
+          id: string
+          logo_path: string | null
+          name: string
+          owner_user_id: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          id?: string
+          logo_path?: string | null
+          name?: string
+          owner_user_id: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          id?: string
+          logo_path?: string | null
+          name?: string
+          owner_user_id?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -70,6 +106,7 @@ export type Database = {
       }
       vault_packets: {
         Row: {
+          company_id: string | null
           created_at: string
           id: string
           kind: string
@@ -80,6 +117,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          company_id?: string | null
           created_at?: string
           id?: string
           kind: string
@@ -90,6 +128,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          company_id?: string | null
           created_at?: string
           id?: string
           kind?: string
