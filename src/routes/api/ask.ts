@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import "@tanstack/react-start";
 import {
-  convertToModelMessages,
   streamText,
   generateText,
+  type ModelMessage,
   type UIMessage,
 } from "ai";
 
@@ -13,6 +13,11 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { createClient } from "@supabase/supabase-js";
 
 type Body = { messages?: UIMessage[]; threadId?: string };
+
+// Summarization tuning.
+const RECENT_WINDOW = 6; // last N messages always sent verbatim
+const SUMMARIZE_THRESHOLD = 12; // total msgs before summarization kicks in
+const RESUMMARIZE_EVERY = 6; // re-summarize every N new older messages
 
 async function getUserId(request: Request): Promise<string | null> {
   const auth = request.headers.get("authorization");
