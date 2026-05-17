@@ -116,7 +116,7 @@ export function AppSidebar() {
           {!collapsed && (
             <span className="flex flex-col leading-tight">
               <span className="truncate font-display text-[13px] tracking-tight" title={brandName}>{brandName}</span>
-              <span className="font-mono text-[9px] tracking-[0.2em] text-muted-foreground uppercase">Command Center</span>
+              <span className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Command Center</span>
             </span>
           )}
         </Link>
