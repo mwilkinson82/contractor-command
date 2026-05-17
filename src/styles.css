@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
@@ -7,14 +7,14 @@
 
 /*
  * ALP Contractor Circle — member portal
- * Shares design language with AOS (alpos.alpcontractorcircle.com).
- * Warm cream, near-black ink, restrained gold, deep charcoal focus panels.
- * All colors oklch.
+ * Aesthetic: Instance.io / Neuform — warm paper, deep ink,
+ * orange-red signal, technical inset framing, mono labels.
+ * All colors expressed in oklch.
  */
 
 @theme inline {
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: "Fraunces", "Playfair Display", Georgia, serif;
+  --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --radius-sm: calc(var(--radius) - 4px);
@@ -45,50 +45,76 @@
   --color-ring: var(--ring);
   --color-ring-offset-background: var(--background);
 
+  /* Brand tokens (kept named for back-compat with existing components) */
   --color-cream: var(--cream);
   --color-ink: var(--ink);
   --color-ink-panel: var(--ink-panel);
-  --color-gold: var(--gold);
+  --color-gold: var(--gold);          /* now mapped to signal orange-red */
   --color-gold-soft: var(--gold-soft);
-  --color-blue: var(--blue);
+  --color-blue: var(--blue);          /* now mapped to signal green */
   --color-blue-soft: var(--blue-soft);
+  --color-signal: var(--signal);
+  --color-signal-green: var(--signal-green);
+  --color-paper-edge: var(--paper-edge);
 
-  --shadow-elegant: 0 10px 40px -20px oklch(0.2 0.02 80 / 0.18);
-  --shadow-soft: 0 1px 2px 0 oklch(0.2 0.02 80 / 0.04), 0 4px 16px -4px oklch(0.2 0.02 80 / 0.06);
-  --shadow-focus: 0 30px 80px -40px oklch(0.18 0.01 80 / 0.55);
+  --shadow-elegant: 0 10px 40px -20px oklch(0.18 0.005 60 / 0.25);
+  --shadow-soft:
+    0 1px 2px 0 oklch(0.18 0.005 60 / 0.05),
+    0 4px 16px -4px oklch(0.18 0.005 60 / 0.08);
+  --shadow-focus: 0 40px 100px -50px oklch(0.12 0.004 60 / 0.55);
+  --shadow-badge:
+    0 2.8px 2.2px oklch(0.18 0.005 60 / 0.034),
+    0 6.7px 5.3px oklch(0.18 0.005 60 / 0.048),
+    0 12.5px 10px oklch(0.18 0.005 60 / 0.06),
+    0 22.3px 17.9px oklch(0.18 0.005 60 / 0.072),
+    0 41.8px 33.4px oklch(0.18 0.005 60 / 0.086);
 }
 
 :root {
-  --radius: 0.75rem;
+  --radius: 1.25rem; /* 20px control radius — matches reference */
 
-  --cream: oklch(0.972 0.018 85);
-  --ink: oklch(0.18 0.01 80);
-  --ink-panel: oklch(0.22 0.012 80);
-  --gold: oklch(0.74 0.13 78);
-  --gold-soft: oklch(0.92 0.06 85);
-  --blue: oklch(0.55 0.11 245);
-  --blue-soft: oklch(0.93 0.04 240);
+  /* Reference palette
+   * paper bg     #F4F3EF
+   * paper card   #FCFBF9 / #ECEBE5
+   * ink          #1A1918
+   * ink panel    #252422
+   * signal       #E4573D (orange-red)
+   * signal green #34D399
+   * border warm  #E2DED6 / #D1CFC7
+   * muted text   #8E8B82
+   */
 
-  --background: oklch(0.972 0.018 85);
-  --foreground: oklch(0.18 0.01 80);
-  --card: oklch(0.995 0.004 85);
-  --card-foreground: oklch(0.18 0.01 80);
-  --popover: oklch(0.995 0.004 85);
-  --popover-foreground: oklch(0.18 0.01 80);
+  --cream: oklch(0.965 0.005 80);            /* #F4F3EF paper bg */
+  --ink: oklch(0.21 0.005 60);               /* #1A1918 ink */
+  --ink-panel: oklch(0.26 0.005 60);         /* #252422 panel */
+  --signal: oklch(0.66 0.17 36);             /* #E4573D orange-red */
+  --signal-green: oklch(0.78 0.14 165);      /* #34D399 */
+  --gold: oklch(0.66 0.17 36);               /* alias → signal (legacy name) */
+  --gold-soft: oklch(0.94 0.04 40);          /* warm peach tint */
+  --blue: oklch(0.78 0.14 165);              /* alias → signal-green (legacy) */
+  --blue-soft: oklch(0.94 0.04 165);
+  --paper-edge: oklch(0.88 0.008 75);        /* #D1CFC7 frame border */
 
-  --primary: oklch(0.74 0.13 78);
-  --primary-foreground: oklch(0.18 0.01 80);
-  --secondary: oklch(0.945 0.012 85);
-  --secondary-foreground: oklch(0.22 0.01 80);
-  --muted: oklch(0.945 0.012 85);
-  --muted-foreground: oklch(0.46 0.015 80);
-  --accent: oklch(0.93 0.04 240);
-  --accent-foreground: oklch(0.32 0.08 245);
+  --background: oklch(0.965 0.005 80);
+  --foreground: oklch(0.21 0.005 60);
+  --card: oklch(0.987 0.004 80);             /* #FCFBF9 */
+  --card-foreground: oklch(0.21 0.005 60);
+  --popover: oklch(0.987 0.004 80);
+  --popover-foreground: oklch(0.21 0.005 60);
+
+  --primary: oklch(0.21 0.005 60);           /* ink primary buttons (matches reference dark CTA) */
+  --primary-foreground: oklch(0.987 0.004 80);
+  --secondary: oklch(0.93 0.006 75);
+  --secondary-foreground: oklch(0.21 0.005 60);
+  --muted: oklch(0.93 0.006 75);
+  --muted-foreground: oklch(0.55 0.008 70);  /* #8E8B82 */
+  --accent: oklch(0.66 0.17 36 / 0.1);
+  --accent-foreground: oklch(0.55 0.17 36);
   --destructive: oklch(0.55 0.2 27);
   --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(0.9 0.018 85);
-  --input: oklch(0.9 0.018 85);
-  --ring: oklch(0.74 0.13 78 / 0.5);
+  --border: oklch(0.9 0.007 75);             /* #E2DED6 */
+  --input: oklch(0.9 0.007 75);
+  --ring: oklch(0.66 0.17 36 / 0.4);
 }
 
 @layer base {
@@ -105,7 +131,8 @@
   }
   h1, h2, h3, .font-display {
     font-family: var(--font-display);
-    letter-spacing: -0.015em;
+    font-weight: 500;
+    letter-spacing: -0.02em;
   }
   .font-mono, .mono {
     font-family: var(--font-mono);
@@ -113,8 +140,55 @@
   .label-mono {
     font-family: var(--font-mono);
     font-size: 0.6875rem;
-    letter-spacing: 0.12em;
+    font-weight: 500;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
     color: var(--muted-foreground);
   }
+  .label-signal {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--signal);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .label-signal::before {
+    content: "";
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 2px;
+    background-color: oklch(0.66 0.17 36 / 0.1);
+    border: 1px solid oklch(0.66 0.17 36 / 0.3);
+    background-image: radial-gradient(circle, var(--signal) 0, var(--signal) 1.5px, transparent 1.5px);
+    background-position: center;
+    background-repeat: no-repeat;
+  }
 }
+
+/* Technical inset frame — corner brackets, reused across pages */
+@utility tech-frame {
+  position: relative;
+}
+.tech-frame::before {
+  content: "";
+  position: absolute;
+  inset: 1rem;
+  border: 1px solid var(--paper-edge);
+  border-radius: calc(var(--radius) + 0.25rem);
+  pointer-events: none;
+}
+.bracket-corners > span {
+  position: absolute;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-color: var(--paper-edge);
+  pointer-events: none;
+}
+.bracket-corners > .bc-tl { top: 1rem; left: 1rem; border-top: 1px solid; border-left: 1px solid; border-top-left-radius: calc(var(--radius) + 0.25rem); }
+.bracket-corners > .bc-tr { top: 1rem; right: 1rem; border-top: 1px solid; border-right: 1px solid; border-top-right-radius: calc(var(--radius) + 0.25rem); }
+.bracket-corners > .bc-bl { bottom: 1rem; left: 1rem; border-bottom: 1px solid; border-left: 1px solid; border-bottom-left-radius: calc(var(--radius) + 0.25rem); }
+.bracket-corners > .bc-br { bottom: 1rem; right: 1rem; border-bottom: 1px solid; border-right: 1px solid; border-bottom-right-radius: calc(var(--radius) + 0.25rem); }
