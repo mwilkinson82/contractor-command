@@ -1,85 +1,108 @@
-## Yes — pulling AOS dashboard data per member into the Command Center is possible.
+# Bringing AOS into the Circle (AOS Pulse)
 
-ALPOS (which we're calling **AOS**) is a separate project with its own database. Today, the Vault page already reserves an "AOS signal" tile slot for this. To make it real, we connect Circle to AOS as a **read-only data source per member** — so when a member logs into Circle, their home and Vault show their own AOS scorecard, rocks, and issues.
+Goal: When a member signs in, the dashboard pulls their **live AOS** data
+(scorecard, rocks, issues, todos, meetings) from the ALPOS project and shows
+it as the centerpiece of the Command Center.
 
-There are three viable ways to do this. I recommend Option A.
+## Architecture
 
----
-
-### Option A — Shared identity + read-only API (recommended)
-
-AOS exposes a small read-only API. Circle calls it server-side on behalf of the logged-in member.
+Two separate Lovable projects, two separate databases:
 
 ```text
-Circle (member logged in)
-   │  serverFn: getAosSnapshot()
-   ▼
-Circle server
-   │  POST https://aos.app/api/public/circle/snapshot
-   │  Headers: x-circle-secret, x-member-email
-   ▼
-AOS server (verifies secret + looks up company by member email)
-   │  reads scorecard, rocks, issues, todos
-   ▼
-returns JSON snapshot → Circle renders tiles
+[Circle portal]                        [AOS / ALPOS]
+  user signs in                          owns the real data
+  needs AOS data  ── HTTPS+HMAC ──▶      /api/public/circle/snapshot
+  renders dashboard                      returns JSON snapshot for that user
 ```
 
-**What member sees in Circle:**
-- Home hero: "AOS pulse" strip — scorecard on/off track count, rocks at risk, open issues, last AOS activity.
-- Vault: live AOS signal tile (replaces the "Wiring soon" placeholder) — scorecard drift, top 3 open issues, rocks due this quarter.
-- Tools: when a packet is saved, suggest the AOS area it belongs to (Issues / Scorecard / Rocks / Process) with a deep link.
+We do NOT cross-query databases. Circle asks AOS over the network, signed
+with a shared secret, scoped to one user at a time.
 
-**Identity model:** AOS already has user accounts. We match by **email** (member's Circle email == AOS user email) or by a one-time **AOS link code** the member pastes into Circle's Account page. No second login — Circle holds a shared service secret, AOS scopes the response to that member's company only.
+## Step 1 — Add the snapshot endpoint in AOS (ALPOS project)
 
----
+I'll prepare the code; you paste it into the ALPOS project (I can't write
+to it from here). It's one file:
 
-### Option B — Embed AOS as an authenticated iframe panel
+`src/routes/api/public/circle.snapshot.ts`
 
-Add an `/aos` panel in Circle that iframes the AOS dashboard with SSO. Faster to ship, but the data isn't really "in" Circle — can't surface AOS numbers on Home or Vault tiles, can't tie packets to AOS areas.
+- `POST { email, ts, sig }` where `sig = HMAC_SHA256(email|ts, CIRCLE_SHARED_SECRET)`
+- Rejects requests older than 5 minutes (replay protection)
+- Looks up the AOS user by email → returns:
+  - `scorecard`: last 4 weeks per-measurable with status (on/off track)
+  - `rocks`: this quarter's rocks with % complete and on/off-track
+  - `issues_open`: count + top 3
+  - `todos_due_this_week`: count + top 3
+  - `next_meeting`: date + type (L10, quarterly, annual)
+  - `last_login_at`
+- Adds secret `CIRCLE_SHARED_SECRET` to ALPOS
 
-### Option C — Move AOS onto the same backend as Circle
+If the email isn't in AOS yet, endpoint returns `{ linked: false }` and the
+Circle shows a "Link your AOS account" CTA instead.
 
-Cleanest long-term, biggest lift. Worth considering only if AOS is going to be rebuilt anyway.
+## Step 2 — Circle-side server function
 
----
+`src/lib/aos.functions.ts` → `getAosSnapshot()`:
 
-### Scope for this build (Option A)
+- Requires Supabase auth
+- Reads `aos_links` row for the user (email-match by default, link-code
+  fallback — we already built this)
+- Calls AOS `/api/public/circle/snapshot` with HMAC
+- Returns a typed DTO to the client
+- Caches per-user for 60s to keep the dashboard snappy
+- Records `last_sync_at` and any sync errors on `aos_links`
 
-**In AOS (project: ALPOS):**
-1. Add `src/routes/api/public/circle/snapshot.ts` — POST endpoint.
-   - Verifies `x-circle-secret` (shared secret).
-   - Looks up member by email → resolves their `company_id`.
-   - Returns one JSON payload: `{ scorecard: {...}, rocks: [...], issues: [...], todos: [...], lastActivityAt }`.
-   - Uses `supabaseAdmin` (server-only), never returns other members' data.
+Secrets to add in Circle:
+- `AOS_BASE_URL` = `https://eos-builder-buddy.lovable.app`
+- `AOS_SHARED_SECRET` (same value as ALPOS)
 
-**In Circle (this project):**
-1. Enable Lovable Cloud (needed to store the AOS shared secret + sign in members).
-2. Add `AOS_SHARED_SECRET` + `AOS_BASE_URL` as server secrets.
-3. Add `src/lib/aos.functions.ts` — `getAosSnapshot()` serverFn that calls AOS using the logged-in member's email.
-4. Wire snapshot into:
-   - Home (`src/routes/index.tsx`) — replace the static "Latest Replay" tile with a live **AOS pulse** tile.
-   - Vault (`src/routes/vault.tsx`) — replace the placeholder "AOS signal" block with live data.
-5. Account page — add "Connect to AOS" status row (shows email match / link code fallback).
+## Step 3 — Make AOS the dashboard centerpiece
 
-**Out of scope for this pass:** writing back into AOS from Circle (still manual — the packet tells the member what to carry over), Stripe/Discord wiring, full member auth flows beyond email sign-in.
+Rebuild the home (`/`) layout around AOS Pulse:
 
----
+```text
+┌─────────────────────────────────────────────────────────────┐
+│  Hello, {first name}     ·     Week of {Mon date}            │
+│                                                              │
+│  ╔════════════ AOS PULSE ═════════════╗   ┌─ Next session ┐ │
+│  ║ Scorecard (4-week strip)            ║   │ Date · Topic  │ │
+│  ║ ▮▮▯▮  ▮▮▮▮  ▯▯▮▮  ▮▮▮▮              ║   └───────────────┘ │
+│  ║                                     ║   ┌─ Open issues ┐ │
+│  ║ Quarterly Rocks       3 / 5 on-track║   │ count · top 1 │ │
+│  ║ ────────── 60% ─────                ║   └───────────────┘ │
+│  ║                                     ║   ┌─ Todos due    ┐ │
+│  ║ [Open AOS →]                        ║   │ count · top 1 │ │
+│  ╚═════════════════════════════════════╝   └───────────────┘ │
+│                                                              │
+│  Tools · Templates · Vault · Community  (mini-rows)          │
+└─────────────────────────────────────────────────────────────┘
+```
 
-### Also in this pass — finish go-live readiness
+Empty / unlinked states:
+- **Not linked yet** → AOS Pulse becomes a "Link your AOS account" panel
+  pointing to `/account`.
+- **Linked, no data yet** → "AOS is connected. Add your first rock to see
+  your dashboard light up." with a direct link into AOS.
+- **Sync failed** → muted error strip with "Retry" and timestamp.
 
-You said you want to tie in the backend and go live. The minimum to do that:
-- Enable Lovable Cloud + email sign-in (Google optional).
-- Persist Vault packets to the database instead of `localStorage` (currently `src/lib/vault.ts` is browser-only — packets disappear if a member switches devices).
-- Members table + RLS so each member only sees their own vault and AOS snapshot.
+A dedicated `/aos` route gets the full breakdown (per-measurable charts,
+all rocks, all issues, all todos), with deep links back into the AOS app.
 
----
+## Step 4 — Polish + go-live readiness
 
-### One open question
+- Loading skeletons matching the editorial layout (no spinners).
+- "Last synced 2m ago · refresh" affordance.
+- Sidebar shows AOS status dot (green/yellow/red) so members can tell at a
+  glance whether the bridge is healthy.
+- Sign-out path tested.
+- Auth emails still using Lovable defaults — fine for go-live; we can
+  brand them later via the email-templates scaffold.
 
-How should we match a Circle member to their AOS account?
+## What I need from you
 
-1. **Same email** — simplest, works if every member's AOS login email equals their Circle email.
-2. **Link code** — member generates a code in AOS, pastes into Circle once. More setup, but works even when emails differ.
-3. **Both** — try email first, fall back to link code.
+1. Approve adding the two Circle secrets (`AOS_BASE_URL`,
+   `AOS_SHARED_SECRET`) — I'll prompt the secret entry when you say go.
+2. After I generate the snapshot endpoint code, paste it into the ALPOS
+   project and add `CIRCLE_SHARED_SECRET` there (same value).
 
-If you say "same email," I'll build Option A with that assumption and we move fast.
+Once both sides are wired, the dashboard goes live with real per-member
+AOS data. Ready to start with Step 1?
