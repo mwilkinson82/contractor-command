@@ -1,6 +1,6 @@
 import { Hand, Hammer, Scale, BrickWall } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import type { SVGProps } from "react";
+import type { SVGProps, ReactElement } from "react";
 
 // Simple inline SVGs for icons not in lucide (crane, bulldozer).
 function CraneIcon(props: SVGProps<SVGSVGElement>) {
