@@ -192,9 +192,10 @@ function PulseSkeleton() {
 function UnlinkedState({ reason }: { reason: string }) {
   return (
     <div className="rounded-xl border border-dashed border-border bg-background/60 p-5">
-      <p className="font-display text-[15px]">Link your AOS account</p>
+      <p className="font-display text-[15px]">Connect your AOS workspace</p>
       <p className="mt-1 text-[12px] text-muted-foreground">
-        {reason || "We couldn't find an AOS account for your email."} Sign in to AOS with the same email to connect.
+        {reason ||
+          "We couldn't match your Circle email to an AOS account. Open AOS and sign in with the same email you use here — once you're in, your scorecard, rocks, and to-dos will appear in this panel automatically."}
       </p>
       <a
         href={AOS_URL}
