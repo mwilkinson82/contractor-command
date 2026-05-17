@@ -1,81 +1,304 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { PageHeader, Container } from "@/components/portal/page-header";
+import {
+  REPLAYS,
+  addToCalendarUrl,
+  formatSessionDate,
+  nextOfKind,
+  relativeDay,
+  type Session,
+} from "@/lib/program";
+import { vault } from "@/lib/vault";
+import { ArrowUpRight, Calendar, Check, Search, Video } from "lucide-react";
 
 export const Route = createFileRoute("/calls")({
   head: () => ({
-    meta: [{ title: "Call Library — ALP Contractor Circle" }],
+    meta: [
+      { title: "Calls & Replays — ALP Contractor Circle" },
+      { name: "description", content: "Next biweekly call, next monthly bootcamp, topic submission, and the full replay library." },
+    ],
   }),
   component: CallsPage,
 });
 
-type Replay = {
-  title: string;
-  date: string;
-  kind: "Contractor Circle" | "Bootcamp";
-  tags: string[];
-  description: string;
-  usefulFor: string;
-  relatedAos: string;
-  status: "available" | "pending";
-};
-
-const REPLAYS: Replay[] = [
-  {
-    title: "Owner dependency: where the business still leans on you",
-    date: "May 15, 2026",
-    kind: "Contractor Circle",
-    tags: ["Owner dependency", "Process", "PM leadership"],
-    description: "Working through three real members' org charts and finding the seat the owner is silently filling.",
-    usefulFor: "Members preparing to install their first PM scorecard or accountability chart.",
-    relatedAos: "Accountability Chart + Process",
-    status: "available",
-  },
-  {
-    title: "Bootcamp: estimate throughput in a slow market",
-    date: "May 2, 2026",
-    kind: "Bootcamp",
-    tags: ["Estimating", "Scorecard", "Pursuit"],
-    description: "Pressure-testing estimate volume vs. close rate when leads are thinner than usual.",
-    usefulFor: "Owners whose pipeline looks fine but signed contracts are flat.",
-    relatedAos: "Scorecard + Process",
-    status: "available",
-  },
-  {
-    title: "Cash control: billing rhythm and collections discipline",
-    date: "April 18, 2026",
-    kind: "Contractor Circle",
-    tags: ["Cash", "Billing", "Collections"],
-    description: "Replay link pending. Notes available in the Vault.",
-    usefulFor: "Members feeling cash tightness even when projects are profitable.",
-    relatedAos: "Numbers + Process",
-    status: "pending",
-  },
-];
-
 function CallsPage() {
+  const biweekly = nextOfKind("Biweekly Call");
+  const bootcamp = nextOfKind("Monthly Bootcamp");
+
   return (
     <Container>
       <PageHeader
-        eyebrow="Archived judgment"
-        title={<>Replays built for<br/>bid-room judgment.</>}
-        lede="Every Contractor Circle session and bootcamp, organized by what it's actually useful for. Not a video library — a working archive."
+        eyebrow="The room"
+        title={<>Calls, bootcamps,<br/>and the replay archive.</>}
+        lede="Next session up top. Submit the topic you want pressured. Every past session lives below, organized by what it's actually useful for."
       />
-      <div className="mt-10 grid gap-4">
-        {REPLAYS.map((r) => (
-          <article key={r.title} className="rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-soft)] sm:p-7">
+
+      {/* Next sessions */}
+      <section className="mt-10 grid gap-6 lg:grid-cols-2">
+        {biweekly ? <SessionCard session={biweekly} primary /> : null}
+        {bootcamp ? <SessionCard session={bootcamp} /> : null}
+      </section>
+
+      {/* Topic submission */}
+      <section id="submit-topic" className="mt-16 scroll-mt-24">
+        <TopicSubmit defaultKind={biweekly?.kind ?? "Biweekly Call"} />
+      </section>
+
+      {/* Replays */}
+      <section className="mt-20">
+        <ReplayLibrary />
+      </section>
+    </Container>
+  );
+}
+
+function SessionCard({ session, primary = false }: { session: Session; primary?: boolean }) {
+  return (
+    <article
+      className={
+        primary
+          ? "rounded-3xl bg-ink p-8 text-cream shadow-[var(--shadow-focus)]"
+          : "rounded-3xl border border-border bg-card p-8 shadow-[var(--shadow-soft)]"
+      }
+    >
+      <div className="flex items-center justify-between">
+        <p className={`label-mono ${primary ? "!text-cream/60" : ""}`}>
+          {session.kind} · {relativeDay(session.date)}
+        </p>
+        {primary ? (
+          <span className="rounded-full bg-cream/10 px-2.5 py-1 text-[10px] tracking-wider text-cream/80">
+            NEXT UP
+          </span>
+        ) : null}
+      </div>
+      <h3 className={`mt-4 font-display text-2xl leading-snug ${primary ? "text-cream" : ""}`}>
+        {session.title}
+      </h3>
+      <div className={`mt-5 flex items-center gap-2 text-sm ${primary ? "text-cream/75" : "text-muted-foreground"}`}>
+        <Calendar className="h-4 w-4" />
+        <span>{formatSessionDate(session.date)}</span>
+        <span className={primary ? "text-cream/30" : "text-muted-foreground/40"}>·</span>
+        <span>{session.durationMin} min</span>
+      </div>
+      <p className={`mt-5 text-sm leading-relaxed ${primary ? "text-cream/75" : "text-muted-foreground"}`}>
+        {session.description}
+      </p>
+      <div className="mt-7 flex flex-wrap gap-2">
+        <a
+          href={session.zoomUrl}
+          target="_blank"
+          rel="noreferrer"
+          className={
+            primary
+              ? "inline-flex items-center gap-2 rounded-lg bg-cream px-4 py-2.5 text-sm font-medium text-ink hover:opacity-90"
+              : "inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-cream hover:opacity-90"
+          }
+        >
+          Join Zoom <ArrowUpRight className="h-3.5 w-3.5" />
+        </a>
+        <a
+          href={addToCalendarUrl(session)}
+          target="_blank"
+          rel="noreferrer"
+          className={
+            primary
+              ? "inline-flex items-center gap-2 rounded-lg border border-cream/15 px-4 py-2.5 text-sm text-cream hover:bg-cream/5"
+              : "inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm hover:bg-muted"
+          }
+        >
+          Add to calendar
+        </a>
+        <a
+          href="#submit-topic"
+          className={
+            primary
+              ? "inline-flex items-center gap-2 rounded-lg border border-cream/15 px-4 py-2.5 text-sm text-cream hover:bg-cream/5"
+              : "inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm hover:bg-muted"
+          }
+        >
+          Submit a topic
+        </a>
+      </div>
+      {session.zoomId ? (
+        <p className={`mt-6 border-t pt-4 font-mono text-xs ${primary ? "border-cream/10 text-cream/50" : "border-border text-muted-foreground"}`}>
+          Zoom ID · {session.zoomId}
+        </p>
+      ) : null}
+    </article>
+  );
+}
+
+const QUESTIONS = [
+  { key: "needsPressure", label: "What needs pressure?", placeholder: "Name the specific friction. One sentence." },
+  { key: "alreadyTried", label: "What have you already tried?", placeholder: "What you've attempted and what happened." },
+  { key: "decisionAvoided", label: "What decision are you avoiding?", placeholder: "The call you keep putting off." },
+  { key: "financialConsequence", label: "What is the financial consequence?", placeholder: "Dollars, time, or risk if this stays stuck." },
+  { key: "winLooksLike", label: "What would make this a win?", placeholder: "Specific. Measurable. Honest." },
+] as const;
+
+type Form = Record<(typeof QUESTIONS)[number]["key"], string> & { title: string };
+
+function TopicSubmit({ defaultKind }: { defaultKind: Session["kind"] }) {
+  const [kind, setKind] = useState<Session["kind"]>(defaultKind);
+  const [form, setForm] = useState<Form>({
+    title: "",
+    needsPressure: "",
+    alreadyTried: "",
+    decisionAvoided: "",
+    financialConsequence: "",
+    winLooksLike: "",
+  });
+  const [savedId, setSavedId] = useState<string | null>(null);
+
+  function save() {
+    const titleFallback = form.title || form.needsPressure.slice(0, 80) || `${kind} topic`;
+    const p = vault.save({
+      kind: "issue",
+      source: "Bring One Issue",
+      title: `${kind} — ${titleFallback}`,
+      needsPressure: form.needsPressure,
+      alreadyTried: form.alreadyTried,
+      decisionAvoided: form.decisionAvoided,
+      financialConsequence: form.financialConsequence,
+      winLooksLike: form.winLooksLike,
+    });
+    setSavedId(p.id);
+  }
+
+  return (
+    <div className="grid gap-10 lg:grid-cols-12">
+      <div className="lg:col-span-5">
+        <p className="label-mono">Submit a topic</p>
+        <h2 className="mt-3 font-display text-3xl leading-tight">
+          Pressure-test one issue before the room sees it.
+        </h2>
+        <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+          Five questions. The prep is the value — the answers force the issue to become specific enough to learn from. Marshall reviews submissions before each session and pulls the ones that earn live time.
+        </p>
+        <div className="mt-6 inline-flex rounded-lg border border-border bg-card p-1">
+          {(["Biweekly Call", "Monthly Bootcamp"] as const).map((k) => (
+            <button
+              key={k}
+              onClick={() => { setKind(k); setSavedId(null); }}
+              className={`rounded-md px-3 py-1.5 text-xs transition-colors ${
+                kind === k ? "bg-ink text-cream" : "text-foreground/70 hover:bg-muted"
+              }`}
+            >
+              {k}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="lg:col-span-7">
+        <div className="space-y-5 rounded-3xl border border-border bg-card p-6 shadow-[var(--shadow-soft)] sm:p-8">
+          <label className="block">
+            <span className="label-mono">Title</span>
+            <input
+              value={form.title}
+              onChange={(e) => { setForm({ ...form, title: e.target.value }); setSavedId(null); }}
+              placeholder="One short name for this topic"
+              className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:border-ink focus:outline-none"
+            />
+          </label>
+          {QUESTIONS.map((q, i) => (
+            <label key={q.key} className="block">
+              <span className="label-mono">{i + 1}. {q.label}</span>
+              <textarea
+                rows={2}
+                value={form[q.key]}
+                onChange={(e) => { setForm({ ...form, [q.key]: e.target.value }); setSavedId(null); }}
+                placeholder={q.placeholder}
+                className="mt-2 w-full resize-none rounded-lg border border-border bg-background px-3 py-2.5 text-sm leading-relaxed focus:border-ink focus:outline-none"
+              />
+            </label>
+          ))}
+          <div className="flex flex-wrap items-center gap-2 border-t border-border pt-5">
+            <button
+              onClick={save}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-4 py-2.5 text-sm text-cream hover:opacity-90"
+            >
+              {savedId ? <><Check className="h-4 w-4" /> Submitted & saved</> : "Submit topic"}
+            </button>
+            <Link to="/vault" className="rounded-lg border border-border bg-background px-4 py-2.5 text-sm hover:bg-muted">
+              View saved topics
+            </Link>
+            {savedId ? (
+              <span className="text-xs text-muted-foreground">Marshall sees this in the queue before the next {kind}.</span>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReplayLibrary() {
+  const [q, setQ] = useState("");
+  const [filter, setFilter] = useState<"All" | "Biweekly Call" | "Monthly Bootcamp">("All");
+
+  const filtered = REPLAYS.filter((r) => {
+    if (filter !== "All" && r.kind !== filter) return false;
+    if (!q.trim()) return true;
+    const hay = [r.title, r.description, r.usefulFor, r.relatedAos, ...r.tags].join(" ").toLowerCase();
+    return hay.includes(q.toLowerCase());
+  });
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="label-mono">Replay library</p>
+          <h2 className="mt-2 font-display text-2xl">Archived judgment.</h2>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-lg border border-border bg-card p-1">
+            {(["All", "Biweekly Call", "Monthly Bootcamp"] as const).map((k) => (
+              <button
+                key={k}
+                onClick={() => setFilter(k)}
+                className={`rounded-md px-2.5 py-1 text-xs ${
+                  filter === k ? "bg-ink text-cream" : "text-foreground/70 hover:bg-muted"
+                }`}
+              >
+                {k}
+              </button>
+            ))}
+          </div>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search replays"
+              className="w-56 rounded-lg border border-border bg-card py-1.5 pl-8 pr-3 text-sm focus:border-ink focus:outline-none"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-3">
+        {filtered.map((r) => (
+          <article key={r.title} className="rounded-2xl border border-border bg-card p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="max-w-2xl">
-                <p className="label-mono">{r.kind} · {r.date}</p>
-                <h3 className="mt-2 font-display text-2xl leading-snug">{r.title}</h3>
+                <p className="label-mono">{r.kind} · {new Date(r.date).toLocaleDateString()}</p>
+                <h3 className="mt-2 font-display text-xl leading-snug">{r.title}</h3>
                 <p className="mt-3 text-sm text-muted-foreground">{r.description}</p>
               </div>
-              {r.status === "available" ? (
-                <button className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm text-cream hover:opacity-90">
-                  Watch replay
-                </button>
+              {r.zoomUrl ? (
+                <a
+                  href={r.zoomUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2 text-sm text-cream hover:opacity-90"
+                >
+                  <Video className="h-3.5 w-3.5" /> Watch replay
+                </a>
               ) : (
-                <span className="inline-flex items-center gap-2 rounded-lg border border-border bg-muted px-4 py-2.5 text-sm text-muted-foreground">
-                  Replay link pending
+                <span className="inline-flex items-center gap-2 rounded-lg border border-border bg-muted px-4 py-2 text-sm text-muted-foreground">
+                  Replay pending
                 </span>
               )}
             </div>
@@ -99,7 +322,12 @@ function CallsPage() {
             </dl>
           </article>
         ))}
+        {filtered.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+            No replays match that search yet.
+          </div>
+        ) : null}
       </div>
-    </Container>
+    </div>
   );
 }

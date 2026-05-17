@@ -14,8 +14,8 @@ import { Route as VaultRouteImport } from './routes/vault'
 import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as FieldToolsRouteImport } from './routes/field-tools'
+import { Route as CommunityRouteImport } from './routes/community'
 import { Route as CallsRouteImport } from './routes/calls'
-import { Route as BringOneIssueRouteImport } from './routes/bring-one-issue'
 import { Route as AosRouteImport } from './routes/aos'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
@@ -47,14 +47,14 @@ const FieldToolsRoute = FieldToolsRouteImport.update({
   path: '/field-tools',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CommunityRoute = CommunityRouteImport.update({
+  id: '/community',
+  path: '/community',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CallsRoute = CallsRouteImport.update({
   id: '/calls',
   path: '/calls',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BringOneIssueRoute = BringOneIssueRouteImport.update({
-  id: '/bring-one-issue',
-  path: '/bring-one-issue',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AosRoute = AosRouteImport.update({
@@ -87,8 +87,8 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/aos': typeof AosRoute
-  '/bring-one-issue': typeof BringOneIssueRoute
   '/calls': typeof CallsRoute
+  '/community': typeof CommunityRoute
   '/field-tools': typeof FieldToolsRoute
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
@@ -101,8 +101,8 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/aos': typeof AosRoute
-  '/bring-one-issue': typeof BringOneIssueRoute
   '/calls': typeof CallsRoute
+  '/community': typeof CommunityRoute
   '/field-tools': typeof FieldToolsRoute
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
@@ -116,8 +116,8 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/aos': typeof AosRoute
-  '/bring-one-issue': typeof BringOneIssueRoute
   '/calls': typeof CallsRoute
+  '/community': typeof CommunityRoute
   '/field-tools': typeof FieldToolsRoute
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
@@ -132,8 +132,8 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/aos'
-    | '/bring-one-issue'
     | '/calls'
+    | '/community'
     | '/field-tools'
     | '/templates'
     | '/tools'
@@ -146,8 +146,8 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/aos'
-    | '/bring-one-issue'
     | '/calls'
+    | '/community'
     | '/field-tools'
     | '/templates'
     | '/tools'
@@ -160,8 +160,8 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/aos'
-    | '/bring-one-issue'
     | '/calls'
+    | '/community'
     | '/field-tools'
     | '/templates'
     | '/tools'
@@ -175,8 +175,8 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRoute
   AosRoute: typeof AosRoute
-  BringOneIssueRoute: typeof BringOneIssueRoute
   CallsRoute: typeof CallsRoute
+  CommunityRoute: typeof CommunityRoute
   FieldToolsRoute: typeof FieldToolsRoute
   TemplatesRoute: typeof TemplatesRoute
   ToolsRoute: typeof ToolsRouteWithChildren
@@ -221,18 +221,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FieldToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/community': {
+      id: '/community'
+      path: '/community'
+      fullPath: '/community'
+      preLoaderRoute: typeof CommunityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/calls': {
       id: '/calls'
       path: '/calls'
       fullPath: '/calls'
       preLoaderRoute: typeof CallsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/bring-one-issue': {
-      id: '/bring-one-issue'
-      path: '/bring-one-issue'
-      fullPath: '/bring-one-issue'
-      preLoaderRoute: typeof BringOneIssueRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/aos': {
@@ -289,8 +289,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
   AosRoute: AosRoute,
-  BringOneIssueRoute: BringOneIssueRoute,
   CallsRoute: CallsRoute,
+  CommunityRoute: CommunityRoute,
   FieldToolsRoute: FieldToolsRoute,
   TemplatesRoute: TemplatesRoute,
   ToolsRoute: ToolsRouteWithChildren,
@@ -300,3 +300,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

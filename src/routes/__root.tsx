@@ -89,13 +89,14 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 const NAV: { to: string; label: string; match?: string }[] = [
   { to: "/", label: "Home" },
-  { to: "/tools/growth-constraint", label: "Command Tools", match: "/tools" },
-  { to: "/bring-one-issue", label: "Bring One Issue" },
-  { to: "/vault", label: "Vault" },
-  { to: "/aos", label: "AOS" },
   { to: "/calls", label: "Calls" },
+  { to: "/tools/growth-constraint", label: "Tools", match: "/tools" },
   { to: "/templates", label: "Templates" },
-  { to: "/work-with-marshall", label: "Work With Marshall" },
+  { to: "/aos", label: "AOS" },
+  { to: "/field-tools", label: "Field" },
+  { to: "/vault", label: "Vault" },
+  { to: "/community", label: "Community" },
+  { to: "/work-with-marshall", label: "Intensive" },
 ];
 
 function TopBar() {
@@ -107,14 +108,14 @@ function TopBar() {
           <span className="font-display text-[1.35rem] tracking-tight">ALP</span>
           <span className="label-mono mt-0.5">Contractor Circle</span>
         </Link>
-        <nav className="hidden items-center gap-1 md:flex">
+        <nav className="hidden items-center gap-0.5 md:flex">
           {NAV.map((item) => {
             const active = item.match ? pathname.startsWith(item.match) : pathname === item.to;
             return (
               <Link
                 key={item.to}
                 to={item.to as "/"}
-                className={`rounded-md px-3 py-1.5 text-[13px] transition-colors ${
+                className={`rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${
                   active ? "bg-ink text-cream" : "text-foreground/75 hover:bg-muted hover:text-foreground"
                 }`}
               >
