@@ -54,10 +54,16 @@ export function HomeHero({
     <section className="relative flex min-h-[calc(100vh-3.5rem)] flex-col justify-center px-6 py-14">
       <div className="relative mx-auto w-full max-w-[820px]">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+          <p
+            className="text-[15px] italic text-muted-foreground"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
             · Ask Marshall · {today || "\u00A0"}
           </p>
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+          <p
+            className="text-[13px] italic text-muted-foreground"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
             v4
           </p>
         </div>
@@ -151,7 +157,10 @@ export function HomeHero({
 
       <div className="pointer-events-none absolute inset-x-0 bottom-6 flex justify-center">
         <div className="flex flex-col items-center gap-1 text-muted-foreground">
-          <span className="font-mono text-[9px] uppercase tracking-[0.24em]">
+          <span
+            className="text-[14px] italic"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
             Your command center
           </span>
           <ChevronDown className="h-4 w-4 animate-bounce" />
