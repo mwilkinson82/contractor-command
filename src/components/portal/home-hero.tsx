@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowUp, ChevronDown } from "lucide-react";
 import { createThread } from "@/lib/ask.functions";
+import { GreetingIcon, type GreetingIconKey } from "@/components/portal/greeting-icon";
 
 const STARTERS = [
   "Pricing a job is too slow",
