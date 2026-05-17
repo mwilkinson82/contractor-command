@@ -72,7 +72,7 @@ export function HomeHero({
           {greetingIcon && (
             <GreetingIcon
               iconKey={greetingIcon}
-              className="h-10 w-10 shrink-0 text-foreground/80 sm:h-12 sm:w-12"
+              className="shrink-0 text-[2.5rem] sm:text-[3rem]"
             />
           )}
           <span>
