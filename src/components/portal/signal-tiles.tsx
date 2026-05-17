@@ -68,10 +68,10 @@ function Tile({ tool, packet }: { tool: CommandTool; packet?: Packet }) {
     return (
       <Link
         to={tool.route as "/tools/growth-constraint"}
-        className="group relative flex h-full flex-col rounded-2xl border border-border bg-card p-4 transition-all hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
+        className="group relative flex h-full flex-col rounded-2xl border-2 border-border bg-transparent p-4 transition-all hover:-translate-y-0.5 hover:border-foreground/25 hover:bg-card"
       >
         <TileHeader Icon={Icon} status="ready" />
-        <h3 className="mt-3 font-display text-[15px] leading-snug">{tool.name}</h3>
+        <h3 className="mt-3 font-display text-[17px] leading-snug">{tool.name}</h3>
         <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">{tool.blurb}</p>
         <p className="mt-auto pt-3 text-[11px] font-medium text-gold">
           Not run yet — takes 4 min →
@@ -85,10 +85,10 @@ function Tile({ tool, packet }: { tool: CommandTool; packet?: Packet }) {
     return (
       <Link
         to={tool.route as "/tools/growth-constraint"}
-        className="group relative flex h-full flex-col rounded-2xl border border-border bg-card p-4 transition-all hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
+        className="group relative flex h-full flex-col rounded-2xl border-2 border-border bg-transparent p-4 transition-all hover:-translate-y-0.5 hover:border-foreground/25 hover:bg-card"
       >
         <TileHeader Icon={Icon} status="live" />
-        <h3 className="mt-3 font-display text-[15px] leading-snug">{tool.name}</h3>
+        <h3 className="mt-3 font-display text-[17px] leading-snug">{tool.name}</h3>
         <p
           className="mt-2 line-clamp-3 text-[12px] leading-snug text-foreground/85"
           title={finding}
@@ -105,9 +105,9 @@ function Tile({ tool, packet }: { tool: CommandTool; packet?: Packet }) {
 
   // Coming-next placeholder
   return (
-    <div className="relative flex h-full flex-col rounded-2xl border border-dashed border-border bg-card/40 p-4 opacity-75">
+    <div className="relative flex h-full flex-col rounded-2xl border-2 border-dashed border-border bg-transparent p-4 opacity-70">
       <TileHeader Icon={Icon} status="soon" />
-      <h3 className="mt-3 font-display text-[15px] leading-snug text-foreground/75">{tool.name}</h3>
+      <h3 className="mt-3 font-display text-[17px] leading-snug text-foreground/75">{tool.name}</h3>
       <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground/80">{tool.blurb}</p>
       <p className="mt-auto pt-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground/70">
         Coming next
