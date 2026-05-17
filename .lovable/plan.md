@@ -1,90 +1,85 @@
-# Command Center v3 — Portal Shell + Cinematic Home
+## Yes — pulling AOS dashboard data per member into the Command Center is possible.
 
-## The shift
+ALPOS (which we're calling **AOS**) is a separate project with its own database. Today, the Vault page already reserves an "AOS signal" tile slot for this. To make it real, we connect Circle to AOS as a **read-only data source per member** — so when a member logs into Circle, their home and Vault show their own AOS scorecard, rocks, and issues.
 
-Stop feeling like a marketing site with pages. Start feeling like a *portal you log into*: persistent left rail, slim chrome, the work area gets the screen. Aesthetic stays editorial / warm-paper / ink — but tighter, more bespoke, more "under the hood."
+There are three viable ways to do this. I recommend Option A.
 
-## 1. Shell — collapsible left nav (the portal frame)
+---
 
-Replace the top bar with a left rail using `shadcn/ui` Sidebar (`collapsible="icon"`).
+### Option A — Shared identity + read-only API (recommended)
+
+AOS exposes a small read-only API. Circle calls it server-side on behalf of the logged-in member.
 
 ```text
-┌──┬────────────────────────────────────────────────┐
-│ ◐│  · CONTRACTOR CIRCLE · 001 ·    M ▾  ⌘K       │  ← slim top strip
-│  ├────────────────────────────────────────────────┤
-│ ⌂│                                                │
-│ ▶│                                                │
-│ ⚙│              workspace canvas                  │
-│ ▤│                                                │
-│ ⌬│                                                │
-│ ◫│                                                │
-│ ✦│                                                │
-│ ⊙│                                                │
-└──┴────────────────────────────────────────────────┘
-expanded: 248px   collapsed: 56px (icons only, tooltips on hover)
+Circle (member logged in)
+   │  serverFn: getAosSnapshot()
+   ▼
+Circle server
+   │  POST https://aos.app/api/public/circle/snapshot
+   │  Headers: x-circle-secret, x-member-email
+   ▼
+AOS server (verifies secret + looks up company by member email)
+   │  reads scorecard, rocks, issues, todos
+   ▼
+returns JSON snapshot → Circle renders tiles
 ```
 
-- Rail items grouped: **Daily** (Home, Calls, Community) · **Build** (Templates, Field) · **Command** (Tools, AOS, Vault) · **Program** (Intensive, Account).
-- Footer of rail: tiny status row — next session countdown + signal dot.
-- Top strip is minimal: workspace name, member chip, ⌘K command palette stub.
-- Persist collapsed state in localStorage.
+**What member sees in Circle:**
+- Home hero: "AOS pulse" strip — scorecard on/off track count, rocks at risk, open issues, last AOS activity.
+- Vault: live AOS signal tile (replaces the "Wiring soon" placeholder) — scorecard drift, top 3 open issues, rocks due this quarter.
+- Tools: when a packet is saved, suggest the AOS area it belongs to (Issues / Scorecard / Rocks / Process) with a deep link.
 
-## 2. Home — cinematic command surface
+**Identity model:** AOS already has user accounts. We match by **email** (member's Circle email == AOS user email) or by a one-time **AOS link code** the member pastes into Circle's Account page. No second login — Circle holds a shared service secret, AOS scopes the response to that member's company only.
 
-Less "landing page," more "mission control on login."
+---
 
-- **Greeting line** computed client-only (fix the SSR hydration bug — render greeting after mount so server/client agree).
-- **Hero band**: a quiet animated field (subtle grid + slow drifting gradient, GPU-cheap CSS, no Three.js). Layered with the next-session block on top in ink panel.
-- Underneath, a single horizontal **action strip** of small chips: Join Zoom · Add to Calendar · Submit Topic · Open AOS · Run a Tool · Open Vault. Small, dense, ChatGPT-toolbar feel.
-- Below that, a 3-column **live tiles** row: *Next Session* · *Latest Replay* · *Your Vault* (count of saved packets + most recent title). Pulls real local data.
-- No big marketing cards. Everything compact, monospace labels, generous negative space.
+### Option B — Embed AOS as an authenticated iframe panel
 
-## 3. Tools — AI-chat-style runs
+Add an `/aos` panel in Circle that iframes the AOS dashboard with SSO. Faster to ship, but the data isn't really "in" Circle — can't surface AOS numbers on Home or Vault tiles, can't tie packets to AOS areas.
 
-Refactor the Growth Constraint tool (and set the pattern for future tools):
+### Option C — Move AOS onto the same backend as Circle
 
-- Two-pane: left = inputs (stepper / inline form), right = streaming "computation" panel.
-- On submit, fake a short compute sequence: lines stream in (`> normalizing revenue inputs…`, `> resolving constraint signature…`, `> writing packet…`), then the **packet** materializes in place with a typewriter reveal on headings.
-- "Save to Vault" + "Print" + "Discuss in next call" actions at the bottom.
-- Same shell will host Owner Dependency and future tools.
+Cleanest long-term, biggest lift. Worth considering only if AOS is going to be rebuilt anyway.
 
-## 4. Vault — the dashboard payoff
+---
 
-Promote Vault from list to **dashboard**:
-- Top: counters (packets saved, by tool, last activity).
-- Saved packets as a sortable, filterable table.
-- Stub spot reserved for "AOS signal" tiles (so when AOS data lands, it slots in).
+### Scope for this build (Option A)
 
-## 5. Visual system tightening
+**In AOS (project: ALPOS):**
+1. Add `src/routes/api/public/circle/snapshot.ts` — POST endpoint.
+   - Verifies `x-circle-secret` (shared secret).
+   - Looks up member by email → resolves their `company_id`.
+   - Returns one JSON payload: `{ scorecard: {...}, rocks: [...], issues: [...], todos: [...], lastActivityAt }`.
+   - Uses `supabaseAdmin` (server-only), never returns other members' data.
 
-- Tighten the cream → add a second deeper paper tone for rail bg; ink panel stays the focal black.
-- Add `--signal` pulse animation utility.
-- Add a `.grid-field` background utility (CSS dot grid + radial mask) for hero ambience.
-- Add `.compute-line` mono style for streaming text.
-- Keep Fraunces (display) + Inter (body) + JetBrains Mono (labels).
+**In Circle (this project):**
+1. Enable Lovable Cloud (needed to store the AOS shared secret + sign in members).
+2. Add `AOS_SHARED_SECRET` + `AOS_BASE_URL` as server secrets.
+3. Add `src/lib/aos.functions.ts` — `getAosSnapshot()` serverFn that calls AOS using the logged-in member's email.
+4. Wire snapshot into:
+   - Home (`src/routes/index.tsx`) — replace the static "Latest Replay" tile with a live **AOS pulse** tile.
+   - Vault (`src/routes/vault.tsx`) — replace the placeholder "AOS signal" block with live data.
+5. Account page — add "Connect to AOS" status row (shows email match / link code fallback).
 
-## 6. Bug fix bundled in
+**Out of scope for this pass:** writing back into AOS from Circle (still manual — the packet tells the member what to carry over), Stripe/Discord wiring, full member auth flows beyond email sign-in.
 
-Hydration mismatch on `greeting()` (server renders "afternoon", client "morning"). Move greeting + date string into `useEffect` / `useState` so they render after mount.
+---
 
-## Files to add / change
+### Also in this pass — finish go-live readiness
 
-- `src/components/portal/app-sidebar.tsx` (new) — collapsible rail
-- `src/components/portal/top-strip.tsx` (new) — slim header bar
-- `src/components/portal/grid-field.tsx` (new) — animated hero bg
-- `src/components/portal/compute-stream.tsx` (new) — fake AI streaming panel
-- `src/routes/__root.tsx` — swap top bar for `SidebarProvider` + rail + top strip
-- `src/routes/index.tsx` — cinematic home, fix hydration
-- `src/routes/tools.growth-constraint.tsx` — two-pane AI run UI
-- `src/routes/vault.tsx` — dashboard layout
-- `src/styles.css` — new tokens, grid-field, compute-line, signal pulse
-- `src/lib/program.ts` — keep, no schema change
+You said you want to tie in the backend and go live. The minimum to do that:
+- Enable Lovable Cloud + email sign-in (Google optional).
+- Persist Vault packets to the database instead of `localStorage` (currently `src/lib/vault.ts` is browser-only — packets disappear if a member switches devices).
+- Members table + RLS so each member only sees their own vault and AOS snapshot.
 
-## Out of scope (this pass)
+---
 
-- ⌘K palette (placeholder button only)
-- Real AOS data integration (slot reserved)
-- Refactoring other tools beyond Growth Constraint (Owner Dependency next pass)
-- Auth / Stripe / Discord APIs
+### One open question
 
-Approve and I'll build it.
+How should we match a Circle member to their AOS account?
+
+1. **Same email** — simplest, works if every member's AOS login email equals their Circle email.
+2. **Link code** — member generates a code in AOS, pastes into Circle once. More setup, but works even when emails differ.
+3. **Both** — try email first, fall back to link code.
+
+If you say "same email," I'll build Option A with that assumption and we move fast.
