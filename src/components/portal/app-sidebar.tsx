@@ -86,6 +86,9 @@ export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const next = nextAny();
+  const { company, logoUrl } = useCompany();
+  const brandName = company?.name?.trim() || "Contractor Circle";
+  const brandInitial = brandName.charAt(0).toUpperCase();
 
   async function handleSignOut() {
     await supabase.auth.signOut();
