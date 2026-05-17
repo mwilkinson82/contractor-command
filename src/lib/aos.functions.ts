@@ -51,7 +51,7 @@ export type AosSnapshot =
   | { linked: false; reason: string; companies?: AosCompany[] };
 
 export type AosResult =
-  | { ok: true; snapshot: AosSnapshot; fetched_at: string }
+  | { ok: true; snapshot: AosSnapshot; fetched_at: string; previously_linked: boolean }
   | { ok: false; error: string };
 
 function secretVariants(secret: string) {
