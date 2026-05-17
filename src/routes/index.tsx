@@ -14,7 +14,6 @@ import {
 import { vault, type Packet } from "@/lib/vault";
 import { useCompany } from "@/hooks/use-company";
 import { useAuth } from "@/hooks/use-auth";
-import { GridField } from "@/components/portal/grid-field";
 import { AosPulse } from "@/components/portal/aos-pulse";
 import { AosHero } from "@/components/portal/aos-hero";
 import { HomeHero } from "@/components/portal/home-hero";
