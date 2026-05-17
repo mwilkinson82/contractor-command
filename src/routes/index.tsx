@@ -37,6 +37,8 @@ export const Route = createFileRoute("/")({
   component: HomePage,
 });
 
+const COMPANY_KEY = "aos.company_id";
+
 function HomePage() {
   const session = nextAny();
   const latestReplay = REPLAYS[0];
@@ -46,13 +48,21 @@ function HomePage() {
   const [sessionWhen, setSessionWhen] = useState<string>("");
   const [replayDate, setReplayDate] = useState<string>("");
   const [packets, setPackets] = useState<Packet[]>([]);
+  const [companyId, setCompanyId] = useState<string | null>(null);
+
+  // Hydrate company id from localStorage (avoids SSR mismatch)
+  useEffect(() => {
+    try {
+      setCompanyId(window.localStorage.getItem(COMPANY_KEY));
+    } catch {}
+  }, []);
 
   // AOS query — shares cache key with <AosPulse /> so they dedupe automatically.
   const aosFn = useServerFn(getAosSnapshot);
   const { data: aosData, refetch: refetchAos, isFetching: aosFetching } =
     useQuery<AosResult>({
-      queryKey: ["aos-snapshot", null],
-      queryFn: () => aosFn({ data: {} }),
+      queryKey: ["aos-snapshot", companyId],
+      queryFn: () => aosFn({ data: { companyId: companyId ?? undefined } }),
       staleTime: 60_000,
       refetchOnWindowFocus: true,
     });
@@ -60,6 +70,14 @@ function HomePage() {
   const aosLinked = aosData?.ok && aosData.snapshot.linked;
   const aosPreviouslyLinked = aosData?.ok ? aosData.previously_linked : false;
   const aosUnknown = !aosData; // still loading first time
+  const aosCompanies =
+    aosData?.ok && !aosData.snapshot.linked ? aosData.snapshot.companies ?? [] : [];
+
+  const pickCompany = (id: string) => {
+    try { window.localStorage.setItem(COMPANY_KEY, id); } catch {}
+    setCompanyId(id);
+    // Query will refire because the key includes companyId
+  };
 
   useEffect(() => {
     setHello(greeting());
@@ -105,7 +123,7 @@ function HomePage() {
         </div>
       </section>
 
-      {/* Unconnected AOS users see a dominant Start-AOS hero */}
+      {/* Unconnected AOS users see a dominant Start-AOS hero (or workspace picker) */}
       {!aosUnknown && !aosLinked && (
         <section className="relative px-6 pb-8">
           <div className="relative mx-auto w-full max-w-[1180px]">
@@ -113,6 +131,8 @@ function HomePage() {
               previouslyLinked={aosPreviouslyLinked}
               isChecking={aosFetching}
               onRecheck={() => refetchAos()}
+              companies={aosCompanies}
+              onPickCompany={pickCompany}
             />
           </div>
         </section>
