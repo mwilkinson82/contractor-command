@@ -265,13 +265,15 @@ function ChatPane({
   );
 }
 
-function MessageBubble({ message }: { message: UIMessage }) {
+function MessageBubble({ message, threadId }: { message: UIMessage; threadId: string }) {
   const text = message.parts
     .map((p) => (p.type === "text" ? p.text : ""))
     .join("");
   const isUser = message.role === "user";
+  const mentionsIntensive =
+    !isUser && /6[-\s]?week intensive/i.test(text);
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+    <div className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
       <div
         className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-[14px] leading-relaxed ${
           isUser
@@ -281,6 +283,47 @@ function MessageBubble({ message }: { message: UIMessage }) {
       >
         {text}
       </div>
+      {mentionsIntensive && (
+        <IntensiveInterestCTA threadId={threadId} />
+      )}
     </div>
+  );
+}
+
+function IntensiveInterestCTA({ threadId }: { threadId: string }) {
+  const expressFn = useServerFn(expressIntensiveInterest);
+  const [state, setState] = useState<"idle" | "saving" | "done" | "error">("idle");
+
+  if (state === "done") {
+    return (
+      <div className="mt-2 inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-[12px] text-muted-foreground">
+        <Check className="h-3.5 w-3.5" />
+        Got it — Marshall's team will reach out about the intensive.
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={state === "saving"}
+      onClick={async () => {
+        setState("saving");
+        try {
+          await expressFn({ data: { threadId } });
+          setState("done");
+        } catch {
+          setState("error");
+        }
+      }}
+      className="mt-2 inline-flex items-center gap-2 rounded-lg border border-ink/20 bg-ink px-3 py-2 text-[12px] font-medium text-cream transition-opacity hover:opacity-90 disabled:opacity-60"
+    >
+      <Sparkles className="h-3.5 w-3.5" />
+      {state === "saving"
+        ? "Saving…"
+        : state === "error"
+          ? "Try again"
+          : "I'm interested in the 6-week intensive"}
+    </button>
   );
 }
