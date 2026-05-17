@@ -14,6 +14,7 @@ import {
   toolsByGroup,
 } from "@/lib/command-tools";
 import type { Packet } from "@/lib/vault";
+import { hasToolDrawer, useToolDrawer } from "@/components/portal/tool-drawer";
 
 type LatestBySource = Record<string, Packet | undefined>;
 
