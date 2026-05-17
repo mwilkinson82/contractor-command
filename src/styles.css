@@ -140,23 +140,33 @@
     font-family: var(--font-mono);
   }
   .label-mono {
-    font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    font-weight: 500;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.95rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--muted-foreground);
+    line-height: 1.1;
   }
   .label-signal {
-    font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    font-weight: 500;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.95rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--signal);
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
+  }
+  /* Small caption-style serif label used in headers/chrome */
+  .label-serif {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    color: var(--muted-foreground);
   }
   .label-signal::before {
     content: "";
