@@ -116,7 +116,7 @@ export function AppSidebar() {
           {!collapsed && (
             <span className="flex flex-col leading-tight">
               <span className="truncate font-display text-[13px] tracking-tight" title={brandName}>{brandName}</span>
-              <span className="font-mono text-[9px] tracking-[0.2em] text-muted-foreground uppercase">Command Center</span>
+              <span className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Command Center</span>
             </span>
           )}
         </Link>
@@ -127,7 +127,7 @@ export function AppSidebar() {
         {GROUPS.map((g) => (
           <div key={g.label} className="mb-4">
             {!collapsed && (
-              <p className="px-2 pb-1.5 font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground/70">
+              <p className="px-2 pb-1.5 text-[10px] uppercase tracking-[0.22em] text-muted-foreground/70">
                 {g.label}
               </p>
             )}
