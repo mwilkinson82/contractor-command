@@ -106,13 +106,21 @@ function AskThreadPage() {
         </div>
       </aside>
 
-      <ChatPane
-        key={threadId}
-        threadId={threadId}
-        initialMessages={initialMessages}
-        loaded={!!threadData}
-        onTitleMayHaveChanged={() => refetchThreads()}
-      />
+      {threadData ? (
+        <ChatPane
+          key={threadId}
+          threadId={threadId}
+          initialMessages={initialMessages}
+          loaded={true}
+          onTitleMayHaveChanged={() => refetchThreads()}
+        />
+      ) : (
+        <div className="grid place-items-center">
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            Loading…
+          </p>
+        </div>
+      )}
     </div>
   );
 }
