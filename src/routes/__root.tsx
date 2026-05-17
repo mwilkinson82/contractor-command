@@ -107,15 +107,17 @@ function RootComponent() {
         {(showShell) =>
           showShell ? (
             <AppSidebarProvider>
-              <div className="bg-background text-foreground">
-                <AppSidebar />
-                <SidebarInset>
-                  <TopStrip />
-                  <main>
-                    <Outlet />
-                  </main>
-                </SidebarInset>
-              </div>
+              <ToolDrawerProvider>
+                <div className="bg-background text-foreground">
+                  <AppSidebar />
+                  <SidebarInset>
+                    <TopStrip />
+                    <main>
+                      <Outlet />
+                    </main>
+                  </SidebarInset>
+                </div>
+              </ToolDrawerProvider>
             </AppSidebarProvider>
           ) : (
             <Outlet />
