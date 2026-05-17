@@ -4,12 +4,13 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
-  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
+import { AppSidebar, AppSidebarProvider, SidebarInset } from "@/components/portal/app-sidebar";
+import { TopStrip } from "@/components/portal/top-strip";
 
 function NotFoundComponent() {
   return (
@@ -62,7 +63,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "ALP Contractor Circle" },
+      { title: "ALP Contractor Circle — Command Center" },
       { name: "description", content: "The operating environment for serious construction business owners." },
     ],
     links: [{ rel: "stylesheet", href: appCss }],
@@ -87,80 +88,21 @@ function RootShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-const NAV: { to: string; label: string; match?: string }[] = [
-  { to: "/", label: "Home" },
-  { to: "/calls", label: "Calls" },
-  { to: "/tools/growth-constraint", label: "Tools", match: "/tools" },
-  { to: "/templates", label: "Templates" },
-  { to: "/aos", label: "AOS" },
-  { to: "/field-tools", label: "Field" },
-  { to: "/vault", label: "Vault" },
-  { to: "/community", label: "Community" },
-  { to: "/work-with-marshall", label: "Intensive" },
-];
-
-function TopBar() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  return (
-    <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between px-6">
-        <Link to="/" className="flex items-baseline gap-2">
-          <span className="font-display text-[1.35rem] tracking-tight">ALP</span>
-          <span className="label-mono mt-0.5">Contractor Circle</span>
-        </Link>
-        <nav className="hidden items-center gap-0.5 md:flex">
-          {NAV.map((item) => {
-            const active = item.match ? pathname.startsWith(item.match) : pathname === item.to;
-            return (
-              <Link
-                key={item.to}
-                to={item.to as "/"}
-                className={`rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${
-                  active ? "bg-ink text-cream" : "text-foreground/75 hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-        <Link
-          to="/account"
-          className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs hover:bg-muted"
-        >
-          <span className="grid h-6 w-6 place-items-center rounded-full bg-ink text-[10px] font-medium text-cream">M</span>
-          <span className="hidden sm:inline">Member</span>
-        </Link>
-      </div>
-    </header>
-  );
-}
-
-function Footer() {
-  return (
-    <footer className="border-t border-border/70 bg-background">
-      <div className="mx-auto flex max-w-[1280px] flex-col gap-2 px-6 py-8 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-baseline gap-2">
-          <span className="font-display text-base text-foreground">ALP</span>
-          <span className="label-mono">Operating Environment</span>
-        </div>
-        <p>Build the company behind the projects.</p>
-      </div>
-    </footer>
-  );
-}
-
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="flex min-h-screen flex-col bg-background text-foreground">
-        <TopBar />
-        <main className="flex-1">
-          <Outlet />
-        </main>
-        <Footer />
-      </div>
+      <AppSidebarProvider>
+        <div className="bg-background text-foreground">
+          <AppSidebar />
+          <SidebarInset>
+            <TopStrip />
+            <main>
+              <Outlet />
+            </main>
+          </SidebarInset>
+        </div>
+      </AppSidebarProvider>
     </QueryClientProvider>
   );
 }
