@@ -64,7 +64,8 @@ export function ComputeTheater({
     let i = 0;
     const push = () => {
       if (i >= ticker.length) return;
-      setVisibleTicker((prev) => [...prev, ticker[i]]);
+      const next = ticker[i] ?? "";
+      setVisibleTicker((prev) => [...prev, next]);
       i += 1;
       const jitter = Math.random() * 80 - 40;
       tickerTimer.current = setTimeout(push, Math.max(40, perLine + jitter));
@@ -207,7 +208,8 @@ export function ComputeTheater({
  * without leaning into the green-terminal cliché. Tuned for the
  * paper/ink palette.
  */
-function SyntaxLine({ text }: { text: string }) {
+function SyntaxLine({ text }: { text: string | undefined }) {
+  const safe = text ?? "";
   // Highlight a few token classes:
   // - leading keyword (load/derive/compare/project/rank/compose/done)
   // - $… or % numbers
@@ -215,12 +217,12 @@ function SyntaxLine({ text }: { text: string }) {
   // - bare numbers
   const parts: { t: string; cls: string }[] = [];
   const keywordRe = /^(\s*)(load|derive|compare|project|rank|compose|done\.?)\b/;
-  const m = text.match(keywordRe);
-  let rest = text;
+  const m = safe.match(keywordRe);
+  let rest = safe;
   if (m) {
     parts.push({ t: m[1] ?? "", cls: "" });
     parts.push({ t: m[2], cls: "text-signal font-semibold" });
-    rest = text.slice(m[0].length);
+    rest = safe.slice(m[0].length);
   }
 
   // Tokenize the rest by simple regex passes.
