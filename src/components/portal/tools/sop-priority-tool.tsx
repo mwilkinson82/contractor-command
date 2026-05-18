@@ -43,7 +43,8 @@ import { ComputeTheater } from "@/components/portal/compute-theater";
 import { SopDocumentBuilder } from "@/components/portal/tools/sop-document-builder";
 import { vault } from "@/lib/vault";
 import { supabase } from "@/integrations/supabase/client";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, X } from "lucide-react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 type Mode = "owner" | "department";
 type Stage = "idle" | "running" | "ready" | "error";
