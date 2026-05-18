@@ -12,6 +12,23 @@ export type DimensionScore = {
   clauseToAddOrFix: string; // concrete next action
 };
 
+export type MissingClause = {
+  /** Short name of the missing clause, e.g. "Notice of delay". */
+  name: string;
+  /** Why this clause matters to the contractor in plain language. */
+  whyItMatters: string;
+  /**
+   * Contractor-protective starting language the owner can drop in or
+   * hand to counsel. Plain contract voice, not legal advice.
+   */
+  sampleLanguage: string;
+  /**
+   * 2-3 bullets the owner can use at the table — framed as mutual
+   * risk allocation, with the dollar logic behind the ask.
+   */
+  talkingPoints: string[];
+};
+
 export type ContractScanResult = {
   overallScore: number; // 0..100
   status: "ready" | "tighten" | "do-not-sign";
@@ -20,7 +37,7 @@ export type ContractScanResult = {
   financialConsequence: string; // estimated $ exposure or qualitative
   recommendedAction: string; // the single next move
   dimensions: DimensionScore[];
-  missingClauses: string[]; // bullet list of clauses the contract lacks
+  missingClauses: MissingClause[]; // structured, with sample language + talking points
 };
 
 export const CONTRACT_SCAN_SYSTEM_PROMPT = `You are Marshall, advising a small-to-mid-sized construction company owner on whether a contract protects them.
@@ -49,6 +66,8 @@ Map findings to dimensions: cash (payment terms, pay-when-paid vs pay-if-paid, i
 
 Be specific. Do not hedge. If a fragment is given, say so in the headline and score conservatively.
 
+For EACH missing clause: draft contractor-protective sample language the owner can hand to counsel as a starting point (plain contract voice, 2-5 sentences, not legal advice), plus 2-3 negotiation talking points framed as mutual risk allocation with the dollar logic behind the ask — never adversarial.
+
 Status thresholds: ready ≥ 80, tighten 55-79, do-not-sign < 55. Use "missing" when the dimension is essentially absent, "weak" when present but inadequate, "strong" when it protects the contractor.
 
 Keep findings tight (1-2 sentences). The recommendedAction is the SINGLE next move — not a list.`;
@@ -75,6 +94,7 @@ export const CONTRACT_SCAN_STEPS = [
   { label: "Reading clauses for cash, schedule, scope, margin protection…", ms: 900 },
   { label: "Comparing against contractor-protective baselines…", ms: 800 },
   { label: "Identifying missing clauses and exposure…", ms: 700 },
+  { label: "Drafting sample language + negotiation talking points…", ms: 700 },
   { label: "Composing Command Packet for the vault…", ms: 500 },
 ];
 
@@ -91,6 +111,9 @@ export function buildScanTicker(textLen: number): string[] {
     `dimension: margin`,
     `  scan: allowances, escalation, indemnification, warranty`,
     `cross-check vs contractor-protective baseline`,
+    `for each missing clause:`,
+    `  draft sample language (contractor-protective)`,
+    `  derive negotiation talking points`,
     `compute exposure → financial consequence`,
     `rank by leverage → recommended action`,
     `compose command packet …`,
