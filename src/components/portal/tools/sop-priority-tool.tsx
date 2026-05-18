@@ -127,13 +127,19 @@ function OwnerMode() {
     if (stage === "ready") setStage("idle");
     setSavedId(null);
   }
+  const newAreaRef = useRef<HTMLInputElement | null>(null);
   function addArea() {
     setAreas((prev) => [
-      ...prev,
       { name: "", ownerHoursPerWeek: 2, blastRadius: 3, setupEffort: 3, frequency: 3 },
+      ...prev,
     ]);
     if (stage === "ready") setStage("idle");
     setSavedId(null);
+    // focus the new (top) input on next paint
+    requestAnimationFrame(() => {
+      newAreaRef.current?.focus();
+      newAreaRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
   }
   function removeArea(idx: number) {
     setAreas((prev) => prev.filter((_, i) => i !== idx));
@@ -188,11 +194,13 @@ function OwnerMode() {
             <div key={i} className="rounded-md border border-border bg-background/60 p-3">
               <div className="flex items-center gap-2">
                 <input
+                  ref={i === 0 ? newAreaRef : undefined}
                   type="text"
                   value={a.name}
                   onChange={(e) => updateArea(i, { name: e.target.value })}
-                  placeholder="e.g. Estimating new bids"
-                  className="w-full bg-transparent text-[13px] font-medium text-foreground outline-none placeholder:text-muted-foreground"
+                  placeholder="Name this area (e.g. Estimating new bids)"
+                  title="Click to edit area name"
+                  className="w-full rounded-sm border-b border-dashed border-border/70 bg-transparent pb-1 text-[13px] font-medium text-foreground outline-none transition placeholder:font-normal placeholder:italic placeholder:text-muted-foreground/70 hover:border-foreground/40 focus:border-foreground"
                 />
                 <button
                   type="button"
