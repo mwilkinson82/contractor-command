@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { PageHeader, Container } from "@/components/portal/page-header";
 import {
   addToCalendarUrl,
@@ -8,8 +9,8 @@ import {
   relativeDay,
   type Session,
 } from "@/lib/program";
-import { vault } from "@/lib/vault";
-import { ArrowUpRight, Calendar, Check, Video } from "lucide-react";
+import { submitCallTopic } from "@/lib/topics.functions";
+import { ArrowUpRight, Calendar, Check, Loader2, Video } from "lucide-react";
 
 export const Route = createFileRoute("/calls")({
   head: () => ({
@@ -23,25 +24,23 @@ export const Route = createFileRoute("/calls")({
 
 function CallsPage() {
   const biweekly = nextOfKind("Biweekly Call");
-  const bootcamp = nextOfKind("Monthly Bootcamp");
 
   return (
     <Container>
       <PageHeader
         eyebrow="The room"
         title={<>Calls and bootcamps.</>}
-        lede="Next session up top. Submit the topic you want pressured before the room sees it. Past sessions live in the Replay library."
+        lede="One Zoom for the bi-weekly working sessions and the monthly bootcamps — every other Sunday. Submit the topic you want pressured before the room sees it."
       />
 
-      {/* Next sessions */}
-      <section className="mt-10 grid gap-6 lg:grid-cols-2">
+      {/* Single unified session card */}
+      <section className="mt-10">
         {biweekly ? <SessionCard session={biweekly} primary /> : null}
-        {bootcamp ? <SessionCard session={bootcamp} /> : null}
       </section>
 
       {/* Topic submission */}
       <section id="submit-topic" className="mt-16 scroll-mt-24">
-        <TopicSubmit defaultKind={biweekly?.kind ?? "Biweekly Call"} />
+        <TopicSubmit defaultKind="Biweekly Call" />
       </section>
 
       {/* Replays moved to /replays */}
