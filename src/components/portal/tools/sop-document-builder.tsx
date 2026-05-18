@@ -386,10 +386,11 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
             </button>
             <button
               type="button"
-              onClick={emailIt}
+              onClick={() => { setEmailOpen((v) => !v); setEmailError(null); }}
               className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-[13px] font-medium text-foreground hover:bg-muted"
             >
-              <Mail className="h-3.5 w-3.5" /> Email to team
+              <Mail className="h-3.5 w-3.5" />
+              {emailSentTo ? `Sent to ${emailSentTo}` : "Email to team"}
             </button>
             <button
               type="button"
