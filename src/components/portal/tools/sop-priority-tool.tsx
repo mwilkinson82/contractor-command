@@ -697,7 +697,34 @@ function DepartmentMode() {
   );
 }
 
-function BacklogRow({ item }: { item: SopBacklogItem }) {
+function PlayCard({ play, recommended }: { play: OptimizationPlay; recommended: boolean }) {
+  return (
+    <div className={`rounded-xl border p-4 ${recommended ? "border-foreground/40 bg-background" : "border-border bg-background/60"}`}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+          {play.id}{recommended ? " · recommended" : ""}
+        </p>
+        <span className="font-mono text-[10px] text-muted-foreground">{play.expectedLift}</span>
+      </div>
+      <p className="mt-1.5 text-[14px] font-medium text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
+        {play.name}
+      </p>
+      <p className="mt-1.5 text-[12.5px] leading-snug text-foreground/85">
+        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Diagnosis: </span>
+        {play.diagnosis}
+      </p>
+      <p className="mt-1 text-[12.5px] leading-snug text-foreground/85">
+        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Mechanism: </span>
+        {play.mechanism}
+      </p>
+      <p className="mt-1 text-[11.5px] text-muted-foreground">
+        <span className="font-mono uppercase tracking-[0.18em]">Risks:</span> {play.risks}
+      </p>
+    </div>
+  );
+}
+
+function BacklogRow({ item, onBuild }: { item: SopBacklogItem; onBuild: () => void }) {
   return (
     <li className="rounded-md border border-border bg-background/60 p-3">
       <div className="flex items-start gap-3">
@@ -710,7 +737,7 @@ function BacklogRow({ item }: { item: SopBacklogItem }) {
               {item.name}
             </p>
             <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-              effort {item.effort}
+              effort {item.effort} · {item.playId}
             </span>
           </div>
           <p className="mt-1 text-[12.5px] leading-snug text-foreground/85">{item.purpose}</p>
@@ -726,6 +753,13 @@ function BacklogRow({ item }: { item: SopBacklogItem }) {
           <p className="mt-1 text-[11.5px] text-muted-foreground">
             <span className="font-mono uppercase tracking-[0.18em]">Why:</span> {item.why}
           </p>
+          <button
+            type="button"
+            onClick={onBuild}
+            className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-foreground/30 bg-background px-2.5 py-1 text-[11.5px] font-medium text-foreground hover:bg-muted"
+          >
+            <Sparkles className="h-3 w-3" /> Build this SOP
+          </button>
         </div>
       </div>
     </li>
