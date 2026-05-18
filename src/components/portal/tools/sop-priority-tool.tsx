@@ -771,8 +771,8 @@ function DepartmentMode() {
 
             <div className="mt-5">
               <p className="label-mono">
-                SOP backlog
-                {openPlayId && <> · highlighting <span className="text-foreground">{openPlayId}</span></>}
+                SOP backlog · <span className="text-signal-success">operationalizes {result.topPlayId}</span>
+                {openPlayId && openPlayId !== result.topPlayId && <> · highlighting <span className="text-foreground">{openPlayId}</span></>}
               </p>
               <p className="mt-1 text-[12.5px] text-muted-foreground">
                 Ordered by dependency. Click any row to draft the full SOP document — purpose, steps, KPIs, escalation.
