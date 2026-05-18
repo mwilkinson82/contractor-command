@@ -1,69 +1,76 @@
-## 1. Admin-only sidebar group
+## Templates page redesign — Option D
 
-In `src/components/portal/app-sidebar.tsx`:
-- Call `useIsAdmin()` inside `AppSidebar`.
-- Append a new `Admin` group (rendered only when `isAdmin === true`) with:
-  - **Topics** → `/admin/topics` (icon: `Inbox` or `ListChecks`)
-  - **Library** → `/admin/library` (icon: `Library`) — already exists, useful to expose alongside
-- Same `text-signal/75` group label styling as the other groups.
-- Non-admins never see the group (RLS already blocks data; this just hides the UI entry).
+Rebuild `/templates` around two zones: a small art-directed **featured zone** that always looks composed, and a dense, scalable **library zone** that stays beautiful as content grows from 20 → 200 templates.
 
-## 2. Real Zoom link for the Contractor Circle
+### Zone 1 — Featured: AOS
 
-In `src/lib/program.ts`, update the **Biweekly Call** entry:
-- `zoomUrl`: `https://us06web.zoom.us/j/83215167292?pwd=Mtt970HFCPStqSw62btyyta2Wxo0Pr.1`
-- `zoomId`: `832 1516 7292`
-- Add `passcode: "321266"` (extend `Session` type) and surface it on the Calls page next to the meeting ID.
+A single full-width hero band dedicated to **AOS** (Marshall's Augmented Operating System). Not part of the grid, not a card in a row — its own moment.
 
-Since the bi-weekly and bootcamp share the same Zoom (per your earlier note), also point the **Monthly Bootcamp** entry to the same `zoomUrl` / `zoomId` / `passcode`.
+- Eyebrow: `THE OPERATING SYSTEM` · small orange signal dot (same as top strip)
+- Headline: "AOS — Augmented Operating System"
+- One-paragraph lede positioning AOS as the foundation
+- Inside the band: the 9 AOS templates rendered as a compact 3-column list (title + one-line description + Open button), grouped under one frame
+- Subtle paper/engine treatment to match the ALP Engine aesthetic — not a colored gradient block
 
-The biweekly anchor (`2026-05-24 17:00 ET`) already matches the Zoom invite — no date change needed.
+This replaces the current "Top prescribed path" featured row. The `featured` flag on templates becomes "AOS-only" by convention going forward.
 
-## 3. Templates reorg
+### Zone 2 — The Library (everything else)
 
-Categories are auto-derived from the `templates.category` column, so this is a pure data migration. New category set:
+Below the AOS band: one unified, searchable, filterable list. No grid of category cards.
 
-**AOS** (new — replaces "Operating System" + the four EOS items currently in "operations" + the two EOS items in "leadership"):
-- Owner Dependency Scorecard *(was Operating System)*
-- V/TO — Vision / Traction Organizer *(was Operating System)*
-- Weekly Scorecard *(was Operating System)*
-- ALP-EOS Command Center Blueprint *(was leadership)*
-- Vision/Traction Organizer (VITO) — Complete Example *(was leadership)*
-- ALP/EOS Operating System — Complete Playbook *(was operations)*
-- ALP/EOS Scorecard *(was operations)*
-- ALP/EOS Vision/Traction Organizer (V/TO) *(was operations)*
-- ALP/EOS Weekly Scorecard — L10 Measurables & Quarterly Rocks *(was operations)*
+**Controls row** (sticky on scroll):
+- Search input (existing, widened)
+- Category filter chips (horizontal scroll): All · Operations · Leadership · Finance · Sales · Contractor Circle · Field
+- Sort: Newest · A–Z (default Newest, so new weekly drops surface at top within each category)
+- Result count ("47 templates")
 
-**Finance** — add:
-- Contractor Proposal Template *(was proposals)*
+**List rendering** — grouped by category, but each category is a *section heading* not a card:
 
-**Leadership** — keeps:
-- Monthly Boot Camp — Building the Machine (April 2026)
+```text
+─────────────────────────────────────────────────
+CONTRACTOR CIRCLE                          12 items
+─────────────────────────────────────────────────
+  Week 24 Deck — Pricing Without Apology
+  Bi-weekly call deck · PDF · Added May 18      [ Open ]
+  ─────────────────────────────────────────────
+  Week 22 Deck — The Owner Trap
+  Bi-weekly call deck · PDF · Added May 4       [ Open ]
+  ─────────────────────────────────────────────
+  ...
 
-**Operations** — keeps all remaining ops items (Client Onboarding, Punch List, SOPs, CPM, Daily Job Log, PM Systems, Roles & Responsibilities, Three Silos, Subcontractor SOPs, Project Manager Meeting, Construction Checklists).
-
-The `proposals` category becomes empty and disappears from filters automatically.
-
-### Migration SQL (single migration)
-
-```sql
-UPDATE public.templates SET category = 'AOS' WHERE id IN (
-  '77a0c76c-c63c-45b0-a944-2852233d3568', -- Owner Dependency Scorecard
-  'c2786dc3-0d08-4eb6-bc6c-03e5cc004233', -- V/TO
-  '867c6bd0-88f3-4324-983c-d2e855f9a410', -- Weekly Scorecard
-  'd2e46816-4419-4aca-979e-379d1af7b8a2', -- Command Center Blueprint
-  '2e1c20af-d295-4e14-8b21-1b51b9acd828', -- VITO Complete Example
-  '013aa7fb-67b2-4b11-8f14-8a4d9f0e317d', -- Operating System Playbook
-  '71d7554b-c15e-4c91-92dc-4452e7cef776', -- Scorecard
-  '5185a966-fe6f-4f25-a66f-11d5e51e6041', -- V/TO
-  'c44ea27b-b83b-48a1-aa6d-472ed8e0cacf'  -- Weekly Scorecard L10
-);
-UPDATE public.templates SET category = 'finance'
-  WHERE id = '378dcc9a-20fc-4503-8de3-2faacbc4f9fd'; -- Contractor Proposal
+─────────────────────────────────────────────────
+OPERATIONS                                 11 items
+─────────────────────────────────────────────────
+  Client Onboarding Checklist
+  ...
 ```
 
-## Confirm before I build
+Each row: title (display font), one-line meta (type · pages · added date), Open button right-aligned. Hairline dividers between rows. Generous vertical rhythm. No card chrome — the *list itself* is the design.
 
-1. New "AOS" group goes in the sidebar — fine to keep AOS *page* link in **Daily** (no change) and have a separate **AOS** templates category, right?
-2. Should the Admin group include just **Topics**, or also **Library** (since `/admin/library` already exists)?
-3. OK to display the Zoom passcode (`321266`) on the Calls page next to the meeting ID?
+This pattern:
+- Looks identical whether a category has 2 items or 50
+- Adds a Contractor Circle deck = one new row, zero design work
+- Scans like Linear/Vercel/Notion template galleries (the reference for "premium template library")
+- Filter chip + search make a 200-template library feel effortless
+
+### Empty/loading states
+
+- Loading: skeleton rows in the same shape (not spinners)
+- Empty search result: single centered line "No templates match 'xyz'." with a Clear button
+
+### Out of scope
+
+- No backend changes. `featured` stays on the schema (used to gate AOS hero membership later if needed).
+- No new categories. Current set stays.
+- Admin upload flow unchanged.
+
+### Files to change
+
+- `src/routes/templates.tsx` — full rewrite of the render layer (the data fetching stays). Replace `featured` row + 2-col grouped cards with: AOS hero band + filter controls + grouped list.
+- Possibly extract `AOSFeaturedBand` and `TemplateRow` into small components inside the same file for readability.
+
+### Confirm before I build
+
+1. AOS hero is its own band above everything else, with the 9 AOS templates listed inside it — correct?
+2. Category filter as horizontal chips (not a dropdown) — okay? Chips scale better visually as categories grow.
+3. Default sort = **Newest** so your weekly Contractor Circle drops auto-surface at the top of that section?
