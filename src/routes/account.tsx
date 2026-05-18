@@ -355,3 +355,109 @@ function Row({ k, v }: { k: string; v: string }) {
     </div>
   );
 }
+
+function BillingActions() {
+  const portalFn = useServerFn(createBillingPortalSession);
+  const submitFn = useServerFn(submitBillingQuestion);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const [subject, setSubject] = useState("Billing question");
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  async function openPortal() {
+    setLoading(true);
+    setErr(null);
+    try {
+      const { url } = await portalFn();
+      window.location.assign(url);
+    } catch (e: unknown) {
+      const m = e instanceof Error ? e.message : "Could not open billing portal.";
+      setErr(m);
+      setLoading(false);
+    }
+  }
+
+  async function send() {
+    if (!message.trim()) return;
+    setSending(true);
+    try {
+      await submitFn({ data: { subject: subject.trim() || "Billing question", message: message.trim() } });
+      setSent(true);
+      setMessage("");
+      setTimeout(() => { setOpen(false); setSent(false); }, 1400);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not send.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="mt-6 border-t border-border pt-5">
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={openPortal}
+          disabled={loading}
+          className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-cream hover:opacity-90 disabled:opacity-60"
+        >
+          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowUpRight className="h-3.5 w-3.5" />}
+          {loading ? "Opening…" : "Manage subscription"}
+        </button>
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm hover:bg-muted"
+        >
+          Billing question
+        </button>
+      </div>
+      {err && <p className="mt-3 text-[12px] text-foreground/70">{err}</p>}
+
+      {open && (
+        <div className="mt-4 rounded-xl border border-border bg-background p-4">
+          {sent ? (
+            <p className="flex items-center gap-2 text-[13px] text-foreground/80">
+              <Check className="h-4 w-4 text-signal" /> Sent. Marshall's team will follow up by email.
+            </p>
+          ) : (
+            <>
+              <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Subject</label>
+              <input
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                className="mt-1.5 w-full rounded-md border border-border bg-card px-3 py-2 text-[13px] focus:border-ink focus:outline-none"
+              />
+              <label className="mt-3 block font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Question</label>
+              <textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                rows={4}
+                placeholder="Refund, invoice, plan change, dispute…"
+                className="mt-1.5 w-full rounded-md border border-border bg-card px-3 py-2 text-[13px] focus:border-ink focus:outline-none"
+              />
+              <div className="mt-3 flex justify-end gap-2">
+                <button
+                  onClick={() => setOpen(false)}
+                  className="rounded-md border border-border bg-background px-3 py-1.5 text-[12px] hover:bg-muted"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={send}
+                  disabled={sending || !message.trim()}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] text-cream hover:opacity-90 disabled:opacity-50"
+                >
+                  {sending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                  Send
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
