@@ -393,7 +393,7 @@ function OwnerMode() {
 
             <div className="mt-5">
               <p className="label-mono">Ranked areas · click any to build extraction plays</p>
-              <p className="mt-1 text-[12px] text-muted-foreground">
+              <p className="mt-1 text-[13px] italic text-muted-foreground" style={{ fontFamily: "var(--font-serif)" }}>
                 Each area gets its own Optimization Plays (delegate · batch · eliminate · systematize · automate) and a small SOP backlog to make the transfer stick. The #1 area is the highest leverage — start there.
               </p>
               <ol className="mt-3 space-y-3">
@@ -857,9 +857,9 @@ function PlayCard({
       className={`group w-full rounded-xl border p-4 text-left transition hover:border-foreground/60 hover:shadow-sm ${base}`}
     >
       <div className="flex items-center justify-between gap-2">
-        <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-foreground">
+        <p className={`font-mono text-[11px] uppercase tracking-[0.22em] ${recommended ? "text-signal-success" : "text-foreground"}`}>
           {play.id}
-          {recommended && <span className="ml-1 text-signal-success">· recommended</span>}
+          {recommended && <span className="ml-1">· recommended</span>}
         </p>
         <span className="font-mono text-[11px] text-foreground/70">{play.expectedLift}</span>
       </div>
@@ -956,11 +956,9 @@ function PlayDetailDialog({
         {play && (
           <div className="max-h-[85vh] overflow-y-auto p-7">
             <div className="pr-8">
-              <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-foreground">
+              <p className={`font-mono text-[11px] uppercase tracking-[0.22em] ${recommended ? "text-signal-success" : "text-foreground"}`}>
                 Play {play.id}
-                {recommended && (
-                  <span className="ml-1 text-signal-success">· recommended</span>
-                )}
+                {recommended && <span className="ml-1">· recommended</span>}
               </p>
               <h3 className="mt-1.5 text-[1.75rem] leading-tight text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
                 {play.name}
