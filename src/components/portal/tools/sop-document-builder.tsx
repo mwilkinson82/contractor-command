@@ -347,10 +347,10 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
             </button>
             <button
               type="button"
-              onClick={printIt}
+              onClick={downloadPdf}
               className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-[13px] font-medium text-foreground hover:bg-muted"
             >
-              <Printer className="h-3.5 w-3.5" /> Print / PDF
+              <Download className="h-3.5 w-3.5" /> Download PDF
             </button>
             <button
               type="button"
