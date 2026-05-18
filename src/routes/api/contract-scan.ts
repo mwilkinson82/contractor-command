@@ -72,17 +72,43 @@ export const Route = createFileRoute("/api/contract-scan")({
         const model = gateway("google/gemini-3-flash-preview");
 
         try {
-          const { object } = await generateObject({
+          const { text } = await generateText({
             model,
-            schema: ScanSchema,
-            system: CONTRACT_SCAN_SYSTEM_PROMPT,
+            system:
+              CONTRACT_SCAN_SYSTEM_PROMPT +
+              "\n\nReturn ONLY a single JSON object. No prose, no markdown, no code fences. The JSON must match this TypeScript type:\n" +
+              `{
+  overallScore: number,         // 0-100
+  status: "ready" | "tighten" | "do-not-sign",
+  headline: string,
+  topRisk: string,
+  financialConsequence: string,
+  recommendedAction: string,
+  dimensions: Array<{
+    dimension: "cash" | "schedule" | "scope" | "margin",
+    score: number,              // 0-10
+    status: "strong" | "weak" | "missing",
+    finding: string,
+    clauseToAddOrFix: string
+  }>,                            // include all four dimensions
+  missingClauses: string[]      // up to 8
+}`,
             prompt: buildContractScanUserPrompt({
               contractText: safeContract,
               projectContext,
             }),
           });
 
-          // Normalize: clamp score, ensure 4 dimensions, clip missingClauses to 8.
+          const raw = extractJson(text);
+          const parsed = ScanSchema.safeParse(raw);
+          if (!parsed.success) {
+            console.error("[contract-scan] schema mismatch", parsed.error.issues);
+            return new Response(
+              "The model returned an unreadable response. Try again, or trim the contract to the key sections.",
+              { status: 502 },
+            );
+          }
+          const object = parsed.data;
           const normalized = {
             ...object,
             overallScore: clamp(Math.round(object.overallScore), 0, 100),
