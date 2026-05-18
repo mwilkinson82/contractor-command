@@ -319,6 +319,21 @@ function OwnerMode() {
           Scales 1–5. Blast = what breaks if you're out. Effort = how hard to systematize (1 easy, 5 hard).
           Frequency = how often it recurs (5 = daily).
         </p>
+
+        <label className="mt-4 block">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            Owner context (optional)
+          </span>
+          <textarea
+            value={ownerContext}
+            onChange={(e) => setOwnerContext(e.target.value)}
+            placeholder="What keeps pulling you back in? Decisions only you can make, relationships only you hold, info that lives in your head."
+            className="mt-1 h-[88px] w-full resize-y rounded-md border border-border bg-background p-2.5 text-[12.5px] leading-relaxed text-foreground outline-none focus:border-foreground/40"
+          />
+          <span className="mt-1 block text-[10.5px] text-muted-foreground">
+            Used when generating extraction plays for a specific area.
+          </span>
+        </label>
       </section>
 
       <div className="flex min-w-0 flex-col gap-6">
