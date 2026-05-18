@@ -1083,10 +1083,10 @@ function OwnerAreaCard({
           {area.rank}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[14px] font-medium text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
+          <p className="text-[15px] font-medium text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
             {area.name}
           </p>
-          <p className="mt-0.5 text-[11.5px] text-muted-foreground">
+          <p className="mt-0.5 text-[12px] text-muted-foreground">
             {area.ownerHoursPerWeek}h/wk · blast {area.blastRadius} · effort {area.setupEffort} · leverage {area.leverageScore.toFixed(1)}
           </p>
         </div>
@@ -1102,47 +1102,95 @@ function OwnerAreaCard({
       {expanded && (
         <div className="border-t border-border px-4 pb-4 pt-3">
           {error && (
-            <p className="rounded-md border border-signal/40 bg-signal/10 p-3 text-[12.5px] text-foreground">
+            <p className="rounded-md border border-signal/40 bg-signal/10 p-3 text-[13px] text-foreground">
               {error}
             </p>
           )}
           {!error && !plays && loading && (
-            <p className="text-[12.5px] text-muted-foreground">Generating extraction plays for {area.name}…</p>
+            <p className="text-[13px] text-muted-foreground">Generating extraction plays for {area.name}…</p>
           )}
           {plays && (
-            <div className="space-y-4">
-              <p className="text-[12.5px] leading-relaxed text-foreground/85">
-                <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Reframe: </span>
-                {plays.constraintReframe}
-              </p>
-              <p className="text-[12.5px] leading-relaxed text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
-                {plays.headline}
-              </p>
-
-              <div>
-                <p className="label-mono">Optimization plays</p>
-                <div className="mt-2 grid gap-2.5 md:grid-cols-2">
-                  {plays.plays.map((p) => (
-                    <PlayCard key={p.id} play={p} recommended={p.id === plays.topPlayId} />
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <p className="label-mono">SOP backlog · operationalizes {plays.topPlayId}</p>
-                <ol className="mt-2 space-y-2.5">
-                  {plays.backlog.map((it) => {
-                    const parent = plays.plays.find((p) => p.id === it.playId) ?? null;
-                    return (
-                      <BacklogRow key={it.rank} item={it} onBuild={() => onBuildSop(it, parent)} />
-                    );
-                  })}
-                </ol>
-              </div>
-            </div>
+            <OwnerAreaBody
+              plays={plays}
+              onBuildSop={(it, parent) => onBuildSop(it, parent)}
+            />
           )}
         </div>
       )}
     </li>
+  );
+}
+
+function OwnerAreaBody({
+  plays,
+  onBuildSop,
+}: {
+  plays: OwnerPlaysResult;
+  onBuildSop: (item: SopBacklogItem, parentPlay: OptimizationPlay | null) => void;
+}) {
+  const [openPlayId, setOpenPlayId] = useState<string | null>(null);
+  const openPlay = plays.plays.find((p) => p.id === openPlayId) ?? null;
+  const sopsForOpenPlay = openPlay ? plays.backlog.filter((s) => s.playId === openPlay.id) : [];
+
+  return (
+    <div className="space-y-4">
+      <p className="text-[13.5px] leading-relaxed text-foreground/85">
+        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Reframe: </span>
+        {plays.constraintReframe}
+      </p>
+      <p className="text-[14px] leading-relaxed text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
+        {plays.headline}
+      </p>
+
+      <div>
+        <p className="label-mono">Optimization plays · click any to read in detail</p>
+        <div className="mt-2 grid gap-2.5 md:grid-cols-2">
+          {plays.plays.map((p) => (
+            <PlayCard
+              key={p.id}
+              play={p}
+              recommended={p.id === plays.topPlayId}
+              selected={p.id === openPlayId}
+              onClick={() => setOpenPlayId(p.id)}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <p className="label-mono">
+          SOP backlog · operationalizes <span className="text-foreground">{plays.topPlayId}</span>
+          {openPlayId && openPlayId !== plays.topPlayId && (
+            <> · highlighting {openPlayId}</>
+          )}
+        </p>
+        <ol className="mt-2 space-y-2.5">
+          {plays.backlog.map((it) => {
+            const parent = plays.plays.find((p) => p.id === it.playId) ?? null;
+            return (
+              <BacklogRow
+                key={it.rank}
+                item={it}
+                onBuild={() => onBuildSop(it, parent)}
+                highlighted={!!openPlayId && it.playId === openPlayId}
+                parentPlayName={parent?.name}
+              />
+            );
+          })}
+        </ol>
+      </div>
+
+      <PlayDetailDialog
+        play={openPlay}
+        recommended={openPlay?.id === plays.topPlayId}
+        sops={sopsForOpenPlay}
+        onClose={() => setOpenPlayId(null)}
+        onBuildSop={(it) => {
+          const parent = plays.plays.find((p) => p.id === it.playId) ?? null;
+          setOpenPlayId(null);
+          onBuildSop(it, parent);
+        }}
+      />
+    </div>
   );
 }
