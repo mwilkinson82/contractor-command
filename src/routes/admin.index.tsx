@@ -147,6 +147,9 @@ function AdminDashboard() {
         </div>
       </Section>
 
+      {/* Members directory */}
+      <MembersDirectory online={online} />
+
       {/* Library & topics */}
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <LibraryCard metrics={metrics} loading={isLoading} />
