@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { PageHeader, Container } from "@/components/portal/page-header";
-import { STRIPE_PORTAL_URL } from "@/lib/program";
 import { AOS_URL } from "@/lib/vault";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useCompany } from "@/hooks/use-company";
 import { GREETING_ICONS, type GreetingIconKey } from "@/components/portal/greeting-icon";
-import { ArrowUpRight, Check, AlertCircle, KeyRound, Building2 } from "lucide-react";
+import { ArrowUpRight, Check, AlertCircle, KeyRound, Building2, Loader2 } from "lucide-react";
+import { createBillingPortalSession, submitBillingQuestion } from "@/lib/billing.functions";
 
 export const Route = createFileRoute("/account")({
   head: () => ({ meta: [{ title: "Account — ALP Contractor Circle" }] }),
@@ -166,22 +167,7 @@ function AccountPage() {
             <Row k="Rate" v="$497 / month" />
             <Row k="Status" v="Active" />
           </dl>
-          <div className="mt-6 flex flex-wrap gap-2 border-t border-border pt-5">
-            <a
-              href={STRIPE_PORTAL_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-cream hover:opacity-90"
-            >
-              Manage subscription <ArrowUpRight className="h-3.5 w-3.5" />
-            </a>
-            <a
-              href="mailto:hello@alpcontractorcircle.com?subject=Billing question"
-              className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm hover:bg-muted"
-            >
-              Billing question
-            </a>
-          </div>
+          <BillingActions />
         </div>
       </div>
 
