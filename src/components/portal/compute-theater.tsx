@@ -217,11 +217,11 @@ function SyntaxLine({ text }: { text: string | undefined }) {
   const parts: { t: string; cls: string }[] = [];
   const keywordRe = /^(\s*)(load|derive|compare|project|rank|compose|done\.?)\b/;
   const m = safe.match(keywordRe);
-  let rest = text;
+  let rest = safe;
   if (m) {
     parts.push({ t: m[1] ?? "", cls: "" });
     parts.push({ t: m[2], cls: "text-signal font-semibold" });
-    rest = text.slice(m[0].length);
+    rest = safe.slice(m[0].length);
   }
 
   // Tokenize the rest by simple regex passes.
