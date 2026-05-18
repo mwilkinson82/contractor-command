@@ -264,16 +264,29 @@ function HomePage() {
         </div>
       </section>
 
-      {/* Signal tiles — every command tool, live or coming */}
+      {/* Command tools — single editorial grid */}
       <section className="relative px-6 pb-16">
         <div className="mx-auto w-full max-w-[1180px]">
-          <div className="mb-5">
-            <p className="label-mono">Instrument panel</p>
-            <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-2">
-              <h2 className="font-display text-2xl">Command tools</h2>
+          <div className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
+            <div className="max-w-xl">
+              <p className="label-mono">Instrument panel</p>
+              <h2 className="mt-2 font-display text-[1.75rem] leading-tight" style={{ fontFamily: "var(--font-serif)" }}>
+                Command tools
+              </h2>
+              <p className="mt-2 text-[13.5px] leading-relaxed text-muted-foreground">
+                One tool per problem. Run when you need it — every finding lands in your vault.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                to="/tools"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-[12.5px] text-foreground/80 hover:bg-muted"
+              >
+                Browse all
+              </Link>
               <Link
                 to="/vault"
-                className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 font-serif italic text-[13px] text-cream hover:opacity-90"
+                className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12.5px] font-medium text-cream hover:opacity-90"
               >
                 <Archive className="h-3 w-3" /> Company Vault
               </Link>

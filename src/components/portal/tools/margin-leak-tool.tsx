@@ -174,7 +174,7 @@ export function MarginLeakTool({ onClose }: { onClose: () => void }) {
               <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
                 Awaiting inputs
               </p>
-              <p className="mt-2 text-[13px] text-muted-foreground" style={{ fontFamily: "var(--font-serif)" }}>
+              <p className="mt-2 text-[14px] text-muted-foreground" style={{ fontFamily: "var(--font-serif)" }}>
                 Set your numbers, then run the analysis to see what the margin gap actually costs you each year.
               </p>
             </div>

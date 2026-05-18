@@ -329,9 +329,9 @@ function OwnerMode() {
             value={ownerContext}
             onChange={(e) => setOwnerContext(e.target.value)}
             placeholder="What keeps pulling you back in? Decisions only you can make, relationships only you hold, info that lives in your head."
-            className="mt-1 h-[88px] w-full resize-y rounded-md border border-border bg-background p-2.5 text-[12.5px] leading-relaxed text-foreground outline-none focus:border-foreground/40"
+            className="mt-1 h-[88px] w-full resize-y rounded-md border border-border bg-background p-2.5 text-[13.5px] leading-relaxed text-foreground outline-none focus:border-foreground/40"
           />
-          <span className="mt-1 block text-[10.5px] text-muted-foreground">
+          <span className="mt-1 block text-[12px] text-muted-foreground">
             Used when generating extraction plays for a specific area.
           </span>
         </label>
@@ -747,7 +747,7 @@ function DepartmentMode() {
 
             <div className="mt-6 rounded-md border border-foreground/40 bg-background p-4 ring-1 ring-foreground/10">
               <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                Build this first · #{result.topSop.rank} · operationalizes {result.topSop.playId}
+                Build this first · #{result.topSop.rank} · <span className="text-signal-success">operationalizes {result.topSop.playId}</span>
                 {(() => {
                   const parent = result.plays.find((p) => p.id === result.topSop.playId);
                   return parent ? ` · ${parent.name.split("·").slice(-1)[0].trim()}` : "";
@@ -771,8 +771,8 @@ function DepartmentMode() {
 
             <div className="mt-5">
               <p className="label-mono">
-                SOP backlog
-                {openPlayId && <> · highlighting <span className="text-foreground">{openPlayId}</span></>}
+                SOP backlog · <span className="text-signal-success">operationalizes {result.topPlayId}</span>
+                {openPlayId && openPlayId !== result.topPlayId && <> · highlighting <span className="text-foreground">{openPlayId}</span></>}
               </p>
               <p className="mt-1 text-[12.5px] text-muted-foreground">
                 Ordered by dependency. Click any row to draft the full SOP document — purpose, steps, KPIs, escalation.
@@ -858,7 +858,8 @@ function PlayCard({
     >
       <div className="flex items-center justify-between gap-2">
         <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-foreground">
-          {play.id}{recommended ? " · recommended" : ""}
+          {play.id}
+          {recommended && <span className="ml-1 text-signal-success">· recommended</span>}
         </p>
         <span className="font-mono text-[11px] text-foreground/70">{play.expectedLift}</span>
       </div>
@@ -954,26 +955,19 @@ function PlayDetailDialog({
       <DialogContent className="max-w-3xl border-border bg-card p-0 sm:rounded-2xl">
         {play && (
           <div className="max-h-[85vh] overflow-y-auto p-7">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-foreground">
-                  Play {play.id}{recommended ? " · recommended" : ""}
-                </p>
-                <h3 className="mt-1.5 text-[1.75rem] leading-tight text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
-                  {play.name}
-                </h3>
-                <p className="mt-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-foreground/70">
-                  Expected lift · {play.expectedLift}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-md border border-border bg-background p-1.5 text-foreground/60 hover:bg-muted hover:text-foreground"
-                aria-label="Close"
-              >
-                <X className="h-4 w-4" />
-              </button>
+            <div className="pr-8">
+              <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-foreground">
+                Play {play.id}
+                {recommended && (
+                  <span className="ml-1 text-signal-success">· recommended</span>
+                )}
+              </p>
+              <h3 className="mt-1.5 text-[1.75rem] leading-tight text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
+                {play.name}
+              </h3>
+              <p className="mt-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-foreground/70">
+                Expected lift · {play.expectedLift}
+              </p>
             </div>
 
             <div className="mt-5 space-y-4 text-[14.5px] leading-relaxed text-foreground/90">
@@ -1193,9 +1187,9 @@ function OwnerAreaBody({
 
       <div>
         <p className="label-mono">
-          SOP backlog · operationalizes <span className="text-foreground">{plays.topPlayId}</span>
+          SOP backlog · <span className="text-signal-success">operationalizes {plays.topPlayId}</span>
           {openPlayId && openPlayId !== plays.topPlayId && (
-            <> · highlighting {openPlayId}</>
+            <> · highlighting <span className="text-foreground">{openPlayId}</span></>
           )}
         </p>
         <ol className="mt-2 space-y-2.5">

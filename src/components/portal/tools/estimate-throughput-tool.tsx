@@ -171,7 +171,7 @@ export function EstimateThroughputTool({ onClose }: { onClose: () => void }) {
               <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
                 Awaiting inputs
               </p>
-              <p className="mt-2 text-[13px] text-muted-foreground" style={{ fontFamily: "var(--font-serif)" }}>
+              <p className="mt-2 text-[14px] text-muted-foreground" style={{ fontFamily: "var(--font-serif)" }}>
                 Set your numbers, then hit Run analysis to see what your estimate cadence can actually carry.
               </p>
             </div>

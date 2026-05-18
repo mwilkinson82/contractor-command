@@ -1,17 +1,14 @@
-// Signal tiles — one card per command tool. Live tools surface the
-// latest vault packet finding. Coming-next tools stay visible but
-// quieter, so the CEO sees the full instrument panel and knows what's
-// still dark.
+// Signal tiles — single editorial grid for the command tools instrument
+// panel. With ~6 live tools, dropping the 4-group taxonomy reads cleaner:
+// every tool gets one well-spaced card, ordered by recency (latest run
+// first, never-run after, coming-soon footnoted at the bottom).
 
 import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { ArrowUpRight, Lock } from "lucide-react";
 import {
   COMMAND_TOOLS,
-  TOOL_GROUPS,
   type CommandTool,
-  type ToolGroup,
-  toolsByGroup,
 } from "@/lib/command-tools";
 import type { Packet } from "@/lib/vault";
 import { hasToolDrawer, useToolDrawer } from "@/components/portal/tool-drawer";
@@ -20,44 +17,63 @@ type LatestBySource = Record<string, Packet | undefined>;
 
 function buildLatest(packets: Packet[]): LatestBySource {
   const out: LatestBySource = {};
-  for (const p of packets) {
-    if (!out[p.source]) out[p.source] = p;
-  }
+  for (const p of packets) if (!out[p.source]) out[p.source] = p;
   return out;
 }
 
 export function SignalTiles({ packets }: { packets: Packet[] }) {
   const latest = useMemo(() => buildLatest(packets), [packets]);
 
-  return (
-    <div className="space-y-8">
-      {TOOL_GROUPS.map((group) => (
-        <GroupBlock key={group} group={group} latest={latest} />
-      ))}
-    </div>
-  );
-}
+  const live = COMMAND_TOOLS.filter((t) => t.status === "live");
+  const coming = COMMAND_TOOLS.filter((t) => t.status !== "live");
 
-function GroupBlock({ group, latest }: { group: ToolGroup; latest: LatestBySource }) {
-  const tools = toolsByGroup(group);
+  // Sort live tools: most-recent run first, then never-run.
+  const sortedLive = [...live].sort((a, b) => {
+    const ap = a.vaultSource ? latest[a.vaultSource] : undefined;
+    const bp = b.vaultSource ? latest[b.vaultSource] : undefined;
+    if (ap && bp) return new Date(bp.createdAt).getTime() - new Date(ap.createdAt).getTime();
+    if (ap) return -1;
+    if (bp) return 1;
+    return 0;
+  });
+
   return (
     <div>
-      <p className="label-mono">{group}</p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {tools.map((t) => (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {sortedLive.map((t) => (
           <Tile key={t.id} tool={t} packet={t.vaultSource ? latest[t.vaultSource] : undefined} />
         ))}
       </div>
+
+      {coming.length > 0 && (
+        <div className="mt-8 border-t border-dashed border-border pt-5">
+          <p className="label-mono">Up next</p>
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {coming.map((t) => {
+              const Icon = t.icon;
+              return (
+                <li
+                  key={t.id}
+                  className="inline-flex items-center gap-2 rounded-full border border-dashed border-border bg-background/40 px-3 py-1.5 text-[12.5px] text-muted-foreground"
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  <span className="text-foreground/75">{t.name}</span>
+                  <Lock className="h-3 w-3 opacity-60" />
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
 
 function Tile({ tool, packet }: { tool: CommandTool; packet?: Packet }) {
   const Icon = tool.icon;
-  const isLive = tool.status === "live";
-  const hasRun = isLive && !!packet;
   const drawer = useToolDrawer();
   const usesDrawer = hasToolDrawer(tool.id);
+  const hasRun = !!packet;
 
   const finding =
     packet && packet.kind === "command"
@@ -66,104 +82,75 @@ function Tile({ tool, packet }: { tool: CommandTool; packet?: Packet }) {
         ? packet.needsPressure
         : undefined;
 
-  const sharedClass =
-    "group relative flex h-full flex-col rounded-2xl border-2 border-border bg-transparent p-4 text-left transition-all hover:-translate-y-0.5 hover:border-foreground/25 hover:bg-card";
+  const shared =
+    "group relative flex h-full flex-col rounded-2xl border border-border bg-card p-5 text-left transition-all hover:-translate-y-0.5 hover:border-foreground/30 hover:shadow-[0_12px_30px_-18px_color-mix(in_oklab,var(--ink)_28%,transparent)]";
 
-  // Live tool, never run yet
-  if (isLive && !hasRun) {
-    const body = (
-      <>
-        <TileHeader Icon={Icon} status="ready" />
-        <h3 className="mt-3 font-display text-[17px] leading-snug">{tool.name}</h3>
-        <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">{tool.blurb}</p>
-        <p className="mt-auto pt-3 text-[11px] font-medium text-gold">
-          Not run yet — takes 4 min →
-        </p>
-      </>
-    );
-    return usesDrawer ? (
-      <button type="button" onClick={() => drawer.open(tool.id)} className={sharedClass}>
-        {body}
-      </button>
-    ) : (
-      <Link to={tool.route as "/tools/growth-constraint"} className={sharedClass}>
-        {body}
-      </Link>
-    );
-  }
+  const body = (
+    <>
+      <div className="flex items-start justify-between gap-3">
+        <span className="grid h-9 w-9 place-items-center rounded-lg bg-foreground/5 text-foreground/80">
+          <Icon className="h-4 w-4" />
+        </span>
+        <StatusBadge live={hasRun} />
+      </div>
 
-  // Live tool, already has a packet
-  if (isLive && hasRun) {
-    const body = (
-      <>
-        <TileHeader Icon={Icon} status="live" />
-        <h3 className="mt-3 font-display text-[17px] leading-snug">{tool.name}</h3>
-        <p
-          className="mt-2 line-clamp-3 text-[12px] leading-snug text-foreground/85"
-          title={finding}
-        >
-          {finding ?? packet!.title}
-        </p>
-        <div className="mt-auto flex items-center justify-between pt-3 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-          <span className="font-mono">{relative(packet!.createdAt)}</span>
-          <ArrowUpRight className="h-3 w-3 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-        </div>
-      </>
-    );
-    return usesDrawer ? (
-      <button type="button" onClick={() => drawer.open(tool.id)} className={sharedClass}>
-        {body}
-      </button>
-    ) : (
-      <Link to={tool.route as "/tools/growth-constraint"} className={sharedClass}>
-        {body}
-      </Link>
-    );
-  }
+      <h3
+        className="mt-4 font-display text-[19px] leading-snug text-foreground"
+        style={{ fontFamily: "var(--font-serif)" }}
+      >
+        {tool.name}
+      </h3>
 
-  // Coming-next placeholder
-  return (
-    <div className="relative flex h-full flex-col rounded-2xl border-2 border-dashed border-border bg-transparent p-4 opacity-70">
-      <TileHeader Icon={Icon} status="soon" />
-      <h3 className="mt-3 font-display text-[17px] leading-snug text-foreground/75">{tool.name}</h3>
-      <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground/80">{tool.blurb}</p>
-      <p className="mt-auto pt-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground/70">
-        Coming next
+      <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+        {tool.group}
       </p>
-    </div>
+
+      {hasRun && finding ? (
+        <p className="mt-3 line-clamp-3 text-[13.5px] leading-relaxed text-foreground/85">
+          {finding}
+        </p>
+      ) : (
+        <p className="mt-3 line-clamp-2 text-[13.5px] leading-relaxed text-muted-foreground">
+          {tool.blurb}
+        </p>
+      )}
+
+      <div className="mt-auto flex items-center justify-between pt-4">
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+          {hasRun ? relative(packet!.createdAt) : "Not run yet · ~4 min"}
+        </span>
+        <ArrowUpRight className="h-4 w-4 text-foreground/55 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+      </div>
+    </>
+  );
+
+  if (usesDrawer) {
+    return (
+      <button type="button" onClick={() => drawer.open(tool.id)} className={shared}>
+        {body}
+      </button>
+    );
+  }
+  return (
+    <Link to={tool.route as "/tools/growth-constraint"} className={shared}>
+      {body}
+    </Link>
   );
 }
 
-function TileHeader({
-  Icon,
-  status,
-}: {
-  Icon: CommandTool["icon"];
-  status: "live" | "ready" | "soon";
-}) {
-  const dot =
-    status === "live"
-      ? "bg-signal"
-      : status === "ready"
-        ? "bg-gold"
-        : "bg-muted-foreground/40";
-  const label = status === "live" ? "Live" : status === "ready" ? "Ready" : "Soon";
+function StatusBadge({ live }: { live: boolean }) {
   return (
-    <div className="flex items-center justify-between">
-      <span className="grid h-7 w-7 place-items-center rounded-md bg-foreground/5 text-foreground/80">
-        {status === "soon" ? <Lock className="h-3 w-3" /> : <Icon className="h-3.5 w-3.5" />}
-      </span>
-      <span className="inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground">
-        <span className={`inline-block h-1.5 w-1.5 rounded-full ${dot}`} />
-        {label}
-      </span>
-    </div>
+    <span className="inline-flex items-center gap-1.5 font-mono text-[9.5px] uppercase tracking-[0.22em] text-muted-foreground">
+      <span
+        className={`inline-block h-1.5 w-1.5 rounded-full ${live ? "bg-signal animate-signal-pulse" : "bg-gold"}`}
+      />
+      {live ? "Latest run" : "Ready"}
+    </span>
   );
 }
 
 function relative(iso: string) {
-  const then = new Date(iso).getTime();
-  const days = Math.floor((Date.now() - then) / 86400000);
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
   if (days <= 0) return "Today";
   if (days === 1) return "Yesterday";
   if (days < 7) return `${days}d ago`;
