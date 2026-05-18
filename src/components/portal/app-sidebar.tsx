@@ -144,7 +144,7 @@ export function AppSidebar() {
         {GROUPS.map((g) => (
           <div key={g.label} className="mb-4">
             {!collapsed && (
-              <p className="px-2 pb-1.5 text-[10px] uppercase tracking-[0.22em] text-muted-foreground/70">
+              <p className="px-2 pb-1.5 text-[10px] uppercase tracking-[0.22em] text-signal/90">
                 {g.label}
               </p>
             )}
