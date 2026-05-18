@@ -408,8 +408,7 @@ function DepartmentMode() {
         headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
         body: JSON.stringify({ department, stage: companyStage, seatHeadcount, context }),
         signal: controller.signal,
-      });
-      window.clearTimeout(timeout);
+      }).finally(() => window.clearTimeout(timeout));
       if (!res.ok) {
         setError((await res.text()) || `Failed (${res.status})`);
         setStage("error");
