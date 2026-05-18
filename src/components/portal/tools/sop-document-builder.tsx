@@ -14,7 +14,10 @@ import {
   Mail,
   Download,
   Sparkles,
+  Send,
+  X,
 } from "lucide-react";
+import { sendTransactionalEmail } from "@/lib/email/send";
 import { supabase } from "@/integrations/supabase/client";
 import { vault } from "@/lib/vault";
 import type { SopDocument, SopStep } from "@/lib/tools/sop-draft";
@@ -154,12 +157,54 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
     setSavedId(saved.id);
   }
 
-  function emailIt() {
+  // Email send state
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailNote, setEmailNote] = useState("");
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailSentTo, setEmailSentTo] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  async function sendEmail() {
     if (!doc) return;
-    const subject = `SOP · ${doc.title}`;
-    const body = renderSopAsText(doc);
-    const href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = href;
+    const recipient = emailTo.trim();
+    if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+      setEmailError("Enter a valid email address.");
+      return;
+    }
+    setEmailSending(true);
+    setEmailError(null);
+    try {
+      await sendTransactionalEmail({
+        templateName: "sop-document",
+        recipientEmail: recipient,
+        idempotencyKey: `sop-${(savedId ?? doc.title)}-${recipient}-${Date.now()}`,
+        templateData: {
+          title: doc.title,
+          department: doc.department,
+          owner: doc.owner,
+          purpose: doc.purpose,
+          scope: doc.scope,
+          trigger: doc.trigger,
+          inputs: doc.inputs,
+          steps: doc.steps,
+          outputs: doc.outputs,
+          definitionOfDone: doc.definitionOfDone,
+          kpis: doc.kpis,
+          exceptions: doc.exceptions,
+          revisionCadence: doc.revisionCadence,
+          note: emailNote.trim() || undefined,
+        },
+      });
+      setEmailSentTo(recipient);
+      setEmailOpen(false);
+      setEmailTo("");
+      setEmailNote("");
+    } catch (e) {
+      setEmailError(e instanceof Error ? e.message : "Send failed.");
+    } finally {
+      setEmailSending(false);
+    }
   }
 
   async function downloadPdf() {
@@ -341,10 +386,11 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
             </button>
             <button
               type="button"
-              onClick={emailIt}
+              onClick={() => { setEmailOpen((v) => !v); setEmailError(null); }}
               className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-[13px] font-medium text-foreground hover:bg-muted"
             >
-              <Mail className="h-3.5 w-3.5" /> Email to team
+              <Mail className="h-3.5 w-3.5" />
+              {emailSentTo ? `Sent to ${emailSentTo}` : "Email to team"}
             </button>
             <button
               type="button"
@@ -362,6 +408,63 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
               <Sparkles className="h-3.5 w-3.5" /> Re-draft
             </button>
           </div>
+
+          {emailOpen && (
+            <div className="mt-3 rounded-md border border-border bg-background/60 p-4">
+              <div className="flex items-center justify-between">
+                <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+                  Send this SOP from AOS
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setEmailOpen(false)}
+                  className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label="Close"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="mt-3 grid gap-3">
+                <div>
+                  <Label>Recipient email</Label>
+                  <input
+                    type="email"
+                    value={emailTo}
+                    onChange={(e) => { setEmailTo(e.target.value); setEmailError(null); }}
+                    placeholder="seat@yourcompany.com"
+                    className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-foreground/40"
+                  />
+                </div>
+                <div>
+                  <Label>Note (optional)</Label>
+                  <textarea
+                    value={emailNote}
+                    onChange={(e) => setEmailNote(e.target.value)}
+                    rows={2}
+                    placeholder="e.g. Please review by Friday and flag any steps that don't match how we actually run this."
+                    className="mt-1 w-full resize-y rounded-md border border-border bg-background p-2.5 text-[13px] leading-relaxed text-foreground outline-none focus:border-foreground/40"
+                  />
+                </div>
+                {emailError && (
+                  <p className="text-[12px] text-signal">{emailError}</p>
+                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={sendEmail}
+                    disabled={emailSending}
+                    className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 disabled:opacity-70"
+                  >
+                    {emailSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                    {emailSending ? "Sending…" : "Send SOP"}
+                  </button>
+                  <p className="text-[11px] text-muted-foreground">
+                    From notify.alpos.alpcontractorcircle.com
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </section>
