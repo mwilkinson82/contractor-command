@@ -9,6 +9,7 @@ export type Session = {
   durationMin: number;
   zoomUrl: string;
   zoomId?: string;
+  passcode?: string;
   description: string;
   agenda?: string[];
 };
