@@ -367,11 +367,12 @@ function DepartmentMode() {
   const [error, setError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [buildingSop, setBuildingSop] = useState<SopBacklogItem | null>(null);
+  const [theaterComplete, setTheaterComplete] = useState(false);
 
   const pending = useRef<SopBacklogResult | null>(null);
   const theaterDone = useRef(false);
   const fetchDone = useRef(false);
-  const waitingForResult = stage === "running" && theaterDone.current && !fetchDone.current;
+  const waitingForResult = stage === "running" && theaterComplete && !fetchDone.current;
 
   const ticker = useMemo(
     () => sopBacklogTicker(department, companyStage, seatHeadcount),
@@ -393,6 +394,7 @@ function DepartmentMode() {
     pending.current = null;
     theaterDone.current = false;
     fetchDone.current = false;
+    setTheaterComplete(false);
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -433,6 +435,7 @@ function DepartmentMode() {
     pending.current = null;
     theaterDone.current = false;
     fetchDone.current = false;
+    setTheaterComplete(false);
   }
 
   function savePacket() {
@@ -592,7 +595,7 @@ function DepartmentMode() {
               steps={SOP_BACKLOG_STEPS}
               ticker={ticker}
               running={stage === "running"}
-              onDone={() => { theaterDone.current = true; maybeReveal(); }}
+              onDone={() => { theaterDone.current = true; setTheaterComplete(true); maybeReveal(); }}
               subtitle={`SOP Priority Builder · ${department}`}
               fileLabel="tools/sop-backlog.generate"
             />
