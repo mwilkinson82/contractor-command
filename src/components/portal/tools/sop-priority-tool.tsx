@@ -365,6 +365,7 @@ function DepartmentMode() {
   const [result, setResult] = useState<SopBacklogResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [buildingSop, setBuildingSop] = useState<SopBacklogItem | null>(null);
 
   const pending = useRef<SopBacklogResult | null>(null);
   const theaterDone = useRef(false);
