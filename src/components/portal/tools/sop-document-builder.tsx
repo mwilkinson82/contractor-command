@@ -157,15 +157,56 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
     setSavedId(saved.id);
   }
 
-  function emailIt() {
+  // Email send state
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailNote, setEmailNote] = useState("");
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailSentTo, setEmailSentTo] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  async function sendEmail() {
     if (!doc) return;
-    const subject = `SOP · ${doc.title}`;
-    const body = renderSopAsText(doc);
-    const href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = href;
+    const recipient = emailTo.trim();
+    if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+      setEmailError("Enter a valid email address.");
+      return;
+    }
+    setEmailSending(true);
+    setEmailError(null);
+    try {
+      await sendTransactionalEmail({
+        templateName: "sop-document",
+        recipientEmail: recipient,
+        idempotencyKey: `sop-${(savedId ?? item.id ?? doc.title)}-${recipient}-${Date.now()}`,
+        templateData: {
+          title: doc.title,
+          department: doc.department,
+          owner: doc.owner,
+          purpose: doc.purpose,
+          scope: doc.scope,
+          trigger: doc.trigger,
+          inputs: doc.inputs,
+          steps: doc.steps,
+          outputs: doc.outputs,
+          definitionOfDone: doc.definitionOfDone,
+          kpis: doc.kpis,
+          exceptions: doc.exceptions,
+          revisionCadence: doc.revisionCadence,
+          note: emailNote.trim() || undefined,
+        },
+      });
+      setEmailSentTo(recipient);
+      setEmailOpen(false);
+      setEmailTo("");
+      setEmailNote("");
+    } catch (e) {
+      setEmailError(e instanceof Error ? e.message : "Send failed.");
+    } finally {
+      setEmailSending(false);
+    }
   }
 
-  async function downloadPdf() {
     if (!doc) return;
     const { jsPDF } = await import("jspdf");
     const pdf = new jsPDF({ unit: "pt", format: "letter" });
