@@ -1187,9 +1187,9 @@ function OwnerAreaBody({
 
       <div>
         <p className="label-mono">
-          SOP backlog · operationalizes <span className="text-foreground">{plays.topPlayId}</span>
+          SOP backlog · <span className="text-signal-success">operationalizes {plays.topPlayId}</span>
           {openPlayId && openPlayId !== plays.topPlayId && (
-            <> · highlighting {openPlayId}</>
+            <> · highlighting <span className="text-foreground">{openPlayId}</span></>
           )}
         </p>
         <ol className="mt-2 space-y-2.5">
