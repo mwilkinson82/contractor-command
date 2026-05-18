@@ -1,11 +1,18 @@
 import { type Packet, packetToClipboard, vault, type PacketStatus } from "@/lib/vault";
-import { Check, Copy } from "lucide-react";
-import { useState } from "react";
+import { Check, Copy, Mail, Send } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 
-// Terminus for command-tool packets is intentionally narrow: Vault + Calls.
-// No AOS hand-off — there is no real connection to wire one to.
-const STATUSES: PacketStatus[] = ["Open", "Brought to Session", "Archived"];
+// Status options. For SOP packets we expose "Carried into AOS" because the
+// packet is a real artifact that can land in the AOS Knowledge Hub. For
+// non-SOP packets the terminal state is "Brought to Session" — a marker that
+// says "raise this on the next call."
+const BASE_STATUSES: PacketStatus[] = ["Open", "Brought to Session", "Archived"];
+const SOP_STATUSES: PacketStatus[] = ["Open", "Brought to Session", "Carried into AOS", "Archived"];
+
+function isSopPacket(p: Packet): boolean {
+  return p.source.toLowerCase().includes("sop");
+}
 
 export function PacketCard({
   packet,
@@ -17,13 +24,35 @@ export function PacketCard({
   onChange?: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const [hubSent, setHubSent] = useState(false);
+  const isSop = isSopPacket(packet);
+  const statuses = isSop ? SOP_STATUSES : BASE_STATUSES;
+
+  const body = useMemo(() => packetToClipboard(packet), [packet]);
 
   async function handleCopy() {
     try {
-      await navigator.clipboard.writeText(packetToClipboard(packet));
+      await navigator.clipboard.writeText(body);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {}
+  }
+
+  function handleEmail() {
+    const subject = encodeURIComponent(`${packet.source} — ${packet.title}`);
+    const bodyEnc = encodeURIComponent(body);
+    window.location.href = `mailto:?subject=${subject}&body=${bodyEnc}`;
+  }
+
+  function sendToKnowledgeHub() {
+    // Real AOS connector isn't wired yet. For now, mark the packet as
+    // "Carried into AOS" so the operator has a record that this SOP belongs
+    // in the Knowledge Hub. When the connector ships, this hook becomes a
+    // real push.
+    vault.updateStatus(packet.id, "Carried into AOS");
+    setHubSent(true);
+    setTimeout(() => setHubSent(false), 2000);
+    onChange?.();
   }
 
   return (
@@ -43,7 +72,7 @@ export function PacketCard({
           }}
           className="rounded-md border border-border bg-background px-2 py-1 text-xs"
         >
-          {STATUSES.map((s) => (
+          {statuses.map((s) => (
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
@@ -76,14 +105,36 @@ export function PacketCard({
           {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
           {copied ? "Copied" : "Copy packet"}
         </button>
-        {packet.kind === "command" ? (
+        <button
+          onClick={handleEmail}
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs hover:bg-muted"
+        >
+          <Mail className="h-3.5 w-3.5" />
+          Email packet
+        </button>
+        {packet.kind === "command" && !isSop ? (
           <Link
             to="/calls"
             hash="submit-topic"
+            onClick={() => {
+              vault.updateStatus(packet.id, "Brought to Session");
+              onChange?.();
+            }}
             className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs text-cream hover:opacity-90"
+            title="Marks this packet as 'Brought to Session' and opens the topic submission form."
           >
             Bring to next call
           </Link>
+        ) : null}
+        {isSop ? (
+          <button
+            onClick={sendToKnowledgeHub}
+            className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs text-cream hover:opacity-90"
+            title="Marks this SOP as carried into the AOS Knowledge Hub. Live sync wires in when the AOS connector ships."
+          >
+            {hubSent ? <Check className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
+            {hubSent ? "Marked carried" : "Send to AOS Knowledge Hub"}
+          </button>
         ) : null}
         {packet.kind === "command" && packet.intensiveRecommended ? (
           <Link
