@@ -75,7 +75,7 @@ export function EstimateThroughputTool({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-5xl flex-col gap-6 px-6 py-8">
+    <div className="mx-auto flex h-full w-full max-w-[1400px] flex-col gap-6 px-6 py-8">
       {/* Header */}
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
