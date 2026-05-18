@@ -393,7 +393,7 @@ function OwnerMode() {
 
             <div className="mt-5">
               <p className="label-mono">Ranked areas · click any to build extraction plays</p>
-              <p className="mt-1 text-[13px] italic text-muted-foreground" style={{ fontFamily: "var(--font-serif)" }}>
+              <p className="mt-2 text-[16px] italic leading-relaxed text-foreground/80" style={{ fontFamily: "var(--font-serif)", fontWeight: 400 }}>
                 Each area gets its own Optimization Plays (delegate · batch · eliminate · systematize · automate) and a small SOP backlog to make the transfer stick. The #1 area is the highest leverage — start there.
               </p>
               <ol className="mt-3 space-y-3">
@@ -1133,7 +1133,10 @@ function OwnerAreaCard({
             </p>
           )}
           {!error && !plays && loading && (
-            <p className="text-[13px] text-muted-foreground">Generating extraction plays for {area.name}…</p>
+            <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <span>Generating extraction plays for {area.name}… (10–20s)</span>
+            </div>
           )}
           {plays && (
             <OwnerAreaBody

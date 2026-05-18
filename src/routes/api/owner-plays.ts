@@ -235,9 +235,9 @@ export const Route = createFileRoute("/api/owner-plays")({
 
         try {
           const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), 18000);
+          const timer = setTimeout(() => controller.abort(), 22000);
           try {
-            const object = await tryGenerate("google/gemini-3-flash-preview", controller.signal);
+            const object = await tryGenerate("google/gemini-2.5-flash", controller.signal);
             const normalized = normalize(object, area, hoursPerWeek);
             return Response.json(normalized);
           } finally {
