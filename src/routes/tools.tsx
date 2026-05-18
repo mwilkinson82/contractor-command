@@ -1,70 +1,195 @@
 import { createFileRoute, Outlet, Link, useRouterState } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { Archive, ArrowUpRight, Lock } from "lucide-react";
 import { Container } from "@/components/portal/page-header";
+import {
+  COMMAND_TOOLS,
+  TOOL_GROUPS,
+  toolsByGroup,
+  type CommandTool,
+} from "@/lib/command-tools";
+import { hasToolDrawer, useToolDrawer } from "@/components/portal/tool-drawer";
+import { vault, type Packet } from "@/lib/vault";
 
 export const Route = createFileRoute("/tools")({
   component: ToolsLayout,
+  head: () => ({
+    meta: [{ title: "Command Tools — ALP Contractor Circle" }],
+  }),
 });
-
-const TOOLS = [
-  { to: "/tools/growth-constraint", label: "Growth Constraint Map", status: "Live" as const, group: "Make more money" },
-  { to: "/tools/owner-dependency", label: "Owner Dependency Scorecard", status: "Live" as const, group: "Build the machine" },
-];
-
-const COMING = [
-  "Pipeline Leak Finder",
-  "Estimate Throughput Tracker",
-  "Cash Control Snapshot",
-  "Margin Leak Finder",
-  "Project Launch Readiness",
-];
 
 function ToolsLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const onIndex = pathname === "/tools";
+
   return (
     <Container className="py-10">
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-5">
-        <div className="flex items-center gap-2">
-          <p className="label-mono">Business Command Tools</p>
-        </div>
-        <div className="flex items-center gap-2 text-xs">
-          <details className="relative">
-            <summary className="cursor-pointer list-none rounded-md border border-border bg-card px-3 py-1.5 hover:bg-muted">
-              Switch tool
-            </summary>
-            <div className="absolute right-0 z-10 mt-2 w-72 rounded-xl border border-border bg-popover p-2 shadow-[var(--shadow-elegant)]">
-              {TOOLS.map((t) => (
-                <Link
-                  key={t.to}
-                  to={t.to as "/tools/growth-constraint"}
-                  className={`block rounded-md px-3 py-2 text-sm hover:bg-muted ${
-                    pathname === t.to ? "bg-muted" : ""
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span>{t.label}</span>
-                    <span className="label-mono !text-[9px]">{t.group}</span>
-                  </div>
-                </Link>
-              ))}
-              <div className="mt-2 border-t border-border pt-2">
-                <p className="px-3 pb-1 label-mono">More tools next</p>
-                <p className="px-3 pb-2 text-xs text-muted-foreground">
-                  {COMING.join(" · ")}
-                </p>
-              </div>
-            </div>
-          </details>
-          <Link
-            to="/vault"
-            className="rounded-md border border-border bg-card px-3 py-1.5 hover:bg-muted"
-          >
-            Company Vault
-          </Link>
-        </div>
-      </div>
-      <div className="mt-8">
-        <Outlet />
-      </div>
+      {onIndex ? <ToolsDirectory /> : <Outlet />}
     </Container>
   );
+}
+
+function ToolsDirectory() {
+  const [packets, setPackets] = useState<Packet[]>([]);
+  useEffect(() => {
+    const load = () => setPackets(vault.list());
+    load();
+    window.addEventListener("vault:changed", load);
+    return () => window.removeEventListener("vault:changed", load);
+  }, []);
+
+  const latestBySource: Record<string, Packet | undefined> = {};
+  for (const p of packets) if (!latestBySource[p.source]) latestBySource[p.source] = p;
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-6">
+        <div className="max-w-2xl">
+          <p className="label-mono">Command Tools · directory</p>
+          <h1
+            className="mt-2 font-display text-[2rem] leading-tight"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
+            Every tool you've got.
+          </h1>
+          <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">
+            One per problem. Run them when you need them — findings save straight to your vault.
+          </p>
+        </div>
+        <Link
+          to="/vault"
+          className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3.5 py-2 text-[13px] font-medium text-cream hover:opacity-90"
+        >
+          <Archive className="h-3.5 w-3.5" /> Company Vault
+        </Link>
+      </div>
+
+      <div className="mt-10 space-y-12">
+        {TOOL_GROUPS.map((group) => {
+          const tools = toolsByGroup(group);
+          if (tools.length === 0) return null;
+          return (
+            <div key={group}>
+              <p className="label-mono">{group}</p>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {tools.map((t) => (
+                  <DirectoryCard
+                    key={t.id}
+                    tool={t}
+                    packet={t.vaultSource ? latestBySource[t.vaultSource] : undefined}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function DirectoryCard({ tool, packet }: { tool: CommandTool; packet?: Packet }) {
+  const Icon = tool.icon;
+  const drawer = useToolDrawer();
+  const usesDrawer = hasToolDrawer(tool.id);
+  const isLive = tool.status === "live";
+  const hasRun = isLive && !!packet;
+
+  const finding =
+    packet && packet.kind === "command"
+      ? packet.primaryFinding
+      : packet?.kind === "issue"
+        ? packet.needsPressure
+        : undefined;
+
+  if (!isLive) {
+    return (
+      <div className="flex h-full flex-col rounded-2xl border-2 border-dashed border-border bg-transparent p-5 opacity-70">
+        <CardHeader Icon={Icon} status="soon" />
+        <h3
+          className="mt-4 font-display text-[19px] leading-snug text-foreground/75"
+          style={{ fontFamily: "var(--font-serif)" }}
+        >
+          {tool.name}
+        </h3>
+        <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground/80">{tool.blurb}</p>
+        <p className="mt-auto pt-4 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground/70">
+          Coming next
+        </p>
+      </div>
+    );
+  }
+
+  const inner = (
+    <>
+      <CardHeader Icon={Icon} status={hasRun ? "live" : "ready"} />
+      <h3
+        className="mt-4 font-display text-[19px] leading-snug"
+        style={{ fontFamily: "var(--font-serif)" }}
+      >
+        {tool.name}
+      </h3>
+      {hasRun && finding ? (
+        <p className="mt-2 line-clamp-3 text-[13.5px] leading-relaxed text-foreground/85">
+          {finding}
+        </p>
+      ) : (
+        <p className="mt-2 text-[13.5px] leading-relaxed text-muted-foreground">{tool.blurb}</p>
+      )}
+      <div className="mt-auto flex items-center justify-between pt-4">
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+          {hasRun ? relative(packet!.createdAt) : "Not run yet · ~4 min"}
+        </span>
+        <ArrowUpRight className="h-4 w-4 text-foreground/60 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+      </div>
+    </>
+  );
+
+  const shared =
+    "group flex h-full flex-col rounded-2xl border-2 border-border bg-card/40 p-5 text-left transition-all hover:-translate-y-0.5 hover:border-foreground/30 hover:bg-card hover:shadow-sm";
+
+  if (usesDrawer) {
+    return (
+      <button type="button" onClick={() => drawer.open(tool.id)} className={shared}>
+        {inner}
+      </button>
+    );
+  }
+  return (
+    <Link to={tool.route as "/tools/growth-constraint"} className={shared}>
+      {inner}
+    </Link>
+  );
+}
+
+function CardHeader({
+  Icon,
+  status,
+}: {
+  Icon: CommandTool["icon"];
+  status: "live" | "ready" | "soon";
+}) {
+  const dot =
+    status === "live" ? "bg-signal" : status === "ready" ? "bg-gold" : "bg-muted-foreground/40";
+  const label = status === "live" ? "Live" : status === "ready" ? "Ready" : "Soon";
+  return (
+    <div className="flex items-center justify-between">
+      <span className="grid h-9 w-9 place-items-center rounded-lg bg-foreground/5 text-foreground/80">
+        {status === "soon" ? <Lock className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+      </span>
+      <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+        <span className={`inline-block h-1.5 w-1.5 rounded-full ${dot}`} />
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function relative(iso: string) {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days}d ago`;
+  if (days < 30) return `${Math.floor(days / 7)}w ago`;
+  return `${Math.floor(days / 30)}mo ago`;
 }
