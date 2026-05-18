@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import "@tanstack/react-start";
-import { generateText } from "ai";
+import { generateObject } from "ai";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 
@@ -32,20 +32,20 @@ async function getUserId(request: Request): Promise<string | null> {
 }
 
 const ItemSchema = z.object({
-  rank: z.number(),
-  name: z.string(),
-  purpose: z.string(),
-  trigger: z.string(),
-  owner: z.string(),
-  dependsOn: z.array(z.string()).default([]),
+  rank: z.number().describe("1-based position in build order"),
+  name: z.string().describe("specific SOP name"),
+  purpose: z.string().describe("one sentence on what this SOP exists to do"),
+  trigger: z.string().describe("event, cadence, or threshold that fires this SOP"),
+  owner: z.string().describe("seat name, not a person"),
+  dependsOn: z.array(z.string()).describe("names of earlier SOPs in this backlog this one depends on"),
   effort: z.enum(["S", "M", "L"]),
-  why: z.string(),
+  why: z.string().describe("what breaks today without this SOP"),
 });
 
 const ResultSchema = z.object({
-  headline: z.string(),
-  buildOrderRationale: z.string(),
-  backlog: z.array(ItemSchema),
+  headline: z.string().describe("one-line read on the backlog"),
+  buildOrderRationale: z.string().describe("1-2 sentences on why the sequence is in this order"),
+  backlog: z.array(ItemSchema).min(8).max(12),
 });
 
 export const Route = createFileRoute("/api/sop-backlog")({
@@ -70,25 +70,10 @@ export const Route = createFileRoute("/api/sop-backlog")({
         const model = gateway("google/gemini-3-flash-preview");
 
         try {
-          const { text } = await generateText({
+          const { object } = await generateObject({
             model,
-            system:
-              SOP_BACKLOG_SYSTEM_PROMPT +
-              "\n\nReturn ONLY a single JSON object. No prose, no markdown, no code fences. Shape:\n" +
-              `{
-  headline: string,             // one-line read on the backlog
-  buildOrderRationale: string,  // 1-2 sentences on why the sequence
-  backlog: Array<{
-    rank: number,               // 1-based, in build order
-    name: string,               // specific SOP name
-    purpose: string,            // one sentence
-    trigger: string,            // event / cadence / threshold
-    owner: string,              // seat name, not a person
-    dependsOn: string[],        // names of earlier SOPs in this backlog
-    effort: "S" | "M" | "L",
-    why: string                 // what breaks today without this
-  }>                            // 8 to 12 items
-}`,
+            schema: ResultSchema,
+            system: SOP_BACKLOG_SYSTEM_PROMPT,
             prompt: buildSopBacklogUserPrompt({
               department: dept,
               stage,
@@ -97,24 +82,15 @@ export const Route = createFileRoute("/api/sop-backlog")({
             }),
           });
 
-          const raw = extractJson(text);
-          const parsed = ResultSchema.safeParse(raw);
-          if (!parsed.success) {
-            console.error("[sop-backlog] schema mismatch", parsed.error.issues);
-            return new Response(
-              "The model returned an unreadable response. Try again.",
-              { status: 502 },
-            );
-          }
-          const sorted = [...parsed.data.backlog].sort((a, b) => a.rank - b.rank);
+          const sorted = [...object.backlog].sort((a, b) => a.rank - b.rank);
           const topSop = sorted[0];
           if (!topSop) {
             return new Response("Empty backlog returned. Try again.", { status: 502 });
           }
           return Response.json({
             department: dept,
-            headline: parsed.data.headline,
-            buildOrderRationale: parsed.data.buildOrderRationale,
+            headline: object.headline,
+            buildOrderRationale: object.buildOrderRationale,
             topSop,
             backlog: sorted.slice(0, 12),
           });
@@ -132,17 +108,3 @@ export const Route = createFileRoute("/api/sop-backlog")({
   },
 });
 
-function extractJson(text: string): unknown {
-  if (!text) return null;
-  let t = text.trim();
-  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fence) t = fence[1].trim();
-  const start = t.indexOf("{");
-  const end = t.lastIndexOf("}");
-  if (start === -1 || end === -1 || end < start) return null;
-  try {
-    return JSON.parse(t.slice(start, end + 1));
-  } catch {
-    return null;
-  }
-}
