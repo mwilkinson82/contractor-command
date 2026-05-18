@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet, Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactElement } from "react";
 import { Archive, ArrowUpRight, Command as CmdIcon, Lock } from "lucide-react";
 import {
   COMMAND_TOOLS,
@@ -27,7 +27,7 @@ export const Route = createFileRoute("/tools")({
   }),
 });
 
-const STAGE_TOOLS: Record<string, () => React.ReactElement> = {
+const STAGE_TOOLS: Record<string, () => ReactElement> = {
   "sop-priority": () => <SopPriorityTool />,
   "contract-readiness": () => <ContractReadinessTool />,
   "estimate-throughput": () => <EstimateThroughputTool />,
