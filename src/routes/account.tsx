@@ -1,14 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { PageHeader, Container } from "@/components/portal/page-header";
 import { AOS_URL } from "@/lib/vault";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { useCompany } from "@/hooks/use-company";
+import { useCompany, logoPublicUrl } from "@/hooks/use-company";
 import { GREETING_ICONS, type GreetingIconKey } from "@/components/portal/greeting-icon";
-import { ArrowUpRight, Check, AlertCircle, KeyRound, Building2, Loader2 } from "lucide-react";
+import { ArrowUpRight, Check, AlertCircle, KeyRound, Building2, Loader2, Upload, Image as ImageIcon } from "lucide-react";
 import { createBillingPortalSession, submitBillingQuestion } from "@/lib/billing.functions";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+
+const LOGO_BUCKET = "company-logos";
 
 export const Route = createFileRoute("/account")({
   head: () => ({ meta: [{ title: "Account — ALP Contractor Circle" }] }),
