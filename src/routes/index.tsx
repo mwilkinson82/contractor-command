@@ -268,11 +268,7 @@ function HomePage() {
             />
             <RailRow
               to="/community"
-              icon={
-                <span className="grid h-full w-full place-items-center rounded-md bg-[#5865F2] text-white">
-                  <MessagesSquare className="h-3.5 w-3.5" />
-                </span>
-              }
+              icon={<MessagesSquare className="h-3.5 w-3.5" />}
               title="The room"
               desc="Discord community · open in app"
               accent
