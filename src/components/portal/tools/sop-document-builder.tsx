@@ -30,7 +30,7 @@ import type {
 
 type Props = {
   item: SopBacklogItem;
-  department: SopDepartment;
+  department: SopDepartment | string;
   parentPlay: OptimizationPlay | null;
   ownerContext?: string;
   onBack: () => void;

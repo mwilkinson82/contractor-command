@@ -26,6 +26,7 @@ import {
   SOP_PRIORITY_STEPS,
   sopPriorityTicker,
   type SopArea,
+  type SopScored,
 } from "@/lib/tools/sop-priority";
 import {
   SOP_BACKLOG_STEPS,
@@ -37,10 +38,12 @@ import {
   type SopBacklogResult,
   type SopDepartment,
 } from "@/lib/tools/sop-department";
+import type { OwnerPlaysResult } from "@/lib/tools/owner-plays";
 import { ComputeTheater } from "@/components/portal/compute-theater";
 import { SopDocumentBuilder } from "@/components/portal/tools/sop-document-builder";
 import { vault } from "@/lib/vault";
 import { supabase } from "@/integrations/supabase/client";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 type Mode = "owner" | "department";
 type Stage = "idle" | "running" | "ready" | "error";
@@ -119,8 +122,22 @@ function ModeBtn({
 
 function OwnerMode() {
   const [areas, setAreas] = useState<SopArea[]>(DEFAULT_SOP_AREAS);
+  const [ownerContext, setOwnerContext] = useState("");
   const [stage, setStage] = useState<Stage>("idle");
   const [savedId, setSavedId] = useState<string | null>(null);
+
+  // Per-area cached plays results (keyed by area name).
+  const [playsByArea, setPlaysByArea] = useState<Record<string, OwnerPlaysResult>>({});
+  const [loadingArea, setLoadingArea] = useState<string | null>(null);
+  const [areaError, setAreaError] = useState<Record<string, string>>({});
+  const [expandedArea, setExpandedArea] = useState<string | null>(null);
+
+  // SOP doc builder takes over the right pane when set.
+  const [buildingSop, setBuildingSop] = useState<{
+    item: SopBacklogItem;
+    parentPlay: OptimizationPlay | null;
+    area: string;
+  } | null>(null);
 
   const result = useMemo(() => calcSopPriority(areas), [areas]);
   const ticker = useMemo(() => sopPriorityTicker(areas, result), [areas, result]);
@@ -155,8 +172,63 @@ function OwnerMode() {
   }
   function reset() {
     setAreas(DEFAULT_SOP_AREAS);
+    setOwnerContext("");
     setStage("idle");
     setSavedId(null);
+    setPlaysByArea({});
+    setAreaError({});
+    setExpandedArea(null);
+    setBuildingSop(null);
+  }
+
+  async function loadPlaysFor(area: SopScored) {
+    if (playsByArea[area.name] || loadingArea === area.name) return;
+    setLoadingArea(area.name);
+    setAreaError((prev) => ({ ...prev, [area.name]: "" }));
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        setAreaError((prev) => ({ ...prev, [area.name]: "You need to be signed in." }));
+        return;
+      }
+      const res = await fetch("/api/owner-plays", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          area: area.name,
+          hoursPerWeek: area.ownerHoursPerWeek,
+          blastRadius: area.blastRadius,
+          setupEffort: area.setupEffort,
+          frequency: area.frequency,
+          context: ownerContext,
+        }),
+      });
+      if (!res.ok) {
+        const msg = (await res.text()) || `Failed (${res.status})`;
+        setAreaError((prev) => ({ ...prev, [area.name]: msg }));
+        return;
+      }
+      const data = (await res.json()) as OwnerPlaysResult;
+      setPlaysByArea((prev) => ({ ...prev, [area.name]: data }));
+    } catch (e) {
+      setAreaError((prev) => ({
+        ...prev,
+        [area.name]: e instanceof Error ? e.message : "Failed to load extraction plays.",
+      }));
+    } finally {
+      setLoadingArea(null);
+    }
+  }
+
+  function toggleArea(area: SopScored) {
+    setExpandedArea((cur) => {
+      const next = cur === area.name ? null : area.name;
+      if (next && !playsByArea[area.name]) {
+        void loadPlaysFor(area);
+      }
+      return next;
+    });
   }
   function savePacket() {
     const top = result.top;
@@ -247,6 +319,21 @@ function OwnerMode() {
           Scales 1–5. Blast = what breaks if you're out. Effort = how hard to systematize (1 easy, 5 hard).
           Frequency = how often it recurs (5 = daily).
         </p>
+
+        <label className="mt-4 block">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            Owner context (optional)
+          </span>
+          <textarea
+            value={ownerContext}
+            onChange={(e) => setOwnerContext(e.target.value)}
+            placeholder="What keeps pulling you back in? Decisions only you can make, relationships only you hold, info that lives in your head."
+            className="mt-1 h-[88px] w-full resize-y rounded-md border border-border bg-background p-2.5 text-[12.5px] leading-relaxed text-foreground outline-none focus:border-foreground/40"
+          />
+          <span className="mt-1 block text-[10.5px] text-muted-foreground">
+            Used when generating extraction plays for a specific area.
+          </span>
+        </label>
       </section>
 
       <div className="flex min-w-0 flex-col gap-6">
@@ -273,7 +360,17 @@ function OwnerMode() {
           />
         )}
 
-        {stage === "ready" && (
+        {stage === "ready" && buildingSop && (
+          <SopDocumentBuilder
+            item={buildingSop.item}
+            department={buildingSop.area}
+            parentPlay={buildingSop.parentPlay}
+            ownerContext={ownerContext}
+            onBack={() => setBuildingSop(null)}
+          />
+        )}
+
+        {stage === "ready" && !buildingSop && (
           <section className="rounded-2xl border border-border bg-card p-6 reveal-up">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -289,43 +386,34 @@ function OwnerMode() {
               </span>
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {result.ranked.slice(0, 6).map((s) => (
-                <div
-                  key={s.name + s.rank}
-                  className={`rounded-xl border p-4 ${s.rank === 1 ? "border-foreground/30 bg-background" : "border-border bg-background/60"}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                      #{s.rank}
-                    </p>
-                    <span className="font-mono text-[10px] text-muted-foreground">
-                      {s.leverageScore.toFixed(1)}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-[14px] font-medium text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
-                    {s.name}
-                  </p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    {s.ownerHoursPerWeek}h/wk · blast {s.blastRadius} · effort {s.setupEffort}
-                  </p>
-                </div>
-              ))}
+            <p className="mt-3 text-[13.5px] leading-relaxed text-foreground/85" style={{ fontFamily: "var(--font-serif)" }}>
+              {result.finding}
+            </p>
+
+            <div className="mt-5">
+              <p className="label-mono">Ranked areas · click any to build extraction plays</p>
+              <p className="mt-1 text-[12px] text-muted-foreground">
+                Each area gets its own Optimization Plays (delegate · batch · eliminate · systematize · automate) and a small SOP backlog to make the transfer stick. The #1 area is the highest leverage — start there.
+              </p>
+              <ol className="mt-3 space-y-3">
+                {result.ranked.map((s) => (
+                  <OwnerAreaCard
+                    key={s.name + s.rank}
+                    area={s}
+                    expanded={expandedArea === s.name}
+                    loading={loadingArea === s.name}
+                    plays={playsByArea[s.name]}
+                    error={areaError[s.name]}
+                    onToggle={() => toggleArea(s)}
+                    onBuildSop={(item: SopBacklogItem, parentPlay: OptimizationPlay | null) =>
+                      setBuildingSop({ item, parentPlay, area: s.name })
+                    }
+                  />
+                ))}
+              </ol>
             </div>
 
-            <div className="mt-5 space-y-3 text-[14px] leading-relaxed text-foreground/85">
-              <p style={{ fontFamily: "var(--font-serif)" }}>{result.finding}</p>
-              <div className="rounded-md border border-border bg-background/60 p-4">
-                <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                  Recommended next move
-                </p>
-                <p className="mt-1.5 text-[14px] text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
-                  {result.recommendedAction}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-5 flex flex-wrap items-center gap-2">
+            <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-border pt-4">
               <button
                 type="button"
                 onClick={savePacket}
@@ -333,7 +421,7 @@ function OwnerMode() {
                 className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 disabled:opacity-70"
               >
                 {savedId ? <Check className="h-3.5 w-3.5 text-signal-success" /> : <Save className="h-3.5 w-3.5" />}
-                {savedId ? "Saved to vault" : "Save to vault"}
+                {savedId ? "Saved to vault" : "Save ranking to vault"}
               </button>
               <Link
                 to="/calls"
@@ -842,5 +930,100 @@ function Scale({ label, value, onChange }: { label: string; value: number; onCha
         ))}
       </select>
     </label>
+  );
+}
+
+/* ------------------------- Owner area card ------------------------- */
+
+function OwnerAreaCard({
+  area,
+  expanded,
+  loading,
+  plays,
+  error,
+  onToggle,
+  onBuildSop,
+}: {
+  area: SopScored;
+  expanded: boolean;
+  loading: boolean;
+  plays?: OwnerPlaysResult;
+  error?: string;
+  onToggle: () => void;
+  onBuildSop: (item: SopBacklogItem, parentPlay: OptimizationPlay | null) => void;
+}) {
+  const isTop = area.rank === 1;
+  return (
+    <li className={`rounded-xl border ${isTop ? "border-foreground/30 bg-background" : "border-border bg-background/60"}`}>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/40"
+      >
+        <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-foreground/30 font-mono text-[10px] text-foreground">
+          {area.rank}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[14px] font-medium text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
+            {area.name}
+          </p>
+          <p className="mt-0.5 text-[11.5px] text-muted-foreground">
+            {area.ownerHoursPerWeek}h/wk · blast {area.blastRadius} · effort {area.setupEffort} · leverage {area.leverageScore.toFixed(1)}
+          </p>
+        </div>
+        {loading ? (
+          <Loader2 className="h-4 w-4 animate-spin text-foreground/60" />
+        ) : expanded ? (
+          <ChevronDown className="h-4 w-4 text-foreground/60" />
+        ) : (
+          <ChevronRight className="h-4 w-4 text-foreground/60" />
+        )}
+      </button>
+
+      {expanded && (
+        <div className="border-t border-border px-4 pb-4 pt-3">
+          {error && (
+            <p className="rounded-md border border-signal/40 bg-signal/10 p-3 text-[12.5px] text-foreground">
+              {error}
+            </p>
+          )}
+          {!error && !plays && loading && (
+            <p className="text-[12.5px] text-muted-foreground">Generating extraction plays for {area.name}…</p>
+          )}
+          {plays && (
+            <div className="space-y-4">
+              <p className="text-[12.5px] leading-relaxed text-foreground/85">
+                <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Reframe: </span>
+                {plays.constraintReframe}
+              </p>
+              <p className="text-[12.5px] leading-relaxed text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
+                {plays.headline}
+              </p>
+
+              <div>
+                <p className="label-mono">Optimization plays</p>
+                <div className="mt-2 grid gap-2.5 md:grid-cols-2">
+                  {plays.plays.map((p) => (
+                    <PlayCard key={p.id} play={p} recommended={p.id === plays.topPlayId} />
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="label-mono">SOP backlog · operationalizes {plays.topPlayId}</p>
+                <ol className="mt-2 space-y-2.5">
+                  {plays.backlog.map((it) => {
+                    const parent = plays.plays.find((p) => p.id === it.playId) ?? null;
+                    return (
+                      <BacklogRow key={it.rank} item={it} onBuild={() => onBuildSop(it, parent)} />
+                    );
+                  })}
+                </ol>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </li>
   );
 }
