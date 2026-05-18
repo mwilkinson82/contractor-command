@@ -27,6 +27,7 @@ import { Route as ToolsOwnerDependencyRouteImport } from './routes/tools.owner-d
 import { Route as ToolsGrowthConstraintRouteImport } from './routes/tools.growth-constraint'
 import { Route as AskNewRouteImport } from './routes/ask.new'
 import { Route as AskThreadIdRouteImport } from './routes/ask.$threadId'
+import { Route as ApiContractScanRouteImport } from './routes/api/contract-scan'
 import { Route as ApiAskRouteImport } from './routes/api/ask'
 
 const WorkWithMarshallRoute = WorkWithMarshallRouteImport.update({
@@ -119,6 +120,11 @@ const AskThreadIdRoute = AskThreadIdRouteImport.update({
   path: '/ask/$threadId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiContractScanRoute = ApiContractScanRouteImport.update({
+  id: '/api/contract-scan',
+  path: '/api/contract-scan',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAskRoute = ApiAskRouteImport.update({
   id: '/api/ask',
   path: '/api/ask',
@@ -140,6 +146,7 @@ export interface FileRoutesByFullPath {
   '/vault': typeof VaultRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/api/ask': typeof ApiAskRoute
+  '/api/contract-scan': typeof ApiContractScanRoute
   '/ask/$threadId': typeof AskThreadIdRoute
   '/ask/new': typeof AskNewRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
@@ -161,6 +168,7 @@ export interface FileRoutesByTo {
   '/vault': typeof VaultRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/api/ask': typeof ApiAskRoute
+  '/api/contract-scan': typeof ApiContractScanRoute
   '/ask/$threadId': typeof AskThreadIdRoute
   '/ask/new': typeof AskNewRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
@@ -183,6 +191,7 @@ export interface FileRoutesById {
   '/vault': typeof VaultRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/api/ask': typeof ApiAskRoute
+  '/api/contract-scan': typeof ApiContractScanRoute
   '/ask/$threadId': typeof AskThreadIdRoute
   '/ask/new': typeof AskNewRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
@@ -206,6 +215,7 @@ export interface FileRouteTypes {
     | '/vault'
     | '/work-with-marshall'
     | '/api/ask'
+    | '/api/contract-scan'
     | '/ask/$threadId'
     | '/ask/new'
     | '/tools/growth-constraint'
@@ -227,6 +237,7 @@ export interface FileRouteTypes {
     | '/vault'
     | '/work-with-marshall'
     | '/api/ask'
+    | '/api/contract-scan'
     | '/ask/$threadId'
     | '/ask/new'
     | '/tools/growth-constraint'
@@ -248,6 +259,7 @@ export interface FileRouteTypes {
     | '/vault'
     | '/work-with-marshall'
     | '/api/ask'
+    | '/api/contract-scan'
     | '/ask/$threadId'
     | '/ask/new'
     | '/tools/growth-constraint'
@@ -270,6 +282,7 @@ export interface RootRouteChildren {
   VaultRoute: typeof VaultRoute
   WorkWithMarshallRoute: typeof WorkWithMarshallRoute
   ApiAskRoute: typeof ApiAskRoute
+  ApiContractScanRoute: typeof ApiContractScanRoute
   AskThreadIdRoute: typeof AskThreadIdRoute
   AskNewRoute: typeof AskNewRoute
   AskIndexRoute: typeof AskIndexRoute
@@ -403,6 +416,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AskThreadIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/contract-scan': {
+      id: '/api/contract-scan'
+      path: '/api/contract-scan'
+      fullPath: '/api/contract-scan'
+      preLoaderRoute: typeof ApiContractScanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/ask': {
       id: '/api/ask'
       path: '/api/ask'
@@ -440,6 +460,7 @@ const rootRouteChildren: RootRouteChildren = {
   VaultRoute: VaultRoute,
   WorkWithMarshallRoute: WorkWithMarshallRoute,
   ApiAskRoute: ApiAskRoute,
+  ApiContractScanRoute: ApiContractScanRoute,
   AskThreadIdRoute: AskThreadIdRoute,
   AskNewRoute: AskNewRoute,
   AskIndexRoute: AskIndexRoute,
