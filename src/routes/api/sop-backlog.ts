@@ -146,17 +146,18 @@ export const Route = createFileRoute("/api/sop-backlog")({
             ({ object } = await tryGenerate("openai/gpt-5-mini"));
           }
 
-          const sorted = [...object.backlog].sort((a, b) => a.rank - b.rank);
+          const normalized = normalizeResult(object, dept, seatHeadcount, body.context);
+          const sorted = normalized.backlog;
           const topSop = sorted[0];
           if (!topSop) return new Response("Empty backlog returned. Try again.", { status: 502 });
 
           return Response.json({
             department: dept,
-            constraintReframe: object.constraintReframe,
-            plays: object.plays,
-            topPlayId: object.topPlayId,
-            headline: object.headline,
-            buildOrderRationale: object.buildOrderRationale,
+            constraintReframe: normalized.constraintReframe,
+            plays: normalized.plays,
+            topPlayId: normalized.topPlayId,
+            headline: normalized.headline,
+            buildOrderRationale: normalized.buildOrderRationale,
             topSop,
             backlog: sorted.slice(0, 12),
           });
