@@ -56,7 +56,6 @@ function OwnerDependencyTool() {
         : "Bottlenecks are slowing the business but not breaking it. Cost is mostly speed and owner time.",
       missingSystem: `Install the first system around ${result.firstSystem.label}.`,
       recommendedAction: `Define the seat, the scorecard, and the weekly cadence for ${result.firstSystem.label}. Pull the owner out within 90 days.`,
-      relatedAos: "Accountability Chart + Process + Scorecard",
       bringOneIssuePrompt: `What would have to be true for ${result.firstSystem.label} to run without you next month?`,
       intensiveRecommended: result.highRisk,
       inputs: scores as unknown as Record<string, number>,
