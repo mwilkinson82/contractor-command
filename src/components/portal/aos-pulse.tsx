@@ -22,6 +22,7 @@ const COMPANY_KEY = "aos.company_id";
 
 export function AosPulse() {
   const fn = useServerFn(getAosSnapshot);
+  const { user } = useAuth();
   const [companyId, setCompanyId] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     return window.localStorage.getItem(COMPANY_KEY);
@@ -35,6 +36,7 @@ export function AosPulse() {
     staleTime: 60_000,
     refetchOnWindowFocus: true,
     refetchInterval: waitingForLink ? 4000 : false,
+    enabled: !!user,
   });
 
   useEffect(() => {
