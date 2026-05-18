@@ -1,11 +1,18 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Container } from "@/components/portal/page-header";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { supabase } from "@/integrations/supabase/client";
 import { getAdminMetrics, type AdminMetrics } from "@/lib/admin.functions";
+import {
+  listAdminUsers,
+  setUserComped,
+  type AdminUserRow,
+} from "@/lib/admin-users.functions";
+import { Input } from "@/components/ui/input";
 import {
   Users,
   Inbox,
@@ -15,6 +22,10 @@ import {
   Sparkles,
   MessageSquare,
   TrendingUp,
+  Search,
+  Gift,
+  CreditCard,
+  Shield,
 } from "lucide-react";
 
 export const Route = createFileRoute("/admin/")({
