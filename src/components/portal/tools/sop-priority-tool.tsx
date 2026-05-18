@@ -17,6 +17,7 @@ import {
   UserCog,
   Loader2,
   Copy,
+  Sparkles,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import {
