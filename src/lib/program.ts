@@ -122,52 +122,8 @@ export function greeting(): string {
   return "Late night";
 }
 
-// --- Replay library ---
-export const REPLAYS: Replay[] = [
-  {
-    title: "Owner dependency — where the business still leans on you",
-    date: "2026-05-15",
-    kind: "Biweekly Call",
-    tags: ["Owner dependency", "Process", "PM leadership"],
-    description:
-      "Three members' org charts on screen. We named the seat each owner was silently filling and chose the first system to install.",
-    usefulFor: "Owners about to install their first PM scorecard or accountability chart.",
-    relatedAos: "Accountability Chart + Process",
-    zoomUrl: "https://zoom.us/rec/share/example-1",
-  },
-  {
-    title: "Bootcamp — estimate throughput in a slow market",
-    date: "2026-05-02",
-    kind: "Monthly Bootcamp",
-    tags: ["Estimating", "Scorecard", "Pursuit"],
-    description:
-      "Pressure-testing estimate volume vs. close rate when leads are thinner than usual. Concrete weekly numbers per shop.",
-    usefulFor: "Owners whose pipeline looks fine but signed contracts are flat.",
-    relatedAos: "Scorecard + Process",
-    zoomUrl: "https://zoom.us/rec/share/example-2",
-  },
-  {
-    title: "Cash control — billing rhythm and collections discipline",
-    date: "2026-04-18",
-    kind: "Biweekly Call",
-    tags: ["Cash", "Billing", "Collections"],
-    description:
-      "Why profitable jobs still create cash tightness, and the cadence that fixes it. Replay link pending — notes in the Vault.",
-    usefulFor: "Members feeling cash tightness even when projects are profitable.",
-    relatedAos: "Numbers + Process",
-  },
-  {
-    title: "Bootcamp — the first three SOPs every shop should own",
-    date: "2026-04-03",
-    kind: "Monthly Bootcamp",
-    tags: ["SOPs", "Process", "Onboarding"],
-    description:
-      "Picking the right SOPs to write first. We wrote drafts live for project launch, change orders, and PM weekly cadence.",
-    usefulFor: "Owners stuck on which process to formalize first.",
-    relatedAos: "Process",
-    zoomUrl: "https://zoom.us/rec/share/example-4",
-  },
-];
+// Replay library now lives in the `replays` database table.
+
 
 // --- External links ---
 export const AOS_URL = "https://alpos.alpcontractorcircle.com";
