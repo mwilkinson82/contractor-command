@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { vault, AOS_URL } from "@/lib/vault";
+import { vault } from "@/lib/vault";
 import { PacketCard } from "@/components/portal/packet-card";
-import { Check } from "lucide-react";
+import { Check, Save, MessageSquare } from "lucide-react";
 
 export const Route = createFileRoute("/tools/owner-dependency")({
   head: () => ({ meta: [{ title: "Owner Dependency Scorecard — ALP Contractor Circle" }] }),
