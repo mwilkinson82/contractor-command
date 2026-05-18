@@ -31,20 +31,33 @@ async function getUserId(request: Request): Promise<string | null> {
   return data.user?.id ?? null;
 }
 
+const PlaySchema = z.object({
+  id: z.string().describe("P1, P2, or P3"),
+  name: z.string().describe("short, action-led play name"),
+  diagnosis: z.string().describe("1-2 sentences reframing the stated problem"),
+  mechanism: z.string().describe("1-2 sentences on how the play unlocks throughput"),
+  expectedLift: z.string().describe("concrete outcome — projects/week, hours saved, margin pts"),
+  risks: z.string().describe("1 sentence on what to watch for"),
+});
+
 const ItemSchema = z.object({
-  rank: z.number().describe("1-based position in build order"),
-  name: z.string().describe("specific SOP name"),
-  purpose: z.string().describe("one sentence on what this SOP exists to do"),
-  trigger: z.string().describe("event, cadence, or threshold that fires this SOP"),
-  owner: z.string().describe("seat name, not a person"),
-  dependsOn: z.array(z.string()).describe("names of earlier SOPs in this backlog this one depends on"),
+  rank: z.number(),
+  playId: z.string().describe("which play this SOP operationalizes — must match a play id"),
+  name: z.string(),
+  purpose: z.string(),
+  trigger: z.string(),
+  owner: z.string(),
+  dependsOn: z.array(z.string()),
   effort: z.enum(["S", "M", "L"]),
-  why: z.string().describe("what breaks today without this SOP"),
+  why: z.string(),
 });
 
 const ResultSchema = z.object({
-  headline: z.string().describe("one-line read on the backlog"),
-  buildOrderRationale: z.string().describe("1-2 sentences on why the sequence is in this order"),
+  constraintReframe: z.string(),
+  plays: z.array(PlaySchema).min(1).max(3),
+  topPlayId: z.string(),
+  headline: z.string(),
+  buildOrderRationale: z.string(),
   backlog: z.array(ItemSchema).min(8).max(12),
 });
 
@@ -84,11 +97,13 @@ export const Route = createFileRoute("/api/sop-backlog")({
 
           const sorted = [...object.backlog].sort((a, b) => a.rank - b.rank);
           const topSop = sorted[0];
-          if (!topSop) {
-            return new Response("Empty backlog returned. Try again.", { status: 502 });
-          }
+          if (!topSop) return new Response("Empty backlog returned. Try again.", { status: 502 });
+
           return Response.json({
             department: dept,
+            constraintReframe: object.constraintReframe,
+            plays: object.plays,
+            topPlayId: object.topPlayId,
             headline: object.headline,
             buildOrderRationale: object.buildOrderRationale,
             topSop,
@@ -107,4 +122,3 @@ export const Route = createFileRoute("/api/sop-backlog")({
     },
   },
 });
-

@@ -27,6 +27,7 @@ import { Route as ToolsOwnerDependencyRouteImport } from './routes/tools.owner-d
 import { Route as ToolsGrowthConstraintRouteImport } from './routes/tools.growth-constraint'
 import { Route as AskNewRouteImport } from './routes/ask.new'
 import { Route as AskThreadIdRouteImport } from './routes/ask.$threadId'
+import { Route as ApiSopDraftRouteImport } from './routes/api/sop-draft'
 import { Route as ApiSopBacklogRouteImport } from './routes/api/sop-backlog'
 import { Route as ApiContractScanRouteImport } from './routes/api/contract-scan'
 import { Route as ApiAskRouteImport } from './routes/api/ask'
@@ -121,6 +122,11 @@ const AskThreadIdRoute = AskThreadIdRouteImport.update({
   path: '/ask/$threadId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSopDraftRoute = ApiSopDraftRouteImport.update({
+  id: '/api/sop-draft',
+  path: '/api/sop-draft',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSopBacklogRoute = ApiSopBacklogRouteImport.update({
   id: '/api/sop-backlog',
   path: '/api/sop-backlog',
@@ -154,6 +160,7 @@ export interface FileRoutesByFullPath {
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/sop-backlog': typeof ApiSopBacklogRoute
+  '/api/sop-draft': typeof ApiSopDraftRoute
   '/ask/$threadId': typeof AskThreadIdRoute
   '/ask/new': typeof AskNewRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
@@ -177,6 +184,7 @@ export interface FileRoutesByTo {
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/sop-backlog': typeof ApiSopBacklogRoute
+  '/api/sop-draft': typeof ApiSopDraftRoute
   '/ask/$threadId': typeof AskThreadIdRoute
   '/ask/new': typeof AskNewRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
@@ -201,6 +209,7 @@ export interface FileRoutesById {
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/sop-backlog': typeof ApiSopBacklogRoute
+  '/api/sop-draft': typeof ApiSopDraftRoute
   '/ask/$threadId': typeof AskThreadIdRoute
   '/ask/new': typeof AskNewRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
@@ -226,6 +235,7 @@ export interface FileRouteTypes {
     | '/api/ask'
     | '/api/contract-scan'
     | '/api/sop-backlog'
+    | '/api/sop-draft'
     | '/ask/$threadId'
     | '/ask/new'
     | '/tools/growth-constraint'
@@ -249,6 +259,7 @@ export interface FileRouteTypes {
     | '/api/ask'
     | '/api/contract-scan'
     | '/api/sop-backlog'
+    | '/api/sop-draft'
     | '/ask/$threadId'
     | '/ask/new'
     | '/tools/growth-constraint'
@@ -272,6 +283,7 @@ export interface FileRouteTypes {
     | '/api/ask'
     | '/api/contract-scan'
     | '/api/sop-backlog'
+    | '/api/sop-draft'
     | '/ask/$threadId'
     | '/ask/new'
     | '/tools/growth-constraint'
@@ -296,6 +308,7 @@ export interface RootRouteChildren {
   ApiAskRoute: typeof ApiAskRoute
   ApiContractScanRoute: typeof ApiContractScanRoute
   ApiSopBacklogRoute: typeof ApiSopBacklogRoute
+  ApiSopDraftRoute: typeof ApiSopDraftRoute
   AskThreadIdRoute: typeof AskThreadIdRoute
   AskNewRoute: typeof AskNewRoute
   AskIndexRoute: typeof AskIndexRoute
@@ -429,6 +442,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AskThreadIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/sop-draft': {
+      id: '/api/sop-draft'
+      path: '/api/sop-draft'
+      fullPath: '/api/sop-draft'
+      preLoaderRoute: typeof ApiSopDraftRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/sop-backlog': {
       id: '/api/sop-backlog'
       path: '/api/sop-backlog'
@@ -482,6 +502,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAskRoute: ApiAskRoute,
   ApiContractScanRoute: ApiContractScanRoute,
   ApiSopBacklogRoute: ApiSopBacklogRoute,
+  ApiSopDraftRoute: ApiSopDraftRoute,
   AskThreadIdRoute: AskThreadIdRoute,
   AskNewRoute: AskNewRoute,
   AskIndexRoute: AskIndexRoute,
