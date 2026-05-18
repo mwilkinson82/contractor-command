@@ -45,9 +45,20 @@ function AdminDashboard() {
   const [online, setOnline] = useState<PresenceUser[]>([]);
   useEffect(() => {
     if (!isAdmin) return;
-    const channel = supabase.channel("portal-presence");
-    function sync() {
-      const state = channel.presenceState() as Record<string, PresenceUser[]>;
+    // The root layout already subscribes every signed-in member to the
+    // "portal-presence" topic. supabase-js caches channels by topic, so we
+    // can't attach new presence listeners here without hitting
+    // "cannot add presence callbacks after subscribe". Instead, find the
+    // existing channel and poll its presenceState.
+    function read() {
+      const existing = supabase
+        .getChannels()
+        .find((c) => c.topic === "realtime:portal-presence");
+      if (!existing) {
+        setOnline([]);
+        return;
+      }
+      const state = existing.presenceState() as Record<string, PresenceUser[]>;
       const flat: PresenceUser[] = [];
       const seen = new Set<string>();
       for (const arr of Object.values(state)) {
@@ -59,14 +70,9 @@ function AdminDashboard() {
       }
       setOnline(flat);
     }
-    channel
-      .on("presence", { event: "sync" }, sync)
-      .on("presence", { event: "join" }, sync)
-      .on("presence", { event: "leave" }, sync)
-      .subscribe();
-    return () => {
-      void supabase.removeChannel(channel);
-    };
+    read();
+    const id = window.setInterval(read, 5000);
+    return () => window.clearInterval(id);
   }, [isAdmin]);
 
   if (isAdmin === null) {
