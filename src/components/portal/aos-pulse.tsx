@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
 import { getAosSnapshot, type AosResult, type AosCompany } from "@/lib/aos.functions";
 import { AOS_URL } from "@/lib/program";
 import {
@@ -21,6 +22,7 @@ const COMPANY_KEY = "aos.company_id";
 
 export function AosPulse() {
   const fn = useServerFn(getAosSnapshot);
+  const { user } = useAuth();
   const [companyId, setCompanyId] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     return window.localStorage.getItem(COMPANY_KEY);
@@ -34,6 +36,7 @@ export function AosPulse() {
     staleTime: 60_000,
     refetchOnWindowFocus: true,
     refetchInterval: waitingForLink ? 4000 : false,
+    enabled: !!user,
   });
 
   useEffect(() => {
