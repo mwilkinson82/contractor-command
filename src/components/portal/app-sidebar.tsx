@@ -3,6 +3,7 @@ import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   Home,
   Video,
+  Radio,
   MessagesSquare,
   FileText,
   Wrench,
@@ -56,7 +57,7 @@ const GROUPS: Group[] = [
       { to: "/", label: "Home", icon: Home },
       { to: "/ask", label: "Ask Marshall", icon: Megaphone, match: "/ask" },
       { to: "/aos", label: "AOS", icon: Compass },
-      { to: "/calls", label: "Calls", icon: Video },
+      { to: "/calls", label: "Calls", icon: Radio },
       { to: "/community", label: "Community", icon: MessagesSquare },
     ],
   },
@@ -143,7 +144,7 @@ export function AppSidebar() {
         {GROUPS.map((g) => (
           <div key={g.label} className="mb-4">
             {!collapsed && (
-              <p className="px-2 pb-1.5 text-[10px] uppercase tracking-[0.22em] text-muted-foreground/70">
+              <p className="px-2 pb-1.5 text-[10px] uppercase tracking-[0.22em] text-signal/90">
                 {g.label}
               </p>
             )}
