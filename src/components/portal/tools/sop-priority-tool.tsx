@@ -257,34 +257,42 @@ function OwnerMode() {
     <div className="grid gap-6 lg:grid-cols-[minmax(380px,520px)_1fr] lg:items-start">
       <section className="rounded-2xl border border-border bg-card p-5 lg:sticky lg:top-6">
         <div className="flex items-center justify-between">
-          <p className="label-mono">Owner-touched areas</p>
-          <button
-            type="button"
-            onClick={addArea}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[11px] text-foreground/70 hover:bg-muted"
-          >
-            <Plus className="h-3 w-3" /> Add area
-          </button>
+          <div>
+            <p className="label-mono">Step 1 · Your inputs</p>
+            <p
+              className="mt-1 font-display text-[18px] leading-tight"
+              style={{ fontFamily: "var(--font-serif)" }}
+            >
+              Touchpoints you still own
+            </p>
+          </div>
         </div>
+        <p className="mt-2 text-[12.5px] leading-relaxed text-muted-foreground">
+          Every row below is editable. Rename it, change the numbers, delete what doesn't apply, and add anything missing. This list drives the ranking.
+        </p>
 
-        <div className="mt-3 space-y-3">
+        <div className="mt-4 space-y-3">
           {areas.map((a, i) => (
-            <div key={i} className="rounded-md border border-border bg-background/60 p-3">
+            <div
+              key={i}
+              className="group rounded-md border border-border bg-background/60 p-3 transition hover:-translate-y-px hover:border-foreground/30 hover:shadow-sm"
+            >
               <div className="flex items-center gap-2">
                 <input
                   ref={i === 0 ? newAreaRef : undefined}
                   type="text"
                   value={a.name}
                   onChange={(e) => updateArea(i, { name: e.target.value })}
-                  placeholder="Name this area (e.g. Estimating new bids)"
-                  title="Click to edit area name"
-                  className="w-full rounded-full border border-dashed border-border/70 bg-background/60 px-3 py-1.5 text-[13px] font-medium text-foreground outline-none transition placeholder:font-normal placeholder:italic placeholder:text-muted-foreground/70 hover:border-foreground/50 hover:bg-background focus:border-foreground focus:border-solid focus:bg-background"
+                  placeholder="Name this touchpoint (e.g. Estimating new bids)"
+                  title="Click to edit"
+                  className="w-full rounded-md border border-dashed border-foreground/25 bg-background px-3 py-1.5 text-[13.5px] font-medium text-foreground outline-none transition placeholder:font-normal placeholder:italic placeholder:text-muted-foreground/70 hover:border-foreground/60 focus:border-foreground focus:border-solid focus:ring-2 focus:ring-signal/20"
                 />
                 <button
                   type="button"
                   onClick={() => removeArea(i)}
-                  className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  aria-label="Remove area"
+                  className="rounded-md p-1.5 text-muted-foreground opacity-40 transition hover:bg-muted hover:text-foreground group-hover:opacity-100"
+                  aria-label="Remove touchpoint"
+                  title="Remove this touchpoint"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -297,7 +305,16 @@ function OwnerMode() {
               </div>
             </div>
           ))}
+
+          <button
+            type="button"
+            onClick={addArea}
+            className="flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-foreground/30 bg-background/30 px-3 py-3 text-[12.5px] font-medium text-foreground/70 transition hover:border-foreground/60 hover:bg-background hover:text-foreground"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add another touchpoint you still own
+          </button>
         </div>
+
 
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <button

@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet, Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type ReactElement } from "react";
-import { Archive, ArrowUpRight, Command as CmdIcon, Lock } from "lucide-react";
+import { Archive, ArrowUpRight, LayoutGrid, Lock } from "lucide-react";
 import {
   COMMAND_TOOLS,
   TOOL_GROUPS,
@@ -130,6 +130,7 @@ function Workbench({ searchTool }: { searchTool?: string }) {
         activeTool={activeTool}
         onOpenPicker={() => setPickerOpen(true)}
       />
+      <ToolRail activeId={activeId} onPick={pickTool} />
       <div className="flex-1">
         {Render ? <Render /> : <StageFallback />}
       </div>
@@ -151,34 +152,62 @@ function WorkbenchHeader({
   activeTool: CommandTool | undefined;
   onOpenPicker: () => void;
 }) {
+  const liveCount = useMemo(
+    () => COMMAND_TOOLS.filter((t) => t.status === "live").length,
+    [],
+  );
+  const [pulse, setPulse] = useState(false);
+  useEffect(() => {
+    try {
+      if (!sessionStorage.getItem("alp.cc.workbench.seenSwitch")) {
+        setPulse(true);
+        sessionStorage.setItem("alp.cc.workbench.seenSwitch", "1");
+        const t = setTimeout(() => setPulse(false), 4800);
+        return () => clearTimeout(t);
+      }
+    } catch {}
+  }, []);
+
   return (
     <div className="sticky top-0 z-20 border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-      <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-3 px-6 py-3">
-        <div className="flex items-baseline gap-3">
-          <p className="label-mono">Operator's Workbench</p>
-          <span className="text-muted-foreground/40">/</span>
-          <p
-            className="font-display text-[15px] leading-none"
+      <div className="mx-auto flex max-w-[1400px] flex-wrap items-start justify-between gap-4 px-6 py-5">
+        <div className="min-w-0">
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+            Operator's Workbench
+          </p>
+          <h1
+            className="mt-1 font-display text-[28px] leading-none"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            {activeTool?.name ?? "Select a tool"}
+            Operator's Workbench
+          </h1>
+          <p className="mt-2 font-mono text-[10.5px] uppercase tracking-[0.22em] text-muted-foreground">
+            <span className="text-signal">● Now loaded</span>
+            <span className="mx-2 text-muted-foreground/40">·</span>
+            <span>{activeTool?.group ?? "—"}</span>
+            <span className="mx-2 text-muted-foreground/40">·</span>
+            <span className="text-foreground/80">{activeTool?.name ?? "Select a tool"}</span>
+          </p>
+          <p className="mt-2 max-w-xl text-[12.5px] text-muted-foreground">
+            {liveCount} tools to run the business. One loaded — pick another anytime.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
             onClick={onOpenPicker}
-            className="group inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-[12.5px] text-foreground/80 hover:border-foreground/30 hover:bg-muted"
+            className={`group inline-flex items-center gap-2 rounded-md border border-signal/60 bg-signal px-4 py-2.5 text-[13px] font-semibold text-cream shadow-sm transition hover:bg-signal/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 ${pulse ? "animate-signal-pulse" : ""}`}
           >
-            <CmdIcon className="h-3.5 w-3.5" />
+            <LayoutGrid className="h-4 w-4" />
             <span>Switch tool</span>
-            <kbd className="ml-1 hidden rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:inline-block">
+            <span className="text-cream/70">· {liveCount} tools</span>
+            <kbd className="ml-1 hidden rounded border border-cream/30 bg-cream/10 px-1.5 py-0.5 font-mono text-[10px] text-cream/90 sm:inline-block">
               ⌘K
             </kbd>
           </button>
           <Link
             to="/vault"
-            className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12.5px] font-medium text-cream hover:opacity-90"
+            className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-[12.5px] text-foreground/60 hover:bg-muted hover:text-foreground"
           >
             <Archive className="h-3.5 w-3.5" /> Vault
           </Link>
@@ -187,6 +216,49 @@ function WorkbenchHeader({
     </div>
   );
 }
+
+function ToolRail({
+  activeId,
+  onPick,
+}: {
+  activeId: string;
+  onPick: (t: CommandTool) => void;
+}) {
+  const live = useMemo(
+    () => COMMAND_TOOLS.filter((t) => t.status === "live"),
+    [],
+  );
+  return (
+    <div className="border-b border-border bg-card/40">
+      <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-1.5 px-6 py-2.5">
+        <span className="mr-1 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+          Tools ·
+        </span>
+        {live.map((t) => {
+          const isActive = t.id === activeId;
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => onPick(t)}
+              title={t.blurb}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11.5px] transition ${
+                isActive
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-border bg-background/60 text-foreground/70 hover:border-foreground/40 hover:bg-muted"
+              }`}
+            >
+              <Icon className="h-3 w-3" />
+              <span className="truncate">{t.name}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 
 function StageFallback() {
   return (

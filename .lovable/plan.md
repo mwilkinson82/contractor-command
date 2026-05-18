@@ -1,57 +1,60 @@
-# Operator's Workbench — /tools redesign
+# Workbench polish — three fixes
 
-Turn `/tools` from a directory grid into a dedicated tool space: a full-bleed split-screen stage that loads a tool by default and lets the operator switch tools through a floating overlay picker. Same tools, same logic — only the framing and entry point change.
+The goal: the moment someone lands on `/tools`, it should read as *a workbench with many tools, one currently loaded* — not as "the SOP Priority Builder page." Three targeted changes.
 
-## What changes for the user
+## 1. Make "Switch tool" the hero of the header
 
-- Land on `/tools` → app sidebar auto-collapses (re-openable), the page becomes a full-width "stage" with `SOP Priority Builder` already loaded.
-- Header strip across the top: page title **Operator's Workbench**, current tool name, and a **Switch Tool** chip that opens a command-palette overlay listing every tool grouped by section ("Make more money", etc.) with status dots.
-- Below the header: the existing tool UI, but laid out as a true two-pane stage — **inputs left, compute + finding right** — instead of stacked. Same visual language as the current drawer, just always-on.
-- On a fresh visit, the right pane shows the ALP Engine idle state ("Ready to run · fill the inputs to compute"); after a run it shows the compute stream and the finding card, exactly like today.
-- Last-used tool is remembered (localStorage) and loaded next time; first-time users get SOP Priority Builder.
+Today the chip is quiet gray and visually equal to the Vault link. It needs to be the most obvious thing in the header.
 
-## Layout
+Changes in `WorkbenchHeader` (`src/routes/tools.tsx`):
 
-```text
-┌──────────────────────────────────────────────────────────────────┐
-│  OPERATOR'S WORKBENCH · SOP Priority Builder       [Switch tool] │
-├────────────────────────────┬─────────────────────────────────────┤
-│                            │                                     │
-│   INPUTS                   │   COMPUTE  →  FINDING               │
-│   (existing tool form)     │   (ComputeStream + result card)     │
-│                            │                                     │
-└────────────────────────────┴─────────────────────────────────────┘
-```
+- Promote the button to an **accent-colored pill** (signal/primary token, not neutral) with a left-side grid/dots icon and the active tool count, e.g.
+  `▦  Switch tool  ·  7 tools  ⌘K`
+- Make it taller (py-2), bolder weight, with a subtle glow/ring on hover so it reads as *the* primary action.
+- Add a faint one-time pulse animation on first mount (sessionStorage flag) so first-time visitors notice it.
+- Demote Vault to a ghost link on the far right — it stays reachable but stops competing.
+- On the left, restructure the title block so the workbench identity wins (see fix 3).
 
-Mobile/narrow: panes stack (inputs on top, compute below), same as today.
+## 2. Make the SOP rows visibly editable
 
-## Switch Tool overlay
+Right now the default areas (Estimating new bids, Client communication, …) look like static labels. Users don't realize each row is a live, editable touchpoint.
 
-- Trigger: chip in the workbench header, or `⌘K` / `Ctrl+K`.
-- Dialog (shadcn `Command` palette) lists tools grouped by `TOOL_GROUPS` with status dot (Live / Ready / Soon). Non-live tools are visible but disabled with a "Coming next" badge.
-- Selecting a tool swaps the stage content with a brief fade; URL updates to `/tools?t=<tool-id>` so the choice is shareable and survives refresh.
+Changes in `src/components/portal/tools/sop-priority-tool.tsx` (owner-mode area list only — no logic changes):
 
-## Tools page IS the tool space
+- Add a short framing line directly above the list:
+  *"These are the touchpoints where you're still in the work. Edit, add, or remove any row — this list drives the ranking."*
+- Render each area as a card with:
+  - The name shown as an **inline editable input** with a visible pencil icon on the right and a dotted underline so it reads as a field, not a label.
+  - Each numeric input (hours, blast, effort, frequency) gets a tiny label above it and a subtle bordered chip styling so they obviously look like inputs.
+  - Hover state lifts the row slightly and reveals a trash icon.
+- The existing "+ Add area" button gets promoted to a dashed full-width row at the bottom labeled **"+ Add another touchpoint you still own"** so the affordance to grow the list is unmissable.
+- No changes to `calcSopPriority` or any scoring math.
 
-The current directory grid goes away. Discovery moves into the overlay picker, which is faster to scan than the grid was and keeps the operator "inside" the workspace. The Company Vault link moves into the workbench header as a small secondary action.
+## 3. Strengthen the Workbench identity over the tool name
 
-## Files
+Currently the header reads `Operator's Workbench / SOP Priority Builder` with both at similar weight, so it looks like the tool *is* the page.
 
-- `src/routes/tools.tsx` — rewrite `ToolsLayout` / `ToolsDirectory`. New components: `WorkbenchHeader`, `WorkbenchStage`, `SwitchToolDialog`. Reads `?t=<id>` from the URL, falls back to `localStorage("alp.cc.workbench.last")`, then `"sop-priority"`. Persists choice on change. Auto-collapses the app sidebar on mount via `useAppSidebar().toggle` (only if currently expanded; restores nothing on unmount — user can re-open manually, matching the "user can re-open" answer).
-- `src/components/portal/tools/*` — each existing tool component (`sop-priority-tool`, `contract-readiness-tool`, `margin-leak-tool`, `estimate-throughput-tool`) gets a lightweight `variant: "stage" | "drawer"` prop. In `stage` mode the outer `max-w-[1400px] mx-auto px-6 py-8` chrome is dropped and the internal layout switches from stacked to a `grid grid-cols-1 lg:grid-cols-[minmax(0,420px)_1fr] gap-8` (inputs / compute). No business logic touched — only outer wrapper + grid classes.
-- `src/components/portal/tool-drawer.tsx` — keep as-is for tools triggered from other surfaces (signal tiles, Today's Move). Drawer continues to render tools in `drawer` variant. The `/tools` route stops using the drawer and renders the stage variant directly.
-- `src/lib/command-tools.ts` — no change.
+Changes in `WorkbenchHeader`:
 
-## Out of scope
-
-- Tool internals (inputs, AI calls, compute steps, vault writes) — untouched.
-- Routing for individual tool pages like `/tools/growth-constraint` and `/tools/owner-dependency` — those keep working; the overlay picker links to them for tools without a drawer/stage variant.
-- Sidebar component itself — only its collapsed state is nudged.
-- Renaming the nav item; the sidebar entry stays "Tools" so it's still scannable. The "Operator's Workbench" name lives on the page itself.
+- Render a two-line stacked title on the left:
+  - Line 1 (large, serif display): **Operator's Workbench**
+  - Line 2 (small mono label): `NOW LOADED · BUILD THE MACHINE · SOP PRIORITY BUILDER`
+- Add a one-line tagline under it that only shows on the bare `/tools` route (hidden on the child routes):
+  *"Seven tools to run the business. One loaded — pick another anytime."*
+- Add a thin horizontal **tool rail** directly under the header: small pills for each live tool grouped by section ("Make more money", "Protect margin and cash", "Build the machine", "Deliver better projects"), the active one filled, the others outlined. Clicking a pill loads that tool (same behavior as the picker). This makes the "many tools" reality visible without forcing the picker open.
+- The Switch tool button still opens the full dialog for the complete browseable list.
 
 ## Technical notes
 
-- `useAppSidebar()` already exposes `{ collapsed, toggle }`. On `/tools` mount, if `!collapsed`, call `toggle()` once. Do not auto-restore on unmount — the user's manual choice during the session wins. Persisted collapsed state in localStorage means returning to other routes keeps whatever the user last set.
-- `?t=<tool-id>` parsed with `useSearch` from TanStack Router; validate against `COMMAND_TOOLS` ids, fall back gracefully.
-- Overlay picker uses existing `components/ui/command.tsx` + `dialog.tsx`. Keyboard shortcut wired with a single `useEffect` keydown listener.
-- Empty/idle right pane: reuse the visual idiom from `compute-stream.tsx` (label-mono caption + thin rule) — no new design tokens.
+- All edits stay in `src/routes/tools.tsx` and `src/components/portal/tools/sop-priority-tool.tsx`.
+- No new dependencies. Pulse animation = a single keyframe in `src/styles.css` or inline Tailwind `animate-` class.
+- Colors come from existing semantic tokens (`--signal`, `--primary`, `--accent`) — no hardcoded values.
+- Tool rail reuses `COMMAND_TOOLS` + `STAGE_TOOLS` already imported in `tools.tsx`; pills for non-stage tools navigate to their route just like the dialog's `pickTool`.
+- The other three tools (`contract-readiness`, `estimate-throughput`, `margin-leak`) are not touched in this pass; fix 2's edit-affordance pattern can be propagated to them in a follow-up.
+
+## Out of scope
+
+- Renaming any tool, group, or nav item.
+- Sidebar component changes.
+- Tool scoring / business logic.
+- Mobile-specific layout (desktop-first; current responsive behavior preserved).
