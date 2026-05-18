@@ -512,7 +512,7 @@ function MissingClauseCard({ clause }: { clause: MissingClause }) {
               {copied === "lang" ? "Copied" : "Copy"}
             </button>
           </div>
-          <p className="mt-1.5 whitespace-pre-wrap text-[12.5px] leading-relaxed text-foreground/90">
+          <p className="mt-1.5 whitespace-pre-wrap text-[13.5px] leading-relaxed text-foreground/90">
             {clause.sampleLanguage}
           </p>
         </div>
