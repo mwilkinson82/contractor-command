@@ -13,12 +13,15 @@ import { EstimateThroughputTool } from "@/components/portal/tools/estimate-throu
 import { ContractReadinessTool } from "@/components/portal/tools/contract-readiness-tool";
 import { MarginLeakTool } from "@/components/portal/tools/margin-leak-tool";
 import { SopPriorityTool } from "@/components/portal/tools/sop-priority-tool";
+import { GrowthConstraintTool } from "@/routes/tools.growth-constraint";
+import { OwnerDependencyTool } from "@/routes/tools.owner-dependency";
 import {
   Dialog,
   DialogContent,
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { ChevronUp, ChevronDown } from "lucide-react";
 
 export const Route = createFileRoute("/tools")({
   component: ToolsLayout,
@@ -32,7 +35,10 @@ const STAGE_TOOLS: Record<string, () => ReactElement> = {
   "contract-readiness": () => <ContractReadinessTool />,
   "estimate-throughput": () => <EstimateThroughputTool />,
   "margin-leak": () => <MarginLeakTool />,
+  "growth-constraint": () => <GrowthConstraintTool embedded />,
+  "owner-dependency": () => <OwnerDependencyTool embedded />,
 };
+
 
 const DEFAULT_TOOL = "sop-priority";
 const STORAGE_KEY = "alp.cc.workbench.last";
@@ -124,13 +130,27 @@ function Workbench({ searchTool }: { searchTool?: string }) {
     }
   }
 
+  const [chromeCollapsed, setChromeCollapsed] = useState(false);
+
   return (
     <div className="flex min-h-[calc(100vh-3rem)] flex-col bg-background">
-      <WorkbenchHeader
-        activeTool={activeTool}
-        onOpenPicker={() => setPickerOpen(true)}
-      />
-      <ToolRail activeId={activeId} onPick={pickTool} />
+      {!chromeCollapsed && (
+        <>
+          <WorkbenchHeader
+            activeTool={activeTool}
+            onOpenPicker={() => setPickerOpen(true)}
+            onCollapse={() => setChromeCollapsed(true)}
+          />
+          <ToolRail activeId={activeId} onPick={pickTool} />
+        </>
+      )}
+      {chromeCollapsed && (
+        <CollapsedBar
+          activeTool={activeTool}
+          onExpand={() => setChromeCollapsed(false)}
+          onOpenPicker={() => setPickerOpen(true)}
+        />
+      )}
       <div className="flex-1">
         {Render ? <Render /> : <StageFallback />}
       </div>
@@ -145,12 +165,52 @@ function Workbench({ searchTool }: { searchTool?: string }) {
   );
 }
 
-function WorkbenchHeader({
+function CollapsedBar({
   activeTool,
+  onExpand,
   onOpenPicker,
 }: {
   activeTool: CommandTool | undefined;
+  onExpand: () => void;
   onOpenPicker: () => void;
+}) {
+  return (
+    <div className="sticky top-0 z-20 border-b border-border bg-background/90 backdrop-blur">
+      <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-3 px-6 py-2">
+        <div className="flex min-w-0 items-center gap-3">
+          <button
+            type="button"
+            onClick={onExpand}
+            title="Expand workbench header"
+            className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] text-foreground/70 hover:bg-muted"
+          >
+            <ChevronDown className="h-3 w-3" />
+            <span className="font-mono uppercase tracking-[0.22em]">Workbench</span>
+          </button>
+          <span className="truncate text-[12.5px] text-foreground/80">
+            {activeTool?.name ?? "Select a tool"}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={onOpenPicker}
+          className="inline-flex items-center gap-1.5 rounded-md bg-signal px-3 py-1.5 text-[12px] font-semibold text-cream hover:bg-signal/90"
+        >
+          <LayoutGrid className="h-3.5 w-3.5" /> Switch tool
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function WorkbenchHeader({
+  activeTool,
+  onOpenPicker,
+  onCollapse,
+}: {
+  activeTool: CommandTool | undefined;
+  onOpenPicker: () => void;
+  onCollapse: () => void;
 }) {
   const liveCount = useMemo(
     () => COMMAND_TOOLS.filter((t) => t.status === "live").length,
@@ -211,6 +271,14 @@ function WorkbenchHeader({
           >
             <Archive className="h-3.5 w-3.5" /> Vault
           </Link>
+          <button
+            type="button"
+            onClick={onCollapse}
+            title="Collapse workbench header"
+            className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-2 text-[11.5px] text-foreground/60 hover:bg-muted hover:text-foreground"
+          >
+            <ChevronUp className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
     </div>

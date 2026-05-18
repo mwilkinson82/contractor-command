@@ -6,7 +6,7 @@ import { ArrowLeft, Check, Save, MessageSquare } from "lucide-react";
 
 export const Route = createFileRoute("/tools/owner-dependency")({
   head: () => ({ meta: [{ title: "Owner Dependency Scorecard — ALP Contractor Circle" }] }),
-  component: OwnerDependencyTool,
+  component: () => <OwnerDependencyTool />,
 });
 
 const AREAS = [
@@ -28,7 +28,7 @@ type Scores = Record<(typeof AREAS)[number]["key"], number>;
 const DEFAULT: Scores = AREAS.reduce((acc, a) => ({ ...acc, [a.key]: 3 }), {} as Scores);
 
 // 0 = owner does it all, 5 = system runs without owner
-function OwnerDependencyTool() {
+export function OwnerDependencyTool({ embedded = false }: { embedded?: boolean } = {}) {
   const [scores, setScores] = useState<Scores>(DEFAULT);
   const [savedId, setSavedId] = useState<string | null>(null);
 
@@ -64,14 +64,16 @@ function OwnerDependencyTool() {
   }
 
   return (
-    <div className="grid gap-10 lg:grid-cols-12">
+    <div className={embedded ? "mx-auto w-full max-w-[1400px] px-6 py-8 grid gap-10 lg:grid-cols-12" : "grid gap-10 lg:grid-cols-12"}>
       <section className="lg:col-span-6">
-        <Link
-          to="/tools"
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-[11px] text-foreground/70 hover:bg-muted"
-        >
-          <ArrowLeft className="h-3 w-3" /> All tools
-        </Link>
+        {!embedded && (
+          <Link
+            to="/tools"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-[11px] text-foreground/70 hover:bg-muted"
+          >
+            <ArrowLeft className="h-3 w-3" /> All tools
+          </Link>
+        )}
         <p className="label-mono mt-3">Twelve areas</p>
         <h2 className="mt-2 font-display text-3xl">Owner Dependency Scorecard</h2>
         <p className="mt-3 text-sm text-muted-foreground">
