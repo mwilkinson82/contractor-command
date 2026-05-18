@@ -1,8 +1,10 @@
 // Estimate Throughput Tracker — full-screen drawer experience.
-// Inputs → "computing" theater → finding card with save-to-vault.
+// Inputs → "computing" theater → finding card with two terminus paths:
+// Save to vault, or Bring to next call.
 
 import { useMemo, useState } from "react";
-import { Play, RotateCcw, Save, Check, AlertTriangle, TrendingUp } from "lucide-react";
+import { Play, RotateCcw, Save, Check, AlertTriangle, TrendingUp, MessageSquare } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { calcEtt, DEFAULT_ETT, ettTickerLines, type EttInputs } from "@/lib/tools/estimate-throughput";
 import { ComputeTheater, type ComputeStep } from "@/components/portal/compute-theater";
 import { vault } from "@/lib/vault";
@@ -63,7 +65,6 @@ export function EstimateThroughputTool({ onClose }: { onClose: () => void }) {
           : `On pace against ${fmtMoney(inputs.revenueTarget)} revenue target.`,
       missingSystem: "Weekly estimating cadence tied to revenue target.",
       recommendedAction: result.recommendedAction,
-      relatedAos: "Scorecard + Process",
       bringOneIssuePrompt:
         result.status === "on-pace"
           ? "What would protect this cadence the next time a PM gets pulled into the field?"
