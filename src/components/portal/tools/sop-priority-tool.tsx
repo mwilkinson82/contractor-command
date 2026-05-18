@@ -858,7 +858,8 @@ function PlayCard({
     >
       <div className="flex items-center justify-between gap-2">
         <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-foreground">
-          {play.id}{recommended ? " · recommended" : ""}
+          {play.id}
+          {recommended && <span className="ml-1 text-signal-success">· recommended</span>}
         </p>
         <span className="font-mono text-[11px] text-foreground/70">{play.expectedLift}</span>
       </div>
