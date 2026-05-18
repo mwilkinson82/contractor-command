@@ -903,7 +903,7 @@ function BacklogRow({
               {item.name}
             </p>
             <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-              effort {item.effort} · {item.playId}
+              effort {item.effort} · <span className="text-signal-success">{item.playId}</span>
             </span>
           </div>
           {parentPlayName && (
