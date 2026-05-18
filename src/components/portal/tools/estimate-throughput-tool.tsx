@@ -1,8 +1,10 @@
 // Estimate Throughput Tracker — full-screen drawer experience.
-// Inputs → "computing" theater → finding card with save-to-vault.
+// Inputs → "computing" theater → finding card with two terminus paths:
+// Save to vault, or Bring to next call.
 
 import { useMemo, useState } from "react";
-import { Play, RotateCcw, Save, Check, AlertTriangle, TrendingUp } from "lucide-react";
+import { Play, RotateCcw, Save, Check, AlertTriangle, TrendingUp, MessageSquare } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { calcEtt, DEFAULT_ETT, ettTickerLines, type EttInputs } from "@/lib/tools/estimate-throughput";
 import { ComputeTheater, type ComputeStep } from "@/components/portal/compute-theater";
 import { vault } from "@/lib/vault";
@@ -63,7 +65,6 @@ export function EstimateThroughputTool({ onClose }: { onClose: () => void }) {
           : `On pace against ${fmtMoney(inputs.revenueTarget)} revenue target.`,
       missingSystem: "Weekly estimating cadence tied to revenue target.",
       recommendedAction: result.recommendedAction,
-      relatedAos: "Scorecard + Process",
       bringOneIssuePrompt:
         result.status === "on-pace"
           ? "What would protect this cadence the next time a PM gets pulled into the field?"
@@ -183,6 +184,7 @@ export function EstimateThroughputTool({ onClose }: { onClose: () => void }) {
               running={stage === "running"}
               onDone={() => setStage("ready")}
               subtitle="Estimate Throughput Tracker"
+              fileLabel="tools/estimate-throughput.calc"
             />
           )}
 
@@ -242,6 +244,17 @@ export function EstimateThroughputTool({ onClose }: { onClose: () => void }) {
                   {savedId ? <Check className="h-3.5 w-3.5 text-signal-success" /> : <Save className="h-3.5 w-3.5" />}
                   {savedId ? "Saved to vault" : "Save to vault"}
                 </button>
+                <Link
+                  to="/calls"
+                  hash="submit-topic"
+                  className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-[13px] font-medium text-foreground hover:bg-muted"
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  Bring to next call
+                </Link>
+                <span className="ml-auto font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+                  Terminus · Vault / Calls
+                </span>
               </div>
             </section>
           )}

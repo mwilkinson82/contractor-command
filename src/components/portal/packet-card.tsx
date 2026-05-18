@@ -1,9 +1,11 @@
-import { type Packet, packetToClipboard, vault, AOS_URL, type PacketStatus } from "@/lib/vault";
-import { ArrowUpRight, Check, Copy } from "lucide-react";
+import { type Packet, packetToClipboard, vault, type PacketStatus } from "@/lib/vault";
+import { Check, Copy } from "lucide-react";
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 
-const STATUSES: PacketStatus[] = ["Open", "Brought to Session", "Carried into AOS", "Archived"];
+// Terminus for command-tool packets is intentionally narrow: Vault + Calls.
+// No AOS hand-off — there is no real connection to wire one to.
+const STATUSES: PacketStatus[] = ["Open", "Brought to Session", "Archived"];
 
 export function PacketCard({
   packet,
@@ -54,7 +56,6 @@ export function PacketCard({
           <Row label="Financial consequence" value={packet.financialConsequence} />
           <Row label="Missing system" value={packet.missingSystem} />
           <Row label="Recommended next action" value={packet.recommendedAction} />
-          <Row label="Related AOS area" value={packet.relatedAos} />
           <Row label="Bring one issue" value={packet.bringOneIssuePrompt} span />
         </dl>
       ) : (
@@ -75,21 +76,13 @@ export function PacketCard({
           {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
           {copied ? "Copied" : "Copy packet"}
         </button>
-        <a
-          href={AOS_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs text-cream hover:opacity-90"
-        >
-          Open AOS <ArrowUpRight className="h-3.5 w-3.5" />
-        </a>
         {packet.kind === "command" ? (
           <Link
             to="/calls"
             hash="submit-topic"
-            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs hover:bg-muted"
+            className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs text-cream hover:opacity-90"
           >
-            Bring to session
+            Bring to next call
           </Link>
         ) : null}
         {packet.kind === "command" && packet.intensiveRecommended ? (
