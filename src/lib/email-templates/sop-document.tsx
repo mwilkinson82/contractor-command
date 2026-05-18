@@ -104,7 +104,7 @@ const SopEmail = ({
 
         <Hr style={hr} />
         <Text style={footer}>
-          Sent{senderName ? ` by ${senderName}` : ""} from AOS — the Augmented Operating System.
+          Sent{senderName ? ` by ${senderName}` : ""} from AOS — the Altitude Operating System.
         </Text>
       </Container>
     </Body>
