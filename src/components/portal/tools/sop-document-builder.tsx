@@ -14,7 +14,10 @@ import {
   Mail,
   Download,
   Sparkles,
+  Send,
+  X,
 } from "lucide-react";
+import { sendTransactionalEmail } from "@/lib/email/send";
 import { supabase } from "@/integrations/supabase/client";
 import { vault } from "@/lib/vault";
 import type { SopDocument, SopStep } from "@/lib/tools/sop-draft";
