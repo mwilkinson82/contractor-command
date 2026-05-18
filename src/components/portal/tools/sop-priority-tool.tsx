@@ -72,7 +72,7 @@ export function SopPriorityTool({ onClose }: { onClose: () => void }) {
       recommendedAction: result.recommendedAction,
       bringOneIssuePrompt: "What's the one excuse you've used for not writing this SOP yet?",
       intensiveRecommended: result.totalOwnerHours > 30,
-      inputs: { areas },
+      inputs: { areas: JSON.stringify(areas), areaCount: areas.length, topArea: top.name },
     });
     setSavedId(saved.id);
   }
