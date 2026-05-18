@@ -540,7 +540,7 @@ function DepartmentMode() {
             className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 disabled:opacity-60"
           >
             {stage === "running" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-            {stage === "ready" ? "Re-generate" : "Generate backlog"}
+            {stage === "ready" ? "Rebuild SOP stack" : "Build SOP stack"}
           </button>
           <button
             type="button"
