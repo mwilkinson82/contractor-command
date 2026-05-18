@@ -424,6 +424,7 @@ function DepartmentMode() {
     setResult(null);
     setError(null);
     setSavedId(null);
+    setBuildingSop(null);
     pending.current = null;
     theaterDone.current = false;
     fetchDone.current = false;
