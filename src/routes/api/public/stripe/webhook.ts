@@ -91,9 +91,9 @@ async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
   const normalizedEmail = email.toLowerCase();
   const priceId = sub.items.data[0]?.price?.id ?? null;
   const productId = (sub.items.data[0]?.price?.product as string | null) ?? null;
-  const currentPeriodEnd = sub.current_period_end
-    ? new Date(sub.current_period_end * 1000).toISOString()
-    : null;
+  const cpe = (sub as any).current_period_end as number | undefined;
+  const currentPeriodEnd = cpe ? new Date(cpe * 1000).toISOString() : null;
+
 
   // Try to match an existing user by email
   const { data: profile } = await supabaseAdmin
