@@ -747,7 +747,7 @@ function DepartmentMode() {
 
             <div className="mt-6 rounded-md border border-foreground/40 bg-background p-4 ring-1 ring-foreground/10">
               <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                Build this first · #{result.topSop.rank} · operationalizes {result.topSop.playId}
+                Build this first · #{result.topSop.rank} · <span className="text-signal-success">operationalizes {result.topSop.playId}</span>
                 {(() => {
                   const parent = result.plays.find((p) => p.id === result.topSop.playId);
                   return parent ? ` · ${parent.name.split("·").slice(-1)[0].trim()}` : "";
