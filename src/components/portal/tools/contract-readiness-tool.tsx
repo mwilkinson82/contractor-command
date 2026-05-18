@@ -238,7 +238,7 @@ export function ContractReadinessTool({ onClose }: { onClose: () => void }) {
                 setSavedId(null);
               }}
               placeholder="Paste the full contract or the sections you want pressure-tested. ~200 characters minimum."
-              className="mt-1.5 h-[260px] w-full resize-y rounded-md border border-border bg-background p-3 text-[13px] leading-relaxed text-foreground outline-none focus:border-foreground/40"
+              className="mt-1.5 h-[260px] w-full resize-y rounded-md border border-border bg-background p-3 text-[14px] leading-relaxed text-foreground outline-none focus:border-foreground/40"
             />
             <span className="mt-1 block font-mono text-[10px] text-muted-foreground">
               {contractText.length.toLocaleString()} chars
@@ -256,7 +256,7 @@ export function ContractReadinessTool({ onClose }: { onClose: () => void }) {
               value={projectContext}
               onChange={(e) => setProjectContext(e.target.value)}
               placeholder="e.g. $1.2M custom home, GMP, 9 month schedule, new client."
-              className="mt-1.5 h-[90px] w-full resize-y rounded-md border border-border bg-background p-3 text-[13px] leading-relaxed text-foreground outline-none focus:border-foreground/40"
+              className="mt-1.5 h-[90px] w-full resize-y rounded-md border border-border bg-background p-3 text-[14px] leading-relaxed text-foreground outline-none focus:border-foreground/40"
             />
           </label>
 

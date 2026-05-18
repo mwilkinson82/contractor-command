@@ -329,9 +329,9 @@ function OwnerMode() {
             value={ownerContext}
             onChange={(e) => setOwnerContext(e.target.value)}
             placeholder="What keeps pulling you back in? Decisions only you can make, relationships only you hold, info that lives in your head."
-            className="mt-1 h-[88px] w-full resize-y rounded-md border border-border bg-background p-2.5 text-[12.5px] leading-relaxed text-foreground outline-none focus:border-foreground/40"
+            className="mt-1 h-[88px] w-full resize-y rounded-md border border-border bg-background p-2.5 text-[13.5px] leading-relaxed text-foreground outline-none focus:border-foreground/40"
           />
-          <span className="mt-1 block text-[10.5px] text-muted-foreground">
+          <span className="mt-1 block text-[12px] text-muted-foreground">
             Used when generating extraction plays for a specific area.
           </span>
         </label>
