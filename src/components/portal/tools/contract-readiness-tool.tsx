@@ -3,13 +3,14 @@
 // a structured-output schema → finding card with vault + calls terminus.
 
 import { useMemo, useRef, useState } from "react";
-import { Play, RotateCcw, Save, Check, AlertTriangle, ShieldCheck, MessageSquare, FileText, Upload, Loader2 } from "lucide-react";
+import { Play, RotateCcw, Save, Check, AlertTriangle, ShieldCheck, MessageSquare, FileText, Upload, Loader2, Copy } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import {
   CONTRACT_SCAN_STEPS,
   buildScanTicker,
   type ContractScanResult,
   type DimensionScore,
+  type MissingClause,
 } from "@/lib/tools/contract-readiness";
 import { extractTextFromFile } from "@/lib/tools/extract-text";
 import { ComputeTheater } from "@/components/portal/compute-theater";
@@ -363,13 +364,13 @@ export function ContractReadinessTool({ onClose }: { onClose: () => void }) {
                 {result.missingClauses.length > 0 && (
                   <div>
                     <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                      Missing clauses
+                      Missing clauses · sample language + how to ask
                     </p>
-                    <ul className="mt-1.5 list-disc space-y-1 pl-5">
+                    <div className="mt-2 space-y-3">
                       {result.missingClauses.map((c, i) => (
-                        <li key={i}>{c}</li>
+                        <MissingClauseCard key={i} clause={c} />
                       ))}
-                    </ul>
+                    </div>
                   </div>
                 )}
                 <div className="rounded-md border border-border bg-background/60 p-4">
