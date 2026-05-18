@@ -130,13 +130,27 @@ function Workbench({ searchTool }: { searchTool?: string }) {
     }
   }
 
+  const [chromeCollapsed, setChromeCollapsed] = useState(false);
+
   return (
     <div className="flex min-h-[calc(100vh-3rem)] flex-col bg-background">
-      <WorkbenchHeader
-        activeTool={activeTool}
-        onOpenPicker={() => setPickerOpen(true)}
-      />
-      <ToolRail activeId={activeId} onPick={pickTool} />
+      {!chromeCollapsed && (
+        <>
+          <WorkbenchHeader
+            activeTool={activeTool}
+            onOpenPicker={() => setPickerOpen(true)}
+            onCollapse={() => setChromeCollapsed(true)}
+          />
+          <ToolRail activeId={activeId} onPick={pickTool} />
+        </>
+      )}
+      {chromeCollapsed && (
+        <CollapsedBar
+          activeTool={activeTool}
+          onExpand={() => setChromeCollapsed(false)}
+          onOpenPicker={() => setPickerOpen(true)}
+        />
+      )}
       <div className="flex-1">
         {Render ? <Render /> : <StageFallback />}
       </div>
@@ -147,6 +161,44 @@ function Workbench({ searchTool }: { searchTool?: string }) {
         activeId={activeId}
         onPick={pickTool}
       />
+    </div>
+  );
+}
+
+function CollapsedBar({
+  activeTool,
+  onExpand,
+  onOpenPicker,
+}: {
+  activeTool: CommandTool | undefined;
+  onExpand: () => void;
+  onOpenPicker: () => void;
+}) {
+  return (
+    <div className="sticky top-0 z-20 border-b border-border bg-background/90 backdrop-blur">
+      <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-3 px-6 py-2">
+        <div className="flex min-w-0 items-center gap-3">
+          <button
+            type="button"
+            onClick={onExpand}
+            title="Expand workbench header"
+            className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] text-foreground/70 hover:bg-muted"
+          >
+            <ChevronDown className="h-3 w-3" />
+            <span className="font-mono uppercase tracking-[0.22em]">Workbench</span>
+          </button>
+          <span className="truncate text-[12.5px] text-foreground/80">
+            {activeTool?.name ?? "Select a tool"}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={onOpenPicker}
+          className="inline-flex items-center gap-1.5 rounded-md bg-signal px-3 py-1.5 text-[12px] font-semibold text-cream hover:bg-signal/90"
+        >
+          <LayoutGrid className="h-3.5 w-3.5" /> Switch tool
+        </button>
+      </div>
     </div>
   );
 }
