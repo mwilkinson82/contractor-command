@@ -236,22 +236,33 @@ export const Route = createFileRoute("/api/sop-backlog")({
           context: body.context,
         })}\n\nReturn your answer as a single JSON object matching the schema.`;
 
-        const tryGenerate = async (modelId: string) =>
-          generateObject({
+        const jsonShape = `Required JSON shape: {"constraintReframe":"string","plays":[{"id":"P1","name":"string","diagnosis":"string","mechanism":"string","expectedLift":"string","risks":"string"}],"topPlayId":"P1","headline":"string","buildOrderRationale":"string","backlog":[{"rank":1,"playId":"P1","name":"string","purpose":"string","trigger":"string","owner":"string","dependsOn":[],"effort":"M","why":"string"}]}`;
+        const tryGenerate = async (modelId: string, signal: AbortSignal) => {
+          const { text } = await generateText({
             model: gateway(modelId),
-            schema: ResultSchema,
-            
-            system: `${SOP_BACKLOG_SYSTEM_PROMPT}\n\nReturn a valid JSON object that matches the requested schema.`,
-            prompt: userPrompt,
+            system: `${SOP_BACKLOG_SYSTEM_PROMPT}\n\nReturn only valid JSON. No markdown. No prose outside the JSON object.`,
+            prompt: `${userPrompt}\n\n${jsonShape}`,
+            abortSignal: signal,
           });
+          return ResultSchema.parse(extractJsonObject(text));
+        };
 
         try {
-          let object;
+          let object: z.infer<typeof ResultSchema>;
           try {
-            ({ object } = await tryGenerate("google/gemini-2.5-pro"));
+            object = await generateWithTimeout((signal) => tryGenerate("google/gemini-2.5-pro", signal));
           } catch (primaryErr) {
             console.warn("[sop-backlog] primary model failed, retrying with gpt-5-mini", primaryErr);
-            ({ object } = await tryGenerate("openai/gpt-5-mini"));
+            try {
+              object = await generateWithTimeout((signal) => tryGenerate("openai/gpt-5-mini", signal));
+            } catch (fallbackErr) {
+              const msg = fallbackErr instanceof Error ? fallbackErr.message : "Failed.";
+              if (msg.includes("429")) return new Response("Rate limit. Try again in a moment.", { status: 429 });
+              if (msg.includes("402")) return new Response("AI credits exhausted. Add credits in Settings → Workspace → Usage.", { status: 402 });
+              console.warn("[sop-backlog] fallback model failed, using deterministic SOP stack", fallbackErr);
+              const fallback = fallbackResult(dept, seatHeadcount, body.context);
+              return Response.json({ department: dept, ...fallback, backlog: fallback.backlog.slice(0, 12) });
+            }
           }
 
           const normalized = normalizeResult(object, dept, seatHeadcount, body.context);
