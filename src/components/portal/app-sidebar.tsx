@@ -144,7 +144,7 @@ export function AppSidebar() {
         {GROUPS.map((g) => (
           <div key={g.label} className="mb-4">
             {!collapsed && (
-              <p className="px-2 pb-1.5 text-[10px] uppercase tracking-[0.22em] text-signal font-semibold">
+              <p className="px-2 pb-1.5 text-[10px] uppercase tracking-[0.22em] font-semibold" style={{ color: "color-mix(in oklab, var(--signal) 75%, transparent)" }}>
                 {g.label}
               </p>
             )}
