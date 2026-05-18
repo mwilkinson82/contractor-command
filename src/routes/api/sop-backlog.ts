@@ -124,23 +124,26 @@ export const Route = createFileRoute("/api/sop-backlog")({
 
         const gateway = createLovableAiGatewayProvider(key);
 
+        const userPrompt = `${buildSopBacklogUserPrompt({
+          department: dept,
+          stage,
+          seatHeadcount,
+          context: body.context,
+        })}\n\nReturn your answer as a single JSON object matching the schema.`;
+
         const tryGenerate = async (modelId: string) =>
           generateObject({
             model: gateway(modelId),
             schema: ResultSchema,
+            
             system: `${SOP_BACKLOG_SYSTEM_PROMPT}\n\nReturn a valid JSON object that matches the requested schema.`,
-            prompt: buildSopBacklogUserPrompt({
-              department: dept,
-              stage,
-              seatHeadcount,
-              context: body.context,
-            }),
+            prompt: userPrompt,
           });
 
         try {
           let object;
           try {
-            ({ object } = await tryGenerate("google/gemini-2.5-flash"));
+            ({ object } = await tryGenerate("google/gemini-2.5-pro"));
           } catch (primaryErr) {
             console.warn("[sop-backlog] primary model failed, retrying with gpt-5-mini", primaryErr);
             ({ object } = await tryGenerate("openai/gpt-5-mini"));
