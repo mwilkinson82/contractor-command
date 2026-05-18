@@ -127,13 +127,19 @@ function OwnerMode() {
     if (stage === "ready") setStage("idle");
     setSavedId(null);
   }
+  const newAreaRef = useRef<HTMLInputElement | null>(null);
   function addArea() {
     setAreas((prev) => [
-      ...prev,
       { name: "", ownerHoursPerWeek: 2, blastRadius: 3, setupEffort: 3, frequency: 3 },
+      ...prev,
     ]);
     if (stage === "ready") setStage("idle");
     setSavedId(null);
+    // focus the new (top) input on next paint
+    requestAnimationFrame(() => {
+      newAreaRef.current?.focus();
+      newAreaRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
   }
   function removeArea(idx: number) {
     setAreas((prev) => prev.filter((_, i) => i !== idx));
