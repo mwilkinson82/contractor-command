@@ -61,17 +61,17 @@ const GROUPS: Group[] = [
     ],
   },
   {
-    label: "Build",
-    items: [
-      { to: "/templates", label: "Templates", icon: FileText },
-      { to: "/field-tools", label: "Field", icon: Hammer },
-    ],
-  },
-  {
     label: "Command",
     items: [
       { to: "/tools", label: "Tools", icon: Wrench, match: "/tools" },
       { to: "/vault", label: "Vault", icon: Archive },
+    ],
+  },
+  {
+    label: "Build",
+    items: [
+      { to: "/templates", label: "Templates", icon: FileText },
+      { to: "/field-tools", label: "Field", icon: Hammer },
     ],
   },
   {
@@ -179,7 +179,7 @@ export function AppSidebar() {
         )}
         <button
           onClick={toggle}
-          className="mt-2 flex w-full items-center justify-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+          className={`mt-2 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground ${collapsed ? "justify-center" : "justify-start"}`}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {collapsed ? <PanelLeft className="h-3.5 w-3.5" /> : (
@@ -192,7 +192,7 @@ export function AppSidebar() {
         <button
           onClick={handleSignOut}
           title={collapsed ? "Sign out" : undefined}
-          className="mt-1 flex w-full items-center justify-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+          className={`mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground ${collapsed ? "justify-center" : "justify-start"}`}
         >
           <LogOut className="h-3.5 w-3.5" />
           {!collapsed && <span>Sign out</span>}
