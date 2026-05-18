@@ -161,15 +161,13 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
     window.location.href = href;
   }
 
-  function printIt() {
+  async function downloadPdf() {
     if (!doc) return;
-    const w = window.open("", "_blank", "width=900,height=1000");
-    if (!w) return;
-    w.document.write(renderSopAsPrintableHtml(doc));
-    w.document.close();
-    w.focus();
-    // give the new window a tick to paint before triggering print
-    setTimeout(() => w.print(), 250);
+    const { jsPDF } = await import("jspdf");
+    const pdf = new jsPDF({ unit: "pt", format: "letter" });
+    renderSopToPdf(pdf, doc);
+    const safe = doc.title.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || "sop";
+    pdf.save(`${safe}.pdf`);
   }
 
   return (
