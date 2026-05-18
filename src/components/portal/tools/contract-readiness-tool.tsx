@@ -3,7 +3,7 @@
 // a structured-output schema → finding card with vault + calls terminus.
 
 import { useMemo, useRef, useState } from "react";
-import { Play, RotateCcw, Save, Check, AlertTriangle, ShieldCheck, MessageSquare, FileText } from "lucide-react";
+import { Play, RotateCcw, Save, Check, AlertTriangle, ShieldCheck, MessageSquare, FileText, Upload, Loader2 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import {
   CONTRACT_SCAN_STEPS,
@@ -11,6 +11,7 @@ import {
   type ContractScanResult,
   type DimensionScore,
 } from "@/lib/tools/contract-readiness";
+import { extractTextFromFile } from "@/lib/tools/extract-text";
 import { ComputeTheater } from "@/components/portal/compute-theater";
 import { vault } from "@/lib/vault";
 import { supabase } from "@/integrations/supabase/client";
