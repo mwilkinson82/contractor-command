@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { vault, AOS_URL } from "@/lib/vault";
+import { vault } from "@/lib/vault";
 import { PacketCard } from "@/components/portal/packet-card";
-import { Check } from "lucide-react";
+import { Check, Save, MessageSquare } from "lucide-react";
 
 export const Route = createFileRoute("/tools/owner-dependency")({
   head: () => ({ meta: [{ title: "Owner Dependency Scorecard — ALP Contractor Circle" }] }),
@@ -56,7 +56,6 @@ function OwnerDependencyTool() {
         : "Bottlenecks are slowing the business but not breaking it. Cost is mostly speed and owner time.",
       missingSystem: `Install the first system around ${result.firstSystem.label}.`,
       recommendedAction: `Define the seat, the scorecard, and the weekly cadence for ${result.firstSystem.label}. Pull the owner out within 90 days.`,
-      relatedAos: "Accountability Chart + Process + Scorecard",
       bringOneIssuePrompt: `What would have to be true for ${result.firstSystem.label} to run without you next month?`,
       intensiveRecommended: result.highRisk,
       inputs: scores as unknown as Record<string, number>,
@@ -125,17 +124,30 @@ function OwnerDependencyTool() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 border-t border-cream/10 bg-ink/60 px-8 py-5">
-            <button onClick={save} className="inline-flex items-center gap-1.5 rounded-md bg-gold px-4 py-2 text-sm font-medium text-ink hover:opacity-90">
-              {savedId ? <><Check className="h-4 w-4" /> Saved</> : "Save Command Packet"}
+            <button
+              onClick={save}
+              disabled={!!savedId}
+              className="inline-flex items-center gap-1.5 rounded-md bg-gold px-4 py-2 text-sm font-medium text-ink hover:opacity-90 disabled:opacity-70"
+            >
+              {savedId ? <><Check className="h-4 w-4" /> Saved to vault</> : <><Save className="h-4 w-4" /> Save to vault</>}
             </button>
-            <a href={AOS_URL} target="_blank" rel="noreferrer" className="rounded-md border border-cream/15 px-3 py-2 text-sm text-cream hover:bg-cream/5">
-              Open AOS
-            </a>
+            <Link
+              to="/calls"
+              hash="submit-topic"
+              className="inline-flex items-center gap-1.5 rounded-md border border-cream/15 px-3 py-2 text-sm text-cream hover:bg-cream/5"
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              Bring to next call
+            </Link>
             {result.highRisk ? (
               <Link to="/work-with-marshall" className="ml-auto rounded-md border border-gold bg-gold/15 px-3 py-2 text-sm text-gold hover:bg-gold/25">
                 Consider the Intensive
               </Link>
-            ) : null}
+            ) : (
+              <span className="ml-auto font-mono text-[10px] uppercase tracking-[0.22em] text-cream/40">
+                Terminus · Vault / Calls
+              </span>
+            )}
           </div>
         </div>
         {savedId ? (

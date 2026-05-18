@@ -3,7 +3,7 @@
 // a structured-output schema → finding card with vault + calls terminus.
 
 import { useMemo, useRef, useState } from "react";
-import { Play, RotateCcw, Save, Check, AlertTriangle, ShieldCheck, MessageSquare, FileText } from "lucide-react";
+import { Play, RotateCcw, Save, Check, AlertTriangle, ShieldCheck, MessageSquare, FileText, Upload, Loader2 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import {
   CONTRACT_SCAN_STEPS,
@@ -11,6 +11,7 @@ import {
   type ContractScanResult,
   type DimensionScore,
 } from "@/lib/tools/contract-readiness";
+import { extractTextFromFile } from "@/lib/tools/extract-text";
 import { ComputeTheater } from "@/components/portal/compute-theater";
 import { vault } from "@/lib/vault";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,6 +33,32 @@ export function ContractReadinessTool({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
   const pendingResult = useRef<ContractScanResult | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadedName, setUploadedName] = useState<string | null>(null);
+
+  async function onFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = ""; // allow re-uploading the same file
+    if (!f) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const text = await extractTextFromFile(f);
+      if (!text.trim()) {
+        setError("Couldn't pull any text out of that file. Try a different export or paste the contract directly.");
+      } else {
+        setContractText(text);
+        setUploadedName(f.name);
+        if (stage === "ready" || stage === "error") setStage("idle");
+        setSavedId(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to read file.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   const ticker = useMemo(() => buildScanTicker(contractText.length), [contractText.length]);
 
@@ -158,9 +185,41 @@ export function ContractReadinessTool({ onClose }: { onClose: () => void }) {
         <section className="rounded-2xl border border-border bg-card p-5 lg:sticky lg:top-6">
           <p className="label-mono">Inputs</p>
 
+          {/* Upload */}
+          <div className="mt-4 rounded-md border border-dashed border-border bg-background/40 p-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
+              onChange={onFileChosen}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-[12px] font-medium text-foreground hover:bg-muted disabled:opacity-60"
+            >
+              {uploading ? (
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Reading file…</>
+              ) : (
+                <><Upload className="h-3.5 w-3.5" /> Upload contract (PDF or text)</>
+              )}
+            </button>
+            {uploadedName && !uploading ? (
+              <p className="mt-2 font-mono text-[10px] text-muted-foreground">
+                Loaded: <span className="text-foreground">{uploadedName}</span> · you can edit below.
+              </p>
+            ) : (
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                PDF, .txt, or .md. Stays in your browser — only the extracted text is sent.
+              </p>
+            )}
+          </div>
+
           <label className="mt-4 block">
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-              Contract text (paste)
+              Contract text (paste or edit)
             </span>
             <textarea
               value={contractText}

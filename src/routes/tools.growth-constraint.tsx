@@ -60,7 +60,7 @@ function GrowthConstraintTool() {
       financialConsequence: `Revenue gap ${fmtMoney(result.revenueGap)} · Gross profit attached ${fmtMoney(result.grossProfitAttachedToGap)}`,
       missingSystem: result.missingSystem,
       recommendedAction: result.recommendedAction,
-      relatedAos: result.relatedAos,
+      
       bringOneIssuePrompt: result.bringOneIssuePrompt,
       intensiveRecommended: result.intensiveRecommended,
       inputs: inputs as unknown as Record<string, number>,
@@ -134,35 +134,44 @@ function GrowthConstraintTool() {
         </section>
 
         {/* Compute / Result pane */}
-        <section className="relative overflow-hidden rounded-2xl bg-ink text-cream shadow-[var(--shadow-focus)]">
-          {/* Compute stream */}
-          <div className="border-b border-cream/10 px-6 py-5">
-            <div className="flex items-center justify-between">
-              <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-cream/55">
-                <span className={`mr-2 inline-block h-1.5 w-1.5 rounded-full align-middle ${stage === "running" ? "bg-signal animate-signal-pulse" : "bg-cream/30"}`} />
-                {stage === "running" ? "Computing constraint map" : stage === "ready" ? "Run complete" : "Idle"}
-              </p>
-              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-cream/35">GCM/v1</p>
-            </div>
-            <div className="mt-4 min-h-[140px]">
-              {stage === "idle" ? (
-                <p className="text-[12px] font-mono text-cream/45">
-                  ▸ Awaiting inputs. Press <span className="text-cream">Run map</span> to compute the binding constraint.
+        <section className="relative overflow-hidden rounded-2xl bg-ink text-cream shadow-[var(--shadow-focus)] lg:sticky lg:top-6 lg:self-start">
+          {/* Status strip — compact when ready, full theater while running/idle */}
+          {stage !== "ready" && (
+            <div className="border-b border-cream/10 px-6 py-5">
+              <div className="flex items-center justify-between">
+                <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-cream/55">
+                  <span className={`mr-2 inline-block h-1.5 w-1.5 rounded-full align-middle ${stage === "running" ? "bg-signal animate-signal-pulse" : "bg-cream/30"}`} />
+                  {stage === "running" ? "Computing constraint map" : "Idle"}
                 </p>
-              ) : (
-                <ComputeStream
-                  key={stage === "running" ? Date.now() : "ready"}
-                  steps={steps}
-                  running={stage === "running"}
-                  onDone={() => setStage("ready")}
-                />
-              )}
+                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-cream/35">GCM/v1</p>
+              </div>
+              <div className="mt-4 min-h-[140px]">
+                {stage === "idle" ? (
+                  <p className="text-[12px] font-mono text-cream/45">
+                    ▸ Awaiting inputs. Press <span className="text-cream">Run map</span> to compute the binding constraint.
+                  </p>
+                ) : (
+                  <ComputeStream
+                    key={Date.now()}
+                    steps={steps}
+                    running={stage === "running"}
+                    onDone={() => setStage("ready")}
+                  />
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Packet — only after ready */}
           {stage === "ready" && (
             <>
+              <div className="flex items-center justify-between border-b border-cream/10 px-6 py-3">
+                <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-cream/55">
+                  <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full align-middle bg-signal-success" />
+                  Run complete
+                </p>
+                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-cream/35">GCM/v1</p>
+              </div>
               <div className="px-6 py-6">
                 <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-cream/55 reveal-up">The constraint</p>
                 <h3 className="mt-3 font-display text-2xl leading-snug text-cream reveal-up sm:text-3xl" style={{ animationDelay: "80ms" }}>
@@ -192,7 +201,6 @@ function GrowthConstraintTool() {
               <div className="grid gap-3 border-t border-cream/10 bg-ink-panel/60 px-6 py-5 sm:grid-cols-2">
                 <PacketRow label="Missing system" value={result.missingSystem} />
                 <PacketRow label="Recommended action" value={result.recommendedAction} />
-                <PacketRow label="Related AOS area" value={result.relatedAos} />
                 <PacketRow label="Bring one issue" value={result.bringOneIssuePrompt} />
               </div>
 
