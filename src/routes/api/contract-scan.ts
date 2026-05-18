@@ -142,6 +142,24 @@ function clamp(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n));
 }
 
+function extractJson(text: string): unknown {
+  if (!text) return null;
+  let t = text.trim();
+  // Strip code fences if present
+  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) t = fence[1].trim();
+  // Find first { and last } to tolerate leading/trailing prose
+  const start = t.indexOf("{");
+  const end = t.lastIndexOf("}");
+  if (start === -1 || end === -1 || end < start) return null;
+  const slice = t.slice(start, end + 1);
+  try {
+    return JSON.parse(slice);
+  } catch {
+    return null;
+  }
+}
+
 type Dim = z.infer<typeof ScanSchema>["dimensions"][number];
 function ensureDimensions(dims: Dim[]): Dim[] {
   const order: Dim["dimension"][] = ["cash", "schedule", "scope", "margin"];
