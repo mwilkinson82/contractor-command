@@ -136,8 +136,7 @@ export const setUserComped = createServerFn({ method: "POST" })
     await assertAdmin(context.userId);
 
     if (data.subscriptionId) {
-      const update: Record<string, unknown> = { is_comped: data.isComped };
-      // When marking comped, also force status active so they have access.
+      const update: { is_comped: boolean; status?: string } = { is_comped: data.isComped };
       if (data.isComped) update.status = "active";
       const { error } = await supabaseAdmin
         .from("subscriptions")
