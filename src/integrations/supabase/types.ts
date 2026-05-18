@@ -118,6 +118,66 @@ export type Database = {
         }
         Relationships: []
       }
+      call_topics: {
+        Row: {
+          already_tried: string | null
+          created_at: string
+          decision_avoided: string | null
+          financial_consequence: string | null
+          id: string
+          kind: string
+          needs_pressure: string | null
+          notified_user_at: string | null
+          selected_at: string | null
+          selected_for_session_date: string | null
+          status: string
+          title: string
+          updated_at: string
+          user_email: string
+          user_id: string
+          user_name: string | null
+          win_looks_like: string | null
+        }
+        Insert: {
+          already_tried?: string | null
+          created_at?: string
+          decision_avoided?: string | null
+          financial_consequence?: string | null
+          id?: string
+          kind: string
+          needs_pressure?: string | null
+          notified_user_at?: string | null
+          selected_at?: string | null
+          selected_for_session_date?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          user_email: string
+          user_id: string
+          user_name?: string | null
+          win_looks_like?: string | null
+        }
+        Update: {
+          already_tried?: string | null
+          created_at?: string
+          decision_avoided?: string | null
+          financial_consequence?: string | null
+          id?: string
+          kind?: string
+          needs_pressure?: string | null
+          notified_user_at?: string | null
+          selected_at?: string | null
+          selected_for_session_date?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          user_email?: string
+          user_id?: string
+          user_name?: string | null
+          win_looks_like?: string | null
+        }
+        Relationships: []
+      }
       companies: {
         Row: {
           address: string | null
