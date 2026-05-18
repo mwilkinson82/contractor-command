@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { vault } from "@/lib/vault";
 import { PacketCard } from "@/components/portal/packet-card";
-import { Check, Save, MessageSquare } from "lucide-react";
+import { ArrowLeft, Check, Save, MessageSquare } from "lucide-react";
 
 export const Route = createFileRoute("/tools/owner-dependency")({
   head: () => ({ meta: [{ title: "Owner Dependency Scorecard — ALP Contractor Circle" }] }),
@@ -66,7 +66,13 @@ function OwnerDependencyTool() {
   return (
     <div className="grid gap-10 lg:grid-cols-12">
       <section className="lg:col-span-6">
-        <p className="label-mono">Twelve areas</p>
+        <Link
+          to="/tools"
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-[11px] text-foreground/70 hover:bg-muted"
+        >
+          <ArrowLeft className="h-3 w-3" /> All tools
+        </Link>
+        <p className="label-mono mt-3">Twelve areas</p>
         <h2 className="mt-2 font-display text-3xl">Owner Dependency Scorecard</h2>
         <p className="mt-3 text-sm text-muted-foreground">
           For each area, rate how much the business still depends on the owner.

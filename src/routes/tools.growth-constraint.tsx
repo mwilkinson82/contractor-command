@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { calcGcm, DEFAULT_GCM, type GcmInputs } from "@/lib/growth-constraint";
 import { vault } from "@/lib/vault";
 import { ComputeStream, type ComputeStep } from "@/components/portal/compute-stream";
-import { Check, Play, RotateCcw, Printer, Save } from "lucide-react";
+import { ArrowLeft, Check, Play, RotateCcw, Printer, Save } from "lucide-react";
 
 export const Route = createFileRoute("/tools/growth-constraint")({
   head: () => ({
@@ -73,7 +73,13 @@ function GrowthConstraintTool() {
       {/* Tool header */}
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border/70 pb-5">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+          <Link
+            to="/tools"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-[11px] text-foreground/70 hover:bg-muted"
+          >
+            <ArrowLeft className="h-3 w-3" /> All tools
+          </Link>
+          <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
             Command tool · 01
           </p>
           <h1 className="mt-2 font-display text-2xl tracking-tight sm:text-3xl">Growth Constraint Map</h1>

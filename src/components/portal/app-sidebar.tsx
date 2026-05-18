@@ -70,7 +70,7 @@ const GROUPS: Group[] = [
   {
     label: "Command",
     items: [
-      { to: "/tools/growth-constraint", label: "Tools", icon: Wrench, match: "/tools" },
+      { to: "/tools", label: "Tools", icon: Wrench, match: "/tools" },
       { to: "/vault", label: "Vault", icon: Archive },
     ],
   },

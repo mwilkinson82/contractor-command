@@ -310,14 +310,16 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
                           value={s.action}
                           onChange={(e) => updateStep(i, { action: e.target.value })}
                           placeholder="Imperative action — e.g. Open the Pre-Con folder in SharePoint…"
-                          className="w-full rounded-sm bg-transparent px-1 text-[13.5px] font-medium text-foreground outline-none focus:bg-background/80"
+                          style={{ fontFamily: "var(--font-sans)" }}
+                          className="w-full rounded-sm bg-transparent px-1 text-[14px] font-medium text-foreground outline-none focus:bg-background/80"
                         />
                         <textarea
                           value={s.detail ?? ""}
                           onChange={(e) => updateStep(i, { detail: e.target.value })}
                           placeholder="Optional — examples, thresholds, edge cases"
                           rows={2}
-                          className="w-full resize-y rounded-sm bg-transparent px-1 text-[12.5px] leading-snug text-foreground/80 outline-none focus:bg-background/80"
+                          style={{ fontFamily: "var(--font-sans)" }}
+                          className="w-full resize-y rounded-sm bg-transparent px-1 text-[13px] leading-snug text-foreground/80 outline-none focus:bg-background/80"
                         />
                       </div>
                       <button
@@ -497,8 +499,8 @@ function TextLine({
       type="text"
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      style={serif ? { fontFamily: "var(--font-serif)" } : undefined}
-      className={`mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-foreground/40 ${className ?? ""}`}
+      style={{ fontFamily: serif ? "var(--font-serif)" : "var(--font-sans)" }}
+      className={`mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-[14px] text-foreground outline-none focus:border-foreground/40 ${className ?? ""}`}
     />
   );
 }
@@ -521,7 +523,8 @@ function Block({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={rows}
-        className="mt-1 w-full resize-y rounded-md border border-border bg-background p-2.5 text-[13px] leading-relaxed text-foreground outline-none focus:border-foreground/40"
+        style={{ fontFamily: "var(--font-sans)" }}
+        className="mt-1 w-full resize-y rounded-md border border-border bg-background p-2.5 text-[14px] leading-relaxed text-foreground outline-none focus:border-foreground/40"
       />
     </div>
   );
@@ -563,7 +566,8 @@ function List({
               value={it}
               onChange={(e) => onChange(i, e.target.value)}
               placeholder={placeholder}
-              className="flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-[13px] text-foreground outline-none focus:border-foreground/40"
+              style={{ fontFamily: "var(--font-sans)" }}
+              className="flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-[14px] text-foreground outline-none focus:border-foreground/40"
             />
             <button
               type="button"
@@ -627,7 +631,7 @@ function renderSopAsText(d: SopDocument): string {
 function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
-  const margin = 54; // 0.75in
+  const margin = 64; // ~0.9in for breathing room
   const contentW = pageW - margin * 2;
   let y = margin;
 
@@ -640,14 +644,22 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
 
   const writeWrapped = (
     text: string,
-    opts: { size: number; style?: "normal" | "bold"; color?: [number, number, number]; lineGap?: number; indent?: number },
+    opts: {
+      size: number;
+      family?: "times" | "helvetica";
+      style?: "normal" | "bold" | "italic";
+      color?: [number, number, number];
+      lineGap?: number;
+      indent?: number;
+      lineHeight?: number;
+    },
   ) => {
-    pdf.setFont("times", opts.style ?? "normal");
+    pdf.setFont(opts.family ?? "times", opts.style ?? "normal");
     pdf.setFontSize(opts.size);
-    pdf.setTextColor(...(opts.color ?? [26, 26, 26]));
+    pdf.setTextColor(...(opts.color ?? [30, 30, 30]));
     const indent = opts.indent ?? 0;
     const lines = pdf.splitTextToSize(text, contentW - indent) as string[];
-    const lineH = opts.size * 1.25;
+    const lineH = opts.size * (opts.lineHeight ?? 1.35);
     for (const line of lines) {
       ensure(lineH);
       pdf.text(line, margin + indent, y);
@@ -657,64 +669,85 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
   };
 
   const h2 = (label: string) => {
-    y += 10;
-    ensure(28);
+    y += 16;
+    ensure(30);
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(9);
-    pdf.setTextColor(85, 85, 85);
-    pdf.text(label.toUpperCase(), margin, y, { charSpace: 1.5 });
-    y += 6;
-    pdf.setDrawColor(204, 204, 204);
+    pdf.setFontSize(8.5);
+    pdf.setTextColor(110, 110, 110);
+    pdf.text(label.toUpperCase(), margin, y, { charSpace: 1.6 });
+    y += 7;
+    pdf.setDrawColor(220, 217, 210);
     pdf.line(margin, y, margin + contentW, y);
-    y += 10;
+    y += 14;
   };
 
-  // Title
-  writeWrapped(d.title, { size: 22, style: "bold", lineGap: 4 });
+  // Eyebrow
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(8);
+  pdf.setTextColor(140, 140, 140);
+  pdf.text("STANDARD OPERATING PROCEDURE", margin, y, { charSpace: 1.8 });
+  y += 18;
+
+  // Title — Instrument Serif feel via Times
+  writeWrapped(d.title, { size: 26, family: "times", style: "normal", lineGap: 8, lineHeight: 1.2, color: [20, 20, 20] });
+
+  // Meta line (Helvetica)
   writeWrapped(`${d.department}  ·  Owner: ${d.owner}`, {
-    size: 9,
+    size: 9.5,
+    family: "helvetica",
     color: [110, 110, 110],
-    lineGap: 6,
+    lineGap: 4,
+    lineHeight: 1.4,
   });
 
   h2("Purpose");
-  writeWrapped(d.purpose, { size: 11 });
+  writeWrapped(d.purpose, { size: 11, family: "helvetica", lineHeight: 1.5 });
 
   h2("Scope");
-  writeWrapped(d.scope, { size: 11 });
+  writeWrapped(d.scope, { size: 11, family: "helvetica", lineHeight: 1.5 });
 
   h2("Trigger");
-  writeWrapped(d.trigger, { size: 11 });
+  writeWrapped(d.trigger, { size: 11, family: "helvetica", lineHeight: 1.5 });
 
   h2("Inputs");
-  for (const it of d.inputs) writeWrapped(`•  ${it}`, { size: 11, indent: 12 });
+  for (const it of d.inputs) {
+    writeWrapped(`•   ${it}`, { size: 11, family: "helvetica", indent: 10, lineGap: 3, lineHeight: 1.45 });
+  }
 
   h2("Procedure");
   for (const s of d.steps) {
-    writeWrapped(`${s.number}.  ${s.action}`, { size: 11, style: "bold" });
+    writeWrapped(`${s.number}.  ${s.action}`, { size: 12, family: "times", style: "bold", lineGap: 2, lineHeight: 1.35, color: [20, 20, 20] });
     if (s.detail?.trim()) {
-      writeWrapped(s.detail.trim(), { size: 10.5, color: [68, 68, 68], indent: 18, lineGap: 2 });
+      writeWrapped(s.detail.trim(), { size: 10.5, family: "helvetica", color: [85, 85, 85], indent: 18, lineGap: 8, lineHeight: 1.5 });
     } else {
-      y += 2;
+      y += 6;
     }
   }
 
   h2("Outputs");
-  for (const it of d.outputs) writeWrapped(`•  ${it}`, { size: 11, indent: 12 });
+  for (const it of d.outputs) {
+    writeWrapped(`•   ${it}`, { size: 11, family: "helvetica", indent: 10, lineGap: 3, lineHeight: 1.45 });
+  }
 
   h2("Definition of done");
-  writeWrapped(d.definitionOfDone, { size: 11 });
+  writeWrapped(d.definitionOfDone, { size: 11, family: "helvetica", lineHeight: 1.5 });
 
   h2("KPIs");
-  for (const it of d.kpis) writeWrapped(`•  ${it}`, { size: 11, indent: 12 });
+  for (const it of d.kpis) {
+    writeWrapped(`•   ${it}`, { size: 11, family: "helvetica", indent: 10, lineGap: 3, lineHeight: 1.45 });
+  }
 
   h2("Exceptions / escalation");
-  for (const it of d.exceptions) writeWrapped(`•  ${it}`, { size: 11, indent: 12 });
+  for (const it of d.exceptions) {
+    writeWrapped(`•   ${it}`, { size: 11, family: "helvetica", indent: 10, lineGap: 3, lineHeight: 1.45 });
+  }
 
-  y += 16;
-  ensure(14);
-  pdf.setDrawColor(204, 204, 204);
+  y += 22;
+  ensure(20);
+  pdf.setDrawColor(220, 217, 210);
   pdf.line(margin, y, margin + contentW, y);
-  y += 12;
-  writeWrapped(`Revision cadence: ${d.revisionCadence}`, { size: 9, color: [110, 110, 110] });
+  y += 14;
+  writeWrapped(`Revision cadence: ${d.revisionCadence}`, { size: 9, family: "helvetica", color: [130, 130, 130], lineHeight: 1.4 });
+  y += 4;
+  writeWrapped(`Generated by AOS — the Augmented Operating System.`, { size: 8.5, family: "helvetica", style: "italic", color: [150, 150, 150], lineHeight: 1.4 });
 }
