@@ -101,6 +101,21 @@ export function AppSidebar() {
   const { company, logoUrl } = useCompany();
   const brandName = company?.name?.trim() || "Contractor Circle";
   const brandInitial = brandName.charAt(0).toUpperCase();
+  const isAdmin = useIsAdmin();
+
+  const groups: Group[] = isAdmin
+    ? [
+        ...GROUPS,
+        {
+          label: "Admin",
+          items: [
+            { to: "/admin/topics", label: "Topics", icon: Inbox, match: "/admin/topics" },
+            { to: "/admin/library", label: "Library", icon: Library, match: "/admin/library" },
+          ],
+        },
+      ]
+    : GROUPS;
+
 
   // Auto-collapse when entering Ask Marshall; only once per entry so the user
   // can still re-expand manually while on the page.
