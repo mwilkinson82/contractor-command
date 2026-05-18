@@ -143,7 +143,7 @@ export function AppSidebar() {
         <Link to="/" className="flex items-center gap-2 overflow-hidden">
           <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-md bg-ink text-cream font-display text-[13px]">
             {logoUrl ? (
-              <img src={logoUrl} alt={brandName} className="h-full w-full object-contain" />
+              <img src={logoUrl} alt={brandName} className="h-full w-full object-cover object-center" />
             ) : (
               brandInitial
             )}
