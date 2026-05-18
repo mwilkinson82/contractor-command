@@ -279,7 +279,7 @@ export function ContractReadinessTool({ onClose }: { onClose: () => void }) {
             </button>
           </div>
 
-          <p className="mt-4 text-[11px] leading-relaxed text-muted-foreground">
+          <p className="mt-4 text-[12.5px] leading-relaxed text-muted-foreground">
             Nothing's stored on the server — the contract text leaves only to score, not to keep.
           </p>
         </section>
@@ -293,7 +293,7 @@ export function ContractReadinessTool({ onClose }: { onClose: () => void }) {
                 Awaiting contract
               </p>
               <p
-                className="mt-2 text-[13px] text-muted-foreground"
+                className="mt-2 text-[14px] text-muted-foreground"
                 style={{ fontFamily: "var(--font-serif)" }}
               >
                 Paste the contract on the left, then run the scan to see where you're exposed.
