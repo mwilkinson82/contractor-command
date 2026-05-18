@@ -13,12 +13,15 @@ import { EstimateThroughputTool } from "@/components/portal/tools/estimate-throu
 import { ContractReadinessTool } from "@/components/portal/tools/contract-readiness-tool";
 import { MarginLeakTool } from "@/components/portal/tools/margin-leak-tool";
 import { SopPriorityTool } from "@/components/portal/tools/sop-priority-tool";
+import { GrowthConstraintTool } from "@/routes/tools.growth-constraint";
+import { OwnerDependencyTool } from "@/routes/tools.owner-dependency";
 import {
   Dialog,
   DialogContent,
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { ChevronUp, ChevronDown } from "lucide-react";
 
 export const Route = createFileRoute("/tools")({
   component: ToolsLayout,
@@ -32,7 +35,10 @@ const STAGE_TOOLS: Record<string, () => ReactElement> = {
   "contract-readiness": () => <ContractReadinessTool />,
   "estimate-throughput": () => <EstimateThroughputTool />,
   "margin-leak": () => <MarginLeakTool />,
+  "growth-constraint": () => <GrowthConstraintTool embedded />,
+  "owner-dependency": () => <OwnerDependencyTool embedded />,
 };
+
 
 const DEFAULT_TOOL = "sop-priority";
 const STORAGE_KEY = "alp.cc.workbench.last";
