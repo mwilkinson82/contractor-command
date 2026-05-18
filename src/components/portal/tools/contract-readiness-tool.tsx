@@ -533,7 +533,7 @@ function MissingClauseCard({ clause }: { clause: MissingClause }) {
               {copied === "talk" ? "Copied" : "Copy"}
             </button>
           </div>
-          <ul className="mt-1.5 list-disc space-y-1 pl-5 text-[12.5px] leading-relaxed text-foreground/90">
+          <ul className="mt-1.5 list-disc space-y-1.5 pl-5 text-[13.5px] leading-relaxed text-foreground/90">
             {clause.talkingPoints.map((t, i) => (
               <li key={i}>{t}</li>
             ))}
