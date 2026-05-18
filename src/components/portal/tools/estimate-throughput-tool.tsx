@@ -184,6 +184,7 @@ export function EstimateThroughputTool({ onClose }: { onClose: () => void }) {
               running={stage === "running"}
               onDone={() => setStage("ready")}
               subtitle="Estimate Throughput Tracker"
+              fileLabel="tools/estimate-throughput.calc"
             />
           )}
 
@@ -243,6 +244,17 @@ export function EstimateThroughputTool({ onClose }: { onClose: () => void }) {
                   {savedId ? <Check className="h-3.5 w-3.5 text-signal-success" /> : <Save className="h-3.5 w-3.5" />}
                   {savedId ? "Saved to vault" : "Save to vault"}
                 </button>
+                <Link
+                  to="/calls"
+                  hash="submit-topic"
+                  className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-[13px] font-medium text-foreground hover:bg-muted"
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  Bring to next call
+                </Link>
+                <span className="ml-auto font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+                  Terminus · Vault / Calls
+                </span>
               </div>
             </section>
           )}
