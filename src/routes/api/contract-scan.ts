@@ -27,6 +27,12 @@ async function getUserId(request: Request): Promise<string | null> {
 // Loose schema — Gemini structured output rejects min/max/length constraints
 // silently and returns "response did not match schema". Validate softly after.
 const DimensionEnum = z.enum(["cash", "schedule", "scope", "margin"]);
+const MissingClauseSchema = z.object({
+  name: z.string(),
+  whyItMatters: z.string(),
+  sampleLanguage: z.string(),
+  talkingPoints: z.array(z.string()),
+});
 const ScanSchema = z.object({
   overallScore: z.number(),
   status: z.enum(["ready", "tighten", "do-not-sign"]),
@@ -43,7 +49,8 @@ const ScanSchema = z.object({
       clauseToAddOrFix: z.string(),
     }),
   ),
-  missingClauses: z.array(z.string()),
+  // Tolerate older shape (string[]) — normalize below.
+  missingClauses: z.array(z.union([MissingClauseSchema, z.string()])),
 });
 
 export const Route = createFileRoute("/api/contract-scan")({
@@ -91,7 +98,12 @@ export const Route = createFileRoute("/api/contract-scan")({
     finding: string,
     clauseToAddOrFix: string
   }>,                            // include all four dimensions
-  missingClauses: string[]      // up to 8
+  missingClauses: Array<{       // up to 6
+    name: string,               // short clause name
+    whyItMatters: string,       // 1-2 sentences in plain language
+    sampleLanguage: string,     // contractor-protective starter language, 2-5 sentences, plain contract voice
+    talkingPoints: string[]     // 2-3 bullets framing the ask as mutual risk allocation with dollar logic
+  }>
 }`,
             prompt: buildContractScanUserPrompt({
               contractText: safeContract,
@@ -113,7 +125,7 @@ export const Route = createFileRoute("/api/contract-scan")({
             ...object,
             overallScore: clamp(Math.round(object.overallScore), 0, 100),
             dimensions: ensureDimensions(object.dimensions),
-            missingClauses: (object.missingClauses ?? []).slice(0, 8),
+            missingClauses: normalizeMissingClauses(object.missingClauses).slice(0, 6),
           };
           return Response.json(normalized);
         } catch (err) {
@@ -174,6 +186,26 @@ function ensureDimensions(dims: Dim[]): Dim[] {
       status: "missing" as const,
       finding: "Model did not return a finding for this dimension.",
       clauseToAddOrFix: "Re-run the scan or paste the relevant section.",
+    };
+  });
+}
+
+type RawMissing = z.infer<typeof ScanSchema>["missingClauses"][number];
+function normalizeMissingClauses(items: RawMissing[]) {
+  return (items ?? []).map((c) => {
+    if (typeof c === "string") {
+      return {
+        name: c,
+        whyItMatters: "",
+        sampleLanguage: "",
+        talkingPoints: [] as string[],
+      };
+    }
+    return {
+      name: c.name,
+      whyItMatters: c.whyItMatters,
+      sampleLanguage: c.sampleLanguage,
+      talkingPoints: (c.talkingPoints ?? []).slice(0, 4),
     };
   });
 }

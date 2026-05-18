@@ -27,6 +27,7 @@ import { Route as ToolsOwnerDependencyRouteImport } from './routes/tools.owner-d
 import { Route as ToolsGrowthConstraintRouteImport } from './routes/tools.growth-constraint'
 import { Route as AskNewRouteImport } from './routes/ask.new'
 import { Route as AskThreadIdRouteImport } from './routes/ask.$threadId'
+import { Route as ApiSopBacklogRouteImport } from './routes/api/sop-backlog'
 import { Route as ApiContractScanRouteImport } from './routes/api/contract-scan'
 import { Route as ApiAskRouteImport } from './routes/api/ask'
 
@@ -120,6 +121,11 @@ const AskThreadIdRoute = AskThreadIdRouteImport.update({
   path: '/ask/$threadId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSopBacklogRoute = ApiSopBacklogRouteImport.update({
+  id: '/api/sop-backlog',
+  path: '/api/sop-backlog',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiContractScanRoute = ApiContractScanRouteImport.update({
   id: '/api/contract-scan',
   path: '/api/contract-scan',
@@ -147,6 +153,7 @@ export interface FileRoutesByFullPath {
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
+  '/api/sop-backlog': typeof ApiSopBacklogRoute
   '/ask/$threadId': typeof AskThreadIdRoute
   '/ask/new': typeof AskNewRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
@@ -169,6 +176,7 @@ export interface FileRoutesByTo {
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
+  '/api/sop-backlog': typeof ApiSopBacklogRoute
   '/ask/$threadId': typeof AskThreadIdRoute
   '/ask/new': typeof AskNewRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
@@ -192,6 +200,7 @@ export interface FileRoutesById {
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
+  '/api/sop-backlog': typeof ApiSopBacklogRoute
   '/ask/$threadId': typeof AskThreadIdRoute
   '/ask/new': typeof AskNewRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
@@ -216,6 +225,7 @@ export interface FileRouteTypes {
     | '/work-with-marshall'
     | '/api/ask'
     | '/api/contract-scan'
+    | '/api/sop-backlog'
     | '/ask/$threadId'
     | '/ask/new'
     | '/tools/growth-constraint'
@@ -238,6 +248,7 @@ export interface FileRouteTypes {
     | '/work-with-marshall'
     | '/api/ask'
     | '/api/contract-scan'
+    | '/api/sop-backlog'
     | '/ask/$threadId'
     | '/ask/new'
     | '/tools/growth-constraint'
@@ -260,6 +271,7 @@ export interface FileRouteTypes {
     | '/work-with-marshall'
     | '/api/ask'
     | '/api/contract-scan'
+    | '/api/sop-backlog'
     | '/ask/$threadId'
     | '/ask/new'
     | '/tools/growth-constraint'
@@ -283,6 +295,7 @@ export interface RootRouteChildren {
   WorkWithMarshallRoute: typeof WorkWithMarshallRoute
   ApiAskRoute: typeof ApiAskRoute
   ApiContractScanRoute: typeof ApiContractScanRoute
+  ApiSopBacklogRoute: typeof ApiSopBacklogRoute
   AskThreadIdRoute: typeof AskThreadIdRoute
   AskNewRoute: typeof AskNewRoute
   AskIndexRoute: typeof AskIndexRoute
@@ -416,6 +429,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AskThreadIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/sop-backlog': {
+      id: '/api/sop-backlog'
+      path: '/api/sop-backlog'
+      fullPath: '/api/sop-backlog'
+      preLoaderRoute: typeof ApiSopBacklogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/contract-scan': {
       id: '/api/contract-scan'
       path: '/api/contract-scan'
@@ -461,6 +481,7 @@ const rootRouteChildren: RootRouteChildren = {
   WorkWithMarshallRoute: WorkWithMarshallRoute,
   ApiAskRoute: ApiAskRoute,
   ApiContractScanRoute: ApiContractScanRoute,
+  ApiSopBacklogRoute: ApiSopBacklogRoute,
   AskThreadIdRoute: AskThreadIdRoute,
   AskNewRoute: AskNewRoute,
   AskIndexRoute: AskIndexRoute,
@@ -468,13 +489,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
