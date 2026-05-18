@@ -64,7 +64,8 @@ export function ComputeTheater({
     let i = 0;
     const push = () => {
       if (i >= ticker.length) return;
-      setVisibleTicker((prev) => [...prev, ticker[i]]);
+      const next = ticker[i] ?? "";
+      setVisibleTicker((prev) => [...prev, next]);
       i += 1;
       const jitter = Math.random() * 80 - 40;
       tickerTimer.current = setTimeout(push, Math.max(40, perLine + jitter));
