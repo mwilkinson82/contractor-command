@@ -104,6 +104,8 @@ function normalizeResult(
   };
 }
 
+type NormalizedBacklog = ReturnType<typeof normalizeResult> & { topSop: SopBacklogItem };
+
 function extractJsonObject(raw: string) {
   const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/i, "").trim();
   const start = cleaned.indexOf("{");
@@ -122,7 +124,7 @@ async function generateWithTimeout<T>(task: (signal: AbortSignal) => Promise<T>,
   }
 }
 
-function fallbackResult(dept: SopDepartment, seatHeadcount: number, context?: string): ReturnType<typeof normalizeResult> {
+function fallbackResult(dept: SopDepartment, seatHeadcount: number, context?: string): NormalizedBacklog {
   const isPm = dept === "Project Management";
   const constraint = context?.trim()
     ? `The stated issue is not just workload: ${context.trim()} The operating constraint is that the ${dept} seat owns too wide a lane, so every job forces the same people to context-switch instead of executing a narrow phase standard.`
