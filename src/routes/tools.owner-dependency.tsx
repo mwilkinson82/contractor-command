@@ -28,7 +28,7 @@ type Scores = Record<(typeof AREAS)[number]["key"], number>;
 const DEFAULT: Scores = AREAS.reduce((acc, a) => ({ ...acc, [a.key]: 3 }), {} as Scores);
 
 // 0 = owner does it all, 5 = system runs without owner
-function OwnerDependencyTool() {
+export function OwnerDependencyTool({ embedded = false }: { embedded?: boolean } = {}) {
   const [scores, setScores] = useState<Scores>(DEFAULT);
   const [savedId, setSavedId] = useState<string | null>(null);
 
