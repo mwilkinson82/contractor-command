@@ -443,8 +443,8 @@ function DimensionCard({ d }: { d: DimensionScore }) {
         {d.score}
         <span className="text-[0.9rem] text-muted-foreground">/10</span>
       </p>
-      <p className="mt-2 text-[12px] leading-snug text-foreground/80">{d.finding}</p>
-      <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
+      <p className="mt-2 text-[13.5px] leading-relaxed text-foreground/85">{d.finding}</p>
+      <p className="mt-2 text-[12.5px] leading-relaxed text-muted-foreground">
         <span className="font-mono uppercase tracking-[0.18em]">Fix:</span> {d.clauseToAddOrFix}
       </p>
     </div>
@@ -487,12 +487,12 @@ function MissingClauseCard({ clause }: { clause: MissingClause }) {
   const hasLang = clause.sampleLanguage.trim().length > 0;
   const hasTalk = clause.talkingPoints.length > 0;
   return (
-    <div className="rounded-md border border-border bg-background/60 p-3">
-      <p className="text-[13px] font-medium text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
+    <div className="rounded-md border border-border bg-background/60 p-4">
+      <p className="text-[15px] font-medium leading-snug text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
         {clause.name}
       </p>
       {clause.whyItMatters && (
-        <p className="mt-1 text-[12px] leading-snug text-muted-foreground">
+        <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
           {clause.whyItMatters}
         </p>
       )}
@@ -512,7 +512,7 @@ function MissingClauseCard({ clause }: { clause: MissingClause }) {
               {copied === "lang" ? "Copied" : "Copy"}
             </button>
           </div>
-          <p className="mt-1.5 whitespace-pre-wrap text-[12.5px] leading-relaxed text-foreground/90">
+          <p className="mt-1.5 whitespace-pre-wrap text-[13.5px] leading-relaxed text-foreground/90">
             {clause.sampleLanguage}
           </p>
         </div>
@@ -533,7 +533,7 @@ function MissingClauseCard({ clause }: { clause: MissingClause }) {
               {copied === "talk" ? "Copied" : "Copy"}
             </button>
           </div>
-          <ul className="mt-1.5 list-disc space-y-1 pl-5 text-[12.5px] leading-relaxed text-foreground/90">
+          <ul className="mt-1.5 list-disc space-y-1.5 pl-5 text-[13.5px] leading-relaxed text-foreground/90">
             {clause.talkingPoints.map((t, i) => (
               <li key={i}>{t}</li>
             ))}
