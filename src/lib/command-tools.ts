@@ -92,7 +92,7 @@ export const COMMAND_TOOLS: CommandTool[] = [
   {
     id: "sop-priority",
     name: "SOP Priority Builder",
-    blurb: "Find which system to build first to remove owner drag.",
+    blurb: "Rank what to systemize first, or generate a department SOP backlog.",
     group: "Build the machine",
     status: "live",
     icon: ListChecks,
