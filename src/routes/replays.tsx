@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Search, Video } from "lucide-react";
+import { Search, Play, ExternalLink } from "lucide-react";
 import { PageHeader, Container } from "@/components/portal/page-header";
 import { supabase } from "@/integrations/supabase/client";
 import type { ReplayRow } from "@/lib/library";
