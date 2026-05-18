@@ -266,14 +266,14 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
                           value={s.action}
                           onChange={(e) => updateStep(i, { action: e.target.value })}
                           placeholder="Imperative action — e.g. Open the Pre-Con folder in SharePoint…"
-                          className="w-full rounded-sm bg-transparent text-[13.5px] font-medium text-foreground outline-none focus:bg-background/80"
+                          className="w-full rounded-sm bg-transparent px-1 text-[13.5px] font-medium text-foreground outline-none focus:bg-background/80"
                         />
                         <textarea
                           value={s.detail ?? ""}
                           onChange={(e) => updateStep(i, { detail: e.target.value })}
                           placeholder="Optional — examples, thresholds, edge cases"
                           rows={2}
-                          className="w-full resize-y rounded-sm bg-transparent text-[12.5px] leading-snug text-foreground/80 outline-none focus:bg-background/80"
+                          className="w-full resize-y rounded-sm bg-transparent px-1 text-[12.5px] leading-snug text-foreground/80 outline-none focus:bg-background/80"
                         />
                       </div>
                       <button
