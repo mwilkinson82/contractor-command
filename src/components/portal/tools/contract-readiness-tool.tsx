@@ -443,8 +443,8 @@ function DimensionCard({ d }: { d: DimensionScore }) {
         {d.score}
         <span className="text-[0.9rem] text-muted-foreground">/10</span>
       </p>
-      <p className="mt-2 text-[12px] leading-snug text-foreground/80">{d.finding}</p>
-      <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
+      <p className="mt-2 text-[13.5px] leading-relaxed text-foreground/85">{d.finding}</p>
+      <p className="mt-2 text-[12.5px] leading-relaxed text-muted-foreground">
         <span className="font-mono uppercase tracking-[0.18em]">Fix:</span> {d.clauseToAddOrFix}
       </p>
     </div>
