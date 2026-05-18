@@ -14,6 +14,7 @@ import { Route as VaultRouteImport } from './routes/vault'
 import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as ReplaysRouteImport } from './routes/replays'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as FieldToolsRouteImport } from './routes/field-tools'
@@ -33,6 +34,7 @@ import { Route as ApiSopBacklogRouteImport } from './routes/api/sop-backlog'
 import { Route as ApiOwnerPlaysRouteImport } from './routes/api/owner-plays'
 import { Route as ApiContractScanRouteImport } from './routes/api/contract-scan'
 import { Route as ApiAskRouteImport } from './routes/api/ask'
+import { Route as AdminLibraryRouteImport } from './routes/admin.library'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
@@ -62,6 +64,11 @@ const TemplatesRoute = TemplatesRouteImport.update({
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReplaysRoute = ReplaysRouteImport.update({
+  id: '/replays',
+  path: '/replays',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OnboardingRoute = OnboardingRouteImport.update({
@@ -159,6 +166,11 @@ const ApiAskRoute = ApiAskRouteImport.update({
   path: '/api/ask',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminLibraryRoute = AdminLibraryRouteImport.update({
+  id: '/admin/library',
+  path: '/admin/library',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   id: '/lovable/email/suppression',
   path: '/lovable/email/suppression',
@@ -197,11 +209,13 @@ export interface FileRoutesByFullPath {
   '/field-tools': typeof FieldToolsRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/replays': typeof ReplaysRoute
   '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
   '/vault': typeof VaultRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
+  '/admin/library': typeof AdminLibraryRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/owner-plays': typeof ApiOwnerPlaysRoute
@@ -228,11 +242,13 @@ export interface FileRoutesByTo {
   '/field-tools': typeof FieldToolsRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/replays': typeof ReplaysRoute
   '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
   '/vault': typeof VaultRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
+  '/admin/library': typeof AdminLibraryRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/owner-plays': typeof ApiOwnerPlaysRoute
@@ -260,11 +276,13 @@ export interface FileRoutesById {
   '/field-tools': typeof FieldToolsRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/replays': typeof ReplaysRoute
   '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
   '/vault': typeof VaultRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
+  '/admin/library': typeof AdminLibraryRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/owner-plays': typeof ApiOwnerPlaysRoute
@@ -293,11 +311,13 @@ export interface FileRouteTypes {
     | '/field-tools'
     | '/login'
     | '/onboarding'
+    | '/replays'
     | '/signup'
     | '/templates'
     | '/tools'
     | '/vault'
     | '/work-with-marshall'
+    | '/admin/library'
     | '/api/ask'
     | '/api/contract-scan'
     | '/api/owner-plays'
@@ -324,11 +344,13 @@ export interface FileRouteTypes {
     | '/field-tools'
     | '/login'
     | '/onboarding'
+    | '/replays'
     | '/signup'
     | '/templates'
     | '/tools'
     | '/vault'
     | '/work-with-marshall'
+    | '/admin/library'
     | '/api/ask'
     | '/api/contract-scan'
     | '/api/owner-plays'
@@ -355,11 +377,13 @@ export interface FileRouteTypes {
     | '/field-tools'
     | '/login'
     | '/onboarding'
+    | '/replays'
     | '/signup'
     | '/templates'
     | '/tools'
     | '/vault'
     | '/work-with-marshall'
+    | '/admin/library'
     | '/api/ask'
     | '/api/contract-scan'
     | '/api/owner-plays'
@@ -387,11 +411,13 @@ export interface RootRouteChildren {
   FieldToolsRoute: typeof FieldToolsRoute
   LoginRoute: typeof LoginRoute
   OnboardingRoute: typeof OnboardingRoute
+  ReplaysRoute: typeof ReplaysRoute
   SignupRoute: typeof SignupRoute
   TemplatesRoute: typeof TemplatesRoute
   ToolsRoute: typeof ToolsRouteWithChildren
   VaultRoute: typeof VaultRoute
   WorkWithMarshallRoute: typeof WorkWithMarshallRoute
+  AdminLibraryRoute: typeof AdminLibraryRoute
   ApiAskRoute: typeof ApiAskRoute
   ApiContractScanRoute: typeof ApiContractScanRoute
   ApiOwnerPlaysRoute: typeof ApiOwnerPlaysRoute
@@ -443,6 +469,13 @@ declare module '@tanstack/react-router' {
       path: '/signup'
       fullPath: '/signup'
       preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/replays': {
+      id: '/replays'
+      path: '/replays'
+      fullPath: '/replays'
+      preLoaderRoute: typeof ReplaysRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/onboarding': {
@@ -578,6 +611,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAskRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/library': {
+      id: '/admin/library'
+      path: '/admin/library'
+      fullPath: '/admin/library'
+      preLoaderRoute: typeof AdminLibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/lovable/email/suppression': {
       id: '/lovable/email/suppression'
       path: '/lovable/email/suppression'
@@ -637,11 +677,13 @@ const rootRouteChildren: RootRouteChildren = {
   FieldToolsRoute: FieldToolsRoute,
   LoginRoute: LoginRoute,
   OnboardingRoute: OnboardingRoute,
+  ReplaysRoute: ReplaysRoute,
   SignupRoute: SignupRoute,
   TemplatesRoute: TemplatesRoute,
   ToolsRoute: ToolsRouteWithChildren,
   VaultRoute: VaultRoute,
   WorkWithMarshallRoute: WorkWithMarshallRoute,
+  AdminLibraryRoute: AdminLibraryRoute,
   ApiAskRoute: ApiAskRoute,
   ApiContractScanRoute: ApiContractScanRoute,
   ApiOwnerPlaysRoute: ApiOwnerPlaysRoute,
@@ -660,13 +702,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

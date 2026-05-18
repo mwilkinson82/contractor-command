@@ -61,6 +61,13 @@ const GROUPS: Group[] = [
     ],
   },
   {
+    label: "Library",
+    items: [
+      { to: "/templates", label: "Templates", icon: FileText },
+      { to: "/replays", label: "Replays", icon: Video },
+    ],
+  },
+  {
     label: "Command",
     items: [
       { to: "/tools", label: "Tools", icon: Wrench, match: "/tools" },
@@ -70,7 +77,6 @@ const GROUPS: Group[] = [
   {
     label: "Build",
     items: [
-      { to: "/templates", label: "Templates", icon: FileText },
       { to: "/field-tools", label: "Field", icon: Hammer },
     ],
   },

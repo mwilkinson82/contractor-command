@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader, Container } from "@/components/portal/page-header";
 import {
-  REPLAYS,
   addToCalendarUrl,
   formatSessionDate,
   nextOfKind,
@@ -10,7 +9,7 @@ import {
   type Session,
 } from "@/lib/program";
 import { vault } from "@/lib/vault";
-import { ArrowUpRight, Calendar, Check, Search, Video } from "lucide-react";
+import { ArrowUpRight, Calendar, Check, Video } from "lucide-react";
 
 export const Route = createFileRoute("/calls")({
   head: () => ({
@@ -30,8 +29,8 @@ function CallsPage() {
     <Container>
       <PageHeader
         eyebrow="The room"
-        title={<>Calls, bootcamps,<br/>and the replay archive.</>}
-        lede="Next session up top. Submit the topic you want pressured. Every past session lives below, organized by what it's actually useful for."
+        title={<>Calls and bootcamps.</>}
+        lede="Next session up top. Submit the topic you want pressured before the room sees it. Past sessions live in the Replay library."
       />
 
       {/* Next sessions */}
@@ -45,9 +44,20 @@ function CallsPage() {
         <TopicSubmit defaultKind={biweekly?.kind ?? "Biweekly Call"} />
       </section>
 
-      {/* Replays */}
-      <section className="mt-20">
-        <ReplayLibrary />
+      {/* Replays moved to /replays */}
+      <section className="mt-16 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card/40 p-6">
+        <div>
+          <p className="label-mono">Replay archive</p>
+          <p className="mt-1 text-[13px] text-foreground/75">
+            Every past biweekly call and monthly bootcamp lives in the Library.
+          </p>
+        </div>
+        <Link
+          to="/replays"
+          className="inline-flex items-center gap-1.5 rounded-md bg-ink px-4 py-2 text-[13px] text-cream hover:opacity-90"
+        >
+          <Video className="h-3.5 w-3.5" /> Open replays
+        </Link>
       </section>
     </Container>
   );
@@ -234,100 +244,3 @@ function TopicSubmit({ defaultKind }: { defaultKind: Session["kind"] }) {
   );
 }
 
-function ReplayLibrary() {
-  const [q, setQ] = useState("");
-  const [filter, setFilter] = useState<"All" | "Biweekly Call" | "Monthly Bootcamp">("All");
-
-  const filtered = REPLAYS.filter((r) => {
-    if (filter !== "All" && r.kind !== filter) return false;
-    if (!q.trim()) return true;
-    const hay = [r.title, r.description, r.usefulFor, r.relatedAos, ...r.tags].join(" ").toLowerCase();
-    return hay.includes(q.toLowerCase());
-  });
-
-  return (
-    <div>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="label-mono">Replay library</p>
-          <h2 className="mt-2 font-display text-2xl">Archived judgment.</h2>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-lg border border-border bg-card p-1">
-            {(["All", "Biweekly Call", "Monthly Bootcamp"] as const).map((k) => (
-              <button
-                key={k}
-                onClick={() => setFilter(k)}
-                className={`rounded-md px-2.5 py-1 text-xs ${
-                  filter === k ? "bg-ink text-cream" : "text-foreground/70 hover:bg-muted"
-                }`}
-              >
-                {k}
-              </button>
-            ))}
-          </div>
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search replays"
-              className="w-56 rounded-lg border border-border bg-card py-1.5 pl-8 pr-3 text-sm focus:border-ink focus:outline-none"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-6 grid gap-3">
-        {filtered.map((r) => (
-          <article key={r.title} className="rounded-2xl border border-border bg-card p-6">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="max-w-2xl">
-                <p className="label-mono">{r.kind} · {new Date(r.date).toLocaleDateString()}</p>
-                <h3 className="mt-2 font-display text-xl leading-snug">{r.title}</h3>
-                <p className="mt-3 text-sm text-muted-foreground">{r.description}</p>
-              </div>
-              {r.zoomUrl ? (
-                <a
-                  href={r.zoomUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2 text-sm text-cream hover:opacity-90"
-                >
-                  <Video className="h-3.5 w-3.5" /> Watch replay
-                </a>
-              ) : (
-                <span className="inline-flex items-center gap-2 rounded-lg border border-border bg-muted px-4 py-2 text-sm text-muted-foreground">
-                  Replay pending
-                </span>
-              )}
-            </div>
-            <dl className="mt-5 grid gap-4 border-t border-border pt-5 sm:grid-cols-3">
-              <div>
-                <dt className="label-mono">Useful for</dt>
-                <dd className="mt-1 text-sm">{r.usefulFor}</dd>
-              </div>
-              <div>
-                <dt className="label-mono">Related AOS area</dt>
-                <dd className="mt-1 text-sm">{r.relatedAos}</dd>
-              </div>
-              <div>
-                <dt className="label-mono">Tags</dt>
-                <dd className="mt-1 flex flex-wrap gap-1.5">
-                  {r.tags.map((t) => (
-                    <span key={t} className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{t}</span>
-                  ))}
-                </dd>
-              </div>
-            </dl>
-          </article>
-        ))}
-        {filtered.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-            No replays match that search yet.
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-}

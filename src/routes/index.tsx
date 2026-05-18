@@ -4,13 +4,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   DISCORD_URL,
-  REPLAYS,
   addToCalendarUrl,
   formatSessionDate,
   greeting,
   nextAny,
   relativeDay,
 } from "@/lib/program";
+import { supabase } from "@/integrations/supabase/client";
 import { vault, type Packet } from "@/lib/vault";
 import { useCompany } from "@/hooks/use-company";
 import { useAuth } from "@/hooks/use-auth";
@@ -43,7 +43,7 @@ const COMPANY_KEY = "aos.company_id";
 
 function HomePage() {
   const session = nextAny();
-  const latestReplay = REPLAYS[0];
+  const [latestReplay, setLatestReplay] = useState<{ title: string; recorded_at: string } | null>(null);
   const { company } = useCompany();
   const { user } = useAuth();
 
@@ -99,12 +99,25 @@ function HomePage() {
       }),
     );
     setSessionWhen(formatSessionDate(session.date));
-    setReplayDate(new Date(latestReplay.date).toLocaleDateString());
+    if (latestReplay) setReplayDate(new Date(latestReplay.recorded_at).toLocaleDateString());
     const load = () => setPackets(vault.list());
     load();
     window.addEventListener("vault:changed", load);
     return () => window.removeEventListener("vault:changed", load);
-  }, [session.date, latestReplay.date]);
+  }, [session.date, latestReplay]);
+
+  // Load latest replay from DB
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("replays")
+        .select("title, recorded_at")
+        .order("recorded_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data) setLatestReplay(data);
+    })();
+  }, []);
 
   return (
     <div className="relative">
@@ -245,7 +258,7 @@ function HomePage() {
               to="/calls"
               icon={<Video className="h-3.5 w-3.5" />}
               title="Latest replay"
-              desc={`${latestReplay.title}${replayDate ? ` · ${replayDate}` : ""}`}
+              desc={`${latestReplay?.title ?? "No replays yet"}${replayDate ? ` · ${replayDate}` : ""}`}
             />
             <RailRow
               to="/templates"
