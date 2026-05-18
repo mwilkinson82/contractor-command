@@ -17,7 +17,10 @@ import {
   Circle,
   LogOut,
   Megaphone,
+  Inbox,
+  Library,
 } from "lucide-react";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 import { nextAny, relativeDay } from "@/lib/program";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/use-company";
@@ -98,6 +101,21 @@ export function AppSidebar() {
   const { company, logoUrl } = useCompany();
   const brandName = company?.name?.trim() || "Contractor Circle";
   const brandInitial = brandName.charAt(0).toUpperCase();
+  const isAdmin = useIsAdmin();
+
+  const groups: Group[] = isAdmin
+    ? [
+        ...GROUPS,
+        {
+          label: "Admin",
+          items: [
+            { to: "/admin/topics", label: "Topics", icon: Inbox, match: "/admin/topics" },
+            { to: "/admin/library", label: "Library", icon: Library, match: "/admin/library" },
+          ],
+        },
+      ]
+    : GROUPS;
+
 
   // Auto-collapse when entering Ask Marshall; only once per entry so the user
   // can still re-expand manually while on the page.
@@ -141,7 +159,7 @@ export function AppSidebar() {
 
       {/* Groups */}
       <nav className="flex-1 overflow-y-auto px-2 py-4">
-        {GROUPS.map((g) => (
+        {groups.map((g) => (
           <div key={g.label} className="mb-4">
             {!collapsed && (
               <p className="px-2 pb-1.5 text-[10px] uppercase tracking-[0.22em] font-semibold" style={{ color: "color-mix(in oklab, var(--signal) 75%, transparent)" }}>

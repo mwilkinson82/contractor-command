@@ -132,6 +132,7 @@ function SessionCard({ session, primary = false }: { session: Session; primary?:
       {session.zoomId ? (
         <p className={`mt-6 border-t pt-4 font-mono text-xs ${primary ? "border-cream/10 text-cream/50" : "border-border text-muted-foreground"}`}>
           Zoom ID · {session.zoomId}
+          {session.passcode ? <>  ·  Passcode · {session.passcode}</> : null}
         </p>
       ) : null}
     </article>

@@ -9,6 +9,7 @@ export type Session = {
   durationMin: number;
   zoomUrl: string;
   zoomId?: string;
+  passcode?: string;
   description: string;
   agenda?: string[];
 };
@@ -38,8 +39,9 @@ export const UPCOMING: Session[] = [
     title: "Bi-weekly working session",
     date: nextBiweeklyFromAnchor().date,
     durationMin: 90,
-    zoomUrl: "https://zoom.us/j/0000000000",
-    zoomId: "000 0000 0000",
+    zoomUrl: "https://us06web.zoom.us/j/83215167292?pwd=Mtt970HFCPStqSw62btyyta2Wxo0Pr.1",
+    zoomId: "832 1516 7292",
+    passcode: "321266",
     description:
       "Open-room session. Members bring one specific business issue. We work two or three of them live.",
     agenda: [
@@ -53,8 +55,9 @@ export const UPCOMING: Session[] = [
     title: "Owner dependency — installing the first system.",
     date: "2026-06-04T17:00:00.000Z", // Thu Jun 4, 10:00 AM PT
     durationMin: 120,
-    zoomUrl: "https://zoom.us/j/1111111111",
-    zoomId: "111 1111 1111",
+    zoomUrl: "https://us06web.zoom.us/j/83215167292?pwd=Mtt970HFCPStqSw62btyyta2Wxo0Pr.1",
+    zoomId: "832 1516 7292",
+    passcode: "321266",
     description:
       "Workshop format. We pick one owner bottleneck per member and write the first version of the system that pulls the owner out.",
   },
