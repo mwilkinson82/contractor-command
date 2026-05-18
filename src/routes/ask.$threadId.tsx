@@ -264,7 +264,7 @@ function ChatPane({
           <button
             type="submit"
             disabled={busy || !input.trim()}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ink text-cream transition-opacity disabled:opacity-40"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ink text-cream hover:opacity-90 disabled:cursor-not-allowed disabled:bg-ink disabled:text-cream/80"
             aria-label="Send"
           >
             <ArrowUp className="h-4 w-4" />
