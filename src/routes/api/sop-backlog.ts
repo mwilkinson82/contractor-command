@@ -114,7 +114,7 @@ function extractJsonObject(raw: string) {
   return JSON.parse(cleaned.slice(start, end + 1));
 }
 
-async function generateWithTimeout<T>(task: (signal: AbortSignal) => Promise<T>, ms = 22000) {
+async function generateWithTimeout<T>(task: (signal: AbortSignal) => Promise<T>, ms = 14000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort("SOP backlog generation timed out"), ms);
   try {
@@ -252,17 +252,12 @@ export const Route = createFileRoute("/api/sop-backlog")({
           try {
             object = await generateWithTimeout((signal) => tryGenerate("google/gemini-2.5-pro", signal));
           } catch (primaryErr) {
-            console.warn("[sop-backlog] primary model failed, retrying with gpt-5-mini", primaryErr);
-            try {
-              object = await generateWithTimeout((signal) => tryGenerate("openai/gpt-5-mini", signal));
-            } catch (fallbackErr) {
-              const msg = fallbackErr instanceof Error ? fallbackErr.message : "Failed.";
-              if (msg.includes("429")) return new Response("Rate limit. Try again in a moment.", { status: 429 });
-              if (msg.includes("402")) return new Response("AI credits exhausted. Add credits in Settings → Workspace → Usage.", { status: 402 });
-              console.warn("[sop-backlog] fallback model failed, using deterministic SOP stack", fallbackErr);
-              const fallback = fallbackResult(dept, seatHeadcount, body.context);
-              return Response.json({ department: dept, ...fallback, backlog: fallback.backlog.slice(0, 12) });
-            }
+            const msg = primaryErr instanceof Error ? primaryErr.message : "Failed.";
+            if (msg.includes("429")) return new Response("Rate limit. Try again in a moment.", { status: 429 });
+            if (msg.includes("402")) return new Response("AI credits exhausted. Add credits in Settings → Workspace → Usage.", { status: 402 });
+            console.warn("[sop-backlog] model failed, using deterministic SOP stack", primaryErr);
+            const fallback = fallbackResult(dept, seatHeadcount, body.context);
+            return Response.json({ department: dept, ...fallback, backlog: fallback.backlog.slice(0, 12) });
           }
 
           const normalized = normalizeResult(object, dept, seatHeadcount, body.context);
