@@ -271,6 +271,14 @@ function WorkbenchHeader({
           >
             <Archive className="h-3.5 w-3.5" /> Vault
           </Link>
+          <button
+            type="button"
+            onClick={onCollapse}
+            title="Collapse workbench header"
+            className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-2 text-[11.5px] text-foreground/60 hover:bg-muted hover:text-foreground"
+          >
+            <ChevronUp className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
     </div>
