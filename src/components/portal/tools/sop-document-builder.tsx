@@ -518,73 +518,99 @@ function renderSopAsText(d: SopDocument): string {
   return lines.join("\n");
 }
 
-function esc(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
+import type jsPDF from "jspdf";
 
-function renderSopAsPrintableHtml(d: SopDocument): string {
-  const li = (xs: string[]) => xs.map((x) => `<li>${esc(x)}</li>`).join("");
-  const steps = d.steps
-    .map(
-      (s) =>
-        `<li><div class="step-action">${esc(s.action)}</div>${
-          s.detail?.trim() ? `<div class="step-detail">${esc(s.detail)}</div>` : ""
-        }</li>`,
-    )
-    .join("");
-  return `<!doctype html>
-<html><head><meta charset="utf-8"/>
-<title>SOP — ${esc(d.title)}</title>
-<style>
-  @page { margin: 0.75in; }
-  * { box-sizing: border-box; }
-  body { font-family: Georgia, "Times New Roman", serif; color: #1a1a1a; max-width: 7.5in; margin: 0 auto; padding: 0.5in 0; line-height: 1.45; font-size: 11pt; }
-  h1 { font-size: 22pt; margin: 0 0 4pt; }
-  .meta { color: #555; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 18pt; }
-  h2 { font-size: 10pt; text-transform: uppercase; letter-spacing: 0.18em; color: #555; margin: 18pt 0 6pt; border-bottom: 1px solid #ccc; padding-bottom: 3pt; }
-  p { margin: 0 0 6pt; }
-  ul, ol { margin: 4pt 0 8pt 22pt; padding: 0; }
-  li { margin-bottom: 4pt; }
-  ol.procedure { list-style: decimal; }
-  ol.procedure .step-action { font-weight: 600; }
-  ol.procedure .step-detail { color: #444; font-size: 10.5pt; margin-top: 2pt; }
-  .footer { margin-top: 24pt; padding-top: 10pt; border-top: 1px solid #ccc; color: #666; font-size: 9pt; }
-</style>
-</head>
-<body>
-  <h1>${esc(d.title)}</h1>
-  <div class="meta">${esc(d.department)} &middot; Owner: ${esc(d.owner)}</div>
+function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const margin = 54; // 0.75in
+  const contentW = pageW - margin * 2;
+  let y = margin;
 
-  <h2>Purpose</h2>
-  <p>${esc(d.purpose)}</p>
+  const ensure = (need: number) => {
+    if (y + need > pageH - margin) {
+      pdf.addPage();
+      y = margin;
+    }
+  };
 
-  <h2>Scope</h2>
-  <p>${esc(d.scope)}</p>
+  const writeWrapped = (
+    text: string,
+    opts: { size: number; style?: "normal" | "bold"; color?: [number, number, number]; lineGap?: number; indent?: number },
+  ) => {
+    pdf.setFont("times", opts.style ?? "normal");
+    pdf.setFontSize(opts.size);
+    pdf.setTextColor(...(opts.color ?? [26, 26, 26]));
+    const indent = opts.indent ?? 0;
+    const lines = pdf.splitTextToSize(text, contentW - indent) as string[];
+    const lineH = opts.size * 1.25;
+    for (const line of lines) {
+      ensure(lineH);
+      pdf.text(line, margin + indent, y);
+      y += lineH;
+    }
+    if (opts.lineGap) y += opts.lineGap;
+  };
 
-  <h2>Trigger</h2>
-  <p>${esc(d.trigger)}</p>
+  const h2 = (label: string) => {
+    y += 10;
+    ensure(28);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(9);
+    pdf.setTextColor(85, 85, 85);
+    pdf.text(label.toUpperCase(), margin, y, { charSpace: 1.5 });
+    y += 6;
+    pdf.setDrawColor(204, 204, 204);
+    pdf.line(margin, y, margin + contentW, y);
+    y += 10;
+  };
 
-  <h2>Inputs</h2>
-  <ul>${li(d.inputs)}</ul>
+  // Title
+  writeWrapped(d.title, { size: 22, style: "bold", lineGap: 4 });
+  writeWrapped(`${d.department}  ·  Owner: ${d.owner}`, {
+    size: 9,
+    color: [110, 110, 110],
+    lineGap: 6,
+  });
 
-  <h2>Procedure</h2>
-  <ol class="procedure">${steps}</ol>
+  h2("Purpose");
+  writeWrapped(d.purpose, { size: 11 });
 
-  <h2>Outputs</h2>
-  <ul>${li(d.outputs)}</ul>
+  h2("Scope");
+  writeWrapped(d.scope, { size: 11 });
 
-  <h2>Definition of done</h2>
-  <p>${esc(d.definitionOfDone)}</p>
+  h2("Trigger");
+  writeWrapped(d.trigger, { size: 11 });
 
-  <h2>KPIs</h2>
-  <ul>${li(d.kpis)}</ul>
+  h2("Inputs");
+  for (const it of d.inputs) writeWrapped(`•  ${it}`, { size: 11, indent: 12 });
 
-  <h2>Exceptions / escalation</h2>
-  <ul>${li(d.exceptions)}</ul>
+  h2("Procedure");
+  for (const s of d.steps) {
+    writeWrapped(`${s.number}.  ${s.action}`, { size: 11, style: "bold" });
+    if (s.detail?.trim()) {
+      writeWrapped(s.detail.trim(), { size: 10.5, color: [68, 68, 68], indent: 18, lineGap: 2 });
+    } else {
+      y += 2;
+    }
+  }
 
-  <div class="footer">Revision cadence: ${esc(d.revisionCadence)}</div>
-</body></html>`;
+  h2("Outputs");
+  for (const it of d.outputs) writeWrapped(`•  ${it}`, { size: 11, indent: 12 });
+
+  h2("Definition of done");
+  writeWrapped(d.definitionOfDone, { size: 11 });
+
+  h2("KPIs");
+  for (const it of d.kpis) writeWrapped(`•  ${it}`, { size: 11, indent: 12 });
+
+  h2("Exceptions / escalation");
+  for (const it of d.exceptions) writeWrapped(`•  ${it}`, { size: 11, indent: 12 });
+
+  y += 16;
+  ensure(14);
+  pdf.setDrawColor(204, 204, 204);
+  pdf.line(margin, y, margin + contentW, y);
+  y += 12;
+  writeWrapped(`Revision cadence: ${d.revisionCadence}`, { size: 9, color: [110, 110, 110] });
 }
