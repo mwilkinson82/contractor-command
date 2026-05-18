@@ -200,7 +200,7 @@ function OwnerMode() {
                   onChange={(e) => updateArea(i, { name: e.target.value })}
                   placeholder="Name this area (e.g. Estimating new bids)"
                   title="Click to edit area name"
-                  className="w-full rounded-sm border-b border-dashed border-border/70 bg-transparent pb-1 text-[13px] font-medium text-foreground outline-none transition placeholder:font-normal placeholder:italic placeholder:text-muted-foreground/70 hover:border-foreground/40 focus:border-foreground"
+                  className="w-full rounded-full border border-dashed border-border/70 bg-background/60 px-3 py-1.5 text-[13px] font-medium text-foreground outline-none transition placeholder:font-normal placeholder:italic placeholder:text-muted-foreground/70 hover:border-foreground/50 hover:bg-background focus:border-foreground focus:border-solid focus:bg-background"
                 />
                 <button
                   type="button"
