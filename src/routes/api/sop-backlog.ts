@@ -128,7 +128,7 @@ export const Route = createFileRoute("/api/sop-backlog")({
           generateObject({
             model: gateway(modelId),
             schema: ResultSchema,
-            system: SOP_BACKLOG_SYSTEM_PROMPT,
+            system: `${SOP_BACKLOG_SYSTEM_PROMPT}\n\nReturn a valid JSON object that matches the requested schema.`,
             prompt: buildSopBacklogUserPrompt({
               department: dept,
               stage,
