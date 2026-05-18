@@ -32,33 +32,33 @@ async function getUserId(request: Request): Promise<string | null> {
 }
 
 const PlaySchema = z.object({
-  id: z.string().describe("P1, P2, or P3"),
-  name: z.string().describe("short, action-led play name"),
-  diagnosis: z.string().describe("1-2 sentences reframing the stated problem"),
-  mechanism: z.string().describe("1-2 sentences on how the play unlocks throughput"),
-  expectedLift: z.string().describe("concrete outcome — projects/week, hours saved, margin pts"),
-  risks: z.string().describe("1 sentence on what to watch for"),
+  id: z.string().optional().describe("P1, P2, or P3"),
+  name: z.string().optional().describe("short, action-led play name"),
+  diagnosis: z.string().optional().describe("1-2 sentences reframing the stated problem"),
+  mechanism: z.string().optional().describe("1-2 sentences on how the play unlocks throughput"),
+  expectedLift: z.string().optional().describe("concrete outcome — projects/week, hours saved, margin pts"),
+  risks: z.string().optional().describe("1 sentence on what to watch for"),
 });
 
 const ItemSchema = z.object({
-  rank: z.number(),
-  playId: z.string().describe("which play this SOP operationalizes — must match a play id"),
-  name: z.string(),
-  purpose: z.string(),
-  trigger: z.string(),
-  owner: z.string(),
-  dependsOn: z.array(z.string()),
-  effort: z.enum(["S", "M", "L"]),
-  why: z.string(),
+  rank: z.coerce.number().optional(),
+  playId: z.string().optional().describe("which play this SOP operationalizes — must match a play id"),
+  name: z.string().optional(),
+  purpose: z.string().optional(),
+  trigger: z.string().optional(),
+  owner: z.string().optional(),
+  dependsOn: z.array(z.string()).optional(),
+  effort: z.enum(["S", "M", "L"]).optional(),
+  why: z.string().optional(),
 });
 
 const ResultSchema = z.object({
-  constraintReframe: z.string(),
+  constraintReframe: z.string().optional(),
   plays: z.array(PlaySchema).min(1).max(3),
-  topPlayId: z.string(),
-  headline: z.string(),
-  buildOrderRationale: z.string(),
-  backlog: z.array(ItemSchema).min(5).max(14),
+  topPlayId: z.string().optional(),
+  headline: z.string().optional(),
+  buildOrderRationale: z.string().optional(),
+  backlog: z.array(ItemSchema).min(1).max(14),
 });
 
 export const Route = createFileRoute("/api/sop-backlog")({
