@@ -39,17 +39,50 @@ function AccountPage() {
   const [coName, setCoName] = useState("");
   const [coAddress, setCoAddress] = useState("");
   const [coIcon, setCoIcon] = useState<GreetingIconKey>("wave");
+  const [coLogoPath, setCoLogoPath] = useState<string | null>(null);
+  const [coLogoPreview, setCoLogoPreview] = useState<string | null>(null);
+  const [coUploading, setCoUploading] = useState(false);
   const [coSaving, setCoSaving] = useState(false);
   const [coMsg, setCoMsg] = useState<string | null>(null);
+  const logoFileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!company) return;
     setCoName(company.name ?? "");
     setCoAddress(company.address ?? "");
+    setCoLogoPath(company.logo_path);
+    setCoLogoPreview(logoPublicUrl(company.logo_path));
     if (company.greeting_icon) {
       setCoIcon(company.greeting_icon as GreetingIconKey);
     }
   }, [company]);
+
+  async function onLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    if (!file.type.startsWith("image/")) {
+      setCoMsg("Pick an image file (PNG, JPG, SVG).");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setCoMsg("Keep logo under 2MB.");
+      return;
+    }
+    setCoMsg(null);
+    setCoUploading(true);
+    const ext = (file.name.split(".").pop() || "png").toLowerCase();
+    const path = `${user.id}/logo.${ext}`;
+    const { error } = await supabase.storage
+      .from(LOGO_BUCKET)
+      .upload(path, file, { upsert: true, contentType: file.type });
+    if (error) {
+      setCoMsg(error.message);
+    } else {
+      setCoLogoPath(path);
+      setCoLogoPreview(`${logoPublicUrl(path)}?v=${Date.now()}`);
+    }
+    setCoUploading(false);
+  }
 
   async function saveCompany() {
     if (!user) return;
@@ -68,6 +101,7 @@ function AccountPage() {
           name: trimmed,
           address: coAddress.trim() || null,
           greeting_icon: coIcon,
+          logo_path: coLogoPath,
         },
         { onConflict: "owner_user_id" },
       );
