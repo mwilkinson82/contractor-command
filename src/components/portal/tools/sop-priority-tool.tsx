@@ -728,48 +728,81 @@ function DepartmentMode() {
             </div>
 
             <div className="mt-5">
-              <p className="label-mono">Optimization plays</p>
-              <p className="mt-1 text-[12px] text-muted-foreground">
-                Structural moves first — these are the system redesigns. SOPs below operationalize the recommended play.
+              <p className="label-mono">Optimization plays · click any to read in detail</p>
+              <p className="mt-1 text-[12.5px] text-muted-foreground">
+                Structural moves first — these are the system redesigns. Click a play to open the full read and jump to the SOPs that operationalize it.
               </p>
               <div className="mt-3 grid gap-3 lg:grid-cols-2">
                 {result.plays.map((p) => (
-                  <PlayCard key={p.id} play={p} recommended={p.id === result.topPlayId} />
+                  <PlayCard
+                    key={p.id}
+                    play={p}
+                    recommended={p.id === result.topPlayId}
+                    selected={p.id === openPlayId}
+                    onClick={() => setOpenPlayId(p.id)}
+                  />
                 ))}
               </div>
             </div>
 
-            <div className="mt-6 rounded-md border border-foreground/30 bg-background p-4">
+            <div className="mt-6 rounded-md border border-foreground/40 bg-background p-4 ring-1 ring-foreground/10">
               <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
                 Build this first · #{result.topSop.rank} · operationalizes {result.topSop.playId}
+                {(() => {
+                  const parent = result.plays.find((p) => p.id === result.topSop.playId);
+                  return parent ? ` · ${parent.name.split("·").slice(-1)[0].trim()}` : "";
+                })()}
               </p>
-              <p className="mt-1.5 font-display text-[1.15rem] leading-tight text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
+              <p className="mt-1.5 font-display text-[1.2rem] leading-tight text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
                 {result.topSop.name}
               </p>
-              <p className="mt-1.5 text-[13px] leading-relaxed text-foreground/85">{result.topSop.purpose}</p>
-              <p className="mt-1.5 text-[12px] text-muted-foreground">
+              <p className="mt-2 text-[13.5px] leading-relaxed text-foreground/85">{result.topSop.purpose}</p>
+              <p className="mt-1.5 text-[12.5px] text-muted-foreground">
                 <span className="font-mono uppercase tracking-[0.18em]">Why:</span> {result.topSop.why}
               </p>
               <button
                 type="button"
                 onClick={() => setBuildingSop(result.topSop)}
-                className="mt-3 inline-flex items-center gap-2 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90"
+                className="mt-3 inline-flex items-center gap-2 rounded-md bg-ink px-3.5 py-2 text-[13px] font-medium text-cream hover:opacity-90"
               >
                 <Sparkles className="h-3.5 w-3.5" /> Build this SOP
               </button>
             </div>
 
             <div className="mt-5">
-              <p className="label-mono">SOP backlog</p>
-              <p className="mt-1 text-[12px] text-muted-foreground">
+              <p className="label-mono">
+                SOP backlog
+                {openPlayId && <> · highlighting <span className="text-foreground">{openPlayId}</span></>}
+              </p>
+              <p className="mt-1 text-[12.5px] text-muted-foreground">
                 Ordered by dependency. Click any row to draft the full SOP document — purpose, steps, KPIs, escalation.
               </p>
               <ol className="mt-3 space-y-3">
-                {result.backlog.map((s) => (
-                  <BacklogRow key={s.rank} item={s} onBuild={() => setBuildingSop(s)} />
-                ))}
+                {result.backlog.map((s) => {
+                  const parent = result.plays.find((p) => p.id === s.playId) ?? null;
+                  return (
+                    <BacklogRow
+                      key={s.rank}
+                      item={s}
+                      onBuild={() => setBuildingSop(s)}
+                      highlighted={!!openPlayId && s.playId === openPlayId}
+                      parentPlayName={parent?.name}
+                    />
+                  );
+                })}
               </ol>
             </div>
+
+            <PlayDetailDialog
+              play={result.plays.find((p) => p.id === openPlayId) ?? null}
+              recommended={openPlayId === result.topPlayId}
+              sops={result.backlog.filter((s) => s.playId === openPlayId)}
+              onClose={() => setOpenPlayId(null)}
+              onBuildSop={(s) => {
+                setOpenPlayId(null);
+                setBuildingSop(s);
+              }}
+            />
 
             <div className="mt-5 flex flex-wrap items-center gap-2">
               <button
