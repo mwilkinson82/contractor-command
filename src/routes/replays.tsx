@@ -56,7 +56,7 @@ function ReplaysPage() {
     <Container>
       <PageHeader
         eyebrow="Replay library"
-        title={<>Archived judgment.</>}
+        title={<>Every call, on demand.</>}
         lede="Every past biweekly call and monthly bootcamp. Search by topic. Watch what's already been worked so you don't bring it cold."
       />
 
