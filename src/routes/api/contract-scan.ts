@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import "@tanstack/react-start";
-import { generateObject } from "ai";
+import { generateText } from "ai";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 
@@ -72,17 +72,43 @@ export const Route = createFileRoute("/api/contract-scan")({
         const model = gateway("google/gemini-3-flash-preview");
 
         try {
-          const { object } = await generateObject({
+          const { text } = await generateText({
             model,
-            schema: ScanSchema,
-            system: CONTRACT_SCAN_SYSTEM_PROMPT,
+            system:
+              CONTRACT_SCAN_SYSTEM_PROMPT +
+              "\n\nReturn ONLY a single JSON object. No prose, no markdown, no code fences. The JSON must match this TypeScript type:\n" +
+              `{
+  overallScore: number,         // 0-100
+  status: "ready" | "tighten" | "do-not-sign",
+  headline: string,
+  topRisk: string,
+  financialConsequence: string,
+  recommendedAction: string,
+  dimensions: Array<{
+    dimension: "cash" | "schedule" | "scope" | "margin",
+    score: number,              // 0-10
+    status: "strong" | "weak" | "missing",
+    finding: string,
+    clauseToAddOrFix: string
+  }>,                            // include all four dimensions
+  missingClauses: string[]      // up to 8
+}`,
             prompt: buildContractScanUserPrompt({
               contractText: safeContract,
               projectContext,
             }),
           });
 
-          // Normalize: clamp score, ensure 4 dimensions, clip missingClauses to 8.
+          const raw = extractJson(text);
+          const parsed = ScanSchema.safeParse(raw);
+          if (!parsed.success) {
+            console.error("[contract-scan] schema mismatch", parsed.error.issues);
+            return new Response(
+              "The model returned an unreadable response. Try again, or trim the contract to the key sections.",
+              { status: 502 },
+            );
+          }
+          const object = parsed.data;
           const normalized = {
             ...object,
             overallScore: clamp(Math.round(object.overallScore), 0, 100),
@@ -114,6 +140,24 @@ export const Route = createFileRoute("/api/contract-scan")({
 
 function clamp(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n));
+}
+
+function extractJson(text: string): unknown {
+  if (!text) return null;
+  let t = text.trim();
+  // Strip code fences if present
+  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) t = fence[1].trim();
+  // Find first { and last } to tolerate leading/trailing prose
+  const start = t.indexOf("{");
+  const end = t.lastIndexOf("}");
+  if (start === -1 || end === -1 || end < start) return null;
+  const slice = t.slice(start, end + 1);
+  try {
+    return JSON.parse(slice);
+  } catch {
+    return null;
+  }
 }
 
 type Dim = z.infer<typeof ScanSchema>["dimensions"][number];
