@@ -1,11 +1,18 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Container } from "@/components/portal/page-header";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { supabase } from "@/integrations/supabase/client";
 import { getAdminMetrics, type AdminMetrics } from "@/lib/admin.functions";
+import {
+  listAdminUsers,
+  setUserComped,
+  type AdminUserRow,
+} from "@/lib/admin-users.functions";
+import { Input } from "@/components/ui/input";
 import {
   Users,
   Inbox,
@@ -15,6 +22,10 @@ import {
   Sparkles,
   MessageSquare,
   TrendingUp,
+  Search,
+  Gift,
+  CreditCard,
+  Shield,
 } from "lucide-react";
 
 export const Route = createFileRoute("/admin/")({
@@ -135,6 +146,9 @@ function AdminDashboard() {
           <Stat label="New · last 30 days" value={metrics?.signups.last30} loading={isLoading} />
         </div>
       </Section>
+
+      {/* Members directory */}
+      <MembersDirectory online={online} />
 
       {/* Library & topics */}
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
@@ -398,4 +412,244 @@ function formatUSD(cents: number): string {
     currency: "USD",
     maximumFractionDigits: 0,
   });
+}
+
+/* ----------------- members directory ----------------- */
+
+type FilterKey = "all" | "paid" | "comped" | "active" | "canceled" | "founding";
+
+function MembersDirectory({ online }: { online: PresenceUser[] }) {
+  const fetchUsers = useServerFn(listAdminUsers);
+  const compMutation = useServerFn(setUserComped);
+  const queryClient = useQueryClient();
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<FilterKey>("all");
+
+  const { data: users, isLoading } = useQuery<AdminUserRow[]>({
+    queryKey: ["admin-users"],
+    queryFn: () => fetchUsers(),
+  });
+
+  const onlineSet = useMemo(
+    () => new Set(online.map((o) => o.user_id)),
+    [online],
+  );
+
+  const mut = useMutation({
+    mutationFn: (input: {
+      subscriptionId: string | null;
+      userId: string | null;
+      email: string;
+      isComped: boolean;
+    }) => compMutation({ data: input }),
+    onSuccess: (_d, vars) => {
+      toast.success(vars.isComped ? "Marked as comped." : "Removed comp.");
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-metrics"] });
+    },
+    onError: (err: Error) => toast.error(err.message ?? "Could not update."),
+  });
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return (users ?? []).filter((u) => {
+      const sub = u.subscription;
+      if (filter === "paid" && !(sub && !sub.isComped && sub.status === "active")) return false;
+      if (filter === "comped" && !sub?.isComped) return false;
+      if (filter === "active" && sub?.status !== "active") return false;
+      if (filter === "canceled" && sub?.status !== "canceled") return false;
+      if (filter === "founding" && !sub?.isFounding) return false;
+      if (!q) return true;
+      return (
+        u.email.toLowerCase().includes(q) ||
+        (u.fullName ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [users, query, filter]);
+
+  return (
+    <section className="mt-8">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <h2 className="label-mono inline-flex items-center gap-1.5">
+          <Users className="h-3 w-3" /> Members directory
+        </h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search name or email…"
+              className="h-8 w-64 pl-7 text-[12px]"
+            />
+          </div>
+          <FilterPills value={filter} onChange={setFilter} />
+        </div>
+      </div>
+
+      <div className="mt-3 overflow-hidden rounded-2xl border border-border bg-card">
+        <div className="grid grid-cols-[1.6fr_1fr_0.9fr_0.9fr] gap-3 border-b border-border bg-muted/40 px-4 py-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+          <span>Member</span>
+          <span>Subscription</span>
+          <span>Status</span>
+          <span className="text-right">Comped</span>
+        </div>
+        {isLoading ? (
+          <p className="px-4 py-6 text-[12px] text-muted-foreground">Loading members…</p>
+        ) : filtered.length === 0 ? (
+          <p className="px-4 py-6 text-[12px] text-muted-foreground">No members match.</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {filtered.map((u) => {
+              const sub = u.subscription;
+              const live = onlineSet.has(u.id);
+              const busy = mut.isPending && mut.variables?.email === u.email;
+              return (
+                <li
+                  key={u.id + (sub?.id ?? "")}
+                  className="grid grid-cols-[1.6fr_1fr_0.9fr_0.9fr] items-center gap-3 px-4 py-3 text-[13px]"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate font-medium">
+                        {u.fullName ?? u.email.split("@")[0]}
+                      </span>
+                      {live && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-signal/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-signal">
+                          <span className="h-1.5 w-1.5 rounded-full bg-signal" />
+                          Online
+                        </span>
+                      )}
+                      {u.isAdmin && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-foreground/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider">
+                          <Shield className="h-2.5 w-2.5" /> Admin
+                        </span>
+                      )}
+                      {sub?.isFounding && (
+                        <span className="rounded-full bg-gold/15 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-gold">
+                          Founding
+                        </span>
+                      )}
+                    </div>
+                    <p className="truncate text-[11px] text-muted-foreground">{u.email}</p>
+                  </div>
+
+                  <div className="text-[12px]">
+                    {sub ? (
+                      sub.isComped ? (
+                        <span className="inline-flex items-center gap-1 text-muted-foreground">
+                          <Gift className="h-3 w-3" /> Comped
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-foreground">
+                          <CreditCard className="h-3 w-3" /> Paid (MRR)
+                        </span>
+                      )
+                    ) : (
+                      <span className="text-muted-foreground">No subscription</span>
+                    )}
+                  </div>
+
+                  <div className="text-[12px]">
+                    <StatusPill status={sub?.status ?? null} cancelAtEnd={sub?.cancelAtPeriodEnd} />
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        mut.mutate({
+                          subscriptionId: sub?.id ?? null,
+                          userId: u.id.startsWith("sub:") ? null : u.id,
+                          email: u.email,
+                          isComped: !sub?.isComped,
+                        })
+                      }
+                      className={`rounded-md border px-2 py-1 text-[11px] transition ${
+                        sub?.isComped
+                          ? "border-border bg-background hover:bg-muted"
+                          : "border-foreground bg-foreground text-background hover:opacity-90"
+                      } disabled:opacity-50`}
+                    >
+                      {busy ? "…" : sub?.isComped ? "Remove comp" : "Mark comped"}
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+      <p className="mt-2 text-[11px] text-muted-foreground">
+        {filtered.length} member{filtered.length === 1 ? "" : "s"} shown · Paid = recurring Stripe revenue · Comped = free access granted manually.
+      </p>
+    </section>
+  );
+}
+
+function FilterPills({
+  value,
+  onChange,
+}: {
+  value: FilterKey;
+  onChange: (v: FilterKey) => void;
+}) {
+  const opts: { key: FilterKey; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "paid", label: "Paid" },
+    { key: "comped", label: "Comped" },
+    { key: "active", label: "Active" },
+    { key: "canceled", label: "Canceled" },
+    { key: "founding", label: "Founding" },
+  ];
+  return (
+    <div className="inline-flex rounded-full border border-border bg-background p-0.5">
+      {opts.map((o) => {
+        const active = o.key === value;
+        return (
+          <button
+            key={o.key}
+            type="button"
+            onClick={() => onChange(o.key)}
+            className={`rounded-full px-2.5 py-1 text-[11px] transition ${
+              active
+                ? "bg-foreground text-background"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function StatusPill({
+  status,
+  cancelAtEnd,
+}: {
+  status: string | null;
+  cancelAtEnd?: boolean;
+}) {
+  if (!status) return <span className="text-muted-foreground">—</span>;
+  const tone =
+    status === "active"
+      ? "bg-signal/10 text-signal"
+      : status === "trialing"
+      ? "bg-gold/15 text-gold"
+      : status === "canceled" || status === "past_due"
+      ? "bg-destructive/10 text-destructive"
+      : "bg-foreground/10 text-foreground";
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${tone}`}>
+        {status}
+      </span>
+      {cancelAtEnd && (
+        <span className="text-[10px] text-muted-foreground">(ending)</span>
+      )}
+    </span>
+  );
 }
