@@ -9,14 +9,14 @@ export const Route = createFileRoute("/tools/growth-constraint")({
   head: () => ({
     meta: [{ title: "Growth Constraint Map — ALP Contractor Circle" }],
   }),
-  component: GrowthConstraintTool,
+  component: () => <GrowthConstraintTool />,
 });
 
 const fmtMoney = (n: number) => `$${Math.round(n).toLocaleString()}`;
 
 type Stage = "idle" | "running" | "ready";
 
-function GrowthConstraintTool() {
+export function GrowthConstraintTool({ embedded = false }: { embedded?: boolean } = {}) {
   const [inputs, setInputs] = useState<GcmInputs>(DEFAULT_GCM);
   const [stage, setStage] = useState<Stage>("idle");
   const [savedId, setSavedId] = useState<string | null>(null);
