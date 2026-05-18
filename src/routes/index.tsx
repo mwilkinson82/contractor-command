@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  DISCORD_URL,
   addToCalendarUrl,
   formatSessionDate,
   greeting,
@@ -255,7 +254,7 @@ function HomePage() {
             </article>
 
             <RailRow
-              to="/calls"
+              to="/replays"
               icon={<Video className="h-3.5 w-3.5" />}
               title="Latest replay"
               desc={`${latestReplay?.title ?? "No replays yet"}${replayDate ? ` · ${replayDate}` : ""}`}
@@ -270,8 +269,8 @@ function HomePage() {
               to="/community"
               icon={<MessagesSquare className="h-3.5 w-3.5" />}
               title="The room"
-              desc="Discord between sessions"
-              extHref={DISCORD_URL}
+              desc="Discord community · open in app"
+              accent
             />
           </aside>
         </div>
@@ -318,17 +317,25 @@ function RailRow({
   icon,
   title,
   desc,
+  accent,
 }: {
   to: string;
   extHref?: string;
   icon: React.ReactNode;
   title: string;
   desc: string;
+  accent?: boolean;
 }) {
   return (
     <div className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:bg-muted/50">
       <Link to={to as "/"} className="flex items-center gap-3 min-w-0 flex-1">
-        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-foreground/5">{icon}</span>
+        <span
+          className={`grid h-7 w-7 shrink-0 place-items-center rounded-md ${
+            accent ? "bg-[#5865F2] text-white" : "bg-foreground/5"
+          }`}
+        >
+          {icon}
+        </span>
         <div className="min-w-0">
           <p className="truncate font-display text-[13px]">{title}</p>
           <p className="truncate text-[11px] text-muted-foreground">{desc}</p>

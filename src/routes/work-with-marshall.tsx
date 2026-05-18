@@ -26,7 +26,7 @@ function WorkPage() {
             <p className="label-mono !text-cream/55">The engagement</p>
             <div className="mt-5 flex items-baseline gap-3">
               <span className="font-display text-5xl text-cream">$5,000</span>
-              <span className="text-sm text-cream/55">upfront · six private sessions over six weeks</span>
+              <span className="text-sm text-cream/55">six private sessions over six weeks</span>
             </div>
             <ul className="mt-8 space-y-3 text-sm text-cream/80">
               <li>· Six private working sessions with Marshall.</li>

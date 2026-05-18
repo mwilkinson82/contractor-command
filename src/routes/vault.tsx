@@ -47,10 +47,10 @@ function VaultPage() {
       <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border/70 pb-6">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Company Vault</p>
-          <h1 className="mt-2 font-display text-3xl tracking-tight sm:text-4xl">Your operating memory.</h1>
+          <h1 className="mt-2 font-display text-3xl tracking-tight sm:text-4xl">Your operating machine.</h1>
         </div>
         <Link
-          to="/tools/growth-constraint"
+          to="/tools"
           className="inline-flex items-center gap-1.5 rounded-md bg-ink px-4 py-2 text-[13px] text-cream hover:opacity-90"
         >
           <Wrench className="h-3.5 w-3.5" /> Run a command tool
@@ -124,8 +124,8 @@ function VaultPage() {
             </p>
             {packets.length === 0 && (
               <div className="mt-6">
-                <Link to="/tools/growth-constraint" className="inline-flex rounded-md bg-ink px-4 py-2 text-[13px] text-cream hover:opacity-90">
-                  Open Growth Constraint Map
+                <Link to="/tools" className="inline-flex rounded-md bg-ink px-4 py-2 text-[13px] text-cream hover:opacity-90">
+                  Open Operator's Workbench
                 </Link>
               </div>
             )}
