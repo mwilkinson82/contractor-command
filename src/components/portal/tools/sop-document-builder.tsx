@@ -419,7 +419,7 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
           </div>
 
           {emailOpen && (
-            <div className="mt-3 rounded-md border border-border bg-background/60 p-4">
+            <div ref={emailPanelRef} className="mt-3 rounded-md border border-border bg-background/60 p-4">
               <div className="flex items-center justify-between">
                 <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
                   Send this SOP from AOS
@@ -468,7 +468,7 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
                     {emailSending ? "Sending…" : "Send SOP"}
                   </button>
                   <p className="text-[11px] text-muted-foreground">
-                    From notify.alpos.alpcontractorcircle.com
+                    From notify.mail.alpcontractorcircle.com
                   </p>
                 </div>
               </div>
