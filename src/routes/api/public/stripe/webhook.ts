@@ -102,6 +102,8 @@ async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
     .ilike("email", normalizedEmail)
     .maybeSingle();
 
+  const metadata = (sub.metadata ?? {}) as any;
+
   const row = {
     user_id: profile?.id ?? null,
     email: normalizedEmail,
@@ -112,11 +114,10 @@ async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
     status: sub.status,
     cancel_at_period_end: sub.cancel_at_period_end ?? false,
     current_period_end: currentPeriodEnd,
-    metadata: (sub.metadata ?? {}) as Record<string, unknown>,
+    metadata,
     updated_at: new Date().toISOString(),
   };
 
-  // Upsert by stripe_subscription_id
   const { error: upsertErr } = await supabaseAdmin
     .from("subscriptions")
     .upsert(row, { onConflict: "stripe_subscription_id" });
@@ -126,7 +127,6 @@ async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
     return;
   }
 
-  // If no profile yet, also stash in pending_claims so signup auto-claims later
   if (!profile?.id) {
     await supabaseAdmin.from("pending_claims").upsert(
       {
@@ -136,9 +136,10 @@ async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
         price_id: priceId,
         status: sub.status,
         current_period_end: currentPeriodEnd,
-        metadata: (sub.metadata ?? {}) as Record<string, unknown>,
+        metadata,
       },
       { onConflict: "stripe_subscription_id" }
     );
   }
 }
+
