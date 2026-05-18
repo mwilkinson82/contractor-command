@@ -861,7 +861,7 @@ function PlayCard({
           {play.id}
           {recommended && <span className="ml-1">· recommended</span>}
         </p>
-        <span className="font-mono text-[11px] text-foreground/70">{play.expectedLift}</span>
+        <span className="text-[12.5px] italic leading-snug text-foreground/70" style={{ fontFamily: "var(--font-serif)" }}>{play.expectedLift}</span>
       </div>
       <p className="mt-2 text-[15.5px] font-medium leading-snug text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
         {play.name}
@@ -963,8 +963,9 @@ function PlayDetailDialog({
               <h3 className="mt-1.5 text-[1.75rem] leading-tight text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
                 {play.name}
               </h3>
-              <p className="mt-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-foreground/70">
-                Expected lift · {play.expectedLift}
+              <p className="mt-3 text-[15px] italic leading-relaxed text-foreground/80" style={{ fontFamily: "var(--font-serif)" }}>
+                <span className="not-italic font-mono text-[10.5px] uppercase tracking-[0.22em] text-muted-foreground mr-2 align-middle">Expected lift</span>
+                {play.expectedLift}
               </p>
             </div>
 
