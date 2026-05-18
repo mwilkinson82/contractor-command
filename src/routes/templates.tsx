@@ -205,7 +205,7 @@ function AOSBand({ items }: { items: TemplateRow[] }) {
         <p className="label-mono">The Operating System</p>
       </div>
       <h2 className="mt-3 font-display text-3xl md:text-4xl leading-tight">
-        AOS — Augmented Operating System
+        AOS — Altitude Operating System
       </h2>
       <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
         The foundation. Owner dependency scorecards, V/TO, weekly L10 measurables, and the complete
