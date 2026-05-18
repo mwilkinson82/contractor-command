@@ -39,8 +39,9 @@ export const UPCOMING: Session[] = [
     title: "Bi-weekly working session",
     date: nextBiweeklyFromAnchor().date,
     durationMin: 90,
-    zoomUrl: "https://zoom.us/j/0000000000",
-    zoomId: "000 0000 0000",
+    zoomUrl: "https://us06web.zoom.us/j/83215167292?pwd=Mtt970HFCPStqSw62btyyta2Wxo0Pr.1",
+    zoomId: "832 1516 7292",
+    passcode: "321266",
     description:
       "Open-room session. Members bring one specific business issue. We work two or three of them live.",
     agenda: [
