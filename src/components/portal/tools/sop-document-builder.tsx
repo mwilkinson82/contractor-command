@@ -165,9 +165,6 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
   const [emailSending, setEmailSending] = useState(false);
   const [emailSentTo, setEmailSentTo] = useState<string | null>(null);
   const [emailNote, setEmailNote] = useState("");
-  const [emailSending, setEmailSending] = useState(false);
-  const [emailSentTo, setEmailSentTo] = useState<string | null>(null);
-  const [emailError, setEmailError] = useState<string | null>(null);
 
   async function sendEmail() {
     if (!doc) return;
