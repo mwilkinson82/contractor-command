@@ -172,8 +172,62 @@ function OwnerMode() {
   }
   function reset() {
     setAreas(DEFAULT_SOP_AREAS);
+    setOwnerContext("");
     setStage("idle");
     setSavedId(null);
+    setPlaysByArea({});
+    setAreaError({});
+    setExpandedArea(null);
+    setBuildingSop(null);
+  }
+
+  async function loadPlaysFor(area: SopScored) {
+    if (playsByArea[area.name] || loadingArea === area.name) return;
+    setLoadingArea(area.name);
+    setAreaError((prev) => ({ ...prev, [area.name]: "" }));
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        setAreaError((prev) => ({ ...prev, [area.name]: "You need to be signed in." }));
+        return;
+      }
+      const res = await fetch("/api/owner-plays", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          area: area.name,
+          hoursPerWeek: area.ownerHoursPerWeek,
+          blastRadius: area.blastRadius,
+          setupEffort: area.setupEffort,
+          frequency: area.frequency,
+          context: ownerContext,
+        }),
+      });
+      if (!res.ok) {
+        setAreaError((prev) => ({ ...prev, [area.name]: (await res.text()) || `Failed (${res.status})` }));
+        return;
+      }
+      const data = (await res.json()) as OwnerPlaysResult;
+      setPlaysByArea((prev) => ({ ...prev, [area.name]: data }));
+    } catch (e) {
+      setAreaError((prev) => ({
+        ...prev,
+        [area.name]: e instanceof Error ? e.message : "Failed to load extraction plays.",
+      }));
+    } finally {
+      setLoadingArea(null);
+    }
+  }
+
+  function toggleArea(area: SopScored) {
+    setExpandedArea((cur) => {
+      const next = cur === area.name ? null : area.name;
+      if (next && !playsByArea[area.name]) {
+        void loadPlaysFor(area);
+      }
+      return next;
+    });
   }
   function savePacket() {
     const top = result.top;
