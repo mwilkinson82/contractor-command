@@ -111,11 +111,11 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthGate>
-        {(showShell) =>
-          showShell ? (
-            <AppSidebarProvider>
-              <ToolDrawerProvider>
+      <ToolDrawerProvider>
+        <AuthGate>
+          {(showShell) =>
+            showShell ? (
+              <AppSidebarProvider>
                 <div className="bg-background text-foreground">
                   <AppSidebar />
                   <SidebarInset>
@@ -125,13 +125,13 @@ function RootComponent() {
                     </main>
                   </SidebarInset>
                 </div>
-              </ToolDrawerProvider>
-            </AppSidebarProvider>
-          ) : (
-            <Outlet />
-          )
-        }
-      </AuthGate>
+              </AppSidebarProvider>
+            ) : (
+              <Outlet />
+            )
+          }
+        </AuthGate>
+      </ToolDrawerProvider>
     </QueryClientProvider>
   );
 }
