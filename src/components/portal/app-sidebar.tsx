@@ -19,6 +19,7 @@ import {
   Megaphone,
   Inbox,
   Library,
+  Gauge,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { nextAny, relativeDay } from "@/lib/program";
