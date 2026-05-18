@@ -201,7 +201,6 @@ function GrowthConstraintTool() {
               <div className="grid gap-3 border-t border-cream/10 bg-ink-panel/60 px-6 py-5 sm:grid-cols-2">
                 <PacketRow label="Missing system" value={result.missingSystem} />
                 <PacketRow label="Recommended action" value={result.recommendedAction} />
-                <PacketRow label="Related AOS area" value={result.relatedAos} />
                 <PacketRow label="Bring one issue" value={result.bringOneIssuePrompt} />
               </div>
 
