@@ -116,11 +116,17 @@ function extractJsonObject(raw: string) {
 
 async function generateWithTimeout<T>(task: (signal: AbortSignal) => Promise<T>, ms = 14000) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort("SOP backlog generation timed out"), ms);
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort("SOP backlog generation timed out");
+      reject(new Error("SOP backlog generation timed out"));
+    }, ms);
+  });
   try {
-    return await task(controller.signal);
+    return await Promise.race([task(controller.signal), timeout]);
   } finally {
-    clearTimeout(timer);
+    if (timer) clearTimeout(timer);
   }
 }
 
