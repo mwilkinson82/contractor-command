@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import "@tanstack/react-start";
-import { generateText, Output } from "ai";
+import { generateObject } from "ai";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 
@@ -24,25 +24,26 @@ async function getUserId(request: Request): Promise<string | null> {
   return data.user?.id ?? null;
 }
 
+// Loose schema — Gemini structured output rejects min/max/length constraints
+// silently and returns "response did not match schema". Validate softly after.
+const DimensionEnum = z.enum(["cash", "schedule", "scope", "margin"]);
 const ScanSchema = z.object({
-  overallScore: z.number().int().min(0).max(100),
+  overallScore: z.number(),
   status: z.enum(["ready", "tighten", "do-not-sign"]),
-  headline: z.string().min(1).max(220),
-  topRisk: z.string().min(1).max(400),
-  financialConsequence: z.string().min(1).max(400),
-  recommendedAction: z.string().min(1).max(400),
-  dimensions: z
-    .array(
-      z.object({
-        dimension: z.enum(["cash", "schedule", "scope", "margin"]),
-        score: z.number().int().min(0).max(10),
-        status: z.enum(["strong", "weak", "missing"]),
-        finding: z.string().min(1).max(400),
-        clauseToAddOrFix: z.string().min(1).max(400),
-      }),
-    )
-    .length(4),
-  missingClauses: z.array(z.string().min(1).max(220)).max(8),
+  headline: z.string(),
+  topRisk: z.string(),
+  financialConsequence: z.string(),
+  recommendedAction: z.string(),
+  dimensions: z.array(
+    z.object({
+      dimension: DimensionEnum,
+      score: z.number(),
+      status: z.enum(["strong", "weak", "missing"]),
+      finding: z.string(),
+      clauseToAddOrFix: z.string(),
+    }),
+  ),
+  missingClauses: z.array(z.string()),
 });
 
 export const Route = createFileRoute("/api/contract-scan")({
@@ -59,11 +60,10 @@ export const Route = createFileRoute("/api/contract-scan")({
             { status: 400 },
           );
         }
-        if (contractText.length > 60000) {
-          return new Response("Contract too long. Trim to ~50k characters.", {
-            status: 413,
-          });
-        }
+        // Gemini handles long contexts fine but very long prompts cost a lot
+        // and risk truncation. Cap input around 120k chars.
+        const safeContract =
+          contractText.length > 120000 ? contractText.slice(0, 120000) : contractText;
 
         const key = process.env.LOVABLE_API_KEY;
         if (!key) return new Response("Missing LOVABLE_API_KEY", { status: 500 });
@@ -72,16 +72,26 @@ export const Route = createFileRoute("/api/contract-scan")({
         const model = gateway("google/gemini-3-flash-preview");
 
         try {
-          const { experimental_output } = await generateText({
+          const { object } = await generateObject({
             model,
+            schema: ScanSchema,
             system: CONTRACT_SCAN_SYSTEM_PROMPT,
-            prompt: buildContractScanUserPrompt({ contractText, projectContext }),
-            experimental_output: Output.object({ schema: ScanSchema }),
+            prompt: buildContractScanUserPrompt({
+              contractText: safeContract,
+              projectContext,
+            }),
           });
-          return Response.json(experimental_output);
+
+          // Normalize: clamp score, ensure 4 dimensions, clip missingClauses to 8.
+          const normalized = {
+            ...object,
+            overallScore: clamp(Math.round(object.overallScore), 0, 100),
+            dimensions: ensureDimensions(object.dimensions),
+            missingClauses: (object.missingClauses ?? []).slice(0, 8),
+          };
+          return Response.json(normalized);
         } catch (err) {
           const msg = err instanceof Error ? err.message : "Scan failed.";
-          // Surface gateway-specific failures clearly.
           if (msg.includes("429")) {
             return new Response("Rate limit. Try again in a moment.", { status: 429 });
           }
@@ -92,9 +102,35 @@ export const Route = createFileRoute("/api/contract-scan")({
             );
           }
           console.error("[contract-scan] failed", err);
-          return new Response(msg, { status: 500 });
+          return new Response(
+            "The model returned an unreadable response. Try again, or trim the contract to the key sections.",
+            { status: 502 },
+          );
         }
       },
     },
   },
 });
+
+function clamp(n: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, n));
+}
+
+type Dim = z.infer<typeof ScanSchema>["dimensions"][number];
+function ensureDimensions(dims: Dim[]): Dim[] {
+  const order: Dim["dimension"][] = ["cash", "schedule", "scope", "margin"];
+  return order.map((d) => {
+    const found = dims.find((x) => x.dimension === d);
+    if (found) {
+      return { ...found, score: clamp(Math.round(found.score), 0, 10) };
+    }
+    return {
+      dimension: d,
+      score: 0,
+      status: "missing" as const,
+      finding: "Model did not return a finding for this dimension.",
+      clauseToAddOrFix: "Re-run the scan or paste the relevant section.",
+    };
+  });
+}
+
