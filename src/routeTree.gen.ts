@@ -34,6 +34,7 @@ import { Route as ApiSopBacklogRouteImport } from './routes/api/sop-backlog'
 import { Route as ApiOwnerPlaysRouteImport } from './routes/api/owner-plays'
 import { Route as ApiContractScanRouteImport } from './routes/api/contract-scan'
 import { Route as ApiAskRouteImport } from './routes/api/ask'
+import { Route as AdminLibraryRouteImport } from './routes/admin.library'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
@@ -165,6 +166,11 @@ const ApiAskRoute = ApiAskRouteImport.update({
   path: '/api/ask',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminLibraryRoute = AdminLibraryRouteImport.update({
+  id: '/admin/library',
+  path: '/admin/library',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   id: '/lovable/email/suppression',
   path: '/lovable/email/suppression',
@@ -209,6 +215,7 @@ export interface FileRoutesByFullPath {
   '/tools': typeof ToolsRouteWithChildren
   '/vault': typeof VaultRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
+  '/admin/library': typeof AdminLibraryRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/owner-plays': typeof ApiOwnerPlaysRoute
@@ -241,6 +248,7 @@ export interface FileRoutesByTo {
   '/tools': typeof ToolsRouteWithChildren
   '/vault': typeof VaultRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
+  '/admin/library': typeof AdminLibraryRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/owner-plays': typeof ApiOwnerPlaysRoute
@@ -274,6 +282,7 @@ export interface FileRoutesById {
   '/tools': typeof ToolsRouteWithChildren
   '/vault': typeof VaultRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
+  '/admin/library': typeof AdminLibraryRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/owner-plays': typeof ApiOwnerPlaysRoute
@@ -308,6 +317,7 @@ export interface FileRouteTypes {
     | '/tools'
     | '/vault'
     | '/work-with-marshall'
+    | '/admin/library'
     | '/api/ask'
     | '/api/contract-scan'
     | '/api/owner-plays'
@@ -340,6 +350,7 @@ export interface FileRouteTypes {
     | '/tools'
     | '/vault'
     | '/work-with-marshall'
+    | '/admin/library'
     | '/api/ask'
     | '/api/contract-scan'
     | '/api/owner-plays'
@@ -372,6 +383,7 @@ export interface FileRouteTypes {
     | '/tools'
     | '/vault'
     | '/work-with-marshall'
+    | '/admin/library'
     | '/api/ask'
     | '/api/contract-scan'
     | '/api/owner-plays'
@@ -405,6 +417,7 @@ export interface RootRouteChildren {
   ToolsRoute: typeof ToolsRouteWithChildren
   VaultRoute: typeof VaultRoute
   WorkWithMarshallRoute: typeof WorkWithMarshallRoute
+  AdminLibraryRoute: typeof AdminLibraryRoute
   ApiAskRoute: typeof ApiAskRoute
   ApiContractScanRoute: typeof ApiContractScanRoute
   ApiOwnerPlaysRoute: typeof ApiOwnerPlaysRoute
@@ -598,6 +611,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAskRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/library': {
+      id: '/admin/library'
+      path: '/admin/library'
+      fullPath: '/admin/library'
+      preLoaderRoute: typeof AdminLibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/lovable/email/suppression': {
       id: '/lovable/email/suppression'
       path: '/lovable/email/suppression'
@@ -663,6 +683,7 @@ const rootRouteChildren: RootRouteChildren = {
   ToolsRoute: ToolsRouteWithChildren,
   VaultRoute: VaultRoute,
   WorkWithMarshallRoute: WorkWithMarshallRoute,
+  AdminLibraryRoute: AdminLibraryRoute,
   ApiAskRoute: ApiAskRoute,
   ApiContractScanRoute: ApiContractScanRoute,
   ApiOwnerPlaysRoute: ApiOwnerPlaysRoute,
