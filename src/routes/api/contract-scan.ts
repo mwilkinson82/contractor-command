@@ -190,3 +190,23 @@ function ensureDimensions(dims: Dim[]): Dim[] {
   });
 }
 
+type RawMissing = z.infer<typeof ScanSchema>["missingClauses"][number];
+function normalizeMissingClauses(items: RawMissing[]) {
+  return (items ?? []).map((c) => {
+    if (typeof c === "string") {
+      return {
+        name: c,
+        whyItMatters: "",
+        sampleLanguage: "",
+        talkingPoints: [] as string[],
+      };
+    }
+    return {
+      name: c.name,
+      whyItMatters: c.whyItMatters,
+      sampleLanguage: c.sampleLanguage,
+      talkingPoints: (c.talkingPoints ?? []).slice(0, 4),
+    };
+  });
+}
+
