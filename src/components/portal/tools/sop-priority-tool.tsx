@@ -371,6 +371,7 @@ function DepartmentMode() {
   const pending = useRef<SopBacklogResult | null>(null);
   const theaterDone = useRef(false);
   const fetchDone = useRef(false);
+  const waitingForResult = stage === "running" && theaterDone.current && !fetchDone.current;
 
   const ticker = useMemo(
     () => sopBacklogTicker(department, companyStage, seatHeadcount),
@@ -586,14 +587,21 @@ function DepartmentMode() {
         )}
 
         {(stage === "running" || stage === "ready") && (
-          <ComputeTheater
-            steps={SOP_BACKLOG_STEPS}
-            ticker={ticker}
-            running={stage === "running"}
-            onDone={() => { theaterDone.current = true; maybeReveal(); }}
-            subtitle={`SOP Priority Builder · ${department}`}
-            fileLabel="tools/sop-backlog.generate"
-          />
+          <>
+            <ComputeTheater
+              steps={SOP_BACKLOG_STEPS}
+              ticker={ticker}
+              running={stage === "running"}
+              onDone={() => { theaterDone.current = true; maybeReveal(); }}
+              subtitle={`SOP Priority Builder · ${department}`}
+              fileLabel="tools/sop-backlog.generate"
+            />
+            {waitingForResult && (
+              <p className="-mt-3 rounded-md border border-border bg-background/70 px-4 py-2 text-[12px] text-muted-foreground">
+                Still finalizing the SOP stack — if the model stalls, the tool will fall back to a built-in optimization plan automatically.
+              </p>
+            )}
+          </>
         )}
 
         {stage === "ready" && result && buildingSop && (
