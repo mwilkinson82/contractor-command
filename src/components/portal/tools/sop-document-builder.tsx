@@ -160,6 +160,10 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
   // Email send state
   const [emailOpen, setEmailOpen] = useState(false);
   const [emailTo, setEmailTo] = useState("");
+  const emailPanelRef = useRef<HTMLDivElement | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailSentTo, setEmailSentTo] = useState<string | null>(null);
   const [emailNote, setEmailNote] = useState("");
   const [emailSending, setEmailSending] = useState(false);
   const [emailSentTo, setEmailSentTo] = useState<string | null>(null);
