@@ -1,7 +1,7 @@
 // Canonical registry of all command tools. Single source of truth for the
 // Switch Tool dropdown, the dashboard signal tiles, and Today's Move.
 //
-// Roster is intentionally tight. EOS already covers scorecards and seat
+// Roster is intentionally tight. AOS already covers scorecards and seat
 // planning, so those don't appear here. Everything else cut as filler.
 // See mem://features/command-tools-roster for rationale.
 
