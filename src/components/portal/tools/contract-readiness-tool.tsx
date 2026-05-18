@@ -73,6 +73,8 @@ export function ContractReadinessTool({ onClose }: { onClose: () => void }) {
     setError(null);
     setSavedId(null);
     pendingResult.current = null;
+    theaterDone.current = false;
+    fetchDone.current = false;
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -98,11 +100,19 @@ export function ContractReadinessTool({ onClose }: { onClose: () => void }) {
         return;
       }
       const data = (await res.json()) as ContractScanResult;
-      // Don't reveal yet — let the theater finish its steps for the show.
       pendingResult.current = data;
+      fetchDone.current = true;
+      maybeReveal();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Scan failed.");
       setStage("error");
+    }
+  }
+
+  function maybeReveal() {
+    if (theaterDone.current && fetchDone.current && pendingResult.current) {
+      setResult(pendingResult.current);
+      setStage("ready");
     }
   }
 
@@ -114,17 +124,13 @@ export function ContractReadinessTool({ onClose }: { onClose: () => void }) {
     setError(null);
     setSavedId(null);
     pendingResult.current = null;
+    theaterDone.current = false;
+    fetchDone.current = false;
   }
 
   function onTheaterDone() {
-    if (pendingResult.current) {
-      setResult(pendingResult.current);
-      setStage("ready");
-    } else {
-      // Network was faster than theater finishing but result missing — bail.
-      if (!error) setError("No result returned.");
-      setStage("error");
-    }
+    theaterDone.current = true;
+    maybeReveal();
   }
 
   function savePacket() {
