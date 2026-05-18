@@ -522,7 +522,7 @@ function BillingActions() {
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   rows={5}
-                  placeholder="Refund, invoice, plan change, dispute…"
+                  placeholder="How can we help you?"
                   className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] focus:border-ink focus:outline-none"
                 />
               </div>
