@@ -49,7 +49,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 type Mode = "owner" | "department";
 type Stage = "idle" | "running" | "ready" | "error";
 
-export function SopPriorityTool({ onClose }: { onClose: () => void }) {
+export function SopPriorityTool({ onClose }: { onClose?: () => void }) {
   const [mode, setMode] = useState<Mode>("owner");
 
   return (
@@ -67,13 +67,15 @@ export function SopPriorityTool({ onClose }: { onClose: () => void }) {
             If you're out and have a seat holder, build their department SOP stack in dependency order.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground/70 hover:bg-muted"
-        >
-          Close
-        </button>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground/70 hover:bg-muted"
+          >
+            Close
+          </button>
+        )}
       </header>
 
       <div className="inline-flex w-fit gap-1 rounded-md border border-border bg-background/60 p-1">

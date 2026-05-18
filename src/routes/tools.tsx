@@ -1,217 +1,328 @@
-import { createFileRoute, Outlet, Link, useRouterState } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { Archive, ArrowUpRight, Lock } from "lucide-react";
-import { Container } from "@/components/portal/page-header";
+import { createFileRoute, Outlet, Link, useRouterState, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { Archive, ArrowUpRight, Command as CmdIcon, Lock } from "lucide-react";
 import {
   COMMAND_TOOLS,
   TOOL_GROUPS,
   toolsByGroup,
   type CommandTool,
 } from "@/lib/command-tools";
-import { hasToolDrawer, useToolDrawer } from "@/components/portal/tool-drawer";
-import { vault, type Packet } from "@/lib/vault";
+import { hasToolDrawer } from "@/components/portal/tool-drawer";
+import { useAppSidebar } from "@/components/portal/app-sidebar";
+import { EstimateThroughputTool } from "@/components/portal/tools/estimate-throughput-tool";
+import { ContractReadinessTool } from "@/components/portal/tools/contract-readiness-tool";
+import { MarginLeakTool } from "@/components/portal/tools/margin-leak-tool";
+import { SopPriorityTool } from "@/components/portal/tools/sop-priority-tool";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/tools")({
   component: ToolsLayout,
   head: () => ({
-    meta: [{ title: "Command Tools — ALP Contractor Circle" }],
+    meta: [{ title: "Operator's Workbench — ALP Contractor Circle" }],
   }),
 });
 
+const STAGE_TOOLS: Record<string, () => ReactElement> = {
+  "sop-priority": () => <SopPriorityTool />,
+  "contract-readiness": () => <ContractReadinessTool />,
+  "estimate-throughput": () => <EstimateThroughputTool />,
+  "margin-leak": () => <MarginLeakTool />,
+};
+
+const DEFAULT_TOOL = "sop-priority";
+const STORAGE_KEY = "alp.cc.workbench.last";
+
+function readLastTool(): string {
+  if (typeof window === "undefined") return DEFAULT_TOOL;
+  try {
+    const v = window.localStorage.getItem(STORAGE_KEY);
+    if (v && v in STAGE_TOOLS) return v;
+  } catch {}
+  return DEFAULT_TOOL;
+}
+
 function ToolsLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const onIndex = pathname === "/tools";
+  const search = useRouterState({ select: (s) => s.location.search }) as unknown as Record<string, unknown>;
+
+  // Child routes (/tools/growth-constraint, /tools/owner-dependency) render
+  // their own page chrome — bypass the workbench.
+  if (pathname !== "/tools") {
+    return <Outlet />;
+  }
+
+  return <Workbench searchTool={typeof search?.t === "string" ? (search.t as string) : undefined} />;
+}
+
+function Workbench({ searchTool }: { searchTool?: string }) {
+  const { collapsed, toggle } = useAppSidebar();
+  const navigate = useNavigate();
+  const [activeId, setActiveId] = useState<string>(DEFAULT_TOOL);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Hydrate from URL → localStorage → default on mount.
+  useEffect(() => {
+    const initial =
+      searchTool && searchTool in STAGE_TOOLS ? searchTool : readLastTool();
+    setActiveId(initial);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep URL in sync with the active tool.
+  useEffect(() => {
+    if (searchTool === activeId) return;
+    navigate({
+      to: "/tools",
+      search: { t: activeId } as never,
+      replace: true,
+    });
+    try {
+      window.localStorage.setItem(STORAGE_KEY, activeId);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId]);
+
+  // Auto-collapse the app sidebar once on entry so the workbench gets the
+  // full width. User can re-open it manually; we don't restore on unmount.
+  useEffect(() => {
+    if (!collapsed) toggle();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ⌘K / Ctrl+K opens the picker.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPickerOpen((o) => !o);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const activeTool = useMemo(
+    () => COMMAND_TOOLS.find((t) => t.id === activeId),
+    [activeId],
+  );
+  const Render = STAGE_TOOLS[activeId];
+
+  function pickTool(t: CommandTool) {
+    setPickerOpen(false);
+    if (t.id in STAGE_TOOLS) {
+      setActiveId(t.id);
+      return;
+    }
+    // Tools without a stage variant have their own route.
+    if (t.route) {
+      navigate({ to: t.route as "/tools/growth-constraint" });
+    }
+  }
 
   return (
-    <Container className="py-10">
-      {onIndex ? <ToolsDirectory /> : <Outlet />}
-    </Container>
+    <div className="flex min-h-[calc(100vh-3rem)] flex-col bg-background">
+      <WorkbenchHeader
+        activeTool={activeTool}
+        onOpenPicker={() => setPickerOpen(true)}
+      />
+      <div className="flex-1">
+        {Render ? <Render /> : <StageFallback />}
+      </div>
+
+      <SwitchToolDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        activeId={activeId}
+        onPick={pickTool}
+      />
+    </div>
   );
 }
 
-function ToolsDirectory() {
-  const [packets, setPackets] = useState<Packet[]>([]);
-  useEffect(() => {
-    const load = () => setPackets(vault.list());
-    load();
-    window.addEventListener("vault:changed", load);
-    return () => window.removeEventListener("vault:changed", load);
-  }, []);
-
-  const latestBySource: Record<string, Packet | undefined> = {};
-  for (const p of packets) if (!latestBySource[p.source]) latestBySource[p.source] = p;
-
+function WorkbenchHeader({
+  activeTool,
+  onOpenPicker,
+}: {
+  activeTool: CommandTool | undefined;
+  onOpenPicker: () => void;
+}) {
   return (
-    <div>
-      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-6">
-        <div className="max-w-2xl">
-          <p className="label-mono">Command Tools · directory</p>
-          <h1
-            className="mt-2 font-display text-[2rem] leading-tight"
+    <div className="sticky top-0 z-20 border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+      <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-3 px-6 py-3">
+        <div className="flex items-baseline gap-3">
+          <p className="label-mono">Operator's Workbench</p>
+          <span className="text-muted-foreground/40">/</span>
+          <p
+            className="font-display text-[15px] leading-none"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
+            {activeTool?.name ?? "Select a tool"}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenPicker}
+            className="group inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-[12.5px] text-foreground/80 hover:border-foreground/30 hover:bg-muted"
+          >
+            <CmdIcon className="h-3.5 w-3.5" />
+            <span>Switch tool</span>
+            <kbd className="ml-1 hidden rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:inline-block">
+              ⌘K
+            </kbd>
+          </button>
+          <Link
+            to="/vault"
+            className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12.5px] font-medium text-cream hover:opacity-90"
+          >
+            <Archive className="h-3.5 w-3.5" /> Vault
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StageFallback() {
+  return (
+    <div className="mx-auto flex max-w-[600px] flex-col items-center px-6 py-24 text-center">
+      <p className="label-mono">Empty stage</p>
+      <h2
+        className="mt-3 font-display text-[24px]"
+        style={{ fontFamily: "var(--font-serif)" }}
+      >
+        Pick a tool to begin.
+      </h2>
+      <p className="mt-2 text-[13.5px] text-muted-foreground">
+        Press <kbd className="rounded border border-border bg-card px-1.5 py-0.5 font-mono text-[11px]">⌘K</kbd>{" "}
+        or use the Switch tool button above.
+      </p>
+    </div>
+  );
+}
+
+function SwitchToolDialog({
+  open,
+  onOpenChange,
+  activeId,
+  onPick,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  activeId: string;
+  onPick: (t: CommandTool) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl p-0 overflow-hidden">
+        <DialogTitle className="sr-only">Switch tool</DialogTitle>
+        <DialogDescription className="sr-only">
+          Pick a Command Tool to load into the workbench.
+        </DialogDescription>
+        <div className="border-b border-border px-5 py-4">
+          <p className="label-mono">Workbench · switch tool</p>
+          <h3
+            className="mt-1 font-display text-[20px] leading-tight"
             style={{ fontFamily: "var(--font-serif)" }}
           >
             Every tool you've got.
-          </h1>
-          <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">
-            One per problem. Run them when you need them — findings save straight to your vault.
+          </h3>
+          <p className="mt-1 text-[12.5px] text-muted-foreground">
+            One per problem. Live tools load straight into the workbench. Others have their own page.
           </p>
         </div>
-        <Link
-          to="/vault"
-          className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3.5 py-2 text-[13px] font-medium text-cream hover:opacity-90"
-        >
-          <Archive className="h-3.5 w-3.5" /> Company Vault
-        </Link>
-      </div>
-
-      <div className="mt-12 space-y-16">
-        {TOOL_GROUPS.map((group, idx) => {
-          const tools = toolsByGroup(group);
-          if (tools.length === 0) return null;
-          const num = String(idx + 1).padStart(2, "0");
-          const count = String(tools.length).padStart(2, "0");
-          return (
-            <section key={group}>
-              <div className="border-t border-border pt-6">
-                <p className="label-mono">
-                  Section {num} · {count} {tools.length === 1 ? "tool" : "tools"}
+        <div className="max-h-[60vh] overflow-y-auto px-2 py-3">
+          {TOOL_GROUPS.map((group, idx) => {
+            const tools = toolsByGroup(group);
+            if (tools.length === 0) return null;
+            const num = String(idx + 1).padStart(2, "0");
+            return (
+              <div key={group} className="px-3 py-2">
+                <p className="px-1 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+                  {num} · {group}
                 </p>
-                <h2
-                  className="mt-3 font-display text-[28px] leading-[1.05] tracking-tight sm:text-[34px]"
-                  style={{ fontFamily: "var(--font-serif)" }}
-                >
-                  {group}
-                </h2>
-                <p className="mt-2 max-w-xl text-[14.5px] leading-relaxed text-muted-foreground">
-                  {GROUP_LEDES[group]}
-                </p>
+                <ul className="mt-2 space-y-1">
+                  {tools.map((t) => {
+                    const isActive = t.id === activeId;
+                    const Icon = t.icon;
+                    const isStage = t.id in STAGE_TOOLS;
+                    const isRouted = !isStage && !!t.route;
+                    const usable = isStage || isRouted;
+                    return (
+                      <li key={t.id}>
+                        <button
+                          type="button"
+                          onClick={() => usable && onPick(t)}
+                          disabled={!usable}
+                          className={`group flex w-full items-center gap-3 rounded-md border px-3 py-2.5 text-left transition ${
+                            isActive
+                              ? "border-foreground/40 bg-muted"
+                              : usable
+                                ? "border-transparent hover:border-border hover:bg-muted/60"
+                                : "border-transparent opacity-50"
+                          }`}
+                        >
+                          <span className="grid h-8 w-8 place-items-center rounded-md bg-foreground/5 text-foreground/80">
+                            {t.status === "later" || (!usable && !hasToolDrawer(t.id)) ? (
+                              <Lock className="h-3.5 w-3.5" />
+                            ) : (
+                              <Icon className="h-3.5 w-3.5" />
+                            )}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-center gap-2">
+                              <span className="truncate text-[13.5px] font-medium text-foreground">
+                                {t.name}
+                              </span>
+                              {isActive && (
+                                <span className="font-mono text-[9.5px] uppercase tracking-[0.2em] text-signal">
+                                  · loaded
+                                </span>
+                              )}
+                            </span>
+                            <span className="mt-0.5 line-clamp-1 block text-[12px] text-muted-foreground">
+                              {t.blurb}
+                            </span>
+                          </span>
+                          <StatusPill status={t.status} routed={isRouted} />
+                          <ArrowUpRight className="h-3.5 w-3.5 text-foreground/40 opacity-0 transition group-hover:opacity-100" />
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
-              <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {tools.map((t) => (
-                  <DirectoryCard
-                    key={t.id}
-                    tool={t}
-                    packet={t.vaultSource ? latestBySource[t.vaultSource] : undefined}
-                  />
-                ))}
-              </div>
-            </section>
-          );
-        })}
-      </div>
-    </div>
+            );
+          })}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-const GROUP_LEDES: Record<string, string> = {
-  "Make more money": "The plays that lift revenue without adding overhead.",
-  "Protect margin and cash": "Stop the slow bleed inside jobs you've already won.",
-  "Build the machine": "Install the systems that make the business run without you.",
-  "Deliver better projects": "Tighten execution so every job ends clean.",
-};
-
-function DirectoryCard({ tool, packet }: { tool: CommandTool; packet?: Packet }) {
-  const Icon = tool.icon;
-  const drawer = useToolDrawer();
-  const usesDrawer = hasToolDrawer(tool.id);
-  const isLive = tool.status === "live";
-  const hasRun = isLive && !!packet;
-
-  const finding =
-    packet && packet.kind === "command"
-      ? packet.primaryFinding
-      : packet?.kind === "issue"
-        ? packet.needsPressure
-        : undefined;
-
-  if (!isLive) {
+function StatusPill({ status, routed }: { status: CommandTool["status"]; routed: boolean }) {
+  if (status === "later") {
     return (
-      <div className="flex h-full flex-col rounded-2xl border-2 border-dashed border-border bg-transparent p-5 opacity-70">
-        <CardHeader Icon={Icon} status="soon" />
-        <h3
-          className="mt-4 font-display text-[19px] leading-snug text-foreground/75"
-          style={{ fontFamily: "var(--font-serif)" }}
-        >
-          {tool.name}
-        </h3>
-        <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground/80">{tool.blurb}</p>
-        <p className="mt-auto pt-4 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground/70">
-          Coming next
-        </p>
-      </div>
+      <span className="font-mono text-[9.5px] uppercase tracking-[0.22em] text-muted-foreground">
+        Soon
+      </span>
     );
   }
-
-  const inner = (
-    <>
-      <CardHeader Icon={Icon} status={hasRun ? "live" : "ready"} />
-      <h3
-        className="mt-4 font-display text-[19px] leading-snug"
-        style={{ fontFamily: "var(--font-serif)" }}
-      >
-        {tool.name}
-      </h3>
-      {hasRun && finding ? (
-        <p className="mt-2 line-clamp-3 text-[13.5px] leading-relaxed text-foreground/85">
-          {finding}
-        </p>
-      ) : (
-        <p className="mt-2 text-[13.5px] leading-relaxed text-muted-foreground">{tool.blurb}</p>
-      )}
-      <div className="mt-auto flex items-center justify-between pt-4">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-          {hasRun ? relative(packet!.createdAt) : "Not run yet · ~4 min"}
-        </span>
-        <ArrowUpRight className="h-4 w-4 text-foreground/60 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-      </div>
-    </>
-  );
-
-  const shared =
-    "group flex h-full flex-col rounded-2xl border-2 border-border bg-card/40 p-5 text-left transition-all hover:-translate-y-0.5 hover:border-foreground/30 hover:bg-card hover:shadow-sm";
-
-  if (usesDrawer) {
+  if (routed) {
     return (
-      <button type="button" onClick={() => drawer.open(tool.id)} className={shared}>
-        {inner}
-      </button>
+      <span className="font-mono text-[9.5px] uppercase tracking-[0.22em] text-muted-foreground">
+        Own page
+      </span>
     );
   }
   return (
-    <Link to={tool.route as "/tools/growth-constraint"} className={shared}>
-      {inner}
-    </Link>
+    <span className="inline-flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-[0.22em] text-muted-foreground">
+      <span className="inline-block h-1.5 w-1.5 rounded-full bg-signal" /> Live
+    </span>
   );
-}
-
-function CardHeader({
-  Icon,
-  status,
-}: {
-  Icon: CommandTool["icon"];
-  status: "live" | "ready" | "soon";
-}) {
-  const dot =
-    status === "live" ? "bg-signal" : status === "ready" ? "bg-gold" : "bg-muted-foreground/40";
-  const label = status === "live" ? "Live" : status === "ready" ? "Ready" : "Soon";
-  return (
-    <div className="flex items-center justify-between">
-      <span className="grid h-9 w-9 place-items-center rounded-lg bg-foreground/5 text-foreground/80">
-        {status === "soon" ? <Lock className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
-      </span>
-      <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-        <span className={`inline-block h-1.5 w-1.5 rounded-full ${dot}`} />
-        {label}
-      </span>
-    </div>
-  );
-}
-
-function relative(iso: string) {
-  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-  if (days <= 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (days < 7) return `${days}d ago`;
-  if (days < 30) return `${Math.floor(days / 7)}w ago`;
-  return `${Math.floor(days / 30)}mo ago`;
 }

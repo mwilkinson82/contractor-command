@@ -26,7 +26,7 @@ const DIM_LABEL: Record<DimensionScore["dimension"], string> = {
   margin: "Margin",
 };
 
-export function ContractReadinessTool({ onClose }: { onClose: () => void }) {
+export function ContractReadinessTool({ onClose }: { onClose?: () => void }) {
   const [contractText, setContractText] = useState("");
   const [projectContext, setProjectContext] = useState("");
   const [stage, setStage] = useState<Stage>("idle");
@@ -180,13 +180,15 @@ export function ContractReadinessTool({ onClose }: { onClose: () => void }) {
             flags weak clauses and missing protections before you sign.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground/70 hover:bg-muted"
-        >
-          Close
-        </button>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground/70 hover:bg-muted"
+          >
+            Close
+          </button>
+        )}
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(360px,460px)_1fr] lg:items-start">
