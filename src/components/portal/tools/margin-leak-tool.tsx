@@ -20,7 +20,7 @@ import { vault } from "@/lib/vault";
 type Stage = "idle" | "running" | "ready";
 const fmtMoney = (n: number) => `$${Math.round(n).toLocaleString()}`;
 
-export function MarginLeakTool({ onClose }: { onClose: () => void }) {
+export function MarginLeakTool({ onClose }: { onClose?: () => void }) {
   const [inputs, setInputs] = useState<MarginLeakInputs>(DEFAULT_MARGIN_LEAK);
   const [stage, setStage] = useState<Stage>("idle");
   const [savedId, setSavedId] = useState<string | null>(null);
@@ -85,13 +85,15 @@ export function MarginLeakTool({ onClose }: { onClose: () => void }) {
             and points at the structural cause.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground/70 hover:bg-muted"
-        >
-          Close
-        </button>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground/70 hover:bg-muted"
+          >
+            Close
+          </button>
+        )}
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(340px,420px)_1fr] lg:items-start">

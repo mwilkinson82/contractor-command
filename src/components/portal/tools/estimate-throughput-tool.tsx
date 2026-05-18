@@ -13,7 +13,7 @@ type Stage = "idle" | "running" | "ready";
 
 const fmtMoney = (n: number) => `$${Math.round(n).toLocaleString()}`;
 
-export function EstimateThroughputTool({ onClose }: { onClose: () => void }) {
+export function EstimateThroughputTool({ onClose }: { onClose?: () => void }) {
   const [inputs, setInputs] = useState<EttInputs>(DEFAULT_ETT);
   const [stage, setStage] = useState<Stage>("idle");
   const [savedId, setSavedId] = useState<string | null>(null);
@@ -94,13 +94,15 @@ export function EstimateThroughputTool({ onClose }: { onClose: () => void }) {
             actually carry the revenue target you set.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground/70 hover:bg-muted"
-        >
-          Close
-        </button>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground/70 hover:bg-muted"
+          >
+            Close
+          </button>
+        )}
       </header>
 
       {/* Split: inputs left, computation + result right */}
