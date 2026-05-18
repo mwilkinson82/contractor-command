@@ -247,67 +247,6 @@ export function EstimateThroughputTool({ onClose }: { onClose: () => void }) {
           )}
         </div>
       </div>
-
-      {/* Result */}
-      {stage === "ready" && (
-        <section className="rounded-2xl border border-border bg-card p-6 reveal-up">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
-                Finding
-              </p>
-              <h2
-                className="mt-1 font-display text-[1.5rem] leading-tight"
-                style={{ fontFamily: "var(--font-serif)" }}
-              >
-                {result.headline}
-              </h2>
-            </div>
-            <StatusPill status={result.status} />
-          </div>
-
-          <div className="mt-5 grid gap-4 md:grid-cols-3">
-            <Metric label="Required" value={`${result.requiredEstimatesPerWeek.toFixed(1)}/wk`} />
-            <Metric label="Current" value={`${result.currentEstimatesPerWeek}/wk`} />
-            <Metric
-              label={result.deficitPerWeek < 0 ? "Revenue at risk" : "Cushion"}
-              value={
-                result.deficitPerWeek < 0
-                  ? fmtMoney(result.revenueAtRisk)
-                  : `${Math.round((result.coveragePct - 1) * 100)}%`
-              }
-              tone={result.deficitPerWeek < 0 ? "warn" : "ok"}
-            />
-          </div>
-
-          <div className="mt-5 space-y-3 text-[14px] leading-relaxed text-foreground/85">
-            <p style={{ fontFamily: "var(--font-serif)" }}>{result.finding}</p>
-            <div className="rounded-md border border-border bg-background/60 p-4">
-              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                Recommended next move
-              </p>
-              <p
-                className="mt-1.5 text-[14px] text-foreground"
-                style={{ fontFamily: "var(--font-serif)" }}
-              >
-                {result.recommendedAction}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-5 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={savePacket}
-              disabled={!!savedId}
-              className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 disabled:opacity-70"
-            >
-              {savedId ? <Check className="h-3.5 w-3.5 text-signal-success" /> : <Save className="h-3.5 w-3.5" />}
-              {savedId ? "Saved to vault" : "Save to vault"}
-            </button>
-          </div>
-        </section>
-      )}
     </div>
   );
 }
