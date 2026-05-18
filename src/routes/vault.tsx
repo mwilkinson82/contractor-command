@@ -124,8 +124,8 @@ function VaultPage() {
             </p>
             {packets.length === 0 && (
               <div className="mt-6">
-                <Link to="/tools/growth-constraint" className="inline-flex rounded-md bg-ink px-4 py-2 text-[13px] text-cream hover:opacity-90">
-                  Open Growth Constraint Map
+                <Link to="/tools" className="inline-flex rounded-md bg-ink px-4 py-2 text-[13px] text-cream hover:opacity-90">
+                  Open Operator's Workbench
                 </Link>
               </div>
             )}
