@@ -468,7 +468,7 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
                     {emailSending ? "Sending…" : "Send SOP"}
                   </button>
                   <p className="text-[11px] text-muted-foreground">
-                    From notify.mail.alpcontractorcircle.com
+                    From mail.alpcontractorcircle.com
                   </p>
                 </div>
               </div>
