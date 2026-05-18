@@ -13,16 +13,8 @@ export type Session = {
   agenda?: string[];
 };
 
-export type Replay = {
-  title: string;
-  date: string; // ISO date
-  kind: "Biweekly Call" | "Monthly Bootcamp";
-  tags: string[];
-  description: string;
-  usefulFor: string;
-  relatedAos: string;
-  zoomUrl?: string; // missing = "replay pending"
-};
+// Replays moved to the `replays` database table — see src/routes/replays.tsx.
+
 
 // Biweekly cadence: every other Sunday, 5:00 PM Eastern.
 // Anchor: 2026-05-24 17:00 ET (EDT = UTC-4) → 2026-05-24T21:00:00.000Z.
