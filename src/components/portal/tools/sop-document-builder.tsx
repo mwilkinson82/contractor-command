@@ -207,6 +207,7 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
     }
   }
 
+  async function downloadPdf() {
     if (!doc) return;
     const { jsPDF } = await import("jspdf");
     const pdf = new jsPDF({ unit: "pt", format: "letter" });
