@@ -389,7 +389,13 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
             </button>
             <button
               type="button"
-              onClick={() => { setEmailOpen((v) => !v); setEmailError(null); }}
+              onClick={() => {
+                setEmailOpen((v) => !v);
+                setEmailError(null);
+                requestAnimationFrame(() => {
+                  emailPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                });
+              }}
               className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-[13px] font-medium text-foreground hover:bg-muted"
             >
               <Mail className="h-3.5 w-3.5" />
