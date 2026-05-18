@@ -60,7 +60,7 @@ function GrowthConstraintTool() {
       financialConsequence: `Revenue gap ${fmtMoney(result.revenueGap)} · Gross profit attached ${fmtMoney(result.grossProfitAttachedToGap)}`,
       missingSystem: result.missingSystem,
       recommendedAction: result.recommendedAction,
-      relatedAos: result.relatedAos,
+      
       bringOneIssuePrompt: result.bringOneIssuePrompt,
       intensiveRecommended: result.intensiveRecommended,
       inputs: inputs as unknown as Record<string, number>,
