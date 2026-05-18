@@ -89,52 +89,81 @@ function ReplaysPage() {
             No replays match.
           </div>
         ) : (
-          filtered.map((r) => (
-            <article key={r.id} className="rounded-2xl border border-border bg-card p-6">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div className="max-w-2xl">
-                  <p className="label-mono">
-                    {new Date(r.recorded_at).toLocaleDateString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                    {r.duration_minutes ? ` · ${r.duration_minutes} min` : ""}
-                  </p>
-                  <h3 className="mt-2 font-display text-xl leading-snug">{r.title}</h3>
-                  {r.description ? (
-                    <p className="mt-3 text-sm text-muted-foreground">{r.description}</p>
-                  ) : null}
+          filtered.map((r) => {
+            const isPlaying = !!playing[r.id];
+            const isEmbeddable =
+              !!r.video_url &&
+              (r.video_url.includes("iframe.videodelivery.net") ||
+                r.video_url.includes("zoom.us/clips/embed"));
+            return (
+              <article key={r.id} className="overflow-hidden rounded-2xl border border-border bg-card">
+                <div className="p-6">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="max-w-2xl">
+                      <p className="label-mono">
+                        {new Date(r.recorded_at).toLocaleDateString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                        {r.duration_minutes ? ` · ${r.duration_minutes} min` : ""}
+                      </p>
+                      <h3 className="mt-2 font-display text-xl leading-snug">{r.title}</h3>
+                      {r.description ? (
+                        <p className="mt-3 text-sm text-muted-foreground">{r.description}</p>
+                      ) : null}
+                    </div>
+                    {r.video_url ? (
+                      isEmbeddable ? (
+                        <button
+                          onClick={() => setPlaying((p) => ({ ...p, [r.id]: !p[r.id] }))}
+                          className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2 text-sm text-cream hover:opacity-90"
+                        >
+                          <Play className="h-3.5 w-3.5" /> {isPlaying ? "Hide" : "Watch"} replay
+                        </button>
+                      ) : (
+                        <a
+                          href={r.video_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2 text-sm text-cream hover:opacity-90"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" /> Open replay
+                        </a>
+                      )
+                    ) : (
+                      <span className="inline-flex items-center gap-2 rounded-lg border border-border bg-muted px-4 py-2 text-sm text-muted-foreground">
+                        Replay pending
+                      </span>
+                    )}
+                  </div>
+                  {r.tags.length > 0 && (
+                    <div className="mt-5 flex flex-wrap gap-1.5 border-t border-border pt-4">
+                      {r.tags.map((t) => (
+                        <span
+                          key={t}
+                          className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+                        >
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                {r.video_url ? (
-                  <a
-                    href={r.video_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2 text-sm text-cream hover:opacity-90"
-                  >
-                    <Video className="h-3.5 w-3.5" /> Watch replay
-                  </a>
-                ) : (
-                  <span className="inline-flex items-center gap-2 rounded-lg border border-border bg-muted px-4 py-2 text-sm text-muted-foreground">
-                    Replay pending
-                  </span>
+                {isPlaying && isEmbeddable && r.video_url && (
+                  <div className="aspect-video w-full border-t border-border bg-black">
+                    <iframe
+                      src={r.video_url}
+                      className="h-full w-full"
+                      allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                      allowFullScreen
+                      title={r.title}
+                    />
+                  </div>
                 )}
-              </div>
-              {r.tags.length > 0 && (
-                <div className="mt-5 flex flex-wrap gap-1.5 border-t border-border pt-4">
-                  {r.tags.map((t) => (
-                    <span
-                      key={t}
-                      className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-                    >
-                      {t}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </article>
-          ))
+              </article>
+            );
+          })
         )}
       </div>
     </Container>
