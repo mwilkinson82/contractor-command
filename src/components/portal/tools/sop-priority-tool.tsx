@@ -592,28 +592,51 @@ function DepartmentMode() {
           />
         )}
 
-        {stage === "ready" && result && (
+        {stage === "ready" && result && buildingSop && (
+          <SopDocumentBuilder
+            item={buildingSop}
+            department={result.department}
+            parentPlay={result.plays.find((p) => p.id === buildingSop.playId) ?? null}
+            ownerContext={context}
+            onBack={() => setBuildingSop(null)}
+          />
+        )}
+
+        {stage === "ready" && result && !buildingSop && (
           <section className="rounded-2xl border border-border bg-card p-6 reveal-up">
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
+              <div className="min-w-0">
                 <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
-                  {result.department} · Build order
+                  {result.department} · Diagnosis
                 </p>
                 <h2 className="mt-1 font-display text-[1.5rem] leading-tight" style={{ fontFamily: "var(--font-serif)" }}>
                   {result.headline}
                 </h2>
-                <p className="mt-2 max-w-3xl text-[13px] text-foreground/80">
-                  {result.buildOrderRationale}
+                <p className="mt-2 max-w-3xl text-[13px] leading-relaxed text-foreground/85">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Reframe:</span>{" "}
+                  {result.constraintReframe}
                 </p>
               </div>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-foreground/30 bg-background/60 px-3 py-1 text-[11px] font-medium text-foreground">
-                {result.backlog.length} SOPs
+                {result.plays.length} {result.plays.length === 1 ? "play" : "plays"} · {result.backlog.length} SOPs
               </span>
             </div>
 
-            <div className="mt-5 rounded-md border border-foreground/30 bg-background p-4">
+            <div className="mt-5">
+              <p className="label-mono">Optimization plays</p>
+              <p className="mt-1 text-[12px] text-muted-foreground">
+                Structural moves first — these are the system redesigns. SOPs below operationalize the recommended play.
+              </p>
+              <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                {result.plays.map((p) => (
+                  <PlayCard key={p.id} play={p} recommended={p.id === result.topPlayId} />
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6 rounded-md border border-foreground/30 bg-background p-4">
               <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                Build this first · #{result.topSop.rank}
+                Build this first · #{result.topSop.rank} · operationalizes {result.topSop.playId}
               </p>
               <p className="mt-1.5 font-display text-[1.15rem] leading-tight text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
                 {result.topSop.name}
@@ -622,13 +645,26 @@ function DepartmentMode() {
               <p className="mt-1.5 text-[12px] text-muted-foreground">
                 <span className="font-mono uppercase tracking-[0.18em]">Why:</span> {result.topSop.why}
               </p>
+              <button
+                type="button"
+                onClick={() => setBuildingSop(result.topSop)}
+                className="mt-3 inline-flex items-center gap-2 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90"
+              >
+                <Sparkles className="h-3.5 w-3.5" /> Build this SOP
+              </button>
             </div>
 
-            <ol className="mt-5 space-y-3">
-              {result.backlog.map((s) => (
-                <BacklogRow key={s.rank} item={s} />
-              ))}
-            </ol>
+            <div className="mt-5">
+              <p className="label-mono">SOP backlog</p>
+              <p className="mt-1 text-[12px] text-muted-foreground">
+                Ordered by dependency. Click any row to draft the full SOP document — purpose, steps, KPIs, escalation.
+              </p>
+              <ol className="mt-3 space-y-3">
+                {result.backlog.map((s) => (
+                  <BacklogRow key={s.rank} item={s} onBuild={() => setBuildingSop(s)} />
+                ))}
+              </ol>
+            </div>
 
             <div className="mt-5 flex flex-wrap items-center gap-2">
               <button
@@ -638,7 +674,7 @@ function DepartmentMode() {
                 className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 disabled:opacity-70"
               >
                 {savedId ? <Check className="h-3.5 w-3.5 text-signal-success" /> : <Save className="h-3.5 w-3.5" />}
-                {savedId ? "Saved to vault" : "Save to vault"}
+                {savedId ? "Saved to vault" : "Save backlog to vault"}
               </button>
               <CopyBacklogBtn result={result} />
               <Link
