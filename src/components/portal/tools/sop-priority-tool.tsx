@@ -405,7 +405,7 @@ function OwnerMode() {
                     plays={playsByArea[s.name]}
                     error={areaError[s.name]}
                     onToggle={() => toggleArea(s)}
-                    onBuildSop={(item, parentPlay) =>
+                    onBuildSop={(item: SopBacklogItem, parentPlay: OptimizationPlay | null) =>
                       setBuildingSop({ item, parentPlay, area: s.name })
                     }
                   />
