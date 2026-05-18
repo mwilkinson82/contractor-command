@@ -159,7 +159,7 @@ export function AppSidebar() {
 
       {/* Groups */}
       <nav className="flex-1 overflow-y-auto px-2 py-4">
-        {GROUPS.map((g) => (
+        {groups.map((g) => (
           <div key={g.label} className="mb-4">
             {!collapsed && (
               <p className="px-2 pb-1.5 text-[10px] uppercase tracking-[0.22em] font-semibold" style={{ color: "color-mix(in oklab, var(--signal) 75%, transparent)" }}>
