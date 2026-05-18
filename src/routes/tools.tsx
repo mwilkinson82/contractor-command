@@ -64,14 +64,29 @@ function ToolsDirectory() {
         </Link>
       </div>
 
-      <div className="mt-10 space-y-12">
-        {TOOL_GROUPS.map((group) => {
+      <div className="mt-12 space-y-16">
+        {TOOL_GROUPS.map((group, idx) => {
           const tools = toolsByGroup(group);
           if (tools.length === 0) return null;
+          const num = String(idx + 1).padStart(2, "0");
+          const count = String(tools.length).padStart(2, "0");
           return (
-            <div key={group}>
-              <p className="label-mono">{group}</p>
-              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <section key={group}>
+              <div className="border-t border-border pt-6">
+                <p className="label-mono">
+                  Section {num} · {count} {tools.length === 1 ? "tool" : "tools"}
+                </p>
+                <h2
+                  className="mt-3 font-display text-[28px] leading-[1.05] tracking-tight sm:text-[34px]"
+                  style={{ fontFamily: "var(--font-serif)" }}
+                >
+                  {group}
+                </h2>
+                <p className="mt-2 max-w-xl text-[14.5px] leading-relaxed text-muted-foreground">
+                  {GROUP_LEDES[group]}
+                </p>
+              </div>
+              <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {tools.map((t) => (
                   <DirectoryCard
                     key={t.id}
@@ -80,13 +95,20 @@ function ToolsDirectory() {
                   />
                 ))}
               </div>
-            </div>
+            </section>
           );
         })}
       </div>
     </div>
   );
 }
+
+const GROUP_LEDES: Record<string, string> = {
+  "Make more money": "The plays that lift revenue without adding overhead.",
+  "Protect margin and cash": "Stop the slow bleed inside jobs you've already won.",
+  "Build the machine": "Install the systems that make the business run without you.",
+  "Deliver better projects": "Tighten execution so every job ends clean.",
+};
 
 function DirectoryCard({ tool, packet }: { tool: CommandTool; packet?: Packet }) {
   const Icon = tool.icon;
