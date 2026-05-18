@@ -73,20 +73,24 @@ export function GrowthConstraintTool({ embedded = false }: { embedded?: boolean 
       {/* Tool header */}
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border/70 pb-5">
         <div>
-          <Link
-            to="/tools"
-            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-[11px] text-foreground/70 hover:bg-muted"
-          >
-            <ArrowLeft className="h-3 w-3" /> All tools
-          </Link>
+          {!embedded && (
+            <Link
+              to="/tools"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-[11px] text-foreground/70 hover:bg-muted"
+            >
+              <ArrowLeft className="h-3 w-3" /> All tools
+            </Link>
+          )}
           <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
             Command tool · 01
           </p>
           <h1 className="mt-2 font-display text-2xl tracking-tight sm:text-3xl">Growth Constraint Map</h1>
         </div>
-        <Link to="/vault" className="rounded-md border border-border bg-card px-3 py-1.5 text-[12px] hover:bg-muted">
-          Open vault
-        </Link>
+        {!embedded && (
+          <Link to="/vault" className="rounded-md border border-border bg-card px-3 py-1.5 text-[12px] hover:bg-muted">
+            Open vault
+          </Link>
+        )}
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
