@@ -30,6 +30,7 @@ import { Route as AskNewRouteImport } from './routes/ask.new'
 import { Route as AskThreadIdRouteImport } from './routes/ask.$threadId'
 import { Route as ApiSopDraftRouteImport } from './routes/api/sop-draft'
 import { Route as ApiSopBacklogRouteImport } from './routes/api/sop-backlog'
+import { Route as ApiOwnerPlaysRouteImport } from './routes/api/owner-plays'
 import { Route as ApiContractScanRouteImport } from './routes/api/contract-scan'
 import { Route as ApiAskRouteImport } from './routes/api/ask'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
@@ -142,6 +143,11 @@ const ApiSopBacklogRoute = ApiSopBacklogRouteImport.update({
   path: '/api/sop-backlog',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOwnerPlaysRoute = ApiOwnerPlaysRouteImport.update({
+  id: '/api/owner-plays',
+  path: '/api/owner-plays',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiContractScanRoute = ApiContractScanRouteImport.update({
   id: '/api/contract-scan',
   path: '/api/contract-scan',
@@ -192,6 +198,7 @@ export interface FileRoutesByFullPath {
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
+  '/api/owner-plays': typeof ApiOwnerPlaysRoute
   '/api/sop-backlog': typeof ApiSopBacklogRoute
   '/api/sop-draft': typeof ApiSopDraftRoute
   '/ask/$threadId': typeof AskThreadIdRoute
@@ -221,6 +228,7 @@ export interface FileRoutesByTo {
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
+  '/api/owner-plays': typeof ApiOwnerPlaysRoute
   '/api/sop-backlog': typeof ApiSopBacklogRoute
   '/api/sop-draft': typeof ApiSopDraftRoute
   '/ask/$threadId': typeof AskThreadIdRoute
@@ -251,6 +259,7 @@ export interface FileRoutesById {
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
+  '/api/owner-plays': typeof ApiOwnerPlaysRoute
   '/api/sop-backlog': typeof ApiSopBacklogRoute
   '/api/sop-draft': typeof ApiSopDraftRoute
   '/ask/$threadId': typeof AskThreadIdRoute
@@ -282,6 +291,7 @@ export interface FileRouteTypes {
     | '/work-with-marshall'
     | '/api/ask'
     | '/api/contract-scan'
+    | '/api/owner-plays'
     | '/api/sop-backlog'
     | '/api/sop-draft'
     | '/ask/$threadId'
@@ -311,6 +321,7 @@ export interface FileRouteTypes {
     | '/work-with-marshall'
     | '/api/ask'
     | '/api/contract-scan'
+    | '/api/owner-plays'
     | '/api/sop-backlog'
     | '/api/sop-draft'
     | '/ask/$threadId'
@@ -340,6 +351,7 @@ export interface FileRouteTypes {
     | '/work-with-marshall'
     | '/api/ask'
     | '/api/contract-scan'
+    | '/api/owner-plays'
     | '/api/sop-backlog'
     | '/api/sop-draft'
     | '/ask/$threadId'
@@ -370,6 +382,7 @@ export interface RootRouteChildren {
   WorkWithMarshallRoute: typeof WorkWithMarshallRoute
   ApiAskRoute: typeof ApiAskRoute
   ApiContractScanRoute: typeof ApiContractScanRoute
+  ApiOwnerPlaysRoute: typeof ApiOwnerPlaysRoute
   ApiSopBacklogRoute: typeof ApiSopBacklogRoute
   ApiSopDraftRoute: typeof ApiSopDraftRoute
   AskThreadIdRoute: typeof AskThreadIdRoute
@@ -531,6 +544,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSopBacklogRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/owner-plays': {
+      id: '/api/owner-plays'
+      path: '/api/owner-plays'
+      fullPath: '/api/owner-plays'
+      preLoaderRoute: typeof ApiOwnerPlaysRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/contract-scan': {
       id: '/api/contract-scan'
       path: '/api/contract-scan'
@@ -604,6 +624,7 @@ const rootRouteChildren: RootRouteChildren = {
   WorkWithMarshallRoute: WorkWithMarshallRoute,
   ApiAskRoute: ApiAskRoute,
   ApiContractScanRoute: ApiContractScanRoute,
+  ApiOwnerPlaysRoute: ApiOwnerPlaysRoute,
   ApiSopBacklogRoute: ApiSopBacklogRoute,
   ApiSopDraftRoute: ApiSopDraftRoute,
   AskThreadIdRoute: AskThreadIdRoute,
