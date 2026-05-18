@@ -446,10 +446,14 @@ function BillingActions() {
     setErr(null);
     try {
       const { url } = await portalFn();
-      window.location.assign(url);
+      // Open Stripe in a new tab so the user can come back to the account
+      // page without losing context. Reset loading immediately — there's no
+      // navigation away from this page to clear it.
+      window.open(url, "_blank", "noopener,noreferrer");
     } catch (e: unknown) {
       const m = e instanceof Error ? e.message : "Could not open billing portal.";
       setErr(m);
+    } finally {
       setLoading(false);
     }
   }
@@ -481,7 +485,7 @@ function BillingActions() {
           {loading ? "Opening…" : "Manage subscription"}
         </button>
         <button
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => setOpen(true)}
           className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm hover:bg-muted"
         >
           Billing question
@@ -489,48 +493,62 @@ function BillingActions() {
       </div>
       {err && <p className="mt-3 text-[12px] text-foreground/70">{err}</p>}
 
-      {open && (
-        <div className="mt-4 rounded-xl border border-border bg-background p-4">
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setSent(false); } }}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Billing question</DialogTitle>
+            <DialogDescription>
+              Goes straight to Marshall's team. We'll follow up by email.
+            </DialogDescription>
+          </DialogHeader>
+
           {sent ? (
-            <p className="flex items-center gap-2 text-[13px] text-foreground/80">
+            <p className="flex items-center gap-2 py-6 text-[13px] text-foreground/80">
               <Check className="h-4 w-4 text-signal" /> Sent. Marshall's team will follow up by email.
             </p>
           ) : (
-            <>
-              <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Subject</label>
-              <input
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                className="mt-1.5 w-full rounded-md border border-border bg-card px-3 py-2 text-[13px] focus:border-ink focus:outline-none"
-              />
-              <label className="mt-3 block font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Question</label>
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                rows={4}
-                placeholder="Refund, invoice, plan change, dispute…"
-                className="mt-1.5 w-full rounded-md border border-border bg-card px-3 py-2 text-[13px] focus:border-ink focus:outline-none"
-              />
-              <div className="mt-3 flex justify-end gap-2">
-                <button
-                  onClick={() => setOpen(false)}
-                  className="rounded-md border border-border bg-background px-3 py-1.5 text-[12px] hover:bg-muted"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={send}
-                  disabled={sending || !message.trim()}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] text-cream hover:opacity-90 disabled:opacity-50"
-                >
-                  {sending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                  Send
-                </button>
+            <div className="space-y-4">
+              <div>
+                <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Subject</label>
+                <input
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] focus:border-ink focus:outline-none"
+                />
               </div>
-            </>
+              <div>
+                <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Question</label>
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  rows={5}
+                  placeholder="Refund, invoice, plan change, dispute…"
+                  className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] focus:border-ink focus:outline-none"
+                />
+              </div>
+            </div>
           )}
-        </div>
-      )}
+
+          {!sent && (
+            <DialogFooter>
+              <button
+                onClick={() => setOpen(false)}
+                className="rounded-md border border-border bg-background px-3 py-1.5 text-[12px] hover:bg-muted"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={send}
+                disabled={sending || !message.trim()}
+                className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] text-cream hover:opacity-90 disabled:opacity-50"
+              >
+                {sending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                Send
+              </button>
+            </DialogFooter>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
