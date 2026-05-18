@@ -346,12 +346,14 @@ function AccountPage() {
           </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center gap-2 rounded-md bg-foreground/[0.03] px-3 py-2 text-[11px] text-muted-foreground">
-          <AlertCircle className="h-3.5 w-3.5" />
-          <span>
-            AOS data sync is wiring up — once the AOS endpoint is live, your scorecard and rocks will surface on Home and in the Vault.
-          </span>
-        </div>
+        {!(link?.aos_email || link?.link_code) && (
+          <div className="mt-5 flex flex-wrap items-center gap-2 rounded-md bg-foreground/[0.03] px-3 py-2 text-[11px] text-muted-foreground">
+            <AlertCircle className="h-3.5 w-3.5" />
+            <span>
+              AOS data sync is wiring up — once the AOS endpoint is live, your scorecard and rocks will surface on Home and in the Vault.
+            </span>
+          </div>
+        )}
 
         {msg && <p className="mt-3 text-[12px] text-foreground/70">{msg}</p>}
       </div>
