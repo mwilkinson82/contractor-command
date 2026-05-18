@@ -185,9 +185,41 @@ export function ContractReadinessTool({ onClose }: { onClose: () => void }) {
         <section className="rounded-2xl border border-border bg-card p-5 lg:sticky lg:top-6">
           <p className="label-mono">Inputs</p>
 
+          {/* Upload */}
+          <div className="mt-4 rounded-md border border-dashed border-border bg-background/40 p-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
+              onChange={onFileChosen}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-[12px] font-medium text-foreground hover:bg-muted disabled:opacity-60"
+            >
+              {uploading ? (
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Reading file…</>
+              ) : (
+                <><Upload className="h-3.5 w-3.5" /> Upload contract (PDF or text)</>
+              )}
+            </button>
+            {uploadedName && !uploading ? (
+              <p className="mt-2 font-mono text-[10px] text-muted-foreground">
+                Loaded: <span className="text-foreground">{uploadedName}</span> · you can edit below.
+              </p>
+            ) : (
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                PDF, .txt, or .md. Stays in your browser — only the extracted text is sent.
+              </p>
+            )}
+          </div>
+
           <label className="mt-4 block">
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-              Contract text (paste)
+              Contract text (paste or edit)
             </span>
             <textarea
               value={contractText}
