@@ -16,7 +16,7 @@ export const Route = createFileRoute("/work-with-marshall")({
 });
 
 function WorkPage() {
-  const navigate = useNavigate();
+  // (navigation handled via window.location.assign for external Stripe redirect)
   const checkoutFn = useServerFn(createIntensiveCheckout);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -120,5 +120,3 @@ function WorkPage() {
   );
 }
 
-// useNavigate import kept for future flows
-void useNavigate;
