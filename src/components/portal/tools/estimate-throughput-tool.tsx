@@ -75,7 +75,7 @@ export function EstimateThroughputTool({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-5xl flex-col gap-6 px-6 py-8">
+    <div className="mx-auto flex h-full w-full max-w-[1400px] flex-col gap-6 px-6 py-8">
       {/* Header */}
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -102,136 +102,151 @@ export function EstimateThroughputTool({ onClose }: { onClose: () => void }) {
         </button>
       </header>
 
-      {/* Inputs */}
-      <section className="rounded-2xl border border-border bg-card p-5">
-        <p className="label-mono">Inputs</p>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Field
-            label="Annual revenue target"
-            prefix="$"
-            value={inputs.revenueTarget}
-            onChange={(v) => update("revenueTarget", v)}
-          />
-          <Field
-            label="Average contract size"
-            prefix="$"
-            value={inputs.avgContractSize}
-            onChange={(v) => update("avgContractSize", v)}
-          />
-          <Field
-            label="Win rate"
-            suffix="%"
-            value={inputs.winRate * 100}
-            onChange={(v) => {
-              const n = Number(v.replace(/[,$%]/g, ""));
-              setInputs((p) => ({ ...p, winRate: Number.isFinite(n) ? n / 100 : 0 }));
-              if (stage === "ready") setStage("idle");
-              setSavedId(null);
-            }}
-          />
-          <Field
-            label="Estimates sent / week (current)"
-            value={inputs.currentEstimatesPerWeek}
-            onChange={(v) => update("currentEstimatesPerWeek", v)}
-          />
-          <Field
-            label="Working weeks per year"
-            value={inputs.workingWeeks}
-            onChange={(v) => update("workingWeeks", v)}
-          />
-        </div>
-
-        <div className="mt-5 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={run}
-            disabled={stage === "running"}
-            className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 disabled:opacity-60"
-          >
-            <Play className="h-3.5 w-3.5" />
-            {stage === "ready" ? "Recompute" : "Run analysis"}
-          </button>
-          <button
-            type="button"
-            onClick={reset}
-            className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-[12px] text-foreground/70 hover:bg-muted"
-          >
-            <RotateCcw className="h-3 w-3" /> Reset
-          </button>
-        </div>
-      </section>
-
-      {/* Compute theater */}
-      {(stage === "running" || stage === "ready") && (
-        <ComputeTheater
-          steps={steps}
-          ticker={ticker}
-          running={stage === "running"}
-          onDone={() => setStage("ready")}
-          subtitle="Estimate Throughput Tracker"
-        />
-      )}
-
-      {/* Result */}
-      {stage === "ready" && (
-        <section className="rounded-2xl border border-border bg-card p-6 reveal-up">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
-                Finding
-              </p>
-              <h2
-                className="mt-1 font-display text-[1.5rem] leading-tight"
-                style={{ fontFamily: "var(--font-serif)" }}
-              >
-                {result.headline}
-              </h2>
-            </div>
-            <StatusPill status={result.status} />
-          </div>
-
-          <div className="mt-5 grid gap-4 md:grid-cols-3">
-            <Metric label="Required" value={`${result.requiredEstimatesPerWeek.toFixed(1)}/wk`} />
-            <Metric label="Current" value={`${result.currentEstimatesPerWeek}/wk`} />
-            <Metric
-              label={result.deficitPerWeek < 0 ? "Revenue at risk" : "Cushion"}
-              value={
-                result.deficitPerWeek < 0
-                  ? fmtMoney(result.revenueAtRisk)
-                  : `${Math.round((result.coveragePct - 1) * 100)}%`
-              }
-              tone={result.deficitPerWeek < 0 ? "warn" : "ok"}
+      {/* Split: inputs left, computation + result right */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(340px,420px)_1fr] lg:items-start">
+        {/* Inputs */}
+        <section className="rounded-2xl border border-border bg-card p-5 lg:sticky lg:top-6">
+          <p className="label-mono">Inputs</p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+            <Field
+              label="Annual revenue target"
+              prefix="$"
+              value={inputs.revenueTarget}
+              onChange={(v) => update("revenueTarget", v)}
             />
-          </div>
-
-          <div className="mt-5 space-y-3 text-[14px] leading-relaxed text-foreground/85">
-            <p style={{ fontFamily: "var(--font-serif)" }}>{result.finding}</p>
-            <div className="rounded-md border border-border bg-background/60 p-4">
-              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                Recommended next move
-              </p>
-              <p
-                className="mt-1.5 text-[14px] text-foreground"
-                style={{ fontFamily: "var(--font-serif)" }}
-              >
-                {result.recommendedAction}
-              </p>
-            </div>
+            <Field
+              label="Average contract size"
+              prefix="$"
+              value={inputs.avgContractSize}
+              onChange={(v) => update("avgContractSize", v)}
+            />
+            <Field
+              label="Win rate"
+              suffix="%"
+              value={inputs.winRate * 100}
+              onChange={(v) => {
+                const n = Number(v.replace(/[,$%]/g, ""));
+                setInputs((p) => ({ ...p, winRate: Number.isFinite(n) ? n / 100 : 0 }));
+                if (stage === "ready") setStage("idle");
+                setSavedId(null);
+              }}
+            />
+            <Field
+              label="Estimates sent / week (current)"
+              value={inputs.currentEstimatesPerWeek}
+              onChange={(v) => update("currentEstimatesPerWeek", v)}
+            />
+            <Field
+              label="Working weeks per year"
+              value={inputs.workingWeeks}
+              onChange={(v) => update("workingWeeks", v)}
+            />
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={savePacket}
-              disabled={!!savedId}
-              className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 disabled:opacity-70"
+              onClick={run}
+              disabled={stage === "running"}
+              className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 disabled:opacity-60"
             >
-              {savedId ? <Check className="h-3.5 w-3.5 text-signal-success" /> : <Save className="h-3.5 w-3.5" />}
-              {savedId ? "Saved to vault" : "Save to vault"}
+              <Play className="h-3.5 w-3.5" />
+              {stage === "ready" ? "Recompute" : "Run analysis"}
+            </button>
+            <button
+              type="button"
+              onClick={reset}
+              className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-[12px] text-foreground/70 hover:bg-muted"
+            >
+              <RotateCcw className="h-3 w-3" /> Reset
             </button>
           </div>
         </section>
-      )}
+
+        {/* Right column: theater + result */}
+        <div className="flex flex-col gap-6 min-w-0">
+          {stage === "idle" && (
+            <div className="rounded-2xl border border-dashed border-border bg-background/40 p-10 text-center">
+              <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+                Awaiting inputs
+              </p>
+              <p className="mt-2 text-[13px] text-muted-foreground" style={{ fontFamily: "var(--font-serif)" }}>
+                Set your numbers, then hit Run analysis to see what your estimate cadence can actually carry.
+              </p>
+            </div>
+          )}
+
+          {(stage === "running" || stage === "ready") && (
+            <ComputeTheater
+              steps={steps}
+              ticker={ticker}
+              running={stage === "running"}
+              onDone={() => setStage("ready")}
+              subtitle="Estimate Throughput Tracker"
+            />
+          )}
+
+          {stage === "ready" && (
+            <section className="rounded-2xl border border-border bg-card p-6 reveal-up">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+                    Finding
+                  </p>
+                  <h2
+                    className="mt-1 font-display text-[1.5rem] leading-tight"
+                    style={{ fontFamily: "var(--font-serif)" }}
+                  >
+                    {result.headline}
+                  </h2>
+                </div>
+                <StatusPill status={result.status} />
+              </div>
+
+              <div className="mt-5 grid gap-4 sm:grid-cols-3">
+                <Metric label="Required" value={`${result.requiredEstimatesPerWeek.toFixed(1)}/wk`} />
+                <Metric label="Current" value={`${result.currentEstimatesPerWeek}/wk`} />
+                <Metric
+                  label={result.deficitPerWeek < 0 ? "Revenue at risk" : "Cushion"}
+                  value={
+                    result.deficitPerWeek < 0
+                      ? fmtMoney(result.revenueAtRisk)
+                      : `${Math.round((result.coveragePct - 1) * 100)}%`
+                  }
+                  tone={result.deficitPerWeek < 0 ? "warn" : "ok"}
+                />
+              </div>
+
+              <div className="mt-5 space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                <p style={{ fontFamily: "var(--font-serif)" }}>{result.finding}</p>
+                <div className="rounded-md border border-border bg-background/60 p-4">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+                    Recommended next move
+                  </p>
+                  <p
+                    className="mt-1.5 text-[14px] text-foreground"
+                    style={{ fontFamily: "var(--font-serif)" }}
+                  >
+                    {result.recommendedAction}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={savePacket}
+                  disabled={!!savedId}
+                  className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 disabled:opacity-70"
+                >
+                  {savedId ? <Check className="h-3.5 w-3.5 text-signal-success" /> : <Save className="h-3.5 w-3.5" />}
+                  {savedId ? "Saved to vault" : "Save to vault"}
+                </button>
+              </div>
+            </section>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
