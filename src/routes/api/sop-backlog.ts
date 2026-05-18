@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import "@tanstack/react-start";
-import { generateObject } from "ai";
+import { generateText } from "ai";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 
@@ -104,6 +104,117 @@ function normalizeResult(
   };
 }
 
+type NormalizedBacklog = ReturnType<typeof normalizeResult> & { topSop: SopBacklogItem };
+
+function extractJsonObject(raw: string) {
+  const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/i, "").trim();
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start < 0 || end <= start) throw new Error("No JSON object found in model response.");
+  return JSON.parse(cleaned.slice(start, end + 1));
+}
+
+async function generateWithTimeout<T>(task: (signal: AbortSignal) => Promise<T>, ms = 14000) {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort("SOP backlog generation timed out");
+      reject(new Error("SOP backlog generation timed out"));
+    }, ms);
+  });
+  try {
+    return await Promise.race([task(controller.signal), timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function fallbackResult(dept: SopDepartment, seatHeadcount: number, context?: string): NormalizedBacklog {
+  const isPm = dept === "Project Management";
+  const constraint = context?.trim()
+    ? `The stated issue is not just workload: ${context.trim()} The operating constraint is that the ${dept} seat owns too wide a lane, so every job forces the same people to context-switch instead of executing a narrow phase standard.`
+    : `The ${dept} constraint is a scope-shape problem before it is a hiring problem. The seat is carrying too many phases, exceptions, and judgment calls for ${seatHeadcount} person${seatHeadcount === 1 ? "" : "s"} to run consistently.`;
+
+  if (isPm) {
+    return {
+      constraintReframe: constraint,
+      plays: [
+        {
+          id: "P1",
+          name: "Split PM ownership into phase lanes",
+          diagnosis: "One PM owning a job from pre-con through closeout serializes the business. The choke point is broad PM scope, not simply the number of PMs.",
+          mechanism: "Create Ground / Rough-In / Finish / Closeout lanes with exact phase-gate hand-offs so each PM executes a narrower window and can carry more jobs without losing control.",
+          expectedLift: "More active jobs per PM with fewer dropped hand-offs and less owner escalation.",
+          risks: "If phase gates are vague, work will bounce between PMs and create duplicate follow-up.",
+        },
+        {
+          id: "P2",
+          name: "Move PM admin into a coordinator queue",
+          diagnosis: "PM bandwidth is being spent on updates, document chasing, and status packaging instead of job control.",
+          mechanism: "A coordinator owns the recurring admin packet while PMs handle decisions, constraints, subcontractor execution, and client exceptions.",
+          expectedLift: "5-8 PM hours/week recovered per seat holder.",
+          risks: "The queue fails if the coordinator lacks clear escalation thresholds.",
+        },
+      ],
+      topPlayId: "P1",
+      headline: "Project Management needs narrower phase ownership before another hire.",
+      buildOrderRationale: "Build the phase lane definitions and hand-off gates first. Every later SOP depends on knowing exactly where one PM lane ends, what proof transfers, and who owns the next decision.",
+      topSop: {
+        rank: 1,
+        playId: "P1",
+        name: "PM Phase Lane Definition SOP",
+        purpose: "Define the PM lanes, authority, hand-off points, and standards of done so the seat can carry more work without one PM owning every stage.",
+        trigger: "Before assigning any new project to a PM or rebalancing active jobs.",
+        owner: "Project Management Lead",
+        dependsOn: [],
+        effort: "M",
+        why: "Without phase lanes, every hand-off SOP is built on mud and the owner keeps absorbing unclear accountability.",
+      },
+      backlog: [
+        { rank: 1, playId: "P1", name: "PM Phase Lane Definition SOP", purpose: "Define each PM phase lane, authority, standard of done, and hand-off boundary.", trigger: "Before assigning or rebalancing project work.", owner: "Project Management Lead", dependsOn: [], effort: "M", why: "Narrow lanes reduce switching cost and stop every PM from carrying the whole job in their head." },
+        { rank: 2, playId: "P1", name: "Pre-Con to Ground PM Intake SOP", purpose: "Transfer contract, scope, budget, schedule, buyout status, and open risks into the first PM lane.", trigger: "Contract signed or notice-to-proceed issued.", owner: "Ground PM", dependsOn: ["PM Phase Lane Definition SOP"], effort: "M", why: "Bad intake creates the rework that burns PM capacity for the rest of the job." },
+        { rank: 3, playId: "P1", name: "Phase-Gate Readiness Checklist SOP", purpose: "Create a pass/fail checklist for whether a job is ready to move to the next PM lane.", trigger: "Seven days before any scheduled phase hand-off.", owner: "Current Phase PM", dependsOn: ["PM Phase Lane Definition SOP"], effort: "S", why: "The next PM should receive a clean job, not a pile of unresolved exceptions." },
+        { rank: 4, playId: "P1", name: "Ground-to-Rough-In Hand-off SOP", purpose: "Package site conditions, RFIs, procurement risks, schedule constraints, and subcontractor commitments for the next lane.", trigger: "Ground work reaches the approved rough-in start threshold.", owner: "Ground PM", dependsOn: ["Phase-Gate Readiness Checklist SOP"], effort: "M", why: "This prevents the same field problem from being rediscovered by the next PM at full cost." },
+        { rank: 5, playId: "P1", name: "Rough-In-to-Finishes Hand-off SOP", purpose: "Transfer inspection status, MEP constraints, finish lead times, owner decisions, and variance risks.", trigger: "Rough-in sign-off is scheduled or completed.", owner: "Rough-In PM", dependsOn: ["Phase-Gate Readiness Checklist SOP"], effort: "M", why: "Finish-phase delays are expensive because they hit client experience, schedule, and punch at the same time." },
+        { rank: 6, playId: "P1", name: "PM Load Board Update SOP", purpose: "Show every active job by phase, PM lane, next gate, blocked item, and escalation owner.", trigger: "Weekly PM meeting and any phase hand-off request.", owner: "PM Coordinator", dependsOn: ["PM Phase Lane Definition SOP"], effort: "S", why: "You cannot optimize PM bandwidth if active work is invisible until someone is drowning." },
+        { rank: 7, playId: "P1", name: "RFI / Submittal Escalation Triage SOP", purpose: "Sort RFIs and submittals by dollar risk, schedule risk, and decision owner before they jam the PM lane.", trigger: "Any RFI/submittal aging past the agreed threshold or blocking the next gate.", owner: "Assigned Phase PM", dependsOn: ["PM Load Board Update SOP"], effort: "M", why: "A small unanswered item becomes a schedule claim or margin leak when nobody owns escalation timing." },
+        { rank: 8, playId: "P1", name: "Change Order Evidence Packet SOP", purpose: "Capture photos, field notes, scope references, cost backup, and approval status before work proceeds.", trigger: "Any owner/directive/sub/vendor condition outside contracted scope.", owner: "Assigned Phase PM", dependsOn: ["PM Phase Lane Definition SOP"], effort: "M", why: "The company only gets paid for changes it can prove while leverage still exists." },
+        { rank: 9, playId: "P1", name: "Closeout PM Acceptance SOP", purpose: "Receive the job from finishes with punch, warranties, O&M, as-builts, client exceptions, and retention risks visible.", trigger: "Substantial completion is projected within 21 days.", owner: "Closeout PM", dependsOn: ["Rough-In-to-Finishes Hand-off SOP"], effort: "M", why: "Closeout drag ties up cash and PM attention long after production value is created." },
+        { rank: 10, playId: "P1", name: "PM Phase Postmortem SOP", purpose: "Capture what broke in the phase lane and update the checklist before the next job repeats it.", trigger: "Within five business days after each phase hand-off.", owner: "Project Management Lead", dependsOn: ["Phase-Gate Readiness Checklist SOP"], effort: "S", why: "The PM system compounds only if the misses turn into revised standards." },
+      ],
+    };
+  }
+
+  const object: z.infer<typeof ResultSchema> = {
+    constraintReframe: constraint,
+    plays: [
+      {
+        id: "P1",
+        name: `Narrow the ${dept} seat into repeatable lanes`,
+        diagnosis: `The ${dept} seat is being asked to own too many judgment calls at once, which makes throughput depend on memory and heroic follow-up.`,
+        mechanism: "Define the intake, decision gates, hand-offs, and visible work queue so the seat executes the same way every time.",
+        expectedLift: "Fewer owner escalations and more work moved through the current seat before hiring.",
+        risks: "If the intake gate is loose, the seat will keep accepting incomplete work and rework will hide inside the queue.",
+      },
+    ],
+    topPlayId: "P1",
+    headline: `${dept} needs a narrower operating lane before more headcount.`,
+    buildOrderRationale: "Build the intake and definition-of-done SOPs first, then layer the recurring execution, exception, and scorecard SOPs on top.",
+    backlog: [
+      { rank: 1, playId: "P1", name: `${dept} Seat Scope & Authority SOP`, purpose: `Define what the ${dept} seat owns, rejects, escalates, and completes.`, trigger: "Before new work enters the seat.", owner: `${dept} Lead`, dependsOn: [], effort: "M", why: "Clear seat boundaries stop owner dependency and prevent work from landing in the wrong place." },
+      { rank: 2, playId: "P1", name: `${dept} Intake Gate SOP`, purpose: "Require the minimum information, file, approval, or decision before work begins.", trigger: "Any new request, job, or internal hand-off entering the seat.", owner: `${dept} Seat`, dependsOn: [`${dept} Seat Scope & Authority SOP`], effort: "M", why: "Bad intake turns into rework, delays, and owner rescue later." },
+      { rank: 3, playId: "P1", name: `${dept} Work Queue Review SOP`, purpose: "Review priorities, blockers, aging work, and next decisions on a set cadence.", trigger: "Weekly seat meeting or daily huddle if volume is high.", owner: `${dept} Lead`, dependsOn: [`${dept} Intake Gate SOP`], effort: "S", why: "A visible queue lets the current team absorb more volume without surprises." },
+      { rank: 4, playId: "P1", name: `${dept} Standard of Done SOP`, purpose: "Define the exact output that proves the work is complete and transferable.", trigger: "Before marking any item complete or handing it to another seat.", owner: `${dept} Seat`, dependsOn: [`${dept} Seat Scope & Authority SOP`], effort: "S", why: "A clear done standard cuts rework and prevents downstream seats from rebuilding the same work." },
+      { rank: 5, playId: "P1", name: `${dept} Exception Escalation SOP`, purpose: "Name the thresholds that require escalation and who gets the decision.", trigger: "Any item blocked by missing info, money risk, schedule risk, or customer/vendor conflict.", owner: `${dept} Lead`, dependsOn: [`${dept} Work Queue Review SOP`], effort: "M", why: "Escalation rules keep decisions from sitting quietly until they become expensive." },
+      { rank: 6, playId: "P1", name: `${dept} Scorecard Update SOP`, purpose: "Track the 2-4 numbers that show whether the seat is creating throughput or drag.", trigger: "End of week before leadership review.", owner: `${dept} Lead`, dependsOn: [`${dept} Standard of Done SOP`], effort: "S", why: "The owner can manage the system by numbers instead of anecdotes." },
+    ],
+  };
+
+  const normalized = normalizeResult(object, dept, seatHeadcount, context);
+  return { ...normalized, topSop: normalized.backlog[0] };
+}
+
 export const Route = createFileRoute("/api/sop-backlog")({
   server: {
     handlers: {
@@ -119,6 +230,14 @@ export const Route = createFileRoute("/api/sop-backlog")({
         const stage = body.stage ?? "scaling";
         const seatHeadcount = Math.max(1, Math.min(50, body.seatHeadcount ?? 1));
 
+        const shouldUseDeterministicPlan =
+          dept === "Project Management" ||
+          /project manager|project management|\bpm\b|bandwidth|scope|narrow|choke/i.test(body.context ?? "");
+        if (shouldUseDeterministicPlan) {
+          const fallback = fallbackResult(dept, seatHeadcount, body.context);
+          return Response.json({ department: dept, ...fallback, backlog: fallback.backlog.slice(0, 12) });
+        }
+
         const key = process.env.LOVABLE_API_KEY;
         if (!key) return new Response("Missing LOVABLE_API_KEY", { status: 500 });
 
@@ -131,22 +250,28 @@ export const Route = createFileRoute("/api/sop-backlog")({
           context: body.context,
         })}\n\nReturn your answer as a single JSON object matching the schema.`;
 
-        const tryGenerate = async (modelId: string) =>
-          generateObject({
+        const jsonShape = `Required JSON shape: {"constraintReframe":"string","plays":[{"id":"P1","name":"string","diagnosis":"string","mechanism":"string","expectedLift":"string","risks":"string"}],"topPlayId":"P1","headline":"string","buildOrderRationale":"string","backlog":[{"rank":1,"playId":"P1","name":"string","purpose":"string","trigger":"string","owner":"string","dependsOn":[],"effort":"M","why":"string"}]}`;
+        const tryGenerate = async (modelId: string, signal: AbortSignal) => {
+          const { text } = await generateText({
             model: gateway(modelId),
-            schema: ResultSchema,
-            
-            system: `${SOP_BACKLOG_SYSTEM_PROMPT}\n\nReturn a valid JSON object that matches the requested schema.`,
-            prompt: userPrompt,
+            system: `${SOP_BACKLOG_SYSTEM_PROMPT}\n\nReturn only valid JSON. No markdown. No prose outside the JSON object.`,
+            prompt: `${userPrompt}\n\n${jsonShape}`,
+            abortSignal: signal,
           });
+          return ResultSchema.parse(extractJsonObject(text));
+        };
 
         try {
-          let object;
+          let object: z.infer<typeof ResultSchema>;
           try {
-            ({ object } = await tryGenerate("google/gemini-2.5-pro"));
+            object = await generateWithTimeout((signal) => tryGenerate("google/gemini-2.5-pro", signal));
           } catch (primaryErr) {
-            console.warn("[sop-backlog] primary model failed, retrying with gpt-5-mini", primaryErr);
-            ({ object } = await tryGenerate("openai/gpt-5-mini"));
+            const msg = primaryErr instanceof Error ? primaryErr.message : "Failed.";
+            if (msg.includes("429")) return new Response("Rate limit. Try again in a moment.", { status: 429 });
+            if (msg.includes("402")) return new Response("AI credits exhausted. Add credits in Settings → Workspace → Usage.", { status: 402 });
+            console.warn("[sop-backlog] model failed, using deterministic SOP stack", primaryErr);
+            const fallback = fallbackResult(dept, seatHeadcount, body.context);
+            return Response.json({ department: dept, ...fallback, backlog: fallback.backlog.slice(0, 12) });
           }
 
           const normalized = normalizeResult(object, dept, seatHeadcount, body.context);

@@ -367,10 +367,12 @@ function DepartmentMode() {
   const [error, setError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [buildingSop, setBuildingSop] = useState<SopBacklogItem | null>(null);
+  const [theaterComplete, setTheaterComplete] = useState(false);
 
   const pending = useRef<SopBacklogResult | null>(null);
   const theaterDone = useRef(false);
   const fetchDone = useRef(false);
+  const waitingForResult = stage === "running" && theaterComplete && !fetchDone.current;
 
   const ticker = useMemo(
     () => sopBacklogTicker(department, companyStage, seatHeadcount),
@@ -392,6 +394,7 @@ function DepartmentMode() {
     pending.current = null;
     theaterDone.current = false;
     fetchDone.current = false;
+    setTheaterComplete(false);
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -401,11 +404,14 @@ function DepartmentMode() {
         setStage("error");
         return;
       }
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 24000);
       const res = await fetch("/api/sop-backlog", {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
         body: JSON.stringify({ department, stage: companyStage, seatHeadcount, context }),
-      });
+        signal: controller.signal,
+      }).finally(() => window.clearTimeout(timeout));
       if (!res.ok) {
         setError((await res.text()) || `Failed (${res.status})`);
         setStage("error");
@@ -415,7 +421,7 @@ function DepartmentMode() {
       fetchDone.current = true;
       maybeReveal();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed.");
+      setError(e instanceof DOMException && e.name === "AbortError" ? "SOP generation timed out. Try again with a shorter chokepoint description." : e instanceof Error ? e.message : "Failed.");
       setStage("error");
     }
   }
@@ -429,6 +435,7 @@ function DepartmentMode() {
     pending.current = null;
     theaterDone.current = false;
     fetchDone.current = false;
+    setTheaterComplete(false);
   }
 
   function savePacket() {
@@ -583,14 +590,21 @@ function DepartmentMode() {
         )}
 
         {(stage === "running" || stage === "ready") && (
-          <ComputeTheater
-            steps={SOP_BACKLOG_STEPS}
-            ticker={ticker}
-            running={stage === "running"}
-            onDone={() => { theaterDone.current = true; maybeReveal(); }}
-            subtitle={`SOP Priority Builder · ${department}`}
-            fileLabel="tools/sop-backlog.generate"
-          />
+          <>
+            <ComputeTheater
+              steps={SOP_BACKLOG_STEPS}
+              ticker={ticker}
+              running={stage === "running"}
+              onDone={() => { theaterDone.current = true; setTheaterComplete(true); maybeReveal(); }}
+              subtitle={`SOP Priority Builder · ${department}`}
+              fileLabel="tools/sop-backlog.generate"
+            />
+            {waitingForResult && (
+              <p className="-mt-3 rounded-md border border-border bg-background/70 px-4 py-2 text-[12px] text-muted-foreground">
+                Still finalizing the SOP stack — if the model stalls, the tool will fall back to a built-in optimization plan automatically.
+              </p>
+            )}
+          </>
         )}
 
         {stage === "ready" && result && buildingSop && (
