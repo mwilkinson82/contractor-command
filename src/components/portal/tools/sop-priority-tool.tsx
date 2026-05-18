@@ -401,11 +401,15 @@ function DepartmentMode() {
         setStage("error");
         return;
       }
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 24000);
       const res = await fetch("/api/sop-backlog", {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
         body: JSON.stringify({ department, stage: companyStage, seatHeadcount, context }),
+        signal: controller.signal,
       });
+      window.clearTimeout(timeout);
       if (!res.ok) {
         setError((await res.text()) || `Failed (${res.status})`);
         setStage("error");
@@ -415,7 +419,7 @@ function DepartmentMode() {
       fetchDone.current = true;
       maybeReveal();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed.");
+      setError(e instanceof DOMException && e.name === "AbortError" ? "SOP generation timed out. Try again with a shorter chokepoint description." : e instanceof Error ? e.message : "Failed.");
       setStage("error");
     }
   }
