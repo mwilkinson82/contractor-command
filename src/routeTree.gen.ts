@@ -24,6 +24,7 @@ import { Route as AosRouteImport } from './routes/aos'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AskIndexRouteImport } from './routes/ask.index'
+import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as ToolsOwnerDependencyRouteImport } from './routes/tools.owner-dependency'
 import { Route as ToolsGrowthConstraintRouteImport } from './routes/tools.growth-constraint'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
@@ -115,6 +116,11 @@ const IndexRoute = IndexRouteImport.update({
 const AskIndexRoute = AskIndexRouteImport.update({
   id: '/ask/',
   path: '/ask/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/admin/',
+  path: '/admin/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ToolsOwnerDependencyRoute = ToolsOwnerDependencyRouteImport.update({
@@ -233,6 +239,7 @@ export interface FileRoutesByFullPath {
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
   '/tools/owner-dependency': typeof ToolsOwnerDependencyRoute
+  '/admin/': typeof AdminIndexRoute
   '/ask/': typeof AskIndexRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
@@ -267,6 +274,7 @@ export interface FileRoutesByTo {
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
   '/tools/owner-dependency': typeof ToolsOwnerDependencyRoute
+  '/admin': typeof AdminIndexRoute
   '/ask': typeof AskIndexRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
@@ -302,6 +310,7 @@ export interface FileRoutesById {
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
   '/tools/owner-dependency': typeof ToolsOwnerDependencyRoute
+  '/admin/': typeof AdminIndexRoute
   '/ask/': typeof AskIndexRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
@@ -338,6 +347,7 @@ export interface FileRouteTypes {
     | '/email/unsubscribe'
     | '/tools/growth-constraint'
     | '/tools/owner-dependency'
+    | '/admin/'
     | '/ask/'
     | '/lovable/email/suppression'
     | '/api/public/stripe/webhook'
@@ -372,6 +382,7 @@ export interface FileRouteTypes {
     | '/email/unsubscribe'
     | '/tools/growth-constraint'
     | '/tools/owner-dependency'
+    | '/admin'
     | '/ask'
     | '/lovable/email/suppression'
     | '/api/public/stripe/webhook'
@@ -406,6 +417,7 @@ export interface FileRouteTypes {
     | '/email/unsubscribe'
     | '/tools/growth-constraint'
     | '/tools/owner-dependency'
+    | '/admin/'
     | '/ask/'
     | '/lovable/email/suppression'
     | '/api/public/stripe/webhook'
@@ -439,6 +451,7 @@ export interface RootRouteChildren {
   AskThreadIdRoute: typeof AskThreadIdRoute
   AskNewRoute: typeof AskNewRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
+  AdminIndexRoute: typeof AdminIndexRoute
   AskIndexRoute: typeof AskIndexRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
@@ -552,6 +565,13 @@ declare module '@tanstack/react-router' {
       path: '/ask'
       fullPath: '/ask/'
       preLoaderRoute: typeof AskIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/': {
+      id: '/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tools/owner-dependency': {
@@ -713,6 +733,7 @@ const rootRouteChildren: RootRouteChildren = {
   AskThreadIdRoute: AskThreadIdRoute,
   AskNewRoute: AskNewRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
+  AdminIndexRoute: AdminIndexRoute,
   AskIndexRoute: AskIndexRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
@@ -723,3 +744,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
