@@ -267,7 +267,7 @@ function WorkbenchHeader({
           </button>
           <Link
             to="/vault"
-            className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-[12.5px] text-foreground/60 hover:bg-muted hover:text-foreground"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-[12.5px] font-medium text-foreground/80 hover:border-foreground/40 hover:bg-muted hover:text-foreground"
           >
             <Archive className="h-3.5 w-3.5" /> Vault
           </Link>
@@ -275,7 +275,7 @@ function WorkbenchHeader({
             type="button"
             onClick={onCollapse}
             title="Collapse workbench header"
-            className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-2 text-[11.5px] text-foreground/60 hover:bg-muted hover:text-foreground"
+            className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2.5 py-2 text-[12.5px] font-medium text-foreground/80 hover:border-foreground/40 hover:bg-muted hover:text-foreground"
           >
             <ChevronUp className="h-3.5 w-3.5" />
           </button>
