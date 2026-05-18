@@ -1,14 +1,17 @@
-import { type Packet, packetToClipboard, vault, type PacketStatus } from "@/lib/vault";
-import { Check, Copy, Mail, Send } from "lucide-react";
+import { type Packet, packetToClipboard, vault } from "@/lib/vault";
+import { Check, Copy, Loader2, Mail } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { sendTransactionalEmail } from "@/lib/email/send";
+import { supabase } from "@/integrations/supabase/client";
 
-// Status options. For SOP packets we expose "Carried into AOS" because the
-// packet is a real artifact that can land in the AOS Knowledge Hub. For
-// non-SOP packets the terminal state is "Brought to Session" — a marker that
-// says "raise this on the next call."
-const BASE_STATUSES: PacketStatus[] = ["Open", "Brought to Session", "Archived"];
-const SOP_STATUSES: PacketStatus[] = ["Open", "Brought to Session", "Carried into AOS", "Archived"];
+// All packet kinds share the same internal markers. These are NOTES the
+// operator sets for themselves — they do not notify Marshall or fire any
+// external integration. The AOS Knowledge Hub connector isn't wired yet,
+// so "Carried into AOS" remains as a manual marker for SOP packets only.
+const BASE_STATUSES = ["Open", "Brought to Session", "Archived"] as const;
+const SOP_STATUSES = ["Open", "Brought to Session", "Carried into AOS", "Archived"] as const;
 
 function isSopPacket(p: Packet): boolean {
   return p.source.toLowerCase().includes("sop");
@@ -24,7 +27,7 @@ export function PacketCard({
   onChange?: () => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const [hubSent, setHubSent] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
   const isSop = isSopPacket(packet);
   const statuses = isSop ? SOP_STATUSES : BASE_STATUSES;
 
@@ -36,23 +39,6 @@ export function PacketCard({
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {}
-  }
-
-  function handleEmail() {
-    const subject = encodeURIComponent(`${packet.source} — ${packet.title}`);
-    const bodyEnc = encodeURIComponent(body);
-    window.location.href = `mailto:?subject=${subject}&body=${bodyEnc}`;
-  }
-
-  function sendToKnowledgeHub() {
-    // Real AOS connector isn't wired yet. For now, mark the packet as
-    // "Carried into AOS" so the operator has a record that this SOP belongs
-    // in the Knowledge Hub. When the connector ships, this hook becomes a
-    // real push.
-    vault.updateStatus(packet.id, "Carried into AOS");
-    setHubSent(true);
-    setTimeout(() => setHubSent(false), 2000);
-    onChange?.();
   }
 
   return (
@@ -67,7 +53,7 @@ export function PacketCard({
         <select
           value={packet.status}
           onChange={(e) => {
-            vault.updateStatus(packet.id, e.target.value as PacketStatus);
+            vault.updateStatus(packet.id, e.target.value as (typeof statuses)[number]);
             onChange?.();
           }}
           className="rounded-md border border-border bg-background px-2 py-1 text-xs"
@@ -106,36 +92,12 @@ export function PacketCard({
           {copied ? "Copied" : "Copy packet"}
         </button>
         <button
-          onClick={handleEmail}
+          onClick={() => setEmailOpen(true)}
           className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs hover:bg-muted"
         >
           <Mail className="h-3.5 w-3.5" />
           Email packet
         </button>
-        {packet.kind === "command" && !isSop ? (
-          <Link
-            to="/calls"
-            hash="submit-topic"
-            onClick={() => {
-              vault.updateStatus(packet.id, "Brought to Session");
-              onChange?.();
-            }}
-            className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs text-cream hover:opacity-90"
-            title="Marks this packet as 'Brought to Session' and opens the topic submission form."
-          >
-            Bring to next call
-          </Link>
-        ) : null}
-        {isSop ? (
-          <button
-            onClick={sendToKnowledgeHub}
-            className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs text-cream hover:opacity-90"
-            title="Marks this SOP as carried into the AOS Knowledge Hub. Live sync wires in when the AOS connector ships."
-          >
-            {hubSent ? <Check className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
-            {hubSent ? "Marked carried" : "Send to AOS Knowledge Hub"}
-          </button>
-        ) : null}
         {packet.kind === "command" && packet.intensiveRecommended ? (
           <Link
             to="/work-with-marshall"
@@ -145,7 +107,139 @@ export function PacketCard({
           </Link>
         ) : null}
       </div>
+
+      <EmailPacketDialog
+        open={emailOpen}
+        onOpenChange={setEmailOpen}
+        packet={packet}
+        body={body}
+      />
     </article>
+  );
+}
+
+function EmailPacketDialog({
+  open,
+  onOpenChange,
+  packet,
+  body,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  packet: Packet;
+  body: string;
+}) {
+  const [to, setTo] = useState("");
+  const [note, setNote] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function send() {
+    setErr(null);
+    const recipient = to.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+      setErr("Enter a valid email address.");
+      return;
+    }
+    setSending(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: profile } = user
+        ? await supabase.from("profiles").select("full_name,email").eq("id", user.id).maybeSingle()
+        : { data: null as { full_name: string | null; email: string } | null };
+
+      await sendTransactionalEmail({
+        templateName: "vault-packet",
+        recipientEmail: recipient,
+        idempotencyKey: `vault-packet-${packet.id}-${Date.now()}`,
+        templateData: {
+          senderName: profile?.full_name ?? undefined,
+          senderEmail: profile?.email ?? user?.email ?? undefined,
+          source: packet.source,
+          title: packet.title,
+          note: note.trim() || undefined,
+          body,
+        },
+      });
+      setSent(true);
+      setTimeout(() => {
+        onOpenChange(false);
+        setSent(false);
+        setTo("");
+        setNote("");
+      }, 1400);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not send.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[480px]">
+        <DialogHeader>
+          <DialogTitle>Email packet</DialogTitle>
+          <DialogDescription>
+            Sends the full packet, branded, from ALP Contractor Circle.
+          </DialogDescription>
+        </DialogHeader>
+
+        {sent ? (
+          <p className="flex items-center gap-2 py-6 text-[13px] text-foreground/80">
+            <Check className="h-4 w-4 text-signal" /> Sent.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+                Recipient email
+              </label>
+              <input
+                type="email"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                placeholder="name@company.com"
+                className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] focus:border-ink focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+                Note <span className="text-muted-foreground/60">· optional</span>
+              </label>
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                rows={3}
+                placeholder="Quick context for whoever opens this…"
+                className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] focus:border-ink focus:outline-none"
+              />
+            </div>
+            {err && <p className="text-[12px] text-red-600">{err}</p>}
+          </div>
+        )}
+
+        {!sent && (
+          <DialogFooter>
+            <button
+              onClick={() => onOpenChange(false)}
+              className="rounded-md border border-border bg-background px-3 py-1.5 text-[12px] hover:bg-muted"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={send}
+              disabled={sending || !to.trim()}
+              className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] text-cream hover:opacity-90 disabled:opacity-50"
+            >
+              {sending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Mail className="h-3 w-3" />}
+              {sending ? "Sending…" : "Send packet"}
+            </button>
+          </DialogFooter>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
