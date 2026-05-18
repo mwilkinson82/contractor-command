@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { Sparkles, MessageCircle } from "lucide-react";
+import { Sparkles, MessageCircle, PanelLeftClose, PanelLeft } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getDailyAskUsage } from "@/lib/ask.functions";
+import { useAppSidebar } from "@/components/portal/app-sidebar";
 
 export function TopStrip() {
   const usageFn = useServerFn(getDailyAskUsage);
@@ -15,10 +16,19 @@ export function TopStrip() {
   const remaining = data?.remaining ?? null;
   const limit = data?.limit ?? 30;
   const low = remaining !== null && remaining <= 5;
+  const { collapsed, toggle } = useAppSidebar();
 
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-4 border-b border-border/70 bg-background/70 px-6 backdrop-blur-md">
       <div className="flex items-center gap-3">
+        <button
+          onClick={toggle}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+        >
+          {collapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+        </button>
         <p
           className="text-[14px] text-muted-foreground"
           style={{ fontFamily: "var(--font-serif)" }}
