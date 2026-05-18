@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader, Container } from "@/components/portal/page-header";
 import {
-  REPLAYS,
   addToCalendarUrl,
   formatSessionDate,
   nextOfKind,
@@ -10,7 +9,7 @@ import {
   type Session,
 } from "@/lib/program";
 import { vault } from "@/lib/vault";
-import { ArrowUpRight, Calendar, Check, Search, Video } from "lucide-react";
+import { ArrowUpRight, Calendar, Check, Video } from "lucide-react";
 
 export const Route = createFileRoute("/calls")({
   head: () => ({
@@ -30,8 +29,8 @@ function CallsPage() {
     <Container>
       <PageHeader
         eyebrow="The room"
-        title={<>Calls, bootcamps,<br/>and the replay archive.</>}
-        lede="Next session up top. Submit the topic you want pressured. Every past session lives below, organized by what it's actually useful for."
+        title={<>Calls and bootcamps.</>}
+        lede="Next session up top. Submit the topic you want pressured before the room sees it. Past sessions live in the Replay library."
       />
 
       {/* Next sessions */}
@@ -45,9 +44,20 @@ function CallsPage() {
         <TopicSubmit defaultKind={biweekly?.kind ?? "Biweekly Call"} />
       </section>
 
-      {/* Replays */}
-      <section className="mt-20">
-        <ReplayLibrary />
+      {/* Replays moved to /replays */}
+      <section className="mt-16 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card/40 p-6">
+        <div>
+          <p className="label-mono">Replay archive</p>
+          <p className="mt-1 text-[13px] text-foreground/75">
+            Every past biweekly call and monthly bootcamp lives in the Library.
+          </p>
+        </div>
+        <Link
+          to="/replays"
+          className="inline-flex items-center gap-1.5 rounded-md bg-ink px-4 py-2 text-[13px] text-cream hover:opacity-90"
+        >
+          <Video className="h-3.5 w-3.5" /> Open replays
+        </Link>
       </section>
     </Container>
   );
