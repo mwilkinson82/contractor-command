@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   Home,
@@ -91,6 +91,16 @@ export function AppSidebar() {
   const { company, logoUrl } = useCompany();
   const brandName = company?.name?.trim() || "Contractor Circle";
   const brandInitial = brandName.charAt(0).toUpperCase();
+
+  // Auto-collapse when entering Ask Marshall; only once per entry so the user
+  // can still re-expand manually while on the page.
+  const wasOnAsk = useRef(false);
+  useEffect(() => {
+    const onAsk = pathname.startsWith("/ask");
+    if (onAsk && !wasOnAsk.current && !collapsed) toggle();
+    wasOnAsk.current = onAsk;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   async function handleSignOut() {
     await supabase.auth.signOut();
