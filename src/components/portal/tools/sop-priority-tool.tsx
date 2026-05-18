@@ -78,7 +78,7 @@ export function SopPriorityTool({ onClose }: { onClose?: () => void }) {
         )}
       </header>
 
-      <div className="inline-flex w-fit gap-1 rounded-md border border-border bg-background/60 p-1">
+      <div className="inline-flex w-fit gap-1 rounded-full border border-border bg-background/60 p-1">
         <ModeBtn active={mode === "owner"} onClick={() => setMode("owner")} icon={<UserCog className="h-3.5 w-3.5" />}>
           Owner extraction
         </ModeBtn>
@@ -111,8 +111,10 @@ function ModeBtn({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-[12px] font-medium transition ${
-        active ? "bg-ink text-cream" : "text-foreground/70 hover:bg-muted"
+      className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[12px] font-medium transition ${
+        active
+          ? "bg-foreground/10 text-foreground shadow-sm"
+          : "bg-transparent text-foreground/60 hover:bg-foreground/5 hover:text-foreground/80"
       }`}
     >
       {icon}
