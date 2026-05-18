@@ -143,7 +143,7 @@ export function AppSidebar() {
         <Link to="/" className="flex items-center gap-2 overflow-hidden">
           <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-md bg-ink text-cream font-display text-[13px]">
             {logoUrl ? (
-              <img src={logoUrl} alt={brandName} className="h-full w-full object-contain" />
+              <img src={logoUrl} alt={brandName} className="h-full w-full object-cover object-center" />
             ) : (
               brandInitial
             )}
@@ -212,18 +212,17 @@ export function AppSidebar() {
             <Circle className="h-2 w-2 fill-signal text-signal animate-signal-pulse" />
           </div>
         )}
-        <button
-          onClick={toggle}
-          className={`mt-2 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground ${collapsed ? "justify-center" : "justify-start"}`}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {collapsed ? <PanelLeft className="h-3.5 w-3.5" /> : (
-            <>
-              <PanelLeftClose className="h-3.5 w-3.5" />
-              <span>Collapse</span>
-            </>
-          )}
-        </button>
+        {/* Collapse moved to TopStrip — kept here only as a compact restore when collapsed. */}
+        {collapsed && (
+          <button
+            onClick={toggle}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+            aria-label="Expand sidebar"
+            title="Expand sidebar"
+          >
+            <PanelLeft className="h-3.5 w-3.5" />
+          </button>
+        )}
         <button
           onClick={handleSignOut}
           title={collapsed ? "Sign out" : undefined}

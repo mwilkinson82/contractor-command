@@ -12,7 +12,8 @@ import {
   expressIntensiveInterest,
   type AskMessage,
 } from "@/lib/ask.functions";
-import { ArrowUp, Plus, Trash2, MessageCircle, Check, Sparkles, Megaphone, Copy, BookOpen, Brain, Wand2, CheckCircle2 } from "lucide-react";
+import { createIntensiveCheckout } from "@/lib/billing.functions";
+import { ArrowUp, Plus, Trash2, MessageCircle, Check, Sparkles, Megaphone, Copy, BookOpen, Brain, Wand2, CheckCircle2, Loader2, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -207,6 +208,9 @@ function ChatPane({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      <div className="flex items-center justify-end gap-2 border-b border-border/70 bg-background/60 px-4 py-2 backdrop-blur-sm sm:px-8">
+        <IntensiveCheckoutButton threadId={threadId} />
+      </div>
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-8 sm:px-8">
         <div className="mx-auto w-full max-w-[760px] space-y-6">
           {messages.length === 0 && (
@@ -264,7 +268,7 @@ function ChatPane({
           <button
             type="submit"
             disabled={busy || !input.trim()}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ink text-cream hover:opacity-90 disabled:cursor-not-allowed disabled:bg-ink disabled:text-cream/80"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ink text-cream transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Send"
           >
             <ArrowUp className="h-4 w-4" />
@@ -522,6 +526,69 @@ function ProcessingSteps({
           );
         })}
       </ul>
+    </div>
+  );
+}
+
+function IntensiveCheckoutButton({ threadId }: { threadId: string }) {
+  const checkoutFn = useServerFn(createIntensiveCheckout);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function start() {
+    setLoading(true);
+    setErr(null);
+    try {
+      const { url } = await checkoutFn({ data: { source: "ask_marshall", threadId } });
+      window.location.assign(url);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not start checkout.");
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1.5 rounded-full border border-gold bg-gold-soft px-3 py-1.5 text-[12px] text-ink hover:bg-gold/30"
+        title="Six-Week Intensive — six private sessions with Marshall"
+      >
+        <Sparkles className="h-3.5 w-3.5" />
+        Six-Week Intensive
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-30 mt-2 w-[320px] rounded-xl border border-border bg-background p-4 shadow-lg">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="font-display text-[15px] tracking-tight">Six-Week Intensive</p>
+              <p className="mt-1 text-[12px] text-muted-foreground">
+                Six private sessions with Marshall to pressure-test and install the next move.
+              </p>
+            </div>
+            <button onClick={() => setOpen(false)} aria-label="Close" className="text-muted-foreground hover:text-foreground">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="font-display text-2xl">$5,000</span>
+            <span className="text-[11px] text-muted-foreground">one-time · six weeks</span>
+          </div>
+          <button
+            onClick={start}
+            disabled={loading}
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-ink px-3 py-2 text-[13px] font-medium text-cream hover:opacity-90 disabled:opacity-60"
+          >
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            {loading ? "Opening checkout…" : "Enroll · $5,000"}
+          </button>
+          {err && <p className="mt-2 text-[12px] text-destructive">{err}</p>}
+          <p className="mt-3 border-t border-border pt-2 text-[10px] text-muted-foreground">
+            Secure checkout via Stripe. Marshall will reach out within one business day.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
