@@ -487,12 +487,12 @@ function MissingClauseCard({ clause }: { clause: MissingClause }) {
   const hasLang = clause.sampleLanguage.trim().length > 0;
   const hasTalk = clause.talkingPoints.length > 0;
   return (
-    <div className="rounded-md border border-border bg-background/60 p-3">
-      <p className="text-[13px] font-medium text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
+    <div className="rounded-md border border-border bg-background/60 p-4">
+      <p className="text-[15px] font-medium leading-snug text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
         {clause.name}
       </p>
       {clause.whyItMatters && (
-        <p className="mt-1 text-[12px] leading-snug text-muted-foreground">
+        <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
           {clause.whyItMatters}
         </p>
       )}
