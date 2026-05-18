@@ -97,25 +97,53 @@ function TemplatesAdmin() {
     await reload();
   }
 
+  const grouped = useMemo(() => {
+    const m = new Map<string, TemplateRow[]>();
+    for (const r of rows) {
+      const list = m.get(r.category) ?? [];
+      list.push(r);
+      m.set(r.category, list);
+    }
+    return Array.from(m.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [rows]);
+
   return (
     <div>
-      <div className="mb-3 flex justify-end">
-        <button onClick={addBlank} className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] text-cream hover:opacity-90">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-[12px] text-muted-foreground">
+          {rows.length} template{rows.length === 1 ? "" : "s"} ·{" "}
+          {rows.filter((r) => r.published).length} published
+        </p>
+        <button
+          onClick={addBlank}
+          className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] text-cream hover:opacity-90"
+        >
           <Plus className="h-3.5 w-3.5" /> Add template
         </button>
       </div>
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : rows.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+          No templates yet. Add one to get started.
+        </div>
       ) : (
-        <div className="grid gap-3">
-          {rows.map((r) => (
-            <TemplateRowEditor key={r.id} row={r} onChange={reload} />
+        <div className="space-y-6">
+          {grouped.map(([category, items]) => (
+            <section key={category}>
+              <div className="mb-2 flex items-center gap-2 border-b border-border pb-2">
+                <h3 className="label-mono">{category}</h3>
+                <span className="text-[11px] text-muted-foreground">
+                  {items.length}
+                </span>
+              </div>
+              <div className="grid gap-3">
+                {items.map((r) => (
+                  <TemplateRowEditor key={r.id} row={r} onChange={reload} />
+                ))}
+              </div>
+            </section>
           ))}
-          {rows.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-              No templates yet. Add one to get started.
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -322,25 +350,55 @@ function ReplaysAdmin() {
     await reload();
   }
 
+  const grouped = useMemo(() => {
+    const m = new Map<string, ReplayRow[]>();
+    for (const r of rows) {
+      const d = new Date(r.recorded_at);
+      const key = d.toLocaleDateString("en-US", { year: "numeric", month: "long" });
+      const list = m.get(key) ?? [];
+      list.push(r);
+      m.set(key, list);
+    }
+    return Array.from(m.entries());
+  }, [rows]);
+
   return (
     <div>
-      <div className="mb-3 flex justify-end">
-        <button onClick={addBlank} className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] text-cream hover:opacity-90">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-[12px] text-muted-foreground">
+          {rows.length} replay{rows.length === 1 ? "" : "s"} ·{" "}
+          {rows.filter((r) => r.published).length} published
+        </p>
+        <button
+          onClick={addBlank}
+          className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] text-cream hover:opacity-90"
+        >
           <Plus className="h-3.5 w-3.5" /> Add replay
         </button>
       </div>
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : rows.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+          No replays yet.
+        </div>
       ) : (
-        <div className="grid gap-3">
-          {rows.map((r) => (
-            <ReplayRowEditor key={r.id} row={r} onChange={reload} />
+        <div className="space-y-6">
+          {grouped.map(([month, items]) => (
+            <section key={month}>
+              <div className="mb-2 flex items-center gap-2 border-b border-border pb-2">
+                <h3 className="label-mono">{month}</h3>
+                <span className="text-[11px] text-muted-foreground">
+                  {items.length}
+                </span>
+              </div>
+              <div className="grid gap-3">
+                {items.map((r) => (
+                  <ReplayRowEditor key={r.id} row={r} onChange={reload} />
+                ))}
+              </div>
+            </section>
           ))}
-          {rows.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-              No replays yet.
-            </div>
-          )}
         </div>
       )}
     </div>

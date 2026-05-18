@@ -19,6 +19,7 @@ import {
   Megaphone,
   Inbox,
   Library,
+  Gauge,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { nextAny, relativeDay } from "@/lib/program";
@@ -109,6 +110,7 @@ export function AppSidebar() {
         {
           label: "Admin",
           items: [
+            { to: "/admin", label: "Dashboard", icon: Gauge },
             { to: "/admin/topics", label: "Topics", icon: Inbox, match: "/admin/topics" },
             { to: "/admin/library", label: "Library", icon: Library, match: "/admin/library" },
           ],

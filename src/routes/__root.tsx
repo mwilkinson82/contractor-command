@@ -162,6 +162,28 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
     if (session?.user?.id) void vault.hydrateFor(session.user.id);
   }, [session?.user?.id]);
 
+  // Portal presence — every signed-in user joins a shared channel so admins
+  // can see who's online right now.
+  useEffect(() => {
+    const uid = session?.user?.id;
+    if (!uid) return;
+    const channel = supabase.channel("portal-presence", {
+      config: { presence: { key: uid } },
+    });
+    channel.subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        void channel.track({
+          user_id: uid,
+          email: session?.user?.email ?? null,
+          at: new Date().toISOString(),
+        });
+      }
+    });
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [session?.user?.id, session?.user?.email]);
+
   useEffect(() => {
     if (loading) return;
     if (!session && !isPublic) {
