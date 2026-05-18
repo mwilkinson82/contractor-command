@@ -180,7 +180,7 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
           onClick={onBack}
           className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
         >
-          <ArrowLeft className="h-3.5 w-3.5" /> Back to backlog
+          <ArrowLeft className="h-3.5 w-3.5" /> Back to SOP stack
         </button>
         <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
           SOP Builder · Document
