@@ -110,7 +110,7 @@ export function AppSidebar() {
         {
           label: "Admin",
           items: [
-            { to: "/admin", label: "Dashboard", icon: Gauge, match: "/admin" },
+            { to: "/admin", label: "Dashboard", icon: Gauge },
             { to: "/admin/topics", label: "Topics", icon: Inbox, match: "/admin/topics" },
             { to: "/admin/library", label: "Library", icon: Library, match: "/admin/library" },
           ],
