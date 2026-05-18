@@ -19,6 +19,7 @@ function ReplaysPage() {
   const [rows, setRows] = useState<ReplayRow[] | null>(null);
   const [q, setQ] = useState("");
   const [tag, setTag] = useState<string>("All");
+  const [playing, setPlaying] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     (async () => {
