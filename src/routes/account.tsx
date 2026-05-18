@@ -1,14 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { PageHeader, Container } from "@/components/portal/page-header";
 import { AOS_URL } from "@/lib/vault";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { useCompany } from "@/hooks/use-company";
+import { useCompany, logoPublicUrl } from "@/hooks/use-company";
 import { GREETING_ICONS, type GreetingIconKey } from "@/components/portal/greeting-icon";
-import { ArrowUpRight, Check, AlertCircle, KeyRound, Building2, Loader2 } from "lucide-react";
+import { ArrowUpRight, Check, AlertCircle, KeyRound, Building2, Loader2, Upload, Image as ImageIcon } from "lucide-react";
 import { createBillingPortalSession, submitBillingQuestion } from "@/lib/billing.functions";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+
+const LOGO_BUCKET = "company-logos";
 
 export const Route = createFileRoute("/account")({
   head: () => ({ meta: [{ title: "Account — ALP Contractor Circle" }] }),
@@ -36,17 +39,50 @@ function AccountPage() {
   const [coName, setCoName] = useState("");
   const [coAddress, setCoAddress] = useState("");
   const [coIcon, setCoIcon] = useState<GreetingIconKey>("wave");
+  const [coLogoPath, setCoLogoPath] = useState<string | null>(null);
+  const [coLogoPreview, setCoLogoPreview] = useState<string | null>(null);
+  const [coUploading, setCoUploading] = useState(false);
   const [coSaving, setCoSaving] = useState(false);
   const [coMsg, setCoMsg] = useState<string | null>(null);
+  const logoFileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!company) return;
     setCoName(company.name ?? "");
     setCoAddress(company.address ?? "");
+    setCoLogoPath(company.logo_path);
+    setCoLogoPreview(logoPublicUrl(company.logo_path));
     if (company.greeting_icon) {
       setCoIcon(company.greeting_icon as GreetingIconKey);
     }
   }, [company]);
+
+  async function onLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    if (!file.type.startsWith("image/")) {
+      setCoMsg("Pick an image file (PNG, JPG, SVG).");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setCoMsg("Keep logo under 2MB.");
+      return;
+    }
+    setCoMsg(null);
+    setCoUploading(true);
+    const ext = (file.name.split(".").pop() || "png").toLowerCase();
+    const path = `${user.id}/logo.${ext}`;
+    const { error } = await supabase.storage
+      .from(LOGO_BUCKET)
+      .upload(path, file, { upsert: true, contentType: file.type });
+    if (error) {
+      setCoMsg(error.message);
+    } else {
+      setCoLogoPath(path);
+      setCoLogoPreview(`${logoPublicUrl(path)}?v=${Date.now()}`);
+    }
+    setCoUploading(false);
+  }
 
   async function saveCompany() {
     if (!user) return;
@@ -65,6 +101,7 @@ function AccountPage() {
           name: trimmed,
           address: coAddress.trim() || null,
           greeting_icon: coIcon,
+          logo_path: coLogoPath,
         },
         { onConflict: "owner_user_id" },
       );
@@ -243,6 +280,43 @@ function AccountPage() {
           </div>
         </div>
 
+        <div className="mt-6">
+          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            Logo <span className="text-muted-foreground/60">· optional</span>
+          </label>
+          <div className="mt-2 flex items-center gap-4">
+            <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-xl border border-border bg-background">
+              {coLogoPreview ? (
+                <img src={coLogoPreview} alt="Logo preview" className="h-full w-full object-cover object-center" />
+              ) : (
+                <ImageIcon className="h-6 w-6 text-muted-foreground/50" />
+              )}
+            </div>
+            <div className="flex-1">
+              <input
+                ref={logoFileRef}
+                type="file"
+                accept="image/*"
+                onChange={onLogoFile}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => logoFileRef.current?.click()}
+                disabled={coUploading}
+                className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-[12px] hover:bg-muted disabled:opacity-50"
+              >
+                {coUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                {coLogoPath ? "Replace logo" : "Upload logo"}
+              </button>
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                PNG, JPG, or SVG. Under 2MB. We center-crop to a square.
+              </p>
+            </div>
+          </div>
+        </div>
+
+
         <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-border pt-5">
           <button
             onClick={saveCompany}
@@ -372,10 +446,14 @@ function BillingActions() {
     setErr(null);
     try {
       const { url } = await portalFn();
-      window.location.assign(url);
+      // Open Stripe in a new tab so the user can come back to the account
+      // page without losing context. Reset loading immediately — there's no
+      // navigation away from this page to clear it.
+      window.open(url, "_blank", "noopener,noreferrer");
     } catch (e: unknown) {
       const m = e instanceof Error ? e.message : "Could not open billing portal.";
       setErr(m);
+    } finally {
       setLoading(false);
     }
   }
@@ -407,7 +485,7 @@ function BillingActions() {
           {loading ? "Opening…" : "Manage subscription"}
         </button>
         <button
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => setOpen(true)}
           className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm hover:bg-muted"
         >
           Billing question
@@ -415,48 +493,62 @@ function BillingActions() {
       </div>
       {err && <p className="mt-3 text-[12px] text-foreground/70">{err}</p>}
 
-      {open && (
-        <div className="mt-4 rounded-xl border border-border bg-background p-4">
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setSent(false); } }}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Billing question</DialogTitle>
+            <DialogDescription>
+              Goes straight to Marshall's team. We'll follow up by email.
+            </DialogDescription>
+          </DialogHeader>
+
           {sent ? (
-            <p className="flex items-center gap-2 text-[13px] text-foreground/80">
+            <p className="flex items-center gap-2 py-6 text-[13px] text-foreground/80">
               <Check className="h-4 w-4 text-signal" /> Sent. Marshall's team will follow up by email.
             </p>
           ) : (
-            <>
-              <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Subject</label>
-              <input
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                className="mt-1.5 w-full rounded-md border border-border bg-card px-3 py-2 text-[13px] focus:border-ink focus:outline-none"
-              />
-              <label className="mt-3 block font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Question</label>
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                rows={4}
-                placeholder="Refund, invoice, plan change, dispute…"
-                className="mt-1.5 w-full rounded-md border border-border bg-card px-3 py-2 text-[13px] focus:border-ink focus:outline-none"
-              />
-              <div className="mt-3 flex justify-end gap-2">
-                <button
-                  onClick={() => setOpen(false)}
-                  className="rounded-md border border-border bg-background px-3 py-1.5 text-[12px] hover:bg-muted"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={send}
-                  disabled={sending || !message.trim()}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] text-cream hover:opacity-90 disabled:opacity-50"
-                >
-                  {sending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                  Send
-                </button>
+            <div className="space-y-4">
+              <div>
+                <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Subject</label>
+                <input
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] focus:border-ink focus:outline-none"
+                />
               </div>
-            </>
+              <div>
+                <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Question</label>
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  rows={5}
+                  placeholder="Refund, invoice, plan change, dispute…"
+                  className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] focus:border-ink focus:outline-none"
+                />
+              </div>
+            </div>
           )}
-        </div>
-      )}
+
+          {!sent && (
+            <DialogFooter>
+              <button
+                onClick={() => setOpen(false)}
+                className="rounded-md border border-border bg-background px-3 py-1.5 text-[12px] hover:bg-muted"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={send}
+                disabled={sending || !message.trim()}
+                className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] text-cream hover:opacity-90 disabled:opacity-50"
+              >
+                {sending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                Send
+              </button>
+            </DialogFooter>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
