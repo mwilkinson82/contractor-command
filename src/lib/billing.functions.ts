@@ -14,7 +14,8 @@ function getStripe(): Stripe {
   return new Stripe(secret, { apiVersion: "2024-12-18.acacia" as never });
 }
 
-function originFromRequest(req: Request): string {
+function originFromRequest(): string {
+  const req = getRequest();
   const url = new URL(req.url);
   return `${url.protocol}//${url.host}`;
 }
@@ -27,7 +28,7 @@ export const createIntensiveCheckout = createServerFn({ method: "POST" })
       threadId: z.string().uuid().optional(),
     }).parse,
   )
-  .handler(async ({ data, context, request }): Promise<{ url: string }> => {
+  .handler(async ({ data, context }): Promise<{ url: string }> => {
     const stripe = getStripe();
     const { userId, supabase } = context;
     const { data: profile } = await supabase
@@ -37,7 +38,7 @@ export const createIntensiveCheckout = createServerFn({ method: "POST" })
       .maybeSingle();
 
     const email = profile?.email ?? undefined;
-    const origin = originFromRequest(request);
+    const origin = originFromRequest();
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
@@ -71,7 +72,7 @@ export const createIntensiveCheckout = createServerFn({ method: "POST" })
 
 export const createBillingPortalSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context, request }): Promise<{ url: string }> => {
+  .handler(async ({ context }): Promise<{ url: string }> => {
     const stripe = getStripe();
     const { userId, supabase } = context;
     const { data: profile } = await supabase
@@ -99,7 +100,7 @@ export const createBillingPortalSession = createServerFn({ method: "POST" })
     }
     if (!customerId) throw new Error("No Stripe customer found for your account.");
 
-    const origin = originFromRequest(request);
+    const origin = originFromRequest();
     const portal = await stripe.billingPortal.sessions.create({
       customer: customerId,
       return_url: `${origin}/account`,
