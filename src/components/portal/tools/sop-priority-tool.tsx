@@ -954,26 +954,19 @@ function PlayDetailDialog({
       <DialogContent className="max-w-3xl border-border bg-card p-0 sm:rounded-2xl">
         {play && (
           <div className="max-h-[85vh] overflow-y-auto p-7">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-foreground">
-                  Play {play.id}{recommended ? " · recommended" : ""}
-                </p>
-                <h3 className="mt-1.5 text-[1.75rem] leading-tight text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
-                  {play.name}
-                </h3>
-                <p className="mt-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-foreground/70">
-                  Expected lift · {play.expectedLift}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-md border border-border bg-background p-1.5 text-foreground/60 hover:bg-muted hover:text-foreground"
-                aria-label="Close"
-              >
-                <X className="h-4 w-4" />
-              </button>
+            <div className="pr-8">
+              <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-foreground">
+                Play {play.id}
+                {recommended && (
+                  <span className="ml-1 text-signal-success">· recommended</span>
+                )}
+              </p>
+              <h3 className="mt-1.5 text-[1.75rem] leading-tight text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
+                {play.name}
+              </h3>
+              <p className="mt-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-foreground/70">
+                Expected lift · {play.expectedLift}
+              </p>
             </div>
 
             <div className="mt-5 space-y-4 text-[14.5px] leading-relaxed text-foreground/90">
