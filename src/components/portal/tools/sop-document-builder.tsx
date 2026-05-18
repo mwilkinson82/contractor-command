@@ -18,6 +18,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { vault } from "@/lib/vault";
 import type { SopDocument, SopStep } from "@/lib/tools/sop-draft";
+import type jsPDF from "jspdf";
 import type {
   OptimizationPlay,
   SopBacklogItem,
