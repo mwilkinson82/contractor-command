@@ -18,7 +18,7 @@ export type CommandPacket = {
   financialConsequence: string;
   missingSystem: string;
   recommendedAction: string;
-  relatedAos: string;
+  relatedAos?: string;
   bringOneIssuePrompt: string;
   intensiveRecommended: boolean;
   inputs: Record<string, number | string>;
@@ -194,9 +194,6 @@ export function packetToClipboard(p: Packet): string {
       "",
       `RECOMMENDED NEXT ACTION`,
       p.recommendedAction,
-      "",
-      `RELATED AOS AREA`,
-      p.relatedAos,
       "",
       `BRING ONE ISSUE`,
       p.bringOneIssuePrompt,
