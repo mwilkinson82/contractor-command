@@ -31,11 +31,13 @@ import {
   SOP_DEPARTMENTS,
   sopBacklogTicker,
   type CompanyStage,
+  type OptimizationPlay,
   type SopBacklogItem,
   type SopBacklogResult,
   type SopDepartment,
 } from "@/lib/tools/sop-department";
 import { ComputeTheater } from "@/components/portal/compute-theater";
+import { SopDocumentBuilder } from "@/components/portal/tools/sop-document-builder";
 import { vault } from "@/lib/vault";
 import { supabase } from "@/integrations/supabase/client";
 
