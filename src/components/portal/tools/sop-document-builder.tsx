@@ -18,6 +18,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { vault } from "@/lib/vault";
 import type { SopDocument, SopStep } from "@/lib/tools/sop-draft";
+import type jsPDF from "jspdf";
 import type {
   OptimizationPlay,
   SopBacklogItem,
@@ -518,7 +519,7 @@ function renderSopAsText(d: SopDocument): string {
   return lines.join("\n");
 }
 
-import type jsPDF from "jspdf";
+
 
 function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
   const pageW = pdf.internal.pageSize.getWidth();
