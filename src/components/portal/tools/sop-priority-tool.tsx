@@ -205,7 +205,8 @@ function OwnerMode() {
         }),
       });
       if (!res.ok) {
-        setAreaError((prev) => ({ ...prev, [area.name]: (await res.text()) || `Failed (${res.status})` }));
+        const msg = (await res.text()) || `Failed (${res.status})`;
+        setAreaError((prev) => ({ ...prev, [area.name]: msg }));
         return;
       }
       const data = (await res.json()) as OwnerPlaysResult;
