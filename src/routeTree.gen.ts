@@ -14,6 +14,7 @@ import { Route as VaultRouteImport } from './routes/vault'
 import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as ReplaysRouteImport } from './routes/replays'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as FieldToolsRouteImport } from './routes/field-tools'
@@ -62,6 +63,11 @@ const TemplatesRoute = TemplatesRouteImport.update({
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReplaysRoute = ReplaysRouteImport.update({
+  id: '/replays',
+  path: '/replays',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OnboardingRoute = OnboardingRouteImport.update({
@@ -197,6 +203,7 @@ export interface FileRoutesByFullPath {
   '/field-tools': typeof FieldToolsRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/replays': typeof ReplaysRoute
   '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
@@ -228,6 +235,7 @@ export interface FileRoutesByTo {
   '/field-tools': typeof FieldToolsRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/replays': typeof ReplaysRoute
   '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
@@ -260,6 +268,7 @@ export interface FileRoutesById {
   '/field-tools': typeof FieldToolsRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/replays': typeof ReplaysRoute
   '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
@@ -293,6 +302,7 @@ export interface FileRouteTypes {
     | '/field-tools'
     | '/login'
     | '/onboarding'
+    | '/replays'
     | '/signup'
     | '/templates'
     | '/tools'
@@ -324,6 +334,7 @@ export interface FileRouteTypes {
     | '/field-tools'
     | '/login'
     | '/onboarding'
+    | '/replays'
     | '/signup'
     | '/templates'
     | '/tools'
@@ -355,6 +366,7 @@ export interface FileRouteTypes {
     | '/field-tools'
     | '/login'
     | '/onboarding'
+    | '/replays'
     | '/signup'
     | '/templates'
     | '/tools'
@@ -387,6 +399,7 @@ export interface RootRouteChildren {
   FieldToolsRoute: typeof FieldToolsRoute
   LoginRoute: typeof LoginRoute
   OnboardingRoute: typeof OnboardingRoute
+  ReplaysRoute: typeof ReplaysRoute
   SignupRoute: typeof SignupRoute
   TemplatesRoute: typeof TemplatesRoute
   ToolsRoute: typeof ToolsRouteWithChildren
@@ -443,6 +456,13 @@ declare module '@tanstack/react-router' {
       path: '/signup'
       fullPath: '/signup'
       preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/replays': {
+      id: '/replays'
+      path: '/replays'
+      fullPath: '/replays'
+      preLoaderRoute: typeof ReplaysRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/onboarding': {
@@ -637,6 +657,7 @@ const rootRouteChildren: RootRouteChildren = {
   FieldToolsRoute: FieldToolsRoute,
   LoginRoute: LoginRoute,
   OnboardingRoute: OnboardingRoute,
+  ReplaysRoute: ReplaysRoute,
   SignupRoute: SignupRoute,
   TemplatesRoute: TemplatesRoute,
   ToolsRoute: ToolsRouteWithChildren,
@@ -660,3 +681,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
