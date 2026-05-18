@@ -207,7 +207,8 @@ export function ComputeTheater({
  * without leaning into the green-terminal cliché. Tuned for the
  * paper/ink palette.
  */
-function SyntaxLine({ text }: { text: string }) {
+function SyntaxLine({ text }: { text: string | undefined }) {
+  const safe = text ?? "";
   // Highlight a few token classes:
   // - leading keyword (load/derive/compare/project/rank/compose/done)
   // - $… or % numbers
@@ -215,7 +216,7 @@ function SyntaxLine({ text }: { text: string }) {
   // - bare numbers
   const parts: { t: string; cls: string }[] = [];
   const keywordRe = /^(\s*)(load|derive|compare|project|rank|compose|done\.?)\b/;
-  const m = text.match(keywordRe);
+  const m = safe.match(keywordRe);
   let rest = text;
   if (m) {
     parts.push({ t: m[1] ?? "", cls: "" });
