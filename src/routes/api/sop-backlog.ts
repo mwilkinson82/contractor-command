@@ -9,6 +9,8 @@ import {
   SOP_BACKLOG_SYSTEM_PROMPT,
   SOP_DEPARTMENTS,
   buildSopBacklogUserPrompt,
+  type OptimizationPlay,
+  type SopBacklogItem,
   type SopDepartment,
 } from "@/lib/tools/sop-department";
 
@@ -60,6 +62,47 @@ const ResultSchema = z.object({
   buildOrderRationale: z.string().optional(),
   backlog: z.array(ItemSchema).min(1).max(14),
 });
+
+function text(value: string | undefined, fallback: string) {
+  return value?.trim() || fallback;
+}
+
+function normalizeResult(
+  object: z.infer<typeof ResultSchema>,
+  dept: SopDepartment,
+  seatHeadcount: number,
+  context?: string,
+) {
+  const plays: OptimizationPlay[] = object.plays.map((play, idx) => ({
+    id: text(play.id, `P${idx + 1}`).toUpperCase(),
+    name: text(play.name, `${dept} scope redesign`),
+    diagnosis: text(play.diagnosis, `The constraint is not simply needing more ${dept} people; the seat's work is too broad and hard to hand off cleanly.`),
+    mechanism: text(play.mechanism, `Narrow the seat into repeatable phases, define the hand-off gates, and let each person execute a smaller lane with less switching cost.`),
+    expectedLift: text(play.expectedLift, `More signed work can move through the existing ${seatHeadcount}-person seat before hiring.`),
+    risks: text(play.risks, "If the hand-off criteria are vague, work will still bounce back to the owner."),
+  }));
+  const topPlayId = text(object.topPlayId, plays[0]?.id ?? "P1");
+  const backlog: SopBacklogItem[] = object.backlog.map((item, idx) => ({
+    rank: item.rank ?? idx + 1,
+    playId: text(item.playId, topPlayId),
+    name: text(item.name, `${dept} phase hand-off SOP`),
+    purpose: text(item.purpose, `Make the ${dept} seat transferable by defining the exact work, hand-off point, and standard of done.`),
+    trigger: text(item.trigger, "When a job reaches the next phase gate or a new contract is ready to be onboarded."),
+    owner: text(item.owner, `${dept} seat`),
+    dependsOn: item.dependsOn ?? [],
+    effort: item.effort ?? "M",
+    why: text(item.why, "This removes owner judgment calls, reduces rework, and lets current capacity support more active work."),
+  })).sort((a, b) => a.rank - b.rank);
+
+  return {
+    constraintReframe: text(object.constraintReframe, context?.trim() || `The ${dept} constraint is a scope-shape problem before it is a hiring problem.`),
+    plays,
+    topPlayId,
+    headline: text(object.headline, `${dept} needs a narrower execution lane before another hire.`),
+    buildOrderRationale: text(object.buildOrderRationale, "Build the hand-off and phase-gate SOPs first so every later SOP has a clear trigger, owner, and definition of done."),
+    backlog,
+  };
+}
 
 export const Route = createFileRoute("/api/sop-backlog")({
   server: {
