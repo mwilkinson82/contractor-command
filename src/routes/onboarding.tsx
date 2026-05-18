@@ -152,8 +152,8 @@ function OnboardingPage() {
             <div className="mt-2 flex items-center gap-4">
               <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-xl border border-border bg-card">
                 {logoPreview ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={logoPreview} alt="Logo preview" className="h-full w-full object-contain p-2" />
+                  // Square-crop, center-fit — preview matches how the logo renders in the sidebar.
+                  <img src={logoPreview} alt="Logo preview" className="h-full w-full object-cover object-center" />
                 ) : (
                   <ImageIcon className="h-6 w-6 text-muted-foreground/50" />
                 )}
@@ -176,7 +176,7 @@ function OnboardingPage() {
                   {logoPath ? "Replace logo" : "Upload logo"}
                 </button>
                 <p className="mt-1.5 text-[11px] text-muted-foreground">
-                  PNG, JPG, or SVG. Under 2MB. Square or wide works best.
+                  PNG, JPG, or SVG. Under 2MB. We center-crop to a square — upload tight to the mark for best results.
                 </p>
               </div>
             </div>
