@@ -27,7 +27,7 @@ export const Route = createFileRoute("/tools")({
   }),
 });
 
-const STAGE_TOOLS: Record<string, (props: { onClose?: () => void }) => JSX.Element> = {
+const STAGE_TOOLS: Record<string, () => React.ReactElement> = {
   "sop-priority": () => <SopPriorityTool />,
   "contract-readiness": () => <ContractReadinessTool />,
   "estimate-throughput": () => <EstimateThroughputTool />,
@@ -48,7 +48,7 @@ function readLastTool(): string {
 
 function ToolsLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const search = useRouterState({ select: (s) => s.location.search }) as Record<string, unknown>;
+  const search = useRouterState({ select: (s) => s.location.search }) as unknown as Record<string, unknown>;
 
   // Child routes (/tools/growth-constraint, /tools/owner-dependency) render
   // their own page chrome — bypass the workbench.
