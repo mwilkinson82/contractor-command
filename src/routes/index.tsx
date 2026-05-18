@@ -74,6 +74,7 @@ function HomePage() {
       queryFn: () => aosFn({ data: { companyId: companyId ?? undefined } }),
       staleTime: 60_000,
       refetchOnWindowFocus: true,
+      enabled: !!user,
     });
 
   const aosLinked = aosData?.ok && aosData.snapshot.linked;
