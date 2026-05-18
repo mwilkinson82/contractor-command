@@ -73,8 +73,9 @@ export const COMMAND_TOOLS: CommandTool[] = [
     name: "Margin Leak Finder",
     blurb: "Find where gross margin disappears between estimate and closeout.",
     group: "Protect margin and cash",
-    status: "coming-next",
+    status: "live",
     icon: ScissorsLineDashed,
+    vaultSource: "Margin Leak Finder",
   },
 
   // Build the machine
@@ -93,8 +94,9 @@ export const COMMAND_TOOLS: CommandTool[] = [
     name: "SOP Priority Builder",
     blurb: "Find which system to build first to remove owner drag.",
     group: "Build the machine",
-    status: "coming-next",
+    status: "live",
     icon: ListChecks,
+    vaultSource: "SOP Priority Builder",
   },
 
   // Deliver better projects

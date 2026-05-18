@@ -6,11 +6,15 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { EstimateThroughputTool } from "@/components/portal/tools/estimate-throughput-tool";
 import { ContractReadinessTool } from "@/components/portal/tools/contract-readiness-tool";
+import { MarginLeakTool } from "@/components/portal/tools/margin-leak-tool";
+import { SopPriorityTool } from "@/components/portal/tools/sop-priority-tool";
 
 /** Add a tool here to make it openable as a drawer. Key is CommandTool.id. */
 const TOOL_REGISTRY: Record<string, (props: { onClose: () => void }) => ReactNode> = {
   "estimate-throughput": (p) => <EstimateThroughputTool onClose={p.onClose} />,
   "contract-readiness": (p) => <ContractReadinessTool onClose={p.onClose} />,
+  "margin-leak": (p) => <MarginLeakTool onClose={p.onClose} />,
+  "sop-priority": (p) => <SopPriorityTool onClose={p.onClose} />,
 };
 
 export function hasToolDrawer(toolId: string): boolean {
