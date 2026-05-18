@@ -80,11 +80,10 @@ export const Route = createFileRoute("/api/sop-backlog")({
         if (!key) return new Response("Missing LOVABLE_API_KEY", { status: 500 });
 
         const gateway = createLovableAiGatewayProvider(key);
-        const model = gateway("google/gemini-3-flash-preview");
 
-        try {
-          const { object } = await generateObject({
-            model,
+        const tryGenerate = async (modelId: string) =>
+          generateObject({
+            model: gateway(modelId),
             schema: ResultSchema,
             system: SOP_BACKLOG_SYSTEM_PROMPT,
             prompt: buildSopBacklogUserPrompt({
@@ -94,6 +93,15 @@ export const Route = createFileRoute("/api/sop-backlog")({
               context: body.context,
             }),
           });
+
+        try {
+          let object;
+          try {
+            ({ object } = await tryGenerate("google/gemini-2.5-flash"));
+          } catch (primaryErr) {
+            console.warn("[sop-backlog] primary model failed, retrying with gpt-5-mini", primaryErr);
+            ({ object } = await tryGenerate("openai/gpt-5-mini"));
+          }
 
           const sorted = [...object.backlog].sort((a, b) => a.rank - b.rank);
           const topSop = sorted[0];
