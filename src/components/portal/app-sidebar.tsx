@@ -17,7 +17,10 @@ import {
   Circle,
   LogOut,
   Megaphone,
+  Inbox,
+  Library,
 } from "lucide-react";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 import { nextAny, relativeDay } from "@/lib/program";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/use-company";
