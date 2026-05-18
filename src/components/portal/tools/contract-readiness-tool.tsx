@@ -33,6 +33,32 @@ export function ContractReadinessTool({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
   const pendingResult = useRef<ContractScanResult | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadedName, setUploadedName] = useState<string | null>(null);
+
+  async function onFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = ""; // allow re-uploading the same file
+    if (!f) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const text = await extractTextFromFile(f);
+      if (!text.trim()) {
+        setError("Couldn't pull any text out of that file. Try a different export or paste the contract directly.");
+      } else {
+        setContractText(text);
+        setUploadedName(f.name);
+        if (stage === "ready" || stage === "error") setStage("idle");
+        setSavedId(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to read file.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   const ticker = useMemo(() => buildScanTicker(contractText.length), [contractText.length]);
 
