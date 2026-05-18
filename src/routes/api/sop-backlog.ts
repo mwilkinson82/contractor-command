@@ -58,7 +58,7 @@ const ResultSchema = z.object({
   topPlayId: z.string(),
   headline: z.string(),
   buildOrderRationale: z.string(),
-  backlog: z.array(ItemSchema).min(8).max(12),
+  backlog: z.array(ItemSchema).min(5).max(14),
 });
 
 export const Route = createFileRoute("/api/sop-backlog")({
