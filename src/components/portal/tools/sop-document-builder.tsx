@@ -310,14 +310,16 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
                           value={s.action}
                           onChange={(e) => updateStep(i, { action: e.target.value })}
                           placeholder="Imperative action — e.g. Open the Pre-Con folder in SharePoint…"
-                          className="w-full rounded-sm bg-transparent px-1 text-[13.5px] font-medium text-foreground outline-none focus:bg-background/80"
+                          style={{ fontFamily: "var(--font-sans)" }}
+                          className="w-full rounded-sm bg-transparent px-1 text-[14px] font-medium text-foreground outline-none focus:bg-background/80"
                         />
                         <textarea
                           value={s.detail ?? ""}
                           onChange={(e) => updateStep(i, { detail: e.target.value })}
                           placeholder="Optional — examples, thresholds, edge cases"
                           rows={2}
-                          className="w-full resize-y rounded-sm bg-transparent px-1 text-[12.5px] leading-snug text-foreground/80 outline-none focus:bg-background/80"
+                          style={{ fontFamily: "var(--font-sans)" }}
+                          className="w-full resize-y rounded-sm bg-transparent px-1 text-[13px] leading-snug text-foreground/80 outline-none focus:bg-background/80"
                         />
                       </div>
                       <button
@@ -497,8 +499,8 @@ function TextLine({
       type="text"
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      style={serif ? { fontFamily: "var(--font-serif)" } : undefined}
-      className={`mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-foreground/40 ${className ?? ""}`}
+      style={{ fontFamily: serif ? "var(--font-serif)" : "var(--font-sans)" }}
+      className={`mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-[14px] text-foreground outline-none focus:border-foreground/40 ${className ?? ""}`}
     />
   );
 }
@@ -521,7 +523,8 @@ function Block({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={rows}
-        className="mt-1 w-full resize-y rounded-md border border-border bg-background p-2.5 text-[13px] leading-relaxed text-foreground outline-none focus:border-foreground/40"
+        style={{ fontFamily: "var(--font-sans)" }}
+        className="mt-1 w-full resize-y rounded-md border border-border bg-background p-2.5 text-[14px] leading-relaxed text-foreground outline-none focus:border-foreground/40"
       />
     </div>
   );
@@ -563,7 +566,8 @@ function List({
               value={it}
               onChange={(e) => onChange(i, e.target.value)}
               placeholder={placeholder}
-              className="flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-[13px] text-foreground outline-none focus:border-foreground/40"
+              style={{ fontFamily: "var(--font-sans)" }}
+              className="flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-[14px] text-foreground outline-none focus:border-foreground/40"
             />
             <button
               type="button"
