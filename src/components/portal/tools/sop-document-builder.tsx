@@ -178,7 +178,7 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
       await sendTransactionalEmail({
         templateName: "sop-document",
         recipientEmail: recipient,
-        idempotencyKey: `sop-${(savedId ?? item.id ?? doc.title)}-${recipient}-${Date.now()}`,
+        idempotencyKey: `sop-${(savedId ?? doc.title)}-${recipient}-${Date.now()}`,
         templateData: {
           title: doc.title,
           department: doc.department,
