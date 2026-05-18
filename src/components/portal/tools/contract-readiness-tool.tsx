@@ -145,7 +145,7 @@ export function ContractReadinessTool({ onClose }: { onClose: () => void }) {
       financialConsequence: result.financialConsequence,
       missingSystem:
         result.missingClauses.length > 0
-          ? `Missing clauses: ${result.missingClauses.join("; ")}`
+          ? `Missing clauses: ${result.missingClauses.map((c) => c.name).join("; ")}`
           : "Contract review checklist tied to cash, schedule, scope, margin.",
       recommendedAction: result.recommendedAction,
       bringOneIssuePrompt:
@@ -470,5 +470,80 @@ function StatusPill({ status, score }: { status: ContractScanResult["status"]; s
     <span className="inline-flex items-center gap-1.5 rounded-full border border-signal/40 bg-signal/10 px-3 py-1 text-[11px] font-medium text-signal">
       <AlertTriangle className="h-3 w-3" /> Do not sign · {score}/100
     </span>
+  );
+}
+
+function MissingClauseCard({ clause }: { clause: MissingClause }) {
+  const [copied, setCopied] = useState<"lang" | "talk" | null>(null);
+  async function copy(kind: "lang" | "talk", text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(kind);
+      setTimeout(() => setCopied((c) => (c === kind ? null : c)), 1500);
+    } catch {
+      /* no-op */
+    }
+  }
+  const hasLang = clause.sampleLanguage.trim().length > 0;
+  const hasTalk = clause.talkingPoints.length > 0;
+  return (
+    <div className="rounded-md border border-border bg-background/60 p-3">
+      <p className="text-[13px] font-medium text-foreground" style={{ fontFamily: "var(--font-serif)" }}>
+        {clause.name}
+      </p>
+      {clause.whyItMatters && (
+        <p className="mt-1 text-[12px] leading-snug text-muted-foreground">
+          {clause.whyItMatters}
+        </p>
+      )}
+
+      {hasLang && (
+        <div className="mt-3 rounded border border-border bg-background p-2.5">
+          <div className="flex items-center justify-between">
+            <p className="font-mono text-[9.5px] uppercase tracking-[0.22em] text-muted-foreground">
+              Sample clause language
+            </p>
+            <button
+              type="button"
+              onClick={() => copy("lang", clause.sampleLanguage)}
+              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-foreground/70 hover:bg-muted"
+            >
+              {copied === "lang" ? <Check className="h-3 w-3 text-signal-success" /> : <Copy className="h-3 w-3" />}
+              {copied === "lang" ? "Copied" : "Copy"}
+            </button>
+          </div>
+          <p className="mt-1.5 whitespace-pre-wrap text-[12.5px] leading-relaxed text-foreground/90">
+            {clause.sampleLanguage}
+          </p>
+        </div>
+      )}
+
+      {hasTalk && (
+        <div className="mt-2.5 rounded border border-border bg-background p-2.5">
+          <div className="flex items-center justify-between">
+            <p className="font-mono text-[9.5px] uppercase tracking-[0.22em] text-muted-foreground">
+              How to ask for it
+            </p>
+            <button
+              type="button"
+              onClick={() => copy("talk", clause.talkingPoints.map((t) => `• ${t}`).join("\n"))}
+              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-foreground/70 hover:bg-muted"
+            >
+              {copied === "talk" ? <Check className="h-3 w-3 text-signal-success" /> : <Copy className="h-3 w-3" />}
+              {copied === "talk" ? "Copied" : "Copy"}
+            </button>
+          </div>
+          <ul className="mt-1.5 list-disc space-y-1 pl-5 text-[12.5px] leading-relaxed text-foreground/90">
+            {clause.talkingPoints.map((t, i) => (
+              <li key={i}>{t}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <p className="mt-2 font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted-foreground">
+        Starting point only · not legal advice
+      </p>
+    </div>
   );
 }
