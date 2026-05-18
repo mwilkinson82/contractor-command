@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet, Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type ReactElement } from "react";
-import { Archive, ArrowUpRight, Command as CmdIcon, Lock } from "lucide-react";
+import { Archive, ArrowUpRight, LayoutGrid, Lock } from "lucide-react";
 import {
   COMMAND_TOOLS,
   TOOL_GROUPS,
