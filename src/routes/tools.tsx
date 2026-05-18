@@ -206,9 +206,11 @@ function CollapsedBar({
 function WorkbenchHeader({
   activeTool,
   onOpenPicker,
+  onCollapse,
 }: {
   activeTool: CommandTool | undefined;
   onOpenPicker: () => void;
+  onCollapse: () => void;
 }) {
   const liveCount = useMemo(
     () => COMMAND_TOOLS.filter((t) => t.status === "live").length,
