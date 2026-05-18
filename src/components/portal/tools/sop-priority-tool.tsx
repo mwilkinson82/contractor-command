@@ -26,6 +26,7 @@ import {
   SOP_PRIORITY_STEPS,
   sopPriorityTicker,
   type SopArea,
+  type SopScored,
 } from "@/lib/tools/sop-priority";
 import {
   SOP_BACKLOG_STEPS,
@@ -37,10 +38,12 @@ import {
   type SopBacklogResult,
   type SopDepartment,
 } from "@/lib/tools/sop-department";
+import type { OwnerPlaysResult } from "@/lib/tools/owner-plays";
 import { ComputeTheater } from "@/components/portal/compute-theater";
 import { SopDocumentBuilder } from "@/components/portal/tools/sop-document-builder";
 import { vault } from "@/lib/vault";
 import { supabase } from "@/integrations/supabase/client";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 type Mode = "owner" | "department";
 type Stage = "idle" | "running" | "ready" | "error";
