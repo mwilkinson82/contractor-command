@@ -280,6 +280,43 @@ function AccountPage() {
           </div>
         </div>
 
+        <div className="mt-6">
+          <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            Logo <span className="text-muted-foreground/60">· optional</span>
+          </label>
+          <div className="mt-2 flex items-center gap-4">
+            <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-xl border border-border bg-background">
+              {coLogoPreview ? (
+                <img src={coLogoPreview} alt="Logo preview" className="h-full w-full object-cover object-center" />
+              ) : (
+                <ImageIcon className="h-6 w-6 text-muted-foreground/50" />
+              )}
+            </div>
+            <div className="flex-1">
+              <input
+                ref={logoFileRef}
+                type="file"
+                accept="image/*"
+                onChange={onLogoFile}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => logoFileRef.current?.click()}
+                disabled={coUploading}
+                className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-[12px] hover:bg-muted disabled:opacity-50"
+              >
+                {coUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                {coLogoPath ? "Replace logo" : "Upload logo"}
+              </button>
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                PNG, JPG, or SVG. Under 2MB. We center-crop to a square.
+              </p>
+            </div>
+          </div>
+        </div>
+
+
         <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-border pt-5">
           <button
             onClick={saveCompany}
