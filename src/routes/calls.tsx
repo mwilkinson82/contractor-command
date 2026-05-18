@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { PageHeader, Container } from "@/components/portal/page-header";
 import {
   addToCalendarUrl,
@@ -8,8 +9,8 @@ import {
   relativeDay,
   type Session,
 } from "@/lib/program";
-import { vault } from "@/lib/vault";
-import { ArrowUpRight, Calendar, Check, Video } from "lucide-react";
+import { submitCallTopic } from "@/lib/topics.functions";
+import { ArrowUpRight, Calendar, Check, Loader2, Video } from "lucide-react";
 
 export const Route = createFileRoute("/calls")({
   head: () => ({
@@ -23,25 +24,23 @@ export const Route = createFileRoute("/calls")({
 
 function CallsPage() {
   const biweekly = nextOfKind("Biweekly Call");
-  const bootcamp = nextOfKind("Monthly Bootcamp");
 
   return (
     <Container>
       <PageHeader
         eyebrow="The room"
         title={<>Calls and bootcamps.</>}
-        lede="Next session up top. Submit the topic you want pressured before the room sees it. Past sessions live in the Replay library."
+        lede="One Zoom for the bi-weekly working sessions and the monthly bootcamps — every other Sunday. Submit the topic you want pressured before the room sees it."
       />
 
-      {/* Next sessions */}
-      <section className="mt-10 grid gap-6 lg:grid-cols-2">
+      {/* Single unified session card */}
+      <section className="mt-10">
         {biweekly ? <SessionCard session={biweekly} primary /> : null}
-        {bootcamp ? <SessionCard session={bootcamp} /> : null}
       </section>
 
       {/* Topic submission */}
       <section id="submit-topic" className="mt-16 scroll-mt-24">
-        <TopicSubmit defaultKind={biweekly?.kind ?? "Biweekly Call"} />
+        <TopicSubmit defaultKind="Biweekly Call" />
       </section>
 
       {/* Replays moved to /replays */}
@@ -159,21 +158,46 @@ function TopicSubmit({ defaultKind }: { defaultKind: Session["kind"] }) {
     financialConsequence: "",
     winLooksLike: "",
   });
+  const [submitting, setSubmitting] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const submit = useServerFn(submitCallTopic);
 
-  function save() {
-    const titleFallback = form.title || form.needsPressure.slice(0, 80) || `${kind} topic`;
-    const p = vault.save({
-      kind: "issue",
-      source: "Bring One Issue",
-      title: `${kind} — ${titleFallback}`,
-      needsPressure: form.needsPressure,
-      alreadyTried: form.alreadyTried,
-      decisionAvoided: form.decisionAvoided,
-      financialConsequence: form.financialConsequence,
-      winLooksLike: form.winLooksLike,
-    });
-    setSavedId(p.id);
+  async function save() {
+    setError(null);
+    const title = form.title.trim() || form.needsPressure.slice(0, 80).trim() || `${kind} topic`;
+    setSubmitting(true);
+    try {
+      const res = await submit({
+        data: {
+          kind,
+          title,
+          needsPressure: form.needsPressure,
+          alreadyTried: form.alreadyTried,
+          decisionAvoided: form.decisionAvoided,
+          financialConsequence: form.financialConsequence,
+          winLooksLike: form.winLooksLike,
+        },
+      });
+      if (res.ok) {
+        setSavedId(res.id);
+        setForm({
+          title: "",
+          needsPressure: "",
+          alreadyTried: "",
+          decisionAvoided: "",
+          financialConsequence: "",
+          winLooksLike: "",
+        });
+      } else {
+        setError(res.error || "Could not submit. Try again.");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Could not submit. Try again.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -227,15 +251,22 @@ function TopicSubmit({ defaultKind }: { defaultKind: Session["kind"] }) {
           <div className="flex flex-wrap items-center gap-2 border-t border-border pt-5">
             <button
               onClick={save}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-4 py-2.5 text-sm text-cream hover:opacity-90"
+              disabled={submitting}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-4 py-2.5 text-sm text-cream hover:opacity-90 disabled:opacity-60"
             >
-              {savedId ? <><Check className="h-4 w-4" /> Submitted & saved</> : "Submit topic"}
+              {submitting ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Submitting…</>
+              ) : savedId ? (
+                <><Check className="h-4 w-4" /> Submitted</>
+              ) : (
+                "Submit topic"
+              )}
             </button>
-            <Link to="/vault" className="rounded-lg border border-border bg-background px-4 py-2.5 text-sm hover:bg-muted">
-              View saved topics
-            </Link>
             {savedId ? (
-              <span className="text-xs text-muted-foreground">Marshall sees this in the queue before the next {kind}.</span>
+              <span className="text-xs text-muted-foreground">Sent to Marshall — you'll get an email if it's picked for the next {kind}.</span>
+            ) : null}
+            {error ? (
+              <span className="text-xs text-destructive">{error}</span>
             ) : null}
           </div>
         </div>

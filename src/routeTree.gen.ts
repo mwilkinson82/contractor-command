@@ -34,6 +34,7 @@ import { Route as ApiSopBacklogRouteImport } from './routes/api/sop-backlog'
 import { Route as ApiOwnerPlaysRouteImport } from './routes/api/owner-plays'
 import { Route as ApiContractScanRouteImport } from './routes/api/contract-scan'
 import { Route as ApiAskRouteImport } from './routes/api/ask'
+import { Route as AdminTopicsRouteImport } from './routes/admin.topics'
 import { Route as AdminLibraryRouteImport } from './routes/admin.library'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
@@ -166,6 +167,11 @@ const ApiAskRoute = ApiAskRouteImport.update({
   path: '/api/ask',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminTopicsRoute = AdminTopicsRouteImport.update({
+  id: '/admin/topics',
+  path: '/admin/topics',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminLibraryRoute = AdminLibraryRouteImport.update({
   id: '/admin/library',
   path: '/admin/library',
@@ -216,6 +222,7 @@ export interface FileRoutesByFullPath {
   '/vault': typeof VaultRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/admin/library': typeof AdminLibraryRoute
+  '/admin/topics': typeof AdminTopicsRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/owner-plays': typeof ApiOwnerPlaysRoute
@@ -249,6 +256,7 @@ export interface FileRoutesByTo {
   '/vault': typeof VaultRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/admin/library': typeof AdminLibraryRoute
+  '/admin/topics': typeof AdminTopicsRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/owner-plays': typeof ApiOwnerPlaysRoute
@@ -283,6 +291,7 @@ export interface FileRoutesById {
   '/vault': typeof VaultRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/admin/library': typeof AdminLibraryRoute
+  '/admin/topics': typeof AdminTopicsRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/owner-plays': typeof ApiOwnerPlaysRoute
@@ -318,6 +327,7 @@ export interface FileRouteTypes {
     | '/vault'
     | '/work-with-marshall'
     | '/admin/library'
+    | '/admin/topics'
     | '/api/ask'
     | '/api/contract-scan'
     | '/api/owner-plays'
@@ -351,6 +361,7 @@ export interface FileRouteTypes {
     | '/vault'
     | '/work-with-marshall'
     | '/admin/library'
+    | '/admin/topics'
     | '/api/ask'
     | '/api/contract-scan'
     | '/api/owner-plays'
@@ -384,6 +395,7 @@ export interface FileRouteTypes {
     | '/vault'
     | '/work-with-marshall'
     | '/admin/library'
+    | '/admin/topics'
     | '/api/ask'
     | '/api/contract-scan'
     | '/api/owner-plays'
@@ -418,6 +430,7 @@ export interface RootRouteChildren {
   VaultRoute: typeof VaultRoute
   WorkWithMarshallRoute: typeof WorkWithMarshallRoute
   AdminLibraryRoute: typeof AdminLibraryRoute
+  AdminTopicsRoute: typeof AdminTopicsRoute
   ApiAskRoute: typeof ApiAskRoute
   ApiContractScanRoute: typeof ApiContractScanRoute
   ApiOwnerPlaysRoute: typeof ApiOwnerPlaysRoute
@@ -611,6 +624,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAskRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/topics': {
+      id: '/admin/topics'
+      path: '/admin/topics'
+      fullPath: '/admin/topics'
+      preLoaderRoute: typeof AdminTopicsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/library': {
       id: '/admin/library'
       path: '/admin/library'
@@ -684,6 +704,7 @@ const rootRouteChildren: RootRouteChildren = {
   VaultRoute: VaultRoute,
   WorkWithMarshallRoute: WorkWithMarshallRoute,
   AdminLibraryRoute: AdminLibraryRoute,
+  AdminTopicsRoute: AdminTopicsRoute,
   ApiAskRoute: ApiAskRoute,
   ApiContractScanRoute: ApiContractScanRoute,
   ApiOwnerPlaysRoute: ApiOwnerPlaysRoute,

@@ -18,7 +18,11 @@ export interface TemplateEntry {
  *   // then add to TEMPLATES: 'welcome': welcomeTemplate
  */
 import { template as sopDocumentTemplate } from './sop-document'
+import { template as topicSubmittedTemplate } from './topic-submitted'
+import { template as topicSelectedTemplate } from './topic-selected'
 
 export const TEMPLATES: Record<string, TemplateEntry> = {
   'sop-document': sopDocumentTemplate,
+  'topic-submitted': topicSubmittedTemplate,
+  'topic-selected': topicSelectedTemplate,
 }
