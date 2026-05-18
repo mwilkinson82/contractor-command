@@ -6,7 +6,7 @@ import { ArrowLeft, Check, Save, MessageSquare } from "lucide-react";
 
 export const Route = createFileRoute("/tools/owner-dependency")({
   head: () => ({ meta: [{ title: "Owner Dependency Scorecard — ALP Contractor Circle" }] }),
-  component: OwnerDependencyTool,
+  component: () => <OwnerDependencyTool />,
 });
 
 const AREAS = [
