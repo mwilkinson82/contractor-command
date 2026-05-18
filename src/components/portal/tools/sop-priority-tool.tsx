@@ -122,8 +122,22 @@ function ModeBtn({
 
 function OwnerMode() {
   const [areas, setAreas] = useState<SopArea[]>(DEFAULT_SOP_AREAS);
+  const [ownerContext, setOwnerContext] = useState("");
   const [stage, setStage] = useState<Stage>("idle");
   const [savedId, setSavedId] = useState<string | null>(null);
+
+  // Per-area cached plays results (keyed by area name).
+  const [playsByArea, setPlaysByArea] = useState<Record<string, OwnerPlaysResult>>({});
+  const [loadingArea, setLoadingArea] = useState<string | null>(null);
+  const [areaError, setAreaError] = useState<Record<string, string>>({});
+  const [expandedArea, setExpandedArea] = useState<string | null>(null);
+
+  // SOP doc builder takes over the right pane when set.
+  const [buildingSop, setBuildingSop] = useState<{
+    item: SopBacklogItem;
+    parentPlay: OptimizationPlay | null;
+    area: string;
+  } | null>(null);
 
   const result = useMemo(() => calcSopPriority(areas), [areas]);
   const ticker = useMemo(() => sopPriorityTicker(areas, result), [areas, result]);
