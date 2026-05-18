@@ -53,9 +53,9 @@ export const listAdminUsers = createServerFn({ method: "GET" })
       (roles ?? []).filter((r) => r.role === "admin").map((r) => r.user_id),
     );
 
-    // Index subscriptions by user_id and email
-    const subByUserId = new Map<string, (typeof subs)[number]>();
-    const subByEmail = new Map<string, (typeof subs)[number]>();
+    type SubRow = NonNullable<typeof subs>[number];
+    const subByUserId = new Map<string, SubRow>();
+    const subByEmail = new Map<string, SubRow>();
     for (const s of subs ?? []) {
       if (s.user_id) subByUserId.set(s.user_id, s);
       if (s.email) subByEmail.set(s.email.toLowerCase(), s);
