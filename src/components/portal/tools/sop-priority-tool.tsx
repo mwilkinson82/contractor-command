@@ -485,11 +485,31 @@ function DepartmentMode() {
               <option value="mature">Mature ($15M+)</option>
             </select>
           </label>
-          <Num
-            label="Seat headcount"
-            value={seatHeadcount}
-            onChange={(v) => setSeatHeadcount(Math.max(1, Math.min(50, v || 1)))}
-          />
+          <label className="block">
+            <span className="font-mono text-[9.5px] uppercase tracking-[0.2em] text-muted-foreground">
+              Seat headcount
+            </span>
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={Number.isFinite(seatHeadcount) ? seatHeadcount : ""}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (raw === "") {
+                  setSeatHeadcount(NaN as unknown as number);
+                  return;
+                }
+                const n = Number(raw);
+                if (Number.isFinite(n)) setSeatHeadcount(n);
+              }}
+              onBlur={() => {
+                const n = Number.isFinite(seatHeadcount) ? seatHeadcount : 1;
+                setSeatHeadcount(Math.max(1, Math.min(50, Math.round(n) || 1)));
+              }}
+              className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-[13px] text-foreground outline-none focus:border-foreground/40"
+            />
+          </label>
         </div>
 
         <label className="mt-4 block">
