@@ -12,7 +12,8 @@ import {
   expressIntensiveInterest,
   type AskMessage,
 } from "@/lib/ask.functions";
-import { ArrowUp, Plus, Trash2, MessageCircle, Check, Sparkles, Megaphone, Copy, BookOpen, Brain, Wand2, CheckCircle2 } from "lucide-react";
+import { createIntensiveCheckout } from "@/lib/billing.functions";
+import { ArrowUp, Plus, Trash2, MessageCircle, Check, Sparkles, Megaphone, Copy, BookOpen, Brain, Wand2, CheckCircle2, Loader2, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -207,6 +208,9 @@ function ChatPane({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      <div className="flex items-center justify-end gap-2 border-b border-border/70 bg-background/60 px-4 py-2 backdrop-blur-sm sm:px-8">
+        <IntensiveCheckoutButton threadId={threadId} />
+      </div>
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-8 sm:px-8">
         <div className="mx-auto w-full max-w-[760px] space-y-6">
           {messages.length === 0 && (
