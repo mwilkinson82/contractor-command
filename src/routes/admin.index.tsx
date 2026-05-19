@@ -112,6 +112,12 @@ function AdminDashboard() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
+            to="/admin/announce"
+            className="rounded-md border border-border bg-card px-3 py-1.5 text-[12px] hover:bg-muted"
+          >
+            Announce
+          </Link>
+          <Link
             to="/admin/topics"
             className="rounded-md border border-border bg-card px-3 py-1.5 text-[12px] hover:bg-muted"
           >

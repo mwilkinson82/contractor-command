@@ -21,10 +21,12 @@ import { template as sopDocumentTemplate } from './sop-document'
 import { template as topicSubmittedTemplate } from './topic-submitted'
 import { template as topicSelectedTemplate } from './topic-selected'
 import { template as vaultPacketTemplate } from './vault-packet'
+import { template as memberAnnouncementTemplate } from './member-announcement'
 
 export const TEMPLATES: Record<string, TemplateEntry> = {
   'sop-document': sopDocumentTemplate,
   'topic-submitted': topicSubmittedTemplate,
   'topic-selected': topicSelectedTemplate,
   'vault-packet': vaultPacketTemplate,
+  'member-announcement': memberAnnouncementTemplate,
 }
