@@ -17,6 +17,10 @@ export type AdminUserRow = {
   email: string;
   fullName: string | null;
   createdAt: string | null;
+  lastSignInAt: string | null;
+  emailConfirmedAt: string | null;
+  invitedAt: string | null;
+  hasAuthAccount: boolean;
   subscription: {
     id: string | null;
     status: string | null; // active / trialing / canceled / past_due / null
@@ -30,6 +34,7 @@ export type AdminUserRow = {
   } | null;
   isAdmin: boolean;
 };
+
 
 export const listAdminUsers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
