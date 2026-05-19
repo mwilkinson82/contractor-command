@@ -18,11 +18,31 @@ import { ToolDrawerProvider } from "@/components/portal/tool-drawer";
 import { Toaster } from "@/components/ui/sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useCompany } from "@/hooks/use-company";
+import { useTier } from "@/hooks/use-tier";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 import { supabase } from "@/integrations/supabase/client";
 import { vault } from "@/lib/vault";
+import { toast } from "sonner";
 
 const PUBLIC_ROUTES = new Set(["/login", "/signup", "/forgot-password", "/reset-password", "/welcome"]);
 const ONBOARDING_ROUTE = "/onboarding";
+
+// Routes that require Circle membership. Book Buyers and Intensive grads
+// hitting any of these get redirected to /upgrade with a toast.
+const CIRCLE_ONLY_PREFIXES = [
+  "/vault",
+  "/calls",
+  "/community",
+  "/replays",
+  "/templates",
+  "/ask",
+  "/tools",
+  "/field-tools",
+];
+
+function isCircleOnly(pathname: string): boolean {
+  return CIRCLE_ONLY_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
 
 function NotFoundComponent() {
   return (
