@@ -78,12 +78,13 @@ function TemplatesPage() {
         lede="Every template here answers one question: what operating problem does this help solve? Organized by where it belongs in the business, not by file type."
       />
 
-      {rows === null ? (
+      {rows === undefined ? (
         <div className="mt-10 space-y-3">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="h-14 animate-pulse rounded-md bg-muted/40" />
           ))}
         </div>
+
       ) : (
         <>
           {aosItems.length > 0 && <AOSBand items={aosItems} />}
