@@ -44,7 +44,7 @@ function LoginPage() {
     <div className="relative grid min-h-screen w-full grid-cols-1 bg-paper-edge/60 p-6 text-ink font-sans selection:bg-ink selection:text-cream md:grid-cols-2 lg:p-10">
       {/* Tiny corner mark — Apple-style */}
       <Link to="/" className="absolute left-6 top-6 z-10 inline-flex items-center lg:left-10 lg:top-10" aria-label="Contractor Circle">
-        <img src={ccMark} alt="" className="h-20 w-20 object-contain" />
+        <img src={ccMark} alt="" className="h-28 w-28 object-contain" />
       </Link>
 
       {/* Left: centered sign-in card */}
