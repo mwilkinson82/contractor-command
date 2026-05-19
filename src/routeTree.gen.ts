@@ -42,6 +42,7 @@ import { Route as AosLinkRouteImport } from './routes/aos.link'
 import { Route as AdminTopicsRouteImport } from './routes/admin.topics'
 import { Route as AdminMigrateRouteImport } from './routes/admin.migrate'
 import { Route as AdminLibraryRouteImport } from './routes/admin.library'
+import { Route as AdminAnnounceRouteImport } from './routes/admin.announce'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
@@ -215,6 +216,11 @@ const AdminLibraryRoute = AdminLibraryRouteImport.update({
   path: '/admin/library',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminAnnounceRoute = AdminAnnounceRouteImport.update({
+  id: '/admin/announce',
+  path: '/admin/announce',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   id: '/lovable/email/suppression',
   path: '/lovable/email/suppression',
@@ -271,6 +277,7 @@ export interface FileRoutesByFullPath {
   '/vault': typeof VaultRoute
   '/welcome': typeof WelcomeRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
+  '/admin/announce': typeof AdminAnnounceRoute
   '/admin/library': typeof AdminLibraryRoute
   '/admin/migrate': typeof AdminMigrateRoute
   '/admin/topics': typeof AdminTopicsRoute
@@ -313,6 +320,7 @@ export interface FileRoutesByTo {
   '/vault': typeof VaultRoute
   '/welcome': typeof WelcomeRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
+  '/admin/announce': typeof AdminAnnounceRoute
   '/admin/library': typeof AdminLibraryRoute
   '/admin/migrate': typeof AdminMigrateRoute
   '/admin/topics': typeof AdminTopicsRoute
@@ -356,6 +364,7 @@ export interface FileRoutesById {
   '/vault': typeof VaultRoute
   '/welcome': typeof WelcomeRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
+  '/admin/announce': typeof AdminAnnounceRoute
   '/admin/library': typeof AdminLibraryRoute
   '/admin/migrate': typeof AdminMigrateRoute
   '/admin/topics': typeof AdminTopicsRoute
@@ -400,6 +409,7 @@ export interface FileRouteTypes {
     | '/vault'
     | '/welcome'
     | '/work-with-marshall'
+    | '/admin/announce'
     | '/admin/library'
     | '/admin/migrate'
     | '/admin/topics'
@@ -442,6 +452,7 @@ export interface FileRouteTypes {
     | '/vault'
     | '/welcome'
     | '/work-with-marshall'
+    | '/admin/announce'
     | '/admin/library'
     | '/admin/migrate'
     | '/admin/topics'
@@ -484,6 +495,7 @@ export interface FileRouteTypes {
     | '/vault'
     | '/welcome'
     | '/work-with-marshall'
+    | '/admin/announce'
     | '/admin/library'
     | '/admin/migrate'
     | '/admin/topics'
@@ -527,6 +539,7 @@ export interface RootRouteChildren {
   VaultRoute: typeof VaultRoute
   WelcomeRoute: typeof WelcomeRoute
   WorkWithMarshallRoute: typeof WorkWithMarshallRoute
+  AdminAnnounceRoute: typeof AdminAnnounceRoute
   AdminLibraryRoute: typeof AdminLibraryRoute
   AdminMigrateRoute: typeof AdminMigrateRoute
   AdminTopicsRoute: typeof AdminTopicsRoute
@@ -784,6 +797,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminLibraryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/announce': {
+      id: '/admin/announce'
+      path: '/admin/announce'
+      fullPath: '/admin/announce'
+      preLoaderRoute: typeof AdminAnnounceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/lovable/email/suppression': {
       id: '/lovable/email/suppression'
       path: '/lovable/email/suppression'
@@ -865,6 +885,7 @@ const rootRouteChildren: RootRouteChildren = {
   VaultRoute: VaultRoute,
   WelcomeRoute: WelcomeRoute,
   WorkWithMarshallRoute: WorkWithMarshallRoute,
+  AdminAnnounceRoute: AdminAnnounceRoute,
   AdminLibraryRoute: AdminLibraryRoute,
   AdminMigrateRoute: AdminMigrateRoute,
   AdminTopicsRoute: AdminTopicsRoute,
