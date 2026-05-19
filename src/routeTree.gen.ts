@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WorkWithMarshallRouteImport } from './routes/work-with-marshall'
+import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as VaultRouteImport } from './routes/vault'
 import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as TemplatesRouteImport } from './routes/templates'
@@ -37,6 +38,7 @@ import { Route as ApiContractScanRouteImport } from './routes/api/contract-scan'
 import { Route as ApiAskRouteImport } from './routes/api/ask'
 import { Route as AosLinkRouteImport } from './routes/aos.link'
 import { Route as AdminTopicsRouteImport } from './routes/admin.topics'
+import { Route as AdminMigrateRouteImport } from './routes/admin.migrate'
 import { Route as AdminLibraryRouteImport } from './routes/admin.library'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
@@ -47,6 +49,11 @@ import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api/public/
 const WorkWithMarshallRoute = WorkWithMarshallRouteImport.update({
   id: '/work-with-marshall',
   path: '/work-with-marshall',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VaultRoute = VaultRouteImport.update({
@@ -184,6 +191,11 @@ const AdminTopicsRoute = AdminTopicsRouteImport.update({
   path: '/admin/topics',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminMigrateRoute = AdminMigrateRouteImport.update({
+  id: '/admin/migrate',
+  path: '/admin/migrate',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminLibraryRoute = AdminLibraryRouteImport.update({
   id: '/admin/library',
   path: '/admin/library',
@@ -231,8 +243,10 @@ export interface FileRoutesByFullPath {
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
   '/vault': typeof VaultRoute
+  '/welcome': typeof WelcomeRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/admin/library': typeof AdminLibraryRoute
+  '/admin/migrate': typeof AdminMigrateRoute
   '/admin/topics': typeof AdminTopicsRoute
   '/aos/link': typeof AosLinkRoute
   '/api/ask': typeof ApiAskRoute
@@ -267,8 +281,10 @@ export interface FileRoutesByTo {
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
   '/vault': typeof VaultRoute
+  '/welcome': typeof WelcomeRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/admin/library': typeof AdminLibraryRoute
+  '/admin/migrate': typeof AdminMigrateRoute
   '/admin/topics': typeof AdminTopicsRoute
   '/aos/link': typeof AosLinkRoute
   '/api/ask': typeof ApiAskRoute
@@ -304,8 +320,10 @@ export interface FileRoutesById {
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
   '/vault': typeof VaultRoute
+  '/welcome': typeof WelcomeRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/admin/library': typeof AdminLibraryRoute
+  '/admin/migrate': typeof AdminMigrateRoute
   '/admin/topics': typeof AdminTopicsRoute
   '/aos/link': typeof AosLinkRoute
   '/api/ask': typeof ApiAskRoute
@@ -342,8 +360,10 @@ export interface FileRouteTypes {
     | '/templates'
     | '/tools'
     | '/vault'
+    | '/welcome'
     | '/work-with-marshall'
     | '/admin/library'
+    | '/admin/migrate'
     | '/admin/topics'
     | '/aos/link'
     | '/api/ask'
@@ -378,8 +398,10 @@ export interface FileRouteTypes {
     | '/templates'
     | '/tools'
     | '/vault'
+    | '/welcome'
     | '/work-with-marshall'
     | '/admin/library'
+    | '/admin/migrate'
     | '/admin/topics'
     | '/aos/link'
     | '/api/ask'
@@ -414,8 +436,10 @@ export interface FileRouteTypes {
     | '/templates'
     | '/tools'
     | '/vault'
+    | '/welcome'
     | '/work-with-marshall'
     | '/admin/library'
+    | '/admin/migrate'
     | '/admin/topics'
     | '/aos/link'
     | '/api/ask'
@@ -451,8 +475,10 @@ export interface RootRouteChildren {
   TemplatesRoute: typeof TemplatesRoute
   ToolsRoute: typeof ToolsRouteWithChildren
   VaultRoute: typeof VaultRoute
+  WelcomeRoute: typeof WelcomeRoute
   WorkWithMarshallRoute: typeof WorkWithMarshallRoute
   AdminLibraryRoute: typeof AdminLibraryRoute
+  AdminMigrateRoute: typeof AdminMigrateRoute
   AdminTopicsRoute: typeof AdminTopicsRoute
   AosLinkRoute: typeof AosLinkRoute
   ApiAskRoute: typeof ApiAskRoute
@@ -480,6 +506,13 @@ declare module '@tanstack/react-router' {
       path: '/work-with-marshall'
       fullPath: '/work-with-marshall'
       preLoaderRoute: typeof WorkWithMarshallRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/welcome': {
+      id: '/welcome'
+      path: '/welcome'
+      fullPath: '/welcome'
+      preLoaderRoute: typeof WelcomeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/vault': {
@@ -671,6 +704,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminTopicsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/migrate': {
+      id: '/admin/migrate'
+      path: '/admin/migrate'
+      fullPath: '/admin/migrate'
+      preLoaderRoute: typeof AdminMigrateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/library': {
       id: '/admin/library'
       path: '/admin/library'
@@ -741,8 +781,10 @@ const rootRouteChildren: RootRouteChildren = {
   TemplatesRoute: TemplatesRoute,
   ToolsRoute: ToolsRouteWithChildren,
   VaultRoute: VaultRoute,
+  WelcomeRoute: WelcomeRoute,
   WorkWithMarshallRoute: WorkWithMarshallRoute,
   AdminLibraryRoute: AdminLibraryRoute,
+  AdminMigrateRoute: AdminMigrateRoute,
   AdminTopicsRoute: AdminTopicsRoute,
   AosLinkRoute: AosLinkRoute,
   ApiAskRoute: ApiAskRoute,
