@@ -38,7 +38,7 @@ const JumpButton: React.FC<{ item: Jump }> = ({ item }) => (
     onClick={() => scrollTo(item.id)}
     className={
       item.featured
-        ? "group text-left w-full p-4 border-2 border-[hsl(var(--hb-brand-accent))] bg-[hsl(var(--hb-brand-accent)/0.08)] hover:bg-[hsl(var(--hb-brand-accent)/0.14)] transition-colors rounded-sm relative"
+        ? "group text-left w-full p-4 bg-[hsl(var(--hb-brand-accent))] hover:bg-[hsl(var(--hb-brand-accent)/0.92)] transition-colors rounded-sm shadow-[0_2px_18px_-4px_hsl(var(--hb-brand-accent)/0.55)]"
         : "group text-left w-full p-4 border border-[hsl(var(--hb-border))] hover:border-[hsl(var(--hb-brand-accent))] bg-transparent hover:bg-[hsl(var(--hb-accent))] transition-colors rounded-sm"
     }
   >
@@ -47,28 +47,29 @@ const JumpButton: React.FC<{ item: Jump }> = ({ item }) => (
         <span
           className={
             item.featured
-              ? "font-mono text-[10px] uppercase tracking-[0.25em] text-[hsl(var(--hb-brand-accent))] shrink-0 w-12"
+              ? "font-mono text-[10px] uppercase tracking-[0.25em] text-white shrink-0 w-12 flex items-center"
               : "font-mono text-[10px] uppercase tracking-[0.25em] opacity-50 shrink-0 w-12"
           }
         >
-          {item.chapter}
+          {item.featured ? (
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 2l2.39 7.36H22l-6.18 4.49L18.18 21 12 16.5 5.82 21l2.36-7.15L2 9.36h7.61z" />
+            </svg>
+          ) : (
+            item.chapter
+          )}
         </span>
       )}
       <span
         className={
           item.featured
-            ? "font-serif text-base md:text-lg leading-snug text-[hsl(var(--hb-brand-accent))]"
+            ? "font-serif text-base md:text-lg leading-snug text-white"
             : "font-serif text-base md:text-lg leading-snug group-hover:text-[hsl(var(--hb-brand-accent))] transition-colors"
         }
       >
         {item.title}
       </span>
     </div>
-    {item.featured && (
-      <span className="absolute top-2 right-3 font-mono text-[9px] uppercase tracking-[0.25em] text-[hsl(var(--hb-brand-accent))] opacity-80">
-        Start here
-      </span>
-    )}
   </button>
 );
 
