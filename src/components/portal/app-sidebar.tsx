@@ -148,8 +148,28 @@ const INTENSIVE_GROUPS: Group[] = [
   },
 ];
 
+// AOS-only buyer: AOS gateway + upgrade path. No handbook, no Circle rooms.
+const AOS_ONLY_GROUPS: Group[] = [
+  {
+    label: "Your tools",
+    items: [
+      { to: "/", label: "Home", icon: Home },
+      { to: "/aos", label: "AOS", icon: Compass },
+    ],
+  },
+  {
+    label: "Go further",
+    items: [
+      { to: "/upgrade", label: "Upgrade", icon: ArrowUpCircle },
+      { to: "/account", label: "Account", icon: User },
+    ],
+  },
+];
+
 function groupsForTier(tier: Tier | null): Group[] {
   switch (tier) {
+    case "aos_only":
+      return AOS_ONLY_GROUPS;
     case "book_buyer":
       return BOOK_BUYER_GROUPS;
     case "intensive":
