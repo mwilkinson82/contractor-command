@@ -152,3 +152,155 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
       return { ok: false, error: "Could not reach AOS." };
     }
   });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SSO handoff: mint a short-lived signed token, return a URL that AOS will
+// consume to sign the user in (find-or-create by email). AOS side lives at
+// `/api/public/circle/sso` on the AOS project and verifies the same HMAC.
+//
+// Token shape: `${email}.${ts}.${nonce}.${sig}` (URL-safe).
+// Signing string: `${email}|${ts}|${nonce}`.
+// TTL enforced on the AOS side (60s recommended).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AosSsoMint =
+  | { ok: true; url: string; aos_email: string; previously_linked: boolean }
+  | { ok: false; error: string };
+
+export const mintAosSsoToken = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<AosSsoMint> => {
+    const baseUrl = process.env.AOS_BASE_URL;
+    const secret = process.env.AOS_SHARED_SECRET;
+    if (!baseUrl || !secret) {
+      return { ok: false, error: "AOS link not configured on Circle." };
+    }
+
+    const claimEmail =
+      (context.claims as { email?: string } | null)?.email ?? null;
+    if (!claimEmail) {
+      return { ok: false, error: "No email on your account." };
+    }
+
+    // If the member previously linked a different AOS email, use that.
+    const { supabase, userId } = context;
+    const { data: link } = await supabase
+      .from("aos_links")
+      .select("aos_email, verified_at")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    const email = (link?.aos_email ?? claimEmail).toLowerCase().trim();
+    const ts = Math.floor(Date.now() / 1000).toString();
+    const nonce = Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
+    const sig = createHmac("sha256", secret.trim())
+      .update(`${email}|${ts}|${nonce}`)
+      .digest("hex");
+
+    const token = [
+      encodeURIComponent(email),
+      ts,
+      nonce,
+      sig,
+    ].join(".");
+
+    const url = `${baseUrl.replace(/\/$/, "")}/api/public/circle/sso?token=${token}`;
+
+    return {
+      ok: true,
+      url,
+      aos_email: email,
+      previously_linked: Boolean(link?.verified_at),
+    };
+  });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Link an existing AOS account that lives under a different email.
+// Verifies the email actually exists on AOS via the snapshot endpoint, then
+// upserts aos_links.aos_email. Future SSO mints use this email instead.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AosLinkResult =
+  | { ok: true; aos_email: string; company_name: string | null }
+  | { ok: false; error: string };
+
+export const linkExistingAosAccount = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { aosEmail: string }) => {
+    const email = String(input?.aosEmail ?? "").toLowerCase().trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new Error("Enter a valid email address.");
+    }
+    if (email.length > 255) throw new Error("Email is too long.");
+    return { aosEmail: email };
+  })
+  .handler(async ({ data, context }): Promise<AosLinkResult> => {
+    const baseUrl = process.env.AOS_BASE_URL;
+    const secret = process.env.AOS_SHARED_SECRET;
+    if (!baseUrl || !secret) {
+      return { ok: false, error: "AOS link not configured on Circle." };
+    }
+
+    const ts = Math.floor(Date.now() / 1000).toString();
+    const signingSecret = secret.trim();
+    const sig = createHmac("sha256", signingSecret)
+      .update(`${data.aosEmail}|${ts}`)
+      .digest("hex");
+
+    let res: Response;
+    try {
+      res = await fetch(
+        `${baseUrl.replace(/\/$/, "")}/api/public/circle/snapshot`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          redirect: "manual",
+          body: JSON.stringify({ email: data.aosEmail, ts, sig }),
+        },
+      );
+    } catch (err) {
+      console.error("[aos.link] snapshot fetch failed", err);
+      return { ok: false, error: "Could not reach AOS to verify that email." };
+    }
+
+    if (!res.ok) {
+      return { ok: false, error: `AOS returned ${res.status}. Try again in a moment.` };
+    }
+
+    const snapshot = (await res.json()) as
+      | { linked: true; company_name: string | null }
+      | { linked: false; reason: string };
+
+    if (!snapshot.linked) {
+      // "Pick a workspace" reason means the account exists with multiple workspaces.
+      const reason = (snapshot as { reason: string }).reason ?? "";
+      if (!/Pick a workspace/i.test(reason)) {
+        return {
+          ok: false,
+          error: `That email isn't on AOS yet. Use the main "Enter AOS" button and we'll set you up automatically.`,
+        };
+      }
+    }
+
+    const { supabase, userId } = context;
+    const { error: upsertError } = await supabase.from("aos_links").upsert(
+      {
+        user_id: userId,
+        aos_email: data.aosEmail,
+        verified_at: new Date().toISOString(),
+        last_sync_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" },
+    );
+
+    if (upsertError) {
+      console.error("[aos.link] upsert failed", upsertError);
+      return { ok: false, error: "Could not save the link. Try again." };
+    }
+
+    return {
+      ok: true,
+      aos_email: data.aosEmail,
+      company_name: snapshot.linked ? snapshot.company_name : null,
+    };
+  });
