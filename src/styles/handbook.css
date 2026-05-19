@@ -63,14 +63,14 @@
 
 .handbook-scope .chapter-heading {
   font-family: "Instrument Serif", ui-serif, Georgia, serif;
-  font-size: 2.25rem;
-  font-weight: 600;
+  font-size: 1.875rem;
+  font-weight: 500;
   letter-spacing: -0.02em;
   margin-bottom: 2rem;
-  line-height: 1.1;
+  line-height: 1.15;
 }
-@media (min-width: 768px) { .handbook-scope .chapter-heading { font-size: 3rem; } }
-@media (min-width: 1024px) { .handbook-scope .chapter-heading { font-size: 3.75rem; } }
+@media (min-width: 768px) { .handbook-scope .chapter-heading { font-size: 2.25rem; } }
+@media (min-width: 1024px) { .handbook-scope .chapter-heading { font-size: 2.75rem; } }
 
 .handbook-scope .section-heading {
   font-family: "Instrument Serif", ui-serif, Georgia, serif;
