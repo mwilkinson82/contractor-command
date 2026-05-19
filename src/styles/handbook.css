@@ -22,7 +22,7 @@
 
   background-color: hsl(var(--hb-bg));
   color: hsl(var(--hb-fg));
-  font-family: "Space Grotesk", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: "Helvetica Neue", Helvetica, Arial, "Liberation Sans", ui-sans-serif, system-ui, sans-serif;
 }
 
 /* The handbook is one very long reading surface; don't let the portal's
