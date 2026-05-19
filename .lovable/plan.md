@@ -1,51 +1,72 @@
-## What gets added to the portal
+## The model
 
-A new section called **Handbook** that lives at `/handbook` inside Contractor Circle. Every active CC member (and admins) gets it automatically — no separate purchase, no separate login, no entitlement table for them. It just shows up.
+Three tiers in this one portal. AOS stays a separate Lovable project (the engine). alphandbook.com stays the book's sales page.
 
-### Where it shows up in the UI
+| Tier | How they enter | What they get |
+|---|---|---|
+| **Book Buyer** | Bought on alphandbook.com → Stripe receipt email auto-claims on portal signup | Handbook v2 reader (clickable into AOS) + full AOS workspace (1 company, all modules) |
+| **Intensive Grad** | Paid for 6-week intensive | Book Buyer + intensive materials |
+| **Circle Member** | Today's paying members | Everything (calls, Vault, Marshall, community) — unchanged |
 
-1. **Nav** — new "Handbook" item in the left sidebar/top nav, sitting alongside Replays, Templates, Tools, Vault, Calls.
-2. **Welcome / dashboard tile** — a card on `/welcome` promoting it ("Read the ALP Handbook — the operating manual behind the system").
-3. **Route** — `/handbook` is the reader. It opens to the table of contents; clicking a chapter takes you to `/handbook/$chapterSlug`. Reading progress is remembered per user.
+The portal is the single member home and the single upgrade surface. alphandbook.com sells the book. AOS runs the operating system. Email + auth + Stripe + upgrades all live here.
 
-### What the reader looks and feels like
+## Flow
 
-Same reading experience as the standalone site — ChapterHeader, Section, Parable, FloatingTOC, ReadingProgress, AudioPlayer, ExpandableImage, all 28 chapter components — restyled to match the portal's design tokens so it doesn't feel like a different product. Two route files:
+```text
+alphandbook.com  ──Stripe purchase──>  pending_claims (email + product=book)
+                                            │
+   reader follows link in book ──>  portal signup with same email
+                                            │
+                          claim trigger fires ──> Book Buyer tier
+                                            │
+              ┌─────────────────────────────┴─────────────────────────────┐
+              ▼                                                            ▼
+   Handbook v2 reader (clickable AOS hand-offs)        AOS workspace (1 company, full modules)
+              │                                                            │
+              └──────────────── upgrade cards ─────────────────────────────┘
+                                            │
+                          Intensive ($)  or  Circle ($$) — in-app Stripe
+```
 
-- `src/routes/_authenticated/handbook.tsx` — layout + TOC landing
-- `src/routes/_authenticated/handbook.$chapterSlug.tsx` — individual chapter
+## Build phases
 
-The `_authenticated` placement means the existing auth gate handles login. We add one extra check in `beforeLoad`: `has_active_access(uid)` must be true. If they're logged in but not an active member, they hit a "Handbook is included with Contractor Circle membership" upsell page.
+**Phase 1 — Tier model** (foundation)
+- Add `tier` enum to `subscriptions` (`book_buyer | intensive | circle`). Default existing Circle rows to `circle`.
+- Extend `has_active_access` and add `has_tier(uid, tier)` SQL helper.
+- Update RLS on `replays`, `templates`, `ask_threads`, calls-related tables to require `tier >= intensive` or `circle` (whatever each one's audience is).
+- Handbook reader + AOS get gated to `book_buyer`+.
 
-### What does NOT come over
+**Phase 2 — Book purchase ingestion**
+- New `/api/public/webhooks/alphandbook` server route. Verifies Stripe signature from the alphandbook.com account, writes a `pending_claims` row with `metadata.product = 'book_v2'`.
+- Extend `claim_pending_subscription` trigger to map `product=book_v2` → `tier=book_buyer`.
+- One-time backfill script for existing book buyers (CSV import → pending_claims).
 
-- Sales page (`/`), purchase-success, refund/privacy, admin, preview — those stay on the standalone marketing site at the handbook's own domain. Standalone purchasers keep buying and reading there exactly as they do today. Nothing about that flow changes.
+**Phase 3 — Onboarding for Book Buyers**
+- Marketing-light landing at `/welcome` (the URL printed in the book): "You bought the book. Create your portal account to unlock the interactive handbook + AOS."
+- Signup flow auto-detects the claim and routes them to a Book Buyer first-run: pick a company name, optional logo, then dropped into the Handbook cover.
+- Sidebar for Book Buyers shows only: Handbook, AOS, Account, Upgrade. (No Calls, no Vault, no Marshall, no Community.)
 
-### Standalone purchasers — do they get anything in the portal?
+**Phase 4 — Upgrade paths (in-app Stripe)**
+- Two new products in Stripe: 6-Week Intensive (one-time) and Contractor Circle (already exists).
+- Persistent "Upgrade" card in the Book Buyer sidebar + contextual cards on gated screens ("Vault is a Circle benefit — see what's inside").
+- Per the earlier answer: show both Intensive and Circle, let them self-select.
+- Stripe webhook bumps `tier` on successful payment; user keeps the same account, just gains access.
 
-**Not in this phase.** Per your decision, the portal handbook is a CC member perk. Standalone buyers continue using the standalone site. If later you want to migrate them into the portal (magic link + entitlement table), that's a follow-up — small, but separate.
+**Phase 5 — Email to existing Circle members**
+- "Handbook v2 is live — and now it's clickable into your AOS." No mention of AOS being new (they already have it). Headline is the magic moment: reading → doing without leaving the portal.
 
-### Content source
+## Technical details
 
-The 28 chapter components in the handbook project are React components with the prose hardcoded in JSX. Fastest path: copy them into `src/components/handbook/` in the portal as-is, then restyle. No CMS, no database for chapter content. Edits go through code like they do today.
+- **Tier source of truth:** `subscriptions.tier` (single highest-tier row per user wins). Derive in a `get_user_tier(uid)` SQL function and use it everywhere.
+- **AOS hand-off:** unchanged — uses existing `aos_links` + `AOS_SHARED_SECRET`. Book Buyers get the same SSO bridge, just scoped to a single workspace by AOS (AOS-side enforcement; pass `tier` claim in the signed payload).
+- **Handbook gating:** the existing handbook route moves under a `requireTier('book_buyer')` guard. Circle's existing access still satisfies the check.
+- **Sidebar:** `app-sidebar.tsx` reads `tier` from a `useTier()` hook and renders the appropriate nav set. Three variants: book_buyer / intensive / circle.
+- **No new auth surface.** Same Supabase email+password (+ Google) flow. The book URL points to `/welcome?ref=book` which is just a styled signup.
+- **AOS subdomain stays** for now. The planned cutover to one domain is a separate, later piece of work; nothing in this plan blocks it.
 
-### Effort
+## Out of scope (deliberate)
 
-One focused session:
-- Copy `components/handbook/` (~48 files) into the portal
-- Create the two route files with the auth + active-access gate
-- Add nav entry + welcome tile
-- Restyle headers/buttons to portal tokens (light pass — the reader is already clean)
-- QA the chapter pages render and TOC navigation works
-
-No database migration needed. No new Stripe wiring. No new emails. No webhook changes.
-
-### Technical notes
-
-- Handbook project is Vite + React Router; portal is TanStack Start. The chapter components are pure JSX/Tailwind — they port without changes. Only the page-level wrappers (which used React Router's `useParams`, `Link`) need to be rewritten as TanStack route files. That's the two new route files above.
-- Reading progress: store per-user in a new tiny table `handbook_progress (user_id, chapter_slug, last_read_at, percent)` with RLS scoped to `auth.uid()`. Optional — can ship v1 without it and add later.
-- Audio files / images from the handbook project: copy into `src/assets/handbook/` or upload to Supabase storage if large.
-
----
-
-Confirm this matches what you want and I'll build it. The one open question: **do you want reading progress tracking in v1, or ship the reader first and add progress later?**
+- No marketing site for the book on the portal — alphandbook.com owns that.
+- No free/public tier. Every level of access requires a purchase.
+- No AOS Lite / decoy Pro tier — scrapped per your pushback.
+- No changes to AOS internals; only the SSO claim gains a `tier` field.
