@@ -1,6 +1,7 @@
 import { createFileRoute, Link, redirect, useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { AuthCard, AuthField, AuthSubmit } from "@/components/auth/auth-card";
 
 export const Route = createFileRoute("/signup")({
   head: () => ({ meta: [{ title: "Create account — ALP Contractor Circle" }] }),
@@ -19,7 +20,7 @@ function SignupPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_, s) => {
@@ -35,7 +36,6 @@ function SignupPage() {
     e.preventDefault();
     setBusy(true);
     setErr(null);
-    setMsg(null);
     const redirectUrl = `${window.location.origin}/`;
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -43,58 +43,74 @@ function SignupPage() {
       options: { emailRedirectTo: redirectUrl, data: { full_name: fullName } },
     });
     if (error) setErr(error.message);
-    else if (!data.session) setMsg("Check your inbox to confirm your email, then sign in.");
+    else if (!data.session) setPending(true);
     setBusy(false);
   }
 
-  return (
-    <div className="min-h-screen grid place-items-center bg-background px-4">
-      <div className="w-full max-w-sm">
-        <Link to="/" className="flex items-center gap-2">
-          <span className="grid h-8 w-8 place-items-center rounded-md bg-ink text-cream font-display text-[13px]">A</span>
-          <span className="font-display text-[14px]">Contractor Circle</span>
-        </Link>
-        <h1 className="mt-8 font-display text-3xl">Create your account.</h1>
-        <p className="mt-1 text-[13px] text-muted-foreground">Use the email tied to your membership.</p>
-
-        <form onSubmit={onSubmit} className="mt-8 space-y-4">
-          <Field label="Full name" type="text" value={fullName} onChange={setFullName} required autoFocus />
-          <Field label="Email" type="email" value={email} onChange={setEmail} required />
-          <Field label="Password" type="password" value={password} onChange={setPassword} required />
-          {err && <p className="text-[12px] text-red-600">{err}</p>}
-          {msg && <p className="text-[12px] text-foreground/70">{msg}</p>}
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-full rounded-md bg-ink px-4 py-2.5 text-[13px] font-medium text-cream hover:opacity-90 disabled:opacity-50"
-          >
-            {busy ? "Creating…" : "Create account"}
-          </button>
-        </form>
-
-        <p className="mt-6 text-[12px] text-muted-foreground">
-          Already have an account?{" "}
-          <Link to="/login" className="underline hover:text-foreground">Sign in</Link>
+  if (pending) {
+    return (
+      <AuthCard
+        title="Check your inbox."
+        subtitle={`We sent a confirmation link to ${email}.`}
+      >
+        <p className="text-[13px] leading-relaxed text-ink/65">
+          Click the link to verify your email, then come back and sign in.
         </p>
-      </div>
-    </div>
-  );
-}
+        <div className="mt-8">
+          <Link
+            to="/login"
+            className="inline-flex w-full items-center justify-center rounded-full bg-ink px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-cream transition-opacity hover:opacity-90"
+          >
+            Back to sign in
+          </Link>
+        </div>
+      </AuthCard>
+    );
+  }
 
-function Field({
-  label, type, value, onChange, required, autoFocus,
-}: { label: string; type: string; value: string; onChange: (v: string) => void; required?: boolean; autoFocus?: boolean }) {
   return (
-    <label className="block">
-      <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">{label}</span>
-      <input
-        type={type}
-        value={value}
-        autoFocus={autoFocus}
-        required={required}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1.5 w-full rounded-md border border-border bg-card px-3 py-2 text-[13px] focus:border-ink focus:outline-none"
-      />
-    </label>
+    <AuthCard
+      title="Create account."
+      subtitle="Use the email tied to your membership."
+    >
+      <form onSubmit={onSubmit} className="space-y-6">
+        <AuthField
+          id="fullName"
+          label="Full name"
+          type="text"
+          value={fullName}
+          onChange={setFullName}
+          placeholder="Jane Contractor"
+          required
+          autoFocus
+        />
+        <AuthField
+          id="email"
+          label="Email"
+          type="email"
+          value={email}
+          onChange={setEmail}
+          placeholder="name@company.com"
+          required
+        />
+        <AuthField
+          id="password"
+          label="Password"
+          type="password"
+          value={password}
+          onChange={setPassword}
+          placeholder="••••••••"
+          required
+        />
+        {err && <p className="text-[12px] text-[#b8442a]">{err}</p>}
+        <AuthSubmit busy={busy} label="Create account" busyLabel="Creating" />
+      </form>
+      <p className="mt-6 text-center text-[12px] text-ink/55">
+        Already have an account?{" "}
+        <Link to="/login" className="font-display italic text-ink hover:underline">
+          Sign in
+        </Link>
+      </p>
+    </AuthCard>
   );
 }
