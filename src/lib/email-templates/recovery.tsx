@@ -8,7 +8,6 @@ import {
   Heading,
   Html,
   Preview,
-  Section,
   Text,
 } from '@react-email/components'
 
@@ -26,22 +25,18 @@ export const RecoveryEmail = ({
     <Preview>Reset your password for {siteName}</Preview>
     <Body style={main}>
       <Container style={container}>
-        <Section style={card}>
-          <Text style={eyebrow}>ALP CONTRACTOR CIRCLE</Text>
-          <Heading style={h1}>Reset your password</Heading>
-          <Text style={text}>
-            We received a request to reset the password on your Command Center
-            account. Click below to choose a new one.
-          </Text>
-          <Button style={button} href={confirmationUrl}>
-            Reset password
-          </Button>
-          <Text style={footer}>
-            If you didn't request this, you can ignore this email — your password
-            won't change.
-          </Text>
-        </Section>
-        <Text style={signoff}>— The ALP Contractor Circle team</Text>
+        <Heading style={h1}>Reset your password</Heading>
+        <Text style={text}>
+          We received a request to reset your password for {siteName}. Click
+          the button below to choose a new password.
+        </Text>
+        <Button style={button} href={confirmationUrl}>
+          Reset Password
+        </Button>
+        <Text style={footer}>
+          If you didn't request a password reset, you can safely ignore this
+          email. Your password will not be changed.
+        </Text>
       </Container>
     </Body>
   </Html>
@@ -49,60 +44,26 @@ export const RecoveryEmail = ({
 
 export default RecoveryEmail
 
-const main = {
-  backgroundColor: '#ffffff',
-  fontFamily:
-    '"Helvetica Neue", Helvetica, Arial, "Liberation Sans", sans-serif',
-  padding: '40px 0',
-}
-const container = { maxWidth: '520px', margin: '0 auto', padding: '0 24px' }
-const card = {
-  backgroundColor: '#FCFBF9',
-  border: '1px solid #E2DED6',
-  borderRadius: '20px',
-  padding: '36px 32px',
-}
-const eyebrow = {
-  fontFamily: '"JetBrains Mono", ui-monospace, monospace',
-  fontSize: '11px',
-  letterSpacing: '0.18em',
-  color: '#8E8B82',
-  margin: '0 0 18px',
-}
+const main = { backgroundColor: '#ffffff', fontFamily: 'Arial, sans-serif' }
+const container = { padding: '20px 25px' }
 const h1 = {
-  fontFamily: '"Instrument Serif", Georgia, serif',
-  fontSize: '32px',
-  fontWeight: 400 as const,
-  color: '#1A1918',
-  letterSpacing: '-0.01em',
-  margin: '0 0 18px',
-  lineHeight: '1.15',
+  fontSize: '22px',
+  fontWeight: 'bold' as const,
+  color: '#000000',
+  margin: '0 0 20px',
 }
 const text = {
-  fontSize: '15px',
-  color: '#3a3936',
-  lineHeight: '1.55',
-  margin: '0 0 24px',
+  fontSize: '14px',
+  color: '#55575d',
+  lineHeight: '1.5',
+  margin: '0 0 25px',
 }
 const button = {
-  backgroundColor: '#1A1918',
-  color: '#F4F3EF',
+  backgroundColor: '#000000',
+  color: '#ffffff',
   fontSize: '14px',
-  fontWeight: 500 as const,
-  borderRadius: '12px',
-  padding: '13px 22px',
+  borderRadius: '8px',
+  padding: '12px 20px',
   textDecoration: 'none',
-  display: 'inline-block',
 }
-const footer = {
-  fontSize: '12px',
-  color: '#8E8B82',
-  margin: '28px 0 0',
-  lineHeight: '1.5',
-}
-const signoff = {
-  fontSize: '12px',
-  color: '#8E8B82',
-  margin: '20px 0 0',
-  textAlign: 'center' as const,
-}
+const footer = { fontSize: '12px', color: '#999999', margin: '30px 0 0' }
