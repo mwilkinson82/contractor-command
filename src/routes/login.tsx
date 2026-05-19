@@ -5,11 +5,21 @@ import ccMark from "@/assets/cc-mark.png";
 import bulldozer from "@/assets/bulldozer.png";
 
 
+// Only allow same-origin relative paths. Blocks "//evil.com", "https://...", etc.
+function safeRedirect(value: unknown): string {
+  if (typeof value !== "string") return "/";
+  if (!value.startsWith("/") || value.startsWith("//")) return "/";
+  return value;
+}
+
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Sign in — ALP Contractor Circle" }] }),
-  beforeLoad: async () => {
+  validateSearch: (search: Record<string, unknown>) => ({
+    redirect: safeRedirect(search.redirect),
+  }),
+  beforeLoad: async ({ search }) => {
     const { data } = await supabase.auth.getSession();
-    if (data.session) throw redirect({ to: "/" });
+    if (data.session) throw redirect({ to: search.redirect });
   },
   component: LoginPage,
 });
@@ -17,6 +27,7 @@ export const Route = createFileRoute("/login")({
 function LoginPage() {
   const router = useRouter();
   const navigate = useNavigate();
+  const { redirect: redirectTo } = Route.useSearch();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -26,11 +37,11 @@ function LoginPage() {
     const { data: sub } = supabase.auth.onAuthStateChange((_, s) => {
       if (s) {
         router.invalidate();
-        navigate({ to: "/" });
+        navigate({ to: redirectTo });
       }
     });
     return () => sub.subscription.unsubscribe();
-  }, [router, navigate]);
+  }, [router, navigate, redirectTo]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
