@@ -56,18 +56,8 @@ const HeroSection: React.FC = () => {
     <div className="pt-4 pb-20">
       {/* === Print-ad hero: bulldozer + tagline (DDB/Ogilvy meets minimalist tech) === */}
       <section className="relative">
-        {/* Top utility line */}
-        <div className="flex items-center justify-between pb-10 border-b border-[hsl(var(--hb-border))]">
-          <span className="font-mono text-[10px] md:text-[11px] uppercase tracking-[0.32em] opacity-70">
-            ALP · Contractor Circle
-          </span>
-          <span className="font-mono text-[10px] md:text-[11px] uppercase tracking-[0.32em] opacity-50">
-            Members Only
-          </span>
-        </div>
-
         {/* Bulldozer — large, right-aligned, lots of air */}
-        <div className="pt-10 md:pt-14">
+        <div className="pt-4">
           <img
             src={bulldozer}
             alt="ALP Handbook"
