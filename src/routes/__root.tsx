@@ -151,6 +151,17 @@ function useGlobalReveal() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    if (pathname === "/handbook") {
+      document.querySelector("main")
+        ?.querySelectorAll<HTMLElement>("[data-reveal]")
+        .forEach((el) => {
+          el.removeAttribute("data-reveal");
+          el.removeAttribute("data-reveal-delay");
+          el.classList.remove("is-visible");
+        });
+      return;
+    }
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
