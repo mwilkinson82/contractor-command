@@ -1,124 +1,64 @@
-## Goal
+## What's changing
 
-Replace the Manus/Resend welcome sequence with our own end-to-end purchaser onboarding — owned by us, branded like the portal, and behaviorally smart (don't nag people who already did the thing).
+### 1. Welcome email — full redesign (not a tweak)
 
-Four moving parts, sequenced so each one is independently shippable.
+Throw out the Manus step-card breakdown entirely. Rebuild as a single editorial composition modeled on the login screen ("Boring wins.") — print-ad bones, modern tech overlay, one unified paper tone all the way down.
 
----
+**Visual rules (one consistent paper, no boxed cards):**
+- One paper background end to end (`#F4F3EF`). No nested cards with different beige tones, no rounded boxes stacked on top of each other. That mismatched-coloring problem goes away because there's only one surface.
+- A single hairline column down the page does all the structure — section labels in tiny uppercase mono, big Instrument Serif headlines, justified columnar body copy where it makes sense.
+- Signal orange used only as: top 2px rule, a couple of inline accents, and the "Set your password" button. Nothing else colored.
+- Headline pattern from the login: oversized serif with a hard `<br>` break ("Welcome / inside."). One big moment up top, not three step-card titles competing.
 
-## Part 1 — Fix the Stripe webhook (blocker)
+**Composition (top to bottom, one continuous page):**
+1. Orange hairline rule.
+2. Tiny eyebrow: `ALP · CONTRACTOR CIRCLE — FOUNDING MEMBER`.
+3. Hero serif headline: `Cesar, / welcome inside.` (personalized when we have the name; falls back cleanly).
+4. Short editorial lede — 2 sentences, copy-driven, no "step 01 of 03" framing.
+5. Primary CTA: pill button `SET YOUR PASSWORD` + one-line subtext with the portal link.
+6. Hairline rule.
+7. **"What you actually get."** — a 3-column justified-prose block in the login's voice. Each column covers one truth, not a step number:
+   - **The room.** Bi-weekly Sundays 5 PM ET with Marshall, monthly deal reviews, monthly bootcamps. The Zoom: correct link (`us06web.zoom.us/j/83215167292`), correct Zoom ID `832 1516 7292`, passcode `321266` — pulled straight from the live Calls page so it can't drift.
+   - **The Discord.** Where the room lives between calls. One-liner on how to intro yourself, link to join.
+   - **The Engine.** This is the section that was missing. Names **Ask Marshall** (private thinking partner trained on the system), **Vault** (contracts, SOPs, scorecards), **Replays**, and the **AOS Command Tools** by name — Contract Readiness, Margin Leak, Estimate Throughput, SOP Priority, Owner Dependency, Growth Constraint. Frames them as "the operating system, not a dashboard."
+8. Hairline rule.
+9. Marshall pull-quote in Instrument Serif italic, left-ruled with the orange hairline (no boxed card — just the rule + the type).
+10. Hairline rule.
+11. **"What founding member means."** — three tight one-liners in justified prose: price locked, seats capped, you shape what this becomes. No subheadings stacking up.
+12. Final CTA repeat.
+13. Signoff: "— Marshall & the ALP team".
+14. Footer micro-copy: tiny uppercase tracking, `$2.5 BILLION IN CONSTRUCTION` style.
 
-Nothing downstream works until Stripe actually fires events at us. Right now it's still pointed at Manus, which is why Cesar's purchase never hit our handler.
+**Type system (matches login exactly):** Instrument Serif for all headlines, Helvetica/Arial for body, JetBrains Mono for eyebrows/labels/button text. Justified body with hyphenation in the 3-column block. Same letter-spacing values as the auth shell.
 
-- Code-side, our endpoint is already live: `https://contractor-command.lovable.app/api/public/stripe/webhook` (in `src/routes/api/public/stripe/webhook.ts`). Already wired to `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET`.
-- Action: you add our URL as a **second destination** in Stripe Dashboard → Developers → Webhooks (don't delete Manus's yet — keeps that flow alive while we cut over). Required events: `customer.subscription.created/updated/deleted`, `checkout.session.completed`, `invoice.payment_failed`.
-- Stripe will give you a new signing secret for that destination — paste it into Lovable as `STRIPE_WEBHOOK_SECRET` (overwrites the existing one; ours becomes authoritative).
-- I'll add a `/admin` widget showing the last 10 webhook events received (recipient email, event type, status) so you can verify in real-time the next time someone buys.
-- Once you confirm a live purchase routes correctly, we kill the Manus destination in Stripe.
+### 2. Zoom data — pull from one source
 
----
+The Zoom URL, ID, and passcode currently come from defaults inside the email template. That's how the wrong link slipped in. New approach: read them from the Calls config (same place the Calls page renders them) and pass them into the email render at send time. One source of truth. Fix the immediate value to the link you sent.
 
-## Part 2 — One rich welcome email (replace the bare invite)
+### 3. Re-render the preview
 
-One email, fires immediately from the Stripe webhook → `subscriptions` upsert path. This is the existing invite call in `webhook.ts` (`invitePaidMemberIfNeeded`), just with a much richer template.
+Update `scripts/render-invite.tsx` so the preview HTML in `/mnt/documents/` reflects the new design with the correct Zoom data and the Cesar personalization. You'll see the new file the moment it's regenerated.
 
-Content (ported from the Manus screenshots, restructured in our voice):
-1. **Founding Member eyebrow** + Instrument Serif headline: *"{firstName}, welcome to the Circle."*
-2. **Set your password** pill CTA → opens portal at `/welcome` (one-time invite link, same as today)
-3. **Step 01 — Join the Discord** (with our new invite link)
-4. **Step 02 — Add the bi-weekly call** (Sunday 5 PM ET, Zoom link, Google/Apple/Outlook calendar links)
-5. **Step 03 — Start executing in the portal** (Vault, replays, AOS engine)
-6. **Your membership includes** (paper card with checkmark list)
-7. **Founding Member status** (Price Locked / Limited Spots / You're Shaping What This Becomes)
-8. **Marshall quote** (Instrument Serif italic, signal-orange left rule) — the $2.5B / access / community quote
-9. Sign-off + footer
+### 4. Discord bot — free path
 
-Aesthetic: paper card on white, Instrument Serif headlines, JetBrains Mono eyebrows/step numbers, signal orange accents. Same system as the current `invite.tsx`, just expanded into a full sequence of nested paper sections.
+You don't need to pay. Two free options, pick later (this plan doesn't build it yet, just locks the direction):
 
-Files: rewrite `src/lib/email-templates/invite.tsx`. Re-render to `/mnt/documents/welcome-invite-email.html` for visual review. No callsite changes needed — same props (`siteName`, `siteUrl`, `confirmationUrl`), plus optional `firstName` extracted from Stripe customer name.
+- **4a — GitHub Actions cron bot (free, recommended).** Tiny Node script in `bot/` that runs on a GitHub Actions schedule (every 15 min). It calls Discord's REST API with a bot token to list current guild members, diffs against our `discord_members` table, and posts a welcome DM + welcome-channel embed for new joiners. No always-on server, no monthly cost, GitHub Actions free tier covers it forever for our volume. Trade-off: up to 15 min delay on the welcome (fine for our use case).
+- **4b — Discord bot in a free Fly.io / Render free-tier worker.** Persistent gateway connection, instant welcome. Free tiers exist but they sleep/cold-start, which can drop gateway events. Worse than 4a for reliability at $0.
 
----
+Recommendation: **4a.** Reliable, truly free, dead simple, and the welcome embed/DM can be as polished as the email.
 
-## Part 3 — Two conditional nudge emails
+### 5. Out of scope this round
 
-A pg_cron job runs every 30 minutes, scans recent purchasers, and sends nudges only when warranted. Both nudges use the same paper aesthetic — short, single-purpose, one CTA.
-
-**Nudge A — "Set your password" (login nudge)**
-- **Trigger:** subscription was created ≥ 2 hours ago AND the matching `auth.users` row still has `last_sign_in_at IS NULL` (i.e. they never completed the invite flow).
-- **Copy:** *"Your seat is waiting."* — one sentence, fresh magic-link button, mention it expires in 24h.
-- **One-shot:** flagged on the subscription row so we don't re-nag.
-
-**Nudge B — "Get into the Discord"**
-- **Trigger:** subscription was created ≥ 24 hours ago AND the member is not yet in our Discord guild. This is where Part 4 (our own bot) earns its keep — the bot maintains a `discord_members` table mapping email → discord user ID, so we can answer "did they join?" with a simple join.
-- **Copy:** *"The room is where the magic is."* — short, Discord invite button, one-line preview of who's currently active in `#general-chat`.
-- **One-shot.**
-
-New schema (one migration):
-```
-alter table subscriptions
-  add column welcome_sent_at      timestamptz,
-  add column login_nudge_sent_at  timestamptz,
-  add column discord_nudge_sent_at timestamptz;
-
-create table discord_members (
-  email text primary key,
-  discord_user_id text not null,
-  discord_username text,
-  joined_guild_at timestamptz not null default now()
-);
-```
-
-Cron + dispatcher: TanStack server route at `/api/public/cron/onboarding-nudges` (HMAC-protected with `CRON_SECRET`), scheduled via `pg_cron` every 30 minutes. It picks eligible rows, calls `sendTransactionalEmail` for each, stamps the timestamp.
-
-New templates: `src/lib/email-templates/login-nudge.tsx`, `discord-nudge.tsx`. Registered in `registry.ts`.
+- Stripe webhook cutover (still needs your action in the Stripe dashboard — separate todo).
+- Building the bot itself (decide 4a vs 4b first, then I build).
+- Reskinning login-nudge and discord-nudge — I'll port the same one-paper aesthetic to them in the next pass once you sign off on the welcome design.
 
 ---
 
-## Part 4 — Our own Discord welcome bot
+## Technical notes (for me)
 
-Goal: replace Mattis's bot end-to-end. Two responsibilities:
-1. **Welcome new joiners** — when someone joins the ALP guild, DM them + post a styled welcome embed in `#welcome` pinging them and pointing to the right channels.
-2. **Maintain the `discord_members` table** — so Part 3's Discord nudge knows who's already in.
-
-### Architectural reality check
-
-Discord bots that listen for `GUILD_MEMBER_ADD` events need a **persistent WebSocket connection** to Discord's gateway. Cloudflare Workers (which is what runs our TanStack server) can't hold long-lived sockets — they're request/response only. So the bot can't live inside this codebase.
-
-**Two viable options — I want your call before I build:**
-
-- **Option 4a — Hosted bot (Railway / Fly.io, ~$5/mo):** A tiny Node.js process I write in this repo under `bot/`, deployed separately. It connects to Discord's gateway, handles join events, and POSTs to a webhook on our portal (`/api/public/discord/member-joined`) which writes to `discord_members`. You'd need to give me a Discord bot token (you create one at discord.com/developers, takes 2 minutes — I'll walk you through it) and pick a host. Most flexible, most ALP-controlled, costs a few bucks a month.
-
-- **Option 4b — Discord HTTP Interactions only:** No persistent connection — Discord pings our webhook for slash commands only. We **can't** detect joins this way (Discord doesn't push join events over HTTP). So for the Discord nudge to work, we'd fall back to: assume they haven't joined unless they click a tracked invite link. Less accurate but zero hosting.
-
-If you want the *real* welcome bot experience (auto-DM, auto-welcome embed, accurate join tracking), it's 4a. If you just want "good enough" with no extra infra, it's 4b.
-
-### What the bot writes (Option 4a)
-
-- Welcome embed in `#welcome`: ALP paper aesthetic translated to Discord embed colors, pings the user, lists the 3 channels they should visit.
-- DM to the new member: short, signed "— Marshall & the ALP team", links to the portal and the bi-weekly call.
-- Slash command `/circle whoami` for members to check their membership status.
-
----
-
-## Recommended build order
-
-1. **Part 1 first** (you add the webhook destination + paste the secret — 5 minutes on your end). Until this is done, none of the rest matters.
-2. **Part 2** — rebuild the welcome email. Ship it. You can resend manually to Cesar to verify.
-3. **Part 3** — schema + nudge templates + cron. Ship it.
-4. **Part 4** — decide 4a vs 4b, then build.
-
----
-
-## Out of scope (call out)
-
-- Reskinning the other transactional templates (`topic-selected`, `vault-packet`, etc.) — they still use the old Georgia/Arial look. Worth a follow-up pass.
-- An in-app `/admin/emails` preview gallery — still open from earlier. Easy add anytime.
-- Migrating Mattis's existing Discord bot logic. Once ours is live, you remove his bot from the server and we're done.
-
----
-
-## What I need from you before I start
-
-1. Confirm you'll add our webhook URL to Stripe (Part 1) and what timing works.
-2. Pick **4a** (hosted bot) or **4b** (HTTP only) for the Discord bot.
-3. Confirm the Discord invite URL I should use in emails + the bot.
+- `src/lib/email-templates/invite.tsx` — rewrite from scratch. Drop `stepCard`, `includesCard`, `quoteCard` styled blocks. One `Body` with `PAPER` background, `Container` at 600px, sections separated by `<Hr>` hairlines, not nested cards. All inline styles (React Email constraint). Instrument Serif + JetBrains Mono `@font-face` blocks stay.
+- Surface Zoom data: add a `callConfig` import (read from the same module the `/calls` route uses) and thread `zoomUrl` / `zoomId` / `zoomPasscode` through the props. If the Calls page reads from DB, the send function loads it before render.
+- Update `scripts/render-invite.tsx` to pass the correct preview values.
+- Caller sites (`src/lib/billing.functions.ts` or wherever invite send is wired) get the new props passed in. No schema change.
