@@ -136,7 +136,6 @@ function LoginPage() {
           <span className="text-[10px] uppercase tracking-[0.22em] text-ink/35">
             — AOS
           </span>
-          </div>
         </div>
       </div>
     </div>
