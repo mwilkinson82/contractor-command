@@ -7,7 +7,7 @@ import DoctrineList from '../DoctrineList';
 const Chapter13 = () => {
   return (
     <section id="chapter-13" className="chapter-section">
-      <ChapterHeader number={13} title="Notices & Playing Offense" />
+      <ChapterHeader number={16} title="Notices & Playing Offense" />
       
       <p className="body-text">Most contractors treat notices as paperwork.</p>
       

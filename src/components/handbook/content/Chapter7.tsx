@@ -8,7 +8,7 @@ const Chapter7: React.FC = () => {
   return (
     <div id="chapter-7" className="chapter-container">
       <ChapterHeader 
-        number={7} 
+        number={13} 
         title="Operations as Margin Protection" 
       />
       

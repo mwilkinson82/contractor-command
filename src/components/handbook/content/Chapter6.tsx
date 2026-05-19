@@ -8,7 +8,7 @@ const Chapter6: React.FC = () => {
   return (
     <div id="chapter-6" className="chapter-container">
       <ChapterHeader 
-        number={6} 
+        number={12} 
         title="Sales, Pressure, and Clarity" 
       />
       

@@ -7,7 +7,7 @@ import DoctrineList from '../DoctrineList';
 const Chapter14 = () => {
   return (
     <section id="chapter-14" className="chapter-section">
-      <ChapterHeader number={14} title="Scheduling as Time Control" />
+      <ChapterHeader number={17} title="Scheduling, Start–Stop Work, and the Cost of Disorder" />
       
       <p className="body-text">Most contractors treat the schedule as a requirement.</p>
       

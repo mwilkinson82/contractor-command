@@ -7,7 +7,7 @@ import DoctrineList from '../DoctrineList';
 const Chapter16 = () => {
   return (
     <section id="chapter-16" className="chapter-section">
-      <ChapterHeader number={16} title="Financial Command: Seeing the Business Clearly" />
+      <ChapterHeader number={20} title="Financial Command and Financial Authority" />
       
       <p className="body-text">Most contractors don't lack profit.</p>
       
