@@ -303,5 +303,6 @@ function AosGateway() {
         }
       `}</style>
     </section>
+    </>
   );
 }
