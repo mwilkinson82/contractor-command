@@ -100,7 +100,13 @@ function OnboardingPage() {
       return;
     }
     await refetch();
-    navigate({ to: "/" });
+    // Hard nav so the root layout re-runs useCompany and sees the new row.
+    // (useCompany state in this component is not shared with __root.)
+    if (typeof window !== "undefined") {
+      window.location.assign("/");
+    } else {
+      navigate({ to: "/" });
+    }
   }
 
   return (
