@@ -1,64 +1,51 @@
-## What's changing
+## What gets added to the portal
 
-### 1. Welcome email — full redesign (not a tweak)
+A new section called **Handbook** that lives at `/handbook` inside Contractor Circle. Every active CC member (and admins) gets it automatically — no separate purchase, no separate login, no entitlement table for them. It just shows up.
 
-Throw out the Manus step-card breakdown entirely. Rebuild as a single editorial composition modeled on the login screen ("Boring wins.") — print-ad bones, modern tech overlay, one unified paper tone all the way down.
+### Where it shows up in the UI
 
-**Visual rules (one consistent paper, no boxed cards):**
-- One paper background end to end (`#F4F3EF`). No nested cards with different beige tones, no rounded boxes stacked on top of each other. That mismatched-coloring problem goes away because there's only one surface.
-- A single hairline column down the page does all the structure — section labels in tiny uppercase mono, big Instrument Serif headlines, justified columnar body copy where it makes sense.
-- Signal orange used only as: top 2px rule, a couple of inline accents, and the "Set your password" button. Nothing else colored.
-- Headline pattern from the login: oversized serif with a hard `<br>` break ("Welcome / inside."). One big moment up top, not three step-card titles competing.
+1. **Nav** — new "Handbook" item in the left sidebar/top nav, sitting alongside Replays, Templates, Tools, Vault, Calls.
+2. **Welcome / dashboard tile** — a card on `/welcome` promoting it ("Read the ALP Handbook — the operating manual behind the system").
+3. **Route** — `/handbook` is the reader. It opens to the table of contents; clicking a chapter takes you to `/handbook/$chapterSlug`. Reading progress is remembered per user.
 
-**Composition (top to bottom, one continuous page):**
-1. Orange hairline rule.
-2. Tiny eyebrow: `ALP · CONTRACTOR CIRCLE — FOUNDING MEMBER`.
-3. Hero serif headline: `Cesar, / welcome inside.` (personalized when we have the name; falls back cleanly).
-4. Short editorial lede — 2 sentences, copy-driven, no "step 01 of 03" framing.
-5. Primary CTA: pill button `SET YOUR PASSWORD` + one-line subtext with the portal link.
-6. Hairline rule.
-7. **"What you actually get."** — a 3-column justified-prose block in the login's voice. Each column covers one truth, not a step number:
-   - **The room.** Bi-weekly Sundays 5 PM ET with Marshall, monthly deal reviews, monthly bootcamps. The Zoom: correct link (`us06web.zoom.us/j/83215167292`), correct Zoom ID `832 1516 7292`, passcode `321266` — pulled straight from the live Calls page so it can't drift.
-   - **The Discord.** Where the room lives between calls. One-liner on how to intro yourself, link to join.
-   - **The Engine.** This is the section that was missing. Names **Ask Marshall** (private thinking partner trained on the system), **Vault** (contracts, SOPs, scorecards), **Replays**, and the **AOS Command Tools** by name — Contract Readiness, Margin Leak, Estimate Throughput, SOP Priority, Owner Dependency, Growth Constraint. Frames them as "the operating system, not a dashboard."
-8. Hairline rule.
-9. Marshall pull-quote in Instrument Serif italic, left-ruled with the orange hairline (no boxed card — just the rule + the type).
-10. Hairline rule.
-11. **"What founding member means."** — three tight one-liners in justified prose: price locked, seats capped, you shape what this becomes. No subheadings stacking up.
-12. Final CTA repeat.
-13. Signoff: "— Marshall & the ALP team".
-14. Footer micro-copy: tiny uppercase tracking, `$2.5 BILLION IN CONSTRUCTION` style.
+### What the reader looks and feels like
 
-**Type system (matches login exactly):** Instrument Serif for all headlines, Helvetica/Arial for body, JetBrains Mono for eyebrows/labels/button text. Justified body with hyphenation in the 3-column block. Same letter-spacing values as the auth shell.
+Same reading experience as the standalone site — ChapterHeader, Section, Parable, FloatingTOC, ReadingProgress, AudioPlayer, ExpandableImage, all 28 chapter components — restyled to match the portal's design tokens so it doesn't feel like a different product. Two route files:
 
-### 2. Zoom data — pull from one source
+- `src/routes/_authenticated/handbook.tsx` — layout + TOC landing
+- `src/routes/_authenticated/handbook.$chapterSlug.tsx` — individual chapter
 
-The Zoom URL, ID, and passcode currently come from defaults inside the email template. That's how the wrong link slipped in. New approach: read them from the Calls config (same place the Calls page renders them) and pass them into the email render at send time. One source of truth. Fix the immediate value to the link you sent.
+The `_authenticated` placement means the existing auth gate handles login. We add one extra check in `beforeLoad`: `has_active_access(uid)` must be true. If they're logged in but not an active member, they hit a "Handbook is included with Contractor Circle membership" upsell page.
 
-### 3. Re-render the preview
+### What does NOT come over
 
-Update `scripts/render-invite.tsx` so the preview HTML in `/mnt/documents/` reflects the new design with the correct Zoom data and the Cesar personalization. You'll see the new file the moment it's regenerated.
+- Sales page (`/`), purchase-success, refund/privacy, admin, preview — those stay on the standalone marketing site at the handbook's own domain. Standalone purchasers keep buying and reading there exactly as they do today. Nothing about that flow changes.
 
-### 4. Discord bot — free path
+### Standalone purchasers — do they get anything in the portal?
 
-You don't need to pay. Two free options, pick later (this plan doesn't build it yet, just locks the direction):
+**Not in this phase.** Per your decision, the portal handbook is a CC member perk. Standalone buyers continue using the standalone site. If later you want to migrate them into the portal (magic link + entitlement table), that's a follow-up — small, but separate.
 
-- **4a — GitHub Actions cron bot (free, recommended).** Tiny Node script in `bot/` that runs on a GitHub Actions schedule (every 15 min). It calls Discord's REST API with a bot token to list current guild members, diffs against our `discord_members` table, and posts a welcome DM + welcome-channel embed for new joiners. No always-on server, no monthly cost, GitHub Actions free tier covers it forever for our volume. Trade-off: up to 15 min delay on the welcome (fine for our use case).
-- **4b — Discord bot in a free Fly.io / Render free-tier worker.** Persistent gateway connection, instant welcome. Free tiers exist but they sleep/cold-start, which can drop gateway events. Worse than 4a for reliability at $0.
+### Content source
 
-Recommendation: **4a.** Reliable, truly free, dead simple, and the welcome embed/DM can be as polished as the email.
+The 28 chapter components in the handbook project are React components with the prose hardcoded in JSX. Fastest path: copy them into `src/components/handbook/` in the portal as-is, then restyle. No CMS, no database for chapter content. Edits go through code like they do today.
 
-### 5. Out of scope this round
+### Effort
 
-- Stripe webhook cutover (still needs your action in the Stripe dashboard — separate todo).
-- Building the bot itself (decide 4a vs 4b first, then I build).
-- Reskinning login-nudge and discord-nudge — I'll port the same one-paper aesthetic to them in the next pass once you sign off on the welcome design.
+One focused session:
+- Copy `components/handbook/` (~48 files) into the portal
+- Create the two route files with the auth + active-access gate
+- Add nav entry + welcome tile
+- Restyle headers/buttons to portal tokens (light pass — the reader is already clean)
+- QA the chapter pages render and TOC navigation works
+
+No database migration needed. No new Stripe wiring. No new emails. No webhook changes.
+
+### Technical notes
+
+- Handbook project is Vite + React Router; portal is TanStack Start. The chapter components are pure JSX/Tailwind — they port without changes. Only the page-level wrappers (which used React Router's `useParams`, `Link`) need to be rewritten as TanStack route files. That's the two new route files above.
+- Reading progress: store per-user in a new tiny table `handbook_progress (user_id, chapter_slug, last_read_at, percent)` with RLS scoped to `auth.uid()`. Optional — can ship v1 without it and add later.
+- Audio files / images from the handbook project: copy into `src/assets/handbook/` or upload to Supabase storage if large.
 
 ---
 
-## Technical notes (for me)
-
-- `src/lib/email-templates/invite.tsx` — rewrite from scratch. Drop `stepCard`, `includesCard`, `quoteCard` styled blocks. One `Body` with `PAPER` background, `Container` at 600px, sections separated by `<Hr>` hairlines, not nested cards. All inline styles (React Email constraint). Instrument Serif + JetBrains Mono `@font-face` blocks stay.
-- Surface Zoom data: add a `callConfig` import (read from the same module the `/calls` route uses) and thread `zoomUrl` / `zoomId` / `zoomPasscode` through the props. If the Calls page reads from DB, the send function loads it before render.
-- Update `scripts/render-invite.tsx` to pass the correct preview values.
-- Caller sites (`src/lib/billing.functions.ts` or wherever invite send is wired) get the new props passed in. No schema change.
+Confirm this matches what you want and I'll build it. The one open question: **do you want reading progress tracking in v1, or ship the reader first and add progress later?**
