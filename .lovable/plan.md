@@ -1,60 +1,111 @@
-# Workbench polish — three fixes
 
-The goal: the moment someone lands on `/tools`, it should read as *a workbench with many tools, one currently loaded* — not as "the SOP Priority Builder page." Three targeted changes.
+# Unify AOS into the Portal
 
-## 1. Make "Switch tool" the hero of the header
+Make AOS feel like part of Circle: one domain, one login, one product. AOS keeps its own codebase and database (zero risk to the 28 daily users), but Circle members enter it through a proxied `/aos/*` URL and a single-click SSO handoff. Public visitors can also use AOS for free as a funnel — a flag we flip later, no extra work now.
 
-Today the chip is quiet gray and visually equal to the Vault link. It needs to be the most obvious thing in the header.
+## The user experience
 
-Changes in `WorkbenchHeader` (`src/routes/tools.tsx`):
+**Circle member's journey (28 paying users today):**
 
-- Promote the button to an **accent-colored pill** (signal/primary token, not neutral) with a left-side grid/dots icon and the active tool count, e.g.
-  `▦  Switch tool  ·  7 tools  ⌘K`
-- Make it taller (py-2), bolder weight, with a subtle glow/ring on hover so it reads as *the* primary action.
-- Add a faint one-time pulse animation on first mount (sessionStorage flag) so first-time visitors notice it.
-- Demote Vault to a ghost link on the far right — it stays reachable but stops competing.
-- On the left, restructure the title block so the workbench identity wins (see fix 3).
+1. Clicks **AOS** in the portal sidebar.
+2. Lands on `/aos` — a cinematic "Gateway" page (replaces today's plain explainer). Brief reveal animation, then a single primary action: **Enter AOS →**.
+3. Clicks it. We mint a signed token, redirect to `/aos/sso?token=…`, which is proxied to AOS's new consume endpoint. AOS finds-or-creates the user by email, sets its session cookie, redirects to AOS's dashboard.
+4. They land inside AOS, signed in, no second login form. The portal's header/sidebar are hidden inside `/aos/*` so it looks like one app.
+5. To get back to Circle, they click "← Back to Circle" in AOS's chrome (small change on the AOS side) or use the browser back button.
 
-## 2. Make the SOP rows visibly editable
+**Edge case — already have AOS under a different email:** On the Gateway page, a small secondary link: *"Already use AOS under a different email? Link your existing account."* Opens a tiny flow that asks them to sign in to their existing AOS in a new tab, then comes back and stores the link in `aos_links.aos_email`. Future clicks SSO into that account instead of auto-provisioning. One-time, manual, only used by people who need it.
 
-Right now the default areas (Estimating new bids, Client communication, …) look like static labels. Users don't realize each row is a live, editable touchpoint.
+**Public visitor (eventually):** Same `/aos` gateway, but they're not signed into Circle. The CTA becomes "Start AOS free" and skips the SSO step — they sign up directly on AOS's subdomain. AOS's public side stays exactly as it is today. Nothing to build for this now; it works because AOS is already public-facing.
 
-Changes in `src/components/portal/tools/sop-priority-tool.tsx` (owner-mode area list only — no logic changes):
+## The cinematic gateway
 
-- Add a short framing line directly above the list:
-  *"These are the touchpoints where you're still in the work. Edit, add, or remove any row — this list drives the ranking."*
-- Render each area as a card with:
-  - The name shown as an **inline editable input** with a visible pencil icon on the right and a dotted underline so it reads as a field, not a label.
-  - Each numeric input (hours, blast, effort, frequency) gets a tiny label above it and a subtle bordered chip styling so they obviously look like inputs.
-  - Hover state lifts the row slightly and reveals a trash icon.
-- The existing "+ Add area" button gets promoted to a dashed full-width row at the bottom labeled **"+ Add another touchpoint you still own"** so the affordance to grow the list is unmissable.
-- No changes to `calcSopPriority` or any scoring math.
+Replace the current `src/routes/aos.tsx` explainer with a full-bleed page that earns the "cloak and dagger" feeling without being gimmicky. Concept:
 
-## 3. Strengthen the Workbench identity over the tool name
+- Dark ink canvas. Ambient grid + a single gold signal pulse, same language as `AosHero`.
+- Eyebrow: `Step 02 · Cross the threshold`
+- Headline (slow staggered reveal): *"You've run the diagnostics. Now run the company."*
+- Sub: *"AOS is where Circle becomes operational — vision, scorecard, rocks, weekly L10. One click and you're inside."*
+- After ~600ms reveal, a single button rises into view: **Enter AOS →** with a subtle gold underline that draws on hover.
+- Small secondary link below: *"Different email on AOS already? Link it."*
+- Right side: a quiet "What lights up after you enter" panel (reuse from `AosHero`).
 
-Currently the header reads `Operator's Workbench / SOP Priority Builder` with both at similar weight, so it looks like the tool *is* the page.
+For first-time Circle members (the 21 cold ones), there's a one-sentence reassurance under the button: *"First time? We'll set up your AOS workspace automatically."* For previously-linked users it says: *"Welcome back, [Company]."*
 
-Changes in `WorkbenchHeader`:
+## Technical plan
 
-- Render a two-line stacked title on the left:
-  - Line 1 (large, serif display): **Operator's Workbench**
-  - Line 2 (small mono label): `NOW LOADED · BUILD THE MACHINE · SOP PRIORITY BUILDER`
-- Add a one-line tagline under it that only shows on the bare `/tools` route (hidden on the child routes):
-  *"Seven tools to run the business. One loaded — pick another anytime."*
-- Add a thin horizontal **tool rail** directly under the header: small pills for each live tool grouped by section ("Make more money", "Protect margin and cash", "Build the machine", "Deliver better projects"), the active one filled, the others outlined. Clicking a pill loads that tool (same behavior as the picker). This makes the "many tools" reality visible without forcing the picker open.
-- The Switch tool button still opens the full dialog for the complete browseable list.
+### 1. SSO handoff (the trust channel)
 
-## Technical notes
+We already have `AOS_SHARED_SECRET` and the snapshot endpoint pattern. Add a parallel "consume" endpoint on AOS and a "mint" server function on Circle.
 
-- All edits stay in `src/routes/tools.tsx` and `src/components/portal/tools/sop-priority-tool.tsx`.
-- No new dependencies. Pulse animation = a single keyframe in `src/styles.css` or inline Tailwind `animate-` class.
-- Colors come from existing semantic tokens (`--signal`, `--primary`, `--accent`) — no hardcoded values.
-- Tool rail reuses `COMMAND_TOOLS` + `STAGE_TOOLS` already imported in `tools.tsx`; pills for non-stage tools navigate to their route just like the dialog's `pickTool`.
-- The other three tools (`contract-readiness`, `estimate-throughput`, `margin-leak`) are not touched in this pass; fix 2's edit-affordance pattern can be propagated to them in a follow-up.
+**Circle side** — new server function `mintAosSsoToken` in `src/lib/aos.functions.ts`:
+- Protected by `requireSupabaseAuth`
+- Reads email from claims, generates short-lived token: `email|ts|nonce|HMAC(secret)`
+- Returns `{ url: "${AOS_BASE_URL}/api/public/circle/sso?token=..." }` to the client
+- Client does `window.location.assign(url)` — full-page navigation, not a fetch
 
-## Out of scope
+**AOS side** — new public route `/api/public/circle/sso`:
+- Verifies HMAC, rejects if ts > 60s old (replay window)
+- Looks up user by email in AOS's `auth.users`
+  - If exists with 1 workspace → set session, redirect to dashboard
+  - If exists with multiple → set session, redirect to workspace picker
+  - If not exists → admin-create user, create starter workspace, set session, redirect to AOS onboarding
+- Sets AOS's Supabase session cookie via admin-signed magic link (or `generateLink` + immediate consume)
 
-- Renaming any tool, group, or nav item.
-- Sidebar component changes.
-- Tool scoring / business logic.
-- Mobile-specific layout (desktop-first; current responsive behavior preserved).
+The "admin-create user + set session" step needs AOS's service role key, which AOS already has. The auth pattern is: `supabaseAdmin.auth.admin.createUser({ email, email_confirm: true })` then `supabaseAdmin.auth.admin.generateLink({ type: 'magiclink', email })` and immediately redirect through that link's `token_hash` to set the session cookie.
+
+### 2. Proxy `/aos/*` → AOS subdomain
+
+A catch-all server route at `src/routes/api/aos/$.ts` that proxies any request under `/aos/*` to `AOS_BASE_URL/*`, streaming the response back. This is what makes the browser URL stay `contractor-command.lovable.app/aos/...` while the content comes from AOS.
+
+Plus a thin client route at `src/routes/aos.$.tsx` that renders nothing (the proxy handles HTML responses directly via the API route) — or, simpler: skip the client route and have the gateway page navigate to AOS's real subdomain after SSO. **Recommendation: skip the proxy in v1.** After SSO, just `window.location.assign(AOS_BASE_URL)` — they land on the AOS subdomain, but already signed in. The URL bar shows the subdomain, but the experience is one-click. This avoids the entire class of proxy bugs (cookies, CORS, asset paths, websocket support) and ships in a fraction of the time.
+
+If after using it for a week you still want the unified domain feel, we add the proxy in v2. **I'm recommending we ship without the proxy and revisit.** It's the 80% of the value for 20% of the risk.
+
+### 3. AOS chrome adjustments (minimal, on AOS side)
+
+- Add a small "← Back to Circle" link in AOS's top bar that points back to `contractor-command.lovable.app`.
+- That's it. Don't touch anything else in AOS — the daily users are already happy with it.
+
+### 4. Email-mismatch escape hatch
+
+New route `src/routes/aos.link.tsx`:
+- Form asks for the email they use on AOS
+- Submits to `linkExistingAosAccount` server fn which: verifies the email exists on AOS (calls AOS's snapshot endpoint), then upserts into `aos_links` with `aos_email = <other email>`
+- After linking, the SSO mint uses `aos_links.aos_email` instead of the Circle email
+
+### 5. Migration data
+
+Nothing to migrate. The 4 already-linked members get auto-recognized on first click. The 21 cold members get auto-provisioned. The 2 multi-workspace members hit the existing picker. The 1 no-workspace member lands on AOS onboarding. Marshall (you) can pre-link any of the 24 manually via admin if you happen to know their existing AOS email.
+
+### 6. Stripe auto-revoke (separate small follow-up, mentioned earlier)
+
+Already wired — `customer.subscription.deleted` flips status. Add a useEffect in `src/routes/__root.tsx` that calls `supabase.auth.signOut()` if `has_active_access` returns false while the user is signed in. Five-minute change, can ship with this or after. Not part of this plan's scope.
+
+## What ships
+
+- New gateway page replacing `src/routes/aos.tsx`
+- `mintAosSsoToken` server fn in `src/lib/aos.functions.ts`
+- `linkExistingAosAccount` server fn + `src/routes/aos.link.tsx` page
+- One new public endpoint on AOS: `/api/public/circle/sso` (consume token, set session)
+- One small UI tweak on AOS: "← Back to Circle" link
+- `aos_links` already has `aos_email` column — no schema migration on Circle side
+- No proxy in v1; revisit after a week of real use
+
+## What we explicitly defer
+
+- Full reverse proxy (`/aos/*` rewriting). Add later if the subdomain bothers you.
+- Full schema merge (pulling AOS into Circle's Supabase). Multi-month project, not justified yet.
+- Public free funnel. AOS subdomain is already public; we just stop hiding the link when you're ready.
+- Stripe sign-out on cancel. Five-minute follow-up.
+
+## Risks
+
+- **AOS endpoint must be added by you** (or by me if you let me touch the AOS project too). Without it, the SSO step has nothing to call.
+- **Magic-link consume pattern** is the part most likely to have subtle bugs in AOS. I'll write it defensively (replay protection, single-use tokens, short TTL).
+- **The 1 no-workspace user** (kingconstructionofny) might hit a confusing AOS onboarding state. Worth a manual check before launch.
+
+## Estimated work
+
+- Circle side: ~3-4 hours (gateway page + 2 server fns + link page)
+- AOS side: ~2-3 hours (consume endpoint + back-to-Circle link)
+- Total: half a day if I have access to both projects.

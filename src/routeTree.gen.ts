@@ -20,10 +20,10 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as FieldToolsRouteImport } from './routes/field-tools'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as CallsRouteImport } from './routes/calls'
-import { Route as AosRouteImport } from './routes/aos'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AskIndexRouteImport } from './routes/ask.index'
+import { Route as AosIndexRouteImport } from './routes/aos.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as ToolsOwnerDependencyRouteImport } from './routes/tools.owner-dependency'
 import { Route as ToolsGrowthConstraintRouteImport } from './routes/tools.growth-constraint'
@@ -35,6 +35,7 @@ import { Route as ApiSopBacklogRouteImport } from './routes/api/sop-backlog'
 import { Route as ApiOwnerPlaysRouteImport } from './routes/api/owner-plays'
 import { Route as ApiContractScanRouteImport } from './routes/api/contract-scan'
 import { Route as ApiAskRouteImport } from './routes/api/ask'
+import { Route as AosLinkRouteImport } from './routes/aos.link'
 import { Route as AdminTopicsRouteImport } from './routes/admin.topics'
 import { Route as AdminLibraryRouteImport } from './routes/admin.library'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
@@ -98,11 +99,6 @@ const CallsRoute = CallsRouteImport.update({
   path: '/calls',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AosRoute = AosRouteImport.update({
-  id: '/aos',
-  path: '/aos',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AccountRoute = AccountRouteImport.update({
   id: '/account',
   path: '/account',
@@ -116,6 +112,11 @@ const IndexRoute = IndexRouteImport.update({
 const AskIndexRoute = AskIndexRouteImport.update({
   id: '/ask/',
   path: '/ask/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AosIndexRoute = AosIndexRouteImport.update({
+  id: '/aos/',
+  path: '/aos/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -173,6 +174,11 @@ const ApiAskRoute = ApiAskRouteImport.update({
   path: '/api/ask',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AosLinkRoute = AosLinkRouteImport.update({
+  id: '/aos/link',
+  path: '/aos/link',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminTopicsRoute = AdminTopicsRouteImport.update({
   id: '/admin/topics',
   path: '/admin/topics',
@@ -215,7 +221,6 @@ const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
-  '/aos': typeof AosRoute
   '/calls': typeof CallsRoute
   '/community': typeof CommunityRoute
   '/field-tools': typeof FieldToolsRoute
@@ -229,6 +234,7 @@ export interface FileRoutesByFullPath {
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/admin/library': typeof AdminLibraryRoute
   '/admin/topics': typeof AdminTopicsRoute
+  '/aos/link': typeof AosLinkRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/owner-plays': typeof ApiOwnerPlaysRoute
@@ -240,6 +246,7 @@ export interface FileRoutesByFullPath {
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
   '/tools/owner-dependency': typeof ToolsOwnerDependencyRoute
   '/admin/': typeof AdminIndexRoute
+  '/aos/': typeof AosIndexRoute
   '/ask/': typeof AskIndexRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
@@ -250,7 +257,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
-  '/aos': typeof AosRoute
   '/calls': typeof CallsRoute
   '/community': typeof CommunityRoute
   '/field-tools': typeof FieldToolsRoute
@@ -264,6 +270,7 @@ export interface FileRoutesByTo {
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/admin/library': typeof AdminLibraryRoute
   '/admin/topics': typeof AdminTopicsRoute
+  '/aos/link': typeof AosLinkRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/owner-plays': typeof ApiOwnerPlaysRoute
@@ -275,6 +282,7 @@ export interface FileRoutesByTo {
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
   '/tools/owner-dependency': typeof ToolsOwnerDependencyRoute
   '/admin': typeof AdminIndexRoute
+  '/aos': typeof AosIndexRoute
   '/ask': typeof AskIndexRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
@@ -286,7 +294,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
-  '/aos': typeof AosRoute
   '/calls': typeof CallsRoute
   '/community': typeof CommunityRoute
   '/field-tools': typeof FieldToolsRoute
@@ -300,6 +307,7 @@ export interface FileRoutesById {
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/admin/library': typeof AdminLibraryRoute
   '/admin/topics': typeof AdminTopicsRoute
+  '/aos/link': typeof AosLinkRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/owner-plays': typeof ApiOwnerPlaysRoute
@@ -311,6 +319,7 @@ export interface FileRoutesById {
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
   '/tools/owner-dependency': typeof ToolsOwnerDependencyRoute
   '/admin/': typeof AdminIndexRoute
+  '/aos/': typeof AosIndexRoute
   '/ask/': typeof AskIndexRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
@@ -323,7 +332,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/account'
-    | '/aos'
     | '/calls'
     | '/community'
     | '/field-tools'
@@ -337,6 +345,7 @@ export interface FileRouteTypes {
     | '/work-with-marshall'
     | '/admin/library'
     | '/admin/topics'
+    | '/aos/link'
     | '/api/ask'
     | '/api/contract-scan'
     | '/api/owner-plays'
@@ -348,6 +357,7 @@ export interface FileRouteTypes {
     | '/tools/growth-constraint'
     | '/tools/owner-dependency'
     | '/admin/'
+    | '/aos/'
     | '/ask/'
     | '/lovable/email/suppression'
     | '/api/public/stripe/webhook'
@@ -358,7 +368,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/account'
-    | '/aos'
     | '/calls'
     | '/community'
     | '/field-tools'
@@ -372,6 +381,7 @@ export interface FileRouteTypes {
     | '/work-with-marshall'
     | '/admin/library'
     | '/admin/topics'
+    | '/aos/link'
     | '/api/ask'
     | '/api/contract-scan'
     | '/api/owner-plays'
@@ -383,6 +393,7 @@ export interface FileRouteTypes {
     | '/tools/growth-constraint'
     | '/tools/owner-dependency'
     | '/admin'
+    | '/aos'
     | '/ask'
     | '/lovable/email/suppression'
     | '/api/public/stripe/webhook'
@@ -393,7 +404,6 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/account'
-    | '/aos'
     | '/calls'
     | '/community'
     | '/field-tools'
@@ -407,6 +417,7 @@ export interface FileRouteTypes {
     | '/work-with-marshall'
     | '/admin/library'
     | '/admin/topics'
+    | '/aos/link'
     | '/api/ask'
     | '/api/contract-scan'
     | '/api/owner-plays'
@@ -418,6 +429,7 @@ export interface FileRouteTypes {
     | '/tools/growth-constraint'
     | '/tools/owner-dependency'
     | '/admin/'
+    | '/aos/'
     | '/ask/'
     | '/lovable/email/suppression'
     | '/api/public/stripe/webhook'
@@ -429,7 +441,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRoute
-  AosRoute: typeof AosRoute
   CallsRoute: typeof CallsRoute
   CommunityRoute: typeof CommunityRoute
   FieldToolsRoute: typeof FieldToolsRoute
@@ -443,6 +454,7 @@ export interface RootRouteChildren {
   WorkWithMarshallRoute: typeof WorkWithMarshallRoute
   AdminLibraryRoute: typeof AdminLibraryRoute
   AdminTopicsRoute: typeof AdminTopicsRoute
+  AosLinkRoute: typeof AosLinkRoute
   ApiAskRoute: typeof ApiAskRoute
   ApiContractScanRoute: typeof ApiContractScanRoute
   ApiOwnerPlaysRoute: typeof ApiOwnerPlaysRoute
@@ -452,6 +464,7 @@ export interface RootRouteChildren {
   AskNewRoute: typeof AskNewRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   AdminIndexRoute: typeof AdminIndexRoute
+  AosIndexRoute: typeof AosIndexRoute
   AskIndexRoute: typeof AskIndexRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
@@ -539,13 +552,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CallsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/aos': {
-      id: '/aos'
-      path: '/aos'
-      fullPath: '/aos'
-      preLoaderRoute: typeof AosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/account': {
       id: '/account'
       path: '/account'
@@ -565,6 +571,13 @@ declare module '@tanstack/react-router' {
       path: '/ask'
       fullPath: '/ask/'
       preLoaderRoute: typeof AskIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/aos/': {
+      id: '/aos/'
+      path: '/aos'
+      fullPath: '/aos/'
+      preLoaderRoute: typeof AosIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -644,6 +657,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAskRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/aos/link': {
+      id: '/aos/link'
+      path: '/aos/link'
+      fullPath: '/aos/link'
+      preLoaderRoute: typeof AosLinkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/topics': {
       id: '/admin/topics'
       path: '/admin/topics'
@@ -711,7 +731,6 @@ const ToolsRouteWithChildren = ToolsRoute._addFileChildren(ToolsRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
-  AosRoute: AosRoute,
   CallsRoute: CallsRoute,
   CommunityRoute: CommunityRoute,
   FieldToolsRoute: FieldToolsRoute,
@@ -725,6 +744,7 @@ const rootRouteChildren: RootRouteChildren = {
   WorkWithMarshallRoute: WorkWithMarshallRoute,
   AdminLibraryRoute: AdminLibraryRoute,
   AdminTopicsRoute: AdminTopicsRoute,
+  AosLinkRoute: AosLinkRoute,
   ApiAskRoute: ApiAskRoute,
   ApiContractScanRoute: ApiContractScanRoute,
   ApiOwnerPlaysRoute: ApiOwnerPlaysRoute,
@@ -734,6 +754,7 @@ const rootRouteChildren: RootRouteChildren = {
   AskNewRoute: AskNewRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   AdminIndexRoute: AdminIndexRoute,
+  AosIndexRoute: AosIndexRoute,
   AskIndexRoute: AskIndexRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
@@ -744,13 +765,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
