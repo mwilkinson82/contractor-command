@@ -35,6 +35,7 @@ import { Route as ApiSopBacklogRouteImport } from './routes/api/sop-backlog'
 import { Route as ApiOwnerPlaysRouteImport } from './routes/api/owner-plays'
 import { Route as ApiContractScanRouteImport } from './routes/api/contract-scan'
 import { Route as ApiAskRouteImport } from './routes/api/ask'
+import { Route as AosLinkRouteImport } from './routes/aos.link'
 import { Route as AdminTopicsRouteImport } from './routes/admin.topics'
 import { Route as AdminLibraryRouteImport } from './routes/admin.library'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
@@ -173,6 +174,11 @@ const ApiAskRoute = ApiAskRouteImport.update({
   path: '/api/ask',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AosLinkRoute = AosLinkRouteImport.update({
+  id: '/link',
+  path: '/link',
+  getParentRoute: () => AosRoute,
+} as any)
 const AdminTopicsRoute = AdminTopicsRouteImport.update({
   id: '/admin/topics',
   path: '/admin/topics',
@@ -215,7 +221,7 @@ const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
-  '/aos': typeof AosRoute
+  '/aos': typeof AosRouteWithChildren
   '/calls': typeof CallsRoute
   '/community': typeof CommunityRoute
   '/field-tools': typeof FieldToolsRoute
@@ -229,6 +235,7 @@ export interface FileRoutesByFullPath {
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/admin/library': typeof AdminLibraryRoute
   '/admin/topics': typeof AdminTopicsRoute
+  '/aos/link': typeof AosLinkRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/owner-plays': typeof ApiOwnerPlaysRoute
@@ -250,7 +257,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
-  '/aos': typeof AosRoute
+  '/aos': typeof AosRouteWithChildren
   '/calls': typeof CallsRoute
   '/community': typeof CommunityRoute
   '/field-tools': typeof FieldToolsRoute
@@ -264,6 +271,7 @@ export interface FileRoutesByTo {
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/admin/library': typeof AdminLibraryRoute
   '/admin/topics': typeof AdminTopicsRoute
+  '/aos/link': typeof AosLinkRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/owner-plays': typeof ApiOwnerPlaysRoute
@@ -286,7 +294,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
-  '/aos': typeof AosRoute
+  '/aos': typeof AosRouteWithChildren
   '/calls': typeof CallsRoute
   '/community': typeof CommunityRoute
   '/field-tools': typeof FieldToolsRoute
@@ -300,6 +308,7 @@ export interface FileRoutesById {
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/admin/library': typeof AdminLibraryRoute
   '/admin/topics': typeof AdminTopicsRoute
+  '/aos/link': typeof AosLinkRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/owner-plays': typeof ApiOwnerPlaysRoute
@@ -337,6 +346,7 @@ export interface FileRouteTypes {
     | '/work-with-marshall'
     | '/admin/library'
     | '/admin/topics'
+    | '/aos/link'
     | '/api/ask'
     | '/api/contract-scan'
     | '/api/owner-plays'
@@ -372,6 +382,7 @@ export interface FileRouteTypes {
     | '/work-with-marshall'
     | '/admin/library'
     | '/admin/topics'
+    | '/aos/link'
     | '/api/ask'
     | '/api/contract-scan'
     | '/api/owner-plays'
@@ -407,6 +418,7 @@ export interface FileRouteTypes {
     | '/work-with-marshall'
     | '/admin/library'
     | '/admin/topics'
+    | '/aos/link'
     | '/api/ask'
     | '/api/contract-scan'
     | '/api/owner-plays'
@@ -429,7 +441,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRoute
-  AosRoute: typeof AosRoute
+  AosRoute: typeof AosRouteWithChildren
   CallsRoute: typeof CallsRoute
   CommunityRoute: typeof CommunityRoute
   FieldToolsRoute: typeof FieldToolsRoute
@@ -644,6 +656,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAskRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/aos/link': {
+      id: '/aos/link'
+      path: '/link'
+      fullPath: '/aos/link'
+      preLoaderRoute: typeof AosLinkRouteImport
+      parentRoute: typeof AosRoute
+    }
     '/admin/topics': {
       id: '/admin/topics'
       path: '/admin/topics'
@@ -696,6 +715,16 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AosRouteChildren {
+  AosLinkRoute: typeof AosLinkRoute
+}
+
+const AosRouteChildren: AosRouteChildren = {
+  AosLinkRoute: AosLinkRoute,
+}
+
+const AosRouteWithChildren = AosRoute._addFileChildren(AosRouteChildren)
+
 interface ToolsRouteChildren {
   ToolsGrowthConstraintRoute: typeof ToolsGrowthConstraintRoute
   ToolsOwnerDependencyRoute: typeof ToolsOwnerDependencyRoute
@@ -711,7 +740,7 @@ const ToolsRouteWithChildren = ToolsRoute._addFileChildren(ToolsRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
-  AosRoute: AosRoute,
+  AosRoute: AosRouteWithChildren,
   CallsRoute: CallsRoute,
   CommunityRoute: CommunityRoute,
   FieldToolsRoute: FieldToolsRoute,
