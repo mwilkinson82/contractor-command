@@ -5,11 +5,10 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { AuthCard, AuthField, AuthSubmit } from "@/components/auth/auth-card";
 
 export const Route = createFileRoute("/welcome")({
-  head: () => ({
-    meta: [{ title: "Welcome — Contractor Circle" }],
-  }),
+  head: () => ({ meta: [{ title: "Welcome — Contractor Circle" }] }),
   component: WelcomePage,
 });
 
@@ -25,8 +24,6 @@ function WelcomePage() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    // The supabase client picks up tokens from the URL hash automatically
-    // (detectSessionInUrl). Give it a tick, then check.
     let cancelled = false;
     const check = async () => {
       const { data } = await supabase.auth.getSession();
@@ -73,122 +70,77 @@ function WelcomePage() {
     navigate({ to: "/" });
   }
 
+  if (phase === "checking") {
+    return (
+      <AuthCard title="One moment." subtitle="Confirming your invite…">
+        <div />
+      </AuthCard>
+    );
+  }
+
+  if (phase === "no-session") {
+    return (
+      <AuthCard
+        title="Invite expired."
+        subtitle="This invite link may have expired or already been used."
+      >
+        <p className="text-[13px] leading-relaxed text-ink/65">
+          If you've already set up your account, sign in. Otherwise reach out
+          and we'll resend the invite.
+        </p>
+        <div className="mt-8 flex gap-3">
+          <Link
+            to="/login"
+            className="inline-flex flex-1 items-center justify-center rounded-full bg-ink px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-cream transition-opacity hover:opacity-90"
+          >
+            Sign in
+          </Link>
+          <Link
+            to="/signup"
+            className="inline-flex flex-1 items-center justify-center rounded-full border border-ink/15 bg-transparent px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-ink transition-colors hover:border-ink/40"
+          >
+            Create account
+          </Link>
+        </div>
+      </AuthCard>
+    );
+  }
+
   return (
-    <div className="min-h-screen grid place-items-center bg-background px-4">
-      <div className="w-full max-w-md">
-        <Link to="/" className="flex items-center gap-2">
-          <span className="grid h-8 w-8 place-items-center rounded-md bg-ink text-cream font-display text-[13px]">
-            A
-          </span>
-          <span className="font-display text-[14px]">Contractor Circle</span>
-        </Link>
-
-        {phase === "checking" && (
-          <p className="mt-10 text-[13px] text-muted-foreground">
-            Confirming your invite…
-          </p>
-        )}
-
-        {phase === "no-session" && (
-          <>
-            <h1 className="mt-8 font-display text-3xl">Invite link expired.</h1>
-            <p className="mt-3 text-[14px] text-muted-foreground">
-              Your invite link may have expired or already been used. If you've
-              already set up your account, sign in below. Otherwise reach out
-              and we'll resend it.
-            </p>
-            <div className="mt-6 flex gap-3">
-              <Link
-                to="/login"
-                className="inline-flex items-center rounded-md bg-ink px-4 py-2.5 text-[13px] font-medium text-cream hover:opacity-90"
-              >
-                Sign in
-              </Link>
-              <Link
-                to="/signup"
-                className="inline-flex items-center rounded-md border border-border px-4 py-2.5 text-[13px] font-medium hover:bg-card"
-              >
-                Create account
-              </Link>
-            </div>
-          </>
-        )}
-
-        {phase === "set-password" && (
-          <>
-            <h1 className="mt-8 font-display text-3xl">
-              Welcome to the new portal.
-            </h1>
-            <p className="mt-2 text-[13px] text-muted-foreground">
-              {email
-                ? `Signed in as ${email}. Set a password to finish setup.`
-                : "Set a password to finish setup."}
-            </p>
-
-            <form onSubmit={onSubmit} className="mt-8 space-y-4">
-              <Field
-                label="New password"
-                type="password"
-                value={password}
-                onChange={setPassword}
-                required
-                autoFocus
-              />
-              <Field
-                label="Confirm password"
-                type="password"
-                value={confirm}
-                onChange={setConfirm}
-                required
-              />
-              {err && <p className="text-[12px] text-red-600">{err}</p>}
-              <button
-                type="submit"
-                disabled={busy}
-                className="w-full rounded-md bg-ink px-4 py-2.5 text-[13px] font-medium text-cream hover:opacity-90 disabled:opacity-50"
-              >
-                {busy ? "Saving…" : "Set password & enter portal"}
-              </button>
-            </form>
-
-            <p className="mt-6 text-[12px] text-muted-foreground">
-              By continuing you're confirming this is your account.
-            </p>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  type,
-  value,
-  onChange,
-  required,
-  autoFocus,
-}: {
-  label: string;
-  type: string;
-  value: string;
-  onChange: (v: string) => void;
-  required?: boolean;
-  autoFocus?: boolean;
-}) {
-  return (
-    <label className="block">
-      <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-        {label}
-      </span>
-      <input
-        type={type}
-        value={value}
-        autoFocus={autoFocus}
-        required={required}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1.5 w-full rounded-md border border-border bg-card px-3 py-2 text-[13px] focus:border-ink focus:outline-none"
-      />
-    </label>
+    <AuthCard
+      title="Welcome aboard."
+      subtitle={
+        email
+          ? `Signed in as ${email}. Set a password to finish setup.`
+          : "Set a password to finish setup."
+      }
+    >
+      <form onSubmit={onSubmit} className="space-y-6">
+        <AuthField
+          id="password"
+          label="New password"
+          type="password"
+          value={password}
+          onChange={setPassword}
+          placeholder="••••••••"
+          required
+          autoFocus
+        />
+        <AuthField
+          id="confirm"
+          label="Confirm password"
+          type="password"
+          value={confirm}
+          onChange={setConfirm}
+          placeholder="••••••••"
+          required
+        />
+        {err && <p className="text-[12px] text-[#b8442a]">{err}</p>}
+        <AuthSubmit busy={busy} label="Enter the portal" busyLabel="Saving" />
+      </form>
+      <p className="mt-6 text-[11px] leading-relaxed text-ink/45">
+        By continuing you're confirming this is your account.
+      </p>
+    </AuthCard>
   );
 }

@@ -1,49 +1,26 @@
-import { createFileRoute, Link, redirect, useNavigate, useRouter } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { Link } from "@tanstack/react-router";
 import ccMark from "@/assets/cc-mark.png";
 import bulldozer from "@/assets/bulldozer.png";
 
-
-export const Route = createFileRoute("/login")({
-  head: () => ({ meta: [{ title: "Sign in — ALP Contractor Circle" }] }),
-  beforeLoad: async () => {
-    const { data } = await supabase.auth.getSession();
-    if (data.session) throw redirect({ to: "/" });
-  },
-  component: LoginPage,
-});
-
-function LoginPage() {
-  const router = useRouter();
-  const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_, s) => {
-      if (s) {
-        router.invalidate();
-        navigate({ to: "/" });
-      }
-    });
-    return () => sub.subscription.unsubscribe();
-  }, [router, navigate]);
-
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setErr(null);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) setErr(error.message);
-    setBusy(false);
-  }
-
+/**
+ * Shared shell for the public auth screens (login, signup, welcome,
+ * forgot-password, reset-password). Keeps the cream card + DDB
+ * advertisement on the right consistent across the flow.
+ */
+export function AuthCard({
+  title,
+  subtitle,
+  children,
+  footer,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+}) {
   return (
     <div className="relative grid min-h-screen w-full grid-cols-1 bg-paper-edge/60 p-6 text-ink font-sans selection:bg-ink selection:text-cream md:grid-cols-2 md:items-center lg:p-10">
-      {/* Left: the product — a tactile, modern card sitting on the paper */}
+      {/* Left: card */}
       <div className="flex justify-center md:justify-end md:pr-10 lg:pr-16">
         <div className="w-full max-w-[440px]">
           <div className="rounded-[28px] bg-cream shadow-[0_30px_80px_-40px_rgba(20,16,12,0.35),0_2px_0_rgba(20,16,12,0.04)] ring-1 ring-ink/[0.06]">
@@ -56,65 +33,25 @@ function LoginPage() {
               </Link>
 
               <h1 className="mt-8 font-display text-[44px] leading-[1.0] -tracking-[0.01em]">
-                Sign in
+                {title}
               </h1>
-              <p className="mt-2 text-[13px] leading-relaxed text-ink/55">
-                Your private operating system.
-              </p>
+              {subtitle && (
+                <p className="mt-2 text-[13px] leading-relaxed text-ink/55">{subtitle}</p>
+              )}
 
-              <form onSubmit={onSubmit} className="mt-8 space-y-6">
-                <Field
-                  id="email"
-                  label="Email"
-                  type="email"
-                  value={email}
-                  onChange={setEmail}
-                  placeholder="name@company.com"
-                  required
-                  autoFocus
-                />
-
-                <Field
-                  id="password"
-                  label="Password"
-                  type="password"
-                  value={password}
-                  onChange={setPassword}
-                  placeholder="••••••••"
-                  required
-                  hint={
-                    <Link
-                      to="/forgot-password"
-                      className="font-display italic text-[12px] text-ink/45 transition-colors hover:text-ink"
-                    >
-                      Forgot password?
-                    </Link>
-                  }
-                />
-
-
-                {err && <p className="text-[12px] text-[#b8442a]">{err}</p>}
-
-                <button
-                  type="submit"
-                  disabled={busy}
-                  className="mt-2 inline-flex w-full items-center justify-center rounded-full bg-ink px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-cream transition-opacity hover:opacity-90 disabled:opacity-50"
-                >
-                  {busy ? "Entering" : "Enter"}
-                </button>
-              </form>
+              <div className="mt-8">{children}</div>
             </div>
 
             <div className="border-t border-ink/[0.06] px-10 py-4 text-center">
               <span className="text-[10px] uppercase tracking-[0.28em] text-ink/35">
-                Members only
+                {footer ?? "Members only"}
               </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Right: the advertisement — paper, headline, justified columns */}
+      {/* Right: advertisement */}
       <div className="relative hidden md:flex md:justify-start md:pl-10 lg:pl-16">
         <div className="w-full max-w-[520px]">
           <img
@@ -155,7 +92,7 @@ function LoginPage() {
   );
 }
 
-function Field({
+export function AuthField({
   id,
   label,
   type,
@@ -164,7 +101,6 @@ function Field({
   placeholder,
   required,
   autoFocus,
-  trailing,
   hint,
 }: {
   id: string;
@@ -175,17 +111,13 @@ function Field({
   placeholder?: string;
   required?: boolean;
   autoFocus?: boolean;
-  trailing?: React.ReactNode;
   hint?: React.ReactNode;
 }) {
   return (
     <div>
-      <div className="flex items-end justify-between">
-        <label htmlFor={id} className="block text-[10px] uppercase tracking-[0.22em] text-ink/50">
-          {label}
-        </label>
-        {trailing}
-      </div>
+      <label htmlFor={id} className="block text-[10px] uppercase tracking-[0.22em] text-ink/50">
+        {label}
+      </label>
       <input
         id={id}
         type={type}
@@ -198,5 +130,25 @@ function Field({
       />
       {hint && <div className="mt-2">{hint}</div>}
     </div>
+  );
+}
+
+export function AuthSubmit({
+  busy,
+  label,
+  busyLabel,
+}: {
+  busy: boolean;
+  label: string;
+  busyLabel?: string;
+}) {
+  return (
+    <button
+      type="submit"
+      disabled={busy}
+      className="mt-2 inline-flex w-full items-center justify-center rounded-full bg-ink px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-cream transition-opacity hover:opacity-90 disabled:opacity-50"
+    >
+      {busy ? (busyLabel ?? "Working") : label}
+    </button>
   );
 }
