@@ -1,0 +1,237 @@
+/*
+ * Handbook reader stylesheet
+ * Scoped to `.handbook-scope` so the warm paper aesthetic of the original
+ * ALP Handbook standalone site lives only inside `/handbook` and doesn't
+ * leak into the rest of the portal.
+ */
+
+.handbook-scope {
+  /* Warm paper page (HSL — original handbook tokens) */
+  --hb-bg: 40 30% 96%;
+  --hb-fg: 30 10% 12%;
+  --hb-accent: 35 15% 92%;
+  --hb-border: 35 15% 85%;
+  --hb-chapter-divider: 35 15% 82%;
+  --hb-parable-bg: 35 20% 93%;
+  --hb-parable-border: 30 10% 25%;
+  --hb-media-placeholder: 35 12% 90%;
+  --hb-brand-accent: 24 95% 53%;
+  --hb-identity-bg: 30 40% 95%;
+  --hb-identity-border: 24 95% 53%;
+  --hb-identity-accent: 24 80% 50%;
+
+  background-color: hsl(var(--hb-bg));
+  color: hsl(var(--hb-fg));
+  font-family: "Space Grotesk", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+.handbook-scope h1,
+.handbook-scope h2,
+.handbook-scope h3,
+.handbook-scope h4,
+.handbook-scope h5,
+.handbook-scope h6 {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  color: hsl(var(--hb-fg));
+}
+
+/* Typography ----------------------------------------------------------- */
+.handbook-scope .handbook-title {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 3rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+@media (min-width: 768px) { .handbook-scope .handbook-title { font-size: 4.5rem; } }
+@media (min-width: 1024px) { .handbook-scope .handbook-title { font-size: 6rem; } }
+
+.handbook-scope .handbook-subtitle {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.125rem;
+  font-weight: 300;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+}
+
+.handbook-scope .chapter-heading {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 2.25rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-bottom: 2rem;
+  line-height: 1.1;
+}
+@media (min-width: 768px) { .handbook-scope .chapter-heading { font-size: 3rem; } }
+@media (min-width: 1024px) { .handbook-scope .chapter-heading { font-size: 3.75rem; } }
+
+.handbook-scope .section-heading {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 1.5rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  margin-bottom: 1.5rem;
+}
+@media (min-width: 768px) { .handbook-scope .section-heading { font-size: 1.875rem; } }
+
+.handbook-scope .subsection-heading {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 1.25rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
+}
+@media (min-width: 768px) { .handbook-scope .subsection-heading { font-size: 1.5rem; } }
+
+.handbook-scope .body-text {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.125rem;
+  font-weight: 400;
+  line-height: 1.7;
+  text-align: left;
+  color: hsl(var(--hb-fg));
+}
+@media (min-width: 768px) { .handbook-scope .body-text { font-size: 1.25rem; } }
+
+.handbook-scope .body-text p { margin-bottom: 1.5rem; }
+
+.handbook-scope .body-text-emphasis {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.7;
+  color: hsl(var(--hb-fg));
+}
+@media (min-width: 768px) { .handbook-scope .body-text-emphasis { font-size: 1.25rem; } }
+
+/* Parables ------------------------------------------------------------- */
+.handbook-scope .parable-container {
+  position: relative;
+  padding: 2rem 0 2rem 2rem;
+  margin: 3rem 0;
+  border-left: 2px solid hsl(var(--hb-parable-border));
+  background: linear-gradient(90deg, hsl(var(--hb-parable-bg)) 0%, transparent 100%);
+}
+
+.handbook-scope .parable-label {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  opacity: 0.6;
+  margin-bottom: 1rem;
+}
+
+.handbook-scope .identity-parable-container {
+  position: relative;
+  width: 100%;
+  padding: 2.5rem 2rem;
+  margin: 4rem 0;
+  border-radius: 0.5rem;
+  background: linear-gradient(135deg, hsl(var(--hb-identity-bg)) 0%, hsl(var(--hb-bg)) 100%);
+  border: 1px solid hsl(var(--hb-identity-border) / 0.3);
+  box-shadow:
+    0 4px 20px hsl(var(--hb-identity-border) / 0.1),
+    inset 0 1px 0 hsl(var(--hb-bg) / 0.5);
+}
+
+.handbook-scope .identity-parable-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  padding: 0.375rem 0.75rem;
+  border-radius: 9999px;
+  margin-bottom: 1rem;
+  background: hsl(var(--hb-identity-border) / 0.15);
+  color: hsl(var(--hb-identity-accent));
+  border: 1px solid hsl(var(--hb-identity-border) / 0.3);
+}
+
+/* Media placeholders, dividers, lists --------------------------------- */
+.handbook-scope .media-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 0;
+  margin: 3rem 0;
+  border: 1px dashed hsl(var(--hb-chapter-divider));
+  background-color: hsl(var(--hb-media-placeholder));
+  border-radius: 0.125rem;
+}
+.handbook-scope .media-placeholder-text {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  opacity: 0.5;
+}
+
+.handbook-scope .chapter-divider {
+  width: 4rem;
+  height: 1px;
+  margin: 5rem auto;
+  background-color: hsl(var(--hb-chapter-divider));
+}
+.handbook-scope .part-divider {
+  width: 6rem;
+  height: 1px;
+  margin: 8rem auto;
+  background-color: hsl(var(--hb-fg) / 0.3);
+}
+
+.handbook-scope .list-doctrine {
+  list-style: none;
+  padding-left: 2rem;
+  margin: 2rem 0;
+  text-align: left;
+}
+.handbook-scope .list-doctrine li {
+  position: relative;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.125rem;
+  font-weight: 400;
+  line-height: 1.7;
+  margin-bottom: 0.75rem;
+}
+@media (min-width: 768px) { .handbook-scope .list-doctrine li { font-size: 1.25rem; } }
+.handbook-scope .list-doctrine li::before {
+  content: "—";
+  position: absolute;
+  left: -1.75rem;
+  opacity: 0.5;
+  font-weight: 300;
+}
+
+.handbook-scope .blockquote-doctrine {
+  padding: 1rem 0 1rem 2rem;
+  margin: 2.5rem 0;
+  border-left: 2px solid hsl(var(--hb-fg) / 0.25);
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 1.35rem;
+  line-height: 1.8;
+  font-style: italic;
+}
+
+.handbook-scope .toc-item {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid hsl(var(--hb-chapter-divider));
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.handbook-scope .toc-item:hover {
+  background-color: hsl(var(--hb-accent) / 0.5);
+}
+.handbook-scope .toc-part {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  opacity: 0.6;
+  padding: 2rem 0 1rem;
+}
+
+/* Smooth scrolling for in-page TOC links */
+.handbook-scope { scroll-behavior: smooth; }
