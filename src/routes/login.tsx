@@ -136,7 +136,7 @@ function LoginPage() {
           </div>
 
           <div className="mt-10 text-[10px] uppercase tracking-[0.28em] text-ink/35">
-            An ALP publication
+            $2.5 Billion in Construction
           </div>
         </div>
       </div>
