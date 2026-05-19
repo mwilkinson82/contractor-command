@@ -1,87 +1,124 @@
+## Goal
 
-# Contractor Circle 2.0 — Cutover & Drip Plan
+Replace the Manus/Resend welcome sequence with our own end-to-end purchaser onboarding — owned by us, branded like the portal, and behaviorally smart (don't nag people who already did the thing).
 
-Three answered decisions locked in:
-- **Marketing site** = separate Lovable project (later).
-- **Drip engine** = built in this portal (path a — fully owned).
-- **Member cutover** = magic-link email → "set your password" landing page.
-- **Domain** = portal lives at `app.alpcontractorcircle.com`.
+Four moving parts, sequenced so each one is independently shippable.
 
 ---
 
-## Phase 1 — Domain cutover (do first, ~15 min of your time)
+## Part 1 — Fix the Stripe webhook (blocker)
 
-1. In **Project Settings → Domains**, connect `app.alpcontractorcircle.com`.
-2. Add the A record (`app` → `185.158.133.1`) + TXT verification record at your registrar (wherever `alpcontractorcircle.com` DNS lives now — probably Manus or GoDaddy/Namecheap).
-3. Wait for SSL to provision (usually <1hr, can be up to 72hr).
-4. Update Supabase Auth **Site URL** + **Redirect URLs** to include `https://app.alpcontractorcircle.com/*` so magic links and Google OAuth keep working.
-5. Update the AOS SSO `ALLOWED_RETURN_ORIGINS` (or equivalent) on the AOS side to include the new origin.
+Nothing downstream works until Stripe actually fires events at us. Right now it's still pointed at Manus, which is why Cesar's purchase never hit our handler.
 
-No code change needed — just config.
-
----
-
-## Phase 2 — Member migration from Manus (one-shot)
-
-**Goal:** every existing Manus member gets one email → lands on `/welcome` → sets password → is in.
-
-1. **Export from Manus**: CSV of `email, full_name` for all current members.
-2. **Import script** (admin-only server function): for each row, call `supabase.auth.admin.inviteUserByEmail(email, { data: { full_name, migrated_from: 'manus' }, redirectTo: 'https://app.alpcontractorcircle.com/welcome' })`. Supabase sends a magic invite link; no password needed yet.
-3. **Custom invite email template** (auth email — scaffolded via Lovable Email): "The new Contractor Circle portal is live. Confirm your email and set your password." One CTA button → magic link.
-4. **New `/welcome` route**: after the magic link consumes, user lands here with a session. Form asks: *Set your password*. Calls `supabase.auth.updateUser({ password })`, then redirects to `/`.
-5. **Admin dashboard tile** (small): "Migration status — X of Y members activated" so you can chase stragglers.
-
-Existing signup/login flows stay untouched. New members from the marketing site (later) hit the normal `/signup` route.
+- Code-side, our endpoint is already live: `https://contractor-command.lovable.app/api/public/stripe/webhook` (in `src/routes/api/public/stripe/webhook.ts`). Already wired to `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET`.
+- Action: you add our URL as a **second destination** in Stripe Dashboard → Developers → Webhooks (don't delete Manus's yet — keeps that flow alive while we cut over). Required events: `customer.subscription.created/updated/deleted`, `checkout.session.completed`, `invoice.payment_failed`.
+- Stripe will give you a new signing secret for that destination — paste it into Lovable as `STRIPE_WEBHOOK_SECRET` (overwrites the existing one; ours becomes authoritative).
+- I'll add a `/admin` widget showing the last 10 webhook events received (recipient email, event type, status) so you can verify in real-time the next time someone buys.
+- Once you confirm a live purchase routes correctly, we kill the Manus destination in Stripe.
 
 ---
 
-## Phase 3 — Drip engine (built into this portal)
+## Part 2 — One rich welcome email (replace the bare invite)
 
-Lightweight, fully owned. Reuses the existing Lovable Email infra you already have for transactional sends.
+One email, fires immediately from the Stripe webhook → `subscriptions` upsert path. This is the existing invite call in `webhook.ts` (`invitePaidMemberIfNeeded`), just with a much richer template.
 
-### Data model (one migration)
-- `lead_magnets` — `id, slug, title, file_path, created_at` (the 4 PDFs/resources, stored in Supabase Storage).
-- `drip_sequences` — `id, lead_magnet_id, name, active`.
-- `drip_steps` — `id, sequence_id, step_order, delay_days, email_template_name, subject`.
-- `subscribers` — `id, email, name, source_magnet_id, subscribed_at, unsubscribed_at`.
-- `drip_enrollments` — `id, subscriber_id, sequence_id, current_step, next_send_at, status` (active/completed/unsubscribed).
-- `drip_send_log` — append-only audit (which step sent to who, when).
+Content (ported from the Manus screenshots, restructured in our voice):
+1. **Founding Member eyebrow** + Instrument Serif headline: *"{firstName}, welcome to the Circle."*
+2. **Set your password** pill CTA → opens portal at `/welcome` (one-time invite link, same as today)
+3. **Step 01 — Join the Discord** (with our new invite link)
+4. **Step 02 — Add the bi-weekly call** (Sunday 5 PM ET, Zoom link, Google/Apple/Outlook calendar links)
+5. **Step 03 — Start executing in the portal** (Vault, replays, AOS engine)
+6. **Your membership includes** (paper card with checkmark list)
+7. **Founding Member status** (Price Locked / Limited Spots / You're Shaping What This Becomes)
+8. **Marshall quote** (Instrument Serif italic, signal-orange left rule) — the $2.5B / access / community quote
+9. Sign-off + footer
 
-RLS: all admin-only; subscribers table writes are server-function only.
+Aesthetic: paper card on white, Instrument Serif headlines, JetBrains Mono eyebrows/step numbers, signal orange accents. Same system as the current `invite.tsx`, just expanded into a full sequence of nested paper sections.
 
-### Opt-in flow (lives on the marketing site, calls back to this portal)
-- Public server route `POST /api/public/lead-magnet/subscribe` — accepts `{ email, name, magnet_slug }`, with Zod validation + simple rate limit.
-- Creates/updates `subscribers` row, returns a signed download URL for the PDF, enrolls them in the matching `drip_sequence` with `next_send_at = now() + step1.delay_days`.
-
-### Dispatcher (pg_cron, every 5 min)
-- Calls `POST /api/public/drip/process` (apikey-authed).
-- Pulls `drip_enrollments WHERE next_send_at <= now() AND status='active'`, sends via existing `sendTransactionalEmail` helper using the step's template, advances `current_step`, sets next `next_send_at` or marks `completed`.
-
-### Templates
-- One React Email template per step in `src/lib/email-templates/` (e.g. `drip-magnet1-step1.tsx`). Register in `registry.ts`. Brand-matched (cream/ink, your existing design tokens).
-
-### Admin UI (one new route `/admin/drip`)
-- List sequences, see enrollment counts per step, view send log, manual unsubscribe.
-- Add/edit sequence steps inline (no redeploy needed to change copy — pull template content from DB if we want, or keep code-defined for v1 simplicity).
-
-### Unsubscribe
-- Already handled by the existing Lovable Email unsubscribe footer + `/email/unsubscribe` route. We just check `email_unsubscribe_tokens`/`suppressed_emails` before each drip send (the helper already does this).
+Files: rewrite `src/lib/email-templates/invite.tsx`. Re-render to `/mnt/documents/welcome-invite-email.html` for visual review. No callsite changes needed — same props (`siteName`, `siteUrl`, `confirmationUrl`), plus optional `firstName` extracted from Stripe customer name.
 
 ---
 
-## Execution order (what I'd actually do next, in order)
+## Part 3 — Two conditional nudge emails
 
-1. **You**: tell me to start Phase 1 — I can't add the domain for you, but I'll prep the auth redirect URL updates the moment DNS is wired.
-2. **Me**: build Phase 2 (migration tool + `/welcome` + custom invite email) — this is the unblocker for everything.
-3. **You**: export Manus list, drop it in, I run the import.
-4. **Me**: build Phase 3 (drip engine + admin UI). You give me the 4 lead magnet files + their email copy (or I draft from your existing Manus copy if you export it).
-5. **Marketing site**: separate project, last. The opt-in form there just POSTs to `app.alpcontractorcircle.com/api/public/lead-magnet/subscribe`.
+A pg_cron job runs every 30 minutes, scans recent purchasers, and sends nudges only when warranted. Both nudges use the same paper aesthetic — short, single-purpose, one CTA.
+
+**Nudge A — "Set your password" (login nudge)**
+- **Trigger:** subscription was created ≥ 2 hours ago AND the matching `auth.users` row still has `last_sign_in_at IS NULL` (i.e. they never completed the invite flow).
+- **Copy:** *"Your seat is waiting."* — one sentence, fresh magic-link button, mention it expires in 24h.
+- **One-shot:** flagged on the subscription row so we don't re-nag.
+
+**Nudge B — "Get into the Discord"**
+- **Trigger:** subscription was created ≥ 24 hours ago AND the member is not yet in our Discord guild. This is where Part 4 (our own bot) earns its keep — the bot maintains a `discord_members` table mapping email → discord user ID, so we can answer "did they join?" with a simple join.
+- **Copy:** *"The room is where the magic is."* — short, Discord invite button, one-line preview of who's currently active in `#general-chat`.
+- **One-shot.**
+
+New schema (one migration):
+```
+alter table subscriptions
+  add column welcome_sent_at      timestamptz,
+  add column login_nudge_sent_at  timestamptz,
+  add column discord_nudge_sent_at timestamptz;
+
+create table discord_members (
+  email text primary key,
+  discord_user_id text not null,
+  discord_username text,
+  joined_guild_at timestamptz not null default now()
+);
+```
+
+Cron + dispatcher: TanStack server route at `/api/public/cron/onboarding-nudges` (HMAC-protected with `CRON_SECRET`), scheduled via `pg_cron` every 30 minutes. It picks eligible rows, calls `sendTransactionalEmail` for each, stamps the timestamp.
+
+New templates: `src/lib/email-templates/login-nudge.tsx`, `discord-nudge.tsx`. Registered in `registry.ts`.
 
 ---
 
-## Open questions before I build
+## Part 4 — Our own Discord welcome bot
 
-1. **Domain registrar** — where does `alpcontractorcircle.com` DNS live today? (Need to know if Manus controls it or you do, so the A-record add is clean.)
-2. **Portal name in the invite email** — "Contractor Circle Portal", "Contractor Circle 2.0", or just "Contractor Circle"?
-3. **Drip cadence default** — typical sequence length? (e.g. 5 emails over 14 days, or longer?) I'll set sensible defaults but want to match what's working in Manus now.
-4. **Lead magnet copy** — do you want me to draft fresh drip emails in your voice, or will you export the Manus copy for me to adapt?
+Goal: replace Mattis's bot end-to-end. Two responsibilities:
+1. **Welcome new joiners** — when someone joins the ALP guild, DM them + post a styled welcome embed in `#welcome` pinging them and pointing to the right channels.
+2. **Maintain the `discord_members` table** — so Part 3's Discord nudge knows who's already in.
+
+### Architectural reality check
+
+Discord bots that listen for `GUILD_MEMBER_ADD` events need a **persistent WebSocket connection** to Discord's gateway. Cloudflare Workers (which is what runs our TanStack server) can't hold long-lived sockets — they're request/response only. So the bot can't live inside this codebase.
+
+**Two viable options — I want your call before I build:**
+
+- **Option 4a — Hosted bot (Railway / Fly.io, ~$5/mo):** A tiny Node.js process I write in this repo under `bot/`, deployed separately. It connects to Discord's gateway, handles join events, and POSTs to a webhook on our portal (`/api/public/discord/member-joined`) which writes to `discord_members`. You'd need to give me a Discord bot token (you create one at discord.com/developers, takes 2 minutes — I'll walk you through it) and pick a host. Most flexible, most ALP-controlled, costs a few bucks a month.
+
+- **Option 4b — Discord HTTP Interactions only:** No persistent connection — Discord pings our webhook for slash commands only. We **can't** detect joins this way (Discord doesn't push join events over HTTP). So for the Discord nudge to work, we'd fall back to: assume they haven't joined unless they click a tracked invite link. Less accurate but zero hosting.
+
+If you want the *real* welcome bot experience (auto-DM, auto-welcome embed, accurate join tracking), it's 4a. If you just want "good enough" with no extra infra, it's 4b.
+
+### What the bot writes (Option 4a)
+
+- Welcome embed in `#welcome`: ALP paper aesthetic translated to Discord embed colors, pings the user, lists the 3 channels they should visit.
+- DM to the new member: short, signed "— Marshall & the ALP team", links to the portal and the bi-weekly call.
+- Slash command `/circle whoami` for members to check their membership status.
+
+---
+
+## Recommended build order
+
+1. **Part 1 first** (you add the webhook destination + paste the secret — 5 minutes on your end). Until this is done, none of the rest matters.
+2. **Part 2** — rebuild the welcome email. Ship it. You can resend manually to Cesar to verify.
+3. **Part 3** — schema + nudge templates + cron. Ship it.
+4. **Part 4** — decide 4a vs 4b, then build.
+
+---
+
+## Out of scope (call out)
+
+- Reskinning the other transactional templates (`topic-selected`, `vault-packet`, etc.) — they still use the old Georgia/Arial look. Worth a follow-up pass.
+- An in-app `/admin/emails` preview gallery — still open from earlier. Easy add anytime.
+- Migrating Mattis's existing Discord bot logic. Once ours is live, you remove his bot from the server and we're done.
+
+---
+
+## What I need from you before I start
+
+1. Confirm you'll add our webhook URL to Stripe (Part 1) and what timing works.
+2. Pick **4a** (hosted bot) or **4b** (HTTP only) for the Discord bot.
+3. Confirm the Discord invite URL I should use in emails + the bot.
