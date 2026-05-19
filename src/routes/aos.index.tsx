@@ -8,10 +8,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowUpRight, Compass, Sparkles, Loader2 } from "lucide-react";
+import { ArrowUpRight, Compass, Sparkles, Loader2, Users, Building2 } from "lucide-react";
 import { mintAosSsoToken } from "@/lib/aos.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { useCompany } from "@/hooks/use-company";
+import { useAosLimits } from "@/hooks/use-aos-limits";
 
 export const Route = createFileRoute("/aos/")({
   head: () => ({
@@ -30,6 +31,7 @@ export const Route = createFileRoute("/aos/")({
 function AosGateway() {
   const { user, loading: authLoading } = useAuth();
   const { company } = useCompany();
+  const { limits, loading: limitsLoading, hasAccess, isUnlimited } = useAosLimits();
   const mint = useServerFn(mintAosSsoToken);
 
   const [phase, setPhase] = useState<"idle" | "minting" | "redirecting">("idle");
