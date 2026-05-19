@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { requestPasswordReset } from "@/lib/password-reset.functions";
 import { AuthCard, AuthField, AuthSubmit } from "@/components/auth/auth-card";
 
 export const Route = createFileRoute("/forgot-password")({
@@ -10,6 +11,7 @@ export const Route = createFileRoute("/forgot-password")({
 });
 
 function ForgotPasswordPage() {
+  const reset = useServerFn(requestPasswordReset);
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -19,20 +21,19 @@ function ForgotPasswordPage() {
     e.preventDefault();
     setBusy(true);
     setErr(null);
-    const redirectTo = `${window.location.origin}/reset-password`;
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo,
-    });
-    setBusy(false);
-    if (error) {
-      setErr(error.message);
-      toast.error("Reset email failed", { description: error.message });
-      return;
+    try {
+      await reset({ data: { email: email.trim() } });
+      setSent(true);
+      toast.success("Reset link requested", {
+        description: "If that email has access, the link is on its way.",
+      });
+    } catch (e: any) {
+      const msg = e?.message || "Something went wrong";
+      setErr(msg);
+      toast.error("Reset email failed", { description: msg });
+    } finally {
+      setBusy(false);
     }
-    setSent(true);
-    toast.success("Reset link requested", {
-      description: "If that email has access, the link is on its way.",
-    });
   }
 
   if (sent) {
