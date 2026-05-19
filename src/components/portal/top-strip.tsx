@@ -4,12 +4,15 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getDailyAskUsage } from "@/lib/ask.functions";
 import { useAppSidebar } from "@/components/portal/app-sidebar";
+import { useAuth } from "@/hooks/use-auth";
 
 export function TopStrip() {
   const usageFn = useServerFn(getDailyAskUsage);
+  const { session } = useAuth();
   const { data } = useQuery({
-    queryKey: ["ask-usage"],
+    queryKey: ["ask-usage", session?.user?.id ?? null],
     queryFn: () => usageFn(),
+    enabled: !!session?.access_token,
     refetchOnWindowFocus: true,
     staleTime: 30_000,
   });
@@ -17,6 +20,7 @@ export function TopStrip() {
   const limit = data?.limit ?? 30;
   const low = remaining !== null && remaining <= 5;
   const { collapsed, toggle } = useAppSidebar();
+
 
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-4 border-b border-border/70 bg-background/70 px-6 backdrop-blur-md">
