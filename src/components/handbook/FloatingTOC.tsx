@@ -159,7 +159,7 @@ const FloatingTOC: React.FC = () => {
       </SheetTrigger>
       <SheetContent side="right" className="w-full sm:w-[400px] p-0">
         <SheetHeader className="p-6 pb-0">
-          <SheetTitle className="text-left" style={{ fontFamily: 'Cormorant Garamond, serif' }}>
+          <SheetTitle className="text-left" style={{ fontFamily: 'Instrument Serif, ui-serif, Georgia, serif' }}>
             Navigation
           </SheetTitle>
         </SheetHeader>
@@ -226,7 +226,7 @@ const FloatingTOC: React.FC = () => {
                       className="w-full text-left py-2.5 px-3 hover:bg-accent rounded-md transition-colors flex items-baseline justify-between group"
                       onClick={() => handleNavigate(parable.id)}
                     >
-                      <span className="text-sm leading-tight group-hover:text-foreground italic" style={{ fontFamily: 'Cormorant Garamond, serif' }}>
+                      <span className="text-sm leading-tight group-hover:text-foreground italic" style={{ fontFamily: 'Instrument Serif, ui-serif, Georgia, serif' }}>
                         {parable.title}
                       </span>
                       <span className="text-xs opacity-40" style={{ fontFamily: 'Inter, sans-serif' }}>
@@ -247,7 +247,7 @@ const FloatingTOC: React.FC = () => {
                       className="w-full text-left py-2.5 px-3 hover:bg-identity-parable-bg/50 rounded-md transition-colors flex items-baseline justify-between group border-l-2 border-brand-accent mb-1"
                       onClick={() => handleNavigate(parable.id)}
                     >
-                      <span className="text-sm leading-tight group-hover:text-foreground italic" style={{ fontFamily: 'Cormorant Garamond, serif' }}>
+                      <span className="text-sm leading-tight group-hover:text-foreground italic" style={{ fontFamily: 'Instrument Serif, ui-serif, Georgia, serif' }}>
                         {parable.title}
                       </span>
                       <span className="text-xs opacity-40" style={{ fontFamily: 'Inter, sans-serif' }}>
