@@ -411,9 +411,8 @@ function PulseBoard({
           ].map((c) => (
             <a
               key={c.label}
-              href={AOS_URL}
-              target="_blank"
-              rel="noreferrer"
+              href="/aos"
+
               className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/70 px-3 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
             >
               {c.icon} {c.label}
