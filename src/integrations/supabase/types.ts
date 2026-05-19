@@ -632,6 +632,14 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      get_user_aos_limits: {
+        Args: { _user_id: string }
+        Returns: {
+          seat_limit: number
+          tier: Database["public"]["Enums"]["app_tier"]
+          workspace_limit: number
+        }[]
+      }
       get_user_tier: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_tier"]
@@ -675,7 +683,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "member"
-      app_tier: "book_buyer" | "intensive" | "circle"
+      app_tier: "aos_only" | "book_buyer" | "intensive" | "circle"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -804,7 +812,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "member"],
-      app_tier: ["book_buyer", "intensive", "circle"],
+      app_tier: ["aos_only", "book_buyer", "intensive", "circle"],
     },
   },
 } as const

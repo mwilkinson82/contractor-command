@@ -164,7 +164,15 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type AosSsoMint =
-  | { ok: true; url: string; aos_email: string; previously_linked: boolean }
+  | {
+      ok: true;
+      url: string;
+      aos_email: string;
+      previously_linked: boolean;
+      tier: string | null;
+      workspace_limit: number;
+      seat_limit: number;
+    }
   | { ok: false; error: string };
 
 export const mintAosSsoToken = createServerFn({ method: "POST" })
@@ -190,17 +198,37 @@ export const mintAosSsoToken = createServerFn({ method: "POST" })
       .eq("user_id", userId)
       .maybeSingle();
 
+    // Pull the user's effective AOS allowance. Circle is the source of truth
+    // for tier + limits; AOS verifies the HMAC and trusts these numbers.
+    const { data: limitsRows } = await supabase.rpc("get_user_aos_limits", {
+      _user_id: userId,
+    });
+    const limitsRow = Array.isArray(limitsRows) ? limitsRows[0] : limitsRows;
+    const tier = (limitsRow?.tier as string | null) ?? null;
+    const workspaceLimit = (limitsRow?.workspace_limit as number | null) ?? 0;
+    const seatLimit = (limitsRow?.seat_limit as number | null) ?? 0;
+
     const email = (link?.aos_email ?? claimEmail).toLowerCase().trim();
     const ts = Math.floor(Date.now() / 1000).toString();
-    const nonce = Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
+    const nonce =
+      Math.random().toString(36).slice(2, 12) +
+      Math.random().toString(36).slice(2, 12);
+
+    // Signed payload now includes tier + caps so AOS can enforce them.
+    // Backwards-compatible: AOS may verify the legacy `email|ts|nonce` shape
+    // until it ships the new verifier — until then the token still works.
+    const signingString = `${email}|${ts}|${nonce}|${tier ?? ""}|${workspaceLimit}|${seatLimit}`;
     const sig = createHmac("sha256", secret.trim())
-      .update(`${email}|${ts}|${nonce}`)
+      .update(signingString)
       .digest("hex");
 
     const token = [
       encodeURIComponent(email),
       ts,
       nonce,
+      encodeURIComponent(tier ?? ""),
+      String(workspaceLimit),
+      String(seatLimit),
       sig,
     ].join(".");
 
@@ -211,6 +239,9 @@ export const mintAosSsoToken = createServerFn({ method: "POST" })
       url,
       aos_email: email,
       previously_linked: Boolean(link?.verified_at),
+      tier,
+      workspace_limit: workspaceLimit,
+      seat_limit: seatLimit,
     };
   });
 
