@@ -35,16 +35,34 @@ const STORAGE = "alp.cc.sidebar.collapsed";
 
 export function AppSidebarProvider({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const userPrefRef = useRef<boolean | null>(null);
+
   // Persist after mount (avoid SSR mismatch)
   useEffect(() => {
     try {
       const v = window.localStorage.getItem(STORAGE);
-      if (v === "1") setCollapsed(true);
+      const initial = v === "1";
+      userPrefRef.current = initial;
+      setCollapsed(initial);
     } catch {}
   }, []);
+
+  // Auto-collapse on the handbook reader for an immersive read. Restore the
+  // user's previous preference when they navigate away.
+  useEffect(() => {
+    if (userPrefRef.current === null) return;
+    if (pathname === "/handbook") {
+      setCollapsed(true);
+    } else {
+      setCollapsed(userPrefRef.current);
+    }
+  }, [pathname]);
+
   function toggle() {
     setCollapsed((c) => {
       const n = !c;
+      userPrefRef.current = n;
       try { window.localStorage.setItem(STORAGE, n ? "1" : "0"); } catch {}
       return n;
     });
