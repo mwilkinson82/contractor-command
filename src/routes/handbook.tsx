@@ -89,32 +89,25 @@ function HandbookPage() {
         <Chapter32 />
 
         {/* Part III — The Business Systems */}
-        <PartHeader number="III" title="The Business Systems" />
+        <PartHeader number="III" title="The Business Systems" eyebrow="Reorganized in V2" />
         <Chapter4 />
         <Chapter5 />
         <Chapter6 />
         <Chapter7 />
-        <Chapter11 />
         <Chapter10 />
 
         {/* Part IV — Time, Money, and Commercial Control */}
-        <PartHeader number="IV" title="Time, Money, and Commercial Control" />
+        <PartHeader number="IV" title="Time, Money, and Commercial Control" eyebrow="Reorganized in V2" />
         <Chapter12 />
         <Chapter13 />
-        <Chapter20 />
         <Chapter14 />
-        <Chapter15 />
-        <Chapter18 />
         <Chapter8 />
-        <Chapter17 />
         <Chapter19 />
         <Chapter16 />
-        <Chapter21 />
         <Chapter9 />
-        <Chapter22 />
 
         {/* Part V — Identity, Leadership, and Scale */}
-        <PartHeader number="V" title="Identity, Leadership, and Scale" />
+        <PartHeader number="V" title="Identity, Leadership, and Scale" eyebrow="Reorganized in V2" />
         <Chapter23 />
         <Chapter26 />
         <Chapter25 />
