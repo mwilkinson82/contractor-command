@@ -14,17 +14,22 @@ import {
   Text,
 } from '@react-email/components'
 
+import { nextOfKind } from '../program'
+
 interface InviteEmailProps {
   siteName: string
   siteUrl: string
   confirmationUrl: string
   firstName?: string
   discordUrl?: string
+  /** Optional overrides; defaults pulled from `src/lib/program.ts` so the
+   *  email and the in-app Calls page can never drift apart. */
   zoomUrl?: string
+  zoomId?: string
+  zoomPasscode?: string
 }
 
 const DEFAULT_DISCORD = 'https://discord.gg/alpcontractorcircle'
-const DEFAULT_ZOOM = 'https://us06web.zoom.us/j/0000000000'
 
 export const InviteEmail = ({
   siteName,
@@ -32,10 +37,20 @@ export const InviteEmail = ({
   confirmationUrl,
   firstName,
   discordUrl = DEFAULT_DISCORD,
-  zoomUrl = DEFAULT_ZOOM,
+  zoomUrl,
+  zoomId,
+  zoomPasscode,
 }: InviteEmailProps) => {
   const name = firstName?.trim()
-  const headline = name ? `${name}, welcome to the Circle.` : 'Welcome to the Circle.'
+  // Single source of truth for the call info: the live program.
+  const upcoming = nextOfKind('Biweekly Call')
+  const zUrl = zoomUrl ?? upcoming?.zoomUrl ?? ''
+  const zId = zoomId ?? upcoming?.zoomId ?? ''
+  const zPass = zoomPasscode ?? upcoming?.passcode ?? ''
+
+  // Hero headline — login-style serif with a hard break.
+  const headlineTop = name ? `${name},` : 'Welcome'
+  const headlineBottom = name ? 'welcome inside.' : 'inside.'
 
   return (
     <Html lang="en" dir="ltr">
@@ -67,23 +82,29 @@ export const InviteEmail = ({
       <Preview>
         Your seat at the Contractor Circle is live. Set your password, then come inside.
       </Preview>
+
+      {/* One paper. End to end. */}
       <Body style={main}>
         <Container style={container}>
-          {/* Top accent rule */}
+          {/* Orange hairline */}
           <div style={topRule} />
 
-          {/* HERO CARD */}
-          <Section style={card}>
-            <Text style={eyebrow}>FOUNDING MEMBER · ALP CONTRACTOR CIRCLE</Text>
-            <Heading style={h1}>{headline}</Heading>
+          {/* HERO */}
+          <Section style={hero}>
+            <Text style={eyebrow}>ALP · CONTRACTOR CIRCLE — FOUNDING MEMBER</Text>
+            <Heading style={h1}>
+              {headlineTop}
+              <br />
+              {headlineBottom}
+            </Heading>
             <Text style={lede}>
               You just made a decision that will change the trajectory of your business.
-              Here's everything you need to get started — and your first step is one click
-              away.
+              What's below isn't a checklist — it's everything the room actually is, and
+              the one click that opens the door.
             </Text>
 
             <Section style={ctaWrap}>
-              <Button style={button} href={confirmationUrl}>
+              <Button style={primaryButton} href={confirmationUrl}>
                 Set your password
               </Button>
               <Text style={ctaNote}>
@@ -96,145 +117,109 @@ export const InviteEmail = ({
             </Section>
           </Section>
 
-          {/* STEP 01 */}
-          <Section style={stepCard}>
-            <Text style={stepNumber}>STEP 01</Text>
-            <Heading as="h2" style={stepTitle}>
-              Join the Discord.
-            </Heading>
-            <Text style={stepBody}>
-              This is where the room actually lives between calls. Head to{' '}
-              <strong>#welcome</strong>, read the pin, and you'll get access to{' '}
-              <strong>#general-chat</strong> and the private{' '}
-              <strong>#circle-chat</strong> thread.
-            </Text>
-            <Text style={stepBody}>Drop a one-liner so the room knows who just walked in:</Text>
-            <Text style={stepBullet}>
-              · <strong>Who you are</strong> and what your company does
-            </Text>
-            <Text style={stepBullet}>
-              · <strong>Where you're at</strong> in the business right now
-            </Text>
-            <Text style={stepBullet}>
-              · <strong>What you came here for</strong>
-            </Text>
-            <Section style={stepCtaWrap}>
-              <Button style={secondaryButton} href={discordUrl}>
-                Open the Discord
-              </Button>
-            </Section>
-          </Section>
+          <Hr style={hairline} />
 
-          {/* STEP 02 */}
-          <Section style={stepCard}>
-            <Text style={stepNumber}>STEP 02</Text>
-            <Heading as="h2" style={stepTitle}>
-              Put the bi-weekly call on your calendar.
-            </Heading>
-            <Text style={stepBody}>
-              Every other <strong>Sunday at 5:00 PM ET</strong> — group call with Marshall.
-              Bring deals, questions, hiring problems, contract questions. Come ready to
-              sit in the chair.
+          {/* WHAT YOU ACTUALLY GET — three justified columns of prose */}
+          <Section style={block}>
+            <Text style={sectionLabel}>WHAT YOU ACTUALLY GET</Text>
+
+            {/* Column 1 — The room */}
+            <Text style={colHead}>The room.</Text>
+            <Text style={colBody}>
+              Bi-weekly Sundays, <strong>5:00 PM ET</strong>, with Marshall. Members
+              bring one specific business issue; we work two or three of them live.
+              Monthly deal reviews and monthly bootcamps on top of that. Bring deals,
+              hiring problems, contract questions — come ready to sit in the chair.
             </Text>
-            <Text style={stepBody}>
-              Zoom:{' '}
-              <Link href={zoomUrl} style={inlineLink}>
-                {zoomUrl.replace(/^https?:\/\//, '')}
+            {zUrl && (
+              <Text style={colMeta}>
+                Zoom &middot;{' '}
+                <Link href={zUrl} style={inlineLink}>
+                  {zUrl.replace(/^https?:\/\//, '').split('?')[0]}
+                </Link>
+                {zId ? <> &nbsp;·&nbsp; ID {zId}</> : null}
+                {zPass ? <> &nbsp;·&nbsp; Passcode {zPass}</> : null}
+              </Text>
+            )}
+
+            <div style={miniRule} />
+
+            {/* Column 2 — The Discord */}
+            <Text style={colHead}>The Discord.</Text>
+            <Text style={colBody}>
+              Where the room actually lives between calls. Head to{' '}
+              <strong>#welcome</strong>, read the pin, then drop a one-liner so the
+              room knows who just walked in — who you are and what your company does,
+              where you're at in the business, and what you came here for.
+            </Text>
+            <Text style={colMeta}>
+              <Link href={discordUrl} style={inlineLink}>
+                {discordUrl.replace(/^https?:\/\//, '')}
+              </Link>
+            </Text>
+
+            <div style={miniRule} />
+
+            {/* Column 3 — The Engine */}
+            <Text style={colHead}>The Engine.</Text>
+            <Text style={colBody}>
+              The portal is your operating system, not a dashboard.{' '}
+              <strong>Ask Marshall</strong> is your private thinking partner, trained
+              on the whole system — paste a deal, a contract clause, a hiring problem
+              and get Marshall's read. The <strong>Vault</strong> holds contracts,
+              SOPs, scorecards. The <strong>Replay library</strong> covers every past
+              session. And the <strong>AOS Command Tools</strong> — Contract
+              Readiness, Margin Leak, Estimate Throughput, SOP Priority, Owner
+              Dependency, Growth Constraint — run the analysis a consultant would
+              charge five figures for, in under five minutes.
+            </Text>
+            <Text style={colMeta}>
+              <Link href={`${siteUrl}/tools`} style={inlineLink}>
+                Open the portal
               </Link>
             </Text>
           </Section>
 
-          {/* STEP 03 */}
-          <Section style={stepCard}>
-            <Text style={stepNumber}>STEP 03</Text>
-            <Heading as="h2" style={stepTitle}>
-              Open the Engine.
-            </Heading>
-            <Text style={stepBody}>
-              The portal is your operating system: the <strong>Vault</strong> (contracts,
-              SOPs, scorecards), the full <strong>replay library</strong>, and the{' '}
-              <strong>AOS Engine</strong> — AI tools trained on the operating system. Run a
-              contract scan, draft an SOP, or build a hiring scorecard in under five minutes.
-            </Text>
-            <Section style={stepCtaWrap}>
-              <Button style={secondaryButton} href={`${siteUrl}/tools`}>
-                Open the portal
-              </Button>
-            </Section>
-          </Section>
+          <Hr style={hairline} />
 
-          {/* MEMBERSHIP INCLUDES */}
-          <Section style={includesCard}>
-            <Text style={includesLabel}>YOUR MEMBERSHIP INCLUDES</Text>
-            <Text style={includeRow}>
-              <span style={checkmark}>✓</span> Bi-weekly Sunday group calls with Marshall
-            </Text>
-            <Text style={includeRow}>
-              <span style={checkmark}>✓</span> Monthly deal reviews
-            </Text>
-            <Text style={includeRow}>
-              <span style={checkmark}>✓</span> Monthly bootcamp sessions
-            </Text>
-            <Text style={includeRow}>
-              <span style={checkmark}>✓</span> Complete Vault — contracts, SOPs, scorecards
-            </Text>
-            <Text style={includeRow}>
-              <span style={checkmark}>✓</span> AOS Engine — AI tools trained on the system
-            </Text>
-            <Text style={includeRow}>
-              <span style={checkmark}>✓</span> Private Discord community
-            </Text>
-            <Text style={includeRow}>
-              <span style={checkmark}>✓</span> Full replay library of past sessions
-            </Text>
-          </Section>
-
-          {/* FOUNDING STATUS */}
-          <Section style={card}>
-            <Text style={sectionLabel}>WHAT FOUNDING MEMBER ACTUALLY MEANS</Text>
-
-            <Heading as="h3" style={statusTitle}>
-              Price locked. Forever.
-            </Heading>
-            <Text style={text}>
-              You're grandfathered in at the founding rate. As the community grows and the
-              price moves, your rate stays exactly where it is — for as long as your
-              membership stays active.
-            </Text>
-
-            <Heading as="h3" style={statusTitle}>
-              Limited spots. You got one.
-            </Heading>
-            <Text style={text}>
-              Founding membership is capped. We're not filling seats — we're building a
-              room of serious contractors who execute. You earned your spot.
-            </Text>
-
-            <Heading as="h3" style={statusTitle}>
-              You're shaping what this becomes.
-            </Heading>
-            <Text style={text}>
-              As a founding member, your feedback, your deals, your wins and your stuck
-              points directly influence how the Circle evolves. This is your community as
-              much as it is ours.
-            </Text>
-          </Section>
-
-          {/* MARSHALL QUOTE */}
-          <Section style={quoteCard}>
-            <Text style={quoteLabel}>FROM MARSHALL</Text>
+          {/* MARSHALL PULL-QUOTE — no card, just a left rule and the type */}
+          <Section style={quoteBlock}>
             <Text style={quoteBody}>
-              "I've done over $2.5 billion in construction. I've seen what separates the
-              contractors who scale from the ones who stay stuck. It's not talent. It's
-              access — to the right information, the right room, and someone who's been
-              in the trenches. That's what the Circle is. I'm glad you're in it."
+              "I've done over $2.5 billion in construction. I've seen what separates
+              the contractors who scale from the ones who stay stuck. It's not
+              talent. It's access — to the right information, the right room, and
+              someone who's been in the trenches. That's what the Circle is."
             </Text>
             <Text style={quoteAttribution}>— Marshall Wilkinson, Founder of ALP</Text>
           </Section>
 
+          <Hr style={hairline} />
+
+          {/* WHAT FOUNDING MEAN — three tight one-liners, justified prose */}
+          <Section style={block}>
+            <Text style={sectionLabel}>WHAT FOUNDING MEMBER MEANS</Text>
+            <Text style={foundingLine}>
+              <strong>Price locked. Forever.</strong> You're grandfathered in at the
+              founding rate for as long as your membership stays active — the price
+              moves, yours doesn't.
+            </Text>
+            <Text style={foundingLine}>
+              <strong>Seats capped.</strong> Founding membership is limited. We're
+              not filling seats, we're building a room of serious contractors who
+              execute. You earned yours.
+            </Text>
+            <Text style={foundingLine}>
+              <strong>You shape what this becomes.</strong> Your feedback, your
+              deals, your wins and your stuck points directly influence how the
+              Circle evolves. This is your community as much as ours.
+            </Text>
+          </Section>
+
+          <Hr style={hairline} />
+
           {/* FINAL CTA */}
-          <Section style={finalCtaWrap}>
-            <Button style={button} href={confirmationUrl}>
+          <Section style={finalCta}>
+            <Button style={primaryButton} href={confirmationUrl}>
               Set your password
             </Button>
             <Text style={ctaNote}>
@@ -246,17 +231,15 @@ export const InviteEmail = ({
             </Text>
           </Section>
 
-          <Hr style={rule} />
-
           <Text style={signoff}>
-            See you inside,
-            <br />
-            <strong>Marshall &amp; the ALP team</strong>
+            — Marshall &amp; the ALP team
           </Text>
 
+          <Text style={footerMicro}>$2.5 BILLION IN CONSTRUCTION</Text>
+
           <Text style={footer}>
-            You're getting this because your membership at {siteName} is active. If you
-            weren't expecting it, reply to this email and we'll sort it out.
+            You're getting this because your membership at {siteName} is active. If
+            you weren't expecting it, reply and we'll sort it out.
           </Text>
         </Container>
       </Body>
@@ -277,84 +260,77 @@ const INK = '#1A1918'
 const INK_SOFT = '#3a3937'
 const MUTED = '#8E8B82'
 const PAPER = '#F4F3EF'
-const PAPER_DEEP = '#EDEAE2'
-const HAIRLINE = '#E2DED6'
+const HAIRLINE = '#D9D4C8'
 const SIGNAL = '#E4573D'
 
 const main = {
-  backgroundColor: '#ffffff',
+  backgroundColor: PAPER,
   fontFamily: sansFamily,
   margin: 0,
-  padding: '32px 0',
+  padding: '0',
 }
 const container = {
   maxWidth: '600px',
   margin: '0 auto',
-  padding: '0 16px',
+  padding: '40px 32px 48px',
+  backgroundColor: PAPER,
 }
 const topRule = {
   height: '2px',
   background: SIGNAL,
-  width: '100%',
-  marginBottom: '24px',
+  width: '40px',
+  marginBottom: '32px',
 }
-const card = {
-  backgroundColor: PAPER,
-  border: `1px solid ${HAIRLINE}`,
-  borderRadius: '20px',
-  padding: '40px 36px',
-  marginBottom: '16px',
+const hairline = {
+  borderColor: HAIRLINE,
+  borderTop: `1px solid ${HAIRLINE}`,
+  margin: '40px 0',
 }
+const miniRule = {
+  height: '1px',
+  background: HAIRLINE,
+  width: '32px',
+  margin: '22px 0',
+}
+
+const hero = { margin: '0 0 8px' }
 const eyebrow = {
-  fontSize: '11px',
-  letterSpacing: '0.22em',
+  fontSize: '10.5px',
+  letterSpacing: '0.28em',
   color: MUTED,
-  margin: '0 0 18px',
+  margin: '0 0 22px',
   fontFamily: monoFamily,
+  textTransform: 'uppercase' as const,
 }
 const h1 = {
-  fontSize: '40px',
+  fontSize: '54px',
   fontWeight: 400,
   color: INK,
-  lineHeight: 1.05,
-  margin: '0 0 18px',
+  lineHeight: 0.98,
+  margin: '0 0 22px',
   fontFamily: serifFamily,
-  letterSpacing: '-0.01em',
+  letterSpacing: '-0.02em',
 }
 const lede = {
-  fontSize: '16px',
+  fontSize: '15.5px',
   color: INK_SOFT,
-  lineHeight: 1.55,
+  lineHeight: 1.6,
   margin: '0 0 28px',
   fontFamily: sansFamily,
 }
-const ctaWrap = { margin: '4px 0 8px' }
-const button = {
+const ctaWrap = { margin: '0' }
+const primaryButton = {
   backgroundColor: INK,
-  color: PAPER,
-  fontSize: '13px',
-  letterSpacing: '0.22em',
-  textTransform: 'uppercase' as const,
-  borderRadius: '999px',
-  padding: '16px 28px',
-  textDecoration: 'none',
-  display: 'inline-block',
-  fontWeight: 500,
-  fontFamily: monoFamily,
-}
-const secondaryButton = {
-  backgroundColor: 'transparent',
-  color: INK,
+  color: '#F4F0E8',
   fontSize: '12px',
-  letterSpacing: '0.22em',
+  letterSpacing: '0.24em',
   textTransform: 'uppercase' as const,
   borderRadius: '999px',
-  padding: '12px 22px',
+  padding: '15px 28px',
   textDecoration: 'none',
   display: 'inline-block',
   fontWeight: 500,
   fontFamily: monoFamily,
-  border: `1px solid ${INK}`,
 }
 const ctaNote = {
   fontSize: '12px',
@@ -364,162 +340,98 @@ const ctaNote = {
   fontFamily: sansFamily,
 }
 const inlineLink = { color: SIGNAL, textDecoration: 'underline' }
-const rule = {
-  borderColor: HAIRLINE,
-  borderTop: `1px solid ${HAIRLINE}`,
-  margin: '32px 0 24px',
-}
 
-/* step cards (nested paper) */
-const stepCard = {
-  backgroundColor: PAPER_DEEP,
-  border: `1px solid ${HAIRLINE}`,
-  borderRadius: '16px',
-  padding: '32px 30px',
-  marginBottom: '16px',
-}
-const stepNumber = {
-  fontSize: '11px',
-  letterSpacing: '0.28em',
-  color: SIGNAL,
-  margin: '0 0 10px',
-  fontFamily: monoFamily,
-  fontWeight: 600,
-}
-const stepTitle = {
-  fontSize: '26px',
-  fontWeight: 400,
-  color: INK,
-  lineHeight: 1.15,
-  margin: '0 0 14px',
-  fontFamily: serifFamily,
-  letterSpacing: '-0.01em',
-}
-const stepBody = {
-  fontSize: '15px',
-  color: INK_SOFT,
-  lineHeight: 1.6,
-  margin: '0 0 12px',
-  fontFamily: sansFamily,
-}
-const stepBullet = {
-  fontSize: '14px',
-  color: INK,
-  lineHeight: 1.6,
-  margin: '0 0 6px',
-  fontFamily: sansFamily,
-}
-const stepCtaWrap = { margin: '18px 0 0' }
-
-/* membership-includes */
-const includesCard = {
-  backgroundColor: PAPER,
-  border: `1px solid ${HAIRLINE}`,
-  borderRadius: '16px',
-  padding: '28px 30px',
-  marginBottom: '16px',
-}
-const includesLabel = {
-  fontSize: '11px',
-  letterSpacing: '0.22em',
-  color: SIGNAL,
-  margin: '0 0 16px',
-  fontFamily: monoFamily,
-  fontWeight: 600,
-}
-const includeRow = {
-  fontSize: '14px',
-  color: INK,
-  lineHeight: 1.6,
-  margin: '0 0 8px',
-  fontFamily: sansFamily,
-}
-const checkmark = {
-  color: SIGNAL,
-  fontWeight: 600,
-  marginRight: '8px',
-}
-
-/* status block */
+const block = { margin: '0' }
 const sectionLabel = {
-  fontSize: '11px',
-  letterSpacing: '0.22em',
-  color: MUTED,
-  margin: '0 0 18px',
-  fontFamily: monoFamily,
-}
-const statusTitle = {
-  fontSize: '20px',
-  fontWeight: 400,
-  color: INK,
-  margin: '20px 0 8px',
-  fontFamily: serifFamily,
-  letterSpacing: '-0.01em',
-  lineHeight: 1.2,
-}
-const text = {
-  fontSize: '14px',
-  color: INK_SOFT,
-  lineHeight: 1.6,
-  margin: '0 0 4px',
-  fontFamily: sansFamily,
-}
-
-/* quote */
-const quoteCard = {
-  backgroundColor: PAPER,
-  borderLeft: `3px solid ${SIGNAL}`,
-  borderTop: `1px solid ${HAIRLINE}`,
-  borderRight: `1px solid ${HAIRLINE}`,
-  borderBottom: `1px solid ${HAIRLINE}`,
-  borderRadius: '4px 16px 16px 4px',
-  padding: '28px 30px',
-  marginBottom: '16px',
-}
-const quoteLabel = {
-  fontSize: '10px',
+  fontSize: '10.5px',
   letterSpacing: '0.28em',
-  color: MUTED,
-  margin: '0 0 14px',
+  color: SIGNAL,
+  margin: '0 0 24px',
   fontFamily: monoFamily,
   fontWeight: 600,
+  textTransform: 'uppercase' as const,
+}
+const colHead = {
+  fontSize: '24px',
+  fontWeight: 400,
+  color: INK,
+  margin: '0 0 10px',
+  fontFamily: serifFamily,
+  letterSpacing: '-0.01em',
+  lineHeight: 1.15,
+}
+const colBody = {
+  fontSize: '14.5px',
+  color: INK_SOFT,
+  lineHeight: 1.65,
+  margin: '0 0 10px',
+  fontFamily: sansFamily,
+  textAlign: 'justify' as const,
+}
+const colMeta = {
+  fontSize: '11.5px',
+  color: MUTED,
+  letterSpacing: '0.04em',
+  margin: '6px 0 0',
+  fontFamily: monoFamily,
+  lineHeight: 1.55,
+}
+
+const quoteBlock = {
+  borderLeft: `2px solid ${SIGNAL}`,
+  paddingLeft: '20px',
+  margin: '0',
 }
 const quoteBody = {
-  fontSize: '17px',
+  fontSize: '20px',
   color: INK,
-  lineHeight: 1.5,
-  margin: '0 0 16px',
+  lineHeight: 1.45,
+  margin: '0 0 14px',
   fontFamily: serifFamily,
   fontStyle: 'italic' as const,
+  letterSpacing: '-0.005em',
 }
 const quoteAttribution = {
-  fontSize: '12px',
-  letterSpacing: '0.12em',
-  color: SIGNAL,
+  fontSize: '10.5px',
+  letterSpacing: '0.24em',
+  color: MUTED,
   margin: 0,
   fontFamily: monoFamily,
   fontWeight: 600,
   textTransform: 'uppercase' as const,
 }
 
-/* final CTA */
-const finalCtaWrap = {
-  textAlign: 'center' as const,
-  margin: '24px 0 0',
+const foundingLine = {
+  fontSize: '14.5px',
+  color: INK_SOFT,
+  lineHeight: 1.65,
+  margin: '0 0 14px',
+  fontFamily: sansFamily,
+  textAlign: 'justify' as const,
 }
 
+const finalCta = { margin: '0' }
+
 const signoff = {
-  fontSize: '15px',
+  fontSize: '14px',
   color: INK,
   lineHeight: 1.6,
-  margin: '20px 4px 24px',
-  fontFamily: sansFamily,
+  margin: '36px 0 28px',
+  fontFamily: serifFamily,
+  fontStyle: 'italic' as const,
+}
+const footerMicro = {
+  fontSize: '10px',
+  letterSpacing: '0.32em',
+  color: MUTED,
+  margin: '0 0 18px',
+  fontFamily: monoFamily,
+  textTransform: 'uppercase' as const,
 }
 const footer = {
   fontSize: '11px',
   color: MUTED,
   lineHeight: 1.55,
-  margin: '20px 4px 0',
-  textAlign: 'center' as const,
+  margin: '0',
   fontFamily: sansFamily,
 }
