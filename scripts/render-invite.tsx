@@ -9,7 +9,7 @@ const html = await render(React.createElement(InviteEmail, {
   confirmationUrl: 'https://app.alpcontractorcircle.com/welcome?token=preview',
   firstName: 'Cesar',
   discordUrl: 'https://discord.gg/alpcontractorcircle',
-  zoomUrl: 'https://us06web.zoom.us/j/0000000000',
+  // zoom values intentionally omitted — pulled from src/lib/program.ts
 }))
 fs.writeFileSync('/mnt/documents/welcome-invite-email.html', html)
 console.log('written', html.length, 'bytes')
