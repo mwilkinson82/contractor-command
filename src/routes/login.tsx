@@ -44,7 +44,7 @@ function LoginPage() {
     <div className="relative grid min-h-screen w-full grid-cols-1 bg-paper-edge/60 p-6 text-ink font-sans selection:bg-ink selection:text-cream md:grid-cols-2 lg:p-10">
       {/* Tiny corner mark — Apple-style */}
       <Link to="/" className="absolute left-6 top-6 z-10 inline-flex items-center lg:left-10 lg:top-10" aria-label="Contractor Circle">
-        <img src={ccMark} alt="" className="h-20 w-20 object-contain" />
+        <img src={ccMark} alt="" className="h-28 w-28 object-contain" />
       </Link>
 
       {/* Left: centered sign-in card */}
@@ -112,7 +112,7 @@ function LoginPage() {
           <p className="font-display text-[44px] leading-[1.05] tracking-normal text-ink lg:text-[52px] [text-shadow:0_1px_1px_rgba(0,0,0,0.06),0_2px_8px_rgba(0,0,0,0.08)]">
             Build the company<br />behind the projects.
           </p>
-          <p className="mt-6 text-[12px] leading-relaxed text-ink/55">
+          <p className="mt-6 font-display text-[20px] leading-relaxed text-ink/35">
             $2.5 billion in construction.
           </p>
         </div>
@@ -158,7 +158,7 @@ function Field({
         placeholder={placeholder}
         required={required}
         autoFocus={autoFocus}
-        className="mt-3 w-full border-b border-ink/20 bg-transparent pb-3 text-[15px] outline-none transition-colors placeholder:text-ink/25 focus:border-ink"
+        className="mt-3 w-full rounded-xl border border-ink/10 bg-paper-edge/60 px-4 py-3 text-[15px] outline-none transition-colors placeholder:text-ink/25 focus:border-ink/40 focus:bg-paper-edge/80"
       />
     </div>
   );
