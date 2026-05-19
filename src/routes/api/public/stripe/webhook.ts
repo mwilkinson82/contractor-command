@@ -7,6 +7,29 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 //   https://contractor-command.lovable.app/api/public/stripe/webhook
 // Required events: customer.subscription.created, customer.subscription.updated,
 // customer.subscription.deleted, checkout.session.completed, invoice.payment_failed.
+//
+// Tier mapping (set these env vars to enable):
+//   STRIPE_PRICE_ID_BOOK       → 'book_buyer'   (alphandbook.com, $47 one-time)
+//   STRIPE_PRICE_ID_INTENSIVE  → 'intensive'    ($5,000 one-time)
+//   STRIPE_PRICE_ID_CIRCLE     → 'circle'       (recurring subscription)
+// Anything else recurring defaults to 'circle' (preserves legacy behavior).
+
+type Tier = "book_buyer" | "intensive" | "circle";
+
+function tierForPrice(priceId: string | null, metaProduct?: string | null): Tier {
+  // Explicit metadata wins (set by our own checkout sessions).
+  if (metaProduct === "book_v2" || metaProduct === "book") return "book_buyer";
+  if (metaProduct === "intensive") return "intensive";
+  if (metaProduct === "circle") return "circle";
+
+  if (priceId && priceId === process.env.STRIPE_PRICE_ID_BOOK) return "book_buyer";
+  if (priceId && priceId === process.env.STRIPE_PRICE_ID_INTENSIVE) return "intensive";
+  return "circle";
+}
+
+function productLabelForTier(tier: Tier): string {
+  return tier === "book_buyer" ? "book_v2" : tier;
+}
 
 export const Route = createFileRoute("/api/public/stripe/webhook")({
   server: {
@@ -49,11 +72,15 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
                   typeof session.subscription === "string" ? session.subscription : session.subscription.id
                 );
                 await upsertSubscription(stripe, sub);
+              } else {
+                // One-time purchase (book, intensive). No subscription object;
+                // we synthesize a row keyed on the session id so the tier
+                // resolver and claim flow still work.
+                await upsertOneTimePurchase(stripe, session);
               }
               break;
             }
             default:
-              // Ignore unhandled event types
               break;
           }
         } catch (err) {
@@ -71,7 +98,6 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
 });
 
 async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
-  // Resolve customer email
   let email: string | null = null;
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   try {
@@ -93,16 +119,14 @@ async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
   const productId = (sub.items.data[0]?.price?.product as string | null) ?? null;
   const cpe = (sub as any).current_period_end as number | undefined;
   const currentPeriodEnd = cpe ? new Date(cpe * 1000).toISOString() : null;
+  const metadata = (sub.metadata ?? {}) as Record<string, string>;
+  const tier = tierForPrice(priceId, metadata.product);
 
-
-  // Try to match an existing user by email
   const { data: profile } = await supabaseAdmin
     .from("profiles")
     .select("id")
     .ilike("email", normalizedEmail)
     .maybeSingle();
-
-  const metadata = (sub.metadata ?? {}) as any;
 
   const row = {
     user_id: profile?.id ?? null,
@@ -114,7 +138,8 @@ async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
     status: sub.status,
     cancel_at_period_end: sub.cancel_at_period_end ?? false,
     current_period_end: currentPeriodEnd,
-    metadata,
+    metadata: { ...metadata, product: productLabelForTier(tier) },
+    tier,
     updated_at: new Date().toISOString(),
   };
 
@@ -136,7 +161,7 @@ async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
         price_id: priceId,
         status: sub.status,
         current_period_end: currentPeriodEnd,
-        metadata,
+        metadata: { ...metadata, product: productLabelForTier(tier) },
       },
       { onConflict: "stripe_subscription_id" }
     );
@@ -144,6 +169,94 @@ async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
     if (sub.status === "active" || sub.status === "trialing") {
       await invitePaidMemberIfNeeded(normalizedEmail);
     }
+  }
+}
+
+// One-time purchase path (book, intensive). Mirrors upsertSubscription so the
+// tier/claim resolver works the same way for recurring and one-time products.
+async function upsertOneTimePurchase(stripe: Stripe, session: Stripe.Checkout.Session) {
+  let email: string | null = session.customer_details?.email ?? session.customer_email ?? null;
+  const customerId = typeof session.customer === "string"
+    ? session.customer
+    : session.customer?.id ?? null;
+  if (!email && customerId) {
+    try {
+      const customer = await stripe.customers.retrieve(customerId);
+      if (!("deleted" in customer) || !customer.deleted) {
+        email = (customer as Stripe.Customer).email ?? null;
+      }
+    } catch (err) {
+      console.error("Failed to retrieve Stripe customer for one-time purchase", { customerId, err });
+    }
+  }
+  if (!email) {
+    console.error("One-time purchase has no resolvable email", { sessionId: session.id });
+    return;
+  }
+
+  const normalizedEmail = email.toLowerCase();
+  const metadata = (session.metadata ?? {}) as Record<string, string>;
+
+  // Resolve price from line items.
+  let priceId: string | null = null;
+  let productId: string | null = null;
+  try {
+    const lines = await stripe.checkout.sessions.listLineItems(session.id, { limit: 1, expand: ["data.price.product"] });
+    const price = lines.data[0]?.price;
+    priceId = price?.id ?? null;
+    productId = (price?.product as Stripe.Product | string | null) instanceof Object
+      ? ((price?.product as Stripe.Product).id ?? null)
+      : ((price?.product as string | null) ?? null);
+  } catch (err) {
+    console.warn("Could not list line items for one-time purchase", { sessionId: session.id, err });
+  }
+
+  const tier = tierForPrice(priceId, metadata.product);
+
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .ilike("email", normalizedEmail)
+    .maybeSingle();
+
+  const syntheticSubId = `cs_${session.id}`; // unique per checkout session
+  const row = {
+    user_id: profile?.id ?? null,
+    email: normalizedEmail,
+    stripe_customer_id: customerId,
+    stripe_subscription_id: syntheticSubId,
+    price_id: priceId,
+    product_id: productId,
+    status: "active",
+    cancel_at_period_end: false,
+    current_period_end: null,
+    metadata: { ...metadata, product: productLabelForTier(tier), checkout_session_id: session.id },
+    tier,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabaseAdmin
+    .from("subscriptions")
+    .upsert(row, { onConflict: "stripe_subscription_id" });
+  if (error) {
+    console.error("Failed to upsert one-time purchase", error);
+    return;
+  }
+
+  if (!profile?.id) {
+    await supabaseAdmin.from("pending_claims").upsert(
+      {
+        email: normalizedEmail,
+        stripe_customer_id: customerId,
+        stripe_subscription_id: syntheticSubId,
+        price_id: priceId,
+        status: "active",
+        current_period_end: null,
+        metadata: { ...metadata, product: productLabelForTier(tier), checkout_session_id: session.id },
+      },
+      { onConflict: "stripe_subscription_id" }
+    );
+    await invitePaidMemberIfNeeded(normalizedEmail);
   }
 }
 
@@ -167,4 +280,3 @@ async function invitePaidMemberIfNeeded(email: string) {
   });
   if (error) console.error("Failed to send paid member invite", { email, error });
 }
-
