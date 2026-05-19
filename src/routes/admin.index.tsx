@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getAdminMetrics, type AdminMetrics } from "@/lib/admin.functions";
 import {
   listAdminUsers,
+  sendMemberAccessLink,
   setUserComped,
   type AdminUserRow,
 } from "@/lib/admin-users.functions";
@@ -25,6 +26,7 @@ import {
   Search,
   Gift,
   CreditCard,
+  Mail,
   Shield,
 } from "lucide-react";
 
