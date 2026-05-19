@@ -428,7 +428,17 @@ function formatUSD(cents: number): string {
 
 /* ----------------- members directory ----------------- */
 
-type FilterKey = "all" | "paid" | "comped" | "active" | "canceled" | "founding";
+type FilterKey =
+  | "all"
+  | "paid"
+  | "comped"
+  | "active"
+  | "canceled"
+  | "founding"
+  | "never_signed_in"
+  | "not_activated"
+  | "no_account";
+
 
 function MembersDirectory({ online }: { online: PresenceUser[] }) {
   const fetchUsers = useServerFn(listAdminUsers);
@@ -471,6 +481,9 @@ function MembersDirectory({ online }: { online: PresenceUser[] }) {
       if (filter === "active" && sub?.status !== "active") return false;
       if (filter === "canceled" && sub?.status !== "canceled") return false;
       if (filter === "founding" && !sub?.isFounding) return false;
+      if (filter === "never_signed_in" && (!u.hasAuthAccount || u.lastSignInAt)) return false;
+      if (filter === "not_activated" && (!u.hasAuthAccount || u.emailConfirmedAt)) return false;
+      if (filter === "no_account" && u.hasAuthAccount) return false;
       if (!q) return true;
       return (
         u.email.toLowerCase().includes(q) ||
@@ -478,6 +491,7 @@ function MembersDirectory({ online }: { online: PresenceUser[] }) {
       );
     });
   }, [users, query, filter]);
+
 
   return (
     <section className="mt-8">
@@ -500,12 +514,14 @@ function MembersDirectory({ online }: { online: PresenceUser[] }) {
       </div>
 
       <div className="mt-3 overflow-hidden rounded-2xl border border-border bg-card">
-        <div className="grid grid-cols-[1.6fr_1fr_0.9fr_0.9fr] gap-3 border-b border-border bg-muted/40 px-4 py-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+        <div className="grid grid-cols-[1.6fr_1.1fr_0.9fr_0.9fr_0.9fr] gap-3 border-b border-border bg-muted/40 px-4 py-2 text-[10px] uppercase tracking-wider text-muted-foreground">
           <span>Member</span>
+          <span>Activity</span>
           <span>Subscription</span>
           <span>Status</span>
           <span className="text-right">Comped</span>
         </div>
+
         {isLoading ? (
           <p className="px-4 py-6 text-[12px] text-muted-foreground">Loading members…</p>
         ) : filtered.length === 0 ? (
@@ -519,7 +535,7 @@ function MembersDirectory({ online }: { online: PresenceUser[] }) {
               return (
                 <li
                   key={u.id + (sub?.id ?? "")}
-                  className="grid grid-cols-[1.6fr_1fr_0.9fr_0.9fr] items-center gap-3 px-4 py-3 text-[13px]"
+                  className="grid grid-cols-[1.6fr_1.1fr_0.9fr_0.9fr_0.9fr] items-center gap-3 px-4 py-3 text-[13px]"
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -546,6 +562,14 @@ function MembersDirectory({ online }: { online: PresenceUser[] }) {
                     <p className="truncate text-[11px] text-muted-foreground">{u.email}</p>
                   </div>
 
+                  <div className="text-[11px]">
+                    <ActivityCell
+                      hasAuthAccount={u.hasAuthAccount}
+                      emailConfirmedAt={u.emailConfirmedAt}
+                      lastSignInAt={u.lastSignInAt}
+                    />
+                  </div>
+
                   <div className="text-[12px]">
                     {sub ? (
                       sub.isComped ? (
@@ -565,6 +589,7 @@ function MembersDirectory({ online }: { online: PresenceUser[] }) {
                   <div className="text-[12px]">
                     <StatusPill status={sub?.status ?? null} cancelAtEnd={sub?.cancelAtPeriodEnd} />
                   </div>
+
 
                   <div className="flex justify-end">
                     <button
@@ -614,7 +639,11 @@ function FilterPills({
     { key: "active", label: "Active" },
     { key: "canceled", label: "Canceled" },
     { key: "founding", label: "Founding" },
+    { key: "never_signed_in", label: "Never signed in" },
+    { key: "not_activated", label: "Not activated" },
+    { key: "no_account", label: "No account" },
   ];
+
   return (
     <div className="inline-flex rounded-full border border-border bg-background p-0.5">
       {opts.map((o) => {
@@ -665,3 +694,75 @@ function StatusPill({
     </span>
   );
 }
+
+function ActivityCell({
+  hasAuthAccount,
+  emailConfirmedAt,
+  lastSignInAt,
+}: {
+  hasAuthAccount: boolean;
+  emailConfirmedAt: string | null;
+  lastSignInAt: string | null;
+}) {
+  if (!hasAuthAccount) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-destructive">
+        No account
+      </span>
+    );
+  }
+  if (!emailConfirmedAt && !lastSignInAt) {
+    return (
+      <div>
+        <span className="inline-flex items-center gap-1 rounded-full bg-gold/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-gold">
+          Invited · not activated
+        </span>
+        <p className="mt-0.5 text-[10px] text-muted-foreground">No password set</p>
+      </div>
+    );
+  }
+  if (!lastSignInAt) {
+    return (
+      <div>
+        <span className="inline-flex items-center gap-1 rounded-full bg-foreground/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider">
+          Never signed in
+        </span>
+        {emailConfirmedAt && (
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
+            Email confirmed {formatShortDate(emailConfirmedAt)}
+          </p>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div>
+      <span className="inline-flex items-center gap-1 rounded-full bg-signal/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-signal">
+        Active
+      </span>
+      <p className="mt-0.5 text-[10px] text-muted-foreground">
+        Last sign-in {formatRelative(lastSignInAt)}
+      </p>
+    </div>
+  );
+}
+
+function formatShortDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function formatRelative(iso: string): string {
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const diffMs = now - then;
+  const min = Math.floor(diffMs / 60_000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 30) return `${day}d ago`;
+  return formatShortDate(iso);
+}
+
