@@ -195,7 +195,9 @@ function AosGateway() {
             <button
               type="button"
               onClick={handleEnter}
-              disabled={authLoading || !user || phase !== "idle"}
+              disabled={
+                authLoading || !user || phase !== "idle" || (!limitsLoading && !hasAccess)
+              }
               className="group relative inline-flex w-fit items-center gap-3 rounded-md bg-gold px-7 py-4 text-[15px] font-medium text-ink shadow-[0_0_0_0_var(--gold)] transition-all duration-300 hover:shadow-[0_0_40px_-4px_var(--gold)] disabled:opacity-60"
             >
               {phase === "redirecting" ? (
@@ -217,7 +219,46 @@ function AosGateway() {
               )}
             </button>
 
-            {reassurance && (
+            {/* Allowance pill — shows the user what their plan grants in AOS. */}
+            {limits && hasAccess && (
+              <div className="flex flex-wrap items-center gap-3 text-[12px] text-cream/70">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-cream/15 bg-cream/[0.04] px-3 py-1">
+                  <Building2 className="h-3 w-3 text-gold" />
+                  {isUnlimited
+                    ? "Unlimited workspaces"
+                    : `${limits.workspaceLimit} workspace${limits.workspaceLimit === 1 ? "" : "s"}`}
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-cream/15 bg-cream/[0.04] px-3 py-1">
+                  <Users className="h-3 w-3 text-gold" />
+                  {isUnlimited
+                    ? "Unlimited seats"
+                    : `${limits.seatLimit} seat${limits.seatLimit === 1 ? "" : "s"}`}
+                </span>
+                {!isUnlimited && (
+                  <Link
+                    to="/upgrade"
+                    className="text-cream/55 underline-offset-4 hover:text-cream/85 hover:underline"
+                  >
+                    Need more? Upgrade →
+                  </Link>
+                )}
+              </div>
+            )}
+
+            {/* No access — user has no active subscription that grants AOS. */}
+            {!limitsLoading && !hasAccess && user && (
+              <p className="max-w-md text-[13px] text-cream/70">
+                Your plan doesn't include AOS access yet.{" "}
+                <Link
+                  to="/upgrade"
+                  className="text-gold underline-offset-4 hover:underline"
+                >
+                  See your options →
+                </Link>
+              </p>
+            )}
+
+            {reassurance && hasAccess && (
               <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-cream/55">
                 {reassurance}
               </p>
