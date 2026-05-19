@@ -26,7 +26,24 @@ export const InviteEmail = ({
   confirmationUrl,
 }: InviteEmailProps) => (
   <Html lang="en" dir="ltr">
-    <Head />
+    <Head>
+      <style>{`
+        @font-face {
+          font-family: 'Instrument Serif';
+          font-style: normal;
+          font-weight: 400;
+          font-display: swap;
+          src: url(https://fonts.gstatic.com/s/instrumentserif/v5/jizBRFtNs2ka5fXjeivQ4LroWlx-2zI.ttf) format('truetype');
+        }
+        @font-face {
+          font-family: 'JetBrains Mono';
+          font-style: normal;
+          font-weight: 500;
+          font-display: swap;
+          src: url(https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbY2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8-qxjPQ.ttf) format('truetype');
+        }
+      `}</style>
+    </Head>
     <Preview>Your Contractor Circle portal is ready — set your password to step inside.</Preview>
     <Body style={main}>
       <Container style={container}>
@@ -137,11 +154,14 @@ const h1 = {
   fontFamily: '"Instrument Serif", Georgia, "Times New Roman", serif',
   letterSpacing: '-0.01em',
 }
+const sansFamily =
+  '"Helvetica Neue", Helvetica, Arial, "Liberation Sans", sans-serif'
 const lede = {
   fontSize: '16px',
   color: '#3a3937',
   lineHeight: 1.55,
   margin: '0 0 28px',
+  fontFamily: sansFamily,
 }
 const ctaWrap = { margin: '4px 0 8px' }
 const button = {
@@ -181,24 +201,28 @@ const bullet = {
   color: '#1A1918',
   lineHeight: 1.6,
   margin: '0 0 12px',
+  fontFamily: sansFamily,
 }
 const smallHeading = {
   fontSize: '15px',
   fontWeight: 600,
   color: '#1A1918',
   margin: '0 0 10px',
+  fontFamily: sansFamily,
 }
 const text = {
   fontSize: '14px',
   color: '#3a3937',
   lineHeight: 1.6,
   margin: '0 0 24px',
+  fontFamily: sansFamily,
 }
 const signoff = {
   fontSize: '14px',
   color: '#1A1918',
   lineHeight: 1.6,
   margin: '24px 0 0',
+  fontFamily: sansFamily,
 }
 const footer = {
   fontSize: '11px',
@@ -206,4 +230,5 @@ const footer = {
   lineHeight: 1.55,
   margin: '20px 4px 0',
   textAlign: 'center' as const,
+  fontFamily: sansFamily,
 }
