@@ -1,6 +1,8 @@
 import { createFileRoute, Link, redirect, useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import ccMark from "@/assets/cc-mark.png";
+
 
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Sign in — ALP Contractor Circle" }] }),
@@ -39,31 +41,24 @@ function LoginPage() {
   }
 
   return (
-    <div className="grid min-h-screen w-full grid-cols-1 bg-paper-edge/60 p-6 text-ink font-sans selection:bg-ink selection:text-cream md:grid-cols-2 lg:p-10">
+    <div className="relative grid min-h-screen w-full grid-cols-1 bg-paper-edge/60 p-6 text-ink font-sans selection:bg-ink selection:text-cream md:grid-cols-2 lg:p-10">
+      {/* Tiny corner mark — Apple-style */}
+      <Link to="/" className="absolute left-6 top-6 z-10 inline-flex items-center lg:left-10 lg:top-10" aria-label="Contractor Circle">
+        <img src={ccMark} alt="" className="h-5 w-5 object-contain" />
+      </Link>
+
       {/* Left: centered sign-in card */}
       <div className="flex items-center justify-center">
         <div className="w-full max-w-[460px] rounded-3xl border border-ink/10 bg-cream shadow-elegant">
-          <header className="px-10 pt-10">
-            <Link to="/" className="inline-flex items-center gap-3">
-              <span className="grid h-7 w-7 place-items-center">
-                <svg viewBox="0 0 40 40" className="h-full w-full text-ink" fill="none" aria-hidden>
-                  <circle cx="20" cy="20" r="18" stroke="currentColor" strokeWidth="1.25" />
-                  <circle cx="20" cy="20" r="6" fill="currentColor" />
-                </svg>
-              </span>
-              <span className="text-[11px] uppercase tracking-[0.22em]">Contractor Circle</span>
-            </Link>
-          </header>
-
-          <div className="px-10 py-10">
+          <div className="px-10 pt-14 pb-10 text-center">
             <h1 className="font-display text-[64px] leading-[0.95]">
               Sign in.
             </h1>
-            <p className="mt-5 max-w-[300px] text-[13px] leading-relaxed text-ink/55">
+            <p className="mx-auto mt-5 max-w-[300px] text-[13px] leading-relaxed text-ink/55">
               Your private operating system. Enter to continue.
             </p>
 
-            <form onSubmit={onSubmit} className="mt-10 space-y-8">
+            <form onSubmit={onSubmit} className="mt-10 space-y-8 text-left">
               <Field
                 id="email"
                 label="Email"
@@ -95,25 +90,21 @@ function LoginPage() {
               <button
                 type="submit"
                 disabled={busy}
-                className="group mt-4 flex w-full items-center justify-between border-b border-ink py-4 text-left transition-opacity disabled:opacity-50"
+                className="mt-4 inline-flex w-full items-center justify-center rounded-full bg-ink px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-cream transition-opacity hover:opacity-90 disabled:opacity-50"
               >
-                <span className="text-[13px] uppercase tracking-[0.22em]">
-                  {busy ? "Entering" : "Enter"}
-                </span>
-                <svg width="22" height="14" viewBox="0 0 22 14" fill="none" className="transition-transform group-hover:translate-x-1.5" aria-hidden>
-                  <path d="M1 7h20m-6-6 6 6-6 6" stroke="currentColor" strokeWidth="1" strokeLinecap="square" />
-                </svg>
+                {busy ? "Entering" : "Enter"}
               </button>
             </form>
           </div>
 
-          <footer className="px-10 pb-10">
+          <footer className="px-10 pb-10 text-center">
             <p className="text-[10px] uppercase tracking-[0.22em] text-ink/35">
-              ALP &nbsp;·&nbsp; Private Operating System
+              Contractor Circle
             </p>
           </footer>
         </div>
       </div>
+
 
       {/* Right: open background with editorial tagline */}
       <div className="relative hidden flex-col justify-between md:flex">
