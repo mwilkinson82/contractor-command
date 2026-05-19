@@ -9,20 +9,14 @@ export interface TemplateEntry {
   to?: string
 }
 
-/**
- * Template registry — maps template names to their React Email components.
- * Import and register new templates here after creating them in this directory.
- *
- * Example:
- *   import { template as welcomeTemplate } from './welcome'
- *   // then add to TEMPLATES: 'welcome': welcomeTemplate
- */
 import { template as sopDocumentTemplate } from './sop-document'
 import { template as topicSubmittedTemplate } from './topic-submitted'
 import { template as topicSelectedTemplate } from './topic-selected'
 import { template as vaultPacketTemplate } from './vault-packet'
 import { template as memberAnnouncementTemplate } from './member-announcement'
 import { template as adminActivityNoticeTemplate } from './admin-activity-notice'
+import { template as loginNudgeTemplate } from './login-nudge'
+import { template as discordNudgeTemplate } from './discord-nudge'
 
 export const TEMPLATES: Record<string, TemplateEntry> = {
   'sop-document': sopDocumentTemplate,
@@ -31,4 +25,6 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
   'vault-packet': vaultPacketTemplate,
   'member-announcement': memberAnnouncementTemplate,
   'admin-activity-notice': adminActivityNoticeTemplate,
+  'login-nudge': loginNudgeTemplate,
+  'discord-nudge': discordNudgeTemplate,
 }
