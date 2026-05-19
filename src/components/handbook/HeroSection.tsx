@@ -2,10 +2,10 @@ import React from 'react';
 import bulldozer from '@/assets/handbook/bulldozer-hero.png';
 import Eyebrow from '@/components/editorial/Eyebrow';
 
-type Jump = { id: string; chapter?: string; title: string };
+type Jump = { id: string; chapter?: string; title: string; featured?: boolean };
 
 const newInV2: Jump[] = [
-  { id: 'volume-2-intro', title: 'Why the Operating System' },
+  { id: 'volume-2-intro', chapter: 'Start', title: 'Why the Operating System', featured: true },
   { id: 'chapter-27', chapter: '4', title: 'A Contracting Company Cannot Run on the Owner' },
   { id: 'chapter-28', chapter: '5', title: 'Hierarchy Is Not Accountability' },
   { id: 'chapter-29', chapter: '6', title: 'The Six Components of a Contracting Operating System' },
@@ -36,18 +36,39 @@ const scrollTo = (id: string) => {
 const JumpButton: React.FC<{ item: Jump }> = ({ item }) => (
   <button
     onClick={() => scrollTo(item.id)}
-    className="group text-left w-full p-4 border border-[hsl(var(--hb-border))] hover:border-[hsl(var(--hb-brand-accent))] bg-transparent hover:bg-[hsl(var(--hb-accent))] transition-colors rounded-sm"
+    className={
+      item.featured
+        ? "group text-left w-full p-4 border-2 border-[hsl(var(--hb-brand-accent))] bg-[hsl(var(--hb-brand-accent)/0.08)] hover:bg-[hsl(var(--hb-brand-accent)/0.14)] transition-colors rounded-sm relative"
+        : "group text-left w-full p-4 border border-[hsl(var(--hb-border))] hover:border-[hsl(var(--hb-brand-accent))] bg-transparent hover:bg-[hsl(var(--hb-accent))] transition-colors rounded-sm"
+    }
   >
     <div className="flex items-baseline gap-3">
       {item.chapter && (
-        <span className="font-mono text-[10px] uppercase tracking-[0.25em] opacity-50 shrink-0 w-6">
+        <span
+          className={
+            item.featured
+              ? "font-mono text-[10px] uppercase tracking-[0.25em] text-[hsl(var(--hb-brand-accent))] shrink-0 w-12"
+              : "font-mono text-[10px] uppercase tracking-[0.25em] opacity-50 shrink-0 w-12"
+          }
+        >
           {item.chapter}
         </span>
       )}
-      <span className="font-serif text-base md:text-lg leading-snug group-hover:text-[hsl(var(--hb-brand-accent))] transition-colors">
+      <span
+        className={
+          item.featured
+            ? "font-serif text-base md:text-lg leading-snug text-[hsl(var(--hb-brand-accent))]"
+            : "font-serif text-base md:text-lg leading-snug group-hover:text-[hsl(var(--hb-brand-accent))] transition-colors"
+        }
+      >
         {item.title}
       </span>
     </div>
+    {item.featured && (
+      <span className="absolute top-2 right-3 font-mono text-[9px] uppercase tracking-[0.25em] text-[hsl(var(--hb-brand-accent))] opacity-80">
+        Start here
+      </span>
+    )}
   </button>
 );
 
