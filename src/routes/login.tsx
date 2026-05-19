@@ -2,6 +2,7 @@ import { createFileRoute, Link, redirect, useNavigate, useRouter } from "@tansta
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import ccMark from "@/assets/cc-mark.png";
+import bulldozer from "@/assets/bulldozer.png";
 
 
 export const Route = createFileRoute("/login")({
