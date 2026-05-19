@@ -47,8 +47,8 @@ function LoginPage() {
         <div className="w-full max-w-[440px]">
           <div className="rounded-[28px] bg-cream shadow-[0_30px_80px_-40px_rgba(20,16,12,0.35),0_2px_0_rgba(20,16,12,0.04)] ring-1 ring-ink/[0.06]">
             <div className="px-10 pt-10 pb-9">
-              <Link to="/" className="inline-flex items-center gap-2.5" aria-label="Contractor Circle">
-                <img src={ccMark} alt="" className="h-7 w-7 object-contain" />
+              <Link to="/" className="inline-flex items-center gap-3" aria-label="Contractor Circle">
+                <img src={ccMark} alt="" className="h-12 w-12 object-contain" />
                 <span className="text-[10px] uppercase tracking-[0.28em] text-ink/45">
                   ALP &middot; Contractor Circle
                 </span>
@@ -136,7 +136,7 @@ function LoginPage() {
           </div>
 
           <div className="mt-10 text-[10px] uppercase tracking-[0.28em] text-ink/35">
-            An ALP publication
+            $2.5 Billion in Construction
           </div>
         </div>
       </div>
