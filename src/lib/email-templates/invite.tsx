@@ -4,6 +4,7 @@ import {
   Body,
   Button,
   Container,
+  Font,
   Head,
   Heading,
   Hr,
@@ -26,7 +27,28 @@ export const InviteEmail = ({
   confirmationUrl,
 }: InviteEmailProps) => (
   <Html lang="en" dir="ltr">
-    <Head />
+    <Head>
+      <Font
+        fontFamily="Instrument Serif"
+        fallbackFontFamily="Georgia"
+        webFont={{
+          url: 'https://fonts.gstatic.com/s/instrumentserif/v4/jizDREVItHgc8qDIbSTKq4XIRRD-_pH5cTpoP7nzc7Q.woff2',
+          format: 'woff2',
+        }}
+        fontWeight={400}
+        fontStyle="normal"
+      />
+      <Font
+        fontFamily="JetBrains Mono"
+        fallbackFontFamily="monospace"
+        webFont={{
+          url: 'https://fonts.gstatic.com/s/jetbrainsmono/v18/tDbY2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKxjPVmUsaaDhw.woff2',
+          format: 'woff2',
+        }}
+        fontWeight={500}
+        fontStyle="normal"
+      />
+    </Head>
     <Preview>Your Contractor Circle portal is ready — set your password to step inside.</Preview>
     <Body style={main}>
       <Container style={container}>
