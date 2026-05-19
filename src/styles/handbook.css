@@ -38,13 +38,13 @@
 .handbook-scope h4,
 .handbook-scope h5,
 .handbook-scope h6 {
-  font-family: "Cormorant Garamond", Georgia, serif;
+  font-family: "Instrument Serif", ui-serif, Georgia, serif;
   color: hsl(var(--hb-fg));
 }
 
 /* Typography ----------------------------------------------------------- */
 .handbook-scope .handbook-title {
-  font-family: "Cormorant Garamond", Georgia, serif;
+  font-family: "Instrument Serif", ui-serif, Georgia, serif;
   font-size: 3rem;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -54,7 +54,7 @@
 @media (min-width: 1024px) { .handbook-scope .handbook-title { font-size: 6rem; } }
 
 .handbook-scope .handbook-subtitle {
-  font-family: "Space Grotesk", sans-serif;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-size: 1.125rem;
   font-weight: 300;
   text-transform: uppercase;
@@ -62,7 +62,7 @@
 }
 
 .handbook-scope .chapter-heading {
-  font-family: "Cormorant Garamond", Georgia, serif;
+  font-family: "Instrument Serif", ui-serif, Georgia, serif;
   font-size: 2.25rem;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -73,7 +73,7 @@
 @media (min-width: 1024px) { .handbook-scope .chapter-heading { font-size: 3.75rem; } }
 
 .handbook-scope .section-heading {
-  font-family: "Cormorant Garamond", Georgia, serif;
+  font-family: "Instrument Serif", ui-serif, Georgia, serif;
   font-size: 1.5rem;
   font-weight: 500;
   letter-spacing: -0.01em;
@@ -82,7 +82,7 @@
 @media (min-width: 768px) { .handbook-scope .section-heading { font-size: 1.875rem; } }
 
 .handbook-scope .subsection-heading {
-  font-family: "Cormorant Garamond", Georgia, serif;
+  font-family: "Instrument Serif", ui-serif, Georgia, serif;
   font-size: 1.25rem;
   font-weight: 500;
   margin-bottom: 1rem;
@@ -90,7 +90,7 @@
 @media (min-width: 768px) { .handbook-scope .subsection-heading { font-size: 1.5rem; } }
 
 .handbook-scope .body-text {
-  font-family: "Space Grotesk", sans-serif;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-size: 1.125rem;
   font-weight: 400;
   line-height: 1.7;
@@ -102,7 +102,7 @@
 .handbook-scope .body-text p { margin-bottom: 1.5rem; }
 
 .handbook-scope .body-text-emphasis {
-  font-family: "Space Grotesk", sans-serif;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-size: 1.125rem;
   font-weight: 600;
   line-height: 1.7;
@@ -120,7 +120,7 @@
 }
 
 .handbook-scope .parable-label {
-  font-family: "Space Grotesk", sans-serif;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-size: 0.875rem;
   text-transform: uppercase;
   letter-spacing: 0.25em;
@@ -145,7 +145,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  font-family: "Space Grotesk", sans-serif;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.2em;
@@ -169,7 +169,7 @@
   border-radius: 0.125rem;
 }
 .handbook-scope .media-placeholder-text {
-  font-family: "Space Grotesk", sans-serif;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-size: 0.875rem;
   text-transform: uppercase;
   letter-spacing: 0.15em;
@@ -197,7 +197,7 @@
 }
 .handbook-scope .list-doctrine li {
   position: relative;
-  font-family: "Space Grotesk", sans-serif;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-size: 1.125rem;
   font-weight: 400;
   line-height: 1.7;
@@ -216,7 +216,7 @@
   padding: 1rem 0 1rem 2rem;
   margin: 2.5rem 0;
   border-left: 2px solid hsl(var(--hb-fg) / 0.25);
-  font-family: "Cormorant Garamond", Georgia, serif;
+  font-family: "Instrument Serif", ui-serif, Georgia, serif;
   font-size: 1.35rem;
   line-height: 1.8;
   font-style: italic;
@@ -232,7 +232,7 @@
   background-color: hsl(var(--hb-accent) / 0.5);
 }
 .handbook-scope .toc-part {
-  font-family: "Space Grotesk", sans-serif;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-size: 0.875rem;
   text-transform: uppercase;
   letter-spacing: 0.2em;
