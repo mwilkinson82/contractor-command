@@ -535,7 +535,7 @@ function MembersDirectory({ online }: { online: PresenceUser[] }) {
               return (
                 <li
                   key={u.id + (sub?.id ?? "")}
-                  className="grid grid-cols-[1.6fr_1fr_0.9fr_0.9fr] items-center gap-3 px-4 py-3 text-[13px]"
+                  className="grid grid-cols-[1.6fr_1.1fr_0.9fr_0.9fr_0.9fr] items-center gap-3 px-4 py-3 text-[13px]"
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -562,6 +562,14 @@ function MembersDirectory({ online }: { online: PresenceUser[] }) {
                     <p className="truncate text-[11px] text-muted-foreground">{u.email}</p>
                   </div>
 
+                  <div className="text-[11px]">
+                    <ActivityCell
+                      hasAuthAccount={u.hasAuthAccount}
+                      emailConfirmedAt={u.emailConfirmedAt}
+                      lastSignInAt={u.lastSignInAt}
+                    />
+                  </div>
+
                   <div className="text-[12px]">
                     {sub ? (
                       sub.isComped ? (
@@ -581,6 +589,7 @@ function MembersDirectory({ online }: { online: PresenceUser[] }) {
                   <div className="text-[12px]">
                     <StatusPill status={sub?.status ?? null} cancelAtEnd={sub?.cancelAtPeriodEnd} />
                   </div>
+
 
                   <div className="flex justify-end">
                     <button
