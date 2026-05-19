@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as WorkWithMarshallRouteImport } from './routes/work-with-marshall'
 import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as VaultRouteImport } from './routes/vault'
+import { Route as UpgradeRouteImport } from './routes/upgrade'
 import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as SignupRouteImport } from './routes/signup'
@@ -65,6 +66,11 @@ const WelcomeRoute = WelcomeRouteImport.update({
 const VaultRoute = VaultRouteImport.update({
   id: '/vault',
   path: '/vault',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UpgradeRoute = UpgradeRouteImport.update({
+  id: '/upgrade',
+  path: '/upgrade',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ToolsRoute = ToolsRouteImport.update({
@@ -281,6 +287,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
+  '/upgrade': typeof UpgradeRoute
   '/vault': typeof VaultRoute
   '/welcome': typeof WelcomeRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
@@ -325,6 +332,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
+  '/upgrade': typeof UpgradeRoute
   '/vault': typeof VaultRoute
   '/welcome': typeof WelcomeRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
@@ -370,6 +378,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
+  '/upgrade': typeof UpgradeRoute
   '/vault': typeof VaultRoute
   '/welcome': typeof WelcomeRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
@@ -416,6 +425,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/templates'
     | '/tools'
+    | '/upgrade'
     | '/vault'
     | '/welcome'
     | '/work-with-marshall'
@@ -460,6 +470,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/templates'
     | '/tools'
+    | '/upgrade'
     | '/vault'
     | '/welcome'
     | '/work-with-marshall'
@@ -504,6 +515,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/templates'
     | '/tools'
+    | '/upgrade'
     | '/vault'
     | '/welcome'
     | '/work-with-marshall'
@@ -549,6 +561,7 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   TemplatesRoute: typeof TemplatesRoute
   ToolsRoute: typeof ToolsRouteWithChildren
+  UpgradeRoute: typeof UpgradeRoute
   VaultRoute: typeof VaultRoute
   WelcomeRoute: typeof WelcomeRoute
   WorkWithMarshallRoute: typeof WorkWithMarshallRoute
@@ -598,6 +611,13 @@ declare module '@tanstack/react-router' {
       path: '/vault'
       fullPath: '/vault'
       preLoaderRoute: typeof VaultRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/upgrade': {
+      id: '/upgrade'
+      path: '/upgrade'
+      fullPath: '/upgrade'
+      preLoaderRoute: typeof UpgradeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tools': {
@@ -903,6 +923,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   TemplatesRoute: TemplatesRoute,
   ToolsRoute: ToolsRouteWithChildren,
+  UpgradeRoute: UpgradeRoute,
   VaultRoute: VaultRoute,
   WelcomeRoute: WelcomeRoute,
   WorkWithMarshallRoute: WorkWithMarshallRoute,
@@ -933,13 +954,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

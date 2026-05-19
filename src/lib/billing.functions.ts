@@ -108,6 +108,40 @@ export const createBillingPortalSession = createServerFn({ method: "POST" })
     return { url: portal.url };
   });
 
+export const createCircleCheckout = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({}).parse)
+  .handler(async ({ context }): Promise<{ url: string }> => {
+    const stripe = getStripe();
+    const priceId = process.env.STRIPE_PRICE_ID_CIRCLE;
+    if (!priceId) {
+      throw new Error(
+        "Circle pricing isn't configured yet. Reach out to support and we'll get you in.",
+      );
+    }
+    const { userId, supabase } = context;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("email")
+      .eq("id", userId)
+      .maybeSingle();
+
+    const origin = originFromRequest();
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer_email: profile?.email ?? undefined,
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: `${origin}/?circle=welcome`,
+      cancel_url: `${origin}/upgrade?circle=cancelled`,
+      metadata: { user_id: userId, kind: "circle", product: "circle" },
+      subscription_data: {
+        metadata: { user_id: userId, kind: "circle", product: "circle" },
+      },
+    });
+    if (!session.url) throw new Error("Stripe returned no checkout URL.");
+    return { url: session.url };
+  });
+
 export const submitBillingQuestion = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(

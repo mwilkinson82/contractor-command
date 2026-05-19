@@ -11,7 +11,7 @@ import {
   Archive,
   Sparkles,
   User,
-  
+
   PanelLeftClose,
   PanelLeft,
   Circle,
@@ -21,8 +21,10 @@ import {
   Library,
   Gauge,
   BookOpen,
+  ArrowUpCircle,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-is-admin";
+import { useTier, type Tier } from "@/hooks/use-tier";
 import { nextAny, relativeDay } from "@/lib/program";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/use-company";
@@ -38,7 +40,6 @@ export function AppSidebarProvider({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const userPrefRef = useRef<boolean | null>(null);
 
-  // Persist after mount (avoid SSR mismatch)
   useEffect(() => {
     try {
       const v = window.localStorage.getItem(STORAGE);
@@ -48,8 +49,6 @@ export function AppSidebarProvider({ children }: { children: ReactNode }) {
     } catch {}
   }, []);
 
-  // Auto-collapse on the handbook reader for an immersive read. Restore the
-  // user's previous preference when they navigate away.
   useEffect(() => {
     if (userPrefRef.current === null) return;
     if (pathname === "/handbook") {
@@ -73,7 +72,8 @@ export function AppSidebarProvider({ children }: { children: ReactNode }) {
 type Item = { to: string; label: string; icon: React.ComponentType<{ className?: string }>; match?: string };
 type Group = { label: string; items: Item[] };
 
-const GROUPS: Group[] = [
+// Full nav for Circle members.
+const CIRCLE_GROUPS: Group[] = [
   {
     label: "Daily",
     items: [
@@ -99,8 +99,6 @@ const GROUPS: Group[] = [
       { to: "/vault", label: "Vault", icon: Archive },
     ],
   },
-  // Build / Field hidden — ConstructLine tools not yet redesigned.
-
   {
     label: "Program",
     items: [
@@ -109,6 +107,59 @@ const GROUPS: Group[] = [
     ],
   },
 ];
+
+// Book Buyer: Handbook + AOS only, with Upgrade as the obvious next step.
+const BOOK_BUYER_GROUPS: Group[] = [
+  {
+    label: "Your tools",
+    items: [
+      { to: "/", label: "Home", icon: Home },
+      { to: "/handbook", label: "Handbook", icon: BookOpen },
+      { to: "/aos", label: "AOS", icon: Compass },
+    ],
+  },
+  {
+    label: "Go further",
+    items: [
+      { to: "/upgrade", label: "Upgrade", icon: ArrowUpCircle },
+      { to: "/account", label: "Account", icon: User },
+    ],
+  },
+];
+
+// Intensive grad: Book Buyer + program access (intensive materials live at
+// /work-with-marshall today).
+const INTENSIVE_GROUPS: Group[] = [
+  {
+    label: "Your tools",
+    items: [
+      { to: "/", label: "Home", icon: Home },
+      { to: "/handbook", label: "Handbook", icon: BookOpen },
+      { to: "/aos", label: "AOS", icon: Compass },
+    ],
+  },
+  {
+    label: "Program",
+    items: [
+      { to: "/work-with-marshall", label: "Intensive", icon: Sparkles },
+      { to: "/upgrade", label: "Join the Circle", icon: ArrowUpCircle },
+      { to: "/account", label: "Account", icon: User },
+    ],
+  },
+];
+
+function groupsForTier(tier: Tier | null): Group[] {
+  switch (tier) {
+    case "book_buyer":
+      return BOOK_BUYER_GROUPS;
+    case "intensive":
+      return INTENSIVE_GROUPS;
+    case "circle":
+    default:
+      // Default to full nav while tier is loading or admin/legacy.
+      return CIRCLE_GROUPS;
+  }
+}
 
 export function AppSidebar() {
   const { collapsed, toggle } = useAppSidebar();
@@ -119,10 +170,12 @@ export function AppSidebar() {
   const brandName = company?.name?.trim() || "Contractor Circle";
   const brandInitial = brandName.charAt(0).toUpperCase();
   const isAdmin = useIsAdmin();
+  const { tier } = useTier();
 
+  const baseGroups = groupsForTier(tier);
   const groups: Group[] = isAdmin
     ? [
-        ...GROUPS,
+        ...CIRCLE_GROUPS,
         {
           label: "Admin",
           items: [
@@ -132,11 +185,8 @@ export function AppSidebar() {
           ],
         },
       ]
-    : GROUPS;
+    : baseGroups;
 
-
-  // Auto-collapse when entering Ask Marshall; only once per entry so the user
-  // can still re-expand manually while on the page.
   const wasOnAsk = useRef(false);
   useEffect(() => {
     const onAsk = pathname.startsWith("/ask");
@@ -156,7 +206,6 @@ export function AppSidebar() {
       className="group/sidebar fixed inset-y-0 left-0 z-30 flex flex-col border-r border-border/70 bg-[var(--paper-deep)] transition-[width] duration-300 ease-[cubic-bezier(.2,.7,.2,1)]"
       style={{ width: collapsed ? "60px" : "248px" }}
     >
-      {/* Brand — company logo + name (falls back to Circle lockup) */}
       <div className="flex h-14 items-center gap-2 border-b border-border/70 px-3">
         <Link to="/" className="flex items-center gap-2 overflow-hidden">
           <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-md bg-ink text-cream font-display text-[13px]">
@@ -175,7 +224,6 @@ export function AppSidebar() {
         </Link>
       </div>
 
-      {/* Groups */}
       <nav className="flex-1 overflow-y-auto px-2 py-4">
         {groups.map((g) => (
           <div key={g.label} className="mb-4">
@@ -213,7 +261,6 @@ export function AppSidebar() {
         ))}
       </nav>
 
-      {/* Footer status */}
       <div className="border-t border-border/70 p-2">
         {!collapsed ? (
           <div className="flex items-start gap-2 rounded-md bg-foreground/[0.03] px-2.5 py-2">
@@ -230,7 +277,6 @@ export function AppSidebar() {
             <Circle className="h-2 w-2 fill-signal text-signal animate-signal-pulse" />
           </div>
         )}
-        {/* Collapse moved to TopStrip — kept here only as a compact restore when collapsed. */}
         {collapsed && (
           <button
             onClick={toggle}

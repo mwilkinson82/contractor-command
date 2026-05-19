@@ -18,11 +18,31 @@ import { ToolDrawerProvider } from "@/components/portal/tool-drawer";
 import { Toaster } from "@/components/ui/sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useCompany } from "@/hooks/use-company";
+import { useTier } from "@/hooks/use-tier";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 import { supabase } from "@/integrations/supabase/client";
 import { vault } from "@/lib/vault";
+import { toast } from "sonner";
 
 const PUBLIC_ROUTES = new Set(["/login", "/signup", "/forgot-password", "/reset-password", "/welcome"]);
 const ONBOARDING_ROUTE = "/onboarding";
+
+// Routes that require Circle membership. Book Buyers and Intensive grads
+// hitting any of these get redirected to /upgrade with a toast.
+const CIRCLE_ONLY_PREFIXES = [
+  "/vault",
+  "/calls",
+  "/community",
+  "/replays",
+  "/templates",
+  "/ask",
+  "/tools",
+  "/field-tools",
+];
+
+function isCircleOnly(pathname: string): boolean {
+  return CIRCLE_ONLY_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
 
 function NotFoundComponent() {
   return (
@@ -204,6 +224,8 @@ function useGlobalReveal() {
 function AuthGate({ children }: { children: (showShell: boolean) => React.ReactNode }) {
   const { session, loading } = useAuth();
   const { needsOnboarding, loading: companyLoading } = useCompany();
+  const { tier, loading: tierLoading } = useTier();
+  const isAdmin = useIsAdmin();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const router = useRouter();
@@ -257,8 +279,22 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
     }
     if (session && !companyLoading && needsOnboarding && !isOnboarding) {
       navigate({ to: "/onboarding" });
+      return;
     }
-  }, [loading, session, isPublic, isOnboarding, companyLoading, needsOnboarding, navigate]);
+    // Tier gate: non-Circle users redirected away from Circle-only routes.
+    // Admins always pass. Wait for tier to load before judging.
+    if (
+      session &&
+      !tierLoading &&
+      !isAdmin &&
+      tier &&
+      tier !== "circle" &&
+      isCircleOnly(pathname)
+    ) {
+      toast.info("That's a Circle feature — here's how to unlock it.");
+      navigate({ to: "/upgrade" });
+    }
+  }, [loading, session, isPublic, isOnboarding, companyLoading, needsOnboarding, tierLoading, tier, isAdmin, pathname, navigate]);
 
   if (isPublic) return <>{children(false)}</>;
 
