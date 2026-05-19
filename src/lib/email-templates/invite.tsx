@@ -14,7 +14,7 @@ import {
   Text,
 } from '@react-email/components'
 
-import { nextOfKind } from '../program'
+import { nextOfKind, DISCORD_URL } from '../program'
 
 interface InviteEmailProps {
   siteName: string
