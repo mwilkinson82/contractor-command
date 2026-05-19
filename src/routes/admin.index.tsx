@@ -694,3 +694,75 @@ function StatusPill({
     </span>
   );
 }
+
+function ActivityCell({
+  hasAuthAccount,
+  emailConfirmedAt,
+  lastSignInAt,
+}: {
+  hasAuthAccount: boolean;
+  emailConfirmedAt: string | null;
+  lastSignInAt: string | null;
+}) {
+  if (!hasAuthAccount) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-destructive">
+        No account
+      </span>
+    );
+  }
+  if (!emailConfirmedAt && !lastSignInAt) {
+    return (
+      <div>
+        <span className="inline-flex items-center gap-1 rounded-full bg-gold/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-gold">
+          Invited · not activated
+        </span>
+        <p className="mt-0.5 text-[10px] text-muted-foreground">No password set</p>
+      </div>
+    );
+  }
+  if (!lastSignInAt) {
+    return (
+      <div>
+        <span className="inline-flex items-center gap-1 rounded-full bg-foreground/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider">
+          Never signed in
+        </span>
+        {emailConfirmedAt && (
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
+            Email confirmed {formatShortDate(emailConfirmedAt)}
+          </p>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div>
+      <span className="inline-flex items-center gap-1 rounded-full bg-signal/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-signal">
+        Active
+      </span>
+      <p className="mt-0.5 text-[10px] text-muted-foreground">
+        Last sign-in {formatRelative(lastSignInAt)}
+      </p>
+    </div>
+  );
+}
+
+function formatShortDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function formatRelative(iso: string): string {
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const diffMs = now - then;
+  const min = Math.floor(diffMs / 60_000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 30) return `${day}d ago`;
+  return formatShortDate(iso);
+}
+
