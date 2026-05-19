@@ -211,6 +211,27 @@ export type Database = {
         }
         Relationships: []
       }
+      discord_members: {
+        Row: {
+          discord_user_id: string
+          discord_username: string | null
+          email: string
+          joined_guild_at: string
+        }
+        Insert: {
+          discord_user_id: string
+          discord_username?: string | null
+          email: string
+          joined_guild_at?: string
+        }
+        Update: {
+          discord_user_id?: string
+          discord_username?: string | null
+          email?: string
+          joined_guild_at?: string
+        }
+        Relationships: []
+      }
       email_send_log: {
         Row: {
           created_at: string
@@ -408,10 +429,12 @@ export type Database = {
           cancel_at_period_end: boolean
           created_at: string
           current_period_end: string | null
+          discord_nudge_sent_at: string | null
           email: string
           id: string
           is_comped: boolean
           is_founding: boolean
+          login_nudge_sent_at: string | null
           metadata: Json
           price_id: string | null
           product_id: string | null
@@ -420,15 +443,18 @@ export type Database = {
           stripe_subscription_id: string | null
           updated_at: string
           user_id: string | null
+          welcome_sent_at: string | null
         }
         Insert: {
           cancel_at_period_end?: boolean
           created_at?: string
           current_period_end?: string | null
+          discord_nudge_sent_at?: string | null
           email: string
           id?: string
           is_comped?: boolean
           is_founding?: boolean
+          login_nudge_sent_at?: string | null
           metadata?: Json
           price_id?: string | null
           product_id?: string | null
@@ -437,15 +463,18 @@ export type Database = {
           stripe_subscription_id?: string | null
           updated_at?: string
           user_id?: string | null
+          welcome_sent_at?: string | null
         }
         Update: {
           cancel_at_period_end?: boolean
           created_at?: string
           current_period_end?: string | null
+          discord_nudge_sent_at?: string | null
           email?: string
           id?: string
           is_comped?: boolean
           is_founding?: boolean
+          login_nudge_sent_at?: string | null
           metadata?: Json
           price_id?: string | null
           product_id?: string | null
@@ -454,6 +483,7 @@ export type Database = {
           stripe_subscription_id?: string | null
           updated_at?: string
           user_id?: string | null
+          welcome_sent_at?: string | null
         }
         Relationships: []
       }
