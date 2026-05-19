@@ -83,11 +83,15 @@ function LoginPage() {
                   placeholder="••••••••"
                   required
                   hint={
-                    <a href="#" className="font-display italic text-[12px] text-ink/45 transition-colors hover:text-ink">
+                    <Link
+                      to="/forgot-password"
+                      className="font-display italic text-[12px] text-ink/45 transition-colors hover:text-ink"
+                    >
                       Forgot password?
-                    </a>
+                    </Link>
                   }
                 />
+
 
                 {err && <p className="text-[12px] text-[#b8442a]">{err}</p>}
 

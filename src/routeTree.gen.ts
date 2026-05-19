@@ -15,9 +15,11 @@ import { Route as VaultRouteImport } from './routes/vault'
 import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ReplaysRouteImport } from './routes/replays'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as FieldToolsRouteImport } from './routes/field-tools'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as CallsRouteImport } from './routes/calls'
@@ -78,6 +80,11 @@ const SignupRoute = SignupRouteImport.update({
   path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReplaysRoute = ReplaysRouteImport.update({
   id: '/replays',
   path: '/replays',
@@ -91,6 +98,11 @@ const OnboardingRoute = OnboardingRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FieldToolsRoute = FieldToolsRouteImport.update({
@@ -248,9 +260,11 @@ export interface FileRoutesByFullPath {
   '/calls': typeof CallsRoute
   '/community': typeof CommunityRoute
   '/field-tools': typeof FieldToolsRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/replays': typeof ReplaysRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
@@ -288,9 +302,11 @@ export interface FileRoutesByTo {
   '/calls': typeof CallsRoute
   '/community': typeof CommunityRoute
   '/field-tools': typeof FieldToolsRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/replays': typeof ReplaysRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
@@ -329,9 +345,11 @@ export interface FileRoutesById {
   '/calls': typeof CallsRoute
   '/community': typeof CommunityRoute
   '/field-tools': typeof FieldToolsRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/replays': typeof ReplaysRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
@@ -371,9 +389,11 @@ export interface FileRouteTypes {
     | '/calls'
     | '/community'
     | '/field-tools'
+    | '/forgot-password'
     | '/login'
     | '/onboarding'
     | '/replays'
+    | '/reset-password'
     | '/signup'
     | '/templates'
     | '/tools'
@@ -411,9 +431,11 @@ export interface FileRouteTypes {
     | '/calls'
     | '/community'
     | '/field-tools'
+    | '/forgot-password'
     | '/login'
     | '/onboarding'
     | '/replays'
+    | '/reset-password'
     | '/signup'
     | '/templates'
     | '/tools'
@@ -451,9 +473,11 @@ export interface FileRouteTypes {
     | '/calls'
     | '/community'
     | '/field-tools'
+    | '/forgot-password'
     | '/login'
     | '/onboarding'
     | '/replays'
+    | '/reset-password'
     | '/signup'
     | '/templates'
     | '/tools'
@@ -492,9 +516,11 @@ export interface RootRouteChildren {
   CallsRoute: typeof CallsRoute
   CommunityRoute: typeof CommunityRoute
   FieldToolsRoute: typeof FieldToolsRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   OnboardingRoute: typeof OnboardingRoute
   ReplaysRoute: typeof ReplaysRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
   TemplatesRoute: typeof TemplatesRoute
   ToolsRoute: typeof ToolsRouteWithChildren
@@ -569,6 +595,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/replays': {
       id: '/replays'
       path: '/replays'
@@ -588,6 +621,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/field-tools': {
@@ -814,9 +854,11 @@ const rootRouteChildren: RootRouteChildren = {
   CallsRoute: CallsRoute,
   CommunityRoute: CommunityRoute,
   FieldToolsRoute: FieldToolsRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   OnboardingRoute: OnboardingRoute,
   ReplaysRoute: ReplaysRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
   TemplatesRoute: TemplatesRoute,
   ToolsRoute: ToolsRouteWithChildren,
@@ -849,13 +891,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
