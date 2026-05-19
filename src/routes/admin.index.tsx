@@ -639,7 +639,11 @@ function FilterPills({
     { key: "active", label: "Active" },
     { key: "canceled", label: "Canceled" },
     { key: "founding", label: "Founding" },
+    { key: "never_signed_in", label: "Never signed in" },
+    { key: "not_activated", label: "Not activated" },
+    { key: "no_account", label: "No account" },
   ];
+
   return (
     <div className="inline-flex rounded-full border border-border bg-background p-0.5">
       {opts.map((o) => {
