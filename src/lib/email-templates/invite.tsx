@@ -159,11 +159,14 @@ const h1 = {
   fontFamily: '"Instrument Serif", Georgia, "Times New Roman", serif',
   letterSpacing: '-0.01em',
 }
+const sansFamily =
+  '"Helvetica Neue", Helvetica, Arial, "Liberation Sans", sans-serif'
 const lede = {
   fontSize: '16px',
   color: '#3a3937',
   lineHeight: 1.55,
   margin: '0 0 28px',
+  fontFamily: sansFamily,
 }
 const ctaWrap = { margin: '4px 0 8px' }
 const button = {
