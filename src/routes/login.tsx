@@ -143,6 +143,7 @@ function Field({
   required,
   autoFocus,
   trailing,
+  hint,
 }: {
   id: string;
   label: string;
@@ -153,6 +154,7 @@ function Field({
   required?: boolean;
   autoFocus?: boolean;
   trailing?: React.ReactNode;
+  hint?: React.ReactNode;
 }) {
   return (
     <div>
@@ -172,6 +174,7 @@ function Field({
         autoFocus={autoFocus}
         className="mt-2 w-full border-0 border-b border-ink/15 bg-transparent px-0 py-2.5 text-[15px] outline-none transition-colors placeholder:text-ink/25 focus:border-ink"
       />
+      {hint && <div className="mt-2">{hint}</div>}
     </div>
   );
 }
