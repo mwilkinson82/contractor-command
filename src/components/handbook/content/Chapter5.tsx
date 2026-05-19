@@ -8,7 +8,7 @@ const Chapter5: React.FC = () => {
   return (
     <div id="chapter-5" className="chapter-container">
       <ChapterHeader 
-        number={5} 
+        number={11} 
         title='Upstream Marketing & Being "In the Know"' 
       />
       

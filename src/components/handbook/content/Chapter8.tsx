@@ -8,8 +8,8 @@ const Chapter8: React.FC = () => {
   return (
     <div id="chapter-8" className="py-24 border-t border-chapter-divider">
       <ChapterHeader 
-        number={8} 
-        title="General Conditions & Invisible Costs" 
+        number={18} 
+        title="General Conditions: From Invisible Cost to Profit Center" 
       />
 
       <div className="body-text space-y-6 max-w-3xl">

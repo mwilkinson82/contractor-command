@@ -8,7 +8,7 @@ const Chapter24: React.FC = () => {
   return (
     <div id="chapter-24" className="chapter-container">
       <ChapterHeader 
-        number={24} 
+        number={25} 
         title="Using the ALP Handbook in Real Time" 
       />
       

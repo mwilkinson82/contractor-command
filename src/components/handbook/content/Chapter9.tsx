@@ -10,7 +10,7 @@ const Chapter9: React.FC = () => {
   return (
     <div id="chapter-9" className="py-24 border-t border-chapter-divider">
       <ChapterHeader 
-        number={9} 
+        number={21} 
         title="The ALP Decision Matrix" 
       />
 
