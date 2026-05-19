@@ -20,10 +20,10 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as FieldToolsRouteImport } from './routes/field-tools'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as CallsRouteImport } from './routes/calls'
-import { Route as AosRouteImport } from './routes/aos'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AskIndexRouteImport } from './routes/ask.index'
+import { Route as AosIndexRouteImport } from './routes/aos.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as ToolsOwnerDependencyRouteImport } from './routes/tools.owner-dependency'
 import { Route as ToolsGrowthConstraintRouteImport } from './routes/tools.growth-constraint'
@@ -99,11 +99,6 @@ const CallsRoute = CallsRouteImport.update({
   path: '/calls',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AosRoute = AosRouteImport.update({
-  id: '/aos',
-  path: '/aos',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AccountRoute = AccountRouteImport.update({
   id: '/account',
   path: '/account',
@@ -117,6 +112,11 @@ const IndexRoute = IndexRouteImport.update({
 const AskIndexRoute = AskIndexRouteImport.update({
   id: '/ask/',
   path: '/ask/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AosIndexRoute = AosIndexRouteImport.update({
+  id: '/aos/',
+  path: '/aos/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -221,7 +221,6 @@ const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
-  '/aos': typeof AosRouteWithChildren
   '/calls': typeof CallsRoute
   '/community': typeof CommunityRoute
   '/field-tools': typeof FieldToolsRoute
@@ -247,6 +246,7 @@ export interface FileRoutesByFullPath {
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
   '/tools/owner-dependency': typeof ToolsOwnerDependencyRoute
   '/admin/': typeof AdminIndexRoute
+  '/aos/': typeof AosIndexRoute
   '/ask/': typeof AskIndexRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
@@ -257,7 +257,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
-  '/aos': typeof AosRouteWithChildren
   '/calls': typeof CallsRoute
   '/community': typeof CommunityRoute
   '/field-tools': typeof FieldToolsRoute
@@ -283,6 +282,7 @@ export interface FileRoutesByTo {
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
   '/tools/owner-dependency': typeof ToolsOwnerDependencyRoute
   '/admin': typeof AdminIndexRoute
+  '/aos': typeof AosIndexRoute
   '/ask': typeof AskIndexRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
@@ -294,7 +294,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
-  '/aos': typeof AosRouteWithChildren
   '/calls': typeof CallsRoute
   '/community': typeof CommunityRoute
   '/field-tools': typeof FieldToolsRoute
@@ -320,6 +319,7 @@ export interface FileRoutesById {
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
   '/tools/owner-dependency': typeof ToolsOwnerDependencyRoute
   '/admin/': typeof AdminIndexRoute
+  '/aos/': typeof AosIndexRoute
   '/ask/': typeof AskIndexRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
@@ -332,7 +332,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/account'
-    | '/aos'
     | '/calls'
     | '/community'
     | '/field-tools'
@@ -358,6 +357,7 @@ export interface FileRouteTypes {
     | '/tools/growth-constraint'
     | '/tools/owner-dependency'
     | '/admin/'
+    | '/aos/'
     | '/ask/'
     | '/lovable/email/suppression'
     | '/api/public/stripe/webhook'
@@ -368,7 +368,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/account'
-    | '/aos'
     | '/calls'
     | '/community'
     | '/field-tools'
@@ -394,6 +393,7 @@ export interface FileRouteTypes {
     | '/tools/growth-constraint'
     | '/tools/owner-dependency'
     | '/admin'
+    | '/aos'
     | '/ask'
     | '/lovable/email/suppression'
     | '/api/public/stripe/webhook'
@@ -404,7 +404,6 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/account'
-    | '/aos'
     | '/calls'
     | '/community'
     | '/field-tools'
@@ -430,6 +429,7 @@ export interface FileRouteTypes {
     | '/tools/growth-constraint'
     | '/tools/owner-dependency'
     | '/admin/'
+    | '/aos/'
     | '/ask/'
     | '/lovable/email/suppression'
     | '/api/public/stripe/webhook'
@@ -441,7 +441,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRoute
-  AosRoute: typeof AosRouteWithChildren
   CallsRoute: typeof CallsRoute
   CommunityRoute: typeof CommunityRoute
   FieldToolsRoute: typeof FieldToolsRoute
@@ -464,6 +463,7 @@ export interface RootRouteChildren {
   AskNewRoute: typeof AskNewRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   AdminIndexRoute: typeof AdminIndexRoute
+  AosIndexRoute: typeof AosIndexRoute
   AskIndexRoute: typeof AskIndexRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
@@ -551,13 +551,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CallsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/aos': {
-      id: '/aos'
-      path: '/aos'
-      fullPath: '/aos'
-      preLoaderRoute: typeof AosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/account': {
       id: '/account'
       path: '/account'
@@ -577,6 +570,13 @@ declare module '@tanstack/react-router' {
       path: '/ask'
       fullPath: '/ask/'
       preLoaderRoute: typeof AskIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/aos/': {
+      id: '/aos/'
+      path: '/aos'
+      fullPath: '/aos/'
+      preLoaderRoute: typeof AosIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -715,16 +715,6 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface AosRouteChildren {
-  AosLinkRoute: typeof AosLinkRoute
-}
-
-const AosRouteChildren: AosRouteChildren = {
-  AosLinkRoute: AosLinkRoute,
-}
-
-const AosRouteWithChildren = AosRoute._addFileChildren(AosRouteChildren)
-
 interface ToolsRouteChildren {
   ToolsGrowthConstraintRoute: typeof ToolsGrowthConstraintRoute
   ToolsOwnerDependencyRoute: typeof ToolsOwnerDependencyRoute
@@ -740,7 +730,6 @@ const ToolsRouteWithChildren = ToolsRoute._addFileChildren(ToolsRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
-  AosRoute: AosRouteWithChildren,
   CallsRoute: CallsRoute,
   CommunityRoute: CommunityRoute,
   FieldToolsRoute: FieldToolsRoute,
@@ -763,6 +752,7 @@ const rootRouteChildren: RootRouteChildren = {
   AskNewRoute: AskNewRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   AdminIndexRoute: AdminIndexRoute,
+  AosIndexRoute: AosIndexRoute,
   AskIndexRoute: AskIndexRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
@@ -773,3 +763,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

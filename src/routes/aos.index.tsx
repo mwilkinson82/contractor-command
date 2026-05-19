@@ -13,7 +13,7 @@ import { mintAosSsoToken } from "@/lib/aos.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { useCompany } from "@/hooks/use-company";
 
-export const Route = createFileRoute("/aos")({
+export const Route = createFileRoute("/aos/")({
   head: () => ({
     meta: [
       { title: "AOS — Cross the threshold" },
