@@ -113,7 +113,13 @@ function LoginPage() {
       {/* Right: the advertisement — paper, headline, justified columns */}
       <div className="relative hidden md:flex md:justify-start md:pl-10 lg:pl-16">
         <div className="w-full max-w-[520px]">
-          <h2 className="font-display text-[112px] leading-[0.92] -tracking-[0.025em] text-ink lg:text-[128px]">
+          <img
+            src={bulldozer}
+            alt=""
+            className="mb-8 block w-full max-w-[460px] select-none object-contain mix-blend-multiply"
+            draggable={false}
+          />
+          <h2 className="font-display text-[96px] leading-[0.92] -tracking-[0.025em] text-ink lg:text-[112px]">
             Boring<br />wins.
           </h2>
 
