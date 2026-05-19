@@ -8,7 +8,7 @@ interface ChapterHeaderProps {
 
 const ChapterHeader: React.FC<ChapterHeaderProps> = ({ number, title, subtitle }) => {
   return (
-    <header className="mb-16 pt-8">
+    <header className="mb-12 pt-16">
       {number && (
         <div className="text-sm uppercase tracking-widest opacity-50 mb-4 font-sans" style={{ letterSpacing: '0.2em' }}>
           Chapter {number}
