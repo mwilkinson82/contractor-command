@@ -39,12 +39,11 @@ function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-paper-edge/60 p-6 text-ink font-sans selection:bg-ink selection:text-cream lg:p-10">
-      <div className="flex w-full max-w-6xl overflow-hidden rounded-3xl border border-ink/10 bg-cream shadow-elegant">
-        {/* Form side */}
-        <div className="flex w-full flex-col md:w-1/2">
-          {/* Top brand */}
-          <header className="px-10 pt-10 lg:px-14 lg:pt-12">
+    <div className="grid min-h-screen w-full grid-cols-1 bg-paper-edge/60 p-6 text-ink font-sans selection:bg-ink selection:text-cream md:grid-cols-2 lg:p-10">
+      {/* Left: centered sign-in card */}
+      <div className="flex items-center justify-center">
+        <div className="w-full max-w-[460px] rounded-3xl border border-ink/10 bg-cream shadow-elegant">
+          <header className="px-10 pt-10">
             <Link to="/" className="inline-flex items-center gap-3">
               <span className="grid h-7 w-7 place-items-center">
                 <svg viewBox="0 0 40 40" className="h-full w-full text-ink" fill="none" aria-hidden>
@@ -56,94 +55,87 @@ function LoginPage() {
             </Link>
           </header>
 
-          {/* Center form */}
-          <div className="flex flex-1 items-center px-10 py-12 lg:px-14">
-            <div className="w-full max-w-[380px]">
-              <h1 className="font-display text-[72px] leading-[0.95]">
-                Sign in.
-              </h1>
-              <p className="mt-5 max-w-[300px] text-[13px] leading-relaxed text-ink/55">
-                Your private operating system. Enter to continue.
-              </p>
+          <div className="px-10 py-10">
+            <h1 className="font-display text-[64px] leading-[0.95]">
+              Sign in.
+            </h1>
+            <p className="mt-5 max-w-[300px] text-[13px] leading-relaxed text-ink/55">
+              Your private operating system. Enter to continue.
+            </p>
 
-              <form onSubmit={onSubmit} className="mt-12 space-y-9">
-                <Field
-                  id="email"
-                  label="Email"
-                  type="email"
-                  value={email}
-                  onChange={setEmail}
-                  placeholder="name@company.com"
-                  required
-                  autoFocus
-                />
+            <form onSubmit={onSubmit} className="mt-10 space-y-8">
+              <Field
+                id="email"
+                label="Email"
+                type="email"
+                value={email}
+                onChange={setEmail}
+                placeholder="name@company.com"
+                required
+                autoFocus
+              />
 
-                <Field
-                  id="password"
-                  label="Password"
-                  type="password"
-                  value={password}
-                  onChange={setPassword}
-                  placeholder="••••••••"
-                  required
-                  trailing={
-                    <a href="#" className="text-[11px] tracking-wide text-ink/40 transition-colors hover:text-ink">
-                      Forgot?
-                    </a>
-                  }
-                />
+              <Field
+                id="password"
+                label="Password"
+                type="password"
+                value={password}
+                onChange={setPassword}
+                placeholder="••••••••"
+                required
+                trailing={
+                  <a href="#" className="text-[11px] tracking-wide text-ink/40 transition-colors hover:text-ink">
+                    Forgot?
+                  </a>
+                }
+              />
 
-                {err && <p className="text-[12px] text-[#b8442a]">{err}</p>}
+              {err && <p className="text-[12px] text-[#b8442a]">{err}</p>}
 
-                <button
-                  type="submit"
-                  disabled={busy}
-                  className="group mt-4 flex w-full items-center justify-between border-b border-ink py-4 text-left transition-opacity disabled:opacity-50"
-                >
-                  <span className="text-[13px] uppercase tracking-[0.22em]">
-                    {busy ? "Entering" : "Enter"}
-                  </span>
-                  <svg width="22" height="14" viewBox="0 0 22 14" fill="none" className="transition-transform group-hover:translate-x-1.5" aria-hidden>
-                    <path d="M1 7h20m-6-6 6 6-6 6" stroke="currentColor" strokeWidth="1" strokeLinecap="square" />
-                  </svg>
-                </button>
-              </form>
-            </div>
+              <button
+                type="submit"
+                disabled={busy}
+                className="group mt-4 flex w-full items-center justify-between border-b border-ink py-4 text-left transition-opacity disabled:opacity-50"
+              >
+                <span className="text-[13px] uppercase tracking-[0.22em]">
+                  {busy ? "Entering" : "Enter"}
+                </span>
+                <svg width="22" height="14" viewBox="0 0 22 14" fill="none" className="transition-transform group-hover:translate-x-1.5" aria-hidden>
+                  <path d="M1 7h20m-6-6 6 6-6 6" stroke="currentColor" strokeWidth="1" strokeLinecap="square" />
+                </svg>
+              </button>
+            </form>
           </div>
 
-          {/* Footer */}
-          <footer className="px-10 pb-10 lg:px-14 lg:pb-12">
+          <footer className="px-10 pb-10">
             <p className="text-[10px] uppercase tracking-[0.22em] text-ink/35">
               ALP &nbsp;·&nbsp; Private Operating System
             </p>
           </footer>
         </div>
+      </div>
 
-        {/* Visual side — Apple/Ogilvy editorial */}
-        <div className="relative hidden flex-col justify-between border-l border-ink/10 md:flex md:w-1/2">
-          {/* Top corner mark */}
-          <div className="flex justify-end px-10 pt-10 lg:px-14 lg:pt-12">
-            <span className="text-[10px] uppercase tracking-[0.22em] text-ink/35">
-              Vol. I &nbsp;·&nbsp; MMXXVI
-            </span>
-          </div>
+      {/* Right: open background with editorial tagline */}
+      <div className="relative hidden flex-col justify-between md:flex">
+        <div className="flex justify-end px-10 pt-6">
+          <span className="text-[10px] uppercase tracking-[0.22em] text-ink/35">
+            Vol. I &nbsp;·&nbsp; MMXXVI
+          </span>
+        </div>
 
-          {/* Center tagline */}
-          <div className="px-10 lg:px-14">
-            <p className="font-display text-[68px] leading-[1.02] text-ink lg:text-[80px]">
-              Build the<br />company<br />behind the<br />projects.
-            </p>
-          </div>
+        <div className="px-10">
+          <p className="font-display text-[44px] leading-[1.05] tracking-normal text-ink lg:text-[52px]">
+            Build the company<br />behind the projects.
+          </p>
+        </div>
 
-          {/* Bottom attribution */}
-          <div className="flex items-end justify-between px-10 pb-10 lg:px-14 lg:pb-12">
-            <p className="max-w-[260px] text-[12px] leading-relaxed text-ink/55">
-              A quiet system for the operator who would rather think than scramble.
-            </p>
-            <span className="text-[10px] uppercase tracking-[0.22em] text-ink/35">
-              — AOS
-            </span>
-          </div>
+        <div className="flex items-end justify-between px-10 pb-6">
+          <p className="max-w-[260px] text-[12px] leading-relaxed text-ink/55">
+            A quiet system for the operator who would rather think than scramble.
+          </p>
+          <span className="text-[10px] uppercase tracking-[0.22em] text-ink/35">
+            — AOS
+          </span>
         </div>
       </div>
     </div>
