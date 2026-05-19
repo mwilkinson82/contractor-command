@@ -153,12 +153,13 @@ export const backfillBookBuyers = createServerFn({ method: "POST" })
       (existingSubs ?? []).map((r) => r.email.toLowerCase()),
     );
 
-    const rowsToInsert: Array<{
+    type ClaimRow = {
       email: string;
       stripe_customer_id: string | null;
       status: string;
-      metadata: Record<string, unknown>;
-    }> = [];
+      metadata: { product: string; source: string; checkout_session_id: string };
+    };
+    const rowsToInsert: ClaimRow[] = [];
 
     for (const [key, cand] of candidates) {
       if (subbedSet.has(key)) {
