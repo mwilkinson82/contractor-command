@@ -1,14 +1,8 @@
 import React from 'react';
-import bookCoverV2 from '@/assets/handbook/book-cover-v2.png';
-import bulldozer from '@/assets/handbook/hero-bulldozer.png';
-import ExpandableImage from './ExpandableImage';
+import bulldozer from '@/assets/handbook/bulldozer-hero.png';
 import Eyebrow from '@/components/editorial/Eyebrow';
 
-type Jump = {
-  id: string;
-  chapter?: string;
-  title: string;
-};
+type Jump = { id: string; chapter?: string; title: string };
 
 const newInV2: Jump[] = [
   { id: 'volume-2-intro', title: 'Why the Operating System' },
@@ -42,11 +36,11 @@ const scrollTo = (id: string) => {
 const JumpButton: React.FC<{ item: Jump }> = ({ item }) => (
   <button
     onClick={() => scrollTo(item.id)}
-    className="group text-left w-full p-4 border border-[hsl(var(--hb-border))] hover:border-[hsl(var(--hb-brand-accent))] bg-[hsl(var(--hb-bg))] hover:bg-[hsl(var(--hb-accent))] transition-colors rounded-sm"
+    className="group text-left w-full p-4 border border-[hsl(var(--hb-border))] hover:border-[hsl(var(--hb-brand-accent))] bg-transparent hover:bg-[hsl(var(--hb-accent))] transition-colors rounded-sm"
   >
     <div className="flex items-baseline gap-3">
       {item.chapter && (
-        <span className="font-mono text-[10px] uppercase tracking-[0.25em] opacity-50 shrink-0">
+        <span className="font-mono text-[10px] uppercase tracking-[0.25em] opacity-50 shrink-0 w-6">
           {item.chapter}
         </span>
       )}
@@ -60,38 +54,45 @@ const JumpButton: React.FC<{ item: Jump }> = ({ item }) => (
 const HeroSection: React.FC = () => {
   return (
     <div className="pt-4 pb-20">
-      {/* Editorial hero — bulldozer + tagline */}
-      <div className="relative">
-        <img
-          src={bulldozer}
-          alt=""
-          aria-hidden="true"
-          className="w-full max-w-[640px] ml-auto block h-auto select-none pointer-events-none"
-          style={{ mixBlendMode: 'multiply' }}
-        />
-
-        <div className="mt-8 md:-mt-12 grid md:grid-cols-[200px_1fr] gap-8 md:gap-12 items-end">
-          <div className="space-y-2">
-            <div className="font-mono text-[10px] md:text-[11px] uppercase tracking-[0.32em] opacity-70">
-              ALP · Contractor Circle
-            </div>
-            <div className="font-mono text-[10px] md:text-[11px] uppercase tracking-[0.32em] opacity-70">
-              Members Only
-            </div>
-          </div>
-
-          <h1
-            className="font-serif text-5xl md:text-6xl lg:text-7xl leading-[0.95]"
-            style={{ fontWeight: 400, letterSpacing: '-0.025em' }}
-          >
-            Build the company<br />behind the projects.
-          </h1>
+      {/* === Print-ad hero: bulldozer + tagline (DDB/Ogilvy meets minimalist tech) === */}
+      <section className="relative">
+        {/* Top utility line */}
+        <div className="flex items-center justify-between pb-10 border-b border-[hsl(var(--hb-border))]">
+          <span className="font-mono text-[10px] md:text-[11px] uppercase tracking-[0.32em] opacity-70">
+            ALP · Contractor Circle
+          </span>
+          <span className="font-mono text-[10px] md:text-[11px] uppercase tracking-[0.32em] opacity-50">
+            Members Only
+          </span>
         </div>
 
-        {/* Three-column editorial blurb */}
-        <div className="mt-14 grid md:grid-cols-3 gap-8 md:gap-10 md:pl-[212px]">
+        {/* Bulldozer — large, right-aligned, lots of air */}
+        <div className="pt-10 md:pt-14">
+          <img
+            src={bulldozer}
+            alt="ALP Handbook"
+            className="block ml-auto h-auto w-full max-w-[560px] md:max-w-[640px] lg:max-w-[720px] select-none pointer-events-none"
+            style={{ mixBlendMode: 'multiply' }}
+          />
+        </div>
+
+        {/* Headline — sits below, full-bleed serif */}
+        <h1
+          className="mt-10 md:mt-12 font-serif leading-[0.95]"
+          style={{
+            fontWeight: 400,
+            letterSpacing: '-0.03em',
+            fontSize: 'clamp(2.75rem, 7.5vw, 5.75rem)',
+          }}
+        >
+          Build the company<br />
+          behind the projects.
+        </h1>
+
+        {/* Three-column editorial body — Ogilvy long-copy feel, tight */}
+        <div className="mt-14 grid md:grid-cols-3 gap-x-10 gap-y-8">
           <div className="md:pr-8 md:border-r md:border-[hsl(var(--hb-border))]">
-            <p className="font-serif text-base leading-snug mb-3" style={{ fontWeight: 500 }}>
+            <p className="font-serif text-lg leading-snug mb-3" style={{ fontWeight: 500 }}>
               You didn't start this company to run jobs forever.
             </p>
             <p className="text-sm leading-relaxed opacity-75">
@@ -99,7 +100,7 @@ const HeroSection: React.FC = () => {
             </p>
           </div>
           <div className="md:pr-8 md:border-r md:border-[hsl(var(--hb-border))]">
-            <p className="font-serif text-base leading-snug mb-3" style={{ fontWeight: 500 }}>
+            <p className="font-serif text-lg leading-snug mb-3" style={{ fontWeight: 500 }}>
               Great operators build systems, not schedules.
             </p>
             <p className="text-sm leading-relaxed opacity-75">
@@ -107,27 +108,28 @@ const HeroSection: React.FC = () => {
             </p>
           </div>
           <div>
-            <p className="font-serif text-base leading-snug mb-3" style={{ fontWeight: 500 }}>
+            <p className="font-serif text-lg leading-snug mb-3" style={{ fontWeight: 500 }}>
               The project is temporary. The company is the real asset.
             </p>
             <p className="text-sm leading-relaxed opacity-75">
-              We exist to help you build it intentionally, lead it confidently, and scale it sustainably.
+              Build it intentionally. Lead it confidently. Scale it sustainably.
             </p>
           </div>
         </div>
 
-        <div className="mt-12 pt-6 border-t border-[hsl(var(--hb-border))] flex items-center justify-between">
+        {/* Footer rule */}
+        <div className="mt-14 pt-5 border-t border-[hsl(var(--hb-border))] flex items-center justify-between">
           <span className="font-mono text-[10px] uppercase tracking-[0.32em] opacity-50">
-            alpcc.com
+            The ALP Handbook
           </span>
           <span className="font-mono text-[10px] uppercase tracking-[0.32em] opacity-50">
             Second Edition · AOS
           </span>
         </div>
-      </div>
+      </section>
 
-      {/* What's new in V2 */}
-      <div className="mt-28">
+      {/* === Quick-read updates === */}
+      <section className="mt-28">
         <div className="flex items-baseline justify-between gap-6 flex-wrap mb-2">
           <Eyebrow accent>New in V2 — The Operating System</Eyebrow>
           <span className="font-mono text-[10px] uppercase tracking-[0.25em] opacity-50">
@@ -138,14 +140,11 @@ const HeroSection: React.FC = () => {
           Volume 2 introduces <strong>AOS</strong> — the operating system a contracting company runs on once it outgrows the owner. Jump straight to what's new.
         </p>
         <div className="grid sm:grid-cols-2 gap-3">
-          {newInV2.map((item) => (
-            <JumpButton key={item.id} item={item} />
-          ))}
+          {newInV2.map((item) => <JumpButton key={item.id} item={item} />)}
         </div>
-      </div>
+      </section>
 
-      {/* Reorganized */}
-      <div className="mt-16">
+      <section className="mt-16">
         <div className="flex items-baseline justify-between gap-6 flex-wrap mb-6">
           <Eyebrow>Reorganized in V2</Eyebrow>
           <span className="font-mono text-[10px] uppercase tracking-[0.25em] opacity-50">
@@ -153,42 +152,18 @@ const HeroSection: React.FC = () => {
           </span>
         </div>
         <div className="grid sm:grid-cols-2 gap-3">
-          {reorganized.map((item) => (
-            <JumpButton key={item.id} item={item} />
-          ))}
+          {reorganized.map((item) => <JumpButton key={item.id} item={item} />)}
         </div>
-      </div>
+      </section>
 
-      {/* Updated front matter */}
-      <div className="mt-16">
+      <section className="mt-16">
         <Eyebrow className="mb-6">Updated front matter</Eyebrow>
         <div className="grid sm:grid-cols-2 gap-3">
-          {updated.map((item) => (
-            <JumpButton key={item.id} item={item} />
-          ))}
+          {updated.map((item) => <JumpButton key={item.id} item={item} />)}
         </div>
-      </div>
+      </section>
 
-      {/* The cover — Second Edition */}
-      <div className="mt-24 pt-16 border-t border-[hsl(var(--hb-chapter-divider))] grid md:grid-cols-[260px_1fr] gap-12 items-center">
-        <ExpandableImage
-          src={bookCoverV2}
-          alt="The ALP Handbook, Second Edition — by Marshall Wilkinson"
-          className="w-full max-w-[260px] mx-auto md:mx-0 h-auto shadow-2xl rounded-sm"
-        />
-        <div>
-          <Eyebrow accent className="mb-4">Second Edition · AOS</Eyebrow>
-          <h2 className="font-serif text-3xl md:text-4xl leading-tight mb-4" style={{ fontWeight: 400, letterSpacing: '-0.02em' }}>
-            The field manual, fully revised.
-          </h2>
-          <p className="body-text opacity-80 max-w-xl">
-            Operating doctrine for Vision, People, Data, Issues, Process, and Traction — the company behind the projects, laid out in one book.
-          </p>
-        </div>
-      </div>
-
-      {/* Scroll cue */}
-      <div className="mt-16 flex justify-center animate-bounce opacity-30">
+      <div className="mt-20 flex justify-center animate-bounce opacity-30">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
           <path d="M12 5v14M19 12l-7 7-7-7" />
         </svg>
