@@ -190,8 +190,15 @@ const FloatingTOC: React.FC = () => {
                 {tocData.map((section, sectionIndex) => (
                   <div key={sectionIndex} className="mb-6">
                     {section.part ? (
-                      <div className="text-xs uppercase tracking-widest opacity-50 pt-4 pb-2" style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '0.15em' }}>
-                        Part {section.part} — {section.title}
+                      <div className="pt-4 pb-2 flex items-baseline gap-2 flex-wrap">
+                        <span className="text-xs uppercase tracking-widest opacity-50" style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '0.15em' }}>
+                          Part {section.part} — {section.title}
+                        </span>
+                        {section.eyebrow && (
+                          <span className="text-[9px] uppercase tracking-widest text-brand-accent" style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '0.2em' }}>
+                            {section.eyebrow}
+                          </span>
+                        )}
                       </div>
                     ) : (
                       <div className="text-xs uppercase tracking-widest opacity-50 pb-2" style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '0.15em' }}>
@@ -209,8 +216,13 @@ const FloatingTOC: React.FC = () => {
                             {item.chapter}
                           </span>
                         )}
-                        <span className="text-sm leading-tight group-hover:text-foreground" style={{ fontFamily: 'Inter, sans-serif' }}>
-                          {item.title}
+                        <span className="text-sm leading-tight group-hover:text-foreground flex-1 flex items-baseline gap-2 flex-wrap" style={{ fontFamily: 'Inter, sans-serif' }}>
+                          <span>{item.title}</span>
+                          {item.badge && (
+                            <span className="text-[9px] uppercase tracking-widest text-brand-accent" style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '0.2em' }}>
+                              {item.badge}
+                            </span>
+                          )}
                         </span>
                       </button>
                     ))}
