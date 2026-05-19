@@ -7,7 +7,7 @@ import Parable from '../Parable';
 const Chapter12 = () => {
   return (
     <section id="chapter-12" className="chapter-section">
-      <ChapterHeader number={12} title="Documentation, Entitlement, and Proof" />
+      <ChapterHeader number={15} title="Documentation, Entitlement, and Proof" />
       
       <p className="body-text">Most contractors believe documentation exists for disputes.</p>
       
