@@ -22,6 +22,7 @@ import { template as topicSubmittedTemplate } from './topic-submitted'
 import { template as topicSelectedTemplate } from './topic-selected'
 import { template as vaultPacketTemplate } from './vault-packet'
 import { template as memberAnnouncementTemplate } from './member-announcement'
+import { template as adminActivityNoticeTemplate } from './admin-activity-notice'
 
 export const TEMPLATES: Record<string, TemplateEntry> = {
   'sop-document': sopDocumentTemplate,
@@ -29,4 +30,5 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
   'topic-selected': topicSelectedTemplate,
   'vault-packet': vaultPacketTemplate,
   'member-announcement': memberAnnouncementTemplate,
+  'admin-activity-notice': adminActivityNoticeTemplate,
 }
