@@ -29,7 +29,8 @@ interface InviteEmailProps {
   zoomPasscode?: string
 }
 
-const DEFAULT_DISCORD = 'https://discord.gg/alpcontractorcircle'
+const DEFAULT_DISCORD = DISCORD_URL
+const LOGO_URL = 'https://qcbbjjjxcacrscfhgfmf.supabase.co/storage/v1/object/public/email-assets/contractor-circle-logo.png'
 
 export const InviteEmail = ({
   siteName,
