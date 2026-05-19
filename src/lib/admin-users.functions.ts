@@ -41,6 +41,34 @@ export const listAdminUsers = createServerFn({ method: "GET" })
   .handler(async ({ context }): Promise<AdminUserRow[]> => {
     await assertAdmin(context.userId);
 
+    // Fetch all auth users (paginate through admin API)
+    type AuthUser = {
+      id: string;
+      email: string | null;
+      last_sign_in_at: string | null;
+      email_confirmed_at: string | null;
+      confirmed_at: string | null;
+      invited_at: string | null;
+      created_at: string;
+    };
+    const authUsers: AuthUser[] = [];
+    let page = 1;
+    const perPage = 200;
+    // Safety cap at 50 pages (10k users)
+    for (let i = 0; i < 50; i++) {
+      const { data, error } = await supabaseAdmin.auth.admin.listUsers({
+        page,
+        perPage,
+      });
+      if (error) break;
+      const batch = (data?.users ?? []) as unknown as AuthUser[];
+      authUsers.push(...batch);
+      if (batch.length < perPage) break;
+      page++;
+    }
+    const authById = new Map<string, AuthUser>();
+    for (const u of authUsers) authById.set(u.id, u);
+
     const [{ data: profiles }, { data: subs }, { data: roles }] = await Promise.all([
       supabaseAdmin
         .from("profiles")
@@ -68,6 +96,7 @@ export const listAdminUsers = createServerFn({ method: "GET" })
 
     const rows: AdminUserRow[] = [];
     const seenSubIds = new Set<string>();
+    const seenAuthIds = new Set<string>();
 
     for (const p of profiles ?? []) {
       const sub =
@@ -75,11 +104,17 @@ export const listAdminUsers = createServerFn({ method: "GET" })
         (p.email ? subByEmail.get(p.email.toLowerCase()) : undefined) ??
         null;
       if (sub) seenSubIds.add(sub.id);
+      const au = authById.get(p.id);
+      if (au) seenAuthIds.add(au.id);
       rows.push({
         id: p.id,
         email: p.email,
         fullName: p.full_name,
         createdAt: p.created_at,
+        lastSignInAt: au?.last_sign_in_at ?? null,
+        emailConfirmedAt: au?.email_confirmed_at ?? au?.confirmed_at ?? null,
+        invitedAt: au?.invited_at ?? null,
+        hasAuthAccount: !!au,
         isAdmin: adminIds.has(p.id),
         subscription: sub
           ? {
@@ -97,7 +132,39 @@ export const listAdminUsers = createServerFn({ method: "GET" })
       });
     }
 
-    // Surface subscriptions that don't have a matching profile yet
+    // Auth users without a profile row (invited but never finished setup)
+    for (const au of authUsers) {
+      if (seenAuthIds.has(au.id)) continue;
+      if (!au.email) continue;
+      const sub = subByUserId.get(au.id) ?? subByEmail.get(au.email.toLowerCase()) ?? null;
+      if (sub) seenSubIds.add(sub.id);
+      rows.push({
+        id: au.id,
+        email: au.email,
+        fullName: null,
+        createdAt: au.created_at,
+        lastSignInAt: au.last_sign_in_at,
+        emailConfirmedAt: au.email_confirmed_at ?? au.confirmed_at,
+        invitedAt: au.invited_at,
+        hasAuthAccount: true,
+        isAdmin: adminIds.has(au.id),
+        subscription: sub
+          ? {
+              id: sub.id,
+              status: sub.status,
+              isComped: sub.is_comped,
+              isFounding: sub.is_founding,
+              cancelAtPeriodEnd: sub.cancel_at_period_end,
+              currentPeriodEnd: sub.current_period_end,
+              priceId: sub.price_id,
+              stripeCustomerId: sub.stripe_customer_id,
+              stripeSubscriptionId: sub.stripe_subscription_id,
+            }
+          : null,
+      });
+    }
+
+    // Surface subscriptions that don't have a matching profile or auth user
     // (paid but hasn't created the portal account).
     for (const s of subs ?? []) {
       if (seenSubIds.has(s.id)) continue;
@@ -106,6 +173,10 @@ export const listAdminUsers = createServerFn({ method: "GET" })
         email: s.email,
         fullName: null,
         createdAt: null,
+        lastSignInAt: null,
+        emailConfirmedAt: null,
+        invitedAt: null,
+        hasAuthAccount: false,
         isAdmin: false,
         subscription: {
           id: s.id,
@@ -123,6 +194,7 @@ export const listAdminUsers = createServerFn({ method: "GET" })
 
     return rows;
   });
+
 
 export const setUserComped = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
