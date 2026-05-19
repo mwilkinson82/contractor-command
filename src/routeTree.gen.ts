@@ -175,9 +175,9 @@ const ApiAskRoute = ApiAskRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const AosLinkRoute = AosLinkRouteImport.update({
-  id: '/link',
-  path: '/link',
-  getParentRoute: () => AosRoute,
+  id: '/aos/link',
+  path: '/aos/link',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AdminTopicsRoute = AdminTopicsRouteImport.update({
   id: '/admin/topics',
@@ -454,6 +454,7 @@ export interface RootRouteChildren {
   WorkWithMarshallRoute: typeof WorkWithMarshallRoute
   AdminLibraryRoute: typeof AdminLibraryRoute
   AdminTopicsRoute: typeof AdminTopicsRoute
+  AosLinkRoute: typeof AosLinkRoute
   ApiAskRoute: typeof ApiAskRoute
   ApiContractScanRoute: typeof ApiContractScanRoute
   ApiOwnerPlaysRoute: typeof ApiOwnerPlaysRoute
@@ -658,10 +659,10 @@ declare module '@tanstack/react-router' {
     }
     '/aos/link': {
       id: '/aos/link'
-      path: '/link'
+      path: '/aos/link'
       fullPath: '/aos/link'
       preLoaderRoute: typeof AosLinkRouteImport
-      parentRoute: typeof AosRoute
+      parentRoute: typeof rootRouteImport
     }
     '/admin/topics': {
       id: '/admin/topics'
@@ -743,6 +744,7 @@ const rootRouteChildren: RootRouteChildren = {
   WorkWithMarshallRoute: WorkWithMarshallRoute,
   AdminLibraryRoute: AdminLibraryRoute,
   AdminTopicsRoute: AdminTopicsRoute,
+  AosLinkRoute: AosLinkRoute,
   ApiAskRoute: ApiAskRoute,
   ApiContractScanRoute: ApiContractScanRoute,
   ApiOwnerPlaysRoute: ApiOwnerPlaysRoute,
@@ -763,13 +765,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
