@@ -44,12 +44,12 @@ function LoginPage() {
     <div className="relative grid min-h-screen w-full grid-cols-1 bg-paper-edge/60 p-6 text-ink font-sans selection:bg-ink selection:text-cream md:grid-cols-2 lg:p-10">
       {/* Tiny corner mark — Apple-style */}
       <Link to="/" className="absolute left-6 top-6 z-10 inline-flex items-center lg:left-10 lg:top-10" aria-label="Contractor Circle">
-        <img src={ccMark} alt="" className="h-5 w-5 object-contain" />
+        <img src={ccMark} alt="" className="h-10 w-10 object-contain" />
       </Link>
 
       {/* Left: centered sign-in card */}
       <div className="flex items-center justify-center">
-        <div className="w-full max-w-[460px] rounded-3xl border border-ink/10 bg-cream shadow-elegant">
+        <div className="w-full max-w-[460px] rounded-3xl border border-ink/10 bg-cream shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.12),0_24px_48px_-24px_rgba(0,0,0,0.18)]">
           <div className="px-10 pt-14 pb-10 text-center">
             <h1 className="font-display text-[64px] leading-[0.95]">
               Sign in.
@@ -108,21 +108,17 @@ function LoginPage() {
 
       {/* Right: open background with editorial tagline */}
       <div className="relative hidden flex-col justify-between md:flex">
-        <div className="flex justify-end px-10 pt-6">
-          <span className="text-[10px] uppercase tracking-[0.22em] text-ink/35">
-            Vol. I &nbsp;·&nbsp; MMXXVI
-          </span>
-        </div>
+        <div />
 
         <div className="px-10">
-          <p className="font-display text-[44px] leading-[1.05] tracking-normal text-ink lg:text-[52px]">
+          <p className="font-display text-[44px] leading-[1.05] tracking-normal text-ink lg:text-[52px] [text-shadow:0_1px_1px_rgba(0,0,0,0.06),0_2px_8px_rgba(0,0,0,0.08)]">
             Build the company<br />behind the projects.
           </p>
         </div>
 
         <div className="flex items-end justify-between px-10 pb-6">
           <p className="max-w-[260px] text-[12px] leading-relaxed text-ink/55">
-            A quiet system for the operator who would rather think than scramble.
+            $2.5 billion in construction.
           </p>
           <span className="text-[10px] uppercase tracking-[0.22em] text-ink/35">
             — AOS
