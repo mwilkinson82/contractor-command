@@ -22,12 +22,15 @@ const COMPANY_KEY = "aos.company_id";
 
 export function AosPulse() {
   const fn = useServerFn(getAosSnapshot);
+  const mint = useServerFn(mintAosSsoToken);
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [companyId, setCompanyId] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     return window.localStorage.getItem(COMPANY_KEY);
   });
   const [waitingForLink, setWaitingForLink] = useState(false);
+  const [opening, setOpening] = useState(false);
   const wasLinkedRef = useRef<boolean | null>(null);
 
   const { data, isLoading, refetch, isFetching } = useQuery<AosResult>({
