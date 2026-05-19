@@ -79,12 +79,8 @@ const GROUPS: Group[] = [
       { to: "/vault", label: "Vault", icon: Archive },
     ],
   },
-  {
-    label: "Build",
-    items: [
-      { to: "/field-tools", label: "Field", icon: Hammer },
-    ],
-  },
+  // Build / Field hidden — ConstructLine tools not yet redesigned.
+
   {
     label: "Program",
     items: [
