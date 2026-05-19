@@ -49,7 +49,7 @@ function LoginPage() {
 
       {/* Left: centered sign-in card */}
       <div className="flex items-center justify-center">
-        <div className="w-full max-w-[460px] rounded-3xl border border-ink/10 bg-cream shadow-elegant">
+        <div className="w-full max-w-[460px] rounded-3xl border border-ink/10 bg-cream shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.12),0_24px_48px_-24px_rgba(0,0,0,0.18)]">
           <div className="px-10 pt-14 pb-10 text-center">
             <h1 className="font-display text-[64px] leading-[0.95]">
               Sign in.
