@@ -140,6 +140,31 @@ async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
       },
       { onConflict: "stripe_subscription_id" }
     );
+
+    if (sub.status === "active" || sub.status === "trialing") {
+      await invitePaidMemberIfNeeded(normalizedEmail);
+    }
   }
+}
+
+async function invitePaidMemberIfNeeded(email: string) {
+  const perPage = 200;
+  for (let page = 1; page <= 25; page++) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
+    if (error) {
+      console.error("Failed to check auth user before member invite", { email, error });
+      return;
+    }
+    const users = data?.users ?? [];
+    if (users.some((u) => (u.email ?? "").toLowerCase() === email)) return;
+    if (users.length < perPage) break;
+  }
+
+  const origin = (process.env.PUBLIC_APP_ORIGIN || process.env.APP_ORIGIN || "https://app.alpcontractorcircle.com").replace(/\/$/, "");
+  const { error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+    data: { source: "stripe_purchase", invited_at: new Date().toISOString() },
+    redirectTo: `${origin}/welcome`,
+  });
+  if (error) console.error("Failed to send paid member invite", { email, error });
 }
 

@@ -64,11 +64,12 @@ export const requestPasswordReset = createServerFn({ method: "POST" })
       return { ok: true, action: "recovery_sent" };
     }
 
-    // No auth account yet — check if they're a paying member we migrated.
+    // No auth account yet — check if they're an active paid/comped member we migrated.
     const { data: sub } = await supabaseAdmin
       .from("subscriptions")
       .select("email")
       .ilike("email", email)
+      .or("status.in.(active,trialing),is_comped.eq.true")
       .limit(1)
       .maybeSingle();
 
