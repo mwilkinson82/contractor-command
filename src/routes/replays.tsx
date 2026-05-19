@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Search, Play, ExternalLink } from "lucide-react";
 import { PageHeader, Container } from "@/components/portal/page-header";
-import { supabase } from "@/integrations/supabase/client";
-import type { ReplayRow } from "@/lib/library";
+import { replaysQueryOptions } from "@/lib/library-queries";
 
 export const Route = createFileRoute("/replays")({
   head: () => ({
@@ -12,29 +12,18 @@ export const Route = createFileRoute("/replays")({
       { name: "description", content: "Archive of every biweekly working session and monthly bootcamp." },
     ],
   }),
+  loader: ({ context }) => {
+    context.queryClient.prefetchQuery(replaysQueryOptions());
+  },
   component: ReplaysPage,
 });
 
 function ReplaysPage() {
-  const [rows, setRows] = useState<ReplayRow[] | null>(null);
+  const { data: rows } = useQuery(replaysQueryOptions());
   const [q, setQ] = useState("");
   const [tag, setTag] = useState<string>("All");
   const [playing, setPlaying] = useState<Record<string, boolean>>({});
 
-  useEffect(() => {
-    (async () => {
-      const { data, error } = await supabase
-        .from("replays")
-        .select("*")
-        .order("recorded_at", { ascending: false });
-      if (error) {
-        console.error("[replays] load failed", error);
-        setRows([]);
-        return;
-      }
-      setRows((data as ReplayRow[]) ?? []);
-    })();
-  }, []);
 
   const allTags = useMemo(() => {
     const set = new Set<string>();
@@ -82,7 +71,7 @@ function ReplaysPage() {
       </div>
 
       <div className="mt-6 grid gap-3">
-        {rows === null ? (
+        {rows === undefined ? (
           <div className="text-sm text-muted-foreground">Loading…</div>
         ) : filtered.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">

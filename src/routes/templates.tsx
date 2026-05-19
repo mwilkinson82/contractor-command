@@ -1,12 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { FileText, Search, ExternalLink, Download, X } from "lucide-react";
 import { PageHeader, Container } from "@/components/portal/page-header";
-import { supabase } from "@/integrations/supabase/client";
 import { openTemplateFile, type TemplateRow } from "@/lib/library";
+import { templatesQueryOptions } from "@/lib/library-queries";
 
 export const Route = createFileRoute("/templates")({
   head: () => ({ meta: [{ title: "Templates — ALP Contractor Circle" }] }),
+  loader: ({ context }) => {
+    context.queryClient.prefetchQuery(templatesQueryOptions());
+  },
   component: TemplatesPage,
 });
 
@@ -14,25 +18,11 @@ const AOS_CATEGORY = "AOS";
 type SortMode = "newest" | "az";
 
 function TemplatesPage() {
-  const [rows, setRows] = useState<TemplateRow[] | null>(null);
+  const { data: rows } = useQuery(templatesQueryOptions());
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string>("All");
   const [sort, setSort] = useState<SortMode>("newest");
 
-  useEffect(() => {
-    (async () => {
-      const { data, error } = await supabase
-        .from("templates")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) {
-        console.error("[templates] load failed", error);
-        setRows([]);
-        return;
-      }
-      setRows((data as TemplateRow[]) ?? []);
-    })();
-  }, []);
 
   const aosItems = useMemo(
     () => (rows ?? []).filter((r) => r.category === AOS_CATEGORY),
@@ -88,12 +78,13 @@ function TemplatesPage() {
         lede="Every template here answers one question: what operating problem does this help solve? Organized by where it belongs in the business, not by file type."
       />
 
-      {rows === null ? (
+      {rows === undefined ? (
         <div className="mt-10 space-y-3">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="h-14 animate-pulse rounded-md bg-muted/40" />
           ))}
         </div>
+
       ) : (
         <>
           {aosItems.length > 0 && <AOSBand items={aosItems} />}
