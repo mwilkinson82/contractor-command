@@ -49,16 +49,16 @@ function LoginPage() {
 
       {/* Left: centered sign-in card */}
       <div className="flex items-center justify-center">
-        <div className="w-full max-w-[460px] rounded-3xl border border-ink/10 bg-cream shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.12),0_24px_48px_-24px_rgba(0,0,0,0.18)]">
-          <div className="px-10 pt-14 pb-10 text-center">
-            <h1 className="font-display text-[64px] leading-[0.95]">
-              Sign in.
+        <div className="w-full max-w-[440px] rounded-3xl border border-ink/10 bg-cream shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.12),0_24px_48px_-24px_rgba(0,0,0,0.18)]">
+          <div className="px-10 pt-12 pb-8 text-center">
+            <h1 className="font-display text-[56px] leading-[1.05] -tracking-[0.01em]">
+              Sign in
             </h1>
-            <p className="mx-auto mt-5 max-w-[300px] text-[13px] leading-relaxed text-ink/55">
+            <p className="mx-auto mt-4 max-w-[280px] text-[13px] leading-relaxed text-ink/55">
               Your private operating system. Enter to continue.
             </p>
 
-            <form onSubmit={onSubmit} className="mt-10 space-y-8 text-left">
+            <form onSubmit={onSubmit} className="mt-9 space-y-7 text-left">
               <Field
                 id="email"
                 label="Email"
@@ -90,14 +90,14 @@ function LoginPage() {
               <button
                 type="submit"
                 disabled={busy}
-                className="mt-4 inline-flex w-full items-center justify-center rounded-full bg-ink px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-cream transition-opacity hover:opacity-90 disabled:opacity-50"
+                className="mt-2 inline-flex w-full items-center justify-center rounded-full bg-ink px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-cream transition-opacity hover:opacity-90 disabled:opacity-50"
               >
                 {busy ? "Entering" : "Enter"}
               </button>
             </form>
           </div>
 
-          <footer className="px-10 pb-10 text-center">
+          <footer className="px-10 pb-6 text-center">
             <p className="text-[10px] uppercase tracking-[0.22em] text-ink/35">
               Contractor Circle
             </p>
@@ -109,10 +109,11 @@ function LoginPage() {
       {/* Right: open background with editorial tagline */}
       <div className="relative hidden flex-col items-center justify-center md:flex">
         <div className="px-10 text-center">
-          <p className="font-display text-[44px] leading-[1.05] tracking-normal text-ink lg:text-[52px] [text-shadow:0_1px_1px_rgba(0,0,0,0.06),0_2px_8px_rgba(0,0,0,0.08)]">
+          <p className="font-display text-[40px] leading-[1.05] -tracking-[0.005em] text-ink lg:text-[44px] [text-shadow:0_1px_1px_rgba(0,0,0,0.06),0_2px_8px_rgba(0,0,0,0.08)]">
             Build the company<br />behind the projects.
           </p>
-          <p className="mt-6 font-display text-[20px] leading-relaxed text-ink/35">
+          <p className="mt-5 font-display text-[18px] leading-relaxed text-ink/35">
+
             $2.5 billion in construction.
           </p>
         </div>
