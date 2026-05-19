@@ -71,7 +71,7 @@ function ReplaysPage() {
       </div>
 
       <div className="mt-6 grid gap-3">
-        {rows === null ? (
+        {rows === undefined ? (
           <div className="text-sm text-muted-foreground">Loading…</div>
         ) : filtered.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
