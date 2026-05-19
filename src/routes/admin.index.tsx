@@ -428,7 +428,17 @@ function formatUSD(cents: number): string {
 
 /* ----------------- members directory ----------------- */
 
-type FilterKey = "all" | "paid" | "comped" | "active" | "canceled" | "founding";
+type FilterKey =
+  | "all"
+  | "paid"
+  | "comped"
+  | "active"
+  | "canceled"
+  | "founding"
+  | "never_signed_in"
+  | "not_activated"
+  | "no_account";
+
 
 function MembersDirectory({ online }: { online: PresenceUser[] }) {
   const fetchUsers = useServerFn(listAdminUsers);
