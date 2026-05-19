@@ -44,7 +44,7 @@ function LoginPage() {
     <div className="relative grid min-h-screen w-full grid-cols-1 bg-paper-edge/60 p-6 text-ink font-sans selection:bg-ink selection:text-cream md:grid-cols-2 lg:p-10">
       {/* Tiny corner mark — Apple-style */}
       <Link to="/" className="absolute left-6 top-6 z-10 inline-flex items-center lg:left-10 lg:top-10" aria-label="Contractor Circle">
-        <img src={ccMark} alt="" className="h-10 w-10 object-contain" />
+        <img src={ccMark} alt="" className="h-20 w-20 object-contain" />
       </Link>
 
       {/* Left: centered sign-in card */}
@@ -107,22 +107,14 @@ function LoginPage() {
 
 
       {/* Right: open background with editorial tagline */}
-      <div className="relative hidden flex-col justify-between md:flex">
-        <div />
-
-        <div className="px-10">
+      <div className="relative hidden flex-col items-center justify-center md:flex">
+        <div className="px-10 text-center">
           <p className="font-display text-[44px] leading-[1.05] tracking-normal text-ink lg:text-[52px] [text-shadow:0_1px_1px_rgba(0,0,0,0.06),0_2px_8px_rgba(0,0,0,0.08)]">
             Build the company<br />behind the projects.
           </p>
-        </div>
-
-        <div className="flex items-end justify-between px-10 pb-6">
-          <p className="max-w-[260px] text-[12px] leading-relaxed text-ink/55">
+          <p className="mt-6 text-[12px] leading-relaxed text-ink/55">
             $2.5 billion in construction.
           </p>
-          <span className="text-[10px] uppercase tracking-[0.22em] text-ink/35">
-            — AOS
-          </span>
         </div>
       </div>
     </div>
