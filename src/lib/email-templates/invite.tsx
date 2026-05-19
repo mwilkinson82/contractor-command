@@ -32,13 +32,15 @@ export const InviteEmail = ({
           font-family: 'Instrument Serif';
           font-style: normal;
           font-weight: 400;
-          src: url(https://fonts.gstatic.com/s/instrumentserif/v4/jizDREVItHgc8qDIbSTKq4XIRRD-_pH5cTpoP7nzc7Q.woff2) format('woff2');
+          font-display: swap;
+          src: url(https://fonts.gstatic.com/s/instrumentserif/v5/jizBRFtNs2ka5fXjeivQ4LroWlx-2zI.ttf) format('truetype');
         }
         @font-face {
           font-family: 'JetBrains Mono';
           font-style: normal;
           font-weight: 500;
-          src: url(https://fonts.gstatic.com/s/jetbrainsmono/v18/tDbY2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKxjPVmUsaaDhw.woff2) format('woff2');
+          font-display: swap;
+          src: url(https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbY2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8-qxjPQ.ttf) format('truetype');
         }
       `}</style>
     </Head>
