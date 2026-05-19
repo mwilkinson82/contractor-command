@@ -112,7 +112,7 @@ function LoginPage() {
           <p className="font-display text-[44px] leading-[1.05] tracking-normal text-ink lg:text-[52px] [text-shadow:0_1px_1px_rgba(0,0,0,0.06),0_2px_8px_rgba(0,0,0,0.08)]">
             Build the company<br />behind the projects.
           </p>
-          <p className="mt-6 text-[12px] leading-relaxed text-ink/55">
+          <p className="mt-6 font-display text-[18px] italic leading-relaxed text-ink/35">
             $2.5 billion in construction.
           </p>
         </div>
