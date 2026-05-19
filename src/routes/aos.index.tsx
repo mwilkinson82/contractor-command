@@ -88,7 +88,54 @@ function AosGateway() {
       ? `Continuing with ${company.name}.`
       : null;
 
+  const handingOff = phase === "minting" || phase === "redirecting";
+
   return (
+    <>
+    {handingOff && (
+      <div
+        role="status"
+        aria-live="polite"
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-ink text-cream"
+      >
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.07]"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 1px 1px, var(--cream) 1px, transparent 0)",
+            backgroundSize: "22px 22px",
+          }}
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-1/3 left-1/2 h-[120%] w-[80%] -translate-x-1/2 rounded-full opacity-30 blur-3xl"
+          style={{
+            background:
+              "radial-gradient(closest-side, var(--gold), transparent 70%)",
+          }}
+        />
+        <div className="relative flex flex-col items-center gap-6 text-center">
+          <div className="relative flex h-16 w-16 items-center justify-center">
+            <span className="absolute inset-0 rounded-full border border-gold/40 animate-ping" />
+            <span className="absolute inset-2 rounded-full border border-gold/60" />
+            <Compass className="h-6 w-6 text-gold" />
+          </div>
+          <div>
+            <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-cream/55">
+              {phase === "minting" ? "Opening the door" : "Entering AOS"}
+            </p>
+            <p className="mt-3 font-display text-2xl tracking-tight sm:text-3xl">
+              Connecting to AOS…
+            </p>
+            <p className="mt-2 text-[13px] text-cream/60">
+              Picking up your session
+              {linkedEmail ? ` as ${linkedEmail}` : ""}. This takes a moment.
+            </p>
+          </div>
+        </div>
+      </div>
+    )}
     <section className="relative isolate -m-4 min-h-[calc(100svh-4rem)] overflow-hidden bg-ink text-cream sm:-m-6 md:-m-8">
       {/* Ambient field — same grammar as AosHero */}
       <div
