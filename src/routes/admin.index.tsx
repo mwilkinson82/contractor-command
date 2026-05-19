@@ -481,6 +481,9 @@ function MembersDirectory({ online }: { online: PresenceUser[] }) {
       if (filter === "active" && sub?.status !== "active") return false;
       if (filter === "canceled" && sub?.status !== "canceled") return false;
       if (filter === "founding" && !sub?.isFounding) return false;
+      if (filter === "never_signed_in" && (!u.hasAuthAccount || u.lastSignInAt)) return false;
+      if (filter === "not_activated" && (!u.hasAuthAccount || u.emailConfirmedAt)) return false;
+      if (filter === "no_account" && u.hasAuthAccount) return false;
       if (!q) return true;
       return (
         u.email.toLowerCase().includes(q) ||
@@ -488,6 +491,7 @@ function MembersDirectory({ online }: { online: PresenceUser[] }) {
       );
     });
   }, [users, query, filter]);
+
 
   return (
     <section className="mt-8">
