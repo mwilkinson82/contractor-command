@@ -42,74 +42,81 @@ function LoginPage() {
 
   return (
     <div className="relative grid min-h-screen w-full grid-cols-1 bg-paper-edge/60 p-6 text-ink font-sans selection:bg-ink selection:text-cream md:grid-cols-2 md:items-center lg:p-10">
-      {/* Left: sign-in column. Logo sits above the card as part of the composition. */}
+      {/* Left: the product — a tactile, modern card sitting on the paper */}
       <div className="flex justify-center md:justify-end md:pr-10 lg:pr-16">
-        <div className="w-full max-w-[420px]">
-          <Link to="/" className="mb-8 inline-flex items-center gap-3" aria-label="Contractor Circle">
-            <img src={ccMark} alt="" className="h-10 w-10 object-contain" />
-            <span className="text-[10px] uppercase tracking-[0.28em] text-ink/45">
-              ALP &middot; Contractor Circle
-            </span>
-          </Link>
+        <div className="w-full max-w-[440px]">
+          <div className="rounded-[28px] bg-cream shadow-[0_30px_80px_-40px_rgba(20,16,12,0.35),0_2px_0_rgba(20,16,12,0.04)] ring-1 ring-ink/[0.06]">
+            <div className="px-10 pt-10 pb-9">
+              <Link to="/" className="inline-flex items-center gap-2.5" aria-label="Contractor Circle">
+                <img src={ccMark} alt="" className="h-7 w-7 object-contain" />
+                <span className="text-[10px] uppercase tracking-[0.28em] text-ink/45">
+                  ALP &middot; Contractor Circle
+                </span>
+              </Link>
 
-          <div className="border-t border-ink/15 pt-9">
-            <h1 className="font-display text-[52px] leading-[1.0] -tracking-[0.01em]">
-              Sign in
-            </h1>
-            <p className="mt-3 text-[13px] leading-relaxed text-ink/55">
-              Your private operating system.
-            </p>
+              <h1 className="mt-8 font-display text-[44px] leading-[1.0] -tracking-[0.01em]">
+                Sign in
+              </h1>
+              <p className="mt-2 text-[13px] leading-relaxed text-ink/55">
+                Your private operating system.
+              </p>
 
-            <form onSubmit={onSubmit} className="mt-8 space-y-6">
-              <Field
-                id="email"
-                label="Email"
-                type="email"
-                value={email}
-                onChange={setEmail}
-                placeholder="name@company.com"
-                required
-                autoFocus
-              />
+              <form onSubmit={onSubmit} className="mt-8 space-y-6">
+                <Field
+                  id="email"
+                  label="Email"
+                  type="email"
+                  value={email}
+                  onChange={setEmail}
+                  placeholder="name@company.com"
+                  required
+                  autoFocus
+                />
 
-              <Field
-                id="password"
-                label="Password"
-                type="password"
-                value={password}
-                onChange={setPassword}
-                placeholder="••••••••"
-                required
-                hint={
-                  <a href="#" className="font-display italic text-[12px] text-ink/45 transition-colors hover:text-ink">
-                    Forgot password?
-                  </a>
-                }
-              />
+                <Field
+                  id="password"
+                  label="Password"
+                  type="password"
+                  value={password}
+                  onChange={setPassword}
+                  placeholder="••••••••"
+                  required
+                  hint={
+                    <a href="#" className="font-display italic text-[12px] text-ink/45 transition-colors hover:text-ink">
+                      Forgot password?
+                    </a>
+                  }
+                />
 
-              {err && <p className="text-[12px] text-[#b8442a]">{err}</p>}
+                {err && <p className="text-[12px] text-[#b8442a]">{err}</p>}
 
-              <button
-                type="submit"
-                disabled={busy}
-                className="mt-2 inline-flex w-full items-center justify-center rounded-full bg-ink px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-cream transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                {busy ? "Entering" : "Enter"}
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="mt-2 inline-flex w-full items-center justify-center rounded-full bg-ink px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-cream transition-opacity hover:opacity-90 disabled:opacity-50"
+                >
+                  {busy ? "Entering" : "Enter"}
+                </button>
+              </form>
+            </div>
+
+            <div className="border-t border-ink/[0.06] px-10 py-4 text-center">
+              <span className="text-[10px] uppercase tracking-[0.28em] text-ink/35">
+                Members only
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Right: DDB-era print ad — headline aligns to the card's top rule */}
+      {/* Right: the advertisement — paper, headline, justified columns */}
       <div className="relative hidden md:flex md:justify-start md:pl-10 lg:pl-16">
         <div className="w-full max-w-[520px]">
-          <div className="h-[72px]" aria-hidden />
           <h2 className="font-display text-[112px] leading-[0.92] -tracking-[0.025em] text-ink lg:text-[128px]">
             Boring<br />wins.
           </h2>
 
-          <div className="mt-12 grid grid-cols-3 gap-5 text-[11.5px] leading-[1.55] text-ink/75 [text-align:justify] [hyphens:auto] [text-justify:inter-word] tracking-[-0.005em]">
+          <div className="mt-10 grid grid-cols-3 gap-5 text-[11.5px] leading-[1.55] text-ink/75 [text-align:justify] [hyphens:auto] [text-justify:inter-word] tracking-[-0.005em]">
             <p>
               The best contractors we know aren't the loudest ones. They're the
               ones with systems. The ones who go home at five. The ones whose
@@ -126,6 +133,10 @@ function LoginPage() {
               <br /><br />
               Boring, maybe. But boring is what scales.
             </p>
+          </div>
+
+          <div className="mt-10 text-[10px] uppercase tracking-[0.28em] text-ink/35">
+            An ALP publication
           </div>
         </div>
       </div>
