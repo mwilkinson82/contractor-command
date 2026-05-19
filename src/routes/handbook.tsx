@@ -93,18 +93,33 @@ function HandbookPage() {
         <Chapter4 />
         <Chapter5 />
         <Chapter6 />
+        {/* #13 Operations as Margin Protection + absorbed Operations Is Logistics */}
         <Chapter7 />
+        <Chapter11 />
         <Chapter10 />
 
         {/* Part IV — Time, Money, and Commercial Control */}
         <PartHeader number="IV" title="Time, Money, and Commercial Control" eyebrow="Reorganized in V2" />
+        {/* #15 Documentation */}
         <Chapter12 />
+        {/* #16 Notices + absorbed Ch 20 (Notices/Docs/Offense at Scale) */}
         <Chapter13 />
+        <Chapter20 />
+        {/* #17 Scheduling + absorbed Start-Stop (Ch15) + CPM (Ch18) */}
         <Chapter14 />
+        <Chapter15 />
+        <Chapter18 />
+        {/* #18 General Conditions + absorbed Profit Center (Ch17) */}
         <Chapter8 />
+        <Chapter17 />
+        {/* #19 Change Order Velocity */}
         <Chapter19 />
+        {/* #20 Financial Command + absorbed Financial Authority (Ch21) */}
         <Chapter16 />
+        <Chapter21 />
+        {/* #21 Decision Matrix + absorbed Ch 22 */}
         <Chapter9 />
+        <Chapter22 />
 
         {/* Part V — Identity, Leadership, and Scale */}
         <PartHeader number="V" title="Identity, Leadership, and Scale" eyebrow="Reorganized in V2" />

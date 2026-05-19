@@ -5,11 +5,9 @@ import DoctrineList from '../DoctrineList';
 
 const Chapter11: React.FC = () => {
   return (
-    <div id="chapter-11" className="py-24 border-t border-chapter-divider">
-      <ChapterHeader 
-        number={11} 
-        title="Operations Is Logistics — Not Labor" 
-      />
+    <div id="chapter-11" className="pt-4 pb-12">
+      <h3 className="section-heading mt-4 mb-8">Operations Is Logistics — Not Labor</h3>
+
 
       <div className="body-text space-y-6 max-w-3xl">
         <p>

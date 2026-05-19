@@ -8,11 +8,9 @@ import IdentityParable from '../IdentityParable';
 
 const Chapter17: React.FC = () => {
   return (
-    <div id="chapter-17" className="py-24 border-t border-chapter-divider">
-      <ChapterHeader 
-        number={17} 
-        title="General Conditions Are Not Overhead — They Are a Profit Center" 
-      />
+    <div id="chapter-17" className="pt-4 pb-12">
+      <h3 className="section-heading mt-4 mb-8">General Conditions as a Profit Center</h3>
+
 
       <div className="body-text space-y-6 max-w-3xl">
         <p>

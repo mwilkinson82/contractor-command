@@ -7,11 +7,9 @@ import IdentityParable from '../IdentityParable';
 
 const Chapter22: React.FC = () => {
   return (
-    <div id="chapter-22" className="py-24 border-t border-chapter-divider">
-      <ChapterHeader 
-        number={22} 
-        title="The Decision Matrix: How Operators Decide Under Pressure" 
-      />
+    <div id="chapter-22" className="pt-4 pb-12">
+      <h3 className="section-heading mt-4 mb-8">The Decision Matrix at Scale: How Operators Decide Under Pressure</h3>
+
 
       <div className="body-text space-y-6 max-w-3xl">
         <p>

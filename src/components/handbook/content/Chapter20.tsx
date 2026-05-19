@@ -6,11 +6,9 @@ import IdentityParable from '../IdentityParable';
 
 const Chapter20: React.FC = () => {
   return (
-    <div id="chapter-20" className="py-24 border-t border-chapter-divider">
-      <ChapterHeader 
-        number={20} 
-        title="Notices, Documentation, and Playing Offense" 
-      />
+    <div id="chapter-20" className="pt-4 pb-12">
+      <h3 className="section-heading mt-4 mb-8">Notices, Documentation, and Offense at Scale</h3>
+
 
       <div className="body-text space-y-6 max-w-3xl">
         <p>
