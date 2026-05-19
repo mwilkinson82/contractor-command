@@ -8,11 +8,13 @@ interface TocItem {
   id: string;
   title: string;
   chapter?: string;
+  badge?: string;
 }
 
 interface TocSection {
   part?: string;
   title: string;
+  eyebrow?: string;
   items: TocItem[];
 }
 
@@ -28,7 +30,8 @@ const tocData: TocSection[] = [
     title: 'Front Matter',
     items: [
       { id: 'dedication', title: 'Dedication' },
-      { id: 'foreword', title: 'Foreword / Author\'s Note' },
+      { id: 'foreword', title: "Foreword / Author's Note", badge: 'Updated for V2' },
+      { id: 'how-to-use', title: 'How to Use This Handbook', badge: 'Updated for V2' },
     ],
   },
   {
@@ -42,56 +45,61 @@ const tocData: TocSection[] = [
   },
   {
     part: 'II',
-    title: 'The Stool (Systems)',
+    title: 'The Operating System',
+    eyebrow: 'New in V2',
     items: [
-      { id: 'chapter-4', chapter: '4', title: 'Marketing as Infrastructure' },
-      { id: 'chapter-5', chapter: '5', title: 'Upstream Marketing & Being "In the Know"' },
-      { id: 'chapter-6', chapter: '6', title: 'Sales, Pressure, and Clarity' },
-      { id: 'chapter-7', chapter: '7', title: 'Operations as Margin Protection' },
-      { id: 'chapter-8', chapter: '8', title: 'General Conditions & Invisible Costs' },
-      { id: 'chapter-9', chapter: '9', title: 'The ALP Decision Matrix' },
-      { id: 'chapter-10', chapter: '10', title: 'From Chaos to Control' },
+      { id: 'volume-2-intro', title: 'Why the Operating System' },
+      { id: 'chapter-27', chapter: '4', title: 'A Contracting Company Cannot Run on the Owner' },
+      { id: 'chapter-28', chapter: '5', title: 'Hierarchy Is Not Accountability' },
+      { id: 'chapter-29', chapter: '6', title: 'The Six Components of a Contracting Operating System' },
+      { id: 'chapter-30', chapter: '7', title: 'Weekly Execution Is Where the Company Is Won' },
+      { id: 'chapter-31', chapter: '8', title: 'Systems Remove Personality from the Business' },
+      { id: 'chapter-32', chapter: '9', title: 'Why AOS Belongs in an Application' },
     ],
   },
   {
     part: 'III',
-    title: 'Time, Money, & Leverage',
+    title: 'The Business Systems',
+    eyebrow: 'Reorganized in V2',
     items: [
-      { id: 'chapter-11', chapter: '11', title: 'Operations Is Logistics — Not Labor' },
-      { id: 'chapter-12', chapter: '12', title: 'Documentation, Entitlement, and Proof' },
-      { id: 'chapter-13', chapter: '13', title: 'Notices & Playing Offense' },
-      { id: 'chapter-14', chapter: '14', title: 'Scheduling as Time Control' },
-      { id: 'chapter-15', chapter: '15', title: 'Start–Stop Work and Productivity Loss' },
-      { id: 'chapter-16', chapter: '16', title: 'Financial Command: Seeing the Business Clearly' },
-      { id: 'chapter-17', chapter: '17', title: 'General Conditions Are Not Overhead — They Are a Profit Center' },
-      { id: 'chapter-18', chapter: '18', title: 'CPM Schedules, Start–Stop Work, and the Cost of Disorder' },
+      { id: 'chapter-4', chapter: '10', title: 'Marketing as Infrastructure' },
+      { id: 'chapter-5', chapter: '11', title: 'Upstream Marketing & Being "In the Know"' },
+      { id: 'chapter-6', chapter: '12', title: 'Sales, Pressure, and Clarity' },
+      { id: 'chapter-7', chapter: '13', title: 'Operations as Margin Protection' },
+      { id: 'chapter-10', chapter: '14', title: 'From Chaos to Control' },
     ],
   },
   {
     part: 'IV',
-    title: 'Identity & Scale',
+    title: 'Time, Money, and Commercial Control',
+    eyebrow: 'Reorganized in V2',
     items: [
+      { id: 'chapter-12', chapter: '15', title: 'Documentation, Entitlement, and Proof' },
+      { id: 'chapter-13', chapter: '16', title: 'Notices & Playing Offense' },
+      { id: 'chapter-14', chapter: '17', title: 'Scheduling, Start–Stop Work, and the Cost of Disorder' },
+      { id: 'chapter-8', chapter: '18', title: 'General Conditions: From Invisible Cost to Profit Center' },
       { id: 'chapter-19', chapter: '19', title: 'Change Order Velocity and Monetizing Disruption' },
-      { id: 'chapter-20', chapter: '20', title: 'Notices, Documentation, and Playing Offense' },
-      { id: 'chapter-21', chapter: '21', title: 'Financial Authority at Scale' },
-      { id: 'chapter-22', chapter: '22', title: 'The Decision Matrix: How Operators Decide Under Pressure' },
-      { id: 'chapter-23', chapter: '23', title: 'Identity, Pressure, and the Entrepreneur\'s Responsibility' },
+      { id: 'chapter-16', chapter: '20', title: 'Financial Command and Financial Authority' },
+      { id: 'chapter-9', chapter: '21', title: 'The ALP Decision Matrix' },
     ],
   },
   {
     part: 'V',
-    title: 'Real-Time Application',
+    title: 'Identity, Leadership, and Scale',
+    eyebrow: 'Reorganized in V2',
     items: [
-      { id: 'chapter-24', chapter: '24', title: 'Using the ALP Handbook in Real Time' },
-      { id: 'chapter-25', chapter: '25', title: 'Scaling Without Losing Control' },
-      { id: 'chapter-26', chapter: '26', title: 'Leadership, Standards, and Cultural Enforcement' },
+      { id: 'chapter-23', chapter: '22', title: "Identity, Pressure, and the Entrepreneur's Responsibility" },
+      { id: 'chapter-26', chapter: '23', title: 'Leadership, Standards, and Cultural Enforcement' },
+      { id: 'chapter-25', chapter: '24', title: 'Scaling Without Losing Control' },
     ],
   },
   {
     part: 'VI',
-    title: 'Commitment',
+    title: 'Real-Time Application & Commitment',
+    eyebrow: 'Reorganized in V2',
     items: [
-      { id: 'final-chapter', title: 'The ALP Way — Doctrine & Commitment' },
+      { id: 'chapter-24', chapter: '25', title: 'Using the ALP Handbook in Real Time' },
+      { id: 'final-chapter', chapter: '26', title: 'The ALP Way — Doctrine & Commitment' },
     ],
   },
 ];
