@@ -132,6 +132,24 @@
     font-family: var(--font-sans);
     font-feature-settings: "ss01", "cv11";
     -webkit-font-smoothing: antialiased;
+    /* Prevent horizontal scroll on mobile */
+    overflow-x: hidden;
+  }
+  /* Soft, app-wide hover/focus motion on interactive surfaces */
+  a, button, [role="button"], summary,
+  input, textarea, select,
+  [data-slot="button"], [data-slot="card"], [data-slot="sidebar-menu-button"] {
+    transition:
+      color 200ms ease,
+      background-color 200ms ease,
+      border-color 200ms ease,
+      box-shadow 220ms ease,
+      transform 220ms cubic-bezier(.2,.7,.2,1),
+      opacity 200ms ease;
+  }
+  /* Prevent iOS zoom on input focus */
+  @media (max-width: 640px) {
+    input, textarea, select { font-size: 16px; }
   }
   h1, h2, h3, .font-display {
     font-family: var(--font-display);
