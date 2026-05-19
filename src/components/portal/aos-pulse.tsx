@@ -147,7 +147,7 @@ export function AosPulse() {
             isFetching={isFetching}
             onOpenAos={() => {
               setWaitingForLink(true);
-              window.open(AOS_URL, "_blank", "noopener,noreferrer");
+              navigate({ to: "/aos" });
             }}
             onRecheck={() => refetch()}
           />
