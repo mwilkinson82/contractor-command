@@ -445,6 +445,7 @@ type FilterKey =
 function MembersDirectory({ online }: { online: PresenceUser[] }) {
   const fetchUsers = useServerFn(listAdminUsers);
   const compMutation = useServerFn(setUserComped);
+  const sendAccessLink = useServerFn(sendMemberAccessLink);
   const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
@@ -472,6 +473,17 @@ function MembersDirectory({ online }: { online: PresenceUser[] }) {
       queryClient.invalidateQueries({ queryKey: ["admin-metrics"] });
     },
     onError: (err: Error) => toast.error(err.message ?? "Could not update."),
+  });
+
+  const accessMut = useMutation({
+    mutationFn: (email: string) => sendAccessLink({ data: { email } }),
+    onSuccess: (res, email) => {
+      toast.success(res.action === "reset_sent" ? "Reset link sent." : "Invite link sent.", {
+        description: email,
+      });
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+    },
+    onError: (err: Error) => toast.error(err.message ?? "Could not send access link."),
   });
 
   const filtered = useMemo(() => {
@@ -516,7 +528,7 @@ function MembersDirectory({ online }: { online: PresenceUser[] }) {
       </div>
 
       <div className="mt-3 overflow-hidden rounded-2xl border border-border bg-card">
-        <div className="grid grid-cols-[1.6fr_1.1fr_0.9fr_0.9fr_0.9fr] gap-3 border-b border-border bg-muted/40 px-4 py-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+        <div className="grid grid-cols-[1.5fr_1fr_0.8fr_0.8fr_1.25fr] gap-3 border-b border-border bg-muted/40 px-4 py-2 text-[10px] uppercase tracking-wider text-muted-foreground">
           <span>Member</span>
           <span>Activity</span>
           <span>Subscription</span>
@@ -537,7 +549,7 @@ function MembersDirectory({ online }: { online: PresenceUser[] }) {
               return (
                 <li
                   key={u.id + (sub?.id ?? "")}
-                  className="grid grid-cols-[1.6fr_1.1fr_0.9fr_0.9fr_0.9fr] items-center gap-3 px-4 py-3 text-[13px]"
+                  className="grid grid-cols-[1.5fr_1fr_0.8fr_0.8fr_1.25fr] items-center gap-3 px-4 py-3 text-[13px]"
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -593,7 +605,16 @@ function MembersDirectory({ online }: { online: PresenceUser[] }) {
                   </div>
 
 
-                  <div className="flex justify-end">
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      disabled={accessMut.isPending && accessMut.variables === u.email}
+                      onClick={() => accessMut.mutate(u.email)}
+                      className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-[11px] transition hover:bg-muted disabled:opacity-50"
+                    >
+                      <Mail className="h-3 w-3" />
+                      {accessMut.isPending && accessMut.variables === u.email ? "Sending…" : "Access link"}
+                    </button>
                     <button
                       type="button"
                       disabled={busy}
