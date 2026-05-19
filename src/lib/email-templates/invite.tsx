@@ -8,13 +8,14 @@ import {
   Heading,
   Hr,
   Html,
+  Img,
   Link,
   Preview,
   Section,
   Text,
 } from '@react-email/components'
 
-import { nextOfKind } from '../program'
+import { nextOfKind, DISCORD_URL } from '../program'
 
 interface InviteEmailProps {
   siteName: string
@@ -29,7 +30,8 @@ interface InviteEmailProps {
   zoomPasscode?: string
 }
 
-const DEFAULT_DISCORD = 'https://discord.gg/alpcontractorcircle'
+const DEFAULT_DISCORD = DISCORD_URL
+const LOGO_URL = 'https://qcbbjjjxcacrscfhgfmf.supabase.co/storage/v1/object/public/email-assets/contractor-circle-logo.png'
 
 export const InviteEmail = ({
   siteName,
@@ -86,6 +88,14 @@ export const InviteEmail = ({
       {/* One paper. End to end. */}
       <Body style={main}>
         <Container style={container}>
+          {/* Logo */}
+          <Img
+            src={LOGO_URL}
+            width="44"
+            height="44"
+            alt="Contractor Circle"
+            style={logo}
+          />
           {/* Orange hairline */}
           <div style={topRule} />
 
@@ -274,6 +284,12 @@ const container = {
   margin: '0 auto',
   padding: '40px 32px 48px',
   backgroundColor: PAPER,
+}
+const logo = {
+  display: 'block',
+  width: '44px',
+  height: '44px',
+  margin: '0 0 28px',
 }
 const topRule = {
   height: '2px',

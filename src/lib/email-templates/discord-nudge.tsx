@@ -12,7 +12,7 @@ interface DiscordNudgeProps {
 
 const DiscordNudgeEmail = ({
   siteName = 'Contractor Circle',
-  discordUrl = 'https://discord.gg/alpcontractorcircle',
+  discordUrl = 'https://discord.gg/yvVN2N3qvN',
   firstName,
 }: DiscordNudgeProps) => {
   const name = firstName?.trim()
@@ -46,7 +46,7 @@ const DiscordNudgeEmail = ({
               <Button style={button} href={discordUrl}>Open the Discord</Button>
               <Text style={ctaNote}>
                 Free, members-only.{' '}
-                <Link href={discordUrl} style={inlineLink}>discord.gg/alpcontractorcircle</Link>
+                <Link href={discordUrl} style={inlineLink}>discord.gg/yvVN2N3qvN</Link>
               </Text>
             </Section>
             <Text style={footer}>
@@ -69,7 +69,7 @@ export const template = {
   previewData: {
     firstName: 'Cesar',
     siteName: 'Contractor Circle',
-    discordUrl: 'https://discord.gg/alpcontractorcircle',
+    discordUrl: 'https://discord.gg/yvVN2N3qvN',
   },
 } satisfies TemplateEntry
 
