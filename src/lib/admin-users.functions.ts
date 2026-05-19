@@ -240,3 +240,51 @@ export const setUserComped = createServerFn({ method: "POST" })
     if (error) throw error;
     return { ok: true };
   });
+
+export const sendMemberAccessLink = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ email: z.string().trim().toLowerCase().email().max(255) }).parse(input))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.userId);
+
+    const { data: sub } = await supabaseAdmin
+      .from("subscriptions")
+      .select("email")
+      .ilike("email", data.email)
+      .or("status.in.(active,trialing),is_comped.eq.true")
+      .limit(1)
+      .maybeSingle();
+
+    if (!sub) throw new Error("No active paid or comped membership found for that email.");
+
+    const origin = (process.env.PUBLIC_APP_ORIGIN || process.env.APP_ORIGIN || "https://app.alpcontractorcircle.com").replace(/\/$/, "");
+    const existing = await findAuthUserByEmail(data.email);
+
+    if (existing) {
+      const { error } = await supabaseAdmin.auth.resetPasswordForEmail(data.email, {
+        redirectTo: `${origin}/reset-password`,
+      });
+      if (error) throw error;
+      return { ok: true, action: "reset_sent" as const };
+    }
+
+    const { error } = await supabaseAdmin.auth.admin.inviteUserByEmail(data.email, {
+      data: { source: "admin_access_link", invited_at: new Date().toISOString() },
+      redirectTo: `${origin}/welcome`,
+    });
+    if (error) throw error;
+    return { ok: true, action: "invite_sent" as const };
+  });
+
+async function findAuthUserByEmail(email: string) {
+  const perPage = 200;
+  for (let page = 1; page <= 25; page++) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
+    if (error) throw error;
+    const users = data?.users ?? [];
+    const hit = users.find((u) => (u.email ?? "").toLowerCase() === email);
+    if (hit) return hit;
+    if (users.length < perPage) return null;
+  }
+  return null;
+}
