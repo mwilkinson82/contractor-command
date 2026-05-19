@@ -132,7 +132,7 @@ function LoginPage() {
 
         {/* Center tagline */}
         <div className="px-12 lg:px-20">
-          <p className="font-display text-[72px] italic leading-[1.02] tracking-[-0.015em] text-ink lg:text-[88px]">
+          <p className="font-display text-[72px] not-italic leading-[1.02] tracking-[-0.015em] text-ink lg:text-[88px]">
             Build the<br />company<br />behind the<br />projects.
           </p>
         </div>
