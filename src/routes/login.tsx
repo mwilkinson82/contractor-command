@@ -49,16 +49,16 @@ function LoginPage() {
 
       {/* Left: centered sign-in card */}
       <div className="flex items-center justify-center">
-        <div className="w-full max-w-[440px] rounded-3xl border border-ink/10 bg-cream shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.12),0_24px_48px_-24px_rgba(0,0,0,0.18)]">
-          <div className="px-10 pt-12 pb-8 text-center">
-            <h1 className="font-display text-[56px] leading-[1.05] -tracking-[0.01em]">
+        <div className="w-full max-w-[420px] rounded-3xl border border-ink/[0.06] bg-cream shadow-[0_1px_2px_rgba(0,0,0,0.03),0_6px_16px_-10px_rgba(0,0,0,0.08),0_18px_36px_-24px_rgba(0,0,0,0.12)]">
+          <div className="px-9 pt-10 pb-6 text-center">
+            <h1 className="font-display text-[52px] leading-[1.05] -tracking-[0.01em]">
               Sign in
             </h1>
-            <p className="mx-auto mt-4 max-w-[280px] text-[13px] leading-relaxed text-ink/55">
-              Your private operating system. Enter to continue.
+            <p className="mt-3 text-[13px] leading-relaxed text-ink/55">
+              Your private operating system.
             </p>
 
-            <form onSubmit={onSubmit} className="mt-9 space-y-7 text-left">
+            <form onSubmit={onSubmit} className="mt-8 space-y-6 text-left">
               <Field
                 id="email"
                 label="Email"
@@ -90,19 +90,20 @@ function LoginPage() {
               <button
                 type="submit"
                 disabled={busy}
-                className="mt-2 inline-flex w-full items-center justify-center rounded-full bg-ink px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-cream transition-opacity hover:opacity-90 disabled:opacity-50"
+                className="mt-1 inline-flex w-full items-center justify-center rounded-full bg-ink px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-cream transition-opacity hover:opacity-90 disabled:opacity-50"
               >
                 {busy ? "Entering" : "Enter"}
               </button>
             </form>
           </div>
 
-          <footer className="px-10 pb-6 text-center">
+          <footer className="px-9 pb-5 text-center">
             <p className="text-[10px] uppercase tracking-[0.22em] text-ink/35">
               Contractor Circle
             </p>
           </footer>
         </div>
+
       </div>
 
 
