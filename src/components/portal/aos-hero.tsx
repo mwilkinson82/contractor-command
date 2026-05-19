@@ -7,7 +7,7 @@
 // workspaces, this turns into a workspace picker instead.
 
 import { useState } from "react";
-import { AOS_URL } from "@/lib/program";
+import { useNavigate } from "@tanstack/react-router";
 import type { AosCompany } from "@/lib/aos.functions";
 import { ArrowUpRight, Compass, Sparkles, Building2 } from "lucide-react";
 
@@ -25,10 +25,14 @@ export function AosHero({
   onPickCompany?: (id: string) => void;
 }) {
   const [opened, setOpened] = useState(false);
+  const navigate = useNavigate();
 
   const openAos = () => {
     setOpened(true);
-    window.open(AOS_URL, "_blank", "noopener,noreferrer");
+    // Route through the in-app /aos gateway so the user gets the SSO
+    // handoff + interstitial instead of being punched out to the raw
+    // subdomain.
+    navigate({ to: "/aos" });
   };
 
   // When AOS knows the user but multiple workspaces exist, show the picker

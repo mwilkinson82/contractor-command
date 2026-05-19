@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
-import { getAosSnapshot, type AosResult, type AosCompany } from "@/lib/aos.functions";
-import { AOS_URL } from "@/lib/program";
+import { getAosSnapshot, mintAosSsoToken, type AosResult, type AosCompany } from "@/lib/aos.functions";
 import {
   ArrowUpRight,
   Compass,
@@ -22,12 +22,15 @@ const COMPANY_KEY = "aos.company_id";
 
 export function AosPulse() {
   const fn = useServerFn(getAosSnapshot);
+  const mint = useServerFn(mintAosSsoToken);
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [companyId, setCompanyId] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     return window.localStorage.getItem(COMPANY_KEY);
   });
   const [waitingForLink, setWaitingForLink] = useState(false);
+  const [opening, setOpening] = useState(false);
   const wasLinkedRef = useRef<boolean | null>(null);
 
   const { data, isLoading, refetch, isFetching } = useQuery<AosResult>({
@@ -105,14 +108,29 @@ export function AosPulse() {
           {companies.length > 1 && (
             <WorkspacePicker companies={companies} current={companyId} onPick={onPick} />
           )}
-          <a
-            href={AOS_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90"
+          <button
+            type="button"
+            disabled={opening}
+            onClick={async () => {
+              setOpening(true);
+              try {
+                const res = await mint();
+                if (res.ok) {
+                  window.location.assign(res.url);
+                  return;
+                }
+                toast.error("Couldn't open AOS", { description: res.error });
+              } catch (e) {
+                toast.error("Couldn't open AOS", {
+                  description: e instanceof Error ? e.message : "Unknown error",
+                });
+              }
+              setOpening(false);
+            }}
+            className="inline-flex items-center gap-1 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90 disabled:opacity-60"
           >
-            <Play className="h-3 w-3" /> Open AOS <ArrowUpRight className="h-3 w-3" />
-          </a>
+            <Play className="h-3 w-3" /> {opening ? "Opening AOS…" : "Open AOS"} <ArrowUpRight className="h-3 w-3" />
+          </button>
         </div>
       </header>
 
@@ -129,7 +147,7 @@ export function AosPulse() {
             isFetching={isFetching}
             onOpenAos={() => {
               setWaitingForLink(true);
-              window.open(AOS_URL, "_blank", "noopener,noreferrer");
+              navigate({ to: "/aos" });
             }}
             onRecheck={() => refetch()}
           />
@@ -393,9 +411,8 @@ function PulseBoard({
           ].map((c) => (
             <a
               key={c.label}
-              href={AOS_URL}
-              target="_blank"
-              rel="noreferrer"
+              href="/aos"
+
               className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/70 px-3 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
             >
               {c.icon} {c.label}
@@ -430,9 +447,8 @@ function AttentionCard({
         : "border-border";
   return (
     <a
-      href={AOS_URL}
-      target="_blank"
-      rel="noreferrer"
+      href="/aos"
+
       className={`group block rounded-2xl border ${ring} bg-background/60 p-5 transition-colors hover:bg-muted/40 hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
       title={`Open ${label} in AOS`}
     >
