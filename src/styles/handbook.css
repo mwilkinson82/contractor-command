@@ -25,6 +25,13 @@
   font-family: "Space Grotesk", "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 
+/* The handbook is one very long reading surface; don't let the portal's
+   route-level reveal animation fade the entire reader out. */
+.handbook-scope[data-reveal] {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
 .handbook-scope h1,
 .handbook-scope h2,
 .handbook-scope h3,
