@@ -7,6 +7,7 @@ const FinalChapter: React.FC = () => {
   return (
     <div id="final-chapter" className="chapter-container">
       <ChapterHeader 
+        number={26}
         title="The ALP Way — Doctrine & Commitment" 
         subtitle="Final Chapter"
       />

@@ -14,6 +14,7 @@ const Dedication: React.FC = () => {
         <AudioPlayer src={dedicationAudio} title="Listen to the Dedication" />
       </div>
       <div className="body-text space-y-8 max-w-3xl mx-auto text-center italic font-serif text-xl md:text-2xl leading-relaxed">
+
         <p>
           This work is dedicated to the men who shaped my understanding of this business — and the responsibility that comes with it.
         </p>

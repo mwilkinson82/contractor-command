@@ -13,6 +13,7 @@ const HowToUse: React.FC = () => {
         <h2 className="chapter-heading">How to Use This Handbook</h2>
       </header>
 
+
       <div className="body-text space-y-6 max-w-3xl">
         <p>Do not read this handbook like a normal business book.</p>
         <p>Use it like a field reference.</p>

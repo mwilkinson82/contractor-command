@@ -8,11 +8,9 @@ import IdentityParable from '../IdentityParable';
 
 const Chapter21: React.FC = () => {
   return (
-    <div id="chapter-21" className="py-24 border-t border-chapter-divider">
-      <ChapterHeader 
-        number={21} 
-        title="Financial Authority at Scale" 
-      />
+    <div id="chapter-21" className="pt-4 pb-12">
+      <h3 className="section-heading mt-4 mb-8">Financial Authority at Scale</h3>
+
 
       <div className="body-text space-y-6 max-w-3xl">
         <p>

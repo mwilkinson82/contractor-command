@@ -13,6 +13,9 @@ const Foreword: React.FC = () => {
         <h2 className="chapter-heading">Author's Note</h2>
       </header>
 
+
+
+
       <div className="body-text space-y-6 max-w-3xl">
         <p>This book is not theory.</p>
         <p>It is not a motivational book.</p>
