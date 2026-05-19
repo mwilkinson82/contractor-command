@@ -107,15 +107,34 @@ function LoginPage() {
       </div>
 
 
-      {/* Right: open background with editorial tagline */}
-      <div className="relative hidden flex-col items-center justify-center md:flex">
-        <div className="px-10 text-center">
-          <p className="font-display text-[40px] leading-[1.05] -tracking-[0.005em] text-ink lg:text-[44px] [text-shadow:0_1px_1px_rgba(0,0,0,0.06),0_2px_8px_rgba(0,0,0,0.08)]">
-            Build the company<br />behind the projects.
-          </p>
-          <p className="mt-5 font-display text-[18px] leading-relaxed text-ink/35">
+      {/* Right: DDB-era print ad — one dry headline, three tight columns */}
+      <div className="relative hidden flex-col justify-center md:flex">
+        <div className="mx-auto w-full max-w-[520px] px-10">
+          <h2 className="font-display text-[112px] leading-[0.95] -tracking-[0.025em] text-ink lg:text-[128px]">
+            Boring<br />wins.
+          </h2>
 
-            $2.5 billion in construction.
+          <div className="mt-12 grid grid-cols-3 gap-5 text-[11.5px] leading-[1.55] text-ink/75">
+            <p>
+              The best contractors we know aren't the loudest ones. They're the
+              ones with systems. The ones who go home at five. The ones whose
+              crews know what to do Monday morning without being told twice.
+            </p>
+            <p>
+              That's what this is. Not another app. An operating system for the
+              company behind your projects&mdash;meetings that end, numbers
+              that mean something, a team that runs without you in the room.
+            </p>
+            <p>
+              It isn't flashy. There's no dashboard with a rocket on it.
+              Just a quiet, repeatable way to run a real construction business.
+              <br /><br />
+              Boring, maybe. But boring is what scales.
+            </p>
+          </div>
+
+          <p className="mt-10 text-[10px] uppercase tracking-[0.28em] text-ink/40">
+            ALP &middot; Contractor Circle
           </p>
         </div>
       </div>
