@@ -108,21 +108,17 @@ function LoginPage() {
 
       {/* Right: open background with editorial tagline */}
       <div className="relative hidden flex-col justify-between md:flex">
-        <div className="flex justify-end px-10 pt-6">
-          <span className="text-[10px] uppercase tracking-[0.22em] text-ink/35">
-            Vol. I &nbsp;·&nbsp; MMXXVI
-          </span>
-        </div>
+        <div />
 
         <div className="px-10">
-          <p className="font-display text-[44px] leading-[1.05] tracking-normal text-ink lg:text-[52px]">
+          <p className="font-display text-[44px] leading-[1.05] tracking-normal text-ink lg:text-[52px] [text-shadow:0_1px_1px_rgba(0,0,0,0.06),0_2px_8px_rgba(0,0,0,0.08)]">
             Build the company<br />behind the projects.
           </p>
         </div>
 
         <div className="flex items-end justify-between px-10 pb-6">
           <p className="max-w-[260px] text-[12px] leading-relaxed text-ink/55">
-            A quiet system for the operator who would rather think than scramble.
+            $2.5 billion in construction.
           </p>
           <span className="text-[10px] uppercase tracking-[0.22em] text-ink/35">
             — AOS
