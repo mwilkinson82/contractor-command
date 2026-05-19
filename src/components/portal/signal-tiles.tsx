@@ -124,15 +124,11 @@ function Tile({ tool, packet }: { tool: CommandTool; packet?: Packet }) {
     </>
   );
 
-  if (usesDrawer) {
-    return (
-      <button type="button" onClick={() => drawer.open(tool.id)} className={shared}>
-        {body}
-      </button>
-    );
-  }
+  // From the home page, every command tile lands on the tools index first.
+  // Users pick the tool from there — keeps Home as overview, /tools as launcher.
+  void drawer; void usesDrawer;
   return (
-    <Link to={tool.route as "/tools/growth-constraint"} className={shared}>
+    <Link to="/tools" className={shared}>
       {body}
     </Link>
   );
