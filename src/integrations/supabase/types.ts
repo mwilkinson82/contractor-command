@@ -441,6 +441,7 @@ export type Database = {
           status: string
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
+          tier: Database["public"]["Enums"]["app_tier"]
           updated_at: string
           user_id: string | null
           welcome_sent_at: string | null
@@ -461,6 +462,7 @@ export type Database = {
           status: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
+          tier?: Database["public"]["Enums"]["app_tier"]
           updated_at?: string
           user_id?: string | null
           welcome_sent_at?: string | null
@@ -481,6 +483,7 @@ export type Database = {
           status?: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
+          tier?: Database["public"]["Enums"]["app_tier"]
           updated_at?: string
           user_id?: string | null
           welcome_sent_at?: string | null
@@ -629,10 +632,21 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      get_user_tier: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["app_tier"]
+      }
       has_active_access: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      has_tier_at_least: {
+        Args: {
+          _min: Database["public"]["Enums"]["app_tier"]
           _user_id: string
         }
         Returns: boolean
@@ -654,9 +668,14 @@ export type Database = {
           read_ct: number
         }[]
       }
+      tier_rank: {
+        Args: { _tier: Database["public"]["Enums"]["app_tier"] }
+        Returns: number
+      }
     }
     Enums: {
       app_role: "admin" | "member"
+      app_tier: "book_buyer" | "intensive" | "circle"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -785,6 +804,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "member"],
+      app_tier: ["book_buyer", "intensive", "circle"],
     },
   },
 } as const
