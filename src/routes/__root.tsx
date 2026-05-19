@@ -224,6 +224,8 @@ function useGlobalReveal() {
 function AuthGate({ children }: { children: (showShell: boolean) => React.ReactNode }) {
   const { session, loading } = useAuth();
   const { needsOnboarding, loading: companyLoading } = useCompany();
+  const { tier, loading: tierLoading } = useTier();
+  const isAdmin = useIsAdmin();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const router = useRouter();
@@ -277,8 +279,22 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
     }
     if (session && !companyLoading && needsOnboarding && !isOnboarding) {
       navigate({ to: "/onboarding" });
+      return;
     }
-  }, [loading, session, isPublic, isOnboarding, companyLoading, needsOnboarding, navigate]);
+    // Tier gate: non-Circle users redirected away from Circle-only routes.
+    // Admins always pass. Wait for tier to load before judging.
+    if (
+      session &&
+      !tierLoading &&
+      !isAdmin &&
+      tier &&
+      tier !== "circle" &&
+      isCircleOnly(pathname)
+    ) {
+      toast.info("That's a Circle feature — here's how to unlock it.");
+      navigate({ to: "/upgrade" });
+    }
+  }, [loading, session, isPublic, isOnboarding, companyLoading, needsOnboarding, tierLoading, tier, isAdmin, pathname, navigate]);
 
   if (isPublic) return <>{children(false)}</>;
 
