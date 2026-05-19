@@ -158,7 +158,7 @@ function Field({
         placeholder={placeholder}
         required={required}
         autoFocus={autoFocus}
-        className="mt-3 w-full border-b border-ink/20 bg-transparent pb-3 text-[15px] outline-none transition-colors placeholder:text-ink/25 focus:border-ink"
+        className="mt-3 w-full rounded-xl border border-ink/10 bg-paper-edge/60 px-4 py-3 text-[15px] outline-none transition-colors placeholder:text-ink/25 focus:border-ink/40 focus:bg-paper-edge/80"
       />
     </div>
   );
