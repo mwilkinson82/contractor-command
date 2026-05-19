@@ -195,6 +195,8 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
     }
   }, [loading, session, isPublic, isOnboarding, companyLoading, needsOnboarding, navigate]);
 
+  if (isPublic) return <>{children(false)}</>;
+
   if (loading) {
     return (
       <div className="grid min-h-screen place-items-center bg-background">
@@ -205,7 +207,6 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
     );
   }
 
-  if (isPublic) return <>{children(false)}</>;
   if (!session) return null;
   // Onboarding renders without the app shell — it's a focused setup screen.
   if (isOnboarding) return <>{children(false)}</>;
