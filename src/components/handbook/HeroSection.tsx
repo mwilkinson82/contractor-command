@@ -2,10 +2,10 @@ import React from 'react';
 import bulldozer from '@/assets/handbook/bulldozer-hero.png';
 import Eyebrow from '@/components/editorial/Eyebrow';
 
-type Jump = { id: string; chapter?: string; title: string };
+type Jump = { id: string; chapter?: string; title: string; featured?: boolean };
 
 const newInV2: Jump[] = [
-  { id: 'volume-2-intro', title: 'Why the Operating System' },
+  { id: 'volume-2-intro', chapter: 'Start', title: 'Why the Operating System', featured: true },
   { id: 'chapter-27', chapter: '4', title: 'A Contracting Company Cannot Run on the Owner' },
   { id: 'chapter-28', chapter: '5', title: 'Hierarchy Is Not Accountability' },
   { id: 'chapter-29', chapter: '6', title: 'The Six Components of a Contracting Operating System' },
