@@ -109,6 +109,7 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  useGlobalReveal();
   return (
     <QueryClientProvider client={queryClient}>
       <ToolDrawerProvider>
@@ -134,6 +135,57 @@ function RootComponent() {
       </ToolDrawerProvider>
     </QueryClientProvider>
   );
+}
+
+/**
+ * App-wide entrance + scroll reveal.
+ * Auto-tags the top-level children of <main> with [data-reveal] + a small
+ * stagger and observes them so every route gets a soft entrance and
+ * fade-in-on-scroll without per-page edits. Respects prefers-reduced-motion.
+ */
+function useGlobalReveal() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("is-visible");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { rootMargin: "0px 0px -8% 0px", threshold: 0.05 },
+    );
+
+    const tag = () => {
+      const main = document.querySelector("main");
+      if (main) {
+        const kids = Array.from(main.children) as HTMLElement[];
+        kids.forEach((el, i) => {
+          if (!el.hasAttribute("data-reveal")) {
+            el.setAttribute("data-reveal", "");
+            el.setAttribute("data-reveal-delay", String(Math.min(i, 6)));
+          }
+        });
+      }
+      document
+        .querySelectorAll<HTMLElement>("[data-reveal]:not(.is-visible)")
+        .forEach((el) => observer.observe(el));
+    };
+
+    const raf = requestAnimationFrame(tag);
+    const t = setTimeout(tag, 250);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+      observer.disconnect();
+    };
+  }, [pathname]);
 }
 
 function AuthGate({ children }: { children: (showShell: boolean) => React.ReactNode }) {

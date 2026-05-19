@@ -132,6 +132,24 @@
     font-family: var(--font-sans);
     font-feature-settings: "ss01", "cv11";
     -webkit-font-smoothing: antialiased;
+    /* Prevent horizontal scroll on mobile */
+    overflow-x: hidden;
+  }
+  /* Soft, app-wide hover/focus motion on interactive surfaces */
+  a, button, [role="button"], summary,
+  input, textarea, select,
+  [data-slot="button"], [data-slot="card"], [data-slot="sidebar-menu-button"] {
+    transition:
+      color 200ms ease,
+      background-color 200ms ease,
+      border-color 200ms ease,
+      box-shadow 220ms ease,
+      transform 220ms cubic-bezier(.2,.7,.2,1),
+      opacity 200ms ease;
+  }
+  /* Prevent iOS zoom on input focus */
+  @media (max-width: 640px) {
+    input, textarea, select { font-size: 16px; }
   }
   h1, h2, h3, .font-display {
     font-family: var(--font-display);
@@ -307,4 +325,50 @@
     opacity: 1;
   }
 }
+
+/* ===== App-wide soft entrance + reveal-on-scroll ===== */
+
+/* Initial hidden state for any element flagged with [data-reveal]. */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 700ms cubic-bezier(.2,.7,.2,1),
+    transform 700ms cubic-bezier(.2,.7,.2,1);
+  will-change: opacity, transform;
+}
+[data-reveal].is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+/* Staggered children — applied automatically by the global reveal effect. */
+[data-reveal][data-reveal-delay="1"] { transition-delay: 60ms; }
+[data-reveal][data-reveal-delay="2"] { transition-delay: 120ms; }
+[data-reveal][data-reveal-delay="3"] { transition-delay: 180ms; }
+[data-reveal][data-reveal-delay="4"] { transition-delay: 240ms; }
+[data-reveal][data-reveal-delay="5"] { transition-delay: 300ms; }
+[data-reveal][data-reveal-delay="6"] { transition-delay: 360ms; }
+
+/* Subtle lift on cards/buttons that opt in via .hover-lift */
+.hover-lift {
+  transition:
+    transform 240ms cubic-bezier(.2,.7,.2,1),
+    box-shadow 240ms cubic-bezier(.2,.7,.2,1),
+    border-color 240ms ease;
+}
+.hover-lift:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 30px -16px oklch(0.18 0.005 60 / 0.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+  .hover-lift { transition: none; }
+  .hover-lift:hover { transform: none; box-shadow: none; }
+}
+
 
