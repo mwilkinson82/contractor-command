@@ -108,14 +108,29 @@ export function AosPulse() {
           {companies.length > 1 && (
             <WorkspacePicker companies={companies} current={companyId} onPick={onPick} />
           )}
-          <a
-            href={AOS_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90"
+          <button
+            type="button"
+            disabled={opening}
+            onClick={async () => {
+              setOpening(true);
+              try {
+                const res = await mint();
+                if (res.ok) {
+                  window.location.assign(res.url);
+                  return;
+                }
+                toast.error("Couldn't open AOS", { description: res.error });
+              } catch (e) {
+                toast.error("Couldn't open AOS", {
+                  description: e instanceof Error ? e.message : "Unknown error",
+                });
+              }
+              setOpening(false);
+            }}
+            className="inline-flex items-center gap-1 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90 disabled:opacity-60"
           >
-            <Play className="h-3 w-3" /> Open AOS <ArrowUpRight className="h-3 w-3" />
-          </a>
+            <Play className="h-3 w-3" /> {opening ? "Opening AOS…" : "Open AOS"} <ArrowUpRight className="h-3 w-3" />
+          </button>
         </div>
       </header>
 
