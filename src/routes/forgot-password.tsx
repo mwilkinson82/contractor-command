@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthCard, AuthField, AuthSubmit } from "@/components/auth/auth-card";
 
@@ -25,9 +26,13 @@ function ForgotPasswordPage() {
     setBusy(false);
     if (error) {
       setErr(error.message);
+      toast.error("Reset email failed", { description: error.message });
       return;
     }
     setSent(true);
+    toast.success("Reset link requested", {
+      description: "If that email has access, the link is on its way.",
+    });
   }
 
   if (sent) {
