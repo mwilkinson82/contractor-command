@@ -1,12 +1,16 @@
 import React from 'react';
 import AudioPlayer from '../AudioPlayer';
+import Eyebrow from '@/components/editorial/Eyebrow';
 import dedicationAudio from '@/assets/audio/dedication.mp3';
 
 const Dedication: React.FC = () => {
   return (
-    <div id="dedication" className="py-24 border-t border-chapter-divider">
-      <h2 className="chapter-heading text-center mb-16">Dedication</h2>
-      <div className="flex justify-center">
+    <div id="dedication" className="py-24 border-t border-chapter-divider text-center">
+      <div className="flex justify-center mb-6">
+        <Eyebrow>Front Matter</Eyebrow>
+      </div>
+      <h2 className="chapter-heading text-center mb-12">Dedication</h2>
+      <div className="flex justify-center mb-16">
         <AudioPlayer src={dedicationAudio} title="Listen to the Dedication" />
       </div>
       <div className="body-text space-y-8 max-w-3xl mx-auto text-center italic font-serif text-xl md:text-2xl leading-relaxed">

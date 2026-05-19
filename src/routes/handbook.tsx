@@ -6,6 +6,8 @@ import TableOfContents from "@/components/handbook/TableOfContents";
 import PartHeader from "@/components/handbook/PartHeader";
 import Dedication from "@/components/handbook/content/Dedication";
 import Foreword from "@/components/handbook/content/Foreword";
+import HowToUse from "@/components/handbook/content/HowToUse";
+import Volume2Intro from "@/components/handbook/content/Volume2Intro";
 import Chapter1 from "@/components/handbook/content/Chapter1";
 import Chapter2 from "@/components/handbook/content/Chapter2";
 import Chapter3 from "@/components/handbook/content/Chapter3";
@@ -32,6 +34,12 @@ import Chapter23 from "@/components/handbook/content/Chapter23";
 import Chapter24 from "@/components/handbook/content/Chapter24";
 import Chapter25 from "@/components/handbook/content/Chapter25";
 import Chapter26 from "@/components/handbook/content/Chapter26";
+import Chapter27 from "@/components/handbook/content/Chapter27";
+import Chapter28 from "@/components/handbook/content/Chapter28";
+import Chapter29 from "@/components/handbook/content/Chapter29";
+import Chapter30 from "@/components/handbook/content/Chapter30";
+import Chapter31 from "@/components/handbook/content/Chapter31";
+import Chapter32 from "@/components/handbook/content/Chapter32";
 import FinalChapter from "@/components/handbook/content/FinalChapter";
 import ReadingProgress from "@/components/handbook/ReadingProgress";
 import FloatingTOC from "@/components/handbook/FloatingTOC";
@@ -59,27 +67,61 @@ function HandbookPage() {
         <HeroSection />
         <TableOfContents />
 
+        {/* Front Matter */}
         <Dedication />
         <Foreword />
+        <HowToUse />
 
+        {/* Part I — The Frame */}
         <PartHeader number="I" title="The Frame" />
-        <Chapter1 /><Chapter2 /><Chapter3 />
+        <Chapter1 />
+        <Chapter2 />
+        <Chapter3 />
 
-        <PartHeader number="II" title="The Stool (Systems)" />
-        <Chapter4 /><Chapter5 /><Chapter6 /><Chapter7 />
-        <Chapter8 /><Chapter9 /><Chapter10 />
+        {/* Part II — The Operating System (Volume 2) */}
+        <PartHeader number="II" title="The Operating System" eyebrow="New in V2" />
+        <Volume2Intro />
+        <Chapter27 />
+        <Chapter28 />
+        <Chapter29 />
+        <Chapter30 />
+        <Chapter31 />
+        <Chapter32 />
 
-        <PartHeader number="III" title="Time, Money, & Leverage" />
-        <Chapter11 /><Chapter12 /><Chapter13 /><Chapter14 />
-        <Chapter15 /><Chapter16 /><Chapter17 /><Chapter18 />
+        {/* Part III — The Business Systems */}
+        <PartHeader number="III" title="The Business Systems" />
+        <Chapter4 />
+        <Chapter5 />
+        <Chapter6 />
+        <Chapter7 />
+        <Chapter11 />
+        <Chapter10 />
 
-        <PartHeader number="IV" title="Identity & Scale" />
-        <Chapter19 /><Chapter20 /><Chapter21 /><Chapter22 /><Chapter23 />
+        {/* Part IV — Time, Money, and Commercial Control */}
+        <PartHeader number="IV" title="Time, Money, and Commercial Control" />
+        <Chapter12 />
+        <Chapter13 />
+        <Chapter20 />
+        <Chapter14 />
+        <Chapter15 />
+        <Chapter18 />
+        <Chapter8 />
+        <Chapter17 />
+        <Chapter19 />
+        <Chapter16 />
+        <Chapter21 />
+        <Chapter9 />
+        <Chapter22 />
 
-        <PartHeader number="V" title="Real-Time Application" />
-        <Chapter24 /><Chapter25 /><Chapter26 />
+        {/* Part V — Identity, Leadership, and Scale */}
+        <PartHeader number="V" title="Identity, Leadership, and Scale" />
+        <Chapter23 />
+        <Chapter26 />
+        <Chapter25 />
 
-        <PartHeader number="VI" title="Commitment" />
+        {/* Part VI — Real-Time Application & Commitment */}
+        <PartHeader number="VI" title="Real-Time Application & Commitment" />
+        <Chapter24 />
         <FinalChapter />
 
         <footer className="py-32 text-center" style={{ borderTop: "1px solid hsl(var(--hb-chapter-divider))" }}>
