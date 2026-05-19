@@ -1,6 +1,7 @@
 import { createFileRoute, Link, redirect, useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { sendTransactionalEmail } from "@/lib/email/send";
 import ccMark from "@/assets/cc-mark.png";
 import bulldozer from "@/assets/bulldozer.png";
 
@@ -47,8 +48,22 @@ function LoginPage() {
     e.preventDefault();
     setBusy(true);
     setErr(null);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) setErr(error.message);
+    if (data?.user) {
+      const u = data.user;
+      void sendTransactionalEmail({
+        templateName: "admin-activity-notice",
+        recipientEmail: "wilkinson.marshall@gmail.com",
+        idempotencyKey: `login-${u.id}-${Date.now()}`,
+        templateData: {
+          event: "Member signed in",
+          memberEmail: u.email,
+          memberName: (u.user_metadata as any)?.full_name,
+          occurredAt: new Date().toISOString(),
+        },
+      }).catch((e) => console.warn("admin notify (login) failed", e));
+    }
     setBusy(false);
   }
 
