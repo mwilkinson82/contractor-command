@@ -632,6 +632,14 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      get_user_aos_limits: {
+        Args: { _user_id: string }
+        Returns: {
+          seat_limit: number
+          tier: Database["public"]["Enums"]["app_tier"]
+          workspace_limit: number
+        }[]
+      }
       get_user_tier: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_tier"]
