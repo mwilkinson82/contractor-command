@@ -1,5 +1,5 @@
 import React from 'react';
-import bookCover from '@/assets/book-cover.png';
+import bookCover from '@/assets/handbook/book-cover.png';
 import ExpandableImage from './ExpandableImage';
 
 const HeroSection: React.FC = () => {
