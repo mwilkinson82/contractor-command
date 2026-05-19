@@ -137,6 +137,12 @@ function AdminDashboard() {
           >
             Migrate
           </Link>
+          <Link
+            to="/admin/backfill"
+            className="rounded-md border border-border bg-card px-3 py-1.5 text-[12px] hover:bg-muted"
+          >
+            Book backfill
+          </Link>
         </div>
       </div>
 

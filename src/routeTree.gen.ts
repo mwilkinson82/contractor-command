@@ -44,6 +44,7 @@ import { Route as AosLinkRouteImport } from './routes/aos.link'
 import { Route as AdminTopicsRouteImport } from './routes/admin.topics'
 import { Route as AdminMigrateRouteImport } from './routes/admin.migrate'
 import { Route as AdminLibraryRouteImport } from './routes/admin.library'
+import { Route as AdminBackfillRouteImport } from './routes/admin.backfill'
 import { Route as AdminAnnounceRouteImport } from './routes/admin.announce'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
@@ -228,6 +229,11 @@ const AdminLibraryRoute = AdminLibraryRouteImport.update({
   path: '/admin/library',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminBackfillRoute = AdminBackfillRouteImport.update({
+  id: '/admin/backfill',
+  path: '/admin/backfill',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminAnnounceRoute = AdminAnnounceRouteImport.update({
   id: '/admin/announce',
   path: '/admin/announce',
@@ -292,6 +298,7 @@ export interface FileRoutesByFullPath {
   '/welcome': typeof WelcomeRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/admin/announce': typeof AdminAnnounceRoute
+  '/admin/backfill': typeof AdminBackfillRoute
   '/admin/library': typeof AdminLibraryRoute
   '/admin/migrate': typeof AdminMigrateRoute
   '/admin/topics': typeof AdminTopicsRoute
@@ -337,6 +344,7 @@ export interface FileRoutesByTo {
   '/welcome': typeof WelcomeRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/admin/announce': typeof AdminAnnounceRoute
+  '/admin/backfill': typeof AdminBackfillRoute
   '/admin/library': typeof AdminLibraryRoute
   '/admin/migrate': typeof AdminMigrateRoute
   '/admin/topics': typeof AdminTopicsRoute
@@ -383,6 +391,7 @@ export interface FileRoutesById {
   '/welcome': typeof WelcomeRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/admin/announce': typeof AdminAnnounceRoute
+  '/admin/backfill': typeof AdminBackfillRoute
   '/admin/library': typeof AdminLibraryRoute
   '/admin/migrate': typeof AdminMigrateRoute
   '/admin/topics': typeof AdminTopicsRoute
@@ -430,6 +439,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/work-with-marshall'
     | '/admin/announce'
+    | '/admin/backfill'
     | '/admin/library'
     | '/admin/migrate'
     | '/admin/topics'
@@ -475,6 +485,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/work-with-marshall'
     | '/admin/announce'
+    | '/admin/backfill'
     | '/admin/library'
     | '/admin/migrate'
     | '/admin/topics'
@@ -520,6 +531,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/work-with-marshall'
     | '/admin/announce'
+    | '/admin/backfill'
     | '/admin/library'
     | '/admin/migrate'
     | '/admin/topics'
@@ -566,6 +578,7 @@ export interface RootRouteChildren {
   WelcomeRoute: typeof WelcomeRoute
   WorkWithMarshallRoute: typeof WorkWithMarshallRoute
   AdminAnnounceRoute: typeof AdminAnnounceRoute
+  AdminBackfillRoute: typeof AdminBackfillRoute
   AdminLibraryRoute: typeof AdminLibraryRoute
   AdminMigrateRoute: typeof AdminMigrateRoute
   AdminTopicsRoute: typeof AdminTopicsRoute
@@ -837,6 +850,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminLibraryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/backfill': {
+      id: '/admin/backfill'
+      path: '/admin/backfill'
+      fullPath: '/admin/backfill'
+      preLoaderRoute: typeof AdminBackfillRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/announce': {
       id: '/admin/announce'
       path: '/admin/announce'
@@ -928,6 +948,7 @@ const rootRouteChildren: RootRouteChildren = {
   WelcomeRoute: WelcomeRoute,
   WorkWithMarshallRoute: WorkWithMarshallRoute,
   AdminAnnounceRoute: AdminAnnounceRoute,
+  AdminBackfillRoute: AdminBackfillRoute,
   AdminLibraryRoute: AdminLibraryRoute,
   AdminMigrateRoute: AdminMigrateRoute,
   AdminTopicsRoute: AdminTopicsRoute,
@@ -954,13 +975,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
