@@ -30,7 +30,7 @@ export const RecoveryEmail = ({
           <Text style={eyebrow}>ALP CONTRACTOR CIRCLE</Text>
           <Heading style={h1}>Reset your password</Heading>
           <Text style={text}>
-            We received a request to reset the password on your Command Center
+            We received a request to reset the password on your Contractor Circle
             account. Click below to choose a new one.
           </Text>
           <Button style={button} href={confirmationUrl}>
