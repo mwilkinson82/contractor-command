@@ -19,6 +19,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ReplaysRouteImport } from './routes/replays'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as HandbookRouteImport } from './routes/handbook'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as FieldToolsRouteImport } from './routes/field-tools'
 import { Route as CommunityRouteImport } from './routes/community'
@@ -99,6 +100,11 @@ const OnboardingRoute = OnboardingRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HandbookRoute = HandbookRouteImport.update({
+  id: '/handbook',
+  path: '/handbook',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
@@ -267,6 +273,7 @@ export interface FileRoutesByFullPath {
   '/community': typeof CommunityRoute
   '/field-tools': typeof FieldToolsRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/handbook': typeof HandbookRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/replays': typeof ReplaysRoute
@@ -310,6 +317,7 @@ export interface FileRoutesByTo {
   '/community': typeof CommunityRoute
   '/field-tools': typeof FieldToolsRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/handbook': typeof HandbookRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/replays': typeof ReplaysRoute
@@ -354,6 +362,7 @@ export interface FileRoutesById {
   '/community': typeof CommunityRoute
   '/field-tools': typeof FieldToolsRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/handbook': typeof HandbookRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/replays': typeof ReplaysRoute
@@ -399,6 +408,7 @@ export interface FileRouteTypes {
     | '/community'
     | '/field-tools'
     | '/forgot-password'
+    | '/handbook'
     | '/login'
     | '/onboarding'
     | '/replays'
@@ -442,6 +452,7 @@ export interface FileRouteTypes {
     | '/community'
     | '/field-tools'
     | '/forgot-password'
+    | '/handbook'
     | '/login'
     | '/onboarding'
     | '/replays'
@@ -485,6 +496,7 @@ export interface FileRouteTypes {
     | '/community'
     | '/field-tools'
     | '/forgot-password'
+    | '/handbook'
     | '/login'
     | '/onboarding'
     | '/replays'
@@ -529,6 +541,7 @@ export interface RootRouteChildren {
   CommunityRoute: typeof CommunityRoute
   FieldToolsRoute: typeof FieldToolsRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
+  HandbookRoute: typeof HandbookRoute
   LoginRoute: typeof LoginRoute
   OnboardingRoute: typeof OnboardingRoute
   ReplaysRoute: typeof ReplaysRoute
@@ -634,6 +647,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/handbook': {
+      id: '/handbook'
+      path: '/handbook'
+      fullPath: '/handbook'
+      preLoaderRoute: typeof HandbookRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/forgot-password': {
@@ -875,6 +895,7 @@ const rootRouteChildren: RootRouteChildren = {
   CommunityRoute: CommunityRoute,
   FieldToolsRoute: FieldToolsRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
+  HandbookRoute: HandbookRoute,
   LoginRoute: LoginRoute,
   OnboardingRoute: OnboardingRoute,
   ReplaysRoute: ReplaysRoute,
@@ -912,13 +933,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

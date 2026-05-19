@@ -59,6 +59,16 @@
   --color-signal-success: var(--signal-success);
   --color-paper-edge: var(--paper-edge);
 
+  /* Handbook tokens — used inside the /handbook reader experience */
+  --color-chapter-divider: hsl(35 15% 82%);
+  --color-parable-bg: hsl(35 20% 93%);
+  --color-parable-border: hsl(30 10% 25%);
+  --color-media-placeholder: hsl(35 12% 90%);
+  --color-brand-accent: hsl(24 95% 53%);
+  --color-identity-parable-bg: hsl(30 40% 95%);
+  --color-identity-parable-border: hsl(24 95% 53%);
+  --color-identity-parable-accent: hsl(24 80% 50%);
+
   --shadow-elegant: 0 10px 40px -20px oklch(0.18 0.005 60 / 0.25);
   --shadow-soft:
     0 1px 2px 0 oklch(0.18 0.005 60 / 0.05),

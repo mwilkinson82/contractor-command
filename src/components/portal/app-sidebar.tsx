@@ -20,6 +20,7 @@ import {
   Inbox,
   Library,
   Gauge,
+  BookOpen,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { nextAny, relativeDay } from "@/lib/program";
@@ -68,6 +69,7 @@ const GROUPS: Group[] = [
   {
     label: "Library",
     items: [
+      { to: "/handbook", label: "Handbook", icon: BookOpen },
       { to: "/templates", label: "Templates", icon: FileText },
       { to: "/replays", label: "Replays", icon: Video },
     ],
