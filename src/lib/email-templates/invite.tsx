@@ -206,24 +206,28 @@ const bullet = {
   color: '#1A1918',
   lineHeight: 1.6,
   margin: '0 0 12px',
+  fontFamily: sansFamily,
 }
 const smallHeading = {
   fontSize: '15px',
   fontWeight: 600,
   color: '#1A1918',
   margin: '0 0 10px',
+  fontFamily: sansFamily,
 }
 const text = {
   fontSize: '14px',
   color: '#3a3937',
   lineHeight: 1.6,
   margin: '0 0 24px',
+  fontFamily: sansFamily,
 }
 const signoff = {
   fontSize: '14px',
   color: '#1A1918',
   lineHeight: 1.6,
   margin: '24px 0 0',
+  fontFamily: sansFamily,
 }
 const footer = {
   fontSize: '11px',
@@ -231,4 +235,5 @@ const footer = {
   lineHeight: 1.55,
   margin: '20px 4px 0',
   textAlign: 'center' as const,
+  fontFamily: sansFamily,
 }
