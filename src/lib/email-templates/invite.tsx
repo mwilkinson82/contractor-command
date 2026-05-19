@@ -285,6 +285,12 @@ const container = {
   padding: '40px 32px 48px',
   backgroundColor: PAPER,
 }
+const logo = {
+  display: 'block',
+  width: '44px',
+  height: '44px',
+  margin: '0 0 28px',
+}
 const topRule = {
   height: '2px',
   background: SIGNAL,
