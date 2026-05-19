@@ -113,7 +113,7 @@ function HandbookPage() {
         <Chapter25 />
 
         {/* Part VI — Real-Time Application & Commitment */}
-        <PartHeader number="VI" title="Real-Time Application & Commitment" />
+        <PartHeader number="VI" title="Real-Time Application & Commitment" eyebrow="Reorganized in V2" />
         <Chapter24 />
         <FinalChapter />
 
