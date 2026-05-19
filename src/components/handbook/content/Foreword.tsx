@@ -1,191 +1,97 @@
 import React from 'react';
 import Section from '../Section';
-import DoctrineList from '../DoctrineList';
-import AudioPlayer from '../AudioPlayer';
-import authorsNoteAudio from '@/assets/audio/authors-note.mp3';
+import Eyebrow from '@/components/editorial/Eyebrow';
 
 const Foreword: React.FC = () => {
   return (
     <div id="foreword" className="py-24 border-t border-chapter-divider">
       <header className="mb-16">
-        <div className="text-sm uppercase tracking-widest opacity-50 mb-4 font-sans" style={{ letterSpacing: '0.2em' }}>
-          Foreword
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mb-6">
+          <Eyebrow accent bare>Updated for V2</Eyebrow>
+          <Eyebrow bare>Foreword</Eyebrow>
         </div>
         <h2 className="chapter-heading">Author's Note</h2>
-        <div className="flex justify-center mt-8">
-          <AudioPlayer src={authorsNoteAudio} title="Listen to the Author's Note" />
-        </div>
       </header>
 
       <div className="body-text space-y-6 max-w-3xl">
-        <p>
-          This handbook was not written to impress you.
-        </p>
-        <p>
-          It was written because too many capable entrepreneurs lose control of businesses that should have worked.
-        </p>
-        <p>
-          I've watched it happen repeatedly — to smart operators, hard workers, disciplined professionals. People who knew their craft. People who cared. People who showed up every day.
-        </p>
-        <p>
-          They didn't fail because they lacked skill.
-        </p>
+        <p>This book is not theory.</p>
+        <p>It is not a motivational book.</p>
+        <p>It is not a collection of nice ideas about leadership, business, or construction.</p>
         <p className="body-text-emphasis">
-          They failed because they lacked command under pressure.
+          This is a field handbook for contractors who are trying to build the company behind the projects.
         </p>
+        <p>
+          Most contractors are good builders. That is not the problem. They know how to produce work. They know how to fight through hard jobs. They know how to solve problems in the field. They know how to carry pressure.
+        </p>
+        <p>But building projects and building a company are not the same thing.</p>
+        <p>
+          A contractor can be excellent at the work and still have a weak business. A contractor can have revenue, employees, trucks, software, backlog, and reputation and still be completely dependent on the owner to hold the whole thing together.
+        </p>
+        <p>That is the real problem this book is written to address.</p>
       </div>
 
-      <div className="chapter-divider" />
+      <Section title="Why Companies Fail">
+        <p>
+          The modern contracting company does not fail because the owner lacks work ethic. It fails because the business has not been turned into a system.
+        </p>
+        <p>
+          Everything flows back to the owner. Decisions flow back to the owner. Problems flow back to the owner. Standards flow back to the owner. Sales pressure, estimating judgment, scheduling conflicts, billing issues, people problems, and jobsite disorder all eventually make their way back to the same place.
+        </p>
+        <p>At first, that feels like leadership.</p>
+        <p className="body-text-emphasis">Eventually, it becomes bondage.</p>
+        <p>The purpose of the ALP Handbook is to give contractors a practical doctrine for escaping that trap.</p>
+      </Section>
 
-      <Section title="Where ALP Comes From">
+      <Section title="The Frame: Altitude, Logic, Pressure">
+        <p>ALP stands for Altitude, Logic, and Pressure.</p>
         <p>
-          ALP was not created in a classroom.
+          <strong>Altitude</strong> means you have to get above the chaos long enough to see the actual business problem.
         </p>
         <p>
-          It was forged inside real businesses, real projects, real negotiations, and real consequences.
+          <strong>Logic</strong> means you have to make decisions from facts, structure, math, contracts, sequence, accountability, and consequence.
         </p>
         <p>
-          High-stakes environments where:
+          <strong>Pressure</strong> means you have to apply force in the right place. Not emotional pressure. Not random urgency. Useful pressure. Commercial pressure. Leadership pressure. Execution pressure.
         </p>
-        <DoctrineList items={[
-          "Time is unforgiving",
-          "Money moves fast",
-          "Pressure is constant",
-          "Excuses do not survive contact with reality"
-        ]} />
+        <p>That is the frame.</p>
+        <p>But a frame is not enough.</p>
+      </Section>
+
+      <Section title="Why the Operating System">
+        <p>A contracting company also needs an operating system.</p>
         <p>
-          In those environments, theory collapses quickly.
+          It needs a formal way to define the mission, assign ownership, measure execution, solve issues, document process, and create weekly accountability. It needs to move from an owner-dependent hierarchy into an accountability model where people own real outcomes and the business can police itself through standards, numbers, priorities, and rhythm.
         </p>
+        <p>That is where AOS comes in.</p>
         <p>
-          Only what works remains.
-        </p>
-        <p className="pt-4">
-          ALP is not a framework.<br />
-          It is a distillation — of what consistently held when everything else broke down.
+          AOS is the ALP Operating System. It is the practical structure for running a contracting company with clarity, accountability, and execution discipline. It is not meant to make the company more corporate. It is meant to make the company more executable.
         </p>
       </Section>
 
-      <Section title="What This Handbook Is — and Is Not">
-        <p>
-          This is not a motivational book.<br />
-          It will not hype you up.<br />
-          It will not tell you everything will be fine.
-        </p>
-        <p className="body-text-emphasis">
-          It is a control doctrine.
-        </p>
-        <p>
-          It exists to help you:
-        </p>
-        <DoctrineList items={[
-          "See clearly when things feel chaotic",
-          "Decide correctly when pressure rises",
-          "Enforce standards without apology",
-          "Scale without losing yourself or the business"
-        ]} />
-        <p>
-          If you are looking for shortcuts, this is not your handbook.
-        </p>
-        <p>
-          If you are looking for clarity — it is.
-        </p>
+      <Section title="The Lens of This Book">
+        <p>The chapters in this handbook are built around that idea.</p>
+        <p><strong>Marketing</strong> is not just marketing. It is infrastructure.</p>
+        <p><strong>Sales</strong> is not just persuasion. It is pressure, clarity, and qualification.</p>
+        <p><strong>Operations</strong> is not just labor. It is logistics, margin protection, and controlled execution.</p>
+        <p><strong>Documentation</strong> is not paperwork. It is entitlement and proof.</p>
+        <p><strong>Scheduling</strong> is not a calendar. It is time control.</p>
+        <p><strong>Financial command</strong> is not bookkeeping. It is the owner's ability to see the truth early enough to act.</p>
+        <p><strong>General conditions</strong> are not overhead. They are a recoverable cost structure and, when understood correctly, a profit center.</p>
+        <p><strong>Change orders</strong> are not a nuisance. They are the monetization of disruption.</p>
+        <p><strong>Leadership</strong> is not personality. It is standards, accountability, repetition, and enforcement.</p>
+        <p>That is the lens of this book.</p>
+        <p>The goal is not to help you feel better about your business.</p>
+        <p className="body-text-emphasis">The goal is to help you see it clearly enough to operate it.</p>
       </Section>
 
-      <Section title="The Problem This Handbook Solves">
+      <Section title="How to Read It">
         <p>
-          Most entrepreneurs don't fail from lack of effort.
+          Read this book as a working reference. Mark it up. Argue with it. Bring it into meetings. Use it when you are pricing work, reviewing a contract, preparing a notice, evaluating a manager, building a scorecard, creating a process, or deciding whether the problem in front of you is really a construction problem or an entrepreneurial one.
         </p>
-        <p>
-          They fail because:
-        </p>
-        <DoctrineList items={[
-          "They react instead of diagnose",
-          "They confuse motion with progress",
-          "They delay decisions to avoid discomfort",
-          "They compromise standards to preserve peace",
-          "They lose command as volume increases"
-        ]} />
-        <p>
-          This handbook exists to correct that pattern.
-        </p>
-        <p>
-          Not gently.<br />
-          Precisely.
-        </p>
-      </Section>
-
-      <Section title="How to Use This Handbook">
-        <p>
-          Do not read this passively.
-        </p>
-        <p>
-          Use it:
-        </p>
-        <DoctrineList items={[
-          "When something feels off",
-          "When pressure increases",
-          "When decisions feel heavy",
-          "When growth strains the system",
-          "When leadership is tested"
-        ]} />
-        <p>
-          Return to it often.
-        </p>
-        <p className="body-text-emphasis">
-          Clarity compounds.
-        </p>
-      </Section>
-
-      <Section title="A Word on Responsibility">
-        <p>
-          ALP demands responsibility.
-        </p>
-        <p>
-          Not blame.<br />
-          Not guilt.<br />
-          Responsibility.
-        </p>
-        <p>
-          If you adopt this doctrine, you are choosing to:
-        </p>
-        <DoctrineList items={[
-          "Stop outsourcing blame",
-          "Stop avoiding decisions",
-          "Stop negotiating standards",
-          "Stop hiding behind complexity"
-        ]} />
-        <p>
-          That choice is uncomfortable.
-        </p>
-        <p>
-          It is also freeing.
-        </p>
-      </Section>
-
-      <Section title="Final Note Before We Begin">
-        <p>
-          You will not agree with everything in this handbook immediately.
-        </p>
-        <p>
-          That's expected.
-        </p>
-        <p>
-          ALP challenges identity before it improves outcomes.
-        </p>
-        <p>
-          Sit with it.<br />
-          Test it.<br />
-          Apply it under pressure.
-        </p>
-        <p>
-          The results will speak for themselves.
-        </p>
-        <p className="pt-8 body-text-emphasis">
-          This is not a handbook about business.
-        </p>
-        <p className="body-text-emphasis">
-          It is a handbook about command.
-        </p>
+        <p>Because most of the time, the problem is not the project.</p>
+        <p>The project is just where the weakness in the company finally became visible.</p>
+        <p>This handbook is about building the company strong enough that the same problems stop repeating.</p>
+        <p className="body-text-emphasis">That is the work.</p>
         <p className="pt-8 text-right italic font-serif text-xl">
           — Marshall Wilkinson
         </p>
