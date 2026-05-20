@@ -32,7 +32,8 @@ export function AosHero({
   const openAos = async () => {
     setOpened(true);
     setOpening(true);
-    const popup = typeof window !== "undefined" ? window.open("about:blank", "_blank", "noopener") : null;
+    const popup =
+      typeof window !== "undefined" ? window.open("about:blank", "_blank", "noopener") : null;
     try {
       const res = await mint();
       if (!res.ok) {
@@ -138,7 +139,11 @@ export function AosHero({
                 className="inline-flex items-center gap-2 rounded-md bg-gold px-5 py-3 text-[14px] font-medium text-ink hover:opacity-90"
               >
                 <Compass className="h-4 w-4" />
-                {opening ? "Opening AOS…" : previouslyLinked ? "Open AOS to refresh" : "Start your AOS"}
+                {opening
+                  ? "Opening AOS…"
+                  : previouslyLinked
+                    ? "Open AOS to refresh"
+                    : "Start your AOS"}
                 <ArrowUpRight className="h-3.5 w-3.5" />
               </button>
               <button
