@@ -73,6 +73,29 @@ function secretVariants(secret: string) {
   return Array.from(new Set([secret, secret.trim()]));
 }
 
+function snapshotSigningStrings({
+  email,
+  ts,
+  nonce,
+  tier,
+  workspaceLimit,
+  seatLimit,
+}: {
+  email: string;
+  ts: number | string;
+  nonce: string;
+  tier: string;
+  workspaceLimit: number;
+  seatLimit: number;
+}) {
+  return Array.from(
+    new Set([
+      `${email}|${ts}|${nonce}|${tier}|${workspaceLimit}|${seatLimit}`,
+      `${email}|${ts}|${nonce}`,
+    ]),
+  );
+}
+
 function normalizeAosSnapshot(raw: unknown, email: string): AosSnapshot {
   const snapshot = raw as Partial<Extract<AosSnapshot, { linked: true }>> & {
     linked?: boolean;
