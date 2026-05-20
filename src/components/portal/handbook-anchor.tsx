@@ -138,24 +138,24 @@ function DeviceMockup() {
           </aside>
 
           {/* Cover pane */}
-          <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
-            <div className="shrink-0 border-b border-foreground/10 px-5 pt-3 pb-2">
+          <div className="relative grid h-full min-h-0 grid-rows-[34px_minmax(0,1fr)_96px] overflow-hidden">
+            <div className="border-b border-foreground/10 px-5 pt-3 pb-2">
               <p className="font-mono text-[8px] uppercase tracking-[0.22em] text-foreground/55">ALP Contractor Circle</p>
             </div>
 
-            <div className="relative h-0 min-h-0 flex-1 overflow-hidden px-5 py-3">
-              <div className="absolute inset-3 grid place-items-center overflow-hidden rounded-sm">
+            <div className="relative min-h-0 overflow-hidden px-5 py-3">
+              <div className="grid h-full w-full place-items-center overflow-hidden rounded-sm">
                 <img
                   src={bookCover}
                   alt=""
-                  className="block max-h-full max-w-full object-contain"
+                  className="block h-full max-h-full w-auto max-w-full object-contain"
                   draggable={false}
                 />
               </div>
             </div>
 
             {/* Audio player */}
-            <div className="shrink-0 border-t border-foreground/10 bg-white/70 px-4 py-2.5">
+            <div className="min-h-0 overflow-hidden border-t border-foreground/10 bg-white/70 px-4 py-2.5">
               <p className="font-mono text-[7px] uppercase tracking-[0.22em] text-foreground/55">Audio chapter available</p>
               <div className="mt-1.5 flex items-center gap-2.5">
                 <button className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-foreground/20 bg-white text-foreground/80">
