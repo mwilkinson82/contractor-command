@@ -34,7 +34,7 @@ function AosGateway() {
   const { limits, loading: limitsLoading, hasAccess, isUnlimited } = useAosLimits();
   const mint = useServerFn(mintAosSsoToken);
 
-  const [phase, setPhase] = useState<"idle" | "minting" | "redirecting">("idle");
+  const [phase, setPhase] = useState<"idle" | "minting" | "opened">("idle");
   const [error, setError] = useState<string | null>(null);
   const [previouslyLinked, setPreviouslyLinked] = useState<boolean | null>(null);
   const [linkedEmail, setLinkedEmail] = useState<string | null>(null);
@@ -62,16 +62,27 @@ function AosGateway() {
   const handleEnter = useCallback(async () => {
     setError(null);
     setPhase("minting");
+    // Open the tab synchronously so popup blockers stay out of the way.
+    const popup = typeof window !== "undefined" ? window.open("about:blank", "_blank", "noopener") : null;
     const res = await mint();
     if (!res.ok) {
+      if (popup) popup.close();
       setError(res.error);
       setPhase("idle");
       return;
     }
-    setPhase("redirecting");
-    // Full-page navigate — AOS sets its session cookie and lands the user inside.
-    window.location.assign(res.url);
+    // AOS opens in a NEW TAB. Circle stays here so the member always has a
+    // way back — no more "stuck on AOS after login" reports.
+    if (popup) {
+      popup.location.href = res.url;
+    } else {
+      // Popup blocked — last-resort same-tab navigation so they're not stranded.
+      window.location.assign(res.url);
+      return;
+    }
+    setPhase("opened");
   }, [mint]);
+
 
   const headline =
     previouslyLinked === true
