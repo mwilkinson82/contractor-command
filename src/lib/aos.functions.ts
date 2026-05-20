@@ -99,7 +99,7 @@ function normalizeAosSnapshot(raw: unknown, email: string): AosSnapshot {
     if (!snapshot.linked) return snapshot as AosSnapshot;
 
     const pulse = snapshot.pulse;
-    const normalizedRocks = Array.isArray(pulse?.rocks?.list)
+    const normalizedRocks: AosRock[] = Array.isArray(pulse?.rocks?.list)
       ? pulse.rocks.list.map((r) => ({
           id: r.id,
           title: r.title,
@@ -114,25 +114,25 @@ function normalizeAosSnapshot(raw: unknown, email: string): AosSnapshot {
                   : "unknown",
           percent_complete: r.progress ?? 0,
           due_date: r.due_date ?? null,
-        })) satisfies AosRock[]
+        }))
       : (snapshot.rocks ?? []);
 
-    const normalizedIssues = Array.isArray(pulse?.issues?.list)
+    const normalizedIssues: AosIssue[] = Array.isArray(pulse?.issues?.list)
       ? pulse.issues.list.map((i) => ({
           id: i.id,
           title: i.title,
           owner: i.owner ?? null,
           created_at: i.created_at ?? new Date().toISOString(),
-        })) satisfies AosIssue[]
+        }))
       : (snapshot.issues_open ?? []);
 
-    const normalizedTodos = Array.isArray(pulse?.todos?.list)
+    const normalizedTodos: AosTodo[] = Array.isArray(pulse?.todos?.list)
       ? pulse.todos.list.map((t) => ({
           id: t.id,
           title: t.title,
           owner: t.owner ?? null,
           due_date: t.due_date ?? null,
-        })) satisfies AosTodo[]
+        }))
       : (snapshot.todos_due_this_week ?? []);
 
     return {
