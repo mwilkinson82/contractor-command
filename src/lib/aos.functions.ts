@@ -96,7 +96,7 @@ function normalizeAosSnapshot(raw: unknown, email: string): AosSnapshot {
   };
 }
 
-function localLinkedSnapshot(email: string): AosSnapshot {
+function localLinkedSnapshot(): AosSnapshot {
   return {
     linked: true,
     company_id: null,
@@ -178,7 +178,7 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
         if (existingLink?.verified_at) {
           return {
             ok: true,
-            snapshot: localLinkedSnapshot(normalizedEmail),
+            snapshot: localLinkedSnapshot(),
             fetched_at: new Date().toISOString(),
             previously_linked: true,
           };
@@ -216,7 +216,7 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
       if (existingLink?.verified_at) {
         return {
           ok: true,
-          snapshot: localLinkedSnapshot(normalizedEmail),
+          snapshot: localLinkedSnapshot(),
           fetched_at: new Date().toISOString(),
           previously_linked: true,
         };
