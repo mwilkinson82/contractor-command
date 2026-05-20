@@ -242,10 +242,6 @@ export function AppSidebar() {
     navigate({ to: "/login" });
   }
 
-  const { collapsed, toggle, mobileOpen, setMobileOpen } = useAppSidebar();
-  // ... keep existing code (pathname, navigate, next, company, brand, admin, tier, groups setup)
-  // re-derive — original block follows
-  // (this comment is intentionally short; logic below is unchanged)
 
   return (
     <>
