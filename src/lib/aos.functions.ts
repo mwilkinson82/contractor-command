@@ -200,21 +200,6 @@ function normalizeAosSnapshot(raw: unknown, email: string): AosSnapshot {
   };
 }
 
-function localLinkedSnapshot(): AosSnapshot {
-  return {
-    linked: true,
-    company_id: null,
-    company_name: null,
-    companies: [],
-    last_login_at: null,
-    next_meeting: null,
-    scorecard: [],
-    rocks: [],
-    issues_open: [],
-    todos_due_this_week: [],
-  };
-}
-
 export const getAosSnapshot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { companyId?: string } | undefined) => input ?? {})
