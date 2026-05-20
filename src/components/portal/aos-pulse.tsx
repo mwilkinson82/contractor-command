@@ -145,22 +145,7 @@ export function AosPulse() {
           <button
             type="button"
             disabled={opening}
-            onClick={async () => {
-              setOpening(true);
-              try {
-                const res = await mint();
-                if (res.ok) {
-                  window.location.assign(res.url);
-                  return;
-                }
-                toast.error("Couldn't open AOS", { description: res.error });
-              } catch (e) {
-                toast.error("Couldn't open AOS", {
-                  description: e instanceof Error ? e.message : "Unknown error",
-                });
-              }
-              setOpening(false);
-            }}
+            onClick={openAosInNewTab}
             className="inline-flex items-center gap-1 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90 disabled:opacity-60"
           >
             <Play className="h-3 w-3" /> {opening ? "Opening AOS…" : "Open AOS"} <ArrowUpRight className="h-3 w-3" />
@@ -179,10 +164,8 @@ export function AosPulse() {
             previouslyLinked={data.previously_linked}
             waiting={waitingForLink}
             isFetching={isFetching}
-            onOpenAos={() => {
-              setWaitingForLink(true);
-              navigate({ to: "/aos" });
-            }}
+            opening={opening}
+            onOpenAos={openAosInNewTab}
             onRecheck={() => refetch()}
           />
         ) : (
