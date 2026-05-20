@@ -29,14 +29,27 @@ import { nextAny, relativeDay } from "@/lib/program";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/use-company";
 
-type Ctx = { collapsed: boolean; toggle: () => void };
-const SidebarCtx = createContext<Ctx>({ collapsed: false, toggle: () => {} });
+type Ctx = {
+  collapsed: boolean;
+  toggle: () => void;
+  mobileOpen: boolean;
+  setMobileOpen: (v: boolean) => void;
+  toggleMobile: () => void;
+};
+const SidebarCtx = createContext<Ctx>({
+  collapsed: false,
+  toggle: () => {},
+  mobileOpen: false,
+  setMobileOpen: () => {},
+  toggleMobile: () => {},
+});
 export const useAppSidebar = () => useContext(SidebarCtx);
 
 const STORAGE = "alp.cc.sidebar.collapsed";
 
 export function AppSidebarProvider({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const userPrefRef = useRef<boolean | null>(null);
 
@@ -56,6 +69,8 @@ export function AppSidebarProvider({ children }: { children: ReactNode }) {
     } else {
       setCollapsed(userPrefRef.current);
     }
+    // Close mobile drawer on route change
+    setMobileOpen(false);
   }, [pathname]);
 
   function toggle() {
@@ -66,7 +81,14 @@ export function AppSidebarProvider({ children }: { children: ReactNode }) {
       return n;
     });
   }
-  return <SidebarCtx.Provider value={{ collapsed, toggle }}>{children}</SidebarCtx.Provider>;
+  function toggleMobile() {
+    setMobileOpen((v) => !v);
+  }
+  return (
+    <SidebarCtx.Provider value={{ collapsed, toggle, mobileOpen, setMobileOpen, toggleMobile }}>
+      {children}
+    </SidebarCtx.Provider>
+  );
 }
 
 type Item = { to: string; label: string; icon: React.ComponentType<{ className?: string }>; match?: string };
