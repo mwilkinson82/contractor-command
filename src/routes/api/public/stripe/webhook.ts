@@ -16,12 +16,25 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 // is ever granted unless the price/metadata explicitly maps to it).
 
 type Tier = "book_buyer" | "intensive" | "circle" | "aos_only";
+type WebhookEventClaim = "process" | "duplicate" | "in_progress";
+type SupabaseRpcResult<T> = Promise<{
+  data: T | null;
+  error: { message: string } | null;
+}>;
+type SupabaseRpcClient = {
+  rpc: <T>(fn: string, args: Record<string, unknown>) => SupabaseRpcResult<T>;
+};
 
-function tierForPrice(priceId: string | null, metaProduct?: string | null): Tier {
+function tierForPrice(
+  priceId: string | null,
+  metaProduct?: string | null,
+  metaKind?: string | null,
+): Tier {
   // Explicit metadata wins (set by our own checkout sessions).
-  if (metaProduct === "book_v2" || metaProduct === "book") return "book_buyer";
-  if (metaProduct === "intensive") return "intensive";
-  if (metaProduct === "circle" && priceId === process.env.STRIPE_PRICE_ID_CIRCLE) return "circle";
+  const product = metaProduct ?? metaKind ?? null;
+  if (product === "book_v2" || product === "book") return "book_buyer";
+  if (product === "intensive") return "intensive";
+  if (product === "circle" && priceId === process.env.STRIPE_PRICE_ID_CIRCLE) return "circle";
 
   if (priceId && priceId === process.env.STRIPE_PRICE_ID_BOOK) return "book_buyer";
   if (priceId && priceId === process.env.STRIPE_PRICE_ID_INTENSIVE) return "intensive";
@@ -34,6 +47,48 @@ function productLabelForTier(tier: Tier): string {
   return tier;
 }
 
+function stripeObjectId(event: Stripe.Event): string | null {
+  const object = event.data.object as { id?: unknown };
+  return typeof object.id === "string" ? object.id : null;
+}
+
+async function beginWebhookEvent(event: Stripe.Event): Promise<WebhookEventClaim> {
+  const rpc = supabaseAdmin as unknown as SupabaseRpcClient;
+  const { data, error } = await rpc.rpc<WebhookEventClaim>("begin_stripe_webhook_event", {
+    _event_id: event.id,
+    _event_type: event.type,
+    _object_id: stripeObjectId(event),
+  });
+
+  if (error) {
+    throw new Error(`Failed to claim Stripe webhook event: ${error.message}`);
+  }
+
+  if (data === "process" || data === "duplicate" || data === "in_progress") {
+    return data;
+  }
+
+  throw new Error(`Unexpected Stripe webhook claim result: ${String(data)}`);
+}
+
+async function finishWebhookEvent(eventId: string, status: "processed" | "failed", err?: unknown) {
+  const message = err instanceof Error ? err.message : err ? String(err) : null;
+  const rpc = supabaseAdmin as unknown as SupabaseRpcClient;
+  const { error } = await rpc.rpc<void>("finish_stripe_webhook_event", {
+    _event_id: eventId,
+    _status: status,
+    _last_error: message?.slice(0, 2000) ?? null,
+  });
+
+  if (error) {
+    console.error("Failed to finish Stripe webhook event", {
+      eventId,
+      status,
+      error,
+    });
+    throw new Error(`Failed to finish Stripe webhook event: ${error.message}`);
+  }
+}
 
 export const Route = createFileRoute("/api/public/stripe/webhook")({
   server: {
@@ -50,7 +105,7 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
         if (!sig) return new Response("Missing signature", { status: 400 });
 
         const body = await request.text();
-        const stripe = new Stripe(secret, { apiVersion: "2024-12-18.acacia" as any });
+        const stripe = new Stripe(secret, { apiVersion: "2024-12-18.acacia" as never });
 
         let event: Stripe.Event;
         try {
@@ -58,6 +113,29 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
         } catch (err) {
           console.error("Stripe signature verification failed", err);
           return new Response("Invalid signature", { status: 400 });
+        }
+
+        let claim: WebhookEventClaim;
+        try {
+          claim = await beginWebhookEvent(event);
+        } catch (err) {
+          console.error("Stripe webhook idempotency check failed", {
+            type: event.type,
+            eventId: event.id,
+            err,
+          });
+          return new Response("Idempotency check failed", { status: 500 });
+        }
+
+        if (claim === "duplicate") {
+          return new Response(JSON.stringify({ received: true, duplicate: true }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
+        if (claim === "in_progress") {
+          return new Response("Event already processing", { status: 409 });
         }
 
         try {
@@ -73,7 +151,9 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
               const session = event.data.object as Stripe.Checkout.Session;
               if (session.subscription) {
                 const sub = await stripe.subscriptions.retrieve(
-                  typeof session.subscription === "string" ? session.subscription : session.subscription.id
+                  typeof session.subscription === "string"
+                    ? session.subscription
+                    : session.subscription.id,
                 );
                 await upsertSubscription(stripe, sub);
               } else {
@@ -84,11 +164,32 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
               }
               break;
             }
+            case "invoice.payment_failed": {
+              const invoice = event.data.object as Stripe.Invoice;
+              const subscription = (
+                invoice as Stripe.Invoice & {
+                  subscription?: string | { id?: string } | null;
+                }
+              ).subscription;
+              const subscriptionId =
+                typeof subscription === "string" ? subscription : subscription?.id;
+              if (subscriptionId) {
+                const sub = await stripe.subscriptions.retrieve(subscriptionId);
+                await upsertSubscription(stripe, sub);
+              }
+              break;
+            }
             default:
               break;
           }
+          await finishWebhookEvent(event.id, "processed");
         } catch (err) {
           console.error("Stripe webhook handler error", { type: event.type, err });
+          try {
+            await finishWebhookEvent(event.id, "failed", err);
+          } catch {
+            // finishWebhookEvent already logs; preserve the Stripe retry signal.
+          }
           return new Response("Handler error", { status: 500 });
         }
 
@@ -111,20 +212,20 @@ async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
     }
   } catch (err) {
     console.error("Failed to retrieve Stripe customer", { customerId, err });
+    throw err;
   }
 
   if (!email) {
-    console.error("Stripe subscription has no resolvable email", { subId: sub.id });
-    return;
+    throw new Error(`Stripe subscription has no resolvable email: ${sub.id}`);
   }
 
   const normalizedEmail = email.toLowerCase();
   const priceId = sub.items.data[0]?.price?.id ?? null;
   const productId = (sub.items.data[0]?.price?.product as string | null) ?? null;
-  const cpe = (sub as any).current_period_end as number | undefined;
+  const cpe = (sub as Stripe.Subscription & { current_period_end?: number }).current_period_end;
   const currentPeriodEnd = cpe ? new Date(cpe * 1000).toISOString() : null;
   const metadata = (sub.metadata ?? {}) as Record<string, string>;
-  const tier = tierForPrice(priceId, metadata.product);
+  const tier = tierForPrice(priceId, metadata.product, metadata.kind);
 
   const { data: profile } = await supabaseAdmin
     .from("profiles")
@@ -153,11 +254,11 @@ async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
 
   if (upsertErr) {
     console.error("Failed to upsert subscription", upsertErr);
-    return;
+    throw new Error(upsertErr.message);
   }
 
   if (!profile?.id) {
-    await supabaseAdmin.from("pending_claims").upsert(
+    const { error: pendingErr } = await supabaseAdmin.from("pending_claims").upsert(
       {
         email: normalizedEmail,
         stripe_customer_id: customerId,
@@ -167,8 +268,12 @@ async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
         current_period_end: currentPeriodEnd,
         metadata: { ...metadata, product: productLabelForTier(tier) },
       },
-      { onConflict: "stripe_subscription_id" }
+      { onConflict: "stripe_subscription_id" },
     );
+    if (pendingErr) {
+      console.error("Failed to upsert pending claim", pendingErr);
+      throw new Error(pendingErr.message);
+    }
 
     if (sub.status === "active" || sub.status === "trialing") {
       await invitePaidMemberIfNeeded(normalizedEmail);
@@ -180,9 +285,8 @@ async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
 // tier/claim resolver works the same way for recurring and one-time products.
 async function upsertOneTimePurchase(stripe: Stripe, session: Stripe.Checkout.Session) {
   let email: string | null = session.customer_details?.email ?? session.customer_email ?? null;
-  const customerId = typeof session.customer === "string"
-    ? session.customer
-    : session.customer?.id ?? null;
+  const customerId =
+    typeof session.customer === "string" ? session.customer : (session.customer?.id ?? null);
   if (!email && customerId) {
     try {
       const customer = await stripe.customers.retrieve(customerId);
@@ -190,12 +294,15 @@ async function upsertOneTimePurchase(stripe: Stripe, session: Stripe.Checkout.Se
         email = (customer as Stripe.Customer).email ?? null;
       }
     } catch (err) {
-      console.error("Failed to retrieve Stripe customer for one-time purchase", { customerId, err });
+      console.error("Failed to retrieve Stripe customer for one-time purchase", {
+        customerId,
+        err,
+      });
+      throw err;
     }
   }
   if (!email) {
-    console.error("One-time purchase has no resolvable email", { sessionId: session.id });
-    return;
+    throw new Error(`One-time purchase has no resolvable email: ${session.id}`);
   }
 
   const normalizedEmail = email.toLowerCase();
@@ -205,17 +312,21 @@ async function upsertOneTimePurchase(stripe: Stripe, session: Stripe.Checkout.Se
   let priceId: string | null = null;
   let productId: string | null = null;
   try {
-    const lines = await stripe.checkout.sessions.listLineItems(session.id, { limit: 1, expand: ["data.price.product"] });
+    const lines = await stripe.checkout.sessions.listLineItems(session.id, {
+      limit: 1,
+      expand: ["data.price.product"],
+    });
     const price = lines.data[0]?.price;
     priceId = price?.id ?? null;
-    productId = (price?.product as Stripe.Product | string | null) instanceof Object
-      ? ((price?.product as Stripe.Product).id ?? null)
-      : ((price?.product as string | null) ?? null);
+    productId =
+      (price?.product as Stripe.Product | string | null) instanceof Object
+        ? ((price?.product as Stripe.Product).id ?? null)
+        : ((price?.product as string | null) ?? null);
   } catch (err) {
     console.warn("Could not list line items for one-time purchase", { sessionId: session.id, err });
   }
 
-  const tier = tierForPrice(priceId, metadata.product);
+  const tier = tierForPrice(priceId, metadata.product, metadata.kind);
 
   const { data: profile } = await supabaseAdmin
     .from("profiles")
@@ -244,11 +355,11 @@ async function upsertOneTimePurchase(stripe: Stripe, session: Stripe.Checkout.Se
     .upsert(row, { onConflict: "stripe_subscription_id" });
   if (error) {
     console.error("Failed to upsert one-time purchase", error);
-    return;
+    throw new Error(error.message);
   }
 
   if (!profile?.id) {
-    await supabaseAdmin.from("pending_claims").upsert(
+    const { error: pendingErr } = await supabaseAdmin.from("pending_claims").upsert(
       {
         email: normalizedEmail,
         stripe_customer_id: customerId,
@@ -256,10 +367,18 @@ async function upsertOneTimePurchase(stripe: Stripe, session: Stripe.Checkout.Se
         price_id: priceId,
         status: "active",
         current_period_end: null,
-        metadata: { ...metadata, product: productLabelForTier(tier), checkout_session_id: session.id },
+        metadata: {
+          ...metadata,
+          product: productLabelForTier(tier),
+          checkout_session_id: session.id,
+        },
       },
-      { onConflict: "stripe_subscription_id" }
+      { onConflict: "stripe_subscription_id" },
     );
+    if (pendingErr) {
+      console.error("Failed to upsert one-time pending claim", pendingErr);
+      throw new Error(pendingErr.message);
+    }
     await invitePaidMemberIfNeeded(normalizedEmail);
   }
 }
@@ -270,17 +389,26 @@ async function invitePaidMemberIfNeeded(email: string) {
     const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
     if (error) {
       console.error("Failed to check auth user before member invite", { email, error });
-      return;
+      throw error;
     }
     const users = data?.users ?? [];
     if (users.some((u) => (u.email ?? "").toLowerCase() === email)) return;
     if (users.length < perPage) break;
   }
 
-  const origin = (process.env.PUBLIC_APP_ORIGIN || process.env.APP_ORIGIN || "https://app.alpcontractorcircle.com").replace(/\/$/, "");
+  const origin = (
+    process.env.PUBLIC_APP_ORIGIN ||
+    process.env.APP_ORIGIN ||
+    "https://app.alpcontractorcircle.com"
+  ).replace(/\/$/, "");
   const { error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
     data: { source: "stripe_purchase", invited_at: new Date().toISOString() },
     redirectTo: `${origin}/welcome`,
   });
-  if (error) console.error("Failed to send paid member invite", { email, error });
+  if (error) {
+    const msg = error.message ?? "";
+    if (/already|registered|exists/i.test(msg)) return;
+    console.error("Failed to send paid member invite", { email, error });
+    throw error;
+  }
 }
