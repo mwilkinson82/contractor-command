@@ -34,7 +34,7 @@ function AosGateway() {
   const { limits, loading: limitsLoading, hasAccess, isUnlimited } = useAosLimits();
   const mint = useServerFn(mintAosSsoToken);
 
-  const [phase, setPhase] = useState<"idle" | "minting" | "redirecting">("idle");
+  const [phase, setPhase] = useState<"idle" | "minting" | "opened">("idle");
   const [error, setError] = useState<string | null>(null);
   const [previouslyLinked, setPreviouslyLinked] = useState<boolean | null>(null);
   const [linkedEmail, setLinkedEmail] = useState<string | null>(null);
@@ -62,16 +62,27 @@ function AosGateway() {
   const handleEnter = useCallback(async () => {
     setError(null);
     setPhase("minting");
+    // Open the tab synchronously so popup blockers stay out of the way.
+    const popup = typeof window !== "undefined" ? window.open("about:blank", "_blank", "noopener") : null;
     const res = await mint();
     if (!res.ok) {
+      if (popup) popup.close();
       setError(res.error);
       setPhase("idle");
       return;
     }
-    setPhase("redirecting");
-    // Full-page navigate — AOS sets its session cookie and lands the user inside.
-    window.location.assign(res.url);
+    // AOS opens in a NEW TAB. Circle stays here so the member always has a
+    // way back — no more "stuck on AOS after login" reports.
+    if (popup) {
+      popup.location.href = res.url;
+    } else {
+      // Popup blocked — last-resort same-tab navigation so they're not stranded.
+      window.location.assign(res.url);
+      return;
+    }
+    setPhase("opened");
   }, [mint]);
+
 
   const headline =
     previouslyLinked === true
@@ -90,7 +101,7 @@ function AosGateway() {
       ? `Continuing with ${company.name}.`
       : null;
 
-  const handingOff = phase === "minting" || phase === "redirecting";
+  const handingOff = phase === "minting";
 
   return (
     <>
@@ -125,14 +136,13 @@ function AosGateway() {
           </div>
           <div>
             <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-cream/55">
-              {phase === "minting" ? "Opening the door" : "Entering AOS"}
+              Opening the door
             </p>
             <p className="mt-3 font-display text-2xl tracking-tight sm:text-3xl">
-              Connecting to AOS…
+              Opening AOS in a new tab…
             </p>
             <p className="mt-2 text-[13px] text-cream/60">
-              Picking up your session
-              {linkedEmail ? ` as ${linkedEmail}` : ""}. This takes a moment.
+              Signing you in{linkedEmail ? ` as ${linkedEmail}` : ""}. Keep this tab open.
             </p>
           </div>
         </div>
@@ -196,19 +206,20 @@ function AosGateway() {
               type="button"
               onClick={handleEnter}
               disabled={
-                authLoading || !user || phase !== "idle" || (!limitsLoading && !hasAccess)
+                authLoading || !user || phase === "minting" || (!limitsLoading && !hasAccess)
               }
               className="group relative inline-flex w-fit items-center gap-3 rounded-md bg-gold px-7 py-4 text-[15px] font-medium text-ink shadow-[0_0_0_0_var(--gold)] transition-all duration-300 hover:shadow-[0_0_40px_-4px_var(--gold)] disabled:opacity-60"
             >
-              {phase === "redirecting" ? (
+              {phase === "minting" ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Entering AOS…
+                  Opening AOS…
                 </>
-              ) : phase === "minting" ? (
+              ) : phase === "opened" ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Opening the door…
+                  <Compass className="h-4 w-4" />
+                  Reopen AOS
+                  <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                 </>
               ) : (
                 <>
@@ -218,6 +229,14 @@ function AosGateway() {
                 </>
               )}
             </button>
+
+            {phase === "opened" && (
+              <div className="max-w-md rounded-md border border-gold/30 bg-gold/[0.06] px-4 py-3 text-[13px] text-cream/85">
+                AOS opened in a new tab. Sign in there, then switch back — Circle stays right here.
+              </div>
+            )}
+
+
 
             {/* Allowance pill — shows the user what their plan grants in AOS. */}
             {limits && hasAccess && (

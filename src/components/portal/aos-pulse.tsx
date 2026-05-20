@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { getAosSnapshot, mintAosSsoToken, type AosResult, type AosCompany } from "@/lib/aos.functions";
@@ -23,7 +22,6 @@ const COMPANY_KEY = "aos.company_id";
 export function AosPulse() {
   const fn = useServerFn(getAosSnapshot);
   const mint = useServerFn(mintAosSsoToken);
-  const navigate = useNavigate();
   const { user } = useAuth();
   const [companyId, setCompanyId] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
@@ -32,6 +30,42 @@ export function AosPulse() {
   const [waitingForLink, setWaitingForLink] = useState(false);
   const [opening, setOpening] = useState(false);
   const wasLinkedRef = useRef<boolean | null>(null);
+
+  // Open AOS in a NEW TAB so Circle stays open. Keeps the user's place,
+  // lets the snapshot poll detect the link, and gives an obvious way back.
+  const openAosInNewTab = useCallback(async () => {
+    setOpening(true);
+    // Pre-open a tab synchronously inside the click handler so popup blockers
+    // don't kill it while the server fn is in-flight.
+    const popup = typeof window !== "undefined" ? window.open("about:blank", "_blank", "noopener") : null;
+    try {
+      const res = await mint();
+      if (res.ok) {
+        if (popup) {
+          popup.location.href = res.url;
+        } else {
+          // Popup blocked — fall back to same-tab navigation so the user isn't stuck.
+          window.location.assign(res.url);
+          return;
+        }
+        setWaitingForLink(true);
+        toast.success("AOS opened in a new tab", {
+          description: "Sign in there, then come back — we'll detect it automatically.",
+        });
+      } else {
+        if (popup) popup.close();
+        toast.error("Couldn't open AOS", { description: res.error });
+      }
+    } catch (e) {
+      if (popup) popup.close();
+      toast.error("Couldn't open AOS", {
+        description: e instanceof Error ? e.message : "Unknown error",
+      });
+    } finally {
+      setOpening(false);
+    }
+  }, [mint]);
+
 
   const { data, isLoading, refetch, isFetching } = useQuery<AosResult>({
     queryKey: ["aos-snapshot", companyId],
@@ -111,22 +145,7 @@ export function AosPulse() {
           <button
             type="button"
             disabled={opening}
-            onClick={async () => {
-              setOpening(true);
-              try {
-                const res = await mint();
-                if (res.ok) {
-                  window.location.assign(res.url);
-                  return;
-                }
-                toast.error("Couldn't open AOS", { description: res.error });
-              } catch (e) {
-                toast.error("Couldn't open AOS", {
-                  description: e instanceof Error ? e.message : "Unknown error",
-                });
-              }
-              setOpening(false);
-            }}
+            onClick={openAosInNewTab}
             className="inline-flex items-center gap-1 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90 disabled:opacity-60"
           >
             <Play className="h-3 w-3" /> {opening ? "Opening AOS…" : "Open AOS"} <ArrowUpRight className="h-3 w-3" />
@@ -145,10 +164,8 @@ export function AosPulse() {
             previouslyLinked={data.previously_linked}
             waiting={waitingForLink}
             isFetching={isFetching}
-            onOpenAos={() => {
-              setWaitingForLink(true);
-              navigate({ to: "/aos" });
-            }}
+            opening={opening}
+            onOpenAos={openAosInNewTab}
             onRecheck={() => refetch()}
           />
         ) : (
@@ -544,6 +561,7 @@ function UnlinkedState({
   previouslyLinked,
   waiting,
   isFetching,
+  opening,
   onOpenAos,
   onRecheck,
 }: {
@@ -551,6 +569,7 @@ function UnlinkedState({
   previouslyLinked: boolean;
   waiting: boolean;
   isFetching: boolean;
+  opening: boolean;
   onOpenAos: () => void;
   onRecheck: () => void;
 }) {
@@ -565,9 +584,10 @@ function UnlinkedState({
           <button
             type="button"
             onClick={onOpenAos}
-            className="inline-flex items-center gap-1 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90"
+            disabled={opening}
+            className="inline-flex items-center gap-1 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90 disabled:opacity-60"
           >
-            Refresh AOS session <ArrowUpRight className="h-3 w-3" />
+            {opening ? "Opening AOS…" : "Refresh AOS session"} <ArrowUpRight className="h-3 w-3" />
           </button>
           <button
             type="button"
@@ -609,9 +629,10 @@ function UnlinkedState({
         <button
           type="button"
           onClick={onOpenAos}
-          className="inline-flex items-center gap-1 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90"
+          disabled={opening}
+          className="inline-flex items-center gap-1 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90 disabled:opacity-60"
         >
-          Open AOS in new tab <ArrowUpRight className="h-3 w-3" />
+          {opening ? "Opening AOS…" : "Open AOS in new tab"} <ArrowUpRight className="h-3 w-3" />
         </button>
         <button
           type="button"
