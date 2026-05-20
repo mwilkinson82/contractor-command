@@ -315,10 +315,13 @@ export const linkExistingAosAccount = createServerFn({ method: "POST" })
       return { ok: false, error: "AOS link not configured on Circle." };
     }
 
-    const ts = Math.floor(Date.now() / 1000).toString();
+    const ts = Math.floor(Date.now() / 1000);
     const signingSecret = secret.trim();
+    const nonce =
+      Math.random().toString(36).slice(2, 12) +
+      Math.random().toString(36).slice(2, 12);
     const sig = createHmac("sha256", signingSecret)
-      .update(`${data.aosEmail}|${ts}`)
+      .update(`${data.aosEmail}|${ts}|${nonce}`)
       .digest("hex");
 
     let res: Response;
@@ -327,9 +330,12 @@ export const linkExistingAosAccount = createServerFn({ method: "POST" })
         `${baseUrl.replace(/\/$/, "")}/api/public/circle/snapshot`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "x-circle-signature": sig,
+          },
           redirect: "manual",
-          body: JSON.stringify({ email: data.aosEmail, ts, sig }),
+          body: JSON.stringify({ email: data.aosEmail, ts, nonce, sig }),
         },
       );
     } catch (err) {
@@ -341,9 +347,7 @@ export const linkExistingAosAccount = createServerFn({ method: "POST" })
       return { ok: false, error: `AOS returned ${res.status}. Try again in a moment.` };
     }
 
-    const snapshot = (await res.json()) as
-      | { linked: true; company_name: string | null }
-      | { linked: false; reason: string };
+    const snapshot = normalizeAosSnapshot(await res.json(), data.aosEmail);
 
     if (!snapshot.linked) {
       // "Pick a workspace" reason means the account exists with multiple workspaces.
