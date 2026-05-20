@@ -51,7 +51,7 @@ export function HomeHero({
   };
 
   return (
-    <section className="relative flex min-h-[calc(100vh-3.5rem)] flex-col justify-center px-6 py-14">
+    <section className="relative flex min-h-[calc(100vh-3.5rem)] flex-col justify-center px-4 sm:px-6 py-10 sm:py-14">
       <div className="relative mx-auto w-full max-w-[820px]">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <p className="text-[12px] uppercase tracking-[0.18em] text-muted-foreground">
