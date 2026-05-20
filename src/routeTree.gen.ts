@@ -47,7 +47,6 @@ import { Route as AdminLibraryRouteImport } from './routes/admin.library'
 import { Route as AdminBackfillRouteImport } from './routes/admin.backfill'
 import { Route as AdminAnnounceRouteImport } from './routes/admin.announce'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
-import { Route as ApiPublicOneoffRevokeMistakenInviteRouteImport } from './routes/api/public/oneoff-revoke-mistaken-invite'
 import { Route as ApiPublicAosFpRouteImport } from './routes/api/public/aos-fp'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
@@ -246,12 +245,6 @@ const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   path: '/lovable/email/suppression',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicOneoffRevokeMistakenInviteRoute =
-  ApiPublicOneoffRevokeMistakenInviteRouteImport.update({
-    id: '/api/public/oneoff-revoke-mistaken-invite',
-    path: '/api/public/oneoff-revoke-mistaken-invite',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const ApiPublicAosFpRoute = ApiPublicAosFpRouteImport.update({
   id: '/api/public/aos-fp',
   path: '/api/public/aos-fp',
@@ -330,7 +323,6 @@ export interface FileRoutesByFullPath {
   '/aos/': typeof AosIndexRoute
   '/ask/': typeof AskIndexRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
-  '/api/public/oneoff-revoke-mistaken-invite': typeof ApiPublicOneoffRevokeMistakenInviteRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -378,7 +370,6 @@ export interface FileRoutesByTo {
   '/aos': typeof AosIndexRoute
   '/ask': typeof AskIndexRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
-  '/api/public/oneoff-revoke-mistaken-invite': typeof ApiPublicOneoffRevokeMistakenInviteRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -427,7 +418,6 @@ export interface FileRoutesById {
   '/aos/': typeof AosIndexRoute
   '/ask/': typeof AskIndexRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
-  '/api/public/oneoff-revoke-mistaken-invite': typeof ApiPublicOneoffRevokeMistakenInviteRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -477,7 +467,6 @@ export interface FileRouteTypes {
     | '/aos/'
     | '/ask/'
     | '/api/public/aos-fp'
-    | '/api/public/oneoff-revoke-mistaken-invite'
     | '/lovable/email/suppression'
     | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
@@ -525,7 +514,6 @@ export interface FileRouteTypes {
     | '/aos'
     | '/ask'
     | '/api/public/aos-fp'
-    | '/api/public/oneoff-revoke-mistaken-invite'
     | '/lovable/email/suppression'
     | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
@@ -573,7 +561,6 @@ export interface FileRouteTypes {
     | '/aos/'
     | '/ask/'
     | '/api/public/aos-fp'
-    | '/api/public/oneoff-revoke-mistaken-invite'
     | '/lovable/email/suppression'
     | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
@@ -620,7 +607,6 @@ export interface RootRouteChildren {
   AosIndexRoute: typeof AosIndexRoute
   AskIndexRoute: typeof AskIndexRoute
   ApiPublicAosFpRoute: typeof ApiPublicAosFpRoute
-  ApiPublicOneoffRevokeMistakenInviteRoute: typeof ApiPublicOneoffRevokeMistakenInviteRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
@@ -898,13 +884,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LovableEmailSuppressionRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/oneoff-revoke-mistaken-invite': {
-      id: '/api/public/oneoff-revoke-mistaken-invite'
-      path: '/api/public/oneoff-revoke-mistaken-invite'
-      fullPath: '/api/public/oneoff-revoke-mistaken-invite'
-      preLoaderRoute: typeof ApiPublicOneoffRevokeMistakenInviteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/public/aos-fp': {
       id: '/api/public/aos-fp'
       path: '/api/public/aos-fp'
@@ -1006,8 +985,6 @@ const rootRouteChildren: RootRouteChildren = {
   AosIndexRoute: AosIndexRoute,
   AskIndexRoute: AskIndexRoute,
   ApiPublicAosFpRoute: ApiPublicAosFpRoute,
-  ApiPublicOneoffRevokeMistakenInviteRoute:
-    ApiPublicOneoffRevokeMistakenInviteRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
