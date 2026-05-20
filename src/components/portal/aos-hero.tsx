@@ -87,7 +87,7 @@ export function AosHero({
         style={{ background: "radial-gradient(closest-side, var(--gold), transparent 70%)" }}
       />
 
-      <div className="relative grid gap-8 px-6 py-10 sm:px-10 sm:py-14 lg:grid-cols-12 lg:gap-12">
+      <div className="relative grid gap-6 px-4 py-8 sm:gap-8 sm:px-10 sm:py-14 lg:grid-cols-12 lg:gap-12">
         <div className="lg:col-span-7">
           <p className="label-mono !text-cream/55">
             <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-gold align-middle animate-signal-pulse" />
