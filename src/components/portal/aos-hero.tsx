@@ -35,15 +35,15 @@ export function AosHero({
     navigate({ to: "/aos" });
   };
 
+  // When AOS knows the user but multiple workspaces exist, show the picker
+  // instead of the "Start AOS" CTA — they're already running it.
+  const showPicker = companies.length > 0 && !!onPickCompany;
+
   useEffect(() => {
     if (!opened || showPicker) return;
     const interval = window.setInterval(onRecheck, 4000);
     return () => window.clearInterval(interval);
   }, [opened, onRecheck, showPicker]);
-
-  // When AOS knows the user but multiple workspaces exist, show the picker
-  // instead of the "Start AOS" CTA — they're already running it.
-  const showPicker = companies.length > 0 && !!onPickCompany;
 
   return (
     <section className="relative overflow-hidden rounded-3xl bg-ink text-cream shadow-[var(--shadow-focus)]">
