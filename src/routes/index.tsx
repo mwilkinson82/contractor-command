@@ -16,6 +16,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { AosPulse } from "@/components/portal/aos-pulse";
 import { AosHero } from "@/components/portal/aos-hero";
 import { HomeHero } from "@/components/portal/home-hero";
+import { HandbookAnchor } from "@/components/portal/handbook-anchor";
 import { SignalTiles } from "@/components/portal/signal-tiles";
 import { TodaysMove } from "@/components/portal/todays-move";
 import { getAosSnapshot, type AosResult } from "@/lib/aos.functions";
@@ -308,6 +309,9 @@ function HomePage() {
           <SignalTiles packets={packets} />
         </div>
       </section>
+
+      {/* Handbook anchor — the reflect counterweight to the operate stack above */}
+      <HandbookAnchor />
     </div>
   );
 }
