@@ -205,11 +205,19 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
     const ts = Math.floor(Date.now() / 1000);
     const normalizedEmail = email.toLowerCase().trim();
     const { supabase, userId } = context;
+    const { data: limitsRows } = await supabase.rpc("get_user_aos_limits", {
+      _user_id: userId,
+    });
+    const limitsRow = Array.isArray(limitsRows) ? limitsRows[0] : limitsRows;
+    const tier = (limitsRow?.tier as string | null) ?? "";
+    const workspaceLimit = (limitsRow?.workspace_limit as number | null) ?? 0;
+    const seatLimit = (limitsRow?.seat_limit as number | null) ?? 0;
     const { data: existingLink } = await supabase
       .from("aos_links")
-      .select("verified_at")
+      .select("aos_email, verified_at")
       .eq("user_id", userId)
       .maybeSingle();
+    const snapshotEmail = (existingLink?.aos_email ?? normalizedEmail).toLowerCase().trim();
 
     try {
       let res: Response | null = null;
@@ -217,7 +225,7 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
         const nonce =
           Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
         const sig = createHmac("sha256", signingSecret)
-          .update(`${normalizedEmail}|${ts}|${nonce}`)
+          .update(`${snapshotEmail}|${ts}|${nonce}|${tier}|${workspaceLimit}|${seatLimit}`)
           .digest("hex");
 
         res = await fetch(`${baseUrl.replace(/\/$/, "")}/api/public/circle/snapshot`, {
@@ -225,13 +233,18 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
           headers: {
             "Content-Type": "application/json",
             "x-circle-signature": sig,
+            "x-circle-ts": String(ts),
+            "x-circle-nonce": nonce,
           },
           redirect: "manual",
           body: JSON.stringify({
-            email: normalizedEmail,
+            email: snapshotEmail,
             ts,
             nonce,
             sig,
+            tier,
+            workspace_limit: workspaceLimit,
+            seat_limit: seatLimit,
             company_id: data.companyId ?? null,
           }),
         });
@@ -264,7 +277,7 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
         };
       }
 
-      const snapshot = normalizeAosSnapshot(await res.json(), normalizedEmail);
+      const snapshot = normalizeAosSnapshot(await res.json(), snapshotEmail);
       const previously_linked = Boolean(existingLink?.verified_at);
 
       // Persist the link the first time we confirm it (and refresh last_sync_at)
@@ -272,7 +285,7 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
         await supabase.from("aos_links").upsert(
           {
             user_id: userId,
-            aos_email: normalizedEmail,
+            aos_email: snapshotEmail,
             verified_at: existingLink?.verified_at ?? new Date().toISOString(),
             last_sync_at: new Date().toISOString(),
           },
