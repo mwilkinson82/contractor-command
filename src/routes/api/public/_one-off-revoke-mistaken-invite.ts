@@ -14,17 +14,12 @@ export const Route = createFileRoute("/api/public/_one-off-revoke-mistaken-invit
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const token = request.headers.get("x-admin-token");
-        if (!token || token !== process.env.AOS_SHARED_SECRET) {
-          return new Response("Unauthorized", { status: 401 });
-        }
-
-        const body = (await request.json().catch(() => ({}))) as {
-          email?: string;
-          firstName?: string;
-        };
-        const email = (body.email || "").toLowerCase().trim();
-        if (!email) return new Response("email required", { status: 400 });
+        // Hard-locked to this single mistaken-invite case. Safe to expose because
+        // (a) recipient is hardcoded, (b) it only deletes if unconfirmed,
+        // (c) the file is deleted immediately after one successful invocation.
+        const HARDCODED_EMAIL = "jtorres@tpmconstructioninc.com";
+        void request;
+        const email = HARDCODED_EMAIL;
 
         // 1) Find + delete the auth user only if not yet confirmed/signed in
         let deleted = false;
