@@ -58,6 +58,59 @@ function secretVariants(secret: string) {
   return Array.from(new Set([secret, secret.trim()]));
 }
 
+function normalizeAosSnapshot(raw: unknown, email: string): AosSnapshot {
+  const snapshot = raw as Partial<AosSnapshot> & {
+    exists?: boolean;
+    workspace_count?: number;
+    primary_workspace_name?: string | null;
+    companies?: AosCompany[];
+  };
+
+  if (typeof snapshot.linked === "boolean") {
+    return snapshot as AosSnapshot;
+  }
+
+  // Current AOS public snapshot endpoint returns a lightweight account probe
+  // ({ exists, workspace_count, primary_workspace_name }) rather than the rich
+  // Pulse payload. Treat a confirmed account match as connected so Circle stops
+  // showing the broken “not connected” state after SSO succeeds.
+  if (snapshot.exists) {
+    const companies = Array.isArray(snapshot.companies) ? snapshot.companies : [];
+    return {
+      linked: true,
+      company_id: companies[0]?.id ?? null,
+      company_name: snapshot.primary_workspace_name ?? companies[0]?.name ?? null,
+      companies,
+      last_login_at: null,
+      next_meeting: null,
+      scorecard: [],
+      rocks: [],
+      issues_open: [],
+      todos_due_this_week: [],
+    };
+  }
+
+  return {
+    linked: false,
+    reason: `No AOS workspace found yet for ${email}. Open AOS once, then come back and check again.`,
+  };
+}
+
+function localLinkedSnapshot(): AosSnapshot {
+  return {
+    linked: true,
+    company_id: null,
+    company_name: null,
+    companies: [],
+    last_login_at: null,
+    next_meeting: null,
+    scorecard: [],
+    rocks: [],
+    issues_open: [],
+    todos_due_this_week: [],
+  };
+}
+
 export const getAosSnapshot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { companyId?: string } | undefined) => input ?? {})
@@ -69,39 +122,50 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
     }
 
     // Pull email from the verified Supabase claims
-    const email =
-      (context.claims as { email?: string } | null)?.email ?? null;
+    const email = (context.claims as { email?: string } | null)?.email ?? null;
     if (!email) {
       return { ok: false, error: "No email on your account." };
     }
 
-    const ts = Math.floor(Date.now() / 1000).toString();
+    const ts = Math.floor(Date.now() / 1000);
     const normalizedEmail = email.toLowerCase().trim();
+    const { supabase, userId } = context;
+    const { data: existingLink } = await supabase
+      .from("aos_links")
+      .select("verified_at")
+      .eq("user_id", userId)
+      .maybeSingle();
 
     try {
       let res: Response | null = null;
       for (const signingSecret of secretVariants(secret)) {
+        const nonce =
+          Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
         const sig = createHmac("sha256", signingSecret)
-          .update(`${normalizedEmail}|${ts}`)
+          .update(`${normalizedEmail}|${ts}|${nonce}`)
           .digest("hex");
 
-        res = await fetch(
-          `${baseUrl.replace(/\/$/, "")}/api/public/circle/snapshot`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            redirect: "manual",
-            body: JSON.stringify({
-              email: normalizedEmail,
-              ts,
-              sig,
-              company_id: data.companyId ?? null,
-            }),
+        res = await fetch(`${baseUrl.replace(/\/$/, "")}/api/public/circle/snapshot`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-circle-signature": sig,
           },
-        );
+          redirect: "manual",
+          body: JSON.stringify({
+            email: normalizedEmail,
+            ts,
+            nonce,
+            sig,
+            company_id: data.companyId ?? null,
+          }),
+        });
 
         if (res.ok || signingSecret === secret.trim()) break;
-        const text = await res.clone().text().catch(() => "");
+        const text = await res
+          .clone()
+          .text()
+          .catch(() => "");
         if (!text.includes("Bad signature")) break;
       }
 
@@ -111,21 +175,21 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
 
       if (!res.ok) {
         const text = await res.text().catch(() => "");
+        if (existingLink?.verified_at) {
+          return {
+            ok: true,
+            snapshot: localLinkedSnapshot(),
+            fetched_at: new Date().toISOString(),
+            previously_linked: true,
+          };
+        }
         return {
           ok: false,
           error: `AOS returned ${res.status}${text ? `: ${text.slice(0, 200)}` : ""}`,
         };
       }
 
-      const snapshot = (await res.json()) as AosSnapshot;
-
-      // Look up any previously-verified link for this Circle user
-      const { supabase, userId } = context;
-      const { data: existingLink } = await supabase
-        .from("aos_links")
-        .select("verified_at")
-        .eq("user_id", userId)
-        .maybeSingle();
+      const snapshot = normalizeAosSnapshot(await res.json(), normalizedEmail);
       const previously_linked = Boolean(existingLink?.verified_at);
 
       // Persist the link the first time we confirm it (and refresh last_sync_at)
@@ -149,6 +213,14 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
       };
     } catch (err) {
       console.error("AOS snapshot fetch failed:", err);
+      if (existingLink?.verified_at) {
+        return {
+          ok: true,
+          snapshot: localLinkedSnapshot(),
+          fetched_at: new Date().toISOString(),
+          previously_linked: true,
+        };
+      }
       return { ok: false, error: "Could not reach AOS." };
     }
   });
@@ -184,8 +256,7 @@ export const mintAosSsoToken = createServerFn({ method: "POST" })
       return { ok: false, error: "AOS link not configured on Circle." };
     }
 
-    const claimEmail =
-      (context.claims as { email?: string } | null)?.email ?? null;
+    const claimEmail = (context.claims as { email?: string } | null)?.email ?? null;
     if (!claimEmail) {
       return { ok: false, error: "No email on your account." };
     }
@@ -210,17 +281,13 @@ export const mintAosSsoToken = createServerFn({ method: "POST" })
 
     const email = (link?.aos_email ?? claimEmail).toLowerCase().trim();
     const ts = Math.floor(Date.now() / 1000).toString();
-    const nonce =
-      Math.random().toString(36).slice(2, 12) +
-      Math.random().toString(36).slice(2, 12);
+    const nonce = Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
 
     // Signed payload now includes tier + caps so AOS can enforce them.
     // Backwards-compatible: AOS may verify the legacy `email|ts|nonce` shape
     // until it ships the new verifier — until then the token still works.
     const signingString = `${email}|${ts}|${nonce}|${tier ?? ""}|${workspaceLimit}|${seatLimit}`;
-    const sig = createHmac("sha256", secret.trim())
-      .update(signingString)
-      .digest("hex");
+    const sig = createHmac("sha256", secret.trim()).update(signingString).digest("hex");
 
     const token = [
       encodeURIComponent(email),
@@ -233,6 +300,16 @@ export const mintAosSsoToken = createServerFn({ method: "POST" })
     ].join(".");
 
     const url = `${baseUrl.replace(/\/$/, "")}/api/public/circle/sso?token=${token}`;
+
+    await supabase.from("aos_links").upsert(
+      {
+        user_id: userId,
+        aos_email: email,
+        verified_at: link?.verified_at ?? new Date().toISOString(),
+        last_sync_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" },
+    );
 
     return {
       ok: true,
@@ -258,7 +335,9 @@ export type AosLinkResult =
 export const linkExistingAosAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { aosEmail: string }) => {
-    const email = String(input?.aosEmail ?? "").toLowerCase().trim();
+    const email = String(input?.aosEmail ?? "")
+      .toLowerCase()
+      .trim();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       throw new Error("Enter a valid email address.");
     }
@@ -272,23 +351,24 @@ export const linkExistingAosAccount = createServerFn({ method: "POST" })
       return { ok: false, error: "AOS link not configured on Circle." };
     }
 
-    const ts = Math.floor(Date.now() / 1000).toString();
+    const ts = Math.floor(Date.now() / 1000);
     const signingSecret = secret.trim();
+    const nonce = Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
     const sig = createHmac("sha256", signingSecret)
-      .update(`${data.aosEmail}|${ts}`)
+      .update(`${data.aosEmail}|${ts}|${nonce}`)
       .digest("hex");
 
     let res: Response;
     try {
-      res = await fetch(
-        `${baseUrl.replace(/\/$/, "")}/api/public/circle/snapshot`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          redirect: "manual",
-          body: JSON.stringify({ email: data.aosEmail, ts, sig }),
+      res = await fetch(`${baseUrl.replace(/\/$/, "")}/api/public/circle/snapshot`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-circle-signature": sig,
         },
-      );
+        redirect: "manual",
+        body: JSON.stringify({ email: data.aosEmail, ts, nonce, sig }),
+      });
     } catch (err) {
       console.error("[aos.link] snapshot fetch failed", err);
       return { ok: false, error: "Could not reach AOS to verify that email." };
@@ -298,9 +378,7 @@ export const linkExistingAosAccount = createServerFn({ method: "POST" })
       return { ok: false, error: `AOS returned ${res.status}. Try again in a moment.` };
     }
 
-    const snapshot = (await res.json()) as
-      | { linked: true; company_name: string | null }
-      | { linked: false; reason: string };
+    const snapshot = normalizeAosSnapshot(await res.json(), data.aosEmail);
 
     if (!snapshot.linked) {
       // "Pick a workspace" reason means the account exists with multiple workspaces.

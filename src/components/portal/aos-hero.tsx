@@ -6,9 +6,10 @@
 // When AOS already knows about the user but they have multiple
 // workspaces, this turns into a workspace picker instead.
 
-import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
-import type { AosCompany } from "@/lib/aos.functions";
+import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
+import { mintAosSsoToken, type AosCompany } from "@/lib/aos.functions";
 import { ArrowUpRight, Compass, Sparkles, Building2 } from "lucide-react";
 
 export function AosHero({
@@ -25,19 +26,49 @@ export function AosHero({
   onPickCompany?: (id: string) => void;
 }) {
   const [opened, setOpened] = useState(false);
-  const navigate = useNavigate();
+  const [opening, setOpening] = useState(false);
+  const mint = useServerFn(mintAosSsoToken);
 
-  const openAos = () => {
+  const openAos = async () => {
     setOpened(true);
-    // Route through the in-app /aos gateway so the user gets the SSO
-    // handoff + interstitial instead of being punched out to the raw
-    // subdomain.
-    navigate({ to: "/aos" });
+    setOpening(true);
+    const popup =
+      typeof window !== "undefined" ? window.open("about:blank", "_blank", "noopener") : null;
+    try {
+      const res = await mint();
+      if (!res.ok) {
+        if (popup) popup.close();
+        toast.error("Couldn't open AOS", { description: res.error });
+        return;
+      }
+      if (popup) {
+        popup.location.href = res.url;
+        toast.success("AOS opened in a new tab", {
+          description: "Keep this tab open — we'll connect the Pulse automatically.",
+        });
+        window.setTimeout(onRecheck, 2500);
+      } else {
+        window.location.assign(res.url);
+      }
+    } catch (err) {
+      if (popup) popup.close();
+      toast.error("Couldn't open AOS", {
+        description: err instanceof Error ? err.message : "Try again in a moment.",
+      });
+    } finally {
+      setOpening(false);
+    }
   };
 
   // When AOS knows the user but multiple workspaces exist, show the picker
   // instead of the "Start AOS" CTA — they're already running it.
   const showPicker = companies.length > 0 && !!onPickCompany;
+
+  useEffect(() => {
+    if (!opened || showPicker) return;
+    const interval = window.setInterval(onRecheck, 4000);
+    return () => window.clearInterval(interval);
+  }, [opened, onRecheck, showPicker]);
 
   return (
     <section className="relative overflow-hidden rounded-3xl bg-ink text-cream shadow-[var(--shadow-focus)]">
@@ -46,8 +77,7 @@ export function AosHero({
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-[0.07]"
         style={{
-          backgroundImage:
-            "radial-gradient(circle at 1px 1px, var(--cream) 1px, transparent 0)",
+          backgroundImage: "radial-gradient(circle at 1px 1px, var(--cream) 1px, transparent 0)",
           backgroundSize: "22px 22px",
         }}
       />
@@ -64,24 +94,24 @@ export function AosHero({
             {showPicker
               ? `Step 02 · Pick your workspace`
               : previouslyLinked
-              ? "Reconnect AOS"
-              : "Step 01 · The operating system"}
+                ? "Reconnect AOS"
+                : "Step 01 · The operating system"}
           </p>
 
           <h1 className="mt-5 font-display text-[2.25rem] leading-[1.04] tracking-tight text-cream sm:text-[3.25rem]">
             {showPicker
               ? `We found ${companies.length} AOS workspace${companies.length === 1 ? "" : "s"} for you.`
               : previouslyLinked
-              ? "Your AOS session needs a refresh."
-              : "Your business isn't visible yet."}
+                ? "Your AOS session needs a refresh."
+                : "Your business isn't visible yet."}
           </h1>
 
           <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-cream/75">
             {showPicker
               ? "Pick the workspace this Command Center belongs to. We'll lock it in for next time — you won't see this again."
               : previouslyLinked
-              ? "We've connected your AOS before. Open it, sign back in, and we'll relight the Command Center automatically."
-              : "AOS is where the business becomes legible — scorecard, rocks, issues, weekly L10. Until it's running, the Command Center is flying blind. Start it now and every tile on this page comes alive."}
+                ? "We've connected your AOS before. Open it, sign back in, and we'll relight the Command Center automatically."
+                : "AOS is where the business becomes legible — scorecard, rocks, issues, weekly L10. Until it's running, the Command Center is flying blind. Start it now and every tile on this page comes alive."}
           </p>
 
           {showPicker ? (
@@ -105,10 +135,15 @@ export function AosHero({
               <button
                 type="button"
                 onClick={openAos}
+                disabled={opening}
                 className="inline-flex items-center gap-2 rounded-md bg-gold px-5 py-3 text-[14px] font-medium text-ink hover:opacity-90"
               >
                 <Compass className="h-4 w-4" />
-                {previouslyLinked ? "Open AOS to refresh" : "Start your AOS"}
+                {opening
+                  ? "Opening AOS…"
+                  : previouslyLinked
+                    ? "Open AOS to refresh"
+                    : "Start your AOS"}
                 <ArrowUpRight className="h-3.5 w-3.5" />
               </button>
               <button
@@ -116,7 +151,11 @@ export function AosHero({
                 onClick={onRecheck}
                 className="inline-flex items-center gap-2 rounded-md border border-cream/20 px-4 py-3 text-[13px] text-cream/85 hover:bg-cream/5"
               >
-                {isChecking ? "Checking…" : opened ? "I've signed in — check now" : "Already started? Check now"}
+                {isChecking
+                  ? "Checking…"
+                  : opened
+                    ? "I've signed in — check now"
+                    : "Already started? Check now"}
               </button>
             </div>
           )}
@@ -151,8 +190,8 @@ export function AosHero({
               ))}
             </ul>
             <p className="mt-5 border-t border-cream/10 pt-4 text-[11px] text-cream/55">
-              Use the <span className="text-cream/80">same email</span> on AOS that you use here.
-              We match by email and connect the two workspaces automatically.
+              Use the <span className="text-cream/80">same email</span> on AOS that you use here. We
+              match by email and connect the two workspaces automatically.
             </p>
           </div>
         </div>
