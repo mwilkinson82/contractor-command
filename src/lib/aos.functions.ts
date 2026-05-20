@@ -35,6 +35,13 @@ export type AosIssue = {
 
 export type AosCompany = { id: string; name: string };
 
+export type AosScorecardSummary = {
+  metrics_count: number;
+  on_goal_this_week: number;
+  off_goal_this_week: number;
+  week_ending: string | null;
+};
+
 export type AosSnapshot =
   | {
       linked: true;
@@ -44,6 +51,7 @@ export type AosSnapshot =
       last_login_at: string | null;
       next_meeting: { date: string; kind: string } | null;
       scorecard: AosMeasurable[];
+      scorecard_summary?: AosScorecardSummary;
       rocks: AosRock[];
       issues_open: AosIssue[];
       todos_due_this_week: AosTodo[];
@@ -66,6 +74,14 @@ function normalizeAosSnapshot(raw: unknown, email: string): AosSnapshot {
     primary_workspace_id?: string | null;
     companies?: AosCompany[];
     workspaces?: Array<{ id: string; name: string }>;
+    pulse?: {
+      company_id?: string | null;
+      company_name?: string | null;
+      rocks?: { list?: Array<{ id: string; title: string; owner?: string | null; status?: string | null; progress?: number | null; due_date?: string | null }> };
+      issues?: { list?: Array<{ id: string; title: string; owner?: string | null; created_at?: string | null }> };
+      todos?: { list?: Array<{ id: string; title: string; owner?: string | null; due_date?: string | null }> };
+      scorecard?: AosScorecardSummary;
+    };
   };
 
   // Coalesce workspaces[] (AOS naming) into companies[] (Circle naming).
@@ -79,11 +95,58 @@ function normalizeAosSnapshot(raw: unknown, email: string): AosSnapshot {
     .map((w) => ({ id: w.id, name: w.name }));
 
   if (typeof snapshot.linked === "boolean") {
-    const merged = snapshot as AosSnapshot;
-    if (merged.linked && companies.length && (!merged.companies || merged.companies.length === 0)) {
-      return { ...merged, companies };
-    }
-    return merged;
+    if (!snapshot.linked) return snapshot as AosSnapshot;
+
+    const pulse = snapshot.pulse;
+    const normalizedRocks = Array.isArray(pulse?.rocks?.list)
+      ? pulse.rocks.list.map((r) => ({
+          id: r.id,
+          title: r.title,
+          owner: r.owner ?? null,
+          status:
+            r.status === "on_track"
+              ? "on-track"
+              : r.status === "off_track"
+                ? "off-track"
+                : r.status === "done"
+                  ? "done"
+                  : "unknown",
+          percent_complete: r.progress ?? 0,
+          due_date: r.due_date ?? null,
+        })) satisfies AosRock[]
+      : (snapshot.rocks ?? []);
+
+    const normalizedIssues = Array.isArray(pulse?.issues?.list)
+      ? pulse.issues.list.map((i) => ({
+          id: i.id,
+          title: i.title,
+          owner: i.owner ?? null,
+          created_at: i.created_at ?? new Date().toISOString(),
+        })) satisfies AosIssue[]
+      : (snapshot.issues_open ?? []);
+
+    const normalizedTodos = Array.isArray(pulse?.todos?.list)
+      ? pulse.todos.list.map((t) => ({
+          id: t.id,
+          title: t.title,
+          owner: t.owner ?? null,
+          due_date: t.due_date ?? null,
+        })) satisfies AosTodo[]
+      : (snapshot.todos_due_this_week ?? []);
+
+    return {
+      linked: true,
+      company_id: pulse?.company_id ?? snapshot.company_id ?? snapshot.primary_workspace_id ?? companies[0]?.id ?? null,
+      company_name: pulse?.company_name ?? snapshot.company_name ?? snapshot.primary_workspace_name ?? companies[0]?.name ?? null,
+      companies: companies.length ? companies : (snapshot.companies ?? []),
+      last_login_at: snapshot.last_login_at ?? null,
+      next_meeting: snapshot.next_meeting ?? null,
+      scorecard: snapshot.scorecard ?? [],
+      scorecard_summary: pulse?.scorecard ?? snapshot.scorecard_summary,
+      rocks: normalizedRocks,
+      issues_open: normalizedIssues,
+      todos_due_this_week: normalizedTodos,
+    };
   }
 
   // Lightweight account probe: { exists, workspace_count, primary_workspace_name, workspaces? }.
