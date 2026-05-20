@@ -143,15 +143,13 @@ function DeviceMockup() {
               <p className="font-mono text-[8px] uppercase tracking-[0.22em] text-foreground/55">ALP Contractor Circle</p>
             </div>
 
-            <div className="relative min-h-0 overflow-hidden px-5 py-3">
-              <div className="grid h-full w-full place-items-center overflow-hidden rounded-sm">
-                <img
-                  src={bookCover}
-                  alt=""
-                  className="block h-full max-h-full w-auto max-w-full object-contain"
-                  draggable={false}
-                />
-              </div>
+            <div className="relative min-h-0 overflow-hidden p-4">
+              <img
+                src={bookCover}
+                alt=""
+                className="absolute inset-0 h-full w-full object-contain p-2"
+                draggable={false}
+              />
             </div>
 
             {/* Audio player */}
