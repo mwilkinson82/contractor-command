@@ -1,7 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, BookOpen, Headphones, ListOrdered, Infinity as InfinityIcon, Play, Link2 } from "lucide-react";
 import bookCover from "@/assets/handbook/book-cover-v2.png";
-import bulldozer from "@/assets/handbook/bulldozer-hero.png";
 
 /**
  * HandbookAnchor — full-bleed editorial section that anchors the home page.
