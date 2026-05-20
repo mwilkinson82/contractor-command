@@ -45,7 +45,10 @@ async function findAuthUserByEmail(email: string) {
 
 export type ResetResult = {
   ok: true;
-  action: "recovery_sent" | "invite_sent" | "noop";
+  // Always "sent" to unauthenticated callers — do NOT branch UI on this.
+  // The real action taken (recovery / invite / noop) is logged server-side only
+  // to prevent email/subscriber enumeration.
+  action: "sent";
 };
 
 export const requestPasswordReset = createServerFn({ method: "POST" })
@@ -54,34 +57,54 @@ export const requestPasswordReset = createServerFn({ method: "POST" })
     const email = data.email;
     const origin = appOrigin();
 
-    const existing = await findAuthUserByEmail(email);
+    // Uniform delay neutralises timing side-channels between the three paths
+    // (recovery / invite / noop). Tuned to comfortably exceed the slow path
+    // (admin listUsers paging + Supabase email send).
+    const minDelay = new Promise((r) => setTimeout(r, 600));
 
-    if (existing) {
-      const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
-        redirectTo: `${origin}/reset-password`,
-      });
-      if (error) throw new Error(error.message);
-      return { ok: true, action: "recovery_sent" };
+    let internalAction: "recovery_sent" | "invite_sent" | "noop" = "noop";
+
+    try {
+      const existing = await findAuthUserByEmail(email);
+
+      if (existing) {
+        const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
+          redirectTo: `${origin}/reset-password`,
+        });
+        if (error) {
+          console.error("[password-reset] recovery send failed", error.message);
+        } else {
+          internalAction = "recovery_sent";
+        }
+      } else {
+        // No auth account — check if they're an active paid/comped member we migrated.
+        const { data: sub } = await supabaseAdmin
+          .from("subscriptions")
+          .select("email")
+          .ilike("email", email)
+          .or("status.in.(active,trialing),is_comped.eq.true")
+          .limit(1)
+          .maybeSingle();
+
+        if (sub) {
+          const { error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+            data: { migrated_from: "manus", migrated_at: new Date().toISOString() },
+            redirectTo: `${origin}/welcome`,
+          });
+          if (error) {
+            console.error("[password-reset] invite send failed", error.message);
+          } else {
+            internalAction = "invite_sent";
+          }
+        }
+      }
+    } catch (err) {
+      // Swallow errors to avoid leaking which path threw. Log server-side.
+      console.error("[password-reset] internal error", err);
     }
 
-    // No auth account yet — check if they're an active paid/comped member we migrated.
-    const { data: sub } = await supabaseAdmin
-      .from("subscriptions")
-      .select("email")
-      .ilike("email", email)
-      .or("status.in.(active,trialing),is_comped.eq.true")
-      .limit(1)
-      .maybeSingle();
+    console.info("[password-reset]", { email, action: internalAction });
 
-    if (sub) {
-      const { error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-        data: { migrated_from: "manus", migrated_at: new Date().toISOString() },
-        redirectTo: `${origin}/welcome`,
-      });
-      if (error) throw new Error(error.message);
-      return { ok: true, action: "invite_sent" };
-    }
-
-    // Unknown email — do not leak existence.
-    return { ok: true, action: "noop" };
+    await minDelay;
+    return { ok: true, action: "sent" };
   });
