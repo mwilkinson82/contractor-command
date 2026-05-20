@@ -629,9 +629,10 @@ function UnlinkedState({
         <button
           type="button"
           onClick={onOpenAos}
-          className="inline-flex items-center gap-1 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90"
+          disabled={opening}
+          className="inline-flex items-center gap-1 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90 disabled:opacity-60"
         >
-          Open AOS in new tab <ArrowUpRight className="h-3 w-3" />
+          {opening ? "Opening AOS…" : "Open AOS in new tab"} <ArrowUpRight className="h-3 w-3" />
         </button>
         <button
           type="button"
