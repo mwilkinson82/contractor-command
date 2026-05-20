@@ -101,7 +101,7 @@ function AosGateway() {
       ? `Continuing with ${company.name}.`
       : null;
 
-  const handingOff = phase === "minting" || phase === "redirecting";
+  const handingOff = phase === "minting";
 
   return (
     <>
@@ -136,14 +136,13 @@ function AosGateway() {
           </div>
           <div>
             <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-cream/55">
-              {phase === "minting" ? "Opening the door" : "Entering AOS"}
+              Opening the door
             </p>
             <p className="mt-3 font-display text-2xl tracking-tight sm:text-3xl">
-              Connecting to AOS…
+              Opening AOS in a new tab…
             </p>
             <p className="mt-2 text-[13px] text-cream/60">
-              Picking up your session
-              {linkedEmail ? ` as ${linkedEmail}` : ""}. This takes a moment.
+              Signing you in{linkedEmail ? ` as ${linkedEmail}` : ""}. Keep this tab open.
             </p>
           </div>
         </div>
