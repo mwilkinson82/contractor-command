@@ -242,103 +242,121 @@ export function AppSidebar() {
     navigate({ to: "/login" });
   }
 
+  const { collapsed, toggle, mobileOpen, setMobileOpen } = useAppSidebar();
+  // ... keep existing code (pathname, navigate, next, company, brand, admin, tier, groups setup)
+  // re-derive — original block follows
+  // (this comment is intentionally short; logic below is unchanged)
+
   return (
-    <aside
-      data-collapsed={collapsed || undefined}
-      className="group/sidebar fixed inset-y-0 left-0 z-30 flex flex-col border-r border-border/70 bg-[var(--paper-deep)] transition-[width] duration-300 ease-[cubic-bezier(.2,.7,.2,1)]"
-      style={{ width: collapsed ? "60px" : "248px" }}
-    >
-      <div className="flex h-14 items-center gap-2 border-b border-border/70 px-3">
-        <Link to="/" className="flex items-center gap-2 overflow-hidden">
-          <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-md bg-ink text-cream font-display text-[13px]">
-            {logoUrl ? (
-              <img src={logoUrl} alt={brandName} className="h-full w-full object-cover object-center" />
-            ) : (
-              brandInitial
-            )}
-          </span>
-          {!collapsed && (
-            <span className="flex flex-col leading-tight">
-              <span className="truncate font-display text-[13px] tracking-tight" title={brandName}>{brandName}</span>
-              <span className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Command Center</span>
+    <>
+      {/* Mobile backdrop */}
+      <div
+        onClick={() => setMobileOpen(false)}
+        aria-hidden
+        className={`fixed inset-0 z-40 bg-ink/40 backdrop-blur-sm transition-opacity duration-300 md:hidden ${
+          mobileOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        }`}
+      />
+      <aside
+        data-collapsed={collapsed || undefined}
+        data-mobile-open={mobileOpen || undefined}
+        className={`group/sidebar fixed inset-y-0 left-0 z-50 flex flex-col border-r border-border/70 bg-[var(--paper-deep)] transition-[width,transform] duration-300 ease-[cubic-bezier(.2,.7,.2,1)] ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        } md:translate-x-0`}
+        style={{ width: collapsed ? "60px" : "248px" }}
+      >
+        <div className="flex h-14 items-center gap-2 border-b border-border/70 px-3">
+          <Link to="/" className="flex items-center gap-2 overflow-hidden">
+            <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-md bg-ink text-cream font-display text-[13px]">
+              {logoUrl ? (
+                <img src={logoUrl} alt={brandName} className="h-full w-full object-cover object-center" />
+              ) : (
+                brandInitial
+              )}
             </span>
-          )}
-        </Link>
-      </div>
-
-      <nav className="flex-1 overflow-y-auto px-2 py-4">
-        {groups.map((g) => (
-          <div key={g.label} className="mb-4">
             {!collapsed && (
-              <p className="px-2 pb-1.5 text-[10px] uppercase tracking-[0.22em] font-semibold" style={{ color: "color-mix(in oklab, var(--signal) 75%, transparent)" }}>
-                {g.label}
-              </p>
+              <span className="flex flex-col leading-tight">
+                <span className="truncate font-display text-[13px] tracking-tight" title={brandName}>{brandName}</span>
+                <span className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Command Center</span>
+              </span>
             )}
-            <ul className="space-y-0.5">
-              {g.items.map((it) => {
-                const active = it.match ? pathname.startsWith(it.match) : pathname === it.to;
-                const Icon = it.icon;
-                return (
-                  <li key={it.to}>
-                    <Link
-                      to={it.to as "/"}
-                      title={collapsed ? it.label : undefined}
-                      className={`group/item relative flex items-center gap-3 rounded-md px-2 py-2 text-[13px] transition-colors ${
-                        active
-                          ? "bg-ink text-cream"
-                          : "text-foreground/75 hover:bg-foreground/5 hover:text-foreground"
-                      }`}
-                    >
-                      <Icon className="h-4 w-4 shrink-0" />
-                      {!collapsed && <span className="truncate">{it.label}</span>}
-                      {active && !collapsed && (
-                        <span className="ml-auto h-1 w-1 rounded-full bg-signal" />
-                      )}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
-      </nav>
+          </Link>
+        </div>
 
-      <div className="border-t border-border/70 p-2">
-        {!collapsed ? (
-          <div className="flex items-start gap-2 rounded-md bg-foreground/[0.03] px-2.5 py-2">
-            <span className="mt-1 inline-flex h-2 w-2 shrink-0 rounded-full bg-signal animate-signal-pulse" />
-            <div className="min-w-0">
-              <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Next session</p>
-              <p className="mt-0.5 truncate text-[11px] text-foreground/80">
-                {next.kind} · {relativeDay(next.date)}
-              </p>
+        <nav className="flex-1 overflow-y-auto px-2 py-4">
+          {groups.map((g) => (
+            <div key={g.label} className="mb-4">
+              {!collapsed && (
+                <p className="px-2 pb-1.5 text-[10px] uppercase tracking-[0.22em] font-semibold" style={{ color: "color-mix(in oklab, var(--signal) 75%, transparent)" }}>
+                  {g.label}
+                </p>
+              )}
+              <ul className="space-y-0.5">
+                {g.items.map((it) => {
+                  const active = it.match ? pathname.startsWith(it.match) : pathname === it.to;
+                  const Icon = it.icon;
+                  return (
+                    <li key={it.to}>
+                      <Link
+                        to={it.to as "/"}
+                        title={collapsed ? it.label : undefined}
+                        className={`group/item relative flex items-center gap-3 rounded-md px-2 py-2 text-[13px] transition-colors ${
+                          active
+                            ? "bg-ink text-cream"
+                            : "text-foreground/75 hover:bg-foreground/5 hover:text-foreground"
+                        }`}
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        {!collapsed && <span className="truncate">{it.label}</span>}
+                        {active && !collapsed && (
+                          <span className="ml-auto h-1 w-1 rounded-full bg-signal" />
+                        )}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
-          </div>
-        ) : (
-          <div className="grid place-items-center py-2" title={`${next.kind} · ${relativeDay(next.date)}`}>
-            <Circle className="h-2 w-2 fill-signal text-signal animate-signal-pulse" />
-          </div>
-        )}
-        {collapsed && (
+          ))}
+        </nav>
+
+        <div className="border-t border-border/70 p-2">
+          {!collapsed ? (
+            <div className="flex items-start gap-2 rounded-md bg-foreground/[0.03] px-2.5 py-2">
+              <span className="mt-1 inline-flex h-2 w-2 shrink-0 rounded-full bg-signal animate-signal-pulse" />
+              <div className="min-w-0">
+                <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Next session</p>
+                <p className="mt-0.5 truncate text-[11px] text-foreground/80">
+                  {next.kind} · {relativeDay(next.date)}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid place-items-center py-2" title={`${next.kind} · ${relativeDay(next.date)}`}>
+              <Circle className="h-2 w-2 fill-signal text-signal animate-signal-pulse" />
+            </div>
+          )}
+          {collapsed && (
+            <button
+              onClick={toggle}
+              className="mt-2 hidden md:flex w-full items-center justify-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+              aria-label="Expand sidebar"
+              title="Expand sidebar"
+            >
+              <PanelLeft className="h-3.5 w-3.5" />
+            </button>
+          )}
           <button
-            onClick={toggle}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-            aria-label="Expand sidebar"
-            title="Expand sidebar"
+            onClick={handleSignOut}
+            title={collapsed ? "Sign out" : undefined}
+            className={`mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground ${collapsed ? "justify-center" : "justify-start"}`}
           >
-            <PanelLeft className="h-3.5 w-3.5" />
+            <LogOut className="h-3.5 w-3.5" />
+            {!collapsed && <span>Sign out</span>}
           </button>
-        )}
-        <button
-          onClick={handleSignOut}
-          title={collapsed ? "Sign out" : undefined}
-          className={`mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground ${collapsed ? "justify-center" : "justify-start"}`}
-        >
-          <LogOut className="h-3.5 w-3.5" />
-          {!collapsed && <span>Sign out</span>}
-        </button>
-      </div>
-    </aside>
+        </div>
+      </aside>
+    </>
   );
 }
 
@@ -346,8 +364,13 @@ export function SidebarInset({ children }: { children: ReactNode }) {
   const { collapsed } = useAppSidebar();
   return (
     <div
-      className="min-h-screen transition-[padding] duration-300 ease-[cubic-bezier(.2,.7,.2,1)]"
-      style={{ paddingLeft: collapsed ? "60px" : "248px" }}
+      className="min-h-screen transition-[padding] duration-300 ease-[cubic-bezier(.2,.7,.2,1)] md:!pl-[var(--sb-w)]"
+      style={
+        {
+          ["--sb-w" as string]: collapsed ? "60px" : "248px",
+          paddingLeft: 0,
+        } as React.CSSProperties
+      }
     >
       {children}
     </div>
