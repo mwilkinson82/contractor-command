@@ -332,8 +332,8 @@ function RailRow({
   accent?: boolean;
 }) {
   return (
-    <div className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:bg-muted/50">
-      <Link to={to as "/"} className="flex items-center gap-3 min-w-0 flex-1">
+    <div className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:bg-muted/50 min-w-0 overflow-hidden">
+      <Link to={to as "/"} className="flex items-center gap-3 min-w-0 flex-1 overflow-hidden">
         <span
           className={`grid h-7 w-7 shrink-0 place-items-center rounded-md ${
             accent ? "bg-[#5865F2] text-white" : "bg-foreground/5"
@@ -341,7 +341,7 @@ function RailRow({
         >
           {icon}
         </span>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="truncate font-display text-[13px]">{title}</p>
           <p className="truncate text-[11px] text-muted-foreground">{desc}</p>
         </div>

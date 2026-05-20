@@ -44,6 +44,7 @@ import Chapter32 from "@/components/handbook/content/Chapter32";
 import FinalChapter from "@/components/handbook/content/FinalChapter";
 import ReadingProgress from "@/components/handbook/ReadingProgress";
 import FloatingTOC from "@/components/handbook/FloatingTOC";
+import { HandbookMobileMenu } from "@/components/handbook/MobileMenuButton";
 
 export const Route = createFileRoute("/handbook")({
   head: () => ({
@@ -65,6 +66,7 @@ export const Route = createFileRoute("/handbook")({
 function HandbookPage() {
   return (
     <div className="handbook-scope min-h-screen">
+      <HandbookMobileMenu />
       <ReadingProgress />
 
       <div className="max-w-5xl mx-auto px-8 md:px-16 lg:px-24 pt-8">

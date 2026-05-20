@@ -120,25 +120,25 @@ export function AosPulse() {
       <span aria-hidden className="pointer-events-none absolute right-2 bottom-2 h-3 w-3 border-r border-b border-paper-edge" />
 
       {/* Header strip */}
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-6 py-4">
-        <div className="flex items-center gap-3">
-          <span className="grid h-9 w-9 place-items-center rounded-md bg-ink text-cream">
+      <header className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 border-b border-border/60 px-4 sm:px-6 py-3 sm:py-4">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <span className="grid h-8 w-8 sm:h-9 sm:w-9 shrink-0 place-items-center rounded-md bg-ink text-cream">
             <Compass className="h-4 w-4" />
           </span>
-          <div className="leading-tight">
+          <div className="leading-tight min-w-0">
             <p
-              className="text-[16px] italic text-foreground"
+              className="text-[15px] sm:text-[16px] italic text-foreground truncate"
               style={{ fontFamily: "var(--font-serif)" }}
             >
               <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-signal-success align-middle animate-signal-pulse" />
               AOS Pulse
             </p>
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+            <p className="font-mono text-[9px] sm:text-[10px] uppercase tracking-[0.22em] sm:tracking-[0.24em] text-muted-foreground truncate">
               Live from your operating system
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {companies.length > 1 && (
             <WorkspacePicker companies={companies} current={companyId} onPick={onPick} />
           )}
@@ -146,14 +146,17 @@ export function AosPulse() {
             type="button"
             disabled={opening}
             onClick={openAosInNewTab}
-            className="inline-flex items-center gap-1 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90 disabled:opacity-60"
+            className="inline-flex items-center gap-1 rounded-md bg-ink px-2.5 sm:px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90 disabled:opacity-60"
           >
-            <Play className="h-3 w-3" /> {opening ? "Opening AOS…" : "Open AOS"} <ArrowUpRight className="h-3 w-3" />
+            <Play className="h-3 w-3" />
+            <span className="hidden sm:inline">{opening ? "Opening AOS…" : "Open AOS"}</span>
+            <span className="sm:hidden">{opening ? "Opening…" : "Open"}</span>
+            <ArrowUpRight className="h-3 w-3" />
           </button>
         </div>
       </header>
 
-      <div className="px-6 py-6">
+      <div className="px-4 sm:px-6 py-5 sm:py-6">
         {isLoading ? (
           <PulseSkeleton />
         ) : !data || !data.ok ? (
@@ -255,22 +258,22 @@ function PulseBoard({
     ((todoCounts?.overdue ?? overdueTodos.length) > 0 ? 1 : 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       {/* Title block, mirrors the AOS dashboard hero */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
+      <div className="flex flex-wrap items-start sm:items-end justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
             {companyName ?? "Your workspace"} · Week of {weekLabel}
           </p>
-          <h3 className="mt-2 font-display text-[1.6rem] leading-tight">
+          <h3 className="mt-2 font-display text-[1.35rem] sm:text-[1.6rem] leading-tight">
             What needs your attention this week
           </h3>
-          <p className="mt-1 text-[13px] text-muted-foreground">
+          <p className="mt-1 text-[12.5px] sm:text-[13px] text-muted-foreground">
             A quick read on the operating system before you scale the work.
           </p>
         </div>
         <span
-          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12px] ${
+          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11.5px] sm:text-[12px] shrink-0 ${
             attentionCount > 0
               ? "border-signal/40 bg-signal/10 text-signal"
               : "border-signal-success/40 bg-signal-success/10 text-signal-success"
@@ -291,7 +294,7 @@ function PulseBoard({
       </div>
 
       {/* 2x2 attention grid */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
         <AttentionCard
           icon={<TrendingUp className="h-3.5 w-3.5" />}
           label="Scorecard"
@@ -485,7 +488,7 @@ function AttentionCard({
     <a
       href="/aos"
 
-      className={`group block rounded-2xl border ${ring} bg-background/60 p-5 transition-colors hover:bg-muted/40 hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+      className={`group block rounded-2xl border ${ring} bg-background/60 p-4 sm:p-5 transition-colors hover:bg-muted/40 hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
       title={`Open ${label} in AOS`}
     >
       <div className="flex items-start justify-between gap-3">
