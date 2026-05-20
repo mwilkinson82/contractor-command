@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import "@/styles/handbook.css";
+import bulldozerHero from "@/assets/handbook/bulldozer-hero.webp";
 
 import HeroSection from "@/components/handbook/HeroSection";
 import TableOfContents from "@/components/handbook/TableOfContents";
@@ -53,6 +54,9 @@ export const Route = createFileRoute("/handbook")({
         content:
           "The operating manual behind ALP — Altitude, Logic, Pressure. Read the full handbook inside the portal.",
       },
+    ],
+    links: [
+      { rel: "preload", as: "image", href: bulldozerHero, fetchpriority: "high" },
     ],
   }),
   component: HandbookPage,
