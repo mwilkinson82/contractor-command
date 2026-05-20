@@ -55,6 +55,9 @@ export const Route = createFileRoute("/handbook")({
           "The operating manual behind ALP — Altitude, Logic, Pressure. Read the full handbook inside the portal.",
       },
     ],
+    links: [
+      { rel: "preload", as: "image", href: bulldozerHero, fetchpriority: "high" },
+    ],
   }),
   component: HandbookPage,
 });
