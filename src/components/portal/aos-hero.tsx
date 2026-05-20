@@ -52,8 +52,7 @@ export function AosHero({
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-[0.07]"
         style={{
-          backgroundImage:
-            "radial-gradient(circle at 1px 1px, var(--cream) 1px, transparent 0)",
+          backgroundImage: "radial-gradient(circle at 1px 1px, var(--cream) 1px, transparent 0)",
           backgroundSize: "22px 22px",
         }}
       />
@@ -70,24 +69,24 @@ export function AosHero({
             {showPicker
               ? `Step 02 · Pick your workspace`
               : previouslyLinked
-              ? "Reconnect AOS"
-              : "Step 01 · The operating system"}
+                ? "Reconnect AOS"
+                : "Step 01 · The operating system"}
           </p>
 
           <h1 className="mt-5 font-display text-[2.25rem] leading-[1.04] tracking-tight text-cream sm:text-[3.25rem]">
             {showPicker
               ? `We found ${companies.length} AOS workspace${companies.length === 1 ? "" : "s"} for you.`
               : previouslyLinked
-              ? "Your AOS session needs a refresh."
-              : "Your business isn't visible yet."}
+                ? "Your AOS session needs a refresh."
+                : "Your business isn't visible yet."}
           </h1>
 
           <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-cream/75">
             {showPicker
               ? "Pick the workspace this Command Center belongs to. We'll lock it in for next time — you won't see this again."
               : previouslyLinked
-              ? "We've connected your AOS before. Open it, sign back in, and we'll relight the Command Center automatically."
-              : "AOS is where the business becomes legible — scorecard, rocks, issues, weekly L10. Until it's running, the Command Center is flying blind. Start it now and every tile on this page comes alive."}
+                ? "We've connected your AOS before. Open it, sign back in, and we'll relight the Command Center automatically."
+                : "AOS is where the business becomes legible — scorecard, rocks, issues, weekly L10. Until it's running, the Command Center is flying blind. Start it now and every tile on this page comes alive."}
           </p>
 
           {showPicker ? (
@@ -122,7 +121,11 @@ export function AosHero({
                 onClick={onRecheck}
                 className="inline-flex items-center gap-2 rounded-md border border-cream/20 px-4 py-3 text-[13px] text-cream/85 hover:bg-cream/5"
               >
-                {isChecking ? "Checking…" : opened ? "I've signed in — check now" : "Already started? Check now"}
+                {isChecking
+                  ? "Checking…"
+                  : opened
+                    ? "I've signed in — check now"
+                    : "Already started? Check now"}
               </button>
             </div>
           )}
@@ -157,8 +160,8 @@ export function AosHero({
               ))}
             </ul>
             <p className="mt-5 border-t border-cream/10 pt-4 text-[11px] text-cream/55">
-              Use the <span className="text-cream/80">same email</span> on AOS that you use here.
-              We match by email and connect the two workspaces automatically.
+              Use the <span className="text-cream/80">same email</span> on AOS that you use here. We
+              match by email and connect the two workspaces automatically.
             </p>
           </div>
         </div>

@@ -107,8 +107,7 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
     }
 
     // Pull email from the verified Supabase claims
-    const email =
-      (context.claims as { email?: string } | null)?.email ?? null;
+    const email = (context.claims as { email?: string } | null)?.email ?? null;
     if (!email) {
       return { ok: false, error: "No email on your account." };
     }
@@ -126,33 +125,32 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
       let res: Response | null = null;
       for (const signingSecret of secretVariants(secret)) {
         const nonce =
-          Math.random().toString(36).slice(2, 12) +
-          Math.random().toString(36).slice(2, 12);
+          Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
         const sig = createHmac("sha256", signingSecret)
           .update(`${normalizedEmail}|${ts}|${nonce}`)
           .digest("hex");
 
-        res = await fetch(
-          `${baseUrl.replace(/\/$/, "")}/api/public/circle/snapshot`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "x-circle-signature": sig,
-            },
-            redirect: "manual",
-            body: JSON.stringify({
-              email: normalizedEmail,
-              ts,
-              nonce,
-              sig,
-              company_id: data.companyId ?? null,
-            }),
+        res = await fetch(`${baseUrl.replace(/\/$/, "")}/api/public/circle/snapshot`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-circle-signature": sig,
           },
-        );
+          redirect: "manual",
+          body: JSON.stringify({
+            email: normalizedEmail,
+            ts,
+            nonce,
+            sig,
+            company_id: data.companyId ?? null,
+          }),
+        });
 
         if (res.ok || signingSecret === secret.trim()) break;
-        const text = await res.clone().text().catch(() => "");
+        const text = await res
+          .clone()
+          .text()
+          .catch(() => "");
         if (!text.includes("Bad signature")) break;
       }
 
@@ -227,8 +225,7 @@ export const mintAosSsoToken = createServerFn({ method: "POST" })
       return { ok: false, error: "AOS link not configured on Circle." };
     }
 
-    const claimEmail =
-      (context.claims as { email?: string } | null)?.email ?? null;
+    const claimEmail = (context.claims as { email?: string } | null)?.email ?? null;
     if (!claimEmail) {
       return { ok: false, error: "No email on your account." };
     }
@@ -253,17 +250,13 @@ export const mintAosSsoToken = createServerFn({ method: "POST" })
 
     const email = (link?.aos_email ?? claimEmail).toLowerCase().trim();
     const ts = Math.floor(Date.now() / 1000).toString();
-    const nonce =
-      Math.random().toString(36).slice(2, 12) +
-      Math.random().toString(36).slice(2, 12);
+    const nonce = Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
 
     // Signed payload now includes tier + caps so AOS can enforce them.
     // Backwards-compatible: AOS may verify the legacy `email|ts|nonce` shape
     // until it ships the new verifier — until then the token still works.
     const signingString = `${email}|${ts}|${nonce}|${tier ?? ""}|${workspaceLimit}|${seatLimit}`;
-    const sig = createHmac("sha256", secret.trim())
-      .update(signingString)
-      .digest("hex");
+    const sig = createHmac("sha256", secret.trim()).update(signingString).digest("hex");
 
     const token = [
       encodeURIComponent(email),
@@ -301,7 +294,9 @@ export type AosLinkResult =
 export const linkExistingAosAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { aosEmail: string }) => {
-    const email = String(input?.aosEmail ?? "").toLowerCase().trim();
+    const email = String(input?.aosEmail ?? "")
+      .toLowerCase()
+      .trim();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       throw new Error("Enter a valid email address.");
     }
@@ -317,27 +312,22 @@ export const linkExistingAosAccount = createServerFn({ method: "POST" })
 
     const ts = Math.floor(Date.now() / 1000);
     const signingSecret = secret.trim();
-    const nonce =
-      Math.random().toString(36).slice(2, 12) +
-      Math.random().toString(36).slice(2, 12);
+    const nonce = Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
     const sig = createHmac("sha256", signingSecret)
       .update(`${data.aosEmail}|${ts}|${nonce}`)
       .digest("hex");
 
     let res: Response;
     try {
-      res = await fetch(
-        `${baseUrl.replace(/\/$/, "")}/api/public/circle/snapshot`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-circle-signature": sig,
-          },
-          redirect: "manual",
-          body: JSON.stringify({ email: data.aosEmail, ts, nonce, sig }),
+      res = await fetch(`${baseUrl.replace(/\/$/, "")}/api/public/circle/snapshot`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-circle-signature": sig,
         },
-      );
+        redirect: "manual",
+        body: JSON.stringify({ email: data.aosEmail, ts, nonce, sig }),
+      });
     } catch (err) {
       console.error("[aos.link] snapshot fetch failed", err);
       return { ok: false, error: "Could not reach AOS to verify that email." };
