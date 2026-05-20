@@ -47,6 +47,7 @@ import { Route as AdminLibraryRouteImport } from './routes/admin.library'
 import { Route as AdminBackfillRouteImport } from './routes/admin.backfill'
 import { Route as AdminAnnounceRouteImport } from './routes/admin.announce'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
+import { Route as ApiPublicAosFpRouteImport } from './routes/api/public/aos-fp'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
@@ -244,6 +245,11 @@ const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   path: '/lovable/email/suppression',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicAosFpRoute = ApiPublicAosFpRouteImport.update({
+  id: '/api/public/aos-fp',
+  path: '/api/public/aos-fp',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LovableEmailTransactionalSendRoute =
   LovableEmailTransactionalSendRouteImport.update({
     id: '/lovable/email/transactional/send',
@@ -316,6 +322,7 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/aos/': typeof AosIndexRoute
   '/ask/': typeof AskIndexRoute
+  '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -362,6 +369,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminIndexRoute
   '/aos': typeof AosIndexRoute
   '/ask': typeof AskIndexRoute
+  '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -409,6 +417,7 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/aos/': typeof AosIndexRoute
   '/ask/': typeof AskIndexRoute
+  '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -457,6 +466,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/aos/'
     | '/ask/'
+    | '/api/public/aos-fp'
     | '/lovable/email/suppression'
     | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
@@ -503,6 +513,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/aos'
     | '/ask'
+    | '/api/public/aos-fp'
     | '/lovable/email/suppression'
     | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
@@ -549,6 +560,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/aos/'
     | '/ask/'
+    | '/api/public/aos-fp'
     | '/lovable/email/suppression'
     | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
@@ -594,6 +606,7 @@ export interface RootRouteChildren {
   AdminIndexRoute: typeof AdminIndexRoute
   AosIndexRoute: typeof AosIndexRoute
   AskIndexRoute: typeof AskIndexRoute
+  ApiPublicAosFpRoute: typeof ApiPublicAosFpRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
@@ -871,6 +884,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LovableEmailSuppressionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/aos-fp': {
+      id: '/api/public/aos-fp'
+      path: '/api/public/aos-fp'
+      fullPath: '/api/public/aos-fp'
+      preLoaderRoute: typeof ApiPublicAosFpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/lovable/email/transactional/send': {
       id: '/lovable/email/transactional/send'
       path: '/lovable/email/transactional/send'
@@ -964,6 +984,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminIndexRoute: AdminIndexRoute,
   AosIndexRoute: AosIndexRoute,
   AskIndexRoute: AskIndexRoute,
+  ApiPublicAosFpRoute: ApiPublicAosFpRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
