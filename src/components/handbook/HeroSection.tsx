@@ -1,5 +1,5 @@
 import React from 'react';
-import bulldozer from '@/assets/handbook/bulldozer-hero.png';
+import bulldozer from '@/assets/handbook/bulldozer-hero.webp';
 import Eyebrow from '@/components/editorial/Eyebrow';
 
 type Jump = { id: string; chapter?: string; title: string; featured?: boolean };
