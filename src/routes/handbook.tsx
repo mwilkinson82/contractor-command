@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import "@/styles/handbook.css";
+import bulldozerHero from "@/assets/handbook/bulldozer-hero.webp";
 
 import HeroSection from "@/components/handbook/HeroSection";
 import TableOfContents from "@/components/handbook/TableOfContents";
