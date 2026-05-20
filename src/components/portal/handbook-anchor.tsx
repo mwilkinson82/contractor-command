@@ -138,16 +138,16 @@ function DeviceMockup() {
           </aside>
 
           {/* Cover pane */}
-          <div className="relative flex flex-col">
+          <div className="relative flex min-h-0 flex-col">
             <div className="border-b border-foreground/10 px-5 pt-3 pb-2">
               <p className="font-mono text-[8px] uppercase tracking-[0.22em] text-foreground/55">ALP Contractor Circle</p>
             </div>
 
-            <div className="relative flex-1 px-5 pt-3 pb-3">
+            <div className="relative min-h-0 flex-1 overflow-hidden px-4 py-3">
               <img
                 src={bookCover}
                 alt=""
-                className="h-full w-full object-contain object-top"
+                className="absolute inset-0 m-auto max-h-full max-w-full object-contain"
                 draggable={false}
               />
             </div>
