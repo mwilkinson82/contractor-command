@@ -261,37 +261,46 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
       for (const signingSecret of secretVariants(secret)) {
         const nonce =
           Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
-        const sig = createHmac("sha256", signingSecret)
-          .update(`${snapshotEmail}|${ts}|${nonce}|${tier}|${workspaceLimit}|${seatLimit}`)
-          .digest("hex");
+        for (const signingString of snapshotSigningStrings({
+          email: snapshotEmail,
+          ts,
+          nonce,
+          tier,
+          workspaceLimit,
+          seatLimit,
+        })) {
+          const sig = createHmac("sha256", signingSecret).update(signingString).digest("hex");
 
-        res = await fetch(`${baseUrl.replace(/\/$/, "")}/api/public/circle/snapshot`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-circle-signature": sig,
-            "x-circle-ts": String(ts),
-            "x-circle-nonce": nonce,
-          },
-          redirect: "manual",
-          body: JSON.stringify({
-            email: snapshotEmail,
-            ts,
-            nonce,
-            sig,
-            tier,
-            workspace_limit: workspaceLimit,
-            seat_limit: seatLimit,
-            company_id: data.companyId ?? null,
-          }),
-        });
+          res = await fetch(`${baseUrl.replace(/\/$/, "")}/api/public/circle/snapshot`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-circle-signature": sig,
+              "x-circle-ts": String(ts),
+              "x-circle-nonce": nonce,
+            },
+            redirect: "manual",
+            body: JSON.stringify({
+              email: snapshotEmail,
+              ts,
+              nonce,
+              sig,
+              tier,
+              workspace_limit: workspaceLimit,
+              seat_limit: seatLimit,
+              company_id: data.companyId ?? null,
+            }),
+          });
+
+          if (res.ok) break;
+          const text = await res
+            .clone()
+            .text()
+            .catch(() => "");
+          if (!text.includes("Bad signature")) break;
+        }
 
         if (res.ok || signingSecret === secret.trim()) break;
-        const text = await res
-          .clone()
-          .text()
-          .catch(() => "");
-        if (!text.includes("Bad signature")) break;
       }
 
       if (!res) {
