@@ -191,14 +191,6 @@ function DeviceMockup() {
         </div>
       </div>
 
-      {/* Bulldozer breaking the frame */}
-      <img
-        src={bulldozer}
-        alt=""
-        aria-hidden
-        className="pointer-events-none absolute -bottom-6 -left-4 w-[44%] max-w-[260px] select-none drop-shadow-[0_18px_18px_rgba(20,20,18,0.18)] sm:-bottom-8 sm:-left-8"
-        draggable={false}
-      />
     </div>
   );
 }
