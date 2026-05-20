@@ -424,6 +424,45 @@ export type Database = {
         }
         Relationships: []
       }
+      stripe_webhook_events: {
+        Row: {
+          attempts: number
+          created_at: string
+          event_id: string
+          event_type: string
+          last_error: string | null
+          object_id: string | null
+          processed_at: string | null
+          processing_started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          event_id: string
+          event_type: string
+          last_error?: string | null
+          object_id?: string | null
+          processed_at?: string | null
+          processing_started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          event_id?: string
+          event_type?: string
+          last_error?: string | null
+          object_id?: string | null
+          processed_at?: string | null
+          processing_started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       subscriptions: {
         Row: {
           cancel_at_period_end: boolean
@@ -624,6 +663,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      begin_stripe_webhook_event: {
+        Args: { _event_id: string; _event_type: string; _object_id: string }
+        Returns: string
+      }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
@@ -631,6 +674,10 @@ export type Database = {
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
         Returns: number
+      }
+      finish_stripe_webhook_event: {
+        Args: { _event_id: string; _last_error?: string; _status: string }
+        Returns: undefined
       }
       get_user_aos_limits: {
         Args: { _user_id: string }
