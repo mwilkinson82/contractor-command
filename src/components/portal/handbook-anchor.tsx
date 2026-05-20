@@ -89,9 +89,9 @@ function DeviceMockup() {
         <span className="absolute left-1/2 top-2 h-1 w-1 -translate-x-1/2 rounded-full bg-foreground/15" />
 
         {/* Screen */}
-        <div className="relative grid h-full grid-cols-[34%_1fr] overflow-hidden rounded-[18px] bg-[hsl(40_22%_95%)]">
+        <div className="relative grid h-full min-h-0 grid-cols-[34%_1fr] overflow-hidden rounded-[18px] bg-[hsl(40_22%_95%)]">
           {/* Contents sidebar */}
-          <aside className="flex flex-col gap-3 border-r border-foreground/10 p-4">
+          <aside className="flex min-h-0 flex-col gap-3 overflow-hidden border-r border-foreground/10 p-4">
             <div className="flex items-center justify-between">
               <p className="font-mono text-[8px] uppercase tracking-[0.22em] text-foreground/60">Contents</p>
               <span className="flex flex-col gap-[2px]">
