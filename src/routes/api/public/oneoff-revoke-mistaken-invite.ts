@@ -10,7 +10,7 @@ import { template as memberAnnouncement } from "@/lib/email-templates/member-ann
 
 const SENDER_DOMAIN = "notify.mail.alpcontractorcircle.com";
 
-export const Route = createFileRoute("/api/public/_one-off-revoke-mistaken-invite")({
+export const Route = createFileRoute("/api/public/oneoff-revoke-mistaken-invite")({
   server: {
     handlers: {
       POST: async ({ request }) => {
