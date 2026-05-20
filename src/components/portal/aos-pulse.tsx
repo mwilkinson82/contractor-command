@@ -561,6 +561,7 @@ function UnlinkedState({
   previouslyLinked,
   waiting,
   isFetching,
+  opening,
   onOpenAos,
   onRecheck,
 }: {
@@ -568,6 +569,7 @@ function UnlinkedState({
   previouslyLinked: boolean;
   waiting: boolean;
   isFetching: boolean;
+  opening: boolean;
   onOpenAos: () => void;
   onRecheck: () => void;
 }) {
