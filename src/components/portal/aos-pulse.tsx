@@ -37,7 +37,7 @@ export function AosPulse() {
     setOpening(true);
     // Pre-open a tab synchronously inside the click handler so popup blockers
     // don't kill it while the server fn is in-flight.
-    const popup = typeof window !== "undefined" ? window.open("about:blank", "_blank", "noopener") : null;
+    const popup = typeof window !== "undefined" ? window.open("about:blank", "_blank") : null;
     try {
       const res = await mint();
       if (res.ok) {
