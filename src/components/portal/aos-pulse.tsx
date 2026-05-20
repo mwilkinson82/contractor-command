@@ -297,17 +297,19 @@ function PulseBoard({
           tone={scorecardSummary && scorecardSummary.off_goal_this_week > 0 ? "warn" : "neutral"}
         >
           {snapshot.scorecard.length === 0 && scorecardSummary ? (
-            <Row
-              title="Current week"
-              badge={
-                scorecardSummary.off_goal_this_week > 0 ? (
-                  <Pill tone="warn">{scorecardSummary.off_goal_this_week} off</Pill>
-                ) : (
-                  <Pill tone="ok">on goal</Pill>
-                )
-              }
-              meta={`${scorecardSummary.on_goal_this_week} on goal · ${scorecardSummary.off_goal_this_week} off goal`}
-            />
+            <ul className="space-y-1.5">
+              <Row
+                title="Current week"
+                badge={
+                  scorecardSummary.off_goal_this_week > 0 ? (
+                    <Pill tone="warn">{scorecardSummary.off_goal_this_week} off</Pill>
+                  ) : (
+                    <Pill tone="ok">on goal</Pill>
+                  )
+                }
+                meta={`${scorecardSummary.on_goal_this_week} on goal · ${scorecardSummary.off_goal_this_week} off goal`}
+              />
+            </ul>
           ) : snapshot.scorecard.length === 0 ? (
             <Empty>Nothing tracked yet.</Empty>
           ) : (
