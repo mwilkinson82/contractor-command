@@ -6,7 +6,7 @@
 // When AOS already knows about the user but they have multiple
 // workspaces, this turns into a workspace picker instead.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { AosCompany } from "@/lib/aos.functions";
 import { ArrowUpRight, Compass, Sparkles, Building2 } from "lucide-react";
@@ -34,6 +34,12 @@ export function AosHero({
     // subdomain.
     navigate({ to: "/aos" });
   };
+
+  useEffect(() => {
+    if (!opened || showPicker) return;
+    const interval = window.setInterval(onRecheck, 4000);
+    return () => window.clearInterval(interval);
+  }, [opened, onRecheck, showPicker]);
 
   // When AOS knows the user but multiple workspaces exist, show the picker
   // instead of the "Start AOS" CTA — they're already running it.
