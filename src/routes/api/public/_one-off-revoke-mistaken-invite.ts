@@ -45,7 +45,7 @@ export const Route = createFileRoute("/api/public/_one-off-revoke-mistaken-invit
 
         // 2) Render + enqueue apology email
         const props = {
-          firstName: body.firstName,
+          firstName: undefined as string | undefined,
           preheader: "Quick note about an invite from Contractor Circle",
           headline: "Sent in error — please disregard",
           body: `I'm reaching out personally about an invite email you may have received from the ALP Contractor Circle portal.
