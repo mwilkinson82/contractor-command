@@ -63,7 +63,7 @@ function AosGateway() {
     setError(null);
     setPhase("minting");
     // Open the tab synchronously so popup blockers stay out of the way.
-    const popup = typeof window !== "undefined" ? window.open("about:blank", "_blank", "noopener") : null;
+    const popup = typeof window !== "undefined" ? window.open("about:blank", "_blank") : null;
     const res = await mint();
     if (!res.ok) {
       if (popup) popup.close();

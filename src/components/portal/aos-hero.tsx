@@ -33,7 +33,7 @@ export function AosHero({
     setOpened(true);
     setOpening(true);
     const popup =
-      typeof window !== "undefined" ? window.open("about:blank", "_blank", "noopener") : null;
+      typeof window !== "undefined" ? window.open("about:blank", "_blank") : null;
     try {
       const res = await mint();
       if (!res.ok) {
