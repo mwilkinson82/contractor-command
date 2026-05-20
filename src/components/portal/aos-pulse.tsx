@@ -72,7 +72,7 @@ export function AosPulse() {
     queryFn: () => fn({ data: { companyId: companyId ?? undefined } }),
     staleTime: 60_000,
     refetchOnWindowFocus: true,
-    refetchInterval: waitingForLink ? 4000 : false,
+    refetchInterval: (query) => (waitingForLink || query.state.data?.ok === false ? 4000 : false),
     enabled: !!user,
   });
 

@@ -200,21 +200,6 @@ function normalizeAosSnapshot(raw: unknown, email: string): AosSnapshot {
   };
 }
 
-function localLinkedSnapshot(): AosSnapshot {
-  return {
-    linked: true,
-    company_id: null,
-    company_name: null,
-    companies: [],
-    last_login_at: null,
-    next_meeting: null,
-    scorecard: [],
-    rocks: [],
-    issues_open: [],
-    todos_due_this_week: [],
-  };
-}
-
 export const getAosSnapshot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { companyId?: string } | undefined) => input ?? {})
@@ -292,14 +277,11 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
 
       if (!res.ok) {
         const text = await res.text().catch(() => "");
-        if (existingLink?.verified_at) {
-          return {
-            ok: true,
-            snapshot: localLinkedSnapshot(),
-            fetched_at: new Date().toISOString(),
-            previously_linked: true,
-          };
-        }
+        console.warn("AOS snapshot returned non-OK", {
+          status: res.status,
+          body: text.slice(0, 300),
+          email: snapshotEmail,
+        });
         return {
           ok: false,
           error: `AOS returned ${res.status}${text ? `: ${text.slice(0, 200)}` : ""}`,
@@ -330,14 +312,6 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
       };
     } catch (err) {
       console.error("AOS snapshot fetch failed:", err);
-      if (existingLink?.verified_at) {
-        return {
-          ok: true,
-          snapshot: localLinkedSnapshot(),
-          fetched_at: new Date().toISOString(),
-          previously_linked: true,
-        };
-      }
       return { ok: false, error: "Could not reach AOS." };
     }
   });
