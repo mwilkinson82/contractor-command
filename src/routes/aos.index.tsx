@@ -206,19 +206,20 @@ function AosGateway() {
               type="button"
               onClick={handleEnter}
               disabled={
-                authLoading || !user || phase !== "idle" || (!limitsLoading && !hasAccess)
+                authLoading || !user || phase === "minting" || (!limitsLoading && !hasAccess)
               }
               className="group relative inline-flex w-fit items-center gap-3 rounded-md bg-gold px-7 py-4 text-[15px] font-medium text-ink shadow-[0_0_0_0_var(--gold)] transition-all duration-300 hover:shadow-[0_0_40px_-4px_var(--gold)] disabled:opacity-60"
             >
-              {phase === "redirecting" ? (
+              {phase === "minting" ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Entering AOS…
+                  Opening AOS…
                 </>
-              ) : phase === "minting" ? (
+              ) : phase === "opened" ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Opening the door…
+                  <Compass className="h-4 w-4" />
+                  Reopen AOS
+                  <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                 </>
               ) : (
                 <>
