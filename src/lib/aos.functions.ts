@@ -42,6 +42,12 @@ export type AosScorecardSummary = {
   week_ending: string | null;
 };
 
+export type AosPulseCounts = {
+  rocks?: { total: number; on_track: number; off_track: number; done: number };
+  issues?: { open: number };
+  todos?: { open: number; overdue: number };
+};
+
 export type AosSnapshot =
   | {
       linked: true;
@@ -52,6 +58,7 @@ export type AosSnapshot =
       next_meeting: { date: string; kind: string } | null;
       scorecard: AosMeasurable[];
       scorecard_summary?: AosScorecardSummary;
+      pulse_counts?: AosPulseCounts;
       rocks: AosRock[];
       issues_open: AosIssue[];
       todos_due_this_week: AosTodo[];
@@ -78,9 +85,9 @@ function normalizeAosSnapshot(raw: unknown, email: string): AosSnapshot {
     pulse?: {
       company_id?: string | null;
       company_name?: string | null;
-      rocks?: { list?: Array<{ id: string; title: string; owner?: string | null; status?: string | null; progress?: number | null; due_date?: string | null }> };
-      issues?: { list?: Array<{ id: string; title: string; owner?: string | null; created_at?: string | null }> };
-      todos?: { list?: Array<{ id: string; title: string; owner?: string | null; due_date?: string | null }> };
+      rocks?: AosPulseCounts["rocks"] & { list?: Array<{ id: string; title: string; owner?: string | null; status?: string | null; progress?: number | null; due_date?: string | null }> };
+      issues?: AosPulseCounts["issues"] & { list?: Array<{ id: string; title: string; owner?: string | null; created_at?: string | null }> };
+      todos?: AosPulseCounts["todos"] & { list?: Array<{ id: string; title: string; owner?: string | null; due_date?: string | null }> };
       scorecard?: AosScorecardSummary;
     };
   };
@@ -144,6 +151,27 @@ function normalizeAosSnapshot(raw: unknown, email: string): AosSnapshot {
       next_meeting: snapshot.next_meeting ?? null,
       scorecard: snapshot.scorecard ?? [],
       scorecard_summary: pulse?.scorecard ?? snapshot.scorecard_summary,
+      pulse_counts: pulse
+        ? {
+            rocks: pulse.rocks
+              ? {
+                  total: pulse.rocks.total ?? normalizedRocks.length,
+                  on_track: pulse.rocks.on_track ?? normalizedRocks.filter((r) => r.status === "on-track").length,
+                  off_track: pulse.rocks.off_track ?? normalizedRocks.filter((r) => r.status === "off-track").length,
+                  done: pulse.rocks.done ?? normalizedRocks.filter((r) => r.status === "done").length,
+                }
+              : undefined,
+            issues: pulse.issues ? { open: pulse.issues.open ?? normalizedIssues.length } : undefined,
+            todos: pulse.todos
+              ? {
+                  open: pulse.todos.open ?? normalizedTodos.length,
+                  overdue:
+                    pulse.todos.overdue ??
+                    normalizedTodos.filter((t) => t.due_date && new Date(t.due_date) < new Date()).length,
+                }
+              : undefined,
+          }
+        : snapshot.pulse_counts,
       rocks: normalizedRocks,
       issues_open: normalizedIssues,
       todos_due_this_week: normalizedTodos,
