@@ -300,7 +300,7 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
           if (!text.includes("Bad signature")) break;
         }
 
-        if (res.ok || signingSecret === secret.trim()) break;
+        if (res?.ok || signingSecret === secret.trim()) break;
       }
 
       if (!res) {
