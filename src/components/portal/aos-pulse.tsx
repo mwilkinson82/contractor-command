@@ -239,6 +239,9 @@ function PulseBoard({
   const topIssues = snapshot.issues_open.slice(0, 3);
   const scorecardSummary = snapshot.scorecard_summary;
   const scorecardCount = snapshot.scorecard.length || scorecardSummary?.metrics_count || 0;
+  const rockCounts = snapshot.pulse_counts?.rocks;
+  const issueCounts = snapshot.pulse_counts?.issues;
+  const todoCounts = snapshot.pulse_counts?.todos;
 
   const weekLabel = new Date().toLocaleDateString(undefined, {
     weekday: undefined,
@@ -247,9 +250,9 @@ function PulseBoard({
   });
 
   const attentionCount =
-    (offTrackRocks.length > 0 ? 1 : 0) +
-    (topIssues.length > 0 ? 1 : 0) +
-    (overdueTodos.length > 0 ? 1 : 0);
+    ((rockCounts?.off_track ?? offTrackRocks.length) > 0 ? 1 : 0) +
+    ((issueCounts?.open ?? topIssues.length) > 0 ? 1 : 0) +
+    ((todoCounts?.overdue ?? overdueTodos.length) > 0 ? 1 : 0);
 
   return (
     <div className="space-y-6">
@@ -344,9 +347,9 @@ function PulseBoard({
         <AttentionCard
           icon={<Target className="h-3.5 w-3.5" />}
           label="Rocks"
-          count={`${onTrackRocks.length}/${snapshot.rocks.length}`}
+          count={`${rockCounts?.on_track ?? onTrackRocks.length}/${rockCounts?.total ?? snapshot.rocks.length}`}
           countLabel="on track this quarter"
-          tone={offTrackRocks.length > 0 ? "warn" : "ok"}
+          tone={(rockCounts?.off_track ?? offTrackRocks.length) > 0 ? "warn" : "ok"}
         >
           {snapshot.rocks.length === 0 ? (
             <Empty>No rocks for this quarter yet.</Empty>
@@ -372,9 +375,9 @@ function PulseBoard({
         <AttentionCard
           icon={<AlertCircle className="h-3.5 w-3.5" />}
           label="Top issues"
-          count={snapshot.issues_open.length}
-          countLabel={`open${snapshot.issues_open.length === 1 ? "" : ""}`}
-          tone={snapshot.issues_open.length > 0 ? "warn" : "ok"}
+          count={issueCounts?.open ?? snapshot.issues_open.length}
+          countLabel="open"
+          tone={(issueCounts?.open ?? snapshot.issues_open.length) > 0 ? "warn" : "ok"}
         >
           {topIssues.length === 0 ? (
             <p className="inline-flex items-center gap-2 text-[12px] text-signal-success">
@@ -398,9 +401,9 @@ function PulseBoard({
         <AttentionCard
           icon={<CheckSquare className="h-3.5 w-3.5" />}
           label="To-Dos"
-          count={snapshot.todos_due_this_week.length}
+          count={todoCounts?.open ?? snapshot.todos_due_this_week.length}
           countLabel="due this week"
-          tone={overdueTodos.length > 0 ? "warn" : "neutral"}
+          tone={(todoCounts?.overdue ?? overdueTodos.length) > 0 ? "warn" : "neutral"}
         >
           {snapshot.todos_due_this_week.length === 0 ? (
             <p className="inline-flex items-center gap-2 text-[12px] text-signal-success">
