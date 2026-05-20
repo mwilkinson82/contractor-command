@@ -22,7 +22,6 @@ const COMPANY_KEY = "aos.company_id";
 export function AosPulse() {
   const fn = useServerFn(getAosSnapshot);
   const mint = useServerFn(mintAosSsoToken);
-  const navigate = useNavigate();
   const { user } = useAuth();
   const [companyId, setCompanyId] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
@@ -31,6 +30,42 @@ export function AosPulse() {
   const [waitingForLink, setWaitingForLink] = useState(false);
   const [opening, setOpening] = useState(false);
   const wasLinkedRef = useRef<boolean | null>(null);
+
+  // Open AOS in a NEW TAB so Circle stays open. Keeps the user's place,
+  // lets the snapshot poll detect the link, and gives an obvious way back.
+  const openAosInNewTab = useCallback(async () => {
+    setOpening(true);
+    // Pre-open a tab synchronously inside the click handler so popup blockers
+    // don't kill it while the server fn is in-flight.
+    const popup = typeof window !== "undefined" ? window.open("about:blank", "_blank", "noopener") : null;
+    try {
+      const res = await mint();
+      if (res.ok) {
+        if (popup) {
+          popup.location.href = res.url;
+        } else {
+          // Popup blocked — fall back to same-tab navigation so the user isn't stuck.
+          window.location.assign(res.url);
+          return;
+        }
+        setWaitingForLink(true);
+        toast.success("AOS opened in a new tab", {
+          description: "Sign in there, then come back — we'll detect it automatically.",
+        });
+      } else {
+        if (popup) popup.close();
+        toast.error("Couldn't open AOS", { description: res.error });
+      }
+    } catch (e) {
+      if (popup) popup.close();
+      toast.error("Couldn't open AOS", {
+        description: e instanceof Error ? e.message : "Unknown error",
+      });
+    } finally {
+      setOpening(false);
+    }
+  }, [mint]);
+
 
   const { data, isLoading, refetch, isFetching } = useQuery<AosResult>({
     queryKey: ["aos-snapshot", companyId],
