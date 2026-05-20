@@ -12,24 +12,28 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 //   STRIPE_PRICE_ID_BOOK       → 'book_buyer'   (alphandbook.com, $47 one-time)
 //   STRIPE_PRICE_ID_INTENSIVE  → 'intensive'    ($5,000 one-time)
 //   STRIPE_PRICE_ID_CIRCLE     → 'circle'       (recurring subscription)
-// Anything else recurring defaults to 'circle' (preserves legacy behavior).
+// Anything else defaults to 'aos_only' (safe baseline — no Circle access
+// is ever granted unless the price/metadata explicitly maps to it).
 
-type Tier = "book_buyer" | "intensive" | "circle";
+type Tier = "book_buyer" | "intensive" | "circle" | "aos_only";
 
 function tierForPrice(priceId: string | null, metaProduct?: string | null): Tier {
   // Explicit metadata wins (set by our own checkout sessions).
   if (metaProduct === "book_v2" || metaProduct === "book") return "book_buyer";
   if (metaProduct === "intensive") return "intensive";
-  if (metaProduct === "circle") return "circle";
+  if (metaProduct === "circle" && priceId === process.env.STRIPE_PRICE_ID_CIRCLE) return "circle";
 
   if (priceId && priceId === process.env.STRIPE_PRICE_ID_BOOK) return "book_buyer";
   if (priceId && priceId === process.env.STRIPE_PRICE_ID_INTENSIVE) return "intensive";
-  return "circle";
+  if (priceId && priceId === process.env.STRIPE_PRICE_ID_CIRCLE) return "circle";
+  return "aos_only";
 }
 
 function productLabelForTier(tier: Tier): string {
-  return tier === "book_buyer" ? "book_v2" : tier;
+  if (tier === "book_buyer") return "book_v2";
+  return tier;
 }
+
 
 export const Route = createFileRoute("/api/public/stripe/webhook")({
   server: {
