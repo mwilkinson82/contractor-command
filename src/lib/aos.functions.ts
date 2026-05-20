@@ -35,6 +35,19 @@ export type AosIssue = {
 
 export type AosCompany = { id: string; name: string };
 
+export type AosScorecardSummary = {
+  metrics_count: number;
+  on_goal_this_week: number;
+  off_goal_this_week: number;
+  week_ending: string | null;
+};
+
+export type AosPulseCounts = {
+  rocks?: { total: number; on_track: number; off_track: number; done: number };
+  issues?: { open: number };
+  todos?: { open: number; overdue: number };
+};
+
 export type AosSnapshot =
   | {
       linked: true;
@@ -44,6 +57,8 @@ export type AosSnapshot =
       last_login_at: string | null;
       next_meeting: { date: string; kind: string } | null;
       scorecard: AosMeasurable[];
+      scorecard_summary?: AosScorecardSummary;
+      pulse_counts?: AosPulseCounts;
       rocks: AosRock[];
       issues_open: AosIssue[];
       todos_due_this_week: AosTodo[];
@@ -59,13 +74,22 @@ function secretVariants(secret: string) {
 }
 
 function normalizeAosSnapshot(raw: unknown, email: string): AosSnapshot {
-  const snapshot = raw as Partial<AosSnapshot> & {
+  const snapshot = raw as Partial<Extract<AosSnapshot, { linked: true }>> & {
+    linked?: boolean;
     exists?: boolean;
     workspace_count?: number;
     primary_workspace_name?: string | null;
     primary_workspace_id?: string | null;
     companies?: AosCompany[];
     workspaces?: Array<{ id: string; name: string }>;
+    pulse?: {
+      company_id?: string | null;
+      company_name?: string | null;
+      rocks?: AosPulseCounts["rocks"] & { list?: Array<{ id: string; title: string; owner?: string | null; status?: string | null; progress?: number | null; due_date?: string | null }> };
+      issues?: AosPulseCounts["issues"] & { list?: Array<{ id: string; title: string; owner?: string | null; created_at?: string | null }> };
+      todos?: AosPulseCounts["todos"] & { list?: Array<{ id: string; title: string; owner?: string | null; due_date?: string | null }> };
+      scorecard?: AosScorecardSummary;
+    };
   };
 
   // Coalesce workspaces[] (AOS naming) into companies[] (Circle naming).
@@ -79,11 +103,79 @@ function normalizeAosSnapshot(raw: unknown, email: string): AosSnapshot {
     .map((w) => ({ id: w.id, name: w.name }));
 
   if (typeof snapshot.linked === "boolean") {
-    const merged = snapshot as AosSnapshot;
-    if (merged.linked && companies.length && (!merged.companies || merged.companies.length === 0)) {
-      return { ...merged, companies };
-    }
-    return merged;
+    if (!snapshot.linked) return snapshot as AosSnapshot;
+
+    const pulse = snapshot.pulse;
+    const normalizedRocks: AosRock[] = Array.isArray(pulse?.rocks?.list)
+      ? pulse.rocks.list.map((r) => ({
+          id: r.id,
+          title: r.title,
+          owner: r.owner ?? null,
+          status:
+            r.status === "on_track"
+              ? "on-track"
+              : r.status === "off_track"
+                ? "off-track"
+                : r.status === "done"
+                  ? "done"
+                  : "unknown",
+          percent_complete: r.progress ?? 0,
+          due_date: r.due_date ?? null,
+        }))
+      : (snapshot.rocks ?? []);
+
+    const normalizedIssues: AosIssue[] = Array.isArray(pulse?.issues?.list)
+      ? pulse.issues.list.map((i) => ({
+          id: i.id,
+          title: i.title,
+          owner: i.owner ?? null,
+          created_at: i.created_at ?? new Date().toISOString(),
+        }))
+      : (snapshot.issues_open ?? []);
+
+    const normalizedTodos: AosTodo[] = Array.isArray(pulse?.todos?.list)
+      ? pulse.todos.list.map((t) => ({
+          id: t.id,
+          title: t.title,
+          owner: t.owner ?? null,
+          due_date: t.due_date ?? null,
+        }))
+      : (snapshot.todos_due_this_week ?? []);
+
+    return {
+      linked: true,
+      company_id: pulse?.company_id ?? snapshot.company_id ?? snapshot.primary_workspace_id ?? companies[0]?.id ?? null,
+      company_name: pulse?.company_name ?? snapshot.company_name ?? snapshot.primary_workspace_name ?? companies[0]?.name ?? null,
+      companies: companies.length ? companies : (snapshot.companies ?? []),
+      last_login_at: snapshot.last_login_at ?? null,
+      next_meeting: snapshot.next_meeting ?? null,
+      scorecard: snapshot.scorecard ?? [],
+      scorecard_summary: pulse?.scorecard ?? snapshot.scorecard_summary,
+      pulse_counts: pulse
+        ? {
+            rocks: pulse.rocks
+              ? {
+                  total: pulse.rocks.total ?? normalizedRocks.length,
+                  on_track: pulse.rocks.on_track ?? normalizedRocks.filter((r) => r.status === "on-track").length,
+                  off_track: pulse.rocks.off_track ?? normalizedRocks.filter((r) => r.status === "off-track").length,
+                  done: pulse.rocks.done ?? normalizedRocks.filter((r) => r.status === "done").length,
+                }
+              : undefined,
+            issues: pulse.issues ? { open: pulse.issues.open ?? normalizedIssues.length } : undefined,
+            todos: pulse.todos
+              ? {
+                  open: pulse.todos.open ?? normalizedTodos.length,
+                  overdue:
+                    pulse.todos.overdue ??
+                    normalizedTodos.filter((t) => t.due_date && new Date(t.due_date) < new Date()).length,
+                }
+              : undefined,
+          }
+        : snapshot.pulse_counts,
+      rocks: normalizedRocks,
+      issues_open: normalizedIssues,
+      todos_due_this_week: normalizedTodos,
+    };
   }
 
   // Lightweight account probe: { exists, workspace_count, primary_workspace_name, workspaces? }.
@@ -142,11 +234,19 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
     const ts = Math.floor(Date.now() / 1000);
     const normalizedEmail = email.toLowerCase().trim();
     const { supabase, userId } = context;
+    const { data: limitsRows } = await supabase.rpc("get_user_aos_limits", {
+      _user_id: userId,
+    });
+    const limitsRow = Array.isArray(limitsRows) ? limitsRows[0] : limitsRows;
+    const tier = (limitsRow?.tier as string | null) ?? "";
+    const workspaceLimit = (limitsRow?.workspace_limit as number | null) ?? 0;
+    const seatLimit = (limitsRow?.seat_limit as number | null) ?? 0;
     const { data: existingLink } = await supabase
       .from("aos_links")
-      .select("verified_at")
+      .select("aos_email, verified_at")
       .eq("user_id", userId)
       .maybeSingle();
+    const snapshotEmail = (existingLink?.aos_email ?? normalizedEmail).toLowerCase().trim();
 
     try {
       let res: Response | null = null;
@@ -154,7 +254,7 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
         const nonce =
           Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
         const sig = createHmac("sha256", signingSecret)
-          .update(`${normalizedEmail}|${ts}|${nonce}`)
+          .update(`${snapshotEmail}|${ts}|${nonce}|${tier}|${workspaceLimit}|${seatLimit}`)
           .digest("hex");
 
         res = await fetch(`${baseUrl.replace(/\/$/, "")}/api/public/circle/snapshot`, {
@@ -162,13 +262,18 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
           headers: {
             "Content-Type": "application/json",
             "x-circle-signature": sig,
+            "x-circle-ts": String(ts),
+            "x-circle-nonce": nonce,
           },
           redirect: "manual",
           body: JSON.stringify({
-            email: normalizedEmail,
+            email: snapshotEmail,
             ts,
             nonce,
             sig,
+            tier,
+            workspace_limit: workspaceLimit,
+            seat_limit: seatLimit,
             company_id: data.companyId ?? null,
           }),
         });
@@ -201,7 +306,7 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
         };
       }
 
-      const snapshot = normalizeAosSnapshot(await res.json(), normalizedEmail);
+      const snapshot = normalizeAosSnapshot(await res.json(), snapshotEmail);
       const previously_linked = Boolean(existingLink?.verified_at);
 
       // Persist the link the first time we confirm it (and refresh last_sync_at)
@@ -209,7 +314,7 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
         await supabase.from("aos_links").upsert(
           {
             user_id: userId,
-            aos_email: normalizedEmail,
+            aos_email: snapshotEmail,
             verified_at: existingLink?.verified_at ?? new Date().toISOString(),
             last_sync_at: new Date().toISOString(),
           },
@@ -366,8 +471,16 @@ export const linkExistingAosAccount = createServerFn({ method: "POST" })
     const ts = Math.floor(Date.now() / 1000);
     const signingSecret = secret.trim();
     const nonce = Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
+    const { supabase, userId } = context;
+    const { data: limitsRows } = await supabase.rpc("get_user_aos_limits", {
+      _user_id: userId,
+    });
+    const limitsRow = Array.isArray(limitsRows) ? limitsRows[0] : limitsRows;
+    const tier = (limitsRow?.tier as string | null) ?? "";
+    const workspaceLimit = (limitsRow?.workspace_limit as number | null) ?? 0;
+    const seatLimit = (limitsRow?.seat_limit as number | null) ?? 0;
     const sig = createHmac("sha256", signingSecret)
-      .update(`${data.aosEmail}|${ts}|${nonce}`)
+      .update(`${data.aosEmail}|${ts}|${nonce}|${tier}|${workspaceLimit}|${seatLimit}`)
       .digest("hex");
 
     let res: Response;
@@ -377,9 +490,19 @@ export const linkExistingAosAccount = createServerFn({ method: "POST" })
         headers: {
           "Content-Type": "application/json",
           "x-circle-signature": sig,
+          "x-circle-ts": String(ts),
+          "x-circle-nonce": nonce,
         },
         redirect: "manual",
-        body: JSON.stringify({ email: data.aosEmail, ts, nonce, sig }),
+        body: JSON.stringify({
+          email: data.aosEmail,
+          ts,
+          nonce,
+          sig,
+          tier,
+          workspace_limit: workspaceLimit,
+          seat_limit: seatLimit,
+        }),
       });
     } catch (err) {
       console.error("[aos.link] snapshot fetch failed", err);
@@ -403,7 +526,6 @@ export const linkExistingAosAccount = createServerFn({ method: "POST" })
       }
     }
 
-    const { supabase, userId } = context;
     const { error: upsertError } = await supabase.from("aos_links").upsert(
       {
         user_id: userId,
