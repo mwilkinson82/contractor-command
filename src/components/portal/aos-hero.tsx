@@ -7,8 +7,9 @@
 // workspaces, this turns into a workspace picker instead.
 
 import { useEffect, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
-import type { AosCompany } from "@/lib/aos.functions";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
+import { mintAosSsoToken, type AosCompany } from "@/lib/aos.functions";
 import { ArrowUpRight, Compass, Sparkles, Building2 } from "lucide-react";
 
 export function AosHero({
@@ -25,14 +26,37 @@ export function AosHero({
   onPickCompany?: (id: string) => void;
 }) {
   const [opened, setOpened] = useState(false);
-  const navigate = useNavigate();
+  const [opening, setOpening] = useState(false);
+  const mint = useServerFn(mintAosSsoToken);
 
-  const openAos = () => {
+  const openAos = async () => {
     setOpened(true);
-    // Route through the in-app /aos gateway so the user gets the SSO
-    // handoff + interstitial instead of being punched out to the raw
-    // subdomain.
-    navigate({ to: "/aos" });
+    setOpening(true);
+    const popup = typeof window !== "undefined" ? window.open("about:blank", "_blank", "noopener") : null;
+    try {
+      const res = await mint();
+      if (!res.ok) {
+        if (popup) popup.close();
+        toast.error("Couldn't open AOS", { description: res.error });
+        return;
+      }
+      if (popup) {
+        popup.location.href = res.url;
+        toast.success("AOS opened in a new tab", {
+          description: "Keep this tab open — we'll connect the Pulse automatically.",
+        });
+        window.setTimeout(onRecheck, 2500);
+      } else {
+        window.location.assign(res.url);
+      }
+    } catch (err) {
+      if (popup) popup.close();
+      toast.error("Couldn't open AOS", {
+        description: err instanceof Error ? err.message : "Try again in a moment.",
+      });
+    } finally {
+      setOpening(false);
+    }
   };
 
   // When AOS knows the user but multiple workspaces exist, show the picker
@@ -110,10 +134,11 @@ export function AosHero({
               <button
                 type="button"
                 onClick={openAos}
+                disabled={opening}
                 className="inline-flex items-center gap-2 rounded-md bg-gold px-5 py-3 text-[14px] font-medium text-ink hover:opacity-90"
               >
                 <Compass className="h-4 w-4" />
-                {previouslyLinked ? "Open AOS to refresh" : "Start your AOS"}
+                {opening ? "Opening AOS…" : previouslyLinked ? "Open AOS to refresh" : "Start your AOS"}
                 <ArrowUpRight className="h-3.5 w-3.5" />
               </button>
               <button
