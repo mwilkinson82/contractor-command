@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Sparkles, MessageCircle, PanelLeftClose, PanelLeft } from "lucide-react";
+import { Sparkles, MessageCircle, PanelLeftClose, PanelLeft, Menu } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getDailyAskUsage } from "@/lib/ask.functions";
@@ -19,35 +19,44 @@ export function TopStrip() {
   const remaining = data?.remaining ?? null;
   const limit = data?.limit ?? 30;
   const low = remaining !== null && remaining <= 5;
-  const { collapsed, toggle } = useAppSidebar();
+  const { collapsed, toggle, toggleMobile } = useAppSidebar();
 
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-4 border-b border-border bg-background px-6">
-      <div className="flex items-center gap-3">
+    <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 sm:gap-4 border-b border-border bg-background px-3 sm:px-6">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        {/* Mobile menu */}
+        <button
+          onClick={toggleMobile}
+          aria-label="Open menu"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 hover:bg-foreground/5 md:hidden"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        {/* Desktop collapse */}
         <button
           onClick={toggle}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+          className="hidden md:inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
         >
           {collapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
         </button>
         <p
-          className="text-[14px] text-muted-foreground"
+          className="hidden sm:block text-[14px] text-muted-foreground truncate"
           style={{ fontFamily: "var(--font-serif)" }}
         >
           <span className="text-signal">●</span> Live · Contractor Circle
         </p>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2">
         <Link
           to="/ask"
-          className="group inline-flex items-center gap-1.5 rounded-full bg-ink px-3.5 py-1.5 text-cream shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md"
+          className="group inline-flex items-center gap-1.5 rounded-full bg-ink px-3 sm:px-3.5 py-1.5 text-cream shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md"
           style={{ fontFamily: "var(--font-serif)" }}
         >
           <Sparkles className="h-3.5 w-3.5" />
-          <span className="text-[15px] italic leading-none">Ask Marshall</span>
+          <span className="text-[14px] sm:text-[15px] italic leading-none">Ask Marshall</span>
         </Link>
 
         <Link
@@ -74,7 +83,7 @@ export function TopStrip() {
 
         <Link
           to="/account"
-          className="flex items-center gap-2 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] hover:bg-muted"
+          className="flex items-center gap-2 rounded-full border border-border bg-card px-2 sm:px-2.5 py-1 text-[11px] hover:bg-muted"
         >
           <span className="grid h-6 w-6 place-items-center rounded-full bg-ink text-[10px] font-medium text-cream">M</span>
           <span className="hidden sm:inline text-foreground/80">Marshall</span>
@@ -83,3 +92,4 @@ export function TopStrip() {
     </header>
   );
 }
+

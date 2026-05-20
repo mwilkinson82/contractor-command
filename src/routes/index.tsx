@@ -140,7 +140,7 @@ function HomePage() {
       />
 
       {/* Command center band — flows from hero, no hard divider */}
-      <section className="relative px-6 pt-8 pb-2">
+      <section className="relative px-4 sm:px-6 pt-8 pb-2">
         <div className="relative mx-auto w-full max-w-[1180px]">
           <p className="label-mono">Your command center</p>
           <h2 className="mt-2 font-display text-[1.75rem] leading-tight">
@@ -151,7 +151,7 @@ function HomePage() {
 
       {/* Unconnected AOS users see a dominant Start-AOS hero (or workspace picker) */}
       {!aosUnknown && !aosLinked && (
-        <section className="relative px-6 pb-8">
+        <section className="relative px-4 sm:px-6 pb-8">
           <div className="relative mx-auto w-full max-w-[1180px]">
             <AosHero
               previouslyLinked={aosPreviouslyLinked}
@@ -166,7 +166,7 @@ function HomePage() {
 
       {/* AOS Pulse first — anchor of the dashboard */}
       {aosLinked && (
-        <section className="relative px-6 pb-6">
+        <section className="relative px-4 sm:px-6 pb-6">
           <div className="mx-auto w-full max-w-[1180px]">
             <AosPulse />
           </div>
@@ -174,7 +174,7 @@ function HomePage() {
       )}
 
       {/* Centered spine + right rail (Perplexity-style) */}
-      <section className="relative px-6 pb-10">
+      <section className="relative px-4 sm:px-6 pb-10">
         <div className="mx-auto grid w-full max-w-[1180px] gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
           {/* LEFT — symmetrical center column */}
           <div className="flex flex-col gap-5">
@@ -279,7 +279,7 @@ function HomePage() {
       </section>
 
       {/* Command tools — single editorial grid */}
-      <section className="relative px-6 pb-16">
+      <section className="relative px-4 sm:px-6 pb-16">
         <div className="mx-auto w-full max-w-[1180px]">
           <div className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
             <div className="max-w-xl">

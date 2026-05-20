@@ -11,7 +11,7 @@ import bookCover from "@/assets/handbook/book-cover-v2.png";
 export function HandbookAnchor() {
   return (
     <section className="relative border-t border-border bg-[hsl(40_24%_96%)]">
-      <div className="mx-auto grid w-full max-w-[1180px] gap-12 px-6 py-16 lg:grid-cols-[1.05fr_1fr] lg:gap-14 lg:py-24">
+      <div className="mx-auto grid w-full max-w-[1180px] gap-10 px-4 sm:px-6 py-12 sm:py-16 lg:grid-cols-[1.05fr_1fr] lg:gap-14 lg:py-24">
         {/* LEFT — recreated tablet mockup */}
         <DeviceMockup />
 
