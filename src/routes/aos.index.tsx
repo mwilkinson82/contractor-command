@@ -230,6 +230,14 @@ function AosGateway() {
               )}
             </button>
 
+            {phase === "opened" && (
+              <div className="max-w-md rounded-md border border-gold/30 bg-gold/[0.06] px-4 py-3 text-[13px] text-cream/85">
+                AOS opened in a new tab. Sign in there, then switch back — Circle stays right here.
+              </div>
+            )}
+
+
+
             {/* Allowance pill — shows the user what their plan grants in AOS. */}
             {limits && hasAccess && (
               <div className="flex flex-wrap items-center gap-3 text-[12px] text-cream/70">
