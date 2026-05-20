@@ -204,7 +204,7 @@ function groupsForTier(tier: Tier | null): Group[] {
 }
 
 export function AppSidebar() {
-  const { collapsed, toggle } = useAppSidebar();
+  const { collapsed, toggle, mobileOpen, setMobileOpen } = useAppSidebar();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const next = nextAny();
