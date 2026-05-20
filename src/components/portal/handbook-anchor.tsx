@@ -144,12 +144,14 @@ function DeviceMockup() {
             </div>
 
             <div className="relative grid min-h-0 flex-1 place-items-center overflow-hidden px-5 py-4">
-              <img
-                src={bookCover}
-                alt=""
-                className="block h-[82%] max-h-full w-auto max-w-full object-contain"
-                draggable={false}
-              />
+              <div className="grid h-full max-h-[258px] w-full place-items-center overflow-hidden rounded-sm">
+                <img
+                  src={bookCover}
+                  alt=""
+                  className="block h-full w-auto max-w-full object-contain"
+                  draggable={false}
+                />
+              </div>
             </div>
 
             {/* Audio player */}
