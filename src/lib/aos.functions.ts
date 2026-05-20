@@ -301,6 +301,16 @@ export const mintAosSsoToken = createServerFn({ method: "POST" })
 
     const url = `${baseUrl.replace(/\/$/, "")}/api/public/circle/sso?token=${token}`;
 
+    await supabase.from("aos_links").upsert(
+      {
+        user_id: userId,
+        aos_email: email,
+        verified_at: link?.verified_at ?? new Date().toISOString(),
+        last_sync_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" },
+    );
+
     return {
       ok: true,
       url,
