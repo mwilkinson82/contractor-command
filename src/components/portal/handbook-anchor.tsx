@@ -143,11 +143,11 @@ function DeviceMockup() {
               <p className="font-mono text-[8px] uppercase tracking-[0.22em] text-foreground/55">ALP Contractor Circle</p>
             </div>
 
-            <div className="relative min-h-0 flex-1 overflow-hidden px-4 py-3">
+            <div className="relative grid min-h-0 flex-1 place-items-center overflow-hidden px-5 py-4">
               <img
                 src={bookCover}
                 alt=""
-                className="absolute inset-0 m-auto max-h-full max-w-full object-contain"
+                className="block h-[82%] max-h-full w-auto max-w-full object-contain"
                 draggable={false}
               />
             </div>
