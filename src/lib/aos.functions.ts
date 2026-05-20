@@ -442,8 +442,16 @@ export const linkExistingAosAccount = createServerFn({ method: "POST" })
     const ts = Math.floor(Date.now() / 1000);
     const signingSecret = secret.trim();
     const nonce = Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
+    const { supabase, userId } = context;
+    const { data: limitsRows } = await supabase.rpc("get_user_aos_limits", {
+      _user_id: userId,
+    });
+    const limitsRow = Array.isArray(limitsRows) ? limitsRows[0] : limitsRows;
+    const tier = (limitsRow?.tier as string | null) ?? "";
+    const workspaceLimit = (limitsRow?.workspace_limit as number | null) ?? 0;
+    const seatLimit = (limitsRow?.seat_limit as number | null) ?? 0;
     const sig = createHmac("sha256", signingSecret)
-      .update(`${data.aosEmail}|${ts}|${nonce}`)
+      .update(`${data.aosEmail}|${ts}|${nonce}|${tier}|${workspaceLimit}|${seatLimit}`)
       .digest("hex");
 
     let res: Response;
@@ -453,9 +461,19 @@ export const linkExistingAosAccount = createServerFn({ method: "POST" })
         headers: {
           "Content-Type": "application/json",
           "x-circle-signature": sig,
+          "x-circle-ts": String(ts),
+          "x-circle-nonce": nonce,
         },
         redirect: "manual",
-        body: JSON.stringify({ email: data.aosEmail, ts, nonce, sig }),
+        body: JSON.stringify({
+          email: data.aosEmail,
+          ts,
+          nonce,
+          sig,
+          tier,
+          workspace_limit: workspaceLimit,
+          seat_limit: seatLimit,
+        }),
       });
     } catch (err) {
       console.error("[aos.link] snapshot fetch failed", err);
@@ -479,7 +497,6 @@ export const linkExistingAosAccount = createServerFn({ method: "POST" })
       }
     }
 
-    const { supabase, userId } = context;
     const { error: upsertError } = await supabase.from("aos_links").upsert(
       {
         user_id: userId,
