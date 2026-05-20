@@ -83,6 +83,11 @@ const HeroSection: React.FC = () => {
           <img
             src={bulldozer}
             alt="ALP Handbook"
+            width={1440}
+            height={960}
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
             className="block ml-auto h-auto w-full max-w-[560px] md:max-w-[640px] lg:max-w-[720px] select-none pointer-events-none"
             style={{ mixBlendMode: 'multiply' }}
           />
