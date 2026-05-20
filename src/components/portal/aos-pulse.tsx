@@ -488,7 +488,7 @@ function AttentionCard({
     <a
       href="/aos"
 
-      className={`group block rounded-2xl border ${ring} bg-background/60 p-5 transition-colors hover:bg-muted/40 hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+      className={`group block rounded-2xl border ${ring} bg-background/60 p-4 sm:p-5 transition-colors hover:bg-muted/40 hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
       title={`Open ${label} in AOS`}
     >
       <div className="flex items-start justify-between gap-3">
