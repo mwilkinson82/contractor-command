@@ -63,22 +63,34 @@ function normalizeAosSnapshot(raw: unknown, email: string): AosSnapshot {
     exists?: boolean;
     workspace_count?: number;
     primary_workspace_name?: string | null;
+    primary_workspace_id?: string | null;
     companies?: AosCompany[];
+    workspaces?: Array<{ id: string; name: string }>;
   };
 
+  // Coalesce workspaces[] (AOS naming) into companies[] (Circle naming).
+  const rawList = Array.isArray(snapshot.workspaces)
+    ? snapshot.workspaces
+    : Array.isArray(snapshot.companies)
+      ? snapshot.companies
+      : [];
+  const companies: AosCompany[] = rawList
+    .filter((w): w is { id: string; name: string } => !!w && typeof w.id === "string" && typeof w.name === "string")
+    .map((w) => ({ id: w.id, name: w.name }));
+
   if (typeof snapshot.linked === "boolean") {
-    return snapshot as AosSnapshot;
+    const merged = snapshot as AosSnapshot;
+    if (merged.linked && companies.length && (!merged.companies || merged.companies.length === 0)) {
+      return { ...merged, companies };
+    }
+    return merged;
   }
 
-  // Current AOS public snapshot endpoint returns a lightweight account probe
-  // ({ exists, workspace_count, primary_workspace_name }) rather than the rich
-  // Pulse payload. Treat a confirmed account match as connected so Circle stops
-  // showing the broken “not connected” state after SSO succeeds.
+  // Lightweight account probe: { exists, workspace_count, primary_workspace_name, workspaces? }.
   if (snapshot.exists) {
-    const companies = Array.isArray(snapshot.companies) ? snapshot.companies : [];
     return {
       linked: true,
-      company_id: companies[0]?.id ?? null,
+      company_id: snapshot.primary_workspace_id ?? companies[0]?.id ?? null,
       company_name: snapshot.primary_workspace_name ?? companies[0]?.name ?? null,
       companies,
       last_login_at: null,
