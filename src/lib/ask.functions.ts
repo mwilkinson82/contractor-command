@@ -152,12 +152,15 @@ export const getDailyAskUsage = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(
     async ({ context }): Promise<{ used: number; limit: number; remaining: number }> => {
-      const { supabase } = context;
+      const { supabase, userId } = context;
       const startOfDay = new Date();
       startOfDay.setUTCHours(0, 0, 0, 0);
+      // Defense-in-depth: explicit user_id filter so we never depend solely on
+      // RLS for the per-user daily count. Mirrors src/routes/api/ask.ts.
       const { count } = await supabase
         .from("ask_messages")
         .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
         .eq("role", "user")
         .gte("created_at", startOfDay.toISOString());
       const used = count ?? 0;
