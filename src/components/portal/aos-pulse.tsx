@@ -237,6 +237,8 @@ function PulseBoard({
     (t) => t.due_date && new Date(t.due_date) < new Date(),
   );
   const topIssues = snapshot.issues_open.slice(0, 3);
+  const scorecardSummary = snapshot.scorecard_summary;
+  const scorecardCount = snapshot.scorecard.length || scorecardSummary?.metrics_count || 0;
 
   const weekLabel = new Date().toLocaleDateString(undefined, {
     weekday: undefined,
@@ -290,11 +292,23 @@ function PulseBoard({
         <AttentionCard
           icon={<TrendingUp className="h-3.5 w-3.5" />}
           label="Scorecard"
-          count={snapshot.scorecard.length}
+          count={scorecardCount}
           countLabel="measurables tracked"
-          tone="neutral"
+          tone={scorecardSummary && scorecardSummary.off_goal_this_week > 0 ? "warn" : "neutral"}
         >
-          {snapshot.scorecard.length === 0 ? (
+          {snapshot.scorecard.length === 0 && scorecardSummary ? (
+            <Row
+              title="Current week"
+              badge={
+                scorecardSummary.off_goal_this_week > 0 ? (
+                  <Pill tone="warn">{scorecardSummary.off_goal_this_week} off</Pill>
+                ) : (
+                  <Pill tone="ok">on goal</Pill>
+                )
+              }
+              meta={`${scorecardSummary.on_goal_this_week} on goal · ${scorecardSummary.off_goal_this_week} off goal`}
+            />
+          ) : snapshot.scorecard.length === 0 ? (
             <Empty>Nothing tracked yet.</Empty>
           ) : (
             <ul className="space-y-1.5">
