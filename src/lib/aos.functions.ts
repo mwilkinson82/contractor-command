@@ -67,7 +67,8 @@ function secretVariants(secret: string) {
 }
 
 function normalizeAosSnapshot(raw: unknown, email: string): AosSnapshot {
-  const snapshot = raw as Partial<AosSnapshot> & {
+  const snapshot = raw as Partial<Extract<AosSnapshot, { linked: true }>> & {
+    linked?: boolean;
     exists?: boolean;
     workspace_count?: number;
     primary_workspace_name?: string | null;
