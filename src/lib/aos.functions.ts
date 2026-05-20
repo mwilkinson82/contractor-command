@@ -58,6 +58,44 @@ function secretVariants(secret: string) {
   return Array.from(new Set([secret, secret.trim()]));
 }
 
+function normalizeAosSnapshot(raw: unknown, email: string): AosSnapshot {
+  const snapshot = raw as Partial<AosSnapshot> & {
+    exists?: boolean;
+    workspace_count?: number;
+    primary_workspace_name?: string | null;
+    companies?: AosCompany[];
+  };
+
+  if (typeof snapshot.linked === "boolean") {
+    return snapshot as AosSnapshot;
+  }
+
+  // Current AOS public snapshot endpoint returns a lightweight account probe
+  // ({ exists, workspace_count, primary_workspace_name }) rather than the rich
+  // Pulse payload. Treat a confirmed account match as connected so Circle stops
+  // showing the broken “not connected” state after SSO succeeds.
+  if (snapshot.exists) {
+    const companies = Array.isArray(snapshot.companies) ? snapshot.companies : [];
+    return {
+      linked: true,
+      company_id: companies[0]?.id ?? null,
+      company_name: snapshot.primary_workspace_name ?? companies[0]?.name ?? null,
+      companies,
+      last_login_at: null,
+      next_meeting: null,
+      scorecard: [],
+      rocks: [],
+      issues_open: [],
+      todos_due_this_week: [],
+    };
+  }
+
+  return {
+    linked: false,
+    reason: `No AOS workspace found yet for ${email}. Open AOS once, then come back and check again.`,
+  };
+}
+
 export const getAosSnapshot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { companyId?: string } | undefined) => input ?? {})
@@ -75,25 +113,38 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
       return { ok: false, error: "No email on your account." };
     }
 
-    const ts = Math.floor(Date.now() / 1000).toString();
+    const ts = Math.floor(Date.now() / 1000);
     const normalizedEmail = email.toLowerCase().trim();
+    const { supabase, userId } = context;
+    const { data: existingLink } = await supabase
+      .from("aos_links")
+      .select("verified_at")
+      .eq("user_id", userId)
+      .maybeSingle();
 
     try {
       let res: Response | null = null;
       for (const signingSecret of secretVariants(secret)) {
+        const nonce =
+          Math.random().toString(36).slice(2, 12) +
+          Math.random().toString(36).slice(2, 12);
         const sig = createHmac("sha256", signingSecret)
-          .update(`${normalizedEmail}|${ts}`)
+          .update(`${normalizedEmail}|${ts}|${nonce}`)
           .digest("hex");
 
         res = await fetch(
           `${baseUrl.replace(/\/$/, "")}/api/public/circle/snapshot`,
           {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              "x-circle-signature": sig,
+            },
             redirect: "manual",
             body: JSON.stringify({
               email: normalizedEmail,
               ts,
+              nonce,
               sig,
               company_id: data.companyId ?? null,
             }),
@@ -117,15 +168,7 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
         };
       }
 
-      const snapshot = (await res.json()) as AosSnapshot;
-
-      // Look up any previously-verified link for this Circle user
-      const { supabase, userId } = context;
-      const { data: existingLink } = await supabase
-        .from("aos_links")
-        .select("verified_at")
-        .eq("user_id", userId)
-        .maybeSingle();
+      const snapshot = normalizeAosSnapshot(await res.json(), normalizedEmail);
       const previously_linked = Boolean(existingLink?.verified_at);
 
       // Persist the link the first time we confirm it (and refresh last_sync_at)
