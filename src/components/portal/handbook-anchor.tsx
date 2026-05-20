@@ -1,7 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, BookOpen, Headphones, ListOrdered, Infinity as InfinityIcon, Play, Link2 } from "lucide-react";
 import bookCover from "@/assets/handbook/book-cover-v2.png";
-import bulldozer from "@/assets/handbook/bulldozer-hero.png";
 
 /**
  * HandbookAnchor — full-bleed editorial section that anchors the home page.
@@ -75,9 +74,9 @@ function DeviceMockup() {
     { num: "01", title: "The Company\nBehind the Projects", active: true },
     { num: "02", title: "The Operating System" },
     { num: "03", title: "Vision" },
-    { num: "00", title: "People" },
-    { num: "04", title: "Data" },
-    { num: "05", title: "Issues" },
+    { num: "04", title: "People" },
+    { num: "05", title: "Data" },
+    { num: "06", title: "Issues" },
     { num: "07", title: "Process" },
     { num: "08", title: "Traction" },
   ];
@@ -191,14 +190,6 @@ function DeviceMockup() {
         </div>
       </div>
 
-      {/* Bulldozer breaking the frame */}
-      <img
-        src={bulldozer}
-        alt=""
-        aria-hidden
-        className="pointer-events-none absolute -bottom-6 -left-4 w-[44%] max-w-[260px] select-none drop-shadow-[0_18px_18px_rgba(20,20,18,0.18)] sm:-bottom-8 sm:-left-8"
-        draggable={false}
-      />
     </div>
   );
 }
