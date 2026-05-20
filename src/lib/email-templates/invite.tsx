@@ -88,16 +88,9 @@ export const InviteEmail = ({
       {/* One paper. End to end. */}
       <Body style={main}>
         <Container style={container}>
-          {/* Logo */}
-          <Img
-            src={LOGO_URL}
-            width="44"
-            height="44"
-            alt="Contractor Circle"
-            style={logo}
-          />
           {/* Orange hairline */}
           <div style={topRule} />
+
 
           {/* HERO */}
           <Section style={hero}>
