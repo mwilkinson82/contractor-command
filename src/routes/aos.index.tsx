@@ -1,18 +1,17 @@
 // AOS Gateway — the threshold between Circle (the room) and AOS (the
-// operating system). Cinematic on purpose: most Circle members walking
-// through this door are entering AOS for the first time. The page mints a
-// short-lived signed token via `mintAosSsoToken` and full-page-navigates
-// to the AOS consume endpoint, which sets a session cookie and drops the
-// member inside AOS already signed in.
+// operating system). Visually congruent with the AOS landing page so the
+// member feels they're already inside the OS the moment they click. Mints a
+// short-lived signed token via `mintAosSsoToken` and opens AOS in a new tab.
 
 import { useCallback, useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowUpRight, Compass, Sparkles, Loader2, Users, Building2 } from "lucide-react";
+import { ArrowUpRight, Compass, Loader2 } from "lucide-react";
 import { mintAosSsoToken } from "@/lib/aos.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { useCompany } from "@/hooks/use-company";
 import { useAosLimits } from "@/hooks/use-aos-limits";
+import { useTier } from "@/hooks/use-tier";
 
 export const Route = createFileRoute("/aos/")({
   head: () => ({
@@ -28,10 +27,21 @@ export const Route = createFileRoute("/aos/")({
   component: AosGateway,
 });
 
+const proofLines = ["Built from the field.", "Not another dashboard.", "Not owner memory."];
+
+const scoreRows: Array<[string, string, string]> = [
+  ["Weekly revenue", "105", "green"],
+  ["Gross margin %", "22", "hold"],
+  ["Backlog weeks", "12", "miss"],
+  ["Bid hit rate %", "23", "watch"],
+  ["Schedule variance", "60", "red"],
+];
+
 function AosGateway() {
   const { user, loading: authLoading } = useAuth();
   const { company } = useCompany();
   const { limits, loading: limitsLoading, hasAccess, isUnlimited } = useAosLimits();
+  const { isBookBuyer } = useTier();
   const mint = useServerFn(mintAosSsoToken);
 
   const [phase, setPhase] = useState<"idle" | "minting" | "opened">("idle");
@@ -39,9 +49,6 @@ function AosGateway() {
   const [previouslyLinked, setPreviouslyLinked] = useState<boolean | null>(null);
   const [linkedEmail, setLinkedEmail] = useState<string | null>(null);
 
-  // Probe link state on mount so we can swap the copy ("First time? We'll set
-  // you up." vs. "Welcome back."). The probe itself doesn't redirect — it
-  // just calls the same fn we'd call on click and discards the URL.
   useEffect(() => {
     if (!user) return;
     let alive = true;
@@ -62,7 +69,6 @@ function AosGateway() {
   const handleEnter = useCallback(async () => {
     setError(null);
     setPhase("minting");
-    // Open the tab synchronously so popup blockers stay out of the way.
     const popup = typeof window !== "undefined" ? window.open("about:blank", "_blank") : null;
     const res = await mint();
     if (!res.ok) {
@@ -71,28 +77,28 @@ function AosGateway() {
       setPhase("idle");
       return;
     }
-    // AOS opens in a NEW TAB. Circle stays here so the member always has a
-    // way back — no more "stuck on AOS after login" reports.
     if (popup) {
       popup.location.href = res.url;
     } else {
-      // Popup blocked — last-resort same-tab navigation so they're not stranded.
       window.location.assign(res.url);
       return;
     }
     setPhase("opened");
   }, [mint]);
 
-
   const headline =
     previouslyLinked === true
-      ? "Welcome back. Step inside."
-      : "You've run the diagnostics. Now run the company.";
+      ? "Welcome back."
+      : isBookBuyer
+      ? "Memory is not\nmanagement."
+      : "Run the\noperating system.";
 
   const sub =
     previouslyLinked === true
       ? `Picking up your AOS session as ${linkedEmail ?? "you"}.`
-      : "AOS is where Circle becomes operational — vision, scorecard, rocks, weekly L10. One click and you're inside.";
+      : isBookBuyer
+      ? "Your two seats are waiting. One workspace. Vision, Scorecard, Rocks, weekly L10 — start running it."
+      : "Unlimited workspaces. Unlimited seats. Vision, Scorecard, Rocks, weekly L10 — your Circle plan unlocks all of it.";
 
   const reassurance =
     previouslyLinked === false
@@ -105,266 +111,225 @@ function AosGateway() {
 
   return (
     <>
-    {handingOff && (
-      <div
-        role="status"
-        aria-live="polite"
-        className="fixed inset-0 z-[100] flex items-center justify-center bg-background text-foreground"
-      >
+      {handingOff && (
         <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.05]"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 1px 1px, var(--ink) 1px, transparent 0)",
-            backgroundSize: "22px 22px",
-          }}
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -top-1/3 left-1/2 h-[120%] w-[80%] -translate-x-1/2 rounded-full opacity-20 blur-3xl"
-          style={{
-            background:
-              "radial-gradient(closest-side, var(--clay), transparent 70%)",
-          }}
-        />
-        <div className="relative flex flex-col items-center gap-6 text-center">
-          <div className="relative flex h-16 w-16 items-center justify-center">
-            <span className="absolute inset-0 rounded-full border border-ink/30 animate-ping" />
-            <span className="absolute inset-2 rounded-full border border-ink/50" />
-            <Compass className="h-6 w-6 text-ink" />
-          </div>
-          <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
-              Opening the door
-            </p>
-            <p className="mt-3 font-display text-2xl tracking-tight sm:text-3xl">
-              Opening AOS in a new tab…
-            </p>
-            <p className="mt-2 text-[13px] text-muted-foreground">
-              Signing you in{linkedEmail ? ` as ${linkedEmail}` : ""}. Keep this tab open.
-            </p>
+          role="status"
+          aria-live="polite"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-cream text-ink"
+        >
+          <div className="flex flex-col items-center gap-6 text-center">
+            <div className="relative flex h-16 w-16 items-center justify-center">
+              <span className="absolute inset-0 rounded-full border border-ink/30 animate-ping" />
+              <span className="absolute inset-2 rounded-full border border-ink/50" />
+              <Compass className="h-6 w-6 text-ink" />
+            </div>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.34em] text-signal">
+                Opening the door
+              </p>
+              <p className="mt-4 font-display text-[clamp(2rem,5vw,3rem)] leading-[0.95] tracking-[-0.02em] text-ink">
+                Opening AOS<br />in a new tab.
+              </p>
+              <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.28em] text-[#8e877c]">
+                Signing you in{linkedEmail ? ` as ${linkedEmail}` : ""}
+              </p>
+            </div>
           </div>
         </div>
-      </div>
-    )}
-    <section className="relative isolate -m-4 min-h-[calc(100svh-4rem)] overflow-hidden bg-background text-foreground sm:-m-6 md:-m-8">
-      {/* Ambient field — same grammar as AosHero */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.05]"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle at 1px 1px, var(--ink) 1px, transparent 0)",
-          backgroundSize: "24px 24px",
-        }}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-[30%] right-[-15%] h-[120%] w-[70%] rounded-full opacity-[0.18] blur-3xl gateway-glow"
-        style={{
-          background:
-            "radial-gradient(closest-side, var(--clay), transparent 70%)",
-        }}
-      />
-      {/* Slow sweeping scan line */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-ink/20 to-transparent gateway-scan"
-      />
+      )}
 
-      <div className="relative mx-auto grid min-h-[calc(100svh-4rem)] max-w-6xl grid-rows-[1fr_auto] px-6 py-16 sm:px-10 sm:py-24 lg:grid-cols-[1.4fr_1fr] lg:grid-rows-1 lg:gap-16">
-        {/* Left: the threshold */}
-        <div className="flex flex-col justify-center">
-          <p
-            className="label-mono opacity-0 gateway-reveal"
-            style={{ animationDelay: "60ms" }}
-          >
-            <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-clay align-middle animate-signal-pulse" />
-            Step 02 · Cross the threshold
-          </p>
-
-          <h1
-            className="mt-6 font-display text-[2.5rem] leading-[1.04] tracking-tight text-foreground opacity-0 gateway-reveal sm:text-[3.75rem]"
-            style={{ animationDelay: "280ms" }}
-          >
-            {headline}
-          </h1>
-
-          <p
-            className="mt-6 max-w-xl text-[15px] leading-relaxed text-muted-foreground opacity-0 gateway-reveal sm:text-[16px]"
-            style={{ animationDelay: "520ms" }}
-          >
-            {sub}
-          </p>
-
-          <div
-            className="mt-10 flex flex-col gap-4 opacity-0 gateway-reveal"
-            style={{ animationDelay: "780ms" }}
-          >
-            <button
-              type="button"
-              onClick={handleEnter}
-              disabled={
-                authLoading || !user || phase === "minting" || (!limitsLoading && !hasAccess)
-              }
-              className="group relative inline-flex w-fit items-center gap-3 rounded-full bg-ink px-7 py-4 text-[13px] font-medium uppercase tracking-[0.2em] text-cream transition-opacity hover:opacity-90 disabled:opacity-60"
-            >
-              {phase === "minting" ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Opening AOS…
-                </>
-              ) : phase === "opened" ? (
-                <>
-                  <Compass className="h-4 w-4" />
-                  Reopen AOS
-                  <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                </>
-              ) : (
-                <>
-                  <Compass className="h-4 w-4" />
-                  Enter AOS
-                  <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                </>
-              )}
-            </button>
-
-            {phase === "opened" && (
-              <div className="max-w-md rounded-md border border-border bg-card px-4 py-3 text-[13px] text-muted-foreground">
-                AOS opened in a new tab. Sign in there, then switch back — Circle stays right here.
+      <main className="-m-4 flex min-h-[calc(100svh-4rem)] flex-col overflow-x-hidden bg-cream text-ink sm:-m-6 md:-m-8">
+        <section className="mx-auto flex w-full max-w-[1500px] flex-1 px-5 py-6 sm:px-8 sm:py-8">
+          <article className="grid w-full overflow-hidden border border-paper-edge bg-card px-6 py-7 sm:px-10 sm:py-9 lg:min-h-0 lg:grid-cols-[minmax(0,0.67fr)_minmax(20rem,0.33fr)] lg:grid-rows-[auto_minmax(0,1fr)_auto] lg:gap-x-12 lg:px-14 lg:py-11 xl:gap-x-16 xl:px-16">
+            {/* Top eyebrow row */}
+            <div className="flex items-start justify-between gap-6 lg:col-span-2">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.34em] text-signal">
+                  <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-signal align-middle" />
+                  Step 02 · Cross the threshold
+                </p>
+                <p className="mt-4 max-w-[18rem] text-[10px] font-bold uppercase leading-[1.65] tracking-[0.32em] text-[#8e877c]">
+                  Vision / People / Data / Issues / Process / Traction
+                </p>
               </div>
-            )}
-
-
-
-            {/* Allowance pill — shows the user what their plan grants in AOS. */}
-            {limits && hasAccess && (
-              <div className="flex flex-wrap items-center gap-3 text-[12px] text-muted-foreground">
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1">
-                  <Building2 className="h-3 w-3 text-clay" />
-                  {isUnlimited
-                    ? "Unlimited workspaces"
-                    : `${limits.workspaceLimit} workspace${limits.workspaceLimit === 1 ? "" : "s"}`}
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1">
-                  <Users className="h-3 w-3 text-clay" />
-                  {isUnlimited
-                    ? "Unlimited seats"
-                    : `${limits.seatLimit} seat${limits.seatLimit === 1 ? "" : "s"}`}
-                </span>
-                {!isUnlimited && (
-                  <Link
-                    to="/upgrade"
-                    className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-                  >
-                    Need more? Upgrade →
-                  </Link>
-                )}
-              </div>
-            )}
-
-            {/* No access — user has no active subscription that grants AOS. */}
-            {!limitsLoading && !hasAccess && user && (
-              <p className="max-w-md text-[13px] text-muted-foreground">
-                Your plan doesn't include AOS access yet.{" "}
-                <Link
-                  to="/upgrade"
-                  className="text-clay underline-offset-4 hover:underline"
-                >
-                  See your options →
-                </Link>
+              <p className="hidden max-w-[14rem] text-right text-[10px] font-bold uppercase leading-[1.7] tracking-[0.32em] text-[#8e877c] sm:block">
+                One cadence.
+                <br />
+                Every Monday.
               </p>
-            )}
+            </div>
 
-            {reassurance && hasAccess && (
-              <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
-                {reassurance}
+            {/* Headline + CTAs */}
+            <div className="mt-9 flex min-h-0 flex-col lg:mt-12">
+              <h1 className="font-display max-w-[54rem] whitespace-pre-line text-[clamp(3.25rem,8.5vw,6rem)] font-normal leading-[0.94] tracking-[-0.025em] text-ink">
+                {headline}
+              </h1>
+
+              <p className="mt-7 max-w-xl text-[15px] leading-relaxed text-[#4d463f] sm:text-[16px]">
+                {sub}
               </p>
-            )}
 
-            {error && (
-              <p className="text-[13px] text-destructive">
-                {error}{" "}
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row lg:mt-9">
                 <button
                   type="button"
                   onClick={handleEnter}
-                  className="underline underline-offset-2 hover:opacity-80"
+                  disabled={
+                    authLoading || !user || phase === "minting" || (!limitsLoading && !hasAccess)
+                  }
+                  className="inline-flex h-12 items-center justify-center gap-3 bg-ink px-8 text-[11px] font-bold uppercase tracking-[0.24em] text-cream transition-colors hover:bg-ink-panel disabled:opacity-50"
                 >
-                  Try again
+                  {phase === "minting" ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Opening AOS
+                    </>
+                  ) : phase === "opened" ? (
+                    <>
+                      Reopen AOS
+                      <ArrowUpRight className="h-4 w-4" />
+                    </>
+                  ) : (
+                    <>
+                      Enter AOS
+                      <ArrowUpRight className="h-4 w-4" />
+                    </>
+                  )}
                 </button>
-              </p>
-            )}
+                <Link
+                  to="/aos/link"
+                  className="inline-flex h-12 items-center justify-center border border-ink bg-transparent px-8 text-[11px] font-bold uppercase tracking-[0.24em] text-ink transition-colors hover:bg-paper-deep"
+                >
+                  Link existing account
+                </Link>
+              </div>
 
-            <Link
-              to="/aos/link"
-              className="text-[12px] text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-            >
-              Different email on AOS already? Link your existing account →
-            </Link>
-          </div>
-        </div>
+              {/* Status row */}
+              <div className="mt-6 flex flex-col gap-2 text-[12px] text-[#5b554d]">
+                {phase === "opened" && (
+                  <p className="text-[12px] font-bold uppercase tracking-[0.24em] text-signal">
+                    AOS opened in a new tab — Circle stays right here.
+                  </p>
+                )}
+                {limits && hasAccess && (
+                  <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-[#8e877c]">
+                    {isUnlimited
+                      ? "Unlimited workspaces · Unlimited seats"
+                      : `${limits.workspaceLimit} workspace${limits.workspaceLimit === 1 ? "" : "s"} · ${limits.seatLimit} seat${limits.seatLimit === 1 ? "" : "s"}`}
+                    {!isUnlimited && (
+                      <>
+                        {" · "}
+                        <Link to="/upgrade" className="text-signal underline-offset-4 hover:underline">
+                          Upgrade
+                        </Link>
+                      </>
+                    )}
+                  </p>
+                )}
+                {!limitsLoading && !hasAccess && user && (
+                  <p>
+                    Your plan doesn't include AOS access yet.{" "}
+                    <Link to="/upgrade" className="text-signal underline-offset-4 hover:underline">
+                      See your options →
+                    </Link>
+                  </p>
+                )}
+                {reassurance && hasAccess && (
+                  <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[#8e877c]">
+                    {reassurance}
+                  </p>
+                )}
+                {error && (
+                  <p className="text-[13px] text-[color:var(--danger-warm)]">
+                    {error}{" "}
+                    <button
+                      type="button"
+                      onClick={handleEnter}
+                      className="underline underline-offset-2 hover:opacity-80"
+                    >
+                      Try again
+                    </button>
+                  </p>
+                )}
+                <p className="pt-1 text-[12px] text-[#5b554d]">
+                  Different email on AOS already?{" "}
+                  <Link to="/aos/link" className="text-ink underline-offset-4 hover:underline">
+                    Link your existing account →
+                  </Link>
+                </p>
+              </div>
+            </div>
 
-        {/* Right: what lights up */}
-        <div
-          className="mt-12 flex items-center opacity-0 gateway-reveal lg:mt-0"
-          style={{ animationDelay: "980ms" }}
-        >
-          <div className="w-full rounded-2xl border border-border bg-card p-6">
-            <p className="flex items-center gap-2 label-mono">
-              <Sparkles className="h-3 w-3 text-clay" /> What lights up inside
-            </p>
-            <ul className="mt-5 space-y-4 text-[13px] text-foreground">
-              {[
-                ["Vision", "Where the company is going and why it matters."],
-                ["Scorecard", "Weekly numbers that prove the engine moves."],
-                ["Rocks", "On-track vs. off-track this quarter."],
-                ["Issues", "Surfaced, prioritized, solved."],
-                ["Process", "How the work actually gets done — written down."],
-                ["Traction", "Meeting rhythm. Accountability over time."],
-              ].map(([title, body]) => (
-                <li key={title} className="flex items-start gap-3">
-                  <span className="mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-clay" />
+            {/* Right column — scorecard paper */}
+            <figure className="relative mt-12 lg:mt-0 lg:min-h-0">
+              <div className="relative mx-auto w-full max-w-[24rem] rotate-[-1.5deg] border border-[#cfc6b8] bg-[#fdfaf3] p-5 shadow-[0_28px_60px_-38px_rgba(17,17,17,0.72)] lg:absolute lg:inset-x-0 lg:right-0 lg:bottom-4 lg:left-auto lg:max-w-[21.25rem] xl:max-w-[23rem]">
+                <div className="flex items-start justify-between border-b border-[#d7d0c4] pb-4">
                   <div>
-                    <p className="font-medium text-foreground">{title}</p>
-                    <p className="text-muted-foreground">{body}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-ink">
+                      AOS
+                    </p>
+                    <p className="mt-2 font-display text-2xl leading-none text-ink">
+                      13-week Scorecard
+                    </p>
                   </div>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-6 border-t border-border pt-4 text-[11px] leading-relaxed text-muted-foreground">
-              You sign in once on Circle. AOS opens with you already inside.
-            </p>
-          </div>
-        </div>
-      </div>
+                  <p className="text-right text-[9px] font-bold uppercase leading-[1.5] tracking-[0.24em] text-[#8e877c]">
+                    Monday
+                    <br />
+                    7:00 AM
+                  </p>
+                </div>
 
-      <style>{`
-        @keyframes gatewayReveal {
-          from { opacity: 0; transform: translateY(14px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .gateway-reveal {
-          animation: gatewayReveal 700ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-        @keyframes gatewayGlow {
-          0%, 100% { opacity: 0.18; transform: scale(1); }
-          50% { opacity: 0.28; transform: scale(1.04); }
-        }
-        .gateway-glow { animation: gatewayGlow 8s ease-in-out infinite; }
-        @keyframes gatewayScan {
-          0% { transform: translateY(0); opacity: 0; }
-          10% { opacity: 1; }
-          90% { opacity: 1; }
-          100% { transform: translateY(100vh); opacity: 0; }
-        }
-        .gateway-scan { animation: gatewayScan 9s linear infinite; }
-        @media (prefers-reduced-motion: reduce) {
-          .gateway-reveal { animation: none; opacity: 1; transform: none; }
-          .gateway-glow, .gateway-scan { animation: none; }
-        }
-      `}</style>
-    </section>
+                <div className="relative mt-5">
+                  <div className="grid grid-cols-[1fr_5rem_4.5rem] border-b border-[#d7d0c4] pb-2 text-[9px] font-bold uppercase tracking-[0.24em] text-[#8e877c]">
+                    <span>Number</span>
+                    <span>Target</span>
+                    <span>Status</span>
+                  </div>
+                  {scoreRows.map(([name, target, status]) => (
+                    <div
+                      key={name}
+                      className="grid grid-cols-[1fr_5rem_4.5rem] border-b border-[#ded7cc] py-3 text-sm text-ink"
+                    >
+                      <span className="font-semibold">{name}</span>
+                      <span className="font-display -mt-1 -rotate-2 text-[1.45rem] leading-none text-[#2f2a25]">
+                        {target}
+                      </span>
+                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#5b554d]">
+                        {status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-5 border-t border-[#d7d0c4] pt-4">
+                  <p className="font-display text-[1.4rem] leading-[1.05] text-ink">
+                    Owner memory is not a system.
+                  </p>
+                  <p className="mt-3 text-[10px] font-bold uppercase leading-[1.6] tracking-[0.24em] text-signal">
+                    Mark it. Measure it. Run it weekly.
+                  </p>
+                </div>
+              </div>
+            </figure>
+
+            {/* Footer band */}
+            <div className="mt-7 flex flex-col gap-4 border-t border-paper-edge pt-5 sm:flex-row sm:items-center sm:justify-between lg:col-span-2 lg:mt-0 lg:pt-4">
+              <div className="grid gap-3 sm:grid-cols-3 sm:divide-x sm:divide-paper-edge">
+                {proofLines.map((line) => (
+                  <p
+                    key={line}
+                    className="font-display text-base leading-[1.1] text-[#4d463f] sm:px-5 sm:text-center"
+                  >
+                    {line}
+                  </p>
+                ))}
+              </div>
+              <p className="shrink-0 text-[10px] font-bold uppercase tracking-[0.32em] text-[#8e877c]">
+                An ALP Contractor Circle Instrument
+              </p>
+            </div>
+          </article>
+        </section>
+      </main>
     </>
   );
 }
