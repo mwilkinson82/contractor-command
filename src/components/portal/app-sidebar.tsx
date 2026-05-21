@@ -338,7 +338,8 @@ export function AppSidebar() {
           })}
         </nav>
 
-        <div className="border-t border-border/70 p-2">
+        <div className="border-t border-border/70 p-2 space-y-2">
+          {isAdmin && <TierImpersonator collapsed={collapsed} />}
           {!collapsed ? (
             <div className="flex items-start gap-2 rounded-md bg-foreground/[0.03] px-2.5 py-2">
               <span className="mt-1 inline-flex h-2 w-2 shrink-0 rounded-full bg-signal animate-signal-pulse" />
