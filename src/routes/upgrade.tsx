@@ -1,14 +1,26 @@
-// Tier-aware upgrade page. Cards filtered by viewer's current tier via
-// upsellsForTier(). Live checkout for Circle (only fully wired SKU);
-// everything else captures interest via requestUpsellInterest.
+// Tier-aware upgrade page. Cards filtered by viewer's tier via
+// upsellsForTier(). Subscription cards with both monthly and quarterly
+// plans get an inline toggle. Circle uses the legacy circle checkout
+// fn; everything else goes through createSkuCheckout. Book Buyer +
+// Hardcore still capture interest.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowRight, Check, Loader2, type LucideIcon } from "lucide-react";
 import { useTier } from "@/hooks/use-tier";
-import { createCircleCheckout, requestUpsellInterest } from "@/lib/billing.functions";
-import { UPSELL_CATALOG, upsellsForTier, type UpsellCard, type UpsellSku } from "@/lib/upsell-catalog";
+import {
+  createCircleCheckout,
+  createSkuCheckout,
+  requestUpsellInterest,
+} from "@/lib/billing.functions";
+import {
+  UPSELL_CATALOG,
+  upsellsForTier,
+  type PlanOption,
+  type UpsellCard,
+  type UpsellSku,
+} from "@/lib/upsell-catalog";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/upgrade")({
@@ -24,24 +36,39 @@ export const Route = createFileRoute("/upgrade")({
 function UpgradePage() {
   const { tier, loading } = useTier();
   const circleCheckout = useServerFn(createCircleCheckout);
+  const skuCheckout = useServerFn(createSkuCheckout);
   const interest = useServerFn(requestUpsellInterest);
-  const [busy, setBusy] = useState<UpsellSku | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
   const [requested, setRequested] = useState<Set<UpsellSku>>(new Set());
+
+  // Read ?upsell=cancelled banner
+  const [cancelled, setCancelled] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get("upsell") === "cancelled") setCancelled(true);
+  }, []);
 
   const skus = upsellsForTier(tier);
 
-  async function handleClick(card: UpsellCard) {
-    setBusy(card.sku);
+  async function handlePurchase(card: UpsellCard, plan: PlanOption) {
+    setBusy(plan.id);
     try {
-      if (card.checkout === "live" && card.liveAction === "circle") {
+      if (card.checkout === "interest") {
+        await interest({ data: { sku: card.sku as "book_buyer" | "hardcore" } });
+        setRequested((s) => new Set(s).add(card.sku));
+        toast.success("Got it — Marshall will reach out about " + card.eyebrow + ".");
+        return;
+      }
+      if (card.sku === "circle") {
         const { url } = await circleCheckout({ data: {} });
         window.location.href = url;
         return;
       }
-      // Interest capture path
-      await interest({ data: { sku: card.sku as Exclude<UpsellSku, "circle"> } });
-      setRequested((s) => new Set(s).add(card.sku));
-      toast.success("Got it — Marshall will reach out about " + card.eyebrow + ".");
+      const { url } = await skuCheckout({
+        data: { plan: plan.id as Exclude<PlanOption["id"], "circle"> },
+      });
+      window.location.href = url;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Something went wrong.");
     } finally {
@@ -73,6 +100,12 @@ function UpgradePage() {
         </p>
       </div>
 
+      {cancelled && (
+        <div className="mb-8 rounded-2xl border border-border bg-card px-5 py-4 text-[13px] text-foreground/70">
+          Checkout cancelled. No charge made — pick back up below when you're ready.
+        </div>
+      )}
+
       {loading ? (
         <div className="text-sm text-muted-foreground">Loading…</div>
       ) : (
@@ -86,16 +119,15 @@ function UpgradePage() {
                 key={sku}
                 card={card}
                 primary={isPrimary}
-                busy={busy === sku}
+                busyPlanId={busy}
                 requested={wasRequested}
-                onClick={() => handleClick(card)}
+                onPurchase={(plan) => handlePurchase(card, plan)}
               />
             );
           })}
         </div>
       )}
 
-      {/* AOS-only viewers get a stub for seat/workspace top-ups (handled in AOS) */}
       {tier === "aos_only" && (
         <div className="mt-12 rounded-2xl border border-dashed border-border bg-card p-6">
           <p className="label-mono">AOS seats & workspaces</p>
@@ -124,18 +156,25 @@ function UpgradePage() {
 function UpsellCardView({
   card,
   primary,
-  busy,
+  busyPlanId,
   requested,
-  onClick,
+  onPurchase,
 }: {
   card: UpsellCard;
   primary: boolean;
-  busy: boolean;
+  busyPlanId: string | null;
   requested: boolean;
-  onClick: () => void;
+  onPurchase: (plan: PlanOption) => void;
 }) {
   const Icon: LucideIcon = card.icon;
   const isInterest = card.checkout === "interest";
+  const hasMultiple = card.plans.length > 1;
+  // Default to quarterly when both are offered (lock-in framing).
+  const [activePlanId, setActivePlanId] = useState<string>(
+    hasMultiple ? card.plans[1].id : card.plans[0].id,
+  );
+  const activePlan = card.plans.find((p) => p.id === activePlanId) ?? card.plans[0];
+  const busy = busyPlanId === activePlan.id;
 
   return (
     <div
@@ -154,12 +193,35 @@ function UpsellCardView({
           </span>
         )}
       </div>
+
+      {hasMultiple && (
+        <div className="mt-4 inline-flex w-fit rounded-full border border-border bg-card p-0.5">
+          {card.plans.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setActivePlanId(p.id)}
+              className={`rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.18em] transition-colors ${
+                activePlanId === p.id
+                  ? "bg-ink text-cream"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="mt-4 flex items-baseline gap-2">
-        <span className="font-display text-3xl tracking-tight">{card.price}</span>
+        <span className="font-display text-3xl tracking-tight">{activePlan.price}</span>
         <span className="text-[12px] uppercase tracking-[0.18em] text-muted-foreground">
-          {card.priceNote}
+          {activePlan.cadence}
         </span>
       </div>
+      {activePlan.badge && (
+        <p className="mt-1 text-[10px] uppercase tracking-[0.22em] text-signal">{activePlan.badge}</p>
+      )}
+
       <p className="mt-3 text-[15px] leading-snug">{card.title}</p>
       <p className="mt-2 text-[13px] text-muted-foreground">{card.pitch}</p>
       <ul className="mt-5 space-y-2">
@@ -172,7 +234,7 @@ function UpsellCardView({
       </ul>
       <div className="mt-auto pt-7">
         <button
-          onClick={onClick}
+          onClick={() => onPurchase(activePlan)}
           disabled={busy || requested}
           className={`inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-[12px] uppercase tracking-[0.22em] transition-opacity disabled:opacity-60 ${
             primary
@@ -186,7 +248,7 @@ function UpsellCardView({
             "Interest captured"
           ) : (
             <>
-              {isInterest ? "Request access" : "Join now"}
+              {isInterest ? "Request access" : "Continue to checkout"}
               <ArrowRight className="h-4 w-4" />
             </>
           )}

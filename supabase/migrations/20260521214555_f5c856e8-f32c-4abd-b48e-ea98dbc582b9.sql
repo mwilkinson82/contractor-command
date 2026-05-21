@@ -1,0 +1,1 @@
+ALTER TYPE public.app_tier ADD VALUE IF NOT EXISTS 'contractor_school' BEFORE 'intensive';

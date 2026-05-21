@@ -11,17 +11,19 @@ export type Tier =
   | "book_buyer"
   | "power_hour"
   | "sm_school"
+  | "contractor_school"
   | "intensive"
   | "circle"
   | "hardcore";
 
-// Rank-based gates. power_hour and sm_school share rank 2 — they unlock the
-// same surfaces but different replay shelves (see replays.category).
+// Rank-based gates. power_hour, sm_school, contractor_school share rank 2 —
+// they unlock the same surfaces but different replay shelves.
 const RANK: Record<Tier, number> = {
   aos_only: 0,
   book_buyer: 1,
   power_hour: 2,
   sm_school: 2,
+  contractor_school: 2,
   intensive: 3,
   circle: 4,
   hardcore: 5,

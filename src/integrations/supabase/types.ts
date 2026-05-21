@@ -743,6 +743,7 @@ export type Database = {
       app_tier:
         | "aos_only"
         | "book_buyer"
+        | "contractor_school"
         | "intensive"
         | "circle"
         | "power_hour"
@@ -884,6 +885,7 @@ export const Constants = {
       app_tier: [
         "aos_only",
         "book_buyer",
+        "contractor_school",
         "intensive",
         "circle",
         "power_hour",

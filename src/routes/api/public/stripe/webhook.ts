@@ -15,7 +15,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 // Anything else defaults to 'aos_only' (safe baseline — no Circle access
 // is ever granted unless the price/metadata explicitly maps to it).
 
-type Tier = "book_buyer" | "power_hour" | "sm_school" | "intensive" | "circle" | "aos_only";
+type Tier = "book_buyer" | "power_hour" | "sm_school" | "contractor_school" | "intensive" | "circle" | "aos_only";
 type WebhookEventClaim = "process" | "duplicate" | "in_progress";
 type SupabaseRpcResult<T> = Promise<{
   data: T | null;
@@ -30,19 +30,20 @@ function tierForPrice(
   metaProduct?: string | null,
   metaKind?: string | null,
 ): Tier {
-  // Explicit metadata wins (set by our own checkout sessions).
   const product = metaProduct ?? metaKind ?? null;
   if (product === "book_v2" || product === "book") return "book_buyer";
   if (product === "power_hour") return "power_hour";
   if (product === "sm_school") return "sm_school";
+  if (product === "contractor_school") return "contractor_school";
   if (product === "intensive") return "intensive";
   if (product === "circle" && priceId === process.env.STRIPE_PRICE_ID_CIRCLE) return "circle";
 
   if (priceId && priceId === process.env.STRIPE_PRICE_ID_BOOK) return "book_buyer";
   if (priceId && priceId === process.env.STRIPE_PRICE_ID_INTENSIVE) return "intensive";
   if (priceId && priceId === process.env.STRIPE_PRICE_ID_CIRCLE) return "circle";
-  if (priceId && priceId === process.env.STRIPE_PRICE_ID_POWER_HOUR) return "power_hour";
-  if (priceId && priceId === process.env.STRIPE_PRICE_ID_SM_SCHOOL) return "sm_school";
+  if (priceId && (priceId === process.env.STRIPE_PRICE_ID_POWER_HOUR_MONTH || priceId === process.env.STRIPE_PRICE_ID_POWER_HOUR_QUARTER)) return "power_hour";
+  if (priceId && (priceId === process.env.STRIPE_PRICE_ID_SM_SCHOOL_MONTH || priceId === process.env.STRIPE_PRICE_ID_SM_SCHOOL_QUARTER)) return "sm_school";
+  if (priceId && (priceId === process.env.STRIPE_PRICE_ID_CONTRACTOR_SCHOOL_MONTH || priceId === process.env.STRIPE_PRICE_ID_CONTRACTOR_SCHOOL_QUARTER)) return "contractor_school";
   return "aos_only";
 }
 
@@ -311,6 +312,37 @@ async function upsertOneTimePurchase(stripe: Stripe, session: Stripe.Checkout.Se
 
   const normalizedEmail = email.toLowerCase();
   const metadata = (session.metadata ?? {}) as Record<string, string>;
+
+  // Call packs are services, not tier purchases — log to vault_packets
+  // and skip subscription row creation.
+  if (metadata.product === "calls" || metadata.kind === "calls") {
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .ilike("email", normalizedEmail)
+      .maybeSingle();
+    if (profile?.id) {
+      await supabaseAdmin.from("vault_packets").insert({
+        user_id: profile.id,
+        kind: "call_pack_purchase",
+        source: "Stripe · Call pack",
+        status: "Open",
+        title: `Call pack: ${metadata.plan ?? "unknown"}`,
+        payload: {
+          plan: metadata.plan ?? "",
+          email: normalizedEmail,
+          checkout_session_id: session.id,
+          amount_total: session.amount_total,
+          captured_at: new Date().toISOString(),
+        },
+      });
+    } else {
+      console.warn("Call pack purchase has no matching profile yet", { email: normalizedEmail, session: session.id });
+    }
+    return;
+  }
+
+
 
   // Resolve price from line items.
   let priceId: string | null = null;
