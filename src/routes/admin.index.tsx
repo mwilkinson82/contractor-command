@@ -5,7 +5,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Container } from "@/components/portal/page-header";
 import { useIsAdmin } from "@/hooks/use-is-admin";
-import { supabase } from "@/integrations/supabase/client";
+
+import { subscribePresence, type PresenceUser } from "@/lib/portal-presence";
 import { getAdminMetrics, type AdminMetrics } from "@/lib/admin.functions";
 import {
   listAdminUsers,
@@ -35,7 +36,7 @@ export const Route = createFileRoute("/admin/")({
   component: AdminDashboard,
 });
 
-type PresenceUser = { user_id: string; email: string | null; at: string };
+
 
 function AdminDashboard() {
   const isAdmin = useIsAdmin();
@@ -53,39 +54,12 @@ function AdminDashboard() {
     refetchInterval: 60_000,
   });
 
-  // Live presence — admin subscribes to the same channel every signed-in
-  // member is tracking themselves on.
+  // Live presence — read from the shared store populated in __root.tsx,
+  // which attaches the presence "sync" listener on the portal channel.
   const [online, setOnline] = useState<PresenceUser[]>([]);
   useEffect(() => {
     if (!isAdmin) return;
-    // The root layout already subscribes every signed-in member to the
-    // "portal-presence" topic. supabase-js caches channels by topic, so we
-    // can't attach new presence listeners here without hitting
-    // "cannot add presence callbacks after subscribe". Instead, find the
-    // existing channel and poll its presenceState.
-    function read() {
-      const existing = supabase
-        .getChannels()
-        .find((c) => c.topic === "realtime:portal-presence");
-      if (!existing) {
-        setOnline([]);
-        return;
-      }
-      const state = existing.presenceState() as Record<string, PresenceUser[]>;
-      const flat: PresenceUser[] = [];
-      const seen = new Set<string>();
-      for (const arr of Object.values(state)) {
-        for (const p of arr) {
-          if (seen.has(p.user_id)) continue;
-          seen.add(p.user_id);
-          flat.push(p);
-        }
-      }
-      setOnline(flat);
-    }
-    read();
-    const id = window.setInterval(read, 5000);
-    return () => window.clearInterval(id);
+    return subscribePresence(setOnline);
   }, [isAdmin]);
 
   if (isAdmin === null) {

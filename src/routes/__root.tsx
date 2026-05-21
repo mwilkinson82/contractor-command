@@ -22,6 +22,7 @@ import { useTier } from "@/hooks/use-tier";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { supabase } from "@/integrations/supabase/client";
 import { vault } from "@/lib/vault";
+import { setPresence, resetPresence, type PresenceUser } from "@/lib/portal-presence";
 import { toast } from "sonner";
 
 const PUBLIC_ROUTES = new Set(["/login", "/signup", "/forgot-password", "/reset-password", "/welcome"]);
@@ -255,12 +256,20 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
   }, [session?.user?.id]);
 
   // Portal presence — every signed-in user joins a shared channel so admins
-  // can see who's online right now.
+  // can see who's online right now. The presence "sync" listener MUST be
+  // attached before .subscribe() or presenceState() will stay empty on this
+  // client.
   useEffect(() => {
     const uid = session?.user?.id;
-    if (!uid) return;
+    if (!uid) {
+      resetPresence();
+      return;
+    }
     const channel = supabase.channel("portal-presence", {
       config: { presence: { key: uid } },
+    });
+    channel.on("presence", { event: "sync" }, () => {
+      setPresence(channel.presenceState() as Record<string, PresenceUser[]>);
     });
     channel.subscribe((status) => {
       if (status === "SUBSCRIBED") {
@@ -273,6 +282,7 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
     });
     return () => {
       void supabase.removeChannel(channel);
+      resetPresence();
     };
   }, [session?.user?.id, session?.user?.email]);
 
