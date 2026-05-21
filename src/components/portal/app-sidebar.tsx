@@ -30,6 +30,7 @@ import { useTier, type Tier } from "@/hooks/use-tier";
 import { nextAny, relativeDay } from "@/lib/program";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/use-company";
+import { TierImpersonator } from "@/components/portal/tier-impersonator";
 
 type Ctx = {
   collapsed: boolean;
