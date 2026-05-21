@@ -22,6 +22,8 @@ import {
   Gauge,
   BookOpen,
   ArrowUpCircle,
+  Flame,
+  Lock,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { useTier, type Tier } from "@/hooks/use-tier";
