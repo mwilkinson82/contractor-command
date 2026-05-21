@@ -300,8 +300,7 @@ export const createSkuCheckout = createServerFn({ method: "POST" })
 
     // Detect mode from the price object.
     const price = await stripe.prices.retrieve(priceId);
-    const mode: Stripe.Checkout.SessionCreateParams.Mode =
-      price.recurring ? "subscription" : "payment";
+    const mode: "subscription" | "payment" = price.recurring ? "subscription" : "payment";
 
     const origin = originFromRequest();
     const meta = {
