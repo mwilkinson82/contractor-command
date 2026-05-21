@@ -22,6 +22,7 @@ import { useTier } from "@/hooks/use-tier";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { supabase } from "@/integrations/supabase/client";
 import { vault } from "@/lib/vault";
+import { setPresence, resetPresence, type PresenceUser } from "@/lib/portal-presence";
 import { toast } from "sonner";
 
 const PUBLIC_ROUTES = new Set(["/login", "/signup", "/forgot-password", "/reset-password", "/welcome"]);
