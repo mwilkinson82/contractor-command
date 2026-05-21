@@ -129,7 +129,7 @@ function ResetPasswordPage() {
           placeholder="••••••••"
           required
         />
-        {err && <p className="text-[12px] text-[#b8442a]">{err}</p>}
+        {err && <p className="text-[12px] text-[color:var(--danger-warm)]">{err}</p>}
         <AuthSubmit busy={busy} label="Update password" busyLabel="Saving" />
       </form>
     </AuthCard>

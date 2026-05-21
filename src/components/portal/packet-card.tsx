@@ -216,7 +216,7 @@ function EmailPacketDialog({
                 className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] focus:border-ink focus:outline-none"
               />
             </div>
-            {err && <p className="text-[12px] text-red-600">{err}</p>}
+            {err && <p className="text-[12px] text-[color:var(--danger-warm)]">{err}</p>}
           </div>
         )}
 

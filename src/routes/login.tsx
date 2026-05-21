@@ -119,7 +119,7 @@ function LoginPage() {
                 />
 
 
-                {err && <p className="text-[12px] text-[#b8442a]">{err}</p>}
+                {err && <p className="text-[12px] text-[color:var(--danger-warm)]">{err}</p>}
 
                 <button
                   type="submit"

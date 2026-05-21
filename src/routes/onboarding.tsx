@@ -221,7 +221,7 @@ function OnboardingPage() {
             </div>
           </div>
 
-          {err && <p className="text-[12px] text-red-600">{err}</p>}
+          {err && <p className="text-[12px] text-[color:var(--danger-warm)]">{err}</p>}
 
           <div className="flex flex-wrap items-center gap-3 border-t border-border pt-6">
             <button

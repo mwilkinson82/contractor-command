@@ -135,7 +135,7 @@ function WelcomePage() {
           placeholder="••••••••"
           required
         />
-        {err && <p className="text-[12px] text-[#b8442a]">{err}</p>}
+        {err && <p className="text-[12px] text-[color:var(--danger-warm)]">{err}</p>}
         <AuthSubmit busy={busy} label="Enter the portal" busyLabel="Saving" />
       </form>
       <p className="mt-6 text-[11px] leading-relaxed text-ink/45">
