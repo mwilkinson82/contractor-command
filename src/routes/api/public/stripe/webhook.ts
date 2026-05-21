@@ -15,7 +15,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 // Anything else defaults to 'aos_only' (safe baseline — no Circle access
 // is ever granted unless the price/metadata explicitly maps to it).
 
-type Tier = "book_buyer" | "power_hour" | "sm_school" | "intensive" | "circle" | "aos_only";
+type Tier = "book_buyer" | "power_hour" | "sm_school" | "contractor_school" | "intensive" | "circle" | "aos_only";
 type WebhookEventClaim = "process" | "duplicate" | "in_progress";
 type SupabaseRpcResult<T> = Promise<{
   data: T | null;
@@ -30,19 +30,20 @@ function tierForPrice(
   metaProduct?: string | null,
   metaKind?: string | null,
 ): Tier {
-  // Explicit metadata wins (set by our own checkout sessions).
   const product = metaProduct ?? metaKind ?? null;
   if (product === "book_v2" || product === "book") return "book_buyer";
   if (product === "power_hour") return "power_hour";
   if (product === "sm_school") return "sm_school";
+  if (product === "contractor_school") return "contractor_school";
   if (product === "intensive") return "intensive";
   if (product === "circle" && priceId === process.env.STRIPE_PRICE_ID_CIRCLE) return "circle";
 
   if (priceId && priceId === process.env.STRIPE_PRICE_ID_BOOK) return "book_buyer";
   if (priceId && priceId === process.env.STRIPE_PRICE_ID_INTENSIVE) return "intensive";
   if (priceId && priceId === process.env.STRIPE_PRICE_ID_CIRCLE) return "circle";
-  if (priceId && priceId === process.env.STRIPE_PRICE_ID_POWER_HOUR) return "power_hour";
-  if (priceId && priceId === process.env.STRIPE_PRICE_ID_SM_SCHOOL) return "sm_school";
+  if (priceId && (priceId === process.env.STRIPE_PRICE_ID_POWER_HOUR_MONTH || priceId === process.env.STRIPE_PRICE_ID_POWER_HOUR_QUARTER)) return "power_hour";
+  if (priceId && (priceId === process.env.STRIPE_PRICE_ID_SM_SCHOOL_MONTH || priceId === process.env.STRIPE_PRICE_ID_SM_SCHOOL_QUARTER)) return "sm_school";
+  if (priceId && (priceId === process.env.STRIPE_PRICE_ID_CONTRACTOR_SCHOOL_MONTH || priceId === process.env.STRIPE_PRICE_ID_CONTRACTOR_SCHOOL_QUARTER)) return "contractor_school";
   return "aos_only";
 }
 
