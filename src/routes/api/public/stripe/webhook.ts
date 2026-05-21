@@ -321,22 +321,27 @@ async function upsertOneTimePurchase(stripe: Stripe, session: Stripe.Checkout.Se
       .select("id")
       .ilike("email", normalizedEmail)
       .maybeSingle();
-    await supabaseAdmin.from("vault_packets").insert({
-      user_id: profile?.id ?? undefined,
-      kind: "call_pack_purchase",
-      source: "Stripe · Call pack",
-      status: "Open",
-      title: `Call pack: ${metadata.plan ?? "unknown"}`,
-      payload: {
-        plan: metadata.plan ?? "",
-        email: normalizedEmail,
-        checkout_session_id: session.id,
-        amount_total: session.amount_total,
-        captured_at: new Date().toISOString(),
-      },
-    });
+    if (profile?.id) {
+      await supabaseAdmin.from("vault_packets").insert({
+        user_id: profile.id,
+        kind: "call_pack_purchase",
+        source: "Stripe · Call pack",
+        status: "Open",
+        title: `Call pack: ${metadata.plan ?? "unknown"}`,
+        payload: {
+          plan: metadata.plan ?? "",
+          email: normalizedEmail,
+          checkout_session_id: session.id,
+          amount_total: session.amount_total,
+          captured_at: new Date().toISOString(),
+        },
+      });
+    } else {
+      console.warn("Call pack purchase has no matching profile yet", { email: normalizedEmail, session: session.id });
+    }
     return;
   }
+
 
 
   // Resolve price from line items.
