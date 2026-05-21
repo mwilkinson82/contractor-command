@@ -259,7 +259,7 @@ export function AppSidebar() {
         className={`group/sidebar fixed inset-y-0 left-0 z-50 flex flex-col border-r border-border/70 bg-[var(--paper-deep)] transition-[width,transform] duration-300 ease-[cubic-bezier(.2,.7,.2,1)] ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0`}
-        style={{ width: collapsed ? "60px" : "248px" }}
+        style={{ width: collapsed ? "60px" : "216px" }}
       >
         <div className="flex h-14 items-center gap-2 border-b border-border/70 px-3">
           <Link to="/" className="flex items-center gap-2 overflow-hidden">
@@ -363,7 +363,7 @@ export function SidebarInset({ children }: { children: ReactNode }) {
       className="min-h-screen transition-[padding] duration-300 ease-[cubic-bezier(.2,.7,.2,1)] md:!pl-[var(--sb-w)]"
       style={
         {
-          ["--sb-w" as string]: collapsed ? "60px" : "248px",
+          ["--sb-w" as string]: collapsed ? "60px" : "216px",
           paddingLeft: 0,
         } as React.CSSProperties
       }
