@@ -55,7 +55,6 @@ const PACKS: CallPack[] = [
       "Direct chat between calls",
       "Outputs you carry into AOS",
     ],
-    badge: "Best value",
   },
   {
     plan: "call_6",
@@ -70,6 +69,7 @@ const PACKS: CallPack[] = [
       "Marshall in your business for six weeks",
       "Priorities and structure installed end-to-end",
     ],
+    badge: "Best value",
   },
 ];
 
