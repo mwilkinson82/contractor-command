@@ -6,13 +6,25 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 
-export type Tier = "aos_only" | "book_buyer" | "intensive" | "circle";
+export type Tier =
+  | "aos_only"
+  | "book_buyer"
+  | "power_hour"
+  | "sm_school"
+  | "intensive"
+  | "circle"
+  | "hardcore";
 
+// Rank-based gates. power_hour and sm_school share rank 2 — they unlock the
+// same surfaces but different replay shelves (see replays.category).
 const RANK: Record<Tier, number> = {
   aos_only: 0,
   book_buyer: 1,
-  intensive: 2,
-  circle: 3,
+  power_hour: 2,
+  sm_school: 2,
+  intensive: 3,
+  circle: 4,
+  hardcore: 5,
 };
 
 export function tierAtLeast(actual: Tier | null, min: Tier): boolean {
