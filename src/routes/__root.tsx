@@ -255,12 +255,20 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
   }, [session?.user?.id]);
 
   // Portal presence — every signed-in user joins a shared channel so admins
-  // can see who's online right now.
+  // can see who's online right now. The presence "sync" listener MUST be
+  // attached before .subscribe() or presenceState() will stay empty on this
+  // client.
   useEffect(() => {
     const uid = session?.user?.id;
-    if (!uid) return;
+    if (!uid) {
+      resetPresence();
+      return;
+    }
     const channel = supabase.channel("portal-presence", {
       config: { presence: { key: uid } },
+    });
+    channel.on("presence", { event: "sync" }, () => {
+      setPresence(channel.presenceState() as Record<string, PresenceUser[]>);
     });
     channel.subscribe((status) => {
       if (status === "SUBSCRIBED") {
@@ -273,6 +281,7 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
     });
     return () => {
       void supabase.removeChannel(channel);
+      resetPresence();
     };
   }, [session?.user?.id, session?.user?.email]);
 
