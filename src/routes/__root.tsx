@@ -18,7 +18,7 @@ import { ToolDrawerProvider } from "@/components/portal/tool-drawer";
 import { Toaster } from "@/components/ui/sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useCompany } from "@/hooks/use-company";
-import { useTier } from "@/hooks/use-tier";
+import { useTier, tierAtLeast, type Tier } from "@/hooks/use-tier";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { supabase } from "@/integrations/supabase/client";
 import { vault } from "@/lib/vault";
@@ -28,21 +28,30 @@ import { toast } from "sonner";
 const PUBLIC_ROUTES = new Set(["/login", "/signup", "/forgot-password", "/reset-password", "/welcome"]);
 const ONBOARDING_ROUTE = "/onboarding";
 
-// Routes that require Circle membership. Book Buyers and Intensive grads
-// hitting any of these get redirected to /upgrade with a toast.
-// Replays are open to Book Buyers and up (book includes replay access).
-const CIRCLE_ONLY_PREFIXES = [
-  "/vault",
-  "/calls",
-  "/community",
-  "/templates",
-  "/ask",
-  "/tools",
-  "/field-tools",
+// Tier gates per route prefix. Anything not listed is open to every signed-in
+// user. Tiers ranked in src/hooks/use-tier.ts. Hardcore inherits everything
+// Circle has, plus its own /hardcore surface (calendar embed).
+//
+// - Vault / Tools / Field tools / Community / Ask → Power Hour and up
+// - Replays → Book Buyer and up (per-category gating happens in the page + RLS)
+// - Templates / Calls → Circle and up
+// - Hardcore Calendar → Hardcore only
+const ROUTE_TIER_GATES: Array<{ prefix: string; min: Tier }> = [
+  { prefix: "/vault", min: "power_hour" },
+  { prefix: "/tools", min: "power_hour" },
+  { prefix: "/field-tools", min: "power_hour" },
+  { prefix: "/community", min: "power_hour" },
+  { prefix: "/ask", min: "power_hour" },
+  { prefix: "/templates", min: "circle" },
+  { prefix: "/calls", min: "circle" },
+  { prefix: "/hardcore", min: "hardcore" },
 ];
 
-function isCircleOnly(pathname: string): boolean {
-  return CIRCLE_ONLY_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
+function gateFor(pathname: string): Tier | null {
+  const hit = ROUTE_TIER_GATES.find(
+    (g) => pathname === g.prefix || pathname.startsWith(g.prefix + "/"),
+  );
+  return hit?.min ?? null;
 }
 
 function NotFoundComponent() {
