@@ -230,13 +230,11 @@ export function AppSidebar() {
   const isAdmin = useIsAdmin();
   const { tier } = useTier();
 
-  const isHardcore = tier === "hardcore" || isAdmin;
   const baseGroups = groupsForTier(tier);
-  const hardcoreGroup = isHardcore ? HARDCORE_REAL : HARDCORE_TEASE;
+  // Hardcore nav is hidden for now while we figure out the page direction.
   const groups: Group[] = isAdmin
     ? [
         ...CIRCLE_GROUPS,
-        hardcoreGroup,
         {
           label: "Admin",
           items: [
@@ -246,7 +244,7 @@ export function AppSidebar() {
           ],
         },
       ]
-    : [...baseGroups, hardcoreGroup];
+    : baseGroups;
 
   const wasOnAsk = useRef(false);
   useEffect(() => {
