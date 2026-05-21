@@ -20,6 +20,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ReplaysRouteImport } from './routes/replays'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as HardcoreRouteImport } from './routes/hardcore'
 import { Route as HandbookRouteImport } from './routes/handbook'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as FieldToolsRouteImport } from './routes/field-tools'
@@ -108,6 +109,11 @@ const OnboardingRoute = OnboardingRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HardcoreRoute = HardcoreRouteImport.update({
+  id: '/hardcore',
+  path: '/hardcore',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HandbookRoute = HandbookRouteImport.update({
@@ -292,6 +298,7 @@ export interface FileRoutesByFullPath {
   '/field-tools': typeof FieldToolsRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/handbook': typeof HandbookRoute
+  '/hardcore': typeof HardcoreRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/replays': typeof ReplaysRoute
@@ -339,6 +346,7 @@ export interface FileRoutesByTo {
   '/field-tools': typeof FieldToolsRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/handbook': typeof HandbookRoute
+  '/hardcore': typeof HardcoreRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/replays': typeof ReplaysRoute
@@ -387,6 +395,7 @@ export interface FileRoutesById {
   '/field-tools': typeof FieldToolsRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/handbook': typeof HandbookRoute
+  '/hardcore': typeof HardcoreRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/replays': typeof ReplaysRoute
@@ -436,6 +445,7 @@ export interface FileRouteTypes {
     | '/field-tools'
     | '/forgot-password'
     | '/handbook'
+    | '/hardcore'
     | '/login'
     | '/onboarding'
     | '/replays'
@@ -483,6 +493,7 @@ export interface FileRouteTypes {
     | '/field-tools'
     | '/forgot-password'
     | '/handbook'
+    | '/hardcore'
     | '/login'
     | '/onboarding'
     | '/replays'
@@ -530,6 +541,7 @@ export interface FileRouteTypes {
     | '/field-tools'
     | '/forgot-password'
     | '/handbook'
+    | '/hardcore'
     | '/login'
     | '/onboarding'
     | '/replays'
@@ -578,6 +590,7 @@ export interface RootRouteChildren {
   FieldToolsRoute: typeof FieldToolsRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   HandbookRoute: typeof HandbookRoute
+  HardcoreRoute: typeof HardcoreRoute
   LoginRoute: typeof LoginRoute
   OnboardingRoute: typeof OnboardingRoute
   ReplaysRoute: typeof ReplaysRoute
@@ -693,6 +706,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hardcore': {
+      id: '/hardcore'
+      path: '/hardcore'
+      fullPath: '/hardcore'
+      preLoaderRoute: typeof HardcoreRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/handbook': {
@@ -956,6 +976,7 @@ const rootRouteChildren: RootRouteChildren = {
   FieldToolsRoute: FieldToolsRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   HandbookRoute: HandbookRoute,
+  HardcoreRoute: HardcoreRoute,
   LoginRoute: LoginRoute,
   OnboardingRoute: OnboardingRoute,
   ReplaysRoute: ReplaysRoute,
