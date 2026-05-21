@@ -5,6 +5,10 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import {
+  getImpersonatedTier,
+  subscribeImpersonatedTier,
+} from "@/lib/tier-impersonation";
 
 export type Tier =
   | "aos_only"
