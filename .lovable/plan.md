@@ -1,44 +1,35 @@
-## What changes
+## What's broken
 
-Two surfaces stop being dark ink/gold and become warm paper/ink to match the rest of the portal (Backfill, Handbook, Home):
+Every Stripe `checkout.session.completed` webhook for **book purchases** has been failing today (4 failures, 4 attempts). Root cause:
 
-1. **`/aos` — the AOS gateway page** (the "Welcome back. Step inside." screen)
-2. **The full-screen interstitial overlay** that appears while AOS is being opened ("Opening the door / Opening AOS in a new tab…")
+- `src/routes/api/public/stripe/webhook.ts` calls `supabaseAdmin.from("pending_claims").upsert(row, { onConflict: "stripe_subscription_id" })`
+- `pending_claims` has no unique constraint on `stripe_subscription_id` — only `subscriptions` does
+- Postgres rejects the upsert: *"there is no unique or exclusion constraint matching the ON CONFLICT specification"*
 
-The `/aos/link` page is already on the light palette and doesn't need work.
+The same bug exists in both the subscription path (line 271) and the one-time purchase path (line 376), but only the one-time path is hit in practice (book buyers without a profile yet).
 
-## Design move
+## Why today still mostly worked
 
-Keep the entire composition — same headline, same sub copy, same CTA position, same right-column "What lights up inside" card, same step-eyebrow, same allowance pills, same reveal animations. Only the skin changes.
+Your 15:58 manual backfill scraped all 4 of today's purchases straight from Stripe into `pending_claims`. kennycastro09 then signed up at 16:11 and the `claim_pending_subscription` trigger promoted them to a real Book Buyer subscription. The other 3 are sitting in `pending_claims` waiting to claim on signup.
 
-**Palette swap (gateway + interstitial):**
-- Background: `bg-ink text-cream` → `bg-background text-foreground` (warm paper)
-- Ambient dot field: cream dots on ink → ink dots on paper at low opacity
-- Ambient warm glow: gold radial on the right → softer warm/clay radial, lower intensity (paper doesn't take heavy bloom)
-- Scan line: gold gradient → ink/30 gradient
-- Cream-tint borders/fills (`border-cream/10`, `bg-cream/[0.03]`) → `border-border`, `bg-card`
-- Body copy `text-cream/75` → `text-muted-foreground`
-- Eyebrow `label-mono !text-cream/55` → standard `label-mono` (already muted)
+## The fix
 
-**CTA — Enter AOS:**
-- Currently solid gold pill on ink. On paper, solid gold reads loud and breaks the calm. Switch to **solid ink button with cream text** (matches the "Run for real" button on Backfill that you just praised), keeping the Compass + ArrowUpRight icons and the hover lift.
+1. **Migration:** add a unique index on `pending_claims.stripe_subscription_id` (partial, where not null, so it doesn't block legacy rows).
 
-**Right card — "What lights up inside":**
-- `border-cream/10 bg-cream/[0.03]` → `border-border bg-card`
-- Bullet dots stay warm (use `--gold` or `--clay`) at small size so the list still has a spark of color
-- Title text → `text-foreground`, body → `text-muted-foreground`
+   ```sql
+   CREATE UNIQUE INDEX pending_claims_stripe_subscription_id_key
+   ON public.pending_claims (stripe_subscription_id)
+   WHERE stripe_subscription_id IS NOT NULL;
+   ```
 
-**Interstitial overlay (full-screen while minting):**
-- Same paper background, same ink text
-- Ping/ring around the Compass icon uses ink/clay instead of gold-on-ink
-- Headline stays serif display, sub copy stays mono uppercase eyebrow — just inverted to dark-on-light
+2. **Replay the 4 failed webhook events** so today's purchases get a proper webhook-created `pending_claims` row (idempotent — already-claimed/already-subscribed ones become no-ops). Mark them as processed afterward, or just leave the row state — the data is already correct from backfill.
 
-## Files touched
-
-- `src/routes/aos.index.tsx` — palette swap on the section wrapper, ambient layers, CTA, right card, interstitial overlay, and all text-color utility classes. Layout, copy, animations, server-fn logic untouched.
+3. **Verify:** trigger a test book purchase (or replay one of today's events from Stripe dashboard) and confirm `stripe_webhook_events.status = 'processed'`.
 
 ## Out of scope
 
-- `src/components/portal/aos-hero.tsx` (the in-portal "Start your AOS" hero) — this is a different surface; not in screenshot. Leave for a follow-up if you want it reskinned too.
-- `src/routes/aos.link.tsx` — already light.
-- No copy changes, no structural changes, no animation changes.
+- No code change to `webhook.ts` — the upsert call is correct; only the missing DB constraint needs to be added.
+- No changes to the backfill flow or subscription tiers.
+- Not touching the historical `pending_claims` rows from the May 15 CSV import (they have null `stripe_subscription_id`, which the partial index allows).
+
+Want me to apply the migration?
