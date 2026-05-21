@@ -241,8 +241,41 @@ function ReplaysPage() {
               })
             )}
           </div>
+            </>
+          )}
         </>
       )}
     </Container>
+  );
+}
+
+function LockedShelf({ shelfKey }: { shelfKey: ShelfKey }) {
+  return (
+    <div className="relative mt-6">
+      <div className="grid gap-3 opacity-40 pointer-events-none select-none" aria-hidden>
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="rounded-2xl border border-border bg-card p-6">
+            <p className="label-mono">— · — min</p>
+            <div className="mt-2 h-5 w-2/3 rounded bg-muted" />
+            <div className="mt-3 h-3 w-full rounded bg-muted" />
+            <div className="mt-1.5 h-3 w-5/6 rounded bg-muted" />
+          </div>
+        ))}
+      </div>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="rounded-2xl border border-ink/15 bg-[var(--paper-deep)] px-6 py-5 text-center shadow-[0_1px_0_rgba(0,0,0,0.04)]">
+          <div className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            <Lock className="h-3.5 w-3.5" /> Locked
+          </div>
+          <p className="mt-2 max-w-sm text-[14px]">{SHELF_META[shelfKey].unlockCopy}</p>
+          <Link
+            to="/upgrade"
+            className="mt-4 inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-[11px] uppercase tracking-[0.22em] text-cream hover:opacity-90"
+          >
+            See upgrade options <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+      </div>
+    </div>
   );
 }
