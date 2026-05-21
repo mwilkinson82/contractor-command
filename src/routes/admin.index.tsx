@@ -36,7 +36,7 @@ export const Route = createFileRoute("/admin/")({
   component: AdminDashboard,
 });
 
-type PresenceUser = { user_id: string; email: string | null; at: string };
+
 
 function AdminDashboard() {
   const isAdmin = useIsAdmin();
