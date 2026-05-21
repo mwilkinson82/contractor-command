@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Play, ExternalLink, Lock } from "lucide-react";
+import { Search, Play, ExternalLink, Lock, ArrowRight } from "lucide-react";
 import { PageHeader, Container } from "@/components/portal/page-header";
 import { replaysQueryOptions } from "@/lib/library-queries";
 import { useTier } from "@/hooks/use-tier";
@@ -21,27 +21,32 @@ export const Route = createFileRoute("/replays")({
 });
 
 type ShelfKey = ReplayCategory;
+const ALL_SHELVES: ShelfKey[] = ["circle_call", "power_hour", "sm_school", "contractor_school"];
 
-const SHELF_META: Record<ShelfKey, { label: string; eyebrow: string; lede: string }> = {
+const SHELF_META: Record<ShelfKey, { label: string; eyebrow: string; lede: string; unlockCopy: string }> = {
   circle_call: {
     label: "Circle Calls",
     eyebrow: "Bi-weekly + bootcamp",
     lede: "Every past bi-weekly working session and monthly bootcamp.",
+    unlockCopy: "Unlock with the ALP Handbook or Contractor Circle.",
   },
   power_hour: {
     label: "Power Hour",
     eyebrow: "Daily · Mon–Fri 8AM PT",
     lede: "Daily Power Hour replays from the ALP Hardcore room.",
+    unlockCopy: "Add Power Hour to your plan to unlock daily replays.",
   },
   sm_school: {
     label: "Sales & Marketing School",
     eyebrow: "Wednesdays · 7PM PT",
     lede: "Sales & Marketing School class replays.",
+    unlockCopy: "Add S&M School to your plan to unlock class replays.",
   },
   contractor_school: {
     label: "Contractor School",
     eyebrow: "Tuesdays · 7PM PT",
     lede: "Contractor School class replays — Hardcore only.",
+    unlockCopy: "Upgrade to ALP Hardcore to unlock Contractor School.",
   },
 };
 
@@ -71,14 +76,16 @@ function unlockedShelves(tier: ReturnType<typeof useTier>["tier"]): ShelfKey[] {
 function ReplaysPage() {
   const { data: rows } = useQuery(replaysQueryOptions());
   const { tier, loading: tierLoading } = useTier();
-  const shelves = useMemo(() => unlockedShelves(tier), [tier]);
+  const unlocked = useMemo(() => new Set(unlockedShelves(tier)), [tier]);
+  const defaultShelf: ShelfKey = ALL_SHELVES.find((k) => unlocked.has(k)) ?? ALL_SHELVES[0];
   const [shelf, setShelf] = useState<ShelfKey | null>(null);
-  const activeShelf: ShelfKey | null = shelf ?? shelves[0] ?? null;
+  const activeShelf: ShelfKey = shelf ?? defaultShelf;
+  const activeUnlocked = unlocked.has(activeShelf);
   const [q, setQ] = useState("");
   const [playing, setPlaying] = useState<Record<string, boolean>>({});
 
   const filtered = useMemo(() => {
-    if (!activeShelf) return [];
+    if (!activeUnlocked) return [];
     const needle = q.trim().toLowerCase();
     return (rows ?? [])
       .filter((r) => r.category === activeShelf)
@@ -87,51 +94,55 @@ function ReplaysPage() {
         const hay = [r.title, r.description ?? "", ...r.tags].join(" ").toLowerCase();
         return hay.includes(needle);
       });
-  }, [rows, activeShelf, q]);
+  }, [rows, activeShelf, activeUnlocked, q]);
 
   return (
     <Container>
       <PageHeader
         eyebrow="Replay library"
         title={<>Every call, on demand.</>}
-        lede="Each shelf shows the classes you're enrolled in. Search inside a shelf to find a topic."
+        lede="Each shelf shows the classes you're enrolled in. Locked shelves show what you're missing."
       />
 
       {tierLoading ? (
         <div className="mt-8 text-sm text-muted-foreground">Loading shelves…</div>
-      ) : shelves.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-          You don't have replay access yet. Join Contractor Circle or pick up a class to unlock the library.
-        </div>
       ) : (
         <>
-          {/* Shelf tabs */}
+          {/* Shelf tabs — always render all 4 */}
           <div className="mt-8 flex flex-wrap gap-2 border-b border-border">
-            {shelves.map((key) => {
+            {ALL_SHELVES.map((key) => {
               const meta = SHELF_META[key];
               const isActive = key === activeShelf;
+              const isLocked = !unlocked.has(key);
               return (
                 <button
                   key={key}
                   onClick={() => setShelf(key)}
-                  className={`-mb-px border-b-2 px-3 py-2 text-sm transition-colors ${
+                  className={`-mb-px border-b-2 px-3 py-2 text-sm transition-colors inline-flex items-center gap-1.5 ${
                     isActive
                       ? "border-ink text-foreground font-medium"
+                      : isLocked
+                      ? "border-transparent text-muted-foreground/60 hover:text-foreground/70"
                       : "border-transparent text-muted-foreground hover:text-foreground"
                   }`}
                 >
+                  {isLocked && <Lock className="h-3 w-3" />}
                   {meta.label}
                 </button>
               );
             })}
           </div>
 
-          {activeShelf && (
-            <div className="mt-5">
-              <p className="label-mono">{SHELF_META[activeShelf].eyebrow}</p>
-              <p className="mt-1 text-[13px] text-muted-foreground">{SHELF_META[activeShelf].lede}</p>
-            </div>
-          )}
+          <div className="mt-5">
+            <p className="label-mono">{SHELF_META[activeShelf].eyebrow}</p>
+            <p className="mt-1 text-[13px] text-muted-foreground">{SHELF_META[activeShelf].lede}</p>
+          </div>
+
+          {!activeUnlocked ? (
+            <LockedShelf shelfKey={activeShelf} />
+          ) : (
+            <>
+
 
           <div className="mt-6 flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[220px] max-w-md">
@@ -230,8 +241,41 @@ function ReplaysPage() {
               })
             )}
           </div>
+            </>
+          )}
         </>
       )}
     </Container>
+  );
+}
+
+function LockedShelf({ shelfKey }: { shelfKey: ShelfKey }) {
+  return (
+    <div className="relative mt-6">
+      <div className="grid gap-3 opacity-40 pointer-events-none select-none" aria-hidden>
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="rounded-2xl border border-border bg-card p-6">
+            <p className="label-mono">— · — min</p>
+            <div className="mt-2 h-5 w-2/3 rounded bg-muted" />
+            <div className="mt-3 h-3 w-full rounded bg-muted" />
+            <div className="mt-1.5 h-3 w-5/6 rounded bg-muted" />
+          </div>
+        ))}
+      </div>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="rounded-2xl border border-ink/15 bg-[var(--paper-deep)] px-6 py-5 text-center shadow-[0_1px_0_rgba(0,0,0,0.04)]">
+          <div className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            <Lock className="h-3.5 w-3.5" /> Locked
+          </div>
+          <p className="mt-2 max-w-sm text-[14px]">{SHELF_META[shelfKey].unlockCopy}</p>
+          <Link
+            to="/upgrade"
+            className="mt-4 inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-[11px] uppercase tracking-[0.22em] text-cream hover:opacity-90"
+          >
+            See upgrade options <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+      </div>
+    </div>
   );
 }

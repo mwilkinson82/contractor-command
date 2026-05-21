@@ -1,31 +1,80 @@
-## Hardcore launch announcement — branded HTML email
+## What's changing
 
-One-off artifact. No app code changes. Output is a single `.html` file you paste into Gmail / your sender of choice and BCC the 14 Hardcore members.
+Three coordinated changes across the portal. AOS-side seat/workspace pricing stays out of scope (you'll do that in the AOS project later).
 
-### Subject
-`Your Hardcore access + new call format`
+---
 
-### Design direction
-- **Palette**: deep charcoal `#0f0f10` background, panel `#161618`, gold accent `#c9a24a`, warm off-white `#f5f1e8` for headlines, muted `#a8a8ad` body
-- **Type**: Georgia serif for headlines (email-safe), system sans for body
-- **Voice**: Hardcore / earned-it — direct, a little swagger, no fluff
-- **Layout**: single 600px column, numbered sections (01–04), gold-accented callout box, two-column "what's unlocked" grid
-- All inline CSS, table-based, tested-pattern for Gmail/Outlook/Apple Mail
-- Preheader text included
-- No tracking pixels, no unsubscribe footer (one-off, not a list send)
+### 1. Replace "Six-Week Intensive" with "Work with Marshall" call packages
 
-### Sections
-1. **Header bar** — "ALP · Hardcore" + "Top Tier — Class of 2026"
-2. **Hero** — "You're in."
-3. **01 — Your Portal** — CTA button → `https://app.alpcontractorcircle.com/login`
-4. **02 — Calls Have Moved** — Google Meet, accept the invites
-5. **03 — Replays** — click the date on the calendar, hit the Meet recording link
-6. **04 — What Hardcore Unlocks** — 2x3 grid: AOS, Vault, Tools, Calls & Replays, Community, Hardcore Privileges
-7. **"Do this today" callout** — 3-step checklist
-8. **Sign-off from Marshall**
+Today there's one $5,000 Intensive product. We replace it with three SKUs so the price ladder feels lighter and members can self-select depth:
 
-### Deliverable
-Saved to `/mnt/documents/hardcore-announcement.html` — downloadable, ready to copy/paste into Gmail's compose window (Gmail preserves inline-styled HTML when pasted from a browser).
+| Package | Sessions | Suggested price (you confirm) |
+|---|---|---|
+| Single Call | 1 × 60 min | $750 |
+| Three Call Pack | 3 × 60 min | $2,000 |
+| Six Call Pack | 6 × 60 min | $3,750 |
 
-### To proceed
-Approve this plan and I'll write the file in build mode. If you want any tone, color, or copy tweaks before I write it (e.g. swap gold for a different accent, change the sign-off, add a P.S.), say so and I'll fold them in.
+Changes:
+- `/work-with-marshall` becomes a 3-card page (replaces single Intensive card).
+- Add 3 new Stripe prices: `STRIPE_PRICE_ID_CALL_1`, `STRIPE_PRICE_ID_CALL_3`, `STRIPE_PRICE_ID_CALL_6`. You'll create these in Stripe and we add them as secrets.
+- New server fn `createCallPackCheckout` in `src/lib/billing.functions.ts` (keep `createIntensiveCheckout` for any legacy in-flight links; mark deprecated).
+- Stripe webhook maps any of the 3 new price IDs to a new tier label `marshall_calls` OR we keep treating these as one-time service purchases that don't change tier (recommended — they're consulting, not access). I'd recommend **no tier change** on purchase; just record the entitlement in `subscriptions.metadata.calls_remaining`.
+- Sidebar label changes from "Intensive" → "Work with Marshall".
+
+### 2. Tier-specific upsell rails on `/upgrade` + sidebar
+
+Rebuild `/upgrade` to show only what makes sense for the viewer's tier:
+
+| Viewer tier | Cards shown on `/upgrade` |
+|---|---|
+| `aos_only` | Book Buyer → Contractor Circle → Work with Marshall |
+| `book_buyer` | **Contractor Circle (primary)** → Power Hour → S&M School → Work with Marshall |
+| `power_hour` | Contractor Circle (primary) → S&M School → Work with Marshall |
+| `sm_school` | Contractor Circle (primary) → Power Hour → Work with Marshall |
+| `intensive` | Contractor Circle (primary) → Work with Marshall |
+| `circle` | Power Hour → S&M School → Hardcore → Work with Marshall |
+| `hardcore` | Work with Marshall only |
+
+Sidebar:
+- Circle members get a new "Add-ons" section linking to /upgrade with Power Hour + S&M School cards visible.
+- Book buyers' "Go further" still points to /upgrade but Circle becomes the headline card.
+
+Stripe prices needed (placeholder secrets to add later): `STRIPE_PRICE_ID_POWER_HOUR`, `STRIPE_PRICE_ID_SM_SCHOOL`, `STRIPE_PRICE_ID_HARDCORE`. Webhook maps each to its tier.
+
+### 3. Hardcore tease + locked replay shelves
+
+**Hardcore in sidebar (all non-hardcore tiers):**
+- New "Hardcore" group at the bottom of the sidebar, single grayed-out item with a small lock icon, label "Hardcore Room". Clicking opens `/upgrade` scrolled to the Hardcore card.
+- Tooltip: "Daily Power Hour, S&M School, Contractor School. Upgrade to unlock."
+- For Hardcore members: same item appears in full color and links to `/hardcore`.
+
+**Replays page:**
+- Render all 4 category shelves always (Circle Calls, Power Hour, S&M School, Contractor School).
+- For shelves the viewer can't access: show 3 ghost cards with a centered "Unlock [Category] — $X/mo" CTA button overlay. No titles/thumbnails of actual content.
+- Tier-to-shelf visibility stays governed by existing `can_read_replay_category` RLS — we just stop hiding the locked shelves in the UI.
+
+---
+
+## File changes
+
+```text
+src/routes/work-with-marshall.tsx        — 3-card layout
+src/routes/upgrade.tsx                    — tier-aware card filtering
+src/routes/replays.tsx                    — render locked shelves with upsell
+src/components/portal/app-sidebar.tsx    — grayed Hardcore item + Circle add-ons section
+src/lib/billing.functions.ts              — new createCallPackCheckout, createPowerHourCheckout, createSmSchoolCheckout, createHardcoreCheckout
+src/routes/api/public/stripe/webhook.ts  — map new price IDs to tiers/entitlements
+```
+
+No DB migrations needed — `app_tier` enum already includes `power_hour`, `sm_school`, `hardcore`.
+
+---
+
+## What I need from you before I build
+
+1. **Confirm call-pack pricing** (or give me your numbers).
+2. **Confirm "calls don't change tier"** — they're consulting, recorded in `subscriptions.metadata.calls_remaining`. Means a Circle member buying 3 calls stays a Circle member with 3 calls in the bank.
+3. **Stripe prices for Power Hour / S&M School / Hardcore** — give me $/mo for each, or I'll put placeholder amounts in the card UI marked "Pricing TBD" and you can fill in Stripe when ready.
+4. **AOS seat/workspace upsell** — confirmed deferred to the AOS project. I'll leave a stub note in `/upgrade` for `aos_only` viewers ("Need more seats? Manage in AOS →") with no checkout.
+
+Reply with the four answers and I'll execute.

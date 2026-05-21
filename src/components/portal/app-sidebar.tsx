@@ -22,6 +22,8 @@ import {
   Gauge,
   BookOpen,
   ArrowUpCircle,
+  Flame,
+  Lock,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { useTier, type Tier } from "@/hooks/use-tier";
@@ -124,11 +126,24 @@ const CIRCLE_GROUPS: Group[] = [
   {
     label: "Program",
     items: [
-      { to: "/work-with-marshall", label: "Intensive", icon: Sparkles },
+      { to: "/work-with-marshall", label: "Work with Marshall", icon: Sparkles },
+      { to: "/upgrade", label: "Add-ons", icon: ArrowUpCircle },
       { to: "/account", label: "Account", icon: User },
     ],
   },
 ];
+
+// Tease group: shown to every non-hardcore tier so they can see Hardcore exists.
+const HARDCORE_TEASE: Group = {
+  label: "Hardcore",
+  items: [{ to: "/upgrade", label: "Hardcore Room", icon: Lock, match: "__never__" }],
+};
+
+// Real hardcore group: only for tier=hardcore + admin.
+const HARDCORE_REAL: Group = {
+  label: "Hardcore",
+  items: [{ to: "/hardcore", label: "Hardcore Room", icon: Flame }],
+};
 
 // Book Buyer: Handbook + AOS only, with Upgrade as the obvious next step.
 const BOOK_BUYER_GROUPS: Group[] = [
@@ -163,7 +178,7 @@ const INTENSIVE_GROUPS: Group[] = [
   {
     label: "Program",
     items: [
-      { to: "/work-with-marshall", label: "Intensive", icon: Sparkles },
+      { to: "/work-with-marshall", label: "Work with Marshall", icon: Sparkles },
       { to: "/upgrade", label: "Join the Circle", icon: ArrowUpCircle },
       { to: "/account", label: "Account", icon: User },
     ],
@@ -196,6 +211,7 @@ function groupsForTier(tier: Tier | null): Group[] {
       return BOOK_BUYER_GROUPS;
     case "intensive":
       return INTENSIVE_GROUPS;
+    case "hardcore":
     case "circle":
     default:
       // Default to full nav while tier is loading or admin/legacy.
@@ -214,10 +230,13 @@ export function AppSidebar() {
   const isAdmin = useIsAdmin();
   const { tier } = useTier();
 
+  const isHardcore = tier === "hardcore" || isAdmin;
   const baseGroups = groupsForTier(tier);
+  const hardcoreGroup = isHardcore ? HARDCORE_REAL : HARDCORE_TEASE;
   const groups: Group[] = isAdmin
     ? [
         ...CIRCLE_GROUPS,
+        hardcoreGroup,
         {
           label: "Admin",
           items: [
@@ -227,7 +246,7 @@ export function AppSidebar() {
           ],
         },
       ]
-    : baseGroups;
+    : [...baseGroups, hardcoreGroup];
 
   const wasOnAsk = useRef(false);
   useEffect(() => {
@@ -280,10 +299,12 @@ export function AppSidebar() {
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 py-4">
-          {groups.map((g) => (
+          {groups.map((g) => {
+            const isTease = g.label === "Hardcore" && !isHardcore;
+            return (
             <div key={g.label} className="mb-4">
               {!collapsed && (
-                <p className="px-2 pb-1.5 text-[10px] uppercase tracking-[0.22em] font-semibold" style={{ color: "color-mix(in oklab, var(--signal) 75%, transparent)" }}>
+                <p className="px-2 pb-1.5 text-[10px] uppercase tracking-[0.22em] font-semibold" style={{ color: isTease ? "color-mix(in oklab, var(--foreground) 35%, transparent)" : "color-mix(in oklab, var(--signal) 75%, transparent)" }}>
                   {g.label}
                 </p>
               )}
@@ -295,10 +316,12 @@ export function AppSidebar() {
                     <li key={it.to}>
                       <Link
                         to={it.to as "/"}
-                        title={collapsed ? it.label : undefined}
+                        title={collapsed ? (isTease ? `${it.label} — upgrade to unlock` : it.label) : (isTease ? "Daily Power Hour, S&M School, Contractor School. Upgrade to unlock." : undefined)}
                         className={`group/item relative flex items-center gap-3 rounded-md px-2 py-2 text-[13px] transition-colors ${
                           active
                             ? "bg-ink text-cream"
+                            : isTease
+                            ? "text-foreground/35 hover:bg-foreground/5 hover:text-foreground/60"
                             : "text-foreground/75 hover:bg-foreground/5 hover:text-foreground"
                         }`}
                       >
@@ -313,7 +336,8 @@ export function AppSidebar() {
                 })}
               </ul>
             </div>
-          ))}
+            );
+          })}
         </nav>
 
         <div className="border-t border-border/70 p-2">
