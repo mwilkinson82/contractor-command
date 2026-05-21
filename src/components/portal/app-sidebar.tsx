@@ -211,6 +211,7 @@ function groupsForTier(tier: Tier | null): Group[] {
       return BOOK_BUYER_GROUPS;
     case "intensive":
       return INTENSIVE_GROUPS;
+    case "hardcore":
     case "circle":
     default:
       // Default to full nav while tier is loading or admin/legacy.
@@ -229,10 +230,13 @@ export function AppSidebar() {
   const isAdmin = useIsAdmin();
   const { tier } = useTier();
 
+  const isHardcore = tier === "hardcore" || isAdmin;
   const baseGroups = groupsForTier(tier);
+  const hardcoreGroup = isHardcore ? HARDCORE_REAL : HARDCORE_TEASE;
   const groups: Group[] = isAdmin
     ? [
         ...CIRCLE_GROUPS,
+        hardcoreGroup,
         {
           label: "Admin",
           items: [
@@ -242,7 +246,7 @@ export function AppSidebar() {
           ],
         },
       ]
-    : baseGroups;
+    : [...baseGroups, hardcoreGroup];
 
   const wasOnAsk = useRef(false);
   useEffect(() => {
