@@ -298,23 +298,18 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
     }
     // Tier gate: non-Circle users redirected away from Circle-only routes.
     // Admins always pass. Wait for tier to load before judging.
+    // Note: the home page IS open to all tiers — it's tier-aware and shows
+    // upsells for locked surfaces. Keeps everyone in the ecosystem.
     if (
       session &&
       !tierLoading &&
       !isAdmin &&
       tier &&
-      tier !== "circle"
+      tier !== "circle" &&
+      isCircleOnly(pathname)
     ) {
-      // The home page IS the Circle command center — non-Circle users land
-      // on /aos (their workspace gateway) instead.
-      if (pathname === "/") {
-        navigate({ to: "/aos" });
-        return;
-      }
-      if (isCircleOnly(pathname)) {
-        toast.info("That's a Circle feature — here's how to unlock it.");
-        navigate({ to: "/upgrade" });
-      }
+      toast.info("That's a Circle feature — here's how to unlock it.");
+      navigate({ to: "/upgrade" });
     }
   }, [loading, session, isPublic, isOnboarding, companyLoading, needsOnboarding, tierLoading, tier, isAdmin, pathname, navigate]);
 
