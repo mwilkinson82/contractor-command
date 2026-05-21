@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Container } from "@/components/portal/page-header";
 import { useIsAdmin } from "@/hooks/use-is-admin";
-import { supabase } from "@/integrations/supabase/client";
+
 import { subscribePresence, type PresenceUser } from "@/lib/portal-presence";
 import { getAdminMetrics, type AdminMetrics } from "@/lib/admin.functions";
 import {
