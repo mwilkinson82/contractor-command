@@ -16,6 +16,12 @@ export type TemplateRow = {
   created_at: string;
 };
 
+export type ReplayCategory =
+  | "circle_call"
+  | "power_hour"
+  | "sm_school"
+  | "contractor_school";
+
 export type ReplayRow = {
   id: string;
   title: string;
@@ -26,6 +32,7 @@ export type ReplayRow = {
   recorded_at: string;
   published: boolean;
   tags: string[];
+  category: ReplayCategory;
   created_at: string;
 };
 
