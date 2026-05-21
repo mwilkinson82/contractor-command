@@ -170,7 +170,10 @@ export const listAdminUsers = createServerFn({ method: "GET" })
       if (seenAuthIds.has(au.id)) continue;
       if (!au.email) continue;
       const sub = subByUserId.get(au.id) ?? subByEmail.get(au.email.toLowerCase()) ?? null;
-      if (sub) seenSubIds.add(sub.id);
+      if (sub) {
+        for (const sid of allSubIdsByUserId.get(au.id) ?? []) seenSubIds.add(sid);
+        for (const sid of allSubIdsByEmail.get(au.email.toLowerCase()) ?? []) seenSubIds.add(sid);
+      }
       rows.push({
         id: au.id,
         email: au.email,
