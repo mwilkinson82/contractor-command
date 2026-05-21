@@ -169,20 +169,12 @@ export const submitBillingQuestion = createServerFn({ method: "POST" })
   });
 
 // Capture interest for SKUs that aren't wired to Stripe yet
-// (Power Hour, S&M School, Hardcore, call packs).
+// (Book Buyer, Hardcore).
 export const requestUpsellInterest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
     z.object({
-      sku: z.enum([
-        "book_buyer",
-        "power_hour",
-        "sm_school",
-        "hardcore",
-        "call_1",
-        "call_3",
-        "call_6",
-      ]),
+      sku: z.enum(["book_buyer", "hardcore"]),
       note: z.string().max(1000).optional(),
     }).parse,
   )
@@ -210,3 +202,127 @@ export const requestUpsellInterest = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+// Generic checkout for any plan with a configured Stripe price ID.
+// Mode is detected from the Stripe price (recurring → subscription,
+// one_time → payment). Metadata is set so the webhook can map the
+// purchase to the correct tier (or skip tier assignment for call packs).
+const PLAN_MAP: Record<
+  string,
+  { env: string; product: string; success: string; cancel: string }
+> = {
+  power_hour_month: {
+    env: "STRIPE_PRICE_ID_POWER_HOUR_MONTH",
+    product: "power_hour",
+    success: "/?upsell=power_hour",
+    cancel: "/upgrade?upsell=cancelled",
+  },
+  power_hour_quarter: {
+    env: "STRIPE_PRICE_ID_POWER_HOUR_QUARTER",
+    product: "power_hour",
+    success: "/?upsell=power_hour",
+    cancel: "/upgrade?upsell=cancelled",
+  },
+  sm_school_month: {
+    env: "STRIPE_PRICE_ID_SM_SCHOOL_MONTH",
+    product: "sm_school",
+    success: "/?upsell=sm_school",
+    cancel: "/upgrade?upsell=cancelled",
+  },
+  sm_school_quarter: {
+    env: "STRIPE_PRICE_ID_SM_SCHOOL_QUARTER",
+    product: "sm_school",
+    success: "/?upsell=sm_school",
+    cancel: "/upgrade?upsell=cancelled",
+  },
+  contractor_school_month: {
+    env: "STRIPE_PRICE_ID_CONTRACTOR_SCHOOL_MONTH",
+    product: "contractor_school",
+    success: "/?upsell=contractor_school",
+    cancel: "/upgrade?upsell=cancelled",
+  },
+  contractor_school_quarter: {
+    env: "STRIPE_PRICE_ID_CONTRACTOR_SCHOOL_QUARTER",
+    product: "contractor_school",
+    success: "/?upsell=contractor_school",
+    cancel: "/upgrade?upsell=cancelled",
+  },
+  call_1: {
+    env: "STRIPE_PRICE_ID_CALL_1",
+    product: "calls",
+    success: "/work-with-marshall?calls=success",
+    cancel: "/work-with-marshall?calls=cancelled",
+  },
+  call_3: {
+    env: "STRIPE_PRICE_ID_CALL_3",
+    product: "calls",
+    success: "/work-with-marshall?calls=success",
+    cancel: "/work-with-marshall?calls=cancelled",
+  },
+  call_6: {
+    env: "STRIPE_PRICE_ID_CALL_6",
+    product: "calls",
+    success: "/work-with-marshall?calls=success",
+    cancel: "/work-with-marshall?calls=cancelled",
+  },
+};
+
+export const createSkuCheckout = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    z.object({
+      plan: z.enum([
+        "power_hour_month",
+        "power_hour_quarter",
+        "sm_school_month",
+        "sm_school_quarter",
+        "contractor_school_month",
+        "contractor_school_quarter",
+        "call_1",
+        "call_3",
+        "call_6",
+      ]),
+    }).parse,
+  )
+  .handler(async ({ data, context }): Promise<{ url: string }> => {
+    const stripe = getStripe();
+    const cfg = PLAN_MAP[data.plan];
+    const priceId = process.env[cfg.env];
+    if (!priceId) {
+      throw new Error(`Pricing isn't configured for ${data.plan}. Reach out to support.`);
+    }
+    const { userId, supabase } = context;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("email")
+      .eq("id", userId)
+      .maybeSingle();
+
+    // Detect mode from the price object.
+    const price = await stripe.prices.retrieve(priceId);
+    const mode: Stripe.Checkout.SessionCreateParams.Mode =
+      price.recurring ? "subscription" : "payment";
+
+    const origin = originFromRequest();
+    const meta = {
+      user_id: userId,
+      kind: cfg.product,
+      product: cfg.product,
+      plan: data.plan,
+    };
+
+    const session = await stripe.checkout.sessions.create({
+      mode,
+      customer_email: profile?.email ?? undefined,
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: `${origin}${cfg.success}`,
+      cancel_url: `${origin}${cfg.cancel}`,
+      metadata: meta,
+      ...(mode === "subscription"
+        ? { subscription_data: { metadata: meta } }
+        : { payment_intent_data: { metadata: meta } }),
+    });
+    if (!session.url) throw new Error("Stripe returned no checkout URL.");
+    return { url: session.url };
+  });
+
