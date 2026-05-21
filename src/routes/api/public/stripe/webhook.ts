@@ -322,7 +322,7 @@ async function upsertOneTimePurchase(stripe: Stripe, session: Stripe.Checkout.Se
       .ilike("email", normalizedEmail)
       .maybeSingle();
     await supabaseAdmin.from("vault_packets").insert({
-      user_id: profile?.id ?? null,
+      user_id: profile?.id ?? undefined,
       kind: "call_pack_purchase",
       source: "Stripe · Call pack",
       status: "Open",
