@@ -167,7 +167,7 @@ function LoginPage() {
             <p>
               It isn't flashy. There's no dashboard with a rocket on it.
               Just a quiet, repeatable way to run a real construction business.
-              <br /><br />
+              <br />
               Boring, maybe. But boring is what scales.
             </p>
           </div>
