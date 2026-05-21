@@ -178,7 +178,7 @@ const INTENSIVE_GROUPS: Group[] = [
   {
     label: "Program",
     items: [
-      { to: "/work-with-marshall", label: "Intensive", icon: Sparkles },
+      { to: "/work-with-marshall", label: "Work with Marshall", icon: Sparkles },
       { to: "/upgrade", label: "Join the Circle", icon: ArrowUpCircle },
       { to: "/account", label: "Account", icon: User },
     ],
