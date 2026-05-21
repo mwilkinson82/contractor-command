@@ -76,14 +76,16 @@ function unlockedShelves(tier: ReturnType<typeof useTier>["tier"]): ShelfKey[] {
 function ReplaysPage() {
   const { data: rows } = useQuery(replaysQueryOptions());
   const { tier, loading: tierLoading } = useTier();
-  const shelves = useMemo(() => unlockedShelves(tier), [tier]);
+  const unlocked = useMemo(() => new Set(unlockedShelves(tier)), [tier]);
+  const defaultShelf: ShelfKey = ALL_SHELVES.find((k) => unlocked.has(k)) ?? ALL_SHELVES[0];
   const [shelf, setShelf] = useState<ShelfKey | null>(null);
-  const activeShelf: ShelfKey | null = shelf ?? shelves[0] ?? null;
+  const activeShelf: ShelfKey = shelf ?? defaultShelf;
+  const activeUnlocked = unlocked.has(activeShelf);
   const [q, setQ] = useState("");
   const [playing, setPlaying] = useState<Record<string, boolean>>({});
 
   const filtered = useMemo(() => {
-    if (!activeShelf) return [];
+    if (!activeUnlocked) return [];
     const needle = q.trim().toLowerCase();
     return (rows ?? [])
       .filter((r) => r.category === activeShelf)
@@ -92,51 +94,55 @@ function ReplaysPage() {
         const hay = [r.title, r.description ?? "", ...r.tags].join(" ").toLowerCase();
         return hay.includes(needle);
       });
-  }, [rows, activeShelf, q]);
+  }, [rows, activeShelf, activeUnlocked, q]);
 
   return (
     <Container>
       <PageHeader
         eyebrow="Replay library"
         title={<>Every call, on demand.</>}
-        lede="Each shelf shows the classes you're enrolled in. Search inside a shelf to find a topic."
+        lede="Each shelf shows the classes you're enrolled in. Locked shelves show what you're missing."
       />
 
       {tierLoading ? (
         <div className="mt-8 text-sm text-muted-foreground">Loading shelves…</div>
-      ) : shelves.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-          You don't have replay access yet. Join Contractor Circle or pick up a class to unlock the library.
-        </div>
       ) : (
         <>
-          {/* Shelf tabs */}
+          {/* Shelf tabs — always render all 4 */}
           <div className="mt-8 flex flex-wrap gap-2 border-b border-border">
-            {shelves.map((key) => {
+            {ALL_SHELVES.map((key) => {
               const meta = SHELF_META[key];
               const isActive = key === activeShelf;
+              const isLocked = !unlocked.has(key);
               return (
                 <button
                   key={key}
                   onClick={() => setShelf(key)}
-                  className={`-mb-px border-b-2 px-3 py-2 text-sm transition-colors ${
+                  className={`-mb-px border-b-2 px-3 py-2 text-sm transition-colors inline-flex items-center gap-1.5 ${
                     isActive
                       ? "border-ink text-foreground font-medium"
+                      : isLocked
+                      ? "border-transparent text-muted-foreground/60 hover:text-foreground/70"
                       : "border-transparent text-muted-foreground hover:text-foreground"
                   }`}
                 >
+                  {isLocked && <Lock className="h-3 w-3" />}
                   {meta.label}
                 </button>
               );
             })}
           </div>
 
-          {activeShelf && (
-            <div className="mt-5">
-              <p className="label-mono">{SHELF_META[activeShelf].eyebrow}</p>
-              <p className="mt-1 text-[13px] text-muted-foreground">{SHELF_META[activeShelf].lede}</p>
-            </div>
-          )}
+          <div className="mt-5">
+            <p className="label-mono">{SHELF_META[activeShelf].eyebrow}</p>
+            <p className="mt-1 text-[13px] text-muted-foreground">{SHELF_META[activeShelf].lede}</p>
+          </div>
+
+          {!activeUnlocked ? (
+            <LockedShelf shelfKey={activeShelf} />
+          ) : (
+            <>
+
 
           <div className="mt-6 flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[220px] max-w-md">
