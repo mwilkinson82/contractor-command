@@ -58,6 +58,9 @@
   --color-signal-green: var(--signal-green);
   --color-signal-success: var(--signal-success);
   --color-paper-edge: var(--paper-edge);
+  --color-paper-deep: var(--paper-deep);
+  --color-danger-warm: var(--danger-warm);
+
 
   /* Handbook tokens — used inside the /handbook reader experience */
   --color-chapter-divider: hsl(35 15% 82%);
@@ -108,6 +111,8 @@
   --blue: oklch(0.78 0.14 165);              /* alias → signal-green (legacy) */
   --blue-soft: oklch(0.94 0.04 165);
   --paper-edge: oklch(0.88 0.008 75);        /* #D1CFC7 frame border */
+  --danger-warm: oklch(0.52 0.14 36);        /* #b8442a — burnt-orange error text, lives in the warm-paper system */
+
 
   --background: oklch(0.965 0.005 80);
   --foreground: oklch(0.21 0.005 60);
@@ -209,7 +214,29 @@
     background-position: center;
     background-repeat: no-repeat;
   }
+  /* Orange editorial eyebrow — mirrors the AOS "CONTRACTOR CIRCLE OPERATING SYSTEM"
+     accent. Use for section headers where you want the AOS-kinship signal. */
+  .eyebrow-accent {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.28em;
+    color: var(--signal);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .eyebrow-accent::before {
+    content: "";
+    display: inline-block;
+    width: 28px;
+    height: 1px;
+    background-color: currentColor;
+    opacity: 0.7;
+  }
 }
+
 
 /* Technical inset frame — corner brackets, reused across pages */
 @utility tech-frame {

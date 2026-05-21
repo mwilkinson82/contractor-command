@@ -251,7 +251,7 @@ function ChatPane({
         onSubmit={submit}
         className="border-t border-border bg-background px-4 py-4 sm:px-8"
       >
-        <div className="mx-auto flex w-full max-w-[760px] items-end gap-2 rounded-2xl border border-border bg-white p-2 shadow-sm focus-within:border-foreground/30">
+        <div className="mx-auto flex w-full max-w-[760px] items-end gap-2 rounded-2xl border border-border bg-card p-2 shadow-sm focus-within:border-foreground/30">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}

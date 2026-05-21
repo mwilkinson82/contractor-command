@@ -10,7 +10,7 @@ import bookCover from "@/assets/handbook/book-cover-v2.png";
  */
 export function HandbookAnchor() {
   return (
-    <section className="relative border-t border-border bg-[hsl(40_24%_96%)]">
+    <section className="relative border-t border-border bg-paper-edge/30">
       <div className="mx-auto grid w-full max-w-[1180px] gap-10 px-4 sm:px-6 py-12 sm:py-16 lg:grid-cols-[1.05fr_1fr] lg:gap-14 lg:py-24">
         {/* LEFT — recreated tablet mockup */}
         <DeviceMockup />
@@ -84,12 +84,13 @@ function DeviceMockup() {
   return (
     <div className="relative flex items-center justify-center lg:justify-start">
       {/* Tablet body */}
-      <div className="relative aspect-[4/3] w-full max-w-[620px] rounded-[28px] border border-foreground/10 bg-white p-3 shadow-[0_30px_60px_-30px_rgba(20,20,18,0.35),0_2px_0_rgba(255,255,255,0.7)_inset]">
+      <div className="relative aspect-[4/3] w-full max-w-[620px] rounded-[28px] border border-foreground/10 bg-card p-3 shadow-[0_30px_60px_-30px_rgba(20,20,18,0.35),0_2px_0_rgba(255,255,255,0.7)_inset]">
         {/* Camera dot */}
         <span className="absolute left-1/2 top-2 h-1 w-1 -translate-x-1/2 rounded-full bg-foreground/15" />
 
         {/* Screen */}
-        <div className="relative grid h-full min-h-0 grid-cols-[34%_1fr] overflow-hidden rounded-[18px] bg-[hsl(40_22%_95%)]">
+        <div className="relative grid h-full min-h-0 grid-cols-[34%_1fr] overflow-hidden rounded-[18px] bg-cream">
+
           {/* Contents sidebar */}
           <aside className="flex min-h-0 flex-col gap-3 overflow-hidden border-r border-foreground/10 p-4">
             <div className="flex items-center justify-between">
@@ -127,7 +128,7 @@ function DeviceMockup() {
             <div className="mt-auto">
               <p className="font-mono text-[8px] uppercase tracking-[0.2em] text-foreground/50">Resources</p>
               <p className="mt-0.5 text-[9px] text-foreground/55">Tools & Downloads</p>
-              <div className="mt-3 flex items-center gap-1.5 rounded-md border border-foreground/15 bg-white/60 px-2 py-1.5">
+              <div className="mt-3 flex items-center gap-1.5 rounded-md border border-foreground/15 bg-card/60 px-2 py-1.5">
                 <Link2 className="h-2.5 w-2.5 text-foreground/55" />
                 <div className="flex flex-col leading-tight">
                   <span className="font-mono text-[7px] uppercase tracking-[0.18em] text-foreground/75">Magic Link Access</span>
@@ -153,10 +154,11 @@ function DeviceMockup() {
             </div>
 
             {/* Audio player */}
-            <div className="min-h-0 overflow-hidden border-t border-foreground/10 bg-white/70 px-4 py-2.5">
+            <div className="min-h-0 overflow-hidden border-t border-foreground/10 bg-card/70 px-4 py-2.5">
               <p className="font-mono text-[7px] uppercase tracking-[0.22em] text-foreground/55">Audio chapter available</p>
               <div className="mt-1.5 flex items-center gap-2.5">
-                <button className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-foreground/20 bg-white text-foreground/80">
+                <button className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-foreground/20 bg-card text-foreground/80">
+
                   <Play className="h-3 w-3 fill-current" />
                 </button>
                 <div className="flex flex-1 flex-col">
