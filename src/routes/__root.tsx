@@ -30,11 +30,11 @@ const ONBOARDING_ROUTE = "/onboarding";
 
 // Routes that require Circle membership. Book Buyers and Intensive grads
 // hitting any of these get redirected to /upgrade with a toast.
+// Replays are open to Book Buyers and up (book includes replay access).
 const CIRCLE_ONLY_PREFIXES = [
   "/vault",
   "/calls",
   "/community",
-  "/replays",
   "/templates",
   "/ask",
   "/tools",
