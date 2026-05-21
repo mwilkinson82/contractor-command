@@ -40,14 +40,20 @@ export function tierAtLeast(actual: Tier | null, min: Tier): boolean {
 
 export function useTier() {
   const { user, loading: authLoading } = useAuth();
-  const [tier, setTier] = useState<Tier | null>(null);
+  const [realTier, setRealTier] = useState<Tier | null>(null);
   const [loading, setLoading] = useState(true);
+  const [override, setOverride] = useState<Tier | null>(() => getImpersonatedTier());
+
+  useEffect(() => {
+    const unsub = subscribeImpersonatedTier(() => setOverride(getImpersonatedTier()));
+    return unsub;
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     if (authLoading) return;
     if (!user) {
-      setTier(null);
+      setRealTier(null);
       setLoading(false);
       return;
     }
@@ -58,9 +64,9 @@ export function useTier() {
         if (cancelled) return;
         if (error) {
           console.warn("get_user_tier failed", error);
-          setTier(null);
+          setRealTier(null);
         } else {
-          setTier((data as Tier | null) ?? null);
+          setRealTier((data as Tier | null) ?? null);
         }
         setLoading(false);
       });
@@ -69,8 +75,12 @@ export function useTier() {
     };
   }, [user, authLoading]);
 
+  const tier = override ?? realTier;
+
   return {
     tier,
+    realTier,
+    impersonating: override !== null,
     loading: loading || authLoading,
     isAosOnly: tier === "aos_only",
     isBookBuyer: tier === "book_buyer",
