@@ -182,20 +182,6 @@ export const UPSELL_CATALOG: Record<UpsellSku, UpsellCard> = {
     checkout: "live",
     plans: [{ id: "call_6", label: "One-time", price: "$5,000", cadence: "one-time", badge: "Best value" }],
   },
-  call_6: {
-    sku: "call_6",
-    eyebrow: "Six Call Pack",
-    icon: Sparkles,
-    title: "Six sessions. The full installation.",
-    pitch: "What the Six-Week Intensive was — same six private sessions, paid as a pack.",
-    bullets: [
-      "6 × 60-minute private sessions",
-      "Marshall in your business for six weeks",
-      "Priorities and structure installed end-to-end",
-    ],
-    checkout: "live",
-    plans: [{ id: "call_6", label: "One-time", price: "$5,000", cadence: "one-time" }],
-  },
 };
 
 // What appears on /upgrade per viewer tier. Order matters — first card is
