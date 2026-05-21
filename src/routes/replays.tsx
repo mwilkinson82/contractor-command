@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Play, ExternalLink, Lock } from "lucide-react";
+import { Search, Play, ExternalLink, Lock, ArrowRight } from "lucide-react";
 import { PageHeader, Container } from "@/components/portal/page-header";
 import { replaysQueryOptions } from "@/lib/library-queries";
 import { useTier } from "@/hooks/use-tier";
