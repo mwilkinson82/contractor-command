@@ -21,27 +21,32 @@ export const Route = createFileRoute("/replays")({
 });
 
 type ShelfKey = ReplayCategory;
+const ALL_SHELVES: ShelfKey[] = ["circle_call", "power_hour", "sm_school", "contractor_school"];
 
-const SHELF_META: Record<ShelfKey, { label: string; eyebrow: string; lede: string }> = {
+const SHELF_META: Record<ShelfKey, { label: string; eyebrow: string; lede: string; unlockCopy: string }> = {
   circle_call: {
     label: "Circle Calls",
     eyebrow: "Bi-weekly + bootcamp",
     lede: "Every past bi-weekly working session and monthly bootcamp.",
+    unlockCopy: "Unlock with the ALP Handbook or Contractor Circle.",
   },
   power_hour: {
     label: "Power Hour",
     eyebrow: "Daily · Mon–Fri 8AM PT",
     lede: "Daily Power Hour replays from the ALP Hardcore room.",
+    unlockCopy: "Add Power Hour to your plan to unlock daily replays.",
   },
   sm_school: {
     label: "Sales & Marketing School",
     eyebrow: "Wednesdays · 7PM PT",
     lede: "Sales & Marketing School class replays.",
+    unlockCopy: "Add S&M School to your plan to unlock class replays.",
   },
   contractor_school: {
     label: "Contractor School",
     eyebrow: "Tuesdays · 7PM PT",
     lede: "Contractor School class replays — Hardcore only.",
+    unlockCopy: "Upgrade to ALP Hardcore to unlock Contractor School.",
   },
 };
 
