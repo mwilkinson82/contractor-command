@@ -89,9 +89,7 @@ function AosGateway() {
   const headline =
     previouslyLinked === true
       ? "Welcome back."
-      : isBookBuyer
-      ? "Memory is not\nmanagement."
-      : "Run the\noperating system.";
+      : "Memory is not\nmanagement.";
 
   const sub =
     previouslyLinked === true
