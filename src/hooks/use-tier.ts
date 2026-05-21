@@ -68,8 +68,11 @@ export function useTier() {
     loading: loading || authLoading,
     isAosOnly: tier === "aos_only",
     isBookBuyer: tier === "book_buyer",
+    isPowerHour: tier === "power_hour",
+    isSmSchool: tier === "sm_school",
     isIntensive: tier === "intensive",
     isCircle: tier === "circle",
+    isHardcore: tier === "hardcore",
     hasAtLeast: (min: Tier) => tierAtLeast(tier, min),
   };
 }
