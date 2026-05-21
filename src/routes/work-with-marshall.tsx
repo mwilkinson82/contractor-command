@@ -55,7 +55,6 @@ const PACKS: CallPack[] = [
       "Direct chat between calls",
       "Outputs you carry into AOS",
     ],
-    badge: "Best value",
   },
   {
     plan: "call_6",
@@ -70,6 +69,7 @@ const PACKS: CallPack[] = [
       "Marshall in your business for six weeks",
       "Priorities and structure installed end-to-end",
     ],
+    badge: "Best value",
   },
 ];
 
@@ -124,7 +124,7 @@ function WorkPage() {
 
       <div className="mt-12 grid gap-6 lg:grid-cols-3">
         {PACKS.map((pack, i) => {
-          const isPrimary = i === 1; // middle card highlighted
+          const isPrimary = i === 2; // 6-pack highlighted (best per-session value)
           const Icon = pack.icon;
           const isBusy = busy === pack.plan;
           return (

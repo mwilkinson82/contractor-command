@@ -166,7 +166,7 @@ export const UPSELL_CATALOG: Record<UpsellSku, UpsellCard> = {
     pitch: "Enough cadence to install structure on a single inflection point.",
     bullets: ["3 × 60-minute private sessions", "Direct chat between calls", "Outputs you carry into AOS"],
     checkout: "live",
-    plans: [{ id: "call_3", label: "One-time", price: "$3,000", cadence: "one-time", badge: "Best value" }],
+    plans: [{ id: "call_3", label: "One-time", price: "$3,000", cadence: "one-time" }],
   },
   call_6: {
     sku: "call_6",
@@ -180,7 +180,7 @@ export const UPSELL_CATALOG: Record<UpsellSku, UpsellCard> = {
       "Priorities and structure installed end-to-end",
     ],
     checkout: "live",
-    plans: [{ id: "call_6", label: "One-time", price: "$5,000", cadence: "one-time" }],
+    plans: [{ id: "call_6", label: "One-time", price: "$5,000", cadence: "one-time", badge: "Best value" }],
   },
 };
 
