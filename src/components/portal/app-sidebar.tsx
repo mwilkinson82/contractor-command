@@ -126,11 +126,24 @@ const CIRCLE_GROUPS: Group[] = [
   {
     label: "Program",
     items: [
-      { to: "/work-with-marshall", label: "Intensive", icon: Sparkles },
+      { to: "/work-with-marshall", label: "Work with Marshall", icon: Sparkles },
+      { to: "/upgrade", label: "Add-ons", icon: ArrowUpCircle },
       { to: "/account", label: "Account", icon: User },
     ],
   },
 ];
+
+// Tease group: shown to every non-hardcore tier so they can see Hardcore exists.
+const HARDCORE_TEASE: Group = {
+  label: "Hardcore",
+  items: [{ to: "/upgrade", label: "Hardcore Room", icon: Lock, match: "__never__" }],
+};
+
+// Real hardcore group: only for tier=hardcore + admin.
+const HARDCORE_REAL: Group = {
+  label: "Hardcore",
+  items: [{ to: "/hardcore", label: "Hardcore Room", icon: Flame }],
+};
 
 // Book Buyer: Handbook + AOS only, with Upgrade as the obvious next step.
 const BOOK_BUYER_GROUPS: Group[] = [
