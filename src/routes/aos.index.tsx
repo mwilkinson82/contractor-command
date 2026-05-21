@@ -109,90 +109,90 @@ function AosGateway() {
       <div
         role="status"
         aria-live="polite"
-        className="fixed inset-0 z-[100] flex items-center justify-center bg-ink text-cream"
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-background text-foreground"
       >
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.07]"
+          className="pointer-events-none absolute inset-0 opacity-[0.05]"
           style={{
             backgroundImage:
-              "radial-gradient(circle at 1px 1px, var(--cream) 1px, transparent 0)",
+              "radial-gradient(circle at 1px 1px, var(--ink) 1px, transparent 0)",
             backgroundSize: "22px 22px",
           }}
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute -top-1/3 left-1/2 h-[120%] w-[80%] -translate-x-1/2 rounded-full opacity-30 blur-3xl"
+          className="pointer-events-none absolute -top-1/3 left-1/2 h-[120%] w-[80%] -translate-x-1/2 rounded-full opacity-20 blur-3xl"
           style={{
             background:
-              "radial-gradient(closest-side, var(--gold), transparent 70%)",
+              "radial-gradient(closest-side, var(--clay), transparent 70%)",
           }}
         />
         <div className="relative flex flex-col items-center gap-6 text-center">
           <div className="relative flex h-16 w-16 items-center justify-center">
-            <span className="absolute inset-0 rounded-full border border-gold/40 animate-ping" />
-            <span className="absolute inset-2 rounded-full border border-gold/60" />
-            <Compass className="h-6 w-6 text-gold" />
+            <span className="absolute inset-0 rounded-full border border-ink/30 animate-ping" />
+            <span className="absolute inset-2 rounded-full border border-ink/50" />
+            <Compass className="h-6 w-6 text-ink" />
           </div>
           <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-cream/55">
+            <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
               Opening the door
             </p>
             <p className="mt-3 font-display text-2xl tracking-tight sm:text-3xl">
               Opening AOS in a new tab…
             </p>
-            <p className="mt-2 text-[13px] text-cream/60">
+            <p className="mt-2 text-[13px] text-muted-foreground">
               Signing you in{linkedEmail ? ` as ${linkedEmail}` : ""}. Keep this tab open.
             </p>
           </div>
         </div>
       </div>
     )}
-    <section className="relative isolate -m-4 min-h-[calc(100svh-4rem)] overflow-hidden bg-ink text-cream sm:-m-6 md:-m-8">
+    <section className="relative isolate -m-4 min-h-[calc(100svh-4rem)] overflow-hidden bg-background text-foreground sm:-m-6 md:-m-8">
       {/* Ambient field — same grammar as AosHero */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.06]"
+        className="pointer-events-none absolute inset-0 opacity-[0.05]"
         style={{
           backgroundImage:
-            "radial-gradient(circle at 1px 1px, var(--cream) 1px, transparent 0)",
+            "radial-gradient(circle at 1px 1px, var(--ink) 1px, transparent 0)",
           backgroundSize: "24px 24px",
         }}
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute -top-[30%] right-[-15%] h-[120%] w-[70%] rounded-full opacity-[0.22] blur-3xl gateway-glow"
+        className="pointer-events-none absolute -top-[30%] right-[-15%] h-[120%] w-[70%] rounded-full opacity-[0.18] blur-3xl gateway-glow"
         style={{
           background:
-            "radial-gradient(closest-side, var(--gold), transparent 70%)",
+            "radial-gradient(closest-side, var(--clay), transparent 70%)",
         }}
       />
       {/* Slow sweeping scan line */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gold/40 to-transparent gateway-scan"
+        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-ink/20 to-transparent gateway-scan"
       />
 
       <div className="relative mx-auto grid min-h-[calc(100svh-4rem)] max-w-6xl grid-rows-[1fr_auto] px-6 py-16 sm:px-10 sm:py-24 lg:grid-cols-[1.4fr_1fr] lg:grid-rows-1 lg:gap-16">
         {/* Left: the threshold */}
         <div className="flex flex-col justify-center">
           <p
-            className="label-mono !text-cream/55 opacity-0 gateway-reveal"
+            className="label-mono opacity-0 gateway-reveal"
             style={{ animationDelay: "60ms" }}
           >
-            <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-gold align-middle animate-signal-pulse" />
+            <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-clay align-middle animate-signal-pulse" />
             Step 02 · Cross the threshold
           </p>
 
           <h1
-            className="mt-6 font-display text-[2.5rem] leading-[1.04] tracking-tight text-cream opacity-0 gateway-reveal sm:text-[3.75rem]"
+            className="mt-6 font-display text-[2.5rem] leading-[1.04] tracking-tight text-foreground opacity-0 gateway-reveal sm:text-[3.75rem]"
             style={{ animationDelay: "280ms" }}
           >
             {headline}
           </h1>
 
           <p
-            className="mt-6 max-w-xl text-[15px] leading-relaxed text-cream/75 opacity-0 gateway-reveal sm:text-[16px]"
+            className="mt-6 max-w-xl text-[15px] leading-relaxed text-muted-foreground opacity-0 gateway-reveal sm:text-[16px]"
             style={{ animationDelay: "520ms" }}
           >
             {sub}
@@ -208,7 +208,7 @@ function AosGateway() {
               disabled={
                 authLoading || !user || phase === "minting" || (!limitsLoading && !hasAccess)
               }
-              className="group relative inline-flex w-fit items-center gap-3 rounded-md bg-gold px-7 py-4 text-[15px] font-medium text-ink shadow-[0_0_0_0_var(--gold)] transition-all duration-300 hover:shadow-[0_0_40px_-4px_var(--gold)] disabled:opacity-60"
+              className="group relative inline-flex w-fit items-center gap-3 rounded-full bg-ink px-7 py-4 text-[13px] font-medium uppercase tracking-[0.2em] text-cream transition-opacity hover:opacity-90 disabled:opacity-60"
             >
               {phase === "minting" ? (
                 <>
@@ -231,7 +231,7 @@ function AosGateway() {
             </button>
 
             {phase === "opened" && (
-              <div className="max-w-md rounded-md border border-gold/30 bg-gold/[0.06] px-4 py-3 text-[13px] text-cream/85">
+              <div className="max-w-md rounded-md border border-border bg-card px-4 py-3 text-[13px] text-muted-foreground">
                 AOS opened in a new tab. Sign in there, then switch back — Circle stays right here.
               </div>
             )}
@@ -240,15 +240,15 @@ function AosGateway() {
 
             {/* Allowance pill — shows the user what their plan grants in AOS. */}
             {limits && hasAccess && (
-              <div className="flex flex-wrap items-center gap-3 text-[12px] text-cream/70">
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-cream/15 bg-cream/[0.04] px-3 py-1">
-                  <Building2 className="h-3 w-3 text-gold" />
+              <div className="flex flex-wrap items-center gap-3 text-[12px] text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1">
+                  <Building2 className="h-3 w-3 text-clay" />
                   {isUnlimited
                     ? "Unlimited workspaces"
                     : `${limits.workspaceLimit} workspace${limits.workspaceLimit === 1 ? "" : "s"}`}
                 </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-cream/15 bg-cream/[0.04] px-3 py-1">
-                  <Users className="h-3 w-3 text-gold" />
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1">
+                  <Users className="h-3 w-3 text-clay" />
                   {isUnlimited
                     ? "Unlimited seats"
                     : `${limits.seatLimit} seat${limits.seatLimit === 1 ? "" : "s"}`}
@@ -256,7 +256,7 @@ function AosGateway() {
                 {!isUnlimited && (
                   <Link
                     to="/upgrade"
-                    className="text-cream/55 underline-offset-4 hover:text-cream/85 hover:underline"
+                    className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
                   >
                     Need more? Upgrade →
                   </Link>
@@ -266,11 +266,11 @@ function AosGateway() {
 
             {/* No access — user has no active subscription that grants AOS. */}
             {!limitsLoading && !hasAccess && user && (
-              <p className="max-w-md text-[13px] text-cream/70">
+              <p className="max-w-md text-[13px] text-muted-foreground">
                 Your plan doesn't include AOS access yet.{" "}
                 <Link
                   to="/upgrade"
-                  className="text-gold underline-offset-4 hover:underline"
+                  className="text-clay underline-offset-4 hover:underline"
                 >
                   See your options →
                 </Link>
@@ -278,18 +278,18 @@ function AosGateway() {
             )}
 
             {reassurance && hasAccess && (
-              <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-cream/55">
+              <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
                 {reassurance}
               </p>
             )}
 
             {error && (
-              <p className="text-[13px] text-rose-300/90">
+              <p className="text-[13px] text-destructive">
                 {error}{" "}
                 <button
                   type="button"
                   onClick={handleEnter}
-                  className="underline underline-offset-2 hover:text-rose-200"
+                  className="underline underline-offset-2 hover:opacity-80"
                 >
                   Try again
                 </button>
@@ -298,7 +298,7 @@ function AosGateway() {
 
             <Link
               to="/aos/link"
-              className="text-[12px] text-cream/55 underline-offset-4 transition-colors hover:text-cream/85 hover:underline"
+              className="text-[12px] text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
             >
               Different email on AOS already? Link your existing account →
             </Link>
@@ -310,11 +310,11 @@ function AosGateway() {
           className="mt-12 flex items-center opacity-0 gateway-reveal lg:mt-0"
           style={{ animationDelay: "980ms" }}
         >
-          <div className="w-full rounded-2xl border border-cream/10 bg-cream/[0.03] p-6 backdrop-blur-sm">
-            <p className="flex items-center gap-2 label-mono !text-cream/55">
-              <Sparkles className="h-3 w-3 text-gold" /> What lights up inside
+          <div className="w-full rounded-2xl border border-border bg-card p-6">
+            <p className="flex items-center gap-2 label-mono">
+              <Sparkles className="h-3 w-3 text-clay" /> What lights up inside
             </p>
-            <ul className="mt-5 space-y-4 text-[13px] text-cream/85">
+            <ul className="mt-5 space-y-4 text-[13px] text-foreground">
               {[
                 ["Vision", "Where the company is going and why it matters."],
                 ["Scorecard", "Weekly numbers that prove the engine moves."],
@@ -324,15 +324,15 @@ function AosGateway() {
                 ["Traction", "Meeting rhythm. Accountability over time."],
               ].map(([title, body]) => (
                 <li key={title} className="flex items-start gap-3">
-                  <span className="mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-gold" />
+                  <span className="mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-clay" />
                   <div>
-                    <p className="font-medium text-cream">{title}</p>
-                    <p className="text-cream/60">{body}</p>
+                    <p className="font-medium text-foreground">{title}</p>
+                    <p className="text-muted-foreground">{body}</p>
                   </div>
                 </li>
               ))}
             </ul>
-            <p className="mt-6 border-t border-cream/10 pt-4 text-[11px] leading-relaxed text-cream/55">
+            <p className="mt-6 border-t border-border pt-4 text-[11px] leading-relaxed text-muted-foreground">
               You sign in once on Circle. AOS opens with you already inside.
             </p>
           </div>
