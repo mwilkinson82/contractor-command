@@ -167,3 +167,46 @@ export const submitBillingQuestion = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+// Capture interest for SKUs that aren't wired to Stripe yet
+// (Power Hour, S&M School, Hardcore, call packs).
+export const requestUpsellInterest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    z.object({
+      sku: z.enum([
+        "book_buyer",
+        "power_hour",
+        "sm_school",
+        "hardcore",
+        "call_1",
+        "call_3",
+        "call_6",
+      ]),
+      note: z.string().max(1000).optional(),
+    }).parse,
+  )
+  .handler(async ({ data, context }): Promise<{ ok: true }> => {
+    const { supabase, userId } = context;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("email,full_name")
+      .eq("id", userId)
+      .maybeSingle();
+    const { error } = await supabase.from("vault_packets").insert({
+      user_id: userId,
+      kind: "upsell_interest",
+      source: "Upgrade · Interest",
+      status: "Open",
+      title: `Interest: ${data.sku}`,
+      payload: {
+        sku: data.sku,
+        note: data.note ?? "",
+        email: profile?.email ?? "",
+        full_name: profile?.full_name ?? "",
+        captured_at: new Date().toISOString(),
+      },
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
