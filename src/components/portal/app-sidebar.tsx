@@ -30,6 +30,7 @@ import { useTier, type Tier } from "@/hooks/use-tier";
 import { nextAny, relativeDay } from "@/lib/program";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/use-company";
+import { TierImpersonator } from "@/components/portal/tier-impersonator";
 
 type Ctx = {
   collapsed: boolean;
@@ -230,13 +231,11 @@ export function AppSidebar() {
   const isAdmin = useIsAdmin();
   const { tier } = useTier();
 
-  const isHardcore = tier === "hardcore" || isAdmin;
   const baseGroups = groupsForTier(tier);
-  const hardcoreGroup = isHardcore ? HARDCORE_REAL : HARDCORE_TEASE;
+  // Hardcore nav is hidden for now while we figure out the page direction.
   const groups: Group[] = isAdmin
     ? [
         ...CIRCLE_GROUPS,
-        hardcoreGroup,
         {
           label: "Admin",
           items: [
@@ -246,7 +245,7 @@ export function AppSidebar() {
           ],
         },
       ]
-    : [...baseGroups, hardcoreGroup];
+    : baseGroups;
 
   const wasOnAsk = useRef(false);
   useEffect(() => {
@@ -300,7 +299,7 @@ export function AppSidebar() {
 
         <nav className="flex-1 overflow-y-auto px-2 py-4">
           {groups.map((g) => {
-            const isTease = g.label === "Hardcore" && !isHardcore;
+            const isTease = false;
             return (
             <div key={g.label} className="mb-4">
               {!collapsed && (
@@ -340,7 +339,8 @@ export function AppSidebar() {
           })}
         </nav>
 
-        <div className="border-t border-border/70 p-2">
+        <div className="border-t border-border/70 p-2 space-y-2">
+          {isAdmin && <TierImpersonator collapsed={collapsed} />}
           {!collapsed ? (
             <div className="flex items-start gap-2 rounded-md bg-foreground/[0.03] px-2.5 py-2">
               <span className="mt-1 inline-flex h-2 w-2 shrink-0 rounded-full bg-signal animate-signal-pulse" />
