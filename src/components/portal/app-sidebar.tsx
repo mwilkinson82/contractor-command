@@ -299,10 +299,12 @@ export function AppSidebar() {
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 py-4">
-          {groups.map((g) => (
+          {groups.map((g) => {
+            const isTease = g.label === "Hardcore" && !isHardcore;
+            return (
             <div key={g.label} className="mb-4">
               {!collapsed && (
-                <p className="px-2 pb-1.5 text-[10px] uppercase tracking-[0.22em] font-semibold" style={{ color: "color-mix(in oklab, var(--signal) 75%, transparent)" }}>
+                <p className="px-2 pb-1.5 text-[10px] uppercase tracking-[0.22em] font-semibold" style={{ color: isTease ? "color-mix(in oklab, var(--foreground) 35%, transparent)" : "color-mix(in oklab, var(--signal) 75%, transparent)" }}>
                   {g.label}
                 </p>
               )}
@@ -314,10 +316,12 @@ export function AppSidebar() {
                     <li key={it.to}>
                       <Link
                         to={it.to as "/"}
-                        title={collapsed ? it.label : undefined}
+                        title={collapsed ? (isTease ? `${it.label} — upgrade to unlock` : it.label) : (isTease ? "Daily Power Hour, S&M School, Contractor School. Upgrade to unlock." : undefined)}
                         className={`group/item relative flex items-center gap-3 rounded-md px-2 py-2 text-[13px] transition-colors ${
                           active
                             ? "bg-ink text-cream"
+                            : isTease
+                            ? "text-foreground/35 hover:bg-foreground/5 hover:text-foreground/60"
                             : "text-foreground/75 hover:bg-foreground/5 hover:text-foreground"
                         }`}
                       >
@@ -332,7 +336,8 @@ export function AppSidebar() {
                 })}
               </ul>
             </div>
-          ))}
+            );
+          })}
         </nav>
 
         <div className="border-t border-border/70 p-2">
