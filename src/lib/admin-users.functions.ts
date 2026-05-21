@@ -87,11 +87,37 @@ export const listAdminUsers = createServerFn({ method: "GET" })
     );
 
     type SubRow = NonNullable<typeof subs>[number];
+    // Pick the "best" sub row when multiple exist for the same user/email:
+    // 1. one with a real Stripe subscription_id wins
+    // 2. then one with a Stripe customer_id
+    // 3. then the most recently created
+    function rank(s: SubRow): number {
+      if (s.stripe_subscription_id) return 3;
+      if (s.stripe_customer_id) return 2;
+      return 1;
+    }
+    function pickBetter(a: SubRow | undefined, b: SubRow): SubRow {
+      if (!a) return b;
+      return rank(b) > rank(a) ? b : a;
+    }
     const subByUserId = new Map<string, SubRow>();
     const subByEmail = new Map<string, SubRow>();
+    const allSubIdsByUserId = new Map<string, Set<string>>();
+    const allSubIdsByEmail = new Map<string, Set<string>>();
     for (const s of subs ?? []) {
-      if (s.user_id) subByUserId.set(s.user_id, s);
-      if (s.email) subByEmail.set(s.email.toLowerCase(), s);
+      if (s.user_id) {
+        subByUserId.set(s.user_id, pickBetter(subByUserId.get(s.user_id), s));
+        const set = allSubIdsByUserId.get(s.user_id) ?? new Set<string>();
+        set.add(s.id);
+        allSubIdsByUserId.set(s.user_id, set);
+      }
+      if (s.email) {
+        const key = s.email.toLowerCase();
+        subByEmail.set(key, pickBetter(subByEmail.get(key), s));
+        const set = allSubIdsByEmail.get(key) ?? new Set<string>();
+        set.add(s.id);
+        allSubIdsByEmail.set(key, set);
+      }
     }
 
     const rows: AdminUserRow[] = [];
