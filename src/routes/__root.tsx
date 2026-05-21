@@ -303,11 +303,18 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
       !tierLoading &&
       !isAdmin &&
       tier &&
-      tier !== "circle" &&
-      isCircleOnly(pathname)
+      tier !== "circle"
     ) {
-      toast.info("That's a Circle feature — here's how to unlock it.");
-      navigate({ to: "/upgrade" });
+      // The home page IS the Circle command center — non-Circle users land
+      // on /aos (their workspace gateway) instead.
+      if (pathname === "/") {
+        navigate({ to: "/aos" });
+        return;
+      }
+      if (isCircleOnly(pathname)) {
+        toast.info("That's a Circle feature — here's how to unlock it.");
+        navigate({ to: "/upgrade" });
+      }
     }
   }, [loading, session, isPublic, isOnboarding, companyLoading, needsOnboarding, tierLoading, tier, isAdmin, pathname, navigate]);
 
