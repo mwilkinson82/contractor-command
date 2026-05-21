@@ -124,7 +124,7 @@ function WorkPage() {
 
       <div className="mt-12 grid gap-6 lg:grid-cols-3">
         {PACKS.map((pack, i) => {
-          const isPrimary = i === 1; // middle card highlighted
+          const isPrimary = i === 2; // 6-pack highlighted (best per-session value)
           const Icon = pack.icon;
           const isBusy = busy === pack.plan;
           return (
