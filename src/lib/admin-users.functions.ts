@@ -129,7 +129,14 @@ export const listAdminUsers = createServerFn({ method: "GET" })
         subByUserId.get(p.id) ??
         (p.email ? subByEmail.get(p.email.toLowerCase()) : undefined) ??
         null;
-      if (sub) seenSubIds.add(sub.id);
+      if (sub) {
+        // Mark every sibling sub for this user/email as seen so dupes
+        // don't get surfaced as separate orphan rows in the third loop.
+        for (const sid of allSubIdsByUserId.get(p.id) ?? []) seenSubIds.add(sid);
+        if (p.email) {
+          for (const sid of allSubIdsByEmail.get(p.email.toLowerCase()) ?? []) seenSubIds.add(sid);
+        }
+      }
       const au = authById.get(p.id);
       if (au) seenAuthIds.add(au.id);
       rows.push({
