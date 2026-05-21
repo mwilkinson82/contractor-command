@@ -387,6 +387,7 @@ export type Database = {
       }
       replays: {
         Row: {
+          category: Database["public"]["Enums"]["replay_category"]
           created_at: string
           description: string | null
           duration_minutes: number | null
@@ -399,6 +400,7 @@ export type Database = {
           video_url: string | null
         }
         Insert: {
+          category?: Database["public"]["Enums"]["replay_category"]
           created_at?: string
           description?: string | null
           duration_minutes?: number | null
@@ -411,6 +413,7 @@ export type Database = {
           video_url?: string | null
         }
         Update: {
+          category?: Database["public"]["Enums"]["replay_category"]
           created_at?: string
           description?: string | null
           duration_minutes?: number | null
@@ -667,6 +670,13 @@ export type Database = {
         Args: { _event_id: string; _event_type: string; _object_id: string }
         Returns: string
       }
+      can_read_replay_category: {
+        Args: {
+          _category: Database["public"]["Enums"]["replay_category"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
@@ -730,7 +740,19 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "member"
-      app_tier: "aos_only" | "book_buyer" | "intensive" | "circle"
+      app_tier:
+        | "aos_only"
+        | "book_buyer"
+        | "intensive"
+        | "circle"
+        | "power_hour"
+        | "sm_school"
+        | "hardcore"
+      replay_category:
+        | "circle_call"
+        | "power_hour"
+        | "sm_school"
+        | "contractor_school"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -859,7 +881,21 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "member"],
-      app_tier: ["aos_only", "book_buyer", "intensive", "circle"],
+      app_tier: [
+        "aos_only",
+        "book_buyer",
+        "intensive",
+        "circle",
+        "power_hour",
+        "sm_school",
+        "hardcore",
+      ],
+      replay_category: [
+        "circle_call",
+        "power_hour",
+        "sm_school",
+        "contractor_school",
+      ],
     },
   },
 } as const
