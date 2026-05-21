@@ -313,6 +313,32 @@ async function upsertOneTimePurchase(stripe: Stripe, session: Stripe.Checkout.Se
   const normalizedEmail = email.toLowerCase();
   const metadata = (session.metadata ?? {}) as Record<string, string>;
 
+  // Call packs are services, not tier purchases — log to vault_packets
+  // and skip subscription row creation.
+  if (metadata.product === "calls" || metadata.kind === "calls") {
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .ilike("email", normalizedEmail)
+      .maybeSingle();
+    await supabaseAdmin.from("vault_packets").insert({
+      user_id: profile?.id ?? null,
+      kind: "call_pack_purchase",
+      source: "Stripe · Call pack",
+      status: "Open",
+      title: `Call pack: ${metadata.plan ?? "unknown"}`,
+      payload: {
+        plan: metadata.plan ?? "",
+        email: normalizedEmail,
+        checkout_session_id: session.id,
+        amount_total: session.amount_total,
+        captured_at: new Date().toISOString(),
+      },
+    });
+    return;
+  }
+
+
   // Resolve price from line items.
   let priceId: string | null = null;
   let productId: string | null = null;
