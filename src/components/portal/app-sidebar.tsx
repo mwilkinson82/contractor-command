@@ -298,7 +298,7 @@ export function AppSidebar() {
 
         <nav className="flex-1 overflow-y-auto px-2 py-4">
           {groups.map((g) => {
-            const isTease = g.label === "Hardcore" && !isHardcore;
+            const isTease = false;
             return (
             <div key={g.label} className="mb-4">
               {!collapsed && (
