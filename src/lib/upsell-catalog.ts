@@ -81,7 +81,7 @@ export const UPSELL_CATALOG: Record<UpsellSku, UpsellCard> = {
       "Unlimited AOS workspaces and seats",
     ],
     checkout: "live",
-    plans: [{ id: "circle", label: "Monthly", price: "Membership", cadence: "monthly" }],
+    plans: [{ id: "circle", label: "Monthly", price: "$497", cadence: "per month" }],
   },
   power_hour: {
     sku: "power_hour",
