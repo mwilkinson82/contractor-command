@@ -652,6 +652,91 @@ export function CpmGrid({
               );
             })}
 
+            {/* ===== Relationship lines (FS/SS/FF/SF) ===== */}
+            {(() => {
+              const taskRowIdx = new Map<string, number>();
+              rows.forEach((r, i) => {
+                if (r.kind === "task") taskRowIdx.set(r.task.id, i);
+              });
+              const taskById = new Map(result.tasks.map((t) => [t.id, t]));
+              const out: React.ReactNode[] = [];
+              for (const d of result.dependencies) {
+                const si = taskRowIdx.get(d.from);
+                const ti = taskRowIdx.get(d.to);
+                if (si === undefined || ti === undefined) continue; // collapsed
+                const s = taskById.get(d.from);
+                const t = taskById.get(d.to);
+                if (!s || !t) continue;
+                const sY = rowYs[si] + ROW_H / 2;
+                const tY = rowYs[ti] + ROW_H / 2;
+                const sX =
+                  (d.type === "SS" || d.type === "SF" ? s.earlyStart : s.earlyFinish) * dayPx;
+                const tXraw =
+                  (d.type === "FF" || d.type === "SF" ? t.earlyFinish : t.earlyStart) * dayPx;
+                const enterFromLeft = d.type === "FS" || d.type === "SS";
+                const tX = tXraw + (enterFromLeft ? 0 : 0);
+                const stub = 6;
+                // Right-angle routing: out → horizontal stub → vertical to target row → into target side
+                const midX = enterFromLeft ? Math.max(sX + stub, tX - stub) : Math.max(sX + stub, tX + stub);
+                const path =
+                  `M ${sX} ${sY} ` +
+                  `L ${sX + (enterFromLeft ? stub : stub)} ${sY} ` +
+                  `L ${midX} ${sY} ` +
+                  `L ${midX} ${tY} ` +
+                  `L ${tX} ${tY}`;
+                const isCriticalLink = d.isDriving && s.isCritical && t.isCritical;
+                const stroke = isCriticalLink
+                  ? "#b42318"
+                  : d.isDriving
+                  ? "#3554a5"
+                  : "#9c8b6e";
+                const opacity = d.isDriving ? 0.9 : 0.45;
+                const marker = isCriticalLink
+                  ? "url(#arrow-crit)"
+                  : d.isDriving
+                  ? "url(#arrow-drive)"
+                  : "url(#arrow-soft)";
+                out.push(
+                  <path
+                    key={`dep-${d.from}-${d.to}-${d.type}`}
+                    d={path}
+                    fill="none"
+                    stroke={stroke}
+                    strokeWidth={isCriticalLink ? 1.4 : 1}
+                    opacity={opacity}
+                    markerEnd={marker}
+                    pointerEvents="none"
+                  />,
+                );
+              }
+              return (
+                <g>
+                  <defs>
+                    {[
+                      { id: "arrow-crit", color: "#b42318" },
+                      { id: "arrow-drive", color: "#3554a5" },
+                      { id: "arrow-soft", color: "#9c8b6e" },
+                    ].map((m) => (
+                      <marker
+                        key={m.id}
+                        id={m.id}
+                        viewBox="0 0 10 10"
+                        refX="9"
+                        refY="5"
+                        markerWidth="6"
+                        markerHeight="6"
+                        orient="auto-start-reverse"
+                      >
+                        <path d="M 0 0 L 10 5 L 0 10 z" fill={m.color} />
+                      </marker>
+                    ))}
+                  </defs>
+                  {out}
+                </g>
+              );
+            })()}
+
+
             {/* Data date line */}
             {dataDateOffset !== null && dataDateOffset >= 0 && dataDateOffset <= duration ? (
               <g>
