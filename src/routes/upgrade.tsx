@@ -21,9 +21,16 @@ import {
   type UpsellCard,
   type UpsellSku,
 } from "@/lib/upsell-catalog";
+import { isAllowedReturnTo, RETURN_TO_STORAGE_KEY } from "@/lib/return-to";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/upgrade")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    tier: typeof search.tier === "string" ? search.tier : undefined,
+    return_to: typeof search.return_to === "string" ? search.return_to : undefined,
+    upsell: typeof search.upsell === "string" ? search.upsell : undefined,
+    circle: typeof search.circle === "string" ? search.circle : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Upgrade — ALP Contractor Circle" },
