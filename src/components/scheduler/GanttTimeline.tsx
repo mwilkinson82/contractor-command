@@ -29,10 +29,21 @@ export function GanttTimeline({
   collapsedGroups,
   onToggleGroup,
   baseline,
+  dataDate,
+  calendar,
 }: Props) {
   const baselineMap = new Map<string, ScheduledTask>();
   if (baseline) for (const b of baseline.tasks) baselineMap.set(b.id, b);
   const duration = Math.max(result.projectDuration, 1);
+
+  const dataDateOffset =
+    dataDate && result.projectStartDate
+      ? workingDayOffset(
+          result.projectStartDate,
+          dataDate,
+          calendar ?? { workDays: 31, holidays: [] },
+        )
+      : null;
 
   // Group tasks by WBS, sorted by earliest ES
   const groupsMap = new Map<string, ScheduledTask[]>();
