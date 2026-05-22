@@ -121,10 +121,11 @@ function fallbackDoc(body: Required<Pick<Body, "sopName" | "purpose" | "trigger"
     ],
     definitionOfDone: `The next seat can act on the packet without asking the ${owner} a single clarifying question.`,
     kpis: [
-      "Cycle time from trigger to hand-off (hours)",
-      "Rework events per 10 completions",
-      "Escalations per 10 completions",
+      "Cycle time from trigger to hand-off → < 48h",
+      "Rework events per 10 completions → < 1",
+      "Escalations per 10 completions → < 2",
     ],
+
     exceptions: [
       "Missing inputs at trigger → escalate to seat lead, do not start.",
       "Scope change discovered mid-execution → pause, log, escalate to owner before proceeding.",
