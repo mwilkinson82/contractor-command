@@ -84,6 +84,7 @@ type Draft = {
   holidays: string[];
   tasks: Task[];
   dependencies: Dependency[];
+  annotations: Annotation[];
 };
 
 function nextTaskId(tasks: Task[]): string {
