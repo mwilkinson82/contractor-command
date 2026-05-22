@@ -139,6 +139,9 @@ export const loadSchedule = createServerFn({ method: "GET" })
         type: d.type as "FS" | "SS" | "FF" | "SF",
         lag: d.lag as number,
       })),
+      annotations: Array.isArray(head.annotations)
+        ? (head.annotations as unknown as Schedule["annotations"])
+        : [],
     };
 
     return {
