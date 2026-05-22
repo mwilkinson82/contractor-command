@@ -513,6 +513,20 @@ function SchedulerPage() {
                 }}
               />
             ) : null}
+
+            {selectedId && draft ? (
+              <UpdateCyclePanel
+                scheduleId={selectedId}
+                dirty={dirty}
+                dataDate={draft.dataDate}
+                computed={computed}
+                onCycleClosed={(nextDate) => {
+                  setDraft({ ...draft, dataDate: nextDate });
+                  setDirty(true);
+                  toast.info(`Data date advanced to ${nextDate}`);
+                }}
+              />
+            ) : null}
           </aside>
 
           {/* Right */}
