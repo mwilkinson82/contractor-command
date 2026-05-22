@@ -41,3 +41,16 @@ Both land on `src/routes/index.tsx`. Add a tiny effect there:
 - No changes to the Stripe webhook or `subscriptions` table.
 - No tier-specific landing pages on the portal.
 - AOS-side changes (AOS just needs to include the `return_to` param when it builds the upgrade link — covered in the prompt update).
+---
+
+## Addendum for the AOS prompt — update the upgrade CTA
+
+When AOS builds the upgrade link, include `return_to`:
+
+```
+https://app.alpcontractorcircle.com/upgrade?tier=<tier>&return_to=<encoded AOS URL>
+```
+
+- `return_to` must be an absolute `https://` URL on `*.alpcontractorcircle.com` — the portal silently drops anything else.
+- After a successful Stripe checkout the portal will bounce the user back to that URL (a one-line "sending you back to AOS…" toast shows, then `window.location.replace`).
+- If the user cancels checkout, they land back on `/upgrade` with the `return_to` still stored in sessionStorage, so retrying works without re-passing the param.
