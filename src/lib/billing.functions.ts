@@ -322,7 +322,7 @@ export const createSkuCheckout = createServerFn({ method: "POST" })
       mode,
       customer_email: profile?.email ?? undefined,
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${origin}${cfg.success}`,
+      success_url: appendReturnTo(`${origin}${cfg.success}`, data.returnTo),
       cancel_url: `${origin}${cfg.cancel}`,
       metadata: meta,
       ...(mode === "subscription"
