@@ -100,10 +100,16 @@ export function CpmGrid({
   // Group tasks by WBS, ordered by ES
   const { rows, baselineMap } = useMemo(() => {
     const map = new Map<string, ScheduledTask[]>();
+    const keyFor = (t: ScheduledTask): string => {
+      if (groupBy === "none") return "All activities";
+      if (groupBy === "critical") return t.isCritical ? "Critical path" : "Non-critical";
+      return t.wbs?.trim() || UNASSIGNED;
+    };
     for (const t of result.tasks) {
-      const key = t.wbs?.trim() || UNASSIGNED;
+      const key = keyFor(t);
       const arr = map.get(key) ?? [];
       arr.push(t);
+
       map.set(key, arr);
     }
     const groups = Array.from(map.entries())
