@@ -640,11 +640,28 @@ function SchedulerPage() {
                 {computed ? (
                   <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
                     <section className="overflow-hidden rounded border border-[#d8cdb8] bg-white">
-                      <div className="flex items-center justify-between border-b border-[#eee7d8] px-3 py-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#eee7d8] px-3 py-2">
                         <h3 className="text-sm font-semibold uppercase tracking-wide text-[#675d4b]">
                           Gantt · Critical path
                         </h3>
                         <div className="flex items-center gap-3 text-xs text-[#776e5e]">
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] uppercase tracking-wide">Zoom</span>
+                            {ZOOM_LEVELS.map((z) => (
+                              <button
+                                key={z.label}
+                                type="button"
+                                onClick={() => setDayPx(z.dayPx)}
+                                className={`rounded px-1.5 py-0.5 text-[10px] ${
+                                  dayPx === z.dayPx
+                                    ? "bg-[#1f241f] text-white"
+                                    : "border border-[#d8cdb8] text-[#5c574e] hover:bg-[#eee6d7]"
+                                }`}
+                              >
+                                {z.label}
+                              </button>
+                            ))}
+                          </div>
                           <span className="inline-flex items-center gap-1">
                             <span className="inline-block h-2 w-3 rounded-sm bg-[#b42318]" /> Critical
                           </span>
@@ -661,6 +678,9 @@ function SchedulerPage() {
                           result={computed}
                           selectedId={selectedTaskId}
                           onSelect={setSelectedTaskId}
+                          dayPx={dayPx}
+                          collapsedGroups={collapsedGroups}
+                          onToggleGroup={toggleGroup}
                         />
                       </div>
                     </section>
