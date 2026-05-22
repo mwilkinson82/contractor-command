@@ -900,6 +900,14 @@ function SchedulerPage() {
                         {computed.diagnostics.join("; ")}
                       </div>
                     ) : null}
+                    <div className="mt-4 border-t border-[#eee7d8] pt-3">
+                      <div className="text-xs uppercase tracking-wide text-[#746b5c]">
+                        Open ends
+                      </div>
+                      <div className="mt-1">
+                        <OpenEndsReport result={computed} />
+                      </div>
+                    </div>
                   </section>
                 ) : null}
               </>
