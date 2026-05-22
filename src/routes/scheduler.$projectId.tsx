@@ -51,32 +51,6 @@ export const Route = createFileRoute("/scheduler/$projectId")({
   component: SchedulerPage,
 });
 
-const SAMPLE: Omit<Schedule, "id" | "name"> = {
-  projectStartDate: "2026-06-01",
-  tasks: [
-    { id: "A100", name: "Mobilize and site setup", duration: 2, wbs: "01 General" },
-    { id: "A110", name: "Layout and selective demo", duration: 3, wbs: "02 Demo" },
-    { id: "A120", name: "Underground rough-in", duration: 4, wbs: "22 Plumbing" },
-    { id: "A130", name: "Framing and blocking", duration: 5, wbs: "09 Interiors" },
-    { id: "A140", name: "MEP rough-in", duration: 6, wbs: "23 MEP" },
-    { id: "A150", name: "Drywall hang and finish", duration: 5, wbs: "09 Interiors" },
-    { id: "A160", name: "Paint and wall finishes", duration: 3, wbs: "09 Interiors" },
-    { id: "A170", name: "Ceilings, devices, trim", duration: 4, wbs: "09 Interiors" },
-    { id: "A180", name: "Final inspections and punch", duration: 2, wbs: "01 General" },
-  ],
-  dependencies: [
-    { from: "A100", to: "A110", type: "FS" },
-    { from: "A110", to: "A120", type: "FS" },
-    { from: "A110", to: "A130", type: "FS" },
-    { from: "A120", to: "A140", type: "SS", lag: 1 },
-    { from: "A130", to: "A140", type: "FS" },
-    { from: "A140", to: "A150", type: "FS" },
-    { from: "A150", to: "A160", type: "FS" },
-    { from: "A160", to: "A170", type: "SS", lag: 1 },
-    { from: "A170", to: "A180", type: "FS" },
-  ],
-};
-
 type Draft = {
   name: string;
   projectStartDate?: string;
@@ -99,15 +73,14 @@ function nextTaskId(tasks: Task[]): string {
 
 function SchedulerPage() {
   const qc = useQueryClient();
-  const listFn = useServerFn(listSchedules);
+  const navigate = useNavigate();
+  const { projectId } = Route.useParams();
   const loadFn = useServerFn(loadSchedule);
   const saveFn = useServerFn(saveSchedule);
   const deleteFn = useServerFn(deleteSchedule);
   const loadBaselineFn = useServerFn(loadBaseline);
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [newName, setNewName] = useState("");
-  const [newStart, setNewStart] = useState("");
+  const selectedId = projectId;
   const [draft, setDraft] = useState<Draft | null>(null);
   const [dirty, setDirty] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -118,6 +91,8 @@ function SchedulerPage() {
   // Reset comparison when changing schedules
   useEffect(() => {
     setComparisonBaselineId(null);
+    setDraft(null);
+    setDirty(false);
   }, [selectedId]);
 
   const toggleGroup = (key: string) => {
@@ -129,16 +104,12 @@ function SchedulerPage() {
     });
   };
 
-  const listQuery = useQuery({
-    queryKey: ["schedules"],
-    queryFn: () => listFn(),
-  });
-
   const loadQuery = useQuery({
     queryKey: ["schedule", selectedId],
-    queryFn: () => loadFn({ data: { id: selectedId! } }),
+    queryFn: () => loadFn({ data: { id: selectedId } }),
     enabled: !!selectedId,
   });
+
 
   // Hydrate draft when a schedule loads
   useEffect(() => {
