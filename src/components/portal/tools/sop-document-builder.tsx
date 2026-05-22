@@ -817,15 +817,16 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
   h2("KPIs");
   // Metric → Target table-ish rendering. Split on → or : ; right-align target.
   for (const it of d.kpis) {
-    const splitMatch = it.match(/^(.*?)(?:\s*(?:→|->|:)\s*)(.+)$/);
+    const cleaned = safePdfText(it);
+    const splitMatch = cleaned.match(/^(.*?)(?:\s*(?:->|:)\s*)(.+)$/);
     const lineH = 11 * 1.45;
-    ensure(lineH);
     if (splitMatch) {
       const metric = splitMatch[1].trim();
       const target = splitMatch[2].trim();
       // Reserve ~35% of width for target column on the right
       const targetColW = contentW * 0.32;
       const metricColW = contentW - targetColW - 10;
+      resetTextTracking();
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(11);
       pdf.setTextColor(30, 30, 30);
@@ -833,8 +834,10 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
       pdf.setFont("helvetica", "bold");
       const targetLines = pdf.splitTextToSize(target, targetColW) as string[];
       const rows = Math.max(metricLines.length, targetLines.length);
+      ensure(rows * lineH + 3);
       const rowStartY = y;
       // metric column
+      resetTextTracking();
       pdf.setFont("helvetica", "normal");
       pdf.setTextColor(30, 30, 30);
       for (let i = 0; i < metricLines.length; i++) {
@@ -853,13 +856,13 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
     }
   }
 
-  h2("Exceptions / escalation");
+  h2("Exceptions / escalation", bulletListHeight(d.exceptions));
   for (const it of d.exceptions) {
     writeWrapped(`•   ${it}`, { size: 11, family: "helvetica", indent: 10, lineGap: 3, lineHeight: 1.45 });
   }
 
   y += 22;
-  ensure(20);
+  ensure(46 + measureWrappedHeight(`Revision cadence: ${d.revisionCadence}`, { size: 9, family: "helvetica", lineHeight: 1.4 }));
   pdf.setDrawColor(220, 217, 210);
   pdf.line(margin, y, margin + contentW, y);
   y += 14;
