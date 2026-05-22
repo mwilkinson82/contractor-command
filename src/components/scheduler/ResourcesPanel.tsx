@@ -16,7 +16,7 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
   const duration = Math.max(result.projectDuration, 1);
 
   // Build per-day series in working-day units (0..duration-1)
-  const { perDayCost, cumCost, perDayEarned, cumEarned, perDayActual, resourceSeries, bac, ev, ac, pv, dataDay } =
+  const { cumCost, cumEarned, perDayActual, resourceSeries, bac, ev, ac, pv, dataDay } =
     useMemo(() => {
       const cost = new Array(duration).fill(0);
       const earned = new Array(duration).fill(0);
