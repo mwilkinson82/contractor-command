@@ -12,6 +12,7 @@ import {
   loadBaseline,
 } from "@/lib/scheduler/persistence.functions";
 import { calculateSchedule } from "@/lib/scheduler/engine";
+import { rescheduleFromDataDate } from "@/lib/scheduler/progress";
 import type { Dependency, DependencyType, Schedule, Task } from "@/lib/scheduler/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
