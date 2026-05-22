@@ -30,11 +30,13 @@ import { OpenEndsReport } from "@/components/scheduler/OpenEndsReport";
 import { Stat } from "@/components/scheduler/Stat";
 import { BaselinesPanel } from "@/components/scheduler/BaselinesPanel";
 import { CalendarPanel } from "@/components/scheduler/CalendarPanel";
+import { CalendarsPanel } from "@/components/scheduler/CalendarsPanel";
 import { ReportsPanel } from "@/components/scheduler/ReportsPanel";
 import { ResourcesPanel } from "@/components/scheduler/ResourcesPanel";
 import { StructurePanel } from "@/components/scheduler/StructurePanel";
 import { WbsSelect } from "@/components/scheduler/WbsSelect";
 import { ActivityCodeChips } from "@/components/scheduler/ActivityCodeChips";
+import { listCalendars, assignTaskCalendar } from "@/lib/scheduler/calendars.functions";
 
 import { FragnetPanel } from "@/components/scheduler/FragnetPanel";
 import { AnnotationsPanel } from "@/components/scheduler/AnnotationsPanel";
@@ -377,6 +379,15 @@ function SchedulerPage() {
                   setDraft({ ...draft, workDays, holidays });
                   setDirty(true);
                 }}
+              />
+            ) : null}
+
+            {selectedId ? (
+              <CalendarsPanel
+                scheduleId={selectedId}
+                onDefaultChanged={() =>
+                  qc.invalidateQueries({ queryKey: ["schedule", selectedId] })
+                }
               />
             ) : null}
 

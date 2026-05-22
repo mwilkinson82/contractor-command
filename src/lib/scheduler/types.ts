@@ -19,6 +19,8 @@ export interface Task {
   resourceUnitsPerDay?: number;
   /** "Start no earlier than" constraint (ISO YYYY-MM-DD). Forward pass clamps earlyStart up to this date. */
   startNoEarlierThan?: string;
+  /** Optional named calendar this activity follows. If unset, project default applies. */
+  calendarId?: string;
 }
 
 export interface Dependency {
@@ -37,6 +39,13 @@ export interface ProjectCalendar {
 }
 
 export const DEFAULT_CALENDAR: ProjectCalendar = { workDays: 31, holidays: [] };
+
+/** A named calendar belonging to a schedule. The default one drives engine math; others can be assigned to activities for organizational/reporting purposes (full per-activity calendar math is planned). */
+export interface NamedCalendar extends ProjectCalendar {
+  id: string;
+  name: string;
+  isDefault: boolean;
+}
 
 export type AnnotationKind = "milestone" | "callout";
 
@@ -57,6 +66,8 @@ export interface Schedule {
   /** As-of date for progress updates (status / data date). */
   dataDate?: string;
   calendar?: ProjectCalendar;
+  /** Named calendars defined for this schedule. The one with isDefault=true is the project default. */
+  calendars?: NamedCalendar[];
   tasks: Task[];
   dependencies: Dependency[];
   annotations?: Annotation[];

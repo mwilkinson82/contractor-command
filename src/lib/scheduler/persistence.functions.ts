@@ -21,6 +21,7 @@ const TaskInput = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional()
     .nullable(),
+  calendarId: z.string().uuid().optional().nullable(),
 });
 
 const DependencyInput = z.object({
@@ -205,21 +206,28 @@ export const loadSchedule = createServerFn({ method: "GET" })
     if (headErr) throw new Error(headErr.message);
     if (!head) throw new Error("Schedule not found");
 
-    const [{ data: tasks, error: tErr }, { data: deps, error: dErr }] = await Promise.all([
-      supabase
-        .from("schedule_tasks")
-        .select(
-          "task_id, name, duration, wbs, description, percent_complete, position, budget_cost, actual_cost, resource_name, resource_units_per_day, start_no_earlier_than",
-        )
-        .eq("schedule_id", data.id)
-        .order("position", { ascending: true }),
-      supabase
-        .from("schedule_dependencies")
-        .select("from_task_id, to_task_id, type, lag")
-        .eq("schedule_id", data.id),
-    ]);
+    const [{ data: tasks, error: tErr }, { data: deps, error: dErr }, { data: cals, error: cErr }] =
+      await Promise.all([
+        supabase
+          .from("schedule_tasks")
+          .select(
+            "task_id, name, duration, wbs, description, percent_complete, position, budget_cost, actual_cost, resource_name, resource_units_per_day, start_no_earlier_than, calendar_id",
+          )
+          .eq("schedule_id", data.id)
+          .order("position", { ascending: true }),
+        supabase
+          .from("schedule_dependencies")
+          .select("from_task_id, to_task_id, type, lag")
+          .eq("schedule_id", data.id),
+        supabase
+          .from("schedule_calendars")
+          .select("id, name, work_days, holidays, is_default, position")
+          .eq("schedule_id", data.id)
+          .order("position", { ascending: true }),
+      ]);
     if (tErr) throw new Error(tErr.message);
     if (dErr) throw new Error(dErr.message);
+    if (cErr) throw new Error(cErr.message);
 
     const schedule: Schedule = {
       id: head.id as string,
@@ -244,6 +252,7 @@ export const loadSchedule = createServerFn({ method: "GET" })
         resourceName: (t.resource_name as string | null) ?? undefined,
         resourceUnitsPerDay: (t.resource_units_per_day as number | null) ?? undefined,
         startNoEarlierThan: (t.start_no_earlier_than as string | null) ?? undefined,
+        calendarId: (t.calendar_id as string | null) ?? undefined,
       })),
       dependencies: (deps ?? []).map((d) => ({
         from: d.from_task_id as string,
@@ -254,6 +263,15 @@ export const loadSchedule = createServerFn({ method: "GET" })
       annotations: Array.isArray(head.annotations)
         ? (head.annotations as unknown as Schedule["annotations"])
         : [],
+      calendars: (cals ?? []).map((c) => ({
+        id: c.id as string,
+        name: c.name as string,
+        workDays: (c.work_days as number | null) ?? 31,
+        holidays: ((c.holidays as unknown as string[] | null) ?? []).filter(
+          (h): h is string => typeof h === "string",
+        ),
+        isDefault: !!c.is_default,
+      })),
     };
 
     return {
@@ -336,6 +354,7 @@ export const saveSchedule = createServerFn({ method: "POST" })
           resource_name: t.resourceName ?? null,
           resource_units_per_day: t.resourceUnitsPerDay ?? null,
           start_no_earlier_than: t.startNoEarlierThan ?? null,
+          calendar_id: t.calendarId ?? null,
           position: i,
         })),
       );
