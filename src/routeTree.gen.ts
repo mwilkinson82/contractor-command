@@ -37,6 +37,7 @@ import { Route as AosIndexRouteImport } from './routes/aos.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as ToolsOwnerDependencyRouteImport } from './routes/tools.owner-dependency'
 import { Route as ToolsGrowthConstraintRouteImport } from './routes/tools.growth-constraint'
+import { Route as SchedulerProjectIdRouteImport } from './routes/scheduler.$projectId'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as AskNewRouteImport } from './routes/ask.new'
 import { Route as AskThreadIdRouteImport } from './routes/ask.$threadId'
@@ -202,6 +203,11 @@ const ToolsGrowthConstraintRoute = ToolsGrowthConstraintRouteImport.update({
   path: '/growth-constraint',
   getParentRoute: () => ToolsRoute,
 } as any)
+const SchedulerProjectIdRoute = SchedulerProjectIdRouteImport.update({
+  id: '/$projectId',
+  path: '/$projectId',
+  getParentRoute: () => SchedulerRoute,
+} as any)
 const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
   id: '/email/unsubscribe',
   path: '/email/unsubscribe',
@@ -339,7 +345,7 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof OnboardingRoute
   '/replays': typeof ReplaysRoute
   '/reset-password': typeof ResetPasswordRoute
-  '/scheduler': typeof SchedulerRoute
+  '/scheduler': typeof SchedulerRouteWithChildren
   '/scheduler-field': typeof SchedulerFieldRoute
   '/scheduler-portfolio': typeof SchedulerPortfolioRoute
   '/scheduler-preview': typeof SchedulerPreviewRoute
@@ -365,6 +371,7 @@ export interface FileRoutesByFullPath {
   '/ask/$threadId': typeof AskThreadIdRoute
   '/ask/new': typeof AskNewRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/scheduler/$projectId': typeof SchedulerProjectIdRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
   '/tools/owner-dependency': typeof ToolsOwnerDependencyRoute
   '/admin/': typeof AdminIndexRoute
@@ -393,7 +400,7 @@ export interface FileRoutesByTo {
   '/onboarding': typeof OnboardingRoute
   '/replays': typeof ReplaysRoute
   '/reset-password': typeof ResetPasswordRoute
-  '/scheduler': typeof SchedulerRoute
+  '/scheduler': typeof SchedulerRouteWithChildren
   '/scheduler-field': typeof SchedulerFieldRoute
   '/scheduler-portfolio': typeof SchedulerPortfolioRoute
   '/scheduler-preview': typeof SchedulerPreviewRoute
@@ -419,6 +426,7 @@ export interface FileRoutesByTo {
   '/ask/$threadId': typeof AskThreadIdRoute
   '/ask/new': typeof AskNewRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/scheduler/$projectId': typeof SchedulerProjectIdRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
   '/tools/owner-dependency': typeof ToolsOwnerDependencyRoute
   '/admin': typeof AdminIndexRoute
@@ -448,7 +456,7 @@ export interface FileRoutesById {
   '/onboarding': typeof OnboardingRoute
   '/replays': typeof ReplaysRoute
   '/reset-password': typeof ResetPasswordRoute
-  '/scheduler': typeof SchedulerRoute
+  '/scheduler': typeof SchedulerRouteWithChildren
   '/scheduler-field': typeof SchedulerFieldRoute
   '/scheduler-portfolio': typeof SchedulerPortfolioRoute
   '/scheduler-preview': typeof SchedulerPreviewRoute
@@ -474,6 +482,7 @@ export interface FileRoutesById {
   '/ask/$threadId': typeof AskThreadIdRoute
   '/ask/new': typeof AskNewRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/scheduler/$projectId': typeof SchedulerProjectIdRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
   '/tools/owner-dependency': typeof ToolsOwnerDependencyRoute
   '/admin/': typeof AdminIndexRoute
@@ -530,6 +539,7 @@ export interface FileRouteTypes {
     | '/ask/$threadId'
     | '/ask/new'
     | '/email/unsubscribe'
+    | '/scheduler/$projectId'
     | '/tools/growth-constraint'
     | '/tools/owner-dependency'
     | '/admin/'
@@ -584,6 +594,7 @@ export interface FileRouteTypes {
     | '/ask/$threadId'
     | '/ask/new'
     | '/email/unsubscribe'
+    | '/scheduler/$projectId'
     | '/tools/growth-constraint'
     | '/tools/owner-dependency'
     | '/admin'
@@ -638,6 +649,7 @@ export interface FileRouteTypes {
     | '/ask/$threadId'
     | '/ask/new'
     | '/email/unsubscribe'
+    | '/scheduler/$projectId'
     | '/tools/growth-constraint'
     | '/tools/owner-dependency'
     | '/admin/'
@@ -667,7 +679,7 @@ export interface RootRouteChildren {
   OnboardingRoute: typeof OnboardingRoute
   ReplaysRoute: typeof ReplaysRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
-  SchedulerRoute: typeof SchedulerRoute
+  SchedulerRoute: typeof SchedulerRouteWithChildren
   SchedulerFieldRoute: typeof SchedulerFieldRoute
   SchedulerPortfolioRoute: typeof SchedulerPortfolioRoute
   SchedulerPreviewRoute: typeof SchedulerPreviewRoute
@@ -905,6 +917,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ToolsGrowthConstraintRouteImport
       parentRoute: typeof ToolsRoute
     }
+    '/scheduler/$projectId': {
+      id: '/scheduler/$projectId'
+      path: '/$projectId'
+      fullPath: '/scheduler/$projectId'
+      preLoaderRoute: typeof SchedulerProjectIdRouteImport
+      parentRoute: typeof SchedulerRoute
+    }
     '/email/unsubscribe': {
       id: '/email/unsubscribe'
       path: '/email/unsubscribe'
@@ -1076,6 +1095,18 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface SchedulerRouteChildren {
+  SchedulerProjectIdRoute: typeof SchedulerProjectIdRoute
+}
+
+const SchedulerRouteChildren: SchedulerRouteChildren = {
+  SchedulerProjectIdRoute: SchedulerProjectIdRoute,
+}
+
+const SchedulerRouteWithChildren = SchedulerRoute._addFileChildren(
+  SchedulerRouteChildren,
+)
+
 interface ToolsRouteChildren {
   ToolsGrowthConstraintRoute: typeof ToolsGrowthConstraintRoute
   ToolsOwnerDependencyRoute: typeof ToolsOwnerDependencyRoute
@@ -1101,7 +1132,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRoute: OnboardingRoute,
   ReplaysRoute: ReplaysRoute,
   ResetPasswordRoute: ResetPasswordRoute,
-  SchedulerRoute: SchedulerRoute,
+  SchedulerRoute: SchedulerRouteWithChildren,
   SchedulerFieldRoute: SchedulerFieldRoute,
   SchedulerPortfolioRoute: SchedulerPortfolioRoute,
   SchedulerPreviewRoute: SchedulerPreviewRoute,
@@ -1143,13 +1174,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
