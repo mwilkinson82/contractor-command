@@ -1047,5 +1047,4 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
     );
   }
 }
-}
 
