@@ -199,3 +199,132 @@ export const deleteSchedule = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+// ---------------- Baselines ----------------
+
+export const listBaselines = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { scheduleId: string }) =>
+    z.object({ scheduleId: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: rows, error } = await context.supabase
+      .from("schedule_baselines")
+      .select("id, name, notes, project_start_date, created_at")
+      .eq("schedule_id", data.scheduleId)
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return {
+      baselines: (rows ?? []).map((r) => ({
+        id: r.id as string,
+        name: r.name as string,
+        notes: (r.notes as string | null) ?? undefined,
+        projectStartDate: (r.project_start_date as string | null) ?? undefined,
+        createdAt: r.created_at as string,
+      })),
+    };
+  });
+
+export const captureBaseline = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) =>
+    z
+      .object({
+        scheduleId: z.string().uuid(),
+        name: z.string().min(1).max(255),
+        notes: z.string().max(2000).optional().nullable(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { data: head, error: hErr } = await supabase
+      .from("schedules")
+      .select("project_start_date")
+      .eq("id", data.scheduleId)
+      .maybeSingle();
+    if (hErr) throw new Error(hErr.message);
+    if (!head) throw new Error("Schedule not found");
+
+    const [{ data: tasks, error: tErr }, { data: deps, error: dErr }] = await Promise.all([
+      supabase
+        .from("schedule_tasks")
+        .select("task_id, name, duration, wbs, description, percent_complete, position")
+        .eq("schedule_id", data.scheduleId)
+        .order("position", { ascending: true }),
+      supabase
+        .from("schedule_dependencies")
+        .select("from_task_id, to_task_id, type, lag")
+        .eq("schedule_id", data.scheduleId),
+    ]);
+    if (tErr) throw new Error(tErr.message);
+    if (dErr) throw new Error(dErr.message);
+
+    const tasksJson = (tasks ?? []).map((t) => ({
+      id: t.task_id as string,
+      name: t.name as string,
+      duration: t.duration as number,
+      wbs: (t.wbs as string | null) ?? undefined,
+      description: (t.description as string | null) ?? undefined,
+      percentComplete: (t.percent_complete as number | null) ?? undefined,
+    }));
+    const depsJson = (deps ?? []).map((d) => ({
+      from: d.from_task_id as string,
+      to: d.to_task_id as string,
+      type: d.type as "FS" | "SS" | "FF" | "SF",
+      lag: d.lag as number,
+    }));
+
+    const { data: inserted, error: iErr } = await supabase
+      .from("schedule_baselines")
+      .insert({
+        schedule_id: data.scheduleId,
+        name: data.name,
+        notes: data.notes ?? null,
+        project_start_date: (head.project_start_date as string | null) ?? null,
+        tasks: tasksJson,
+        dependencies: depsJson,
+      })
+      .select("id")
+      .single();
+    if (iErr) throw new Error(iErr.message);
+    return { id: inserted.id as string };
+  });
+
+export const loadBaseline = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { id: string }) => z.object({ id: z.string().uuid() }).parse(data))
+  .handler(async ({ data, context }) => {
+    const { data: row, error } = await context.supabase
+      .from("schedule_baselines")
+      .select("id, name, notes, project_start_date, tasks, dependencies, created_at")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!row) throw new Error("Baseline not found");
+    const schedule: Schedule = {
+      id: row.id as string,
+      name: row.name as string,
+      projectStartDate: (row.project_start_date as string | null) ?? undefined,
+      tasks: (row.tasks as Schedule["tasks"]) ?? [],
+      dependencies: (row.dependencies as Schedule["dependencies"]) ?? [],
+    };
+    return {
+      schedule,
+      notes: (row.notes as string | null) ?? undefined,
+      createdAt: row.created_at as string,
+    };
+  });
+
+export const deleteBaseline = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { id: string }) => z.object({ id: z.string().uuid() }).parse(data))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("schedule_baselines")
+      .delete()
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
