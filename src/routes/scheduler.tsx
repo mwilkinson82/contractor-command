@@ -176,6 +176,8 @@ function SchedulerPage() {
           id: selectedId!,
           name: draft!.name,
           projectStartDate: draft!.projectStartDate || undefined,
+          workDays: draft!.workDays,
+          holidays: draft!.holidays,
           tasks: draft!.tasks,
           dependencies: draft!.dependencies,
         },
