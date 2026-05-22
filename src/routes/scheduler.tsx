@@ -151,6 +151,7 @@ function SchedulerPage() {
         holidays: s.calendar?.holidays ?? [],
         tasks: s.tasks.map((t) => ({ ...t })),
         dependencies: s.dependencies.map((d) => ({ ...d })),
+        annotations: (s.annotations ?? []).map((a) => ({ ...a })),
       });
       setDirty(false);
     } else {
