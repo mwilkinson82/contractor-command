@@ -456,3 +456,94 @@ async function invitePaidMemberIfNeeded(email: string) {
     throw error;
   }
 }
+
+// ---------------------------------------------------------------------------
+// AOS add-ons — separate table (aos_addons), separate code path. We never
+// want add-on purchases to overwrite a user's primary tier in `subscriptions`.
+// ---------------------------------------------------------------------------
+
+function isAosAddonSubscription(sub: Stripe.Subscription): boolean {
+  const seatPrice = process.env.STRIPE_PRICE_ID_AOS_SEAT_MONTH;
+  const wsPrice = process.env.STRIPE_PRICE_ID_AOS_WORKSPACE_MONTH;
+  const meta = (sub.metadata ?? {}) as Record<string, string>;
+  if (meta.product === "aos_addon" || meta.kind === "aos_addon") return true;
+  for (const item of sub.items.data) {
+    const id = item.price?.id;
+    if (id && (id === seatPrice || id === wsPrice)) return true;
+  }
+  return false;
+}
+
+function addonKindForPrice(priceId: string | null): "seat" | "workspace" | null {
+  if (!priceId) return null;
+  if (priceId === process.env.STRIPE_PRICE_ID_AOS_SEAT_MONTH) return "seat";
+  if (priceId === process.env.STRIPE_PRICE_ID_AOS_WORKSPACE_MONTH) return "workspace";
+  return null;
+}
+
+async function upsertAosAddon(stripe: Stripe, sub: Stripe.Subscription) {
+  let email: string | null = null;
+  const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
+  try {
+    const customer = await stripe.customers.retrieve(customerId);
+    if (!("deleted" in customer) || !customer.deleted) {
+      email = (customer as Stripe.Customer).email ?? null;
+    }
+  } catch (err) {
+    console.error("Failed to retrieve Stripe customer for AOS add-on", { customerId, err });
+    throw err;
+  }
+  if (!email) {
+    throw new Error(`AOS add-on subscription has no resolvable email: ${sub.id}`);
+  }
+  const normalizedEmail = email.toLowerCase();
+
+  // Each subscription = one line item of one add-on kind (we always create
+  // them that way). If Stripe ever splits across items, take the first that
+  // matches one of our two add-on price IDs.
+  const item =
+    sub.items.data.find((i) => addonKindForPrice(i.price?.id ?? null) !== null) ??
+    sub.items.data[0];
+  const priceId = item?.price?.id ?? null;
+  const kind = addonKindForPrice(priceId);
+  if (!kind) {
+    console.warn("AOS add-on event with no matching price", { subId: sub.id, priceId });
+    return;
+  }
+  const quantity = item?.quantity ?? 1;
+  const cpe = (sub as Stripe.Subscription & { current_period_end?: number }).current_period_end;
+  const currentPeriodEnd = cpe ? new Date(cpe * 1000).toISOString() : null;
+  const metadata = (sub.metadata ?? {}) as Record<string, string>;
+
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .ilike("email", normalizedEmail)
+    .maybeSingle();
+
+  // Map Stripe lifecycle to our status. 'canceled' subs go inactive so they
+  // stop counting in get_user_aos_limits.
+  const status =
+    sub.status === "canceled" || sub.status === "incomplete_expired" ? "canceled" : sub.status;
+
+  const { error } = await supabaseAdmin.from("aos_addons").upsert(
+    {
+      user_id: profile?.id ?? null,
+      email: normalizedEmail,
+      kind,
+      quantity,
+      stripe_subscription_id: sub.id,
+      stripe_customer_id: customerId,
+      price_id: priceId,
+      status,
+      current_period_end: currentPeriodEnd,
+      metadata,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "stripe_subscription_id" },
+  );
+  if (error) {
+    console.error("Failed to upsert aos_addons row", error);
+    throw new Error(error.message);
+  }
+}
