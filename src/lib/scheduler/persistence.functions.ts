@@ -225,6 +225,7 @@ export const saveSchedule = createServerFn({ method: "POST" })
           actual_cost: t.actualCost ?? null,
           resource_name: t.resourceName ?? null,
           resource_units_per_day: t.resourceUnitsPerDay ?? null,
+          start_no_earlier_than: t.startNoEarlierThan ?? null,
           position: i,
         })),
       );
