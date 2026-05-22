@@ -66,6 +66,8 @@ export interface Schedule {
   /** As-of date for progress updates (status / data date). */
   dataDate?: string;
   calendar?: ProjectCalendar;
+  /** Named calendars defined for this schedule. The one with isDefault=true is the project default. */
+  calendars?: NamedCalendar[];
   tasks: Task[];
   dependencies: Dependency[];
   annotations?: Annotation[];
