@@ -17,6 +17,7 @@ import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SchedulerPreviewRouteImport } from './routes/scheduler-preview'
+import { Route as SchedulerPortfolioRouteImport } from './routes/scheduler-portfolio'
 import { Route as SchedulerFieldRouteImport } from './routes/scheduler-field'
 import { Route as SchedulerRouteImport } from './routes/scheduler'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
@@ -99,6 +100,11 @@ const SignupRoute = SignupRouteImport.update({
 const SchedulerPreviewRoute = SchedulerPreviewRouteImport.update({
   id: '/scheduler-preview',
   path: '/scheduler-preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SchedulerPortfolioRoute = SchedulerPortfolioRouteImport.update({
+  id: '/scheduler-portfolio',
+  path: '/scheduler-portfolio',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SchedulerFieldRoute = SchedulerFieldRouteImport.update({
@@ -335,6 +341,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/scheduler': typeof SchedulerRoute
   '/scheduler-field': typeof SchedulerFieldRoute
+  '/scheduler-portfolio': typeof SchedulerPortfolioRoute
   '/scheduler-preview': typeof SchedulerPreviewRoute
   '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
@@ -388,6 +395,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/scheduler': typeof SchedulerRoute
   '/scheduler-field': typeof SchedulerFieldRoute
+  '/scheduler-portfolio': typeof SchedulerPortfolioRoute
   '/scheduler-preview': typeof SchedulerPreviewRoute
   '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
@@ -442,6 +450,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/scheduler': typeof SchedulerRoute
   '/scheduler-field': typeof SchedulerFieldRoute
+  '/scheduler-portfolio': typeof SchedulerPortfolioRoute
   '/scheduler-preview': typeof SchedulerPreviewRoute
   '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
@@ -497,6 +506,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/scheduler'
     | '/scheduler-field'
+    | '/scheduler-portfolio'
     | '/scheduler-preview'
     | '/signup'
     | '/templates'
@@ -550,6 +560,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/scheduler'
     | '/scheduler-field'
+    | '/scheduler-portfolio'
     | '/scheduler-preview'
     | '/signup'
     | '/templates'
@@ -603,6 +614,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/scheduler'
     | '/scheduler-field'
+    | '/scheduler-portfolio'
     | '/scheduler-preview'
     | '/signup'
     | '/templates'
@@ -657,6 +669,7 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   SchedulerRoute: typeof SchedulerRoute
   SchedulerFieldRoute: typeof SchedulerFieldRoute
+  SchedulerPortfolioRoute: typeof SchedulerPortfolioRoute
   SchedulerPreviewRoute: typeof SchedulerPreviewRoute
   SignupRoute: typeof SignupRoute
   TemplatesRoute: typeof TemplatesRoute
@@ -750,6 +763,13 @@ declare module '@tanstack/react-router' {
       path: '/scheduler-preview'
       fullPath: '/scheduler-preview'
       preLoaderRoute: typeof SchedulerPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/scheduler-portfolio': {
+      id: '/scheduler-portfolio'
+      path: '/scheduler-portfolio'
+      fullPath: '/scheduler-portfolio'
+      preLoaderRoute: typeof SchedulerPortfolioRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/scheduler-field': {
@@ -1083,6 +1103,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   SchedulerRoute: SchedulerRoute,
   SchedulerFieldRoute: SchedulerFieldRoute,
+  SchedulerPortfolioRoute: SchedulerPortfolioRoute,
   SchedulerPreviewRoute: SchedulerPreviewRoute,
   SignupRoute: SignupRoute,
   TemplatesRoute: TemplatesRoute,

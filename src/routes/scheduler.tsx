@@ -393,12 +393,20 @@ function SchedulerPage() {
           </p>
           <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
             <h1 className="text-3xl font-semibold tracking-tight">Schedules</h1>
-            <a
-              href="/scheduler-field"
-              className="rounded border border-[#d8cdb8] bg-white px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-[#1f241f] hover:bg-[#eee6d7]"
-            >
-              Field update (mobile) →
-            </a>
+            <div className="flex flex-wrap gap-2">
+              <a
+                href="/scheduler-portfolio"
+                className="rounded border border-[#d8cdb8] bg-white px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-[#1f241f] hover:bg-[#eee6d7]"
+              >
+                Portfolio roll-up →
+              </a>
+              <a
+                href="/scheduler-field"
+                className="rounded border border-[#d8cdb8] bg-white px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-[#1f241f] hover:bg-[#eee6d7]"
+              >
+                Field update (mobile) →
+              </a>
+            </div>
           </div>
           <p className="mt-1 max-w-2xl text-sm text-[#5c574e]">
             Activities, WBS, FS/SS/FF/SF logic with lag, forward/backward pass, total float, and a
