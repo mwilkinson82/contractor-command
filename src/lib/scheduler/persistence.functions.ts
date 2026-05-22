@@ -316,7 +316,9 @@ export const loadBaseline = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase
       .from("schedule_baselines")
-      .select("id, name, notes, project_start_date, tasks, dependencies, created_at")
+      .select(
+        "id, name, notes, project_start_date, work_days, holidays, tasks, dependencies, created_at",
+      )
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -325,6 +327,12 @@ export const loadBaseline = createServerFn({ method: "GET" })
       id: row.id as string,
       name: row.name as string,
       projectStartDate: (row.project_start_date as string | null) ?? undefined,
+      calendar: {
+        workDays: (row.work_days as number | null) ?? 31,
+        holidays: ((row.holidays as unknown as string[] | null) ?? []).filter(
+          (h): h is string => typeof h === "string",
+        ),
+      },
       tasks: (row.tasks as unknown as Schedule["tasks"]) ?? [],
       dependencies: (row.dependencies as unknown as Schedule["dependencies"]) ?? [],
     };
