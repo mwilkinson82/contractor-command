@@ -1,0 +1,201 @@
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Schedule } from "./types";
+
+const DepType = z.enum(["FS", "SS", "FF", "SF"]);
+
+const TaskInput = z.object({
+  id: z.string().min(1).max(64),
+  name: z.string().min(1).max(255),
+  duration: z.number().int().min(0).max(100000),
+  wbs: z.string().max(128).optional().nullable(),
+  description: z.string().max(2000).optional().nullable(),
+  percentComplete: z.number().min(0).max(100).optional().nullable(),
+});
+
+const DependencyInput = z.object({
+  from: z.string().min(1).max(64),
+  to: z.string().min(1).max(64),
+  type: DepType.optional(),
+  lag: z.number().int().min(-100000).max(100000).optional(),
+});
+
+const SaveScheduleInput = z.object({
+  id: z.string().uuid().optional(),
+  name: z.string().min(1).max(255),
+  projectStartDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .nullable(),
+  notes: z.string().max(5000).optional().nullable(),
+  tasks: z.array(TaskInput).max(2000),
+  dependencies: z.array(DependencyInput).max(5000),
+});
+
+export const listSchedules = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase } = context;
+    const { data, error } = await supabase
+      .from("schedules")
+      .select("id, name, project_start_date, notes, created_at, updated_at")
+      .order("updated_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return {
+      schedules: (data ?? []).map((row) => ({
+        id: row.id as string,
+        name: row.name as string,
+        projectStartDate: (row.project_start_date as string | null) ?? undefined,
+        notes: (row.notes as string | null) ?? undefined,
+        createdAt: row.created_at as string,
+        updatedAt: row.updated_at as string,
+      })),
+    };
+  });
+
+export const loadSchedule = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { id: string }) => z.object({ id: z.string().uuid() }).parse(data))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { data: head, error: headErr } = await supabase
+      .from("schedules")
+      .select("id, name, project_start_date, notes, created_at, updated_at")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (headErr) throw new Error(headErr.message);
+    if (!head) throw new Error("Schedule not found");
+
+    const [{ data: tasks, error: tErr }, { data: deps, error: dErr }] = await Promise.all([
+      supabase
+        .from("schedule_tasks")
+        .select("task_id, name, duration, wbs, description, percent_complete, position")
+        .eq("schedule_id", data.id)
+        .order("position", { ascending: true }),
+      supabase
+        .from("schedule_dependencies")
+        .select("from_task_id, to_task_id, type, lag")
+        .eq("schedule_id", data.id),
+    ]);
+    if (tErr) throw new Error(tErr.message);
+    if (dErr) throw new Error(dErr.message);
+
+    const schedule: Schedule = {
+      id: head.id as string,
+      name: head.name as string,
+      projectStartDate: (head.project_start_date as string | null) ?? undefined,
+      tasks: (tasks ?? []).map((t) => ({
+        id: t.task_id as string,
+        name: t.name as string,
+        duration: t.duration as number,
+        wbs: (t.wbs as string | null) ?? undefined,
+        description: (t.description as string | null) ?? undefined,
+        percentComplete: (t.percent_complete as number | null) ?? undefined,
+      })),
+      dependencies: (deps ?? []).map((d) => ({
+        from: d.from_task_id as string,
+        to: d.to_task_id as string,
+        type: d.type as "FS" | "SS" | "FF" | "SF",
+        lag: d.lag as number,
+      })),
+    };
+
+    return {
+      schedule,
+      notes: (head.notes as string | null) ?? undefined,
+      createdAt: head.created_at as string,
+      updatedAt: head.updated_at as string,
+    };
+  });
+
+export const saveSchedule = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => SaveScheduleInput.parse(data))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+
+    // Validate dependencies reference known tasks
+    const taskIds = new Set(data.tasks.map((t) => t.id));
+    for (const d of data.dependencies) {
+      if (!taskIds.has(d.from) || !taskIds.has(d.to)) {
+        throw new Error(`Dependency references missing task: ${d.from} -> ${d.to}`);
+      }
+    }
+
+    let scheduleId = data.id;
+
+    if (scheduleId) {
+      const { error } = await supabase
+        .from("schedules")
+        .update({
+          name: data.name,
+          project_start_date: data.projectStartDate ?? null,
+          notes: data.notes ?? null,
+        })
+        .eq("id", scheduleId);
+      if (error) throw new Error(error.message);
+    } else {
+      const { data: inserted, error } = await supabase
+        .from("schedules")
+        .insert({
+          user_id: userId,
+          name: data.name,
+          project_start_date: data.projectStartDate ?? null,
+          notes: data.notes ?? null,
+        })
+        .select("id")
+        .single();
+      if (error) throw new Error(error.message);
+      scheduleId = inserted.id as string;
+    }
+
+    // Replace tasks + dependencies (simple, atomic-enough for v1).
+    const [delDeps, delTasks] = await Promise.all([
+      supabase.from("schedule_dependencies").delete().eq("schedule_id", scheduleId),
+      supabase.from("schedule_tasks").delete().eq("schedule_id", scheduleId),
+    ]);
+    if (delDeps.error) throw new Error(delDeps.error.message);
+    if (delTasks.error) throw new Error(delTasks.error.message);
+
+    if (data.tasks.length > 0) {
+      const { error } = await supabase.from("schedule_tasks").insert(
+        data.tasks.map((t, i) => ({
+          schedule_id: scheduleId!,
+          task_id: t.id,
+          name: t.name,
+          duration: t.duration,
+          wbs: t.wbs ?? null,
+          description: t.description ?? null,
+          percent_complete: t.percentComplete ?? null,
+          position: i,
+        })),
+      );
+      if (error) throw new Error(error.message);
+    }
+
+    if (data.dependencies.length > 0) {
+      const { error } = await supabase.from("schedule_dependencies").insert(
+        data.dependencies.map((d) => ({
+          schedule_id: scheduleId!,
+          from_task_id: d.from,
+          to_task_id: d.to,
+          type: d.type ?? "FS",
+          lag: d.lag ?? 0,
+        })),
+      );
+      if (error) throw new Error(error.message);
+    }
+
+    return { id: scheduleId! };
+  });
+
+export const deleteSchedule = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { id: string }) => z.object({ id: z.string().uuid() }).parse(data))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("schedules").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
