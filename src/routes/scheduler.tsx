@@ -425,6 +425,15 @@ function SchedulerPage() {
                 </ul>
               )}
             </section>
+
+            {selectedId ? (
+              <BaselinesPanel
+                scheduleId={selectedId}
+                comparisonId={comparisonBaselineId}
+                onComparisonChange={setComparisonBaselineId}
+                dirty={dirty}
+              />
+            ) : null}
           </aside>
 
           {/* Right */}
