@@ -84,6 +84,7 @@ function SchedulerPage() {
   const [newStart, setNewStart] = useState("");
   const [draft, setDraft] = useState<Draft | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   const listQuery = useQuery({
     queryKey: ["schedules"],
