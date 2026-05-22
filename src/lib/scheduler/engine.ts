@@ -312,20 +312,46 @@ function buildCriticalPath(tasks: WorkingTask[], dependencies: ScheduledDependen
     .map((task) => task.id);
 }
 
-function toScheduledTask(task: WorkingTask, projectStartDate?: string): ScheduledTask {
+function toScheduledTask(
+  task: WorkingTask,
+  projectStartDate?: string,
+  calendar: ProjectCalendar = DEFAULT_CALENDAR,
+): ScheduledTask {
   return {
     ...task,
-    earlyStartDate: projectStartDate ? addDaysIso(projectStartDate, task.earlyStart) : undefined,
-    earlyFinishDate: projectStartDate ? addDaysIso(projectStartDate, task.earlyFinish) : undefined,
-    lateStartDate: projectStartDate ? addDaysIso(projectStartDate, task.lateStart) : undefined,
-    lateFinishDate: projectStartDate ? addDaysIso(projectStartDate, task.lateFinish) : undefined,
+    earlyStartDate: projectStartDate
+      ? addWorkingDaysIso(projectStartDate, task.earlyStart, calendar)
+      : undefined,
+    earlyFinishDate: projectStartDate
+      ? addWorkingDaysIso(projectStartDate, task.earlyFinish, calendar)
+      : undefined,
+    lateStartDate: projectStartDate
+      ? addWorkingDaysIso(projectStartDate, task.lateStart, calendar)
+      : undefined,
+    lateFinishDate: projectStartDate
+      ? addWorkingDaysIso(projectStartDate, task.lateFinish, calendar)
+      : undefined,
   };
 }
 
-function addDaysIso(date: string, days: number): string {
+function isWorkingDay(d: Date, cal: ProjectCalendar): boolean {
+  // JS getUTCDay(): 0=Sun..6=Sat. Bitmask: bit0=Mon..bit5=Sat,bit6=Sun.
+  const dow = d.getUTCDay();
+  const bitIdx = (dow + 6) % 7;
+  if (!(cal.workDays & (1 << bitIdx))) return false;
+  const iso = d.toISOString().slice(0, 10);
+  return !cal.holidays.includes(iso);
+}
+
+function addWorkingDaysIso(date: string, offset: number, cal: ProjectCalendar): string {
   const base = new Date(`${date}T00:00:00.000Z`);
   if (Number.isNaN(base.getTime())) return date;
-  base.setUTCDate(base.getUTCDate() + days);
+  if (offset <= 0) return base.toISOString().slice(0, 10);
+  let remaining = offset;
+  while (remaining > 0) {
+    base.setUTCDate(base.getUTCDate() + 1);
+    if (isWorkingDay(base, cal)) remaining--;
+  }
   return base.toISOString().slice(0, 10);
 }
 
