@@ -167,7 +167,14 @@ export const updateProjectMeta = createServerFn({ method: "POST" })
       .parse(data),
   )
   .handler(async ({ data, context }) => {
-    const patch: Record<string, unknown> = {};
+    const patch: {
+      name?: string;
+      client?: string | null;
+      project_number?: string | null;
+      status?: "planning" | "active" | "on_hold" | "closed";
+      tags?: string[];
+      cover_color?: string | null;
+    } = {};
     if (data.name !== undefined) patch.name = data.name;
     if (data.client !== undefined) patch.client = data.client;
     if (data.projectNumber !== undefined) patch.project_number = data.projectNumber;
