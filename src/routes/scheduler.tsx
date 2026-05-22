@@ -265,6 +265,44 @@ function SchedulerPage() {
     setDirty(true);
   };
 
+  const rescheduleTask = (
+    taskId: string,
+    patch: { startShiftDays?: number; duration?: number },
+  ) => {
+    setDraft((d) => {
+      if (!d) return d;
+      const idx = d.tasks.findIndex((t) => t.id === taskId);
+      if (idx < 0) return d;
+      const t = d.tasks[idx];
+      const next: Task = { ...t };
+      if (patch.duration !== undefined) {
+        next.duration = Math.max(0, Math.floor(patch.duration));
+      }
+      if (patch.startShiftDays && patch.startShiftDays !== 0) {
+        const cal = { workDays: d.workDays, holidays: d.holidays };
+        const computedTask = computed?.tasks.find((x) => x.id === taskId);
+        // Anchor: existing startNoEarlierThan if set, otherwise current earlyStartDate from CPM.
+        const anchorIso =
+          t.startNoEarlierThan ??
+          computedTask?.earlyStartDate ??
+          d.projectStartDate;
+        if (anchorIso) {
+          const shifted = addWorkingDaysIso(anchorIso, patch.startShiftDays, cal);
+          // Clamp to project start (don't allow before)
+          if (d.projectStartDate && shifted < d.projectStartDate) {
+            next.startNoEarlierThan = d.projectStartDate;
+          } else {
+            next.startNoEarlierThan = shifted;
+          }
+        }
+      }
+      const tasks = d.tasks.slice();
+      tasks[idx] = next;
+      return { ...d, tasks };
+    });
+    setDirty(true);
+  };
+
   const renameTaskId = (idx: number, newId: string) => {
     setDraft((d) => {
       if (!d) return d;
