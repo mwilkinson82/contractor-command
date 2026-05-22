@@ -23,8 +23,17 @@ import {
 } from "@/components/ui/select";
 import { Trash2, Plus } from "lucide-react";
 import { GanttTimeline } from "@/components/scheduler/GanttTimeline";
+import { OpenEndsReport } from "@/components/scheduler/OpenEndsReport";
 import { Stat } from "@/components/scheduler/Stat";
 import { Textarea } from "@/components/ui/textarea";
+
+const UNASSIGNED_WBS = "Unassigned";
+const ZOOM_LEVELS: { label: string; dayPx: number }[] = [
+  { label: "Month", dayPx: 6 },
+  { label: "Week", dayPx: 12 },
+  { label: "Day", dayPx: 22 },
+  { label: "Wide", dayPx: 36 },
+];
 
 export const Route = createFileRoute("/scheduler")({
   head: () => ({ meta: [{ title: "Scheduler - AOS" }] }),
