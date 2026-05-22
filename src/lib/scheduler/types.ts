@@ -40,6 +40,8 @@ export interface Schedule {
   id?: string;
   name: string;
   projectStartDate?: string;
+  /** As-of date for progress updates (status / data date). */
+  dataDate?: string;
   calendar?: ProjectCalendar;
   tasks: Task[];
   dependencies: Dependency[];
