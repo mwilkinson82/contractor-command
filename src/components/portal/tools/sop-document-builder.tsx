@@ -692,6 +692,7 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
     family: "times" | "helvetica",
     style: "normal" | "bold" | "italic" = "normal",
   ) => {
+    pdf.setCharSpace(0);
     pdf.setFont(family, style);
     pdf.setFontSize(size);
     return pdf.splitTextToSize(safe(text), width) as string[];
@@ -707,11 +708,15 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
     color: [number, number, number],
     lineHeight = 1.4,
   ) => {
+    pdf.setCharSpace(0);
     pdf.setFont(family, style);
     pdf.setFontSize(size);
     pdf.setTextColor(...color);
     const lh = size * lineHeight;
-    lines.forEach((line, i) => pdf.text(line, x, startY + i * lh + size));
+    lines.forEach((line, i) => {
+      pdf.setCharSpace(0);
+      pdf.text(line, x, startY + i * lh + size);
+    });
     return lines.length * lh;
   };
 
@@ -730,14 +735,14 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
     pdf.roundedRect(x, cardY, w, h, radius, radius, "FD");
   };
 
-  // ─── small-caps label (no manual letter-tracking)
+  // ─── small-caps label (no charSpace — triggers a kerning leak in jsPDF's
+  // bold helvetica that corrupts subsequent text() calls).
   const drawLabel = (text: string, x: number, baselineY: number, color = INK_FAINT) => {
+    pdf.setCharSpace(0);
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(7.5);
     pdf.setTextColor(...color);
-    pdf.setCharSpace(0.6);
     pdf.text(safe(text).toUpperCase(), x, baselineY);
-    pdf.setCharSpace(0);
   };
 
   // ============================ 1. HERO ============================
