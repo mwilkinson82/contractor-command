@@ -89,6 +89,8 @@ function SchedulerPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [dayPx, setDayPx] = useState(22);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [groupBy, setGroupBy] = useState<"wbs" | "critical" | "none">("wbs");
+
   const [comparisonBaselineId, setComparisonBaselineId] = useState<string | null>(null);
 
   // Reset comparison when changing schedules
@@ -727,6 +729,23 @@ function SchedulerPage() {
                         </h3>
                         <div className="flex items-center gap-3 text-xs text-[#776e5e]">
                           <div className="flex items-center gap-1">
+                            <span className="text-[10px] uppercase tracking-wide">Group</span>
+                            {(["wbs", "critical", "none"] as const).map((g) => (
+                              <button
+                                key={g}
+                                type="button"
+                                onClick={() => setGroupBy(g)}
+                                className={`rounded px-1.5 py-0.5 text-[10px] capitalize ${
+                                  groupBy === g
+                                    ? "bg-[#1f241f] text-white"
+                                    : "border border-[#d8cdb8] text-[#5c574e] hover:bg-[#eee6d7]"
+                                }`}
+                              >
+                                {g === "wbs" ? "WBS" : g === "critical" ? "Critical" : "None"}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-1">
                             <span className="text-[10px] uppercase tracking-wide">Zoom</span>
                             {ZOOM_LEVELS.map((z) => (
                               <button
@@ -743,6 +762,7 @@ function SchedulerPage() {
                               </button>
                             ))}
                           </div>
+
                           <span className="inline-flex items-center gap-1">
                             <span className="inline-block h-2 w-3 rounded-sm bg-[#b42318]" />{" "}
                             Critical
@@ -768,6 +788,8 @@ function SchedulerPage() {
                           dataDate={draft.dataDate}
                           calendar={{ workDays: draft.workDays, holidays: draft.holidays }}
                           annotations={draft.annotations}
+                          groupBy={groupBy}
+
                           onTaskReschedule={rescheduleTask}
                         />
                       </div>

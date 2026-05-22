@@ -6,6 +6,8 @@ import type {
   ScheduledTask,
 } from "@/lib/scheduler/types";
 
+export type GroupByMode = "wbs" | "critical" | "none";
+
 interface Props {
   result: ScheduleResult;
   selectedId: string | null;
@@ -17,11 +19,13 @@ interface Props {
   dataDate?: string;
   calendar?: ProjectCalendar;
   annotations?: Annotation[];
+  groupBy?: GroupByMode;
   onTaskReschedule?: (
     taskId: string,
     patch: { startShiftDays?: number; duration?: number },
   ) => void;
 }
+
 
 const ROW_H = 24;
 const GROUP_H = 22;
@@ -79,8 +83,10 @@ export function CpmGrid({
   dataDate,
   calendar,
   annotations,
+  groupBy = "wbs",
   onTaskReschedule,
 }: Props) {
+
   const cal = useMemo(() => calendar ?? { workDays: 31, holidays: [] }, [calendar]);
   const duration = Math.max(result.projectDuration, 1);
   const [drag, setDrag] = useState<{
@@ -94,10 +100,16 @@ export function CpmGrid({
   // Group tasks by WBS, ordered by ES
   const { rows, baselineMap } = useMemo(() => {
     const map = new Map<string, ScheduledTask[]>();
+    const keyFor = (t: ScheduledTask): string => {
+      if (groupBy === "none") return "All activities";
+      if (groupBy === "critical") return t.isCritical ? "Critical path" : "Non-critical";
+      return t.wbs?.trim() || UNASSIGNED;
+    };
     for (const t of result.tasks) {
-      const key = t.wbs?.trim() || UNASSIGNED;
+      const key = keyFor(t);
       const arr = map.get(key) ?? [];
       arr.push(t);
+
       map.set(key, arr);
     }
     const groups = Array.from(map.entries())
@@ -140,7 +152,7 @@ export function CpmGrid({
     if (baseline) for (const b of baseline.tasks) baselineMap.set(b.id, b);
 
     return { rows, baselineMap };
-  }, [result.tasks, collapsedGroups, baseline]);
+  }, [result.tasks, collapsedGroups, baseline, groupBy]);
 
   // Build header bands from working-day → calendar mapping
   const workingDates = useMemo(
