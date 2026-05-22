@@ -734,7 +734,7 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(8);
   pdf.setTextColor(140, 140, 140);
-  pdf.text("STANDARD OPERATING PROCEDURE", margin, y, { charSpace: 1.8 });
+  pdf.text(trackedLabel("STANDARD OPERATING PROCEDURE"), margin, y);
   resetTextTracking();
   y += 34;
 
@@ -789,14 +789,14 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
     // Action body wrapped at content width minus gutter
     const actionLines = pdf.splitTextToSize(safePdfText(s.action), contentW - stepGutter) as string[];
     // Draw number aligned with first action line
-    pdf.text(numLabel, margin, y, { charSpace: 0 });
+    pdf.text(numLabel, margin, y);
     for (const line of actionLines) {
       ensure(lineH);
       resetTextTracking();
       pdf.setFont("times", "bold");
       pdf.setFontSize(12);
       pdf.setTextColor(20, 20, 20);
-      pdf.text(line, margin + stepGutter, y, { charSpace: 0 });
+      pdf.text(line, margin + stepGutter, y);
       y += lineH;
     }
     if (s.detail?.trim()) {
