@@ -935,6 +935,25 @@ function SchedulerPage() {
                               <Stat label="Late start" value={`d${t.lateStart}`} />
                               <Stat label="Late finish" value={`d${t.lateFinish}`} />
                             </div>
+                            {draft.tasks[idx]?.startNoEarlierThan ? (
+                              <div className="flex items-center justify-between rounded border border-[#d8cdb8] bg-[#fbf8f0] px-2 py-1.5 text-xs">
+                                <span>
+                                  <span className="font-mono uppercase tracking-wide text-[#7a6a4d]">
+                                    SNET
+                                  </span>{" "}
+                                  {draft.tasks[idx].startNoEarlierThan}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="text-[#b42318] underline-offset-2 hover:underline"
+                                  onClick={() =>
+                                    updateTask(idx, { startNoEarlierThan: undefined })
+                                  }
+                                >
+                                  Clear constraint
+                                </button>
+                              </div>
+                            ) : null}
                             <div>
                               <Label className="text-xs">Description</Label>
                               <Textarea
