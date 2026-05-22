@@ -89,6 +89,8 @@ function SchedulerPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [dayPx, setDayPx] = useState(22);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [groupBy, setGroupBy] = useState<"wbs" | "critical" | "none">("wbs");
+
   const [comparisonBaselineId, setComparisonBaselineId] = useState<string | null>(null);
 
   // Reset comparison when changing schedules
