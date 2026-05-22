@@ -39,7 +39,49 @@ export function GanttTimeline({
   dataDate,
   calendar,
   annotations,
+  onTaskReschedule,
 }: Props) {
+  const [drag, setDrag] = useState<
+    | { id: string; mode: "move" | "resize"; startX: number; deltaDays: number }
+    | null
+  >(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
+
+  function beginDrag(
+    e: React.PointerEvent<SVGRectElement>,
+    id: string,
+    mode: "move" | "resize",
+  ) {
+    if (!onTaskReschedule) return;
+    e.stopPropagation();
+    (e.target as Element).setPointerCapture(e.pointerId);
+    setDrag({ id, mode, startX: e.clientX, deltaDays: 0 });
+  }
+  function moveDrag(e: React.PointerEvent) {
+    if (!drag) return;
+    const delta = Math.round((e.clientX - drag.startX) / dayPx);
+    if (delta !== drag.deltaDays) setDrag({ ...drag, deltaDays: delta });
+  }
+  function endDrag(e: React.PointerEvent) {
+    if (!drag) return;
+    if (drag.deltaDays !== 0 && onTaskReschedule) {
+      if (drag.mode === "move") {
+        onTaskReschedule(drag.id, { startShiftDays: drag.deltaDays });
+      } else {
+        const t = result.tasks.find((x) => x.id === drag.id);
+        if (t) {
+          const next = Math.max(0, t.duration + drag.deltaDays);
+          onTaskReschedule(drag.id, { duration: next });
+        }
+      }
+    }
+    try {
+      (e.target as Element).releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+    setDrag(null);
+  }
   const baselineMap = new Map<string, ScheduledTask>();
   if (baseline) for (const b of baseline.tasks) baselineMap.set(b.id, b);
   const duration = Math.max(result.projectDuration, 1);
