@@ -833,23 +833,32 @@ function SchedulerPage() {
                               <Stat label="Late start" value={`d${t.lateStart}`} />
                               <Stat label="Late finish" value={`d${t.lateFinish}`} />
                             </div>
-                            {draft.tasks[idx]?.startNoEarlierThan ? (
-                              <div className="flex items-center justify-between rounded border border-[#d8cdb8] bg-[#fbf8f0] px-2 py-1.5 text-xs">
-                                <span>
-                                  <span className="font-mono uppercase tracking-wide text-[#7a6a4d]">
-                                    SNET
-                                  </span>{" "}
-                                  {draft.tasks[idx].startNoEarlierThan}
-                                </span>
-                                <button
-                                  type="button"
-                                  className="text-[#b42318] underline-offset-2 hover:underline"
-                                  onClick={() => updateTask(idx, { startNoEarlierThan: undefined })}
-                                >
-                                  Clear constraint
-                                </button>
+                            <div className="rounded border border-[#d8cdb8] bg-[#fbf8f0] p-2">
+                              <div className="mb-1 flex items-center justify-between text-xs uppercase tracking-wide text-[#7a6a4d]">
+                                <span>Constraint · Start no earlier than</span>
+                                {draft.tasks[idx]?.startNoEarlierThan ? (
+                                  <button
+                                    type="button"
+                                    className="text-[#b42318] underline-offset-2 hover:underline"
+                                    onClick={() =>
+                                      updateTask(idx, { startNoEarlierThan: undefined })
+                                    }
+                                  >
+                                    Clear
+                                  </button>
+                                ) : null}
                               </div>
-                            ) : null}
+                              <Input
+                                type="date"
+                                className="h-8 text-xs"
+                                value={draft.tasks[idx]?.startNoEarlierThan ?? ""}
+                                onChange={(e) =>
+                                  updateTask(idx, {
+                                    startNoEarlierThan: e.target.value || undefined,
+                                  })
+                                }
+                              />
+                            </div>
                             <div>
                               <Label className="text-xs">Description</Label>
                               <Textarea
@@ -864,41 +873,146 @@ function SchedulerPage() {
                               </div>
                               <ActivityCodeChips scheduleId={selectedId} taskId={t.id} />
                             </div>
-                            <div>
-                              <div className="text-xs uppercase tracking-wide text-[#7a6a4d]">
-                                Predecessors
-                              </div>
-                              {preds.length === 0 ? (
-                                <div className="text-xs text-[#776e5e]">None</div>
-                              ) : (
-                                <ul className="text-xs">
-                                  {preds.map((d) => (
-                                    <li key={`${d.from}-${d.to}-${d.type}`} className="font-mono">
-                                      {d.from} → {d.type}
-                                      {d.lag ? ` ${d.lag > 0 ? "+" : ""}${d.lag}d` : ""}
-                                      {d.isDriving ? " ·★" : ""}
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                            </div>
-                            <div>
-                              <div className="text-xs uppercase tracking-wide text-[#7a6a4d]">
-                                Successors
-                              </div>
-                              {succs.length === 0 ? (
-                                <div className="text-xs text-[#776e5e]">None</div>
-                              ) : (
-                                <ul className="text-xs">
-                                  {succs.map((d) => (
-                                    <li key={`${d.from}-${d.to}-${d.type}`} className="font-mono">
-                                      {d.type}
-                                      {d.lag ? ` ${d.lag > 0 ? "+" : ""}${d.lag}d` : ""} → {d.to}
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                            </div>
+                            {(() => {
+                              const predRows = draft.dependencies
+                                .map((d, di) => ({ d, di }))
+                                .filter(({ d }) => d.to === t.id);
+                              const succRows = draft.dependencies
+                                .map((d, di) => ({ d, di }))
+                                .filter(({ d }) => d.from === t.id);
+                              const otherTasks = draft.tasks.filter((x) => x.id !== t.id);
+                              const drivingSet = new Set(
+                                computed.dependencies
+                                  .filter((x) => x.isDriving)
+                                  .map((x) => `${x.from}|${x.to}|${x.type}`),
+                              );
+                              const addLink = (side: "pred" | "succ") => {
+                                if (otherTasks.length === 0) {
+                                  toast.error("Need another activity to link to");
+                                  return;
+                                }
+                                const other = otherTasks[0].id;
+                                setDraft((dd) => {
+                                  if (!dd) return dd;
+                                  return {
+                                    ...dd,
+                                    dependencies: [
+                                      ...dd.dependencies,
+                                      side === "pred"
+                                        ? { from: other, to: t.id, type: "FS", lag: 0 }
+                                        : { from: t.id, to: other, type: "FS", lag: 0 },
+                                    ],
+                                  };
+                                });
+                                setDirty(true);
+                              };
+                              const renderRow = (
+                                { d, di }: { d: Dependency; di: number },
+                                side: "pred" | "succ",
+                              ) => {
+                                const otherId = side === "pred" ? d.from : d.to;
+                                const driving = drivingSet.has(
+                                  `${d.from}|${d.to}|${d.type ?? "FS"}`,
+                                );
+                                return (
+                                  <div key={di} className="flex items-center gap-1 py-0.5 text-xs">
+                                    <Select
+                                      value={otherId}
+                                      onValueChange={(v) =>
+                                        updateDep(di, side === "pred" ? { from: v } : { to: v })
+                                      }
+                                    >
+                                      <SelectTrigger className="h-7 flex-1 text-xs">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {otherTasks.map((x) => (
+                                          <SelectItem key={x.id} value={x.id}>
+                                            {x.id} · {x.name.slice(0, 20)}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <Select
+                                      value={d.type ?? "FS"}
+                                      onValueChange={(v) =>
+                                        updateDep(di, { type: v as DependencyType })
+                                      }
+                                    >
+                                      <SelectTrigger className="h-7 w-14 text-xs">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="FS">FS</SelectItem>
+                                        <SelectItem value="SS">SS</SelectItem>
+                                        <SelectItem value="FF">FF</SelectItem>
+                                        <SelectItem value="SF">SF</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <Input
+                                      type="number"
+                                      className="h-7 w-12 text-right text-xs"
+                                      value={d.lag ?? 0}
+                                      onChange={(e) =>
+                                        updateDep(di, { lag: Number(e.target.value) || 0 })
+                                      }
+                                    />
+                                    <span
+                                      className={`w-3 text-center text-[10px] ${driving ? "text-[#7a5cc4]" : "text-transparent"}`}
+                                      title={driving ? "Driving" : ""}
+                                    >
+                                      ★
+                                    </span>
+                                    <button
+                                      type="button"
+                                      className="text-[#b42318]"
+                                      onClick={() => removeDep(di)}
+                                      aria-label="Remove link"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                );
+                              };
+                              return (
+                                <>
+                                  <div>
+                                    <div className="mb-1 flex items-center justify-between text-xs uppercase tracking-wide text-[#7a6a4d]">
+                                      <span>Predecessors</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => addLink("pred")}
+                                        className="text-[#1f241f] hover:underline"
+                                      >
+                                        + add
+                                      </button>
+                                    </div>
+                                    {predRows.length === 0 ? (
+                                      <div className="text-xs text-[#776e5e]">None</div>
+                                    ) : (
+                                      predRows.map((r) => renderRow(r, "pred"))
+                                    )}
+                                  </div>
+                                  <div>
+                                    <div className="mb-1 flex items-center justify-between text-xs uppercase tracking-wide text-[#7a6a4d]">
+                                      <span>Successors</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => addLink("succ")}
+                                        className="text-[#1f241f] hover:underline"
+                                      >
+                                        + add
+                                      </button>
+                                    </div>
+                                    {succRows.length === 0 ? (
+                                      <div className="text-xs text-[#776e5e]">None</div>
+                                    ) : (
+                                      succRows.map((r) => renderRow(r, "succ"))
+                                    )}
+                                  </div>
+                                </>
+                              );
+                            })()}
                           </div>
                         );
                       })()}
