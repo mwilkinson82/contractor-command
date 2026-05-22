@@ -196,6 +196,7 @@ function SchedulerPage() {
           dataDate: draft!.dataDate || undefined,
           workDays: draft!.workDays,
           holidays: draft!.holidays,
+          annotations: draft!.annotations,
           tasks: draft!.tasks,
           dependencies: draft!.dependencies,
         },
