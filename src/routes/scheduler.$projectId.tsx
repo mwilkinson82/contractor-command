@@ -383,6 +383,15 @@ function SchedulerPage() {
             ) : null}
 
             {selectedId ? (
+              <CalendarsPanel
+                scheduleId={selectedId}
+                onDefaultChanged={() =>
+                  qc.invalidateQueries({ queryKey: ["schedule", selectedId] })
+                }
+              />
+            ) : null}
+
+            {selectedId ? (
               <BaselinesPanel
                 scheduleId={selectedId}
                 comparisonId={comparisonBaselineId}
