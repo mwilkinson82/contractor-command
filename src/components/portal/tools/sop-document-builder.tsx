@@ -640,13 +640,42 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
   const pageH = pdf.internal.pageSize.getHeight();
   const margin = 64; // ~0.9in for breathing room
   const contentW = pageW - margin * 2;
+  const contentBottom = pageH - margin - 28; // reserve a hard footer safety zone
   let y = margin;
 
   const ensure = (need: number) => {
-    if (y + need > pageH - margin) {
+    if (y + need > contentBottom) {
       pdf.addPage();
       y = margin;
     }
+  };
+
+  const resetTextTracking = () => pdf.setCharSpace(0);
+  const safePdfText = (text: string) =>
+    text
+      .replace(/[→⟶➜]/g, "->")
+      .replace(/[“”]/g, '"')
+      .replace(/[‘’]/g, "'")
+      .replace(/[–—]/g, "-")
+      .replace(/\u00a0/g, " ");
+
+  const measureWrappedHeight = (
+    text: string,
+    opts: {
+      size: number;
+      family?: "times" | "helvetica";
+      style?: "normal" | "bold" | "italic";
+      indent?: number;
+      lineGap?: number;
+      lineHeight?: number;
+    },
+  ) => {
+    resetTextTracking();
+    pdf.setFont(opts.family ?? "times", opts.style ?? "normal");
+    pdf.setFontSize(opts.size);
+    const indent = opts.indent ?? 0;
+    const lines = pdf.splitTextToSize(safePdfText(text), contentW - indent) as string[];
+    return lines.length * opts.size * (opts.lineHeight ?? 1.35) + (opts.lineGap ?? 0);
   };
 
   const writeWrapped = (
@@ -661,16 +690,18 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
       lineHeight?: number;
     },
   ) => {
+    resetTextTracking();
     pdf.setFont(opts.family ?? "times", opts.style ?? "normal");
     pdf.setFontSize(opts.size);
     pdf.setTextColor(...(opts.color ?? [30, 30, 30]));
     const indent = opts.indent ?? 0;
-    const lines = pdf.splitTextToSize(text, contentW - indent) as string[];
+    const lines = pdf.splitTextToSize(safePdfText(text), contentW - indent) as string[];
     const lineH = opts.size * (opts.lineHeight ?? 1.35);
     for (const line of lines) {
       ensure(lineH);
       // Reset char tracking — section labels above use charSpace and jsPDF
       // keeps it as global state, which mangles body words ("D ocum ent").
+      resetTextTracking();
       pdf.text(line, margin + indent, y, { charSpace: 0 });
       y += lineH;
     }
@@ -685,6 +716,7 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
     pdf.setFontSize(8.5);
     pdf.setTextColor(110, 110, 110);
     pdf.text(label.toUpperCase(), margin, y, { charSpace: 1.6 });
+    resetTextTracking();
     y += 7;
     pdf.setDrawColor(220, 217, 210);
     pdf.line(margin, y, margin + contentW, y);
