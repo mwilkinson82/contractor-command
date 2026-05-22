@@ -151,7 +151,14 @@ export function GanttTimeline({
 
   return (
     <div className="overflow-x-auto">
-      <svg width={width} height={height} className="block">
+      <svg
+        ref={svgRef}
+        width={width}
+        height={height}
+        className="block select-none"
+        onPointerMove={moveDrag}
+        onPointerUp={endDrag}
+      >
         {/* Day grid */}
         {Array.from({ length: duration + 1 }).map((_, i) => {
           const x = LABEL_W + i * dayPx;
