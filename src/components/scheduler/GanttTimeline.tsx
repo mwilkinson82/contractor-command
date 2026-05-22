@@ -286,7 +286,40 @@ export function GanttTimeline({
                 rx={3}
                 fill={fill}
                 opacity={isSelected ? 1 : 0.9}
+                style={{ cursor: onTaskReschedule ? "grab" : "pointer" }}
+                onPointerDown={(e) => beginDrag(e, t.id, "move")}
               />
+              {/* Right-edge resize handle */}
+              {onTaskReschedule ? (
+                <rect
+                  x={x + w - 4}
+                  y={y + 4}
+                  width={6}
+                  height={rowH - 10}
+                  fill="transparent"
+                  style={{ cursor: "ew-resize" }}
+                  onPointerDown={(e) => beginDrag(e, t.id, "resize")}
+                />
+              ) : null}
+              {/* Drag preview ghost */}
+              {drag && drag.id === t.id && drag.deltaDays !== 0 ? (
+                <rect
+                  x={drag.mode === "move" ? x + drag.deltaDays * dayPx : x}
+                  y={y + 4}
+                  width={
+                    drag.mode === "move"
+                      ? w
+                      : Math.max((t.duration + drag.deltaDays) * dayPx, 2)
+                  }
+                  height={rowH - 10}
+                  rx={3}
+                  fill={fill}
+                  opacity={0.35}
+                  stroke="#1f241f"
+                  strokeDasharray="3 2"
+                  pointerEvents="none"
+                />
+              ) : null}
 
               {t.percentComplete && t.percentComplete > 0 ? (
                 <rect
@@ -296,6 +329,7 @@ export function GanttTimeline({
                   height={3}
                   fill="#f7f4ed"
                   opacity={0.85}
+                  pointerEvents="none"
                 />
               ) : null}
               {floatW > 0 && !t.isCritical ? (
@@ -306,6 +340,7 @@ export function GanttTimeline({
                   height={3}
                   fill="#9c8b6e"
                   opacity={0.6}
+                  pointerEvents="none"
                 />
               ) : null}
             </g>
