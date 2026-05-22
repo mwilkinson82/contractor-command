@@ -9,6 +9,7 @@ import {
   loadSchedule,
   saveSchedule,
   deleteSchedule,
+  loadBaseline,
 } from "@/lib/scheduler/persistence.functions";
 import { calculateSchedule } from "@/lib/scheduler/engine";
 import type { Dependency, DependencyType, Schedule, Task } from "@/lib/scheduler/types";
@@ -26,6 +27,7 @@ import { Trash2, Plus } from "lucide-react";
 import { GanttTimeline } from "@/components/scheduler/GanttTimeline";
 import { OpenEndsReport } from "@/components/scheduler/OpenEndsReport";
 import { Stat } from "@/components/scheduler/Stat";
+import { BaselinesPanel } from "@/components/scheduler/BaselinesPanel";
 import { Textarea } from "@/components/ui/textarea";
 
 const UNASSIGNED_WBS = "Unassigned";
@@ -89,6 +91,7 @@ function SchedulerPage() {
   const loadFn = useServerFn(loadSchedule);
   const saveFn = useServerFn(saveSchedule);
   const deleteFn = useServerFn(deleteSchedule);
+  const loadBaselineFn = useServerFn(loadBaseline);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
@@ -98,6 +101,12 @@ function SchedulerPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [dayPx, setDayPx] = useState(22);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [comparisonBaselineId, setComparisonBaselineId] = useState<string | null>(null);
+
+  // Reset comparison when changing schedules
+  useEffect(() => {
+    setComparisonBaselineId(null);
+  }, [selectedId]);
 
   const toggleGroup = (key: string) => {
     setCollapsedGroups((prev) => {
@@ -202,6 +211,21 @@ function SchedulerPage() {
 
   const computed = result && "tasks" in result ? result : null;
   const computeError = result && "error" in result ? result.error : null;
+
+  const baselineQuery = useQuery({
+    queryKey: ["baseline", comparisonBaselineId],
+    queryFn: () => loadBaselineFn({ data: { id: comparisonBaselineId! } }),
+    enabled: !!comparisonBaselineId,
+  });
+
+  const baselineResult = useMemo(() => {
+    if (!baselineQuery.data) return null;
+    try {
+      return calculateSchedule(baselineQuery.data.schedule);
+    } catch {
+      return null;
+    }
+  }, [baselineQuery.data]);
 
   const updateTask = (idx: number, patch: Partial<Task>) => {
     setDraft((d) => {
@@ -401,6 +425,15 @@ function SchedulerPage() {
                 </ul>
               )}
             </section>
+
+            {selectedId ? (
+              <BaselinesPanel
+                scheduleId={selectedId}
+                comparisonId={comparisonBaselineId}
+                onComparisonChange={setComparisonBaselineId}
+                dirty={dirty}
+              />
+            ) : null}
           </aside>
 
           {/* Right */}
@@ -681,6 +714,7 @@ function SchedulerPage() {
                           dayPx={dayPx}
                           collapsedGroups={collapsedGroups}
                           onToggleGroup={toggleGroup}
+                          baseline={baselineResult}
                         />
                       </div>
                     </section>

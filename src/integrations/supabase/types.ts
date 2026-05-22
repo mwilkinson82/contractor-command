@@ -475,6 +475,56 @@ export type Database = {
         }
         Relationships: []
       }
+      schedule_baselines: {
+        Row: {
+          created_at: string
+          dependencies: Json
+          holidays: Json
+          id: string
+          name: string
+          notes: string | null
+          project_start_date: string | null
+          schedule_id: string
+          tasks: Json
+          updated_at: string
+          work_days: number
+        }
+        Insert: {
+          created_at?: string
+          dependencies?: Json
+          holidays?: Json
+          id?: string
+          name: string
+          notes?: string | null
+          project_start_date?: string | null
+          schedule_id: string
+          tasks?: Json
+          updated_at?: string
+          work_days?: number
+        }
+        Update: {
+          created_at?: string
+          dependencies?: Json
+          holidays?: Json
+          id?: string
+          name?: string
+          notes?: string | null
+          project_start_date?: string | null
+          schedule_id?: string
+          tasks?: Json
+          updated_at?: string
+          work_days?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_baselines_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       schedule_dependencies: {
         Row: {
           created_at: string
@@ -569,30 +619,36 @@ export type Database = {
       schedules: {
         Row: {
           created_at: string
+          holidays: Json
           id: string
           name: string
           notes: string | null
           project_start_date: string | null
           updated_at: string
           user_id: string
+          work_days: number
         }
         Insert: {
           created_at?: string
+          holidays?: Json
           id?: string
           name: string
           notes?: string | null
           project_start_date?: string | null
           updated_at?: string
           user_id: string
+          work_days?: number
         }
         Update: {
           created_at?: string
+          holidays?: Json
           id?: string
           name?: string
           notes?: string | null
           project_start_date?: string | null
           updated_at?: string
           user_id?: string
+          work_days?: number
         }
         Relationships: []
       }
