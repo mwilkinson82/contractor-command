@@ -1,6 +1,7 @@
 import type {
   Dependency,
   DependencyType,
+  ProjectCalendar,
   Schedule,
   ScheduledDependency,
   ScheduledTask,
@@ -9,6 +10,7 @@ import type {
   Task,
   TaskId,
 } from "./types";
+import { DEFAULT_CALENDAR } from "./types";
 
 interface NormalizedDependency {
   id: string;
