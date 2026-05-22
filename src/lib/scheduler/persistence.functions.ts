@@ -12,6 +12,10 @@ const TaskInput = z.object({
   wbs: z.string().max(128).optional().nullable(),
   description: z.string().max(2000).optional().nullable(),
   percentComplete: z.number().min(0).max(100).optional().nullable(),
+  budgetCost: z.number().min(0).max(1e12).optional().nullable(),
+  actualCost: z.number().min(0).max(1e12).optional().nullable(),
+  resourceName: z.string().max(128).optional().nullable(),
+  resourceUnitsPerDay: z.number().min(0).max(10000).optional().nullable(),
 });
 
 const DependencyInput = z.object({
