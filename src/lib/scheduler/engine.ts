@@ -367,6 +367,20 @@ function addWorkingDaysIso(date: string, offset: number, cal: ProjectCalendar): 
   return base.toISOString().slice(0, 10);
 }
 
+function workingDayDelta(from: string, to: string, cal: ProjectCalendar): number {
+  const a = new Date(`${from}T00:00:00.000Z`);
+  const b = new Date(`${to}T00:00:00.000Z`);
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return 0;
+  if (b.getTime() <= a.getTime()) return 0;
+  let count = 0;
+  const cur = new Date(a.getTime());
+  while (cur.getTime() < b.getTime()) {
+    cur.setUTCDate(cur.getUTCDate() + 1);
+    if (isWorkingDay(cur, cal)) count++;
+  }
+  return count;
+}
+
 function groupBy<T extends Record<K, string>, K extends keyof T>(items: T[], key: K) {
   const grouped = new Map<string, T[]>();
   for (const item of items) {
