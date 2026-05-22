@@ -635,13 +635,46 @@ function renderSopAsText(d: SopDocument): string {
 
 
 
+/* ----------------------------- PDF render -----------------------------
+ * AOS "ALP Engine" palette, banded layout. jsPDF uses RGB so the AOS
+ * oklch tokens are baked to their reference hex equivalents here.
+ *
+ *   ink         #1A1918  body text + step badge fill
+ *   ink-muted   #6E695F  metadata + body-secondary
+ *   signal      #E4573D  signal orange-red — accent only
+ *   cream       #F4F3EF  page bg + hero band
+ *   paper-deep  #ECEBE5  panel fill
+ *   card        #FCFBF9  step card fill
+ *   border      #D1CFC7  warm border / dividers
+ *   divider     #E2DED6  hairline
+ */
+
+const INK: [number, number, number] = [26, 25, 24];
+const INK_MUTED: [number, number, number] = [110, 105, 95];
+const INK_FAINT: [number, number, number] = [159, 153, 141];
+const SIGNAL: [number, number, number] = [228, 87, 61];
+const CREAM: [number, number, number] = [244, 243, 239];
+const PAPER_DEEP: [number, number, number] = [236, 235, 229];
+const CARD: [number, number, number] = [252, 251, 249];
+const BORDER: [number, number, number] = [209, 207, 199];
+const DIVIDER: [number, number, number] = [226, 222, 214];
+
 function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
-  const margin = 64; // ~0.9in for breathing room
+  const margin = 48;
   const contentW = pageW - margin * 2;
-  const contentBottom = pageH - margin - 28; // reserve a hard footer safety zone
+  const footerReserve = 36;
+  const contentBottom = pageH - footerReserve;
   let y = margin;
+
+  const safe = (text: string) =>
+    text
+      .replace(/[→⟶➜]/g, "->")
+      .replace(/[“”]/g, '"')
+      .replace(/[‘’]/g, "'")
+      .replace(/[–—]/g, "-")
+      .replace(/\u00a0/g, " ");
 
   const ensure = (need: number) => {
     if (y + need > contentBottom) {
@@ -650,242 +683,360 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
     }
   };
 
-  const resetTextTracking = () => pdf.setCharSpace(0);
-  const safePdfText = (text: string) =>
-    text
-      .replace(/[→⟶➜]/g, "->")
-      .replace(/[“”]/g, '"')
-      .replace(/[‘’]/g, "'")
-      .replace(/[–—]/g, "-")
-      .replace(/\u00a0/g, " ");
-  const trackedLabel = (text: string) => safePdfText(text.toUpperCase()).split("").join(" ");
-
-  const measureWrappedHeight = (
+  // Wrap text → array of lines, computing height. Uses a temporary font
+  // state (caller is expected to reset font before drawing).
+  const wrapLines = (
     text: string,
-    opts: {
-      size: number;
-      family?: "times" | "helvetica";
-      style?: "normal" | "bold" | "italic";
-      indent?: number;
-      lineGap?: number;
-      lineHeight?: number;
-    },
+    width: number,
+    size: number,
+    family: "times" | "helvetica",
+    style: "normal" | "bold" | "italic" = "normal",
   ) => {
-    resetTextTracking();
-    pdf.setFont(opts.family ?? "times", opts.style ?? "normal");
-    pdf.setFontSize(opts.size);
-    const indent = opts.indent ?? 0;
-    const lines = pdf.splitTextToSize(safePdfText(text), contentW - indent) as string[];
-    return lines.length * opts.size * (opts.lineHeight ?? 1.35) + (opts.lineGap ?? 0);
+    pdf.setFont(family, style);
+    pdf.setFontSize(size);
+    return pdf.splitTextToSize(safe(text), width) as string[];
   };
 
-  const writeWrapped = (
-    text: string,
-    opts: {
-      size: number;
-      family?: "times" | "helvetica";
-      style?: "normal" | "bold" | "italic";
-      color?: [number, number, number];
-      lineGap?: number;
-      indent?: number;
-      lineHeight?: number;
-    },
+  const drawLines = (
+    lines: string[],
+    x: number,
+    startY: number,
+    size: number,
+    family: "times" | "helvetica",
+    style: "normal" | "bold" | "italic",
+    color: [number, number, number],
+    lineHeight = 1.4,
   ) => {
-    resetTextTracking();
-    pdf.setFont(opts.family ?? "times", opts.style ?? "normal");
-    pdf.setFontSize(opts.size);
-    pdf.setTextColor(...(opts.color ?? [30, 30, 30]));
-    const indent = opts.indent ?? 0;
-    const lines = pdf.splitTextToSize(safePdfText(text), contentW - indent) as string[];
-    const lineH = opts.size * (opts.lineHeight ?? 1.35);
-    for (const line of lines) {
-      ensure(lineH);
-      resetTextTracking();
-      pdf.text(line, margin + indent, y);
-      y += lineH;
-    }
-
-    if (opts.lineGap) y += opts.lineGap;
+    pdf.setFont(family, style);
+    pdf.setFontSize(size);
+    pdf.setTextColor(...color);
+    const lh = size * lineHeight;
+    lines.forEach((line, i) => pdf.text(line, x, startY + i * lh + size));
+    return lines.length * lh;
   };
 
-  const h2 = (label: string, keepWith = 0) => {
-    y += 16;
-    ensure(Math.min(30 + keepWith, contentBottom - margin));
+  const drawCard = (
+    x: number,
+    cardY: number,
+    w: number,
+    h: number,
+    fill: [number, number, number] = CARD,
+    border: [number, number, number] = BORDER,
+    radius = 6,
+  ) => {
+    pdf.setFillColor(...fill);
+    pdf.setDrawColor(...border);
+    pdf.setLineWidth(0.6);
+    pdf.roundedRect(x, cardY, w, h, radius, radius, "FD");
+  };
+
+  // ─── small-caps label (no manual letter-tracking)
+  const drawLabel = (text: string, x: number, baselineY: number, color = INK_FAINT) => {
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(8.5);
-    pdf.setTextColor(110, 110, 110);
-    pdf.text(trackedLabel(label), margin, y);
-    resetTextTracking();
-    y += 7;
-    pdf.setDrawColor(220, 217, 210);
-    pdf.line(margin, y, margin + contentW, y);
-    y += 14;
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(...color);
+    pdf.setCharSpace(0.6);
+    pdf.text(safe(text).toUpperCase(), x, baselineY);
+    pdf.setCharSpace(0);
   };
 
-  const bulletListHeight = (items: string[]) =>
-    items.reduce(
-      (sum, it) =>
-        sum + measureWrappedHeight(`•   ${it}`, { size: 11, family: "helvetica", indent: 10, lineGap: 3, lineHeight: 1.45 }),
-      0,
-    );
+  // ============================ 1. HERO ============================
+  // signal-orange rule at top
+  pdf.setFillColor(...SIGNAL);
+  pdf.rect(0, 0, pageW, 3, "F");
 
-  // Eyebrow
-  y += 4;
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(8);
-  pdf.setTextColor(140, 140, 140);
-  pdf.text(trackedLabel("STANDARD OPERATING PROCEDURE"), margin, y);
-  resetTextTracking();
-  y += 34;
+  // hero band (cream tint full-bleed top)
+  const heroH = 132;
+  pdf.setFillColor(...CREAM);
+  pdf.rect(0, 3, pageW, heroH, "F");
+  pdf.setDrawColor(...DIVIDER);
+  pdf.setLineWidth(0.5);
+  pdf.line(0, 3 + heroH, pageW, 3 + heroH);
 
-  // Title — Instrument Serif feel via Times
-  writeWrapped(d.title, { size: 26, family: "times", style: "normal", lineGap: 10, lineHeight: 1.25, color: [20, 20, 20] });
+  y = margin;
+  drawLabel("Standard Operating Procedure", margin, y + 8, SIGNAL);
+  y += 20;
 
-  // Version + generated date
-  const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-  writeWrapped(`v1  ·  Generated ${today}`, {
-    size: 9,
-    family: "helvetica",
-    color: [150, 150, 150],
-    lineGap: 4,
-    lineHeight: 1.4,
+  // Title — Times for Instrument-Serif feel
+  const titleLines = wrapLines(d.title, contentW, 24, "times", "normal");
+  const titleH = drawLines(titleLines, margin, y - 24 * 0.2, 24, "times", "normal", INK, 1.15);
+  y += titleH;
+
+  // Metadata row
+  const today = new Date().toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(9);
+  pdf.setTextColor(...INK_MUTED);
+  pdf.text(
+    safe(`${d.department}  ·  Owner: ${d.owner}  ·  v1  ·  Generated ${today}`),
+    margin,
+    y + 6,
+  );
 
-  // Meta line (Helvetica)
-  writeWrapped(`${d.department}  ·  Owner: ${d.owner}`, {
-    size: 9.5,
-    family: "helvetica",
-    color: [110, 110, 110],
-    lineGap: 6,
-    lineHeight: 1.4,
-  });
+  // jump past hero band
+  y = 3 + heroH + 22;
 
-  h2("Purpose");
-  writeWrapped(d.purpose, { size: 11, family: "helvetica", lineHeight: 1.5 });
+  // ============================ 2. SUMMARY PANEL ============================
+  const summaryItems: Array<[string, string]> = [
+    ["Purpose", d.purpose],
+    ["Scope", d.scope],
+    ["Trigger", d.trigger],
+  ];
+  const summaryPadX = 18;
+  const summaryPadY = 16;
+  const summaryInnerW = contentW - summaryPadX * 2;
 
-  h2("Scope");
-  writeWrapped(d.scope, { size: 11, family: "helvetica", lineHeight: 1.5 });
-
-  h2("Trigger");
-  writeWrapped(d.trigger, { size: 11, family: "helvetica", lineHeight: 1.5 });
-
-  h2("Inputs");
-  for (const it of d.inputs) {
-    writeWrapped(`•   ${it}`, { size: 11, family: "helvetica", indent: 10, lineGap: 3, lineHeight: 1.45 });
+  // measure
+  let summaryH = summaryPadY;
+  for (const [, value] of summaryItems) {
+    summaryH += 11; // label
+    const vLines = wrapLines(value, summaryInnerW, 10.5, "helvetica", "normal");
+    summaryH += vLines.length * 10.5 * 1.5 + 12;
   }
+  summaryH += summaryPadY - 12;
 
-  h2("Procedure");
-  // Hanging indent: number sits in a 22pt gutter, action + detail align flush
-  // with the action text (not under the number).
-  const stepGutter = 22;
+  ensure(summaryH + 20);
+  drawCard(margin, y, contentW, summaryH, PAPER_DEEP, BORDER, 8);
+  let sy = y + summaryPadY;
+  for (const [label, value] of summaryItems) {
+    drawLabel(label, margin + summaryPadX, sy);
+    sy += 11;
+    const vLines = wrapLines(value, summaryInnerW, 10.5, "helvetica", "normal");
+    drawLines(vLines, margin + summaryPadX, sy - 10.5, 10.5, "helvetica", "normal", INK, 1.5);
+    sy += vLines.length * 10.5 * 1.5 + 12;
+  }
+  y += summaryH + 20;
+
+  // ============================ 3. INPUTS / OUTPUTS (2-col) ============================
+  const twoColGap = 14;
+  const colW = (contentW - twoColGap) / 2;
+  const colPadX = 14;
+  const colPadY = 14;
+  const colInnerW = colW - colPadX * 2;
+
+  const bulletHeight = (items: string[]) => {
+    let h = colPadY + 11 + 8; // label + gap
+    for (const it of items) {
+      const lines = wrapLines(`•  ${it}`, colInnerW - 6, 10, "helvetica", "normal");
+      h += lines.length * 10 * 1.45 + 4;
+    }
+    return h + colPadY - 4;
+  };
+
+  const inputsH = bulletHeight(d.inputs);
+  const outputsH = bulletHeight(d.outputs);
+  const ioH = Math.max(inputsH, outputsH);
+  ensure(ioH + 18);
+
+  const drawBulletCard = (xPos: number, label: string, items: string[], cardH: number) => {
+    drawCard(xPos, y, colW, cardH, CARD, BORDER, 8);
+    let cy = y + colPadY;
+    drawLabel(label, xPos + colPadX, cy);
+    cy += 14;
+    for (const it of items) {
+      const lines = wrapLines(`•  ${it}`, colInnerW - 6, 10, "helvetica", "normal");
+      drawLines(lines, xPos + colPadX, cy - 10, 10, "helvetica", "normal", INK, 1.45);
+      cy += lines.length * 10 * 1.45 + 4;
+    }
+  };
+  drawBulletCard(margin, "Inputs", d.inputs, ioH);
+  drawBulletCard(margin + colW + twoColGap, "Outputs", d.outputs, ioH);
+  y += ioH + 22;
+
+  // ============================ 4. PROCEDURE ============================
+  ensure(28);
+  pdf.setFont("times", "normal");
+  pdf.setFontSize(16);
+  pdf.setTextColor(...INK);
+  pdf.text(safe("Procedure"), margin, y + 14);
+  y += 22;
+
+  const stepPadX = 14;
+  const stepPadY = 14;
+  const badgeSize = 28;
+  const stepGap = 10;
+  const stepTextX = margin + stepPadX + badgeSize + 12;
+  const stepTextW = contentW - stepPadX * 2 - badgeSize - 12;
+
   for (const s of d.steps) {
-    const numLabel = `${s.number}.`;
-    resetTextTracking();
+    const actionLines = wrapLines(s.action, stepTextW, 11, "helvetica", "bold");
+    let stepH = stepPadY + actionLines.length * 11 * 1.3;
+    let detailLines: string[] = [];
+    if (s.detail?.trim()) {
+      detailLines = wrapLines(s.detail.trim(), stepTextW, 9.5, "helvetica", "normal");
+      stepH += 4 + detailLines.length * 9.5 * 1.5;
+    }
+    stepH += stepPadY;
+    // minimum height so badge has room
+    stepH = Math.max(stepH, badgeSize + stepPadY * 2);
+
+    ensure(stepH + stepGap);
+    // card
+    drawCard(margin, y, contentW, stepH, CARD, BORDER, 8);
+    // signal-orange left rail
+    pdf.setFillColor(...SIGNAL);
+    pdf.rect(margin, y, 3, stepH, "F");
+    // ink badge
+    pdf.setFillColor(...INK);
+    pdf.roundedRect(margin + stepPadX, y + stepPadY, badgeSize, badgeSize, 5, 5, "F");
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(12);
-    pdf.setTextColor(20, 20, 20);
-    const lineH = 12 * 1.35;
-    ensure(lineH);
-    // Action body wrapped at content width minus gutter
-    const actionLines = pdf.splitTextToSize(safePdfText(s.action), contentW - stepGutter) as string[];
-    // Draw number aligned with first action line
-    pdf.text(numLabel, margin, y);
-    for (const line of actionLines) {
-      ensure(lineH);
-      resetTextTracking();
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(12);
-      pdf.setTextColor(20, 20, 20);
-      pdf.text(line, margin + stepGutter, y);
-      y += lineH;
+    pdf.setTextColor(252, 251, 249);
+    pdf.text(
+      String(s.number),
+      margin + stepPadX + badgeSize / 2,
+      y + stepPadY + badgeSize / 2 + 4,
+      { align: "center" },
+    );
+
+    let ty = y + stepPadY;
+    drawLines(actionLines, stepTextX, ty - 11 + 2, 11, "helvetica", "bold", INK, 1.3);
+    ty += actionLines.length * 11 * 1.3;
+    if (detailLines.length) {
+      ty += 4;
+      drawLines(detailLines, stepTextX, ty - 9.5 + 2, 9.5, "helvetica", "normal", INK_MUTED, 1.5);
     }
-    if (s.detail?.trim()) {
-      y += 2;
-      writeWrapped(s.detail.trim(), { size: 10.5, family: "helvetica", color: [85, 85, 85], indent: stepGutter, lineGap: 8, lineHeight: 1.5 });
-    } else {
-      y += 6;
-    }
+    y += stepH + stepGap;
   }
 
-  h2("Outputs");
-  for (const it of d.outputs) {
-    writeWrapped(`•   ${it}`, { size: 11, family: "helvetica", indent: 10, lineGap: 3, lineHeight: 1.45 });
-  }
+  y += 8;
 
-  h2("Definition of done");
-  writeWrapped(d.definitionOfDone, { size: 11, family: "helvetica", lineHeight: 1.5 });
+  // ============================ 5. CONTROL BAND (3-col) ============================
+  // Definition of Done · KPIs · Exceptions
+  const ctrlGap = 12;
+  const ctrlColW = (contentW - ctrlGap * 2) / 3;
+  const ctrlPadX = 12;
+  const ctrlPadY = 14;
+  const ctrlInnerW = ctrlColW - ctrlPadX * 2;
 
-  h2("KPIs");
-  // Metric → Target table-ish rendering. Split on → or : ; right-align target.
-  for (const it of d.kpis) {
-    const cleaned = safePdfText(it);
-    const splitMatch = cleaned.match(/^(.*?)(?:\s*(?:->|:)\s*)(.+)$/);
-    const lineH = 11 * 1.45;
-    if (splitMatch) {
-      const metric = splitMatch[1].trim();
-      const target = splitMatch[2].trim();
-      // Reserve ~35% of width for target column on the right
-      const targetColW = contentW * 0.32;
-      const metricColW = contentW - targetColW - 10;
-      resetTextTracking();
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(11);
-      pdf.setTextColor(30, 30, 30);
-      const metricLines = pdf.splitTextToSize(`•   ${metric}`, metricColW) as string[];
-      pdf.setFont("helvetica", "bold");
-      const targetLines = pdf.splitTextToSize(target, targetColW) as string[];
-      const rows = Math.max(metricLines.length, targetLines.length);
-      ensure(rows * lineH + 3);
-      const rowStartY = y;
-      // metric column
-      resetTextTracking();
-      pdf.setFont("helvetica", "normal");
-      pdf.setTextColor(30, 30, 30);
-      for (let i = 0; i < metricLines.length; i++) {
-        pdf.text(metricLines[i], margin + 10, rowStartY + i * lineH);
+  // Pre-render each panel's content lines to compute heights
+  type Block =
+    | { kind: "para"; size: number; family: "times" | "helvetica"; style: "normal" | "bold"; color: [number, number, number]; lines: string[]; lineHeight: number; gap: number }
+    | { kind: "kpi"; metric: string[]; target: string[] };
+
+  const ddBlocks: Block[] = [{
+    kind: "para",
+    size: 10,
+    family: "helvetica",
+    style: "normal",
+    color: INK,
+    lines: wrapLines(d.definitionOfDone, ctrlInnerW, 10, "helvetica", "normal"),
+    lineHeight: 1.5,
+    gap: 0,
+  }];
+
+  const kpiBlocks: Block[] = d.kpis.map((it) => {
+    const cleaned = safe(it);
+    const m = cleaned.match(/^(.*?)(?:\s*(?:->|:)\s*)(.+)$/);
+    if (m) {
+      return {
+        kind: "kpi" as const,
+        metric: wrapLines(m[1].trim(), ctrlInnerW, 9.5, "helvetica", "normal"),
+        target: wrapLines(m[2].trim(), ctrlInnerW, 11, "helvetica", "bold"),
+      };
+    }
+    return {
+      kind: "para" as const,
+      size: 10,
+      family: "helvetica" as const,
+      style: "normal" as const,
+      color: INK,
+      lines: wrapLines(`•  ${cleaned}`, ctrlInnerW, 10, "helvetica", "normal"),
+      lineHeight: 1.45,
+      gap: 4,
+    };
+  });
+
+  const excBlocks: Block[] = d.exceptions.map((it) => ({
+    kind: "para" as const,
+    size: 9.5,
+    family: "helvetica" as const,
+    style: "normal" as const,
+    color: INK,
+    lines: wrapLines(`•  ${it}`, ctrlInnerW, 9.5, "helvetica", "normal"),
+    lineHeight: 1.5,
+    gap: 6,
+  }));
+
+  const measureBlocks = (blocks: Block[]) => {
+    let h = ctrlPadY + 14; // label + gap
+    for (const b of blocks) {
+      if (b.kind === "para") {
+        h += b.lines.length * b.size * b.lineHeight + b.gap;
+      } else {
+        h += b.metric.length * 9.5 * 1.4 + 2;
+        h += b.target.length * 11 * 1.2 + 8;
       }
-      // target column (right-aligned, bold)
-      pdf.setFont("helvetica", "bold");
-      pdf.setTextColor(20, 20, 20);
-      const targetX = margin + contentW;
-      for (let i = 0; i < targetLines.length; i++) {
-        pdf.text(targetLines[i], targetX, rowStartY + i * lineH, { align: "right" });
-      }
-      resetTextTracking();
-      y = rowStartY + rows * lineH + 3;
-    } else {
-      writeWrapped(`•   ${it}`, { size: 11, family: "helvetica", indent: 10, lineGap: 3, lineHeight: 1.45 });
     }
-  }
+    return h + ctrlPadY - 4;
+  };
 
-  h2("Exceptions / escalation", bulletListHeight(d.exceptions));
-  for (const it of d.exceptions) {
-    writeWrapped(`•   ${it}`, { size: 11, family: "helvetica", indent: 10, lineGap: 3, lineHeight: 1.45 });
-  }
+  const ctrlH = Math.max(
+    measureBlocks(ddBlocks),
+    measureBlocks(kpiBlocks),
+    measureBlocks(excBlocks),
+  );
 
-  y += 22;
-  ensure(46 + measureWrappedHeight(`Revision cadence: ${d.revisionCadence}`, { size: 9, family: "helvetica", lineHeight: 1.4 }));
-  pdf.setDrawColor(220, 217, 210);
+  ensure(ctrlH + 18);
+
+  const drawCtrlPanel = (xPos: number, label: string, blocks: Block[]) => {
+    drawCard(xPos, y, ctrlColW, ctrlH, CARD, BORDER, 8);
+    let cy = y + ctrlPadY;
+    drawLabel(label, xPos + ctrlPadX, cy);
+    cy += 14;
+    for (const b of blocks) {
+      if (b.kind === "para") {
+        drawLines(b.lines, xPos + ctrlPadX, cy - b.size, b.size, b.family, b.style, b.color, b.lineHeight);
+        cy += b.lines.length * b.size * b.lineHeight + b.gap;
+      } else {
+        drawLines(b.metric, xPos + ctrlPadX, cy - 9.5, 9.5, "helvetica", "normal", INK_MUTED, 1.4);
+        cy += b.metric.length * 9.5 * 1.4 + 2;
+        drawLines(b.target, xPos + ctrlPadX, cy - 11, 11, "helvetica", "bold", INK, 1.2);
+        cy += b.target.length * 11 * 1.2 + 8;
+      }
+    }
+  };
+
+  drawCtrlPanel(margin, "Definition of done", ddBlocks);
+  drawCtrlPanel(margin + ctrlColW + ctrlGap, "KPIs", kpiBlocks);
+  drawCtrlPanel(margin + (ctrlColW + ctrlGap) * 2, "Exceptions / escalation", excBlocks);
+  y += ctrlH + 16;
+
+  // ============================ 6. REVISION ============================
+  ensure(28);
+  pdf.setDrawColor(...DIVIDER);
+  pdf.setLineWidth(0.5);
   pdf.line(margin, y, margin + contentW, y);
-  y += 14;
-  writeWrapped(`Revision cadence: ${d.revisionCadence}`, { size: 9, family: "helvetica", color: [130, 130, 130], lineHeight: 1.4 });
-  y += 4;
-  writeWrapped(`Generated by AOS — the Altitude Operating System.`, { size: 8.5, family: "helvetica", color: [150, 150, 150], lineHeight: 1.4 });
+  y += 12;
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(9);
+  pdf.setTextColor(...INK_MUTED);
+  pdf.text(safe(`Revision cadence: ${d.revisionCadence}`), margin, y + 4);
 
-  // Footer: SOP title left, "Page N of M" right, on every page
+  // ============================ FOOTER (every page) ============================
   const pageCount = pdf.getNumberOfPages();
+  const titleClipped =
+    d.title.length > 60 ? d.title.slice(0, 57) + "…" : d.title;
   for (let i = 1; i <= pageCount; i++) {
     pdf.setPage(i);
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(8);
-    pdf.setTextColor(160, 160, 160);
-    const footerY = pageH - margin / 2;
-    const titleClipped =
-      d.title.length > 70 ? d.title.slice(0, 67) + "…" : d.title;
-    pdf.text(safePdfText(titleClipped), margin, footerY);
-    pdf.text(`Page ${i} of ${pageCount}`, margin + contentW, footerY, {
-      align: "right",
-    });
+    // hairline rule
+    pdf.setDrawColor(...DIVIDER);
+    pdf.setLineWidth(0.4);
+    pdf.line(margin, pageH - 26, pageW - margin, pageH - 26);
+    pdf.setFont("courier", "normal");
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(...INK_FAINT);
+    pdf.text(safe(`AOS  ·  ${titleClipped}`), margin, pageH - 14);
+    pdf.text(
+      safe(`v1  ·  Page ${i} of ${pageCount}  ·  Review ${d.revisionCadence}`),
+      pageW - margin,
+      pageH - 14,
+      { align: "right" },
+    );
   }
 }
 
