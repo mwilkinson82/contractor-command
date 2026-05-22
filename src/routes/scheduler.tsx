@@ -76,6 +76,7 @@ const SAMPLE: Omit<Schedule, "id" | "name"> = {
 type Draft = {
   name: string;
   projectStartDate?: string;
+  dataDate?: string;
   workDays: number;
   holidays: string[];
   tasks: Task[];
