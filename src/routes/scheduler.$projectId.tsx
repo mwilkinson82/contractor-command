@@ -32,6 +32,7 @@ import { BaselinesPanel } from "@/components/scheduler/BaselinesPanel";
 import { CalendarPanel } from "@/components/scheduler/CalendarPanel";
 import { ReportsPanel } from "@/components/scheduler/ReportsPanel";
 import { ResourcesPanel } from "@/components/scheduler/ResourcesPanel";
+import { StructurePanel } from "@/components/scheduler/StructurePanel";
 
 import { FragnetPanel } from "@/components/scheduler/FragnetPanel";
 import { AnnotationsPanel } from "@/components/scheduler/AnnotationsPanel";
@@ -365,6 +366,9 @@ function SchedulerPage() {
           {/* Left */}
           <aside className="space-y-6">
             {/* Picker/create moved to /scheduler home */}
+
+            {selectedId ? <StructurePanel scheduleId={selectedId} /> : null}
+
 
 
             {selectedId && draft ? (
