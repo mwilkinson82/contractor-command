@@ -67,6 +67,25 @@ function HomePage() {
     } catch {}
   }, []);
 
+  // If we just bounced back from a Stripe upgrade started by AOS,
+  // honor the return_to (validated against alpcontractorcircle.com).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let target: string | null = null;
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const fromUrl = sp.get("return_to");
+      target =
+        (fromUrl && isAllowedReturnTo(fromUrl)) ||
+        isAllowedReturnTo(window.sessionStorage.getItem(RETURN_TO_STORAGE_KEY));
+      window.sessionStorage.removeItem(RETURN_TO_STORAGE_KEY);
+    } catch {}
+    if (target) {
+      toast.success("Welcome — sending you back to AOS…");
+      window.setTimeout(() => window.location.replace(target!), 600);
+    }
+  }, []);
+
   // AOS query — shares cache key with <AosPulse /> so they dedupe automatically.
   const aosFn = useServerFn(getAosSnapshot);
   const { data: aosData, refetch: refetchAos, isFetching: aosFetching } =
