@@ -41,8 +41,20 @@ export function calculateSchedule(
   const taskMap = new Map(tasks.map((task) => [task.id, task]));
   const dependencies = normalizeDependencies(schedule.dependencies, taskMap, diagnostics);
   const order = topologicalSort(tasks, dependencies);
+  const calendar = schedule.calendar ?? DEFAULT_CALENDAR;
 
-  runForwardPass(order, dependencies, taskMap);
+  // Compute minimum-start working-day offset per task from startNoEarlierThan
+  const minStart = new Map<TaskId, number>();
+  if (schedule.projectStartDate) {
+    for (const t of tasks) {
+      if (t.startNoEarlierThan) {
+        const off = workingDayDelta(schedule.projectStartDate, t.startNoEarlierThan, calendar);
+        if (off > 0) minStart.set(t.id, off);
+      }
+    }
+  }
+
+  runForwardPass(order, dependencies, taskMap, minStart);
   const projectDuration = Math.max(0, ...tasks.map((task) => task.earlyFinish));
   runBackwardPass([...order].reverse(), dependencies, taskMap, projectDuration);
   markFloat(tasks, dependencies, tolerance);
