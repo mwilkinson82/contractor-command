@@ -67,7 +67,9 @@ export const loadSchedule = createServerFn({ method: "GET" })
     const { supabase } = context;
     const { data: head, error: headErr } = await supabase
       .from("schedules")
-      .select("id, name, project_start_date, notes, created_at, updated_at")
+      .select(
+        "id, name, project_start_date, notes, work_days, holidays, created_at, updated_at",
+      )
       .eq("id", data.id)
       .maybeSingle();
     if (headErr) throw new Error(headErr.message);
@@ -91,6 +93,12 @@ export const loadSchedule = createServerFn({ method: "GET" })
       id: head.id as string,
       name: head.name as string,
       projectStartDate: (head.project_start_date as string | null) ?? undefined,
+      calendar: {
+        workDays: (head.work_days as number | null) ?? 31,
+        holidays: ((head.holidays as unknown as string[] | null) ?? []).filter(
+          (h): h is string => typeof h === "string",
+        ),
+      },
       tasks: (tasks ?? []).map((t) => ({
         id: t.task_id as string,
         name: t.name as string,
