@@ -162,6 +162,7 @@ export const saveSchedule = createServerFn({ method: "POST" })
         .update({
           name: data.name,
           project_start_date: data.projectStartDate ?? null,
+          data_date: data.dataDate ?? null,
           notes: data.notes ?? null,
           ...(data.workDays !== undefined ? { work_days: data.workDays } : {}),
           ...(data.holidays !== undefined ? { holidays: data.holidays } : {}),
@@ -175,6 +176,7 @@ export const saveSchedule = createServerFn({ method: "POST" })
           user_id: userId,
           name: data.name,
           project_start_date: data.projectStartDate ?? null,
+          data_date: data.dataDate ?? null,
           notes: data.notes ?? null,
           work_days: data.workDays ?? 31,
           holidays: data.holidays ?? [],
