@@ -25,7 +25,14 @@ import { vault } from "@/lib/vault";
 import { setPresence, resetPresence, type PresenceUser } from "@/lib/portal-presence";
 import { toast } from "sonner";
 
-const PUBLIC_ROUTES = new Set(["/login", "/signup", "/forgot-password", "/reset-password", "/welcome"]);
+const PUBLIC_ROUTES = new Set([
+  "/login",
+  "/signup",
+  "/forgot-password",
+  "/reset-password",
+  "/welcome",
+  "/scheduler-preview",
+]);
 const ONBOARDING_ROUTE = "/onboarding";
 
 // Tier gates per route prefix. Anything not listed is open to every signed-in
