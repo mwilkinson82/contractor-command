@@ -30,6 +30,11 @@ const SaveScheduleInput = z.object({
     .optional()
     .nullable(),
   notes: z.string().max(5000).optional().nullable(),
+  workDays: z.number().int().min(0).max(127).optional(),
+  holidays: z
+    .array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+    .max(365)
+    .optional(),
   tasks: z.array(TaskInput).max(2000),
   dependencies: z.array(DependencyInput).max(5000),
 });
@@ -62,7 +67,9 @@ export const loadSchedule = createServerFn({ method: "GET" })
     const { supabase } = context;
     const { data: head, error: headErr } = await supabase
       .from("schedules")
-      .select("id, name, project_start_date, notes, created_at, updated_at")
+      .select(
+        "id, name, project_start_date, notes, work_days, holidays, created_at, updated_at",
+      )
       .eq("id", data.id)
       .maybeSingle();
     if (headErr) throw new Error(headErr.message);
@@ -86,6 +93,12 @@ export const loadSchedule = createServerFn({ method: "GET" })
       id: head.id as string,
       name: head.name as string,
       projectStartDate: (head.project_start_date as string | null) ?? undefined,
+      calendar: {
+        workDays: (head.work_days as number | null) ?? 31,
+        holidays: ((head.holidays as unknown as string[] | null) ?? []).filter(
+          (h): h is string => typeof h === "string",
+        ),
+      },
       tasks: (tasks ?? []).map((t) => ({
         id: t.task_id as string,
         name: t.name as string,
@@ -133,6 +146,8 @@ export const saveSchedule = createServerFn({ method: "POST" })
           name: data.name,
           project_start_date: data.projectStartDate ?? null,
           notes: data.notes ?? null,
+          ...(data.workDays !== undefined ? { work_days: data.workDays } : {}),
+          ...(data.holidays !== undefined ? { holidays: data.holidays } : {}),
         })
         .eq("id", scheduleId);
       if (error) throw new Error(error.message);
@@ -144,6 +159,8 @@ export const saveSchedule = createServerFn({ method: "POST" })
           name: data.name,
           project_start_date: data.projectStartDate ?? null,
           notes: data.notes ?? null,
+          work_days: data.workDays ?? 31,
+          holidays: data.holidays ?? [],
         })
         .select("id")
         .single();
@@ -240,7 +257,7 @@ export const captureBaseline = createServerFn({ method: "POST" })
     const { supabase } = context;
     const { data: head, error: hErr } = await supabase
       .from("schedules")
-      .select("project_start_date")
+      .select("project_start_date, work_days, holidays")
       .eq("id", data.scheduleId)
       .maybeSingle();
     if (hErr) throw new Error(hErr.message);
@@ -282,6 +299,8 @@ export const captureBaseline = createServerFn({ method: "POST" })
         name: data.name,
         notes: data.notes ?? null,
         project_start_date: (head.project_start_date as string | null) ?? null,
+        work_days: (head.work_days as number | null) ?? 31,
+        holidays: ((head.holidays as string[] | null) ?? []) as string[],
         tasks: tasksJson,
         dependencies: depsJson,
       })
@@ -297,7 +316,9 @@ export const loadBaseline = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase
       .from("schedule_baselines")
-      .select("id, name, notes, project_start_date, tasks, dependencies, created_at")
+      .select(
+        "id, name, notes, project_start_date, work_days, holidays, tasks, dependencies, created_at",
+      )
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -306,6 +327,12 @@ export const loadBaseline = createServerFn({ method: "GET" })
       id: row.id as string,
       name: row.name as string,
       projectStartDate: (row.project_start_date as string | null) ?? undefined,
+      calendar: {
+        workDays: (row.work_days as number | null) ?? 31,
+        holidays: ((row.holidays as unknown as string[] | null) ?? []).filter(
+          (h): h is string => typeof h === "string",
+        ),
+      },
       tasks: (row.tasks as unknown as Schedule["tasks"]) ?? [],
       dependencies: (row.dependencies as unknown as Schedule["dependencies"]) ?? [],
     };

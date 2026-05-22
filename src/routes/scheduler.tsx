@@ -28,6 +28,7 @@ import { GanttTimeline } from "@/components/scheduler/GanttTimeline";
 import { OpenEndsReport } from "@/components/scheduler/OpenEndsReport";
 import { Stat } from "@/components/scheduler/Stat";
 import { BaselinesPanel } from "@/components/scheduler/BaselinesPanel";
+import { CalendarPanel } from "@/components/scheduler/CalendarPanel";
 import { Textarea } from "@/components/ui/textarea";
 
 const UNASSIGNED_WBS = "Unassigned";
@@ -72,6 +73,8 @@ const SAMPLE: Omit<Schedule, "id" | "name"> = {
 type Draft = {
   name: string;
   projectStartDate?: string;
+  workDays: number;
+  holidays: string[];
   tasks: Task[];
   dependencies: Dependency[];
 };
@@ -135,6 +138,8 @@ function SchedulerPage() {
       setDraft({
         name: s.name,
         projectStartDate: s.projectStartDate,
+        workDays: s.calendar?.workDays ?? 31,
+        holidays: s.calendar?.holidays ?? [],
         tasks: s.tasks.map((t) => ({ ...t })),
         dependencies: s.dependencies.map((d) => ({ ...d })),
       });
@@ -171,6 +176,8 @@ function SchedulerPage() {
           id: selectedId!,
           name: draft!.name,
           projectStartDate: draft!.projectStartDate || undefined,
+          workDays: draft!.workDays,
+          holidays: draft!.holidays,
           tasks: draft!.tasks,
           dependencies: draft!.dependencies,
         },
@@ -201,6 +208,7 @@ function SchedulerPage() {
         id: selectedId ?? undefined,
         name: draft.name,
         projectStartDate: draft.projectStartDate,
+        calendar: { workDays: draft.workDays, holidays: draft.holidays },
         tasks: draft.tasks,
         dependencies: draft.dependencies,
       });
@@ -425,6 +433,17 @@ function SchedulerPage() {
                 </ul>
               )}
             </section>
+
+            {selectedId && draft ? (
+              <CalendarPanel
+                workDays={draft.workDays}
+                holidays={draft.holidays}
+                onChange={({ workDays, holidays }) => {
+                  setDraft({ ...draft, workDays, holidays });
+                  setDirty(true);
+                }}
+              />
+            ) : null}
 
             {selectedId ? (
               <BaselinesPanel
