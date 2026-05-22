@@ -193,6 +193,7 @@ export const saveSchedule = createServerFn({ method: "POST" })
           notes: data.notes ?? null,
           work_days: data.workDays ?? 31,
           holidays: data.holidays ?? [],
+          annotations: data.annotations ?? [],
         })
         .select("id")
         .single();
