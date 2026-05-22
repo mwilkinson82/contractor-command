@@ -47,6 +47,14 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
     return pdf.splitTextToSize(safe(text), width) as string[];
   };
 
+  // CRITICAL: jsPDF emulates bold by *stroking* glyph outlines with the
+  // current lineWidth. Any prior setLineWidth() (e.g. card borders) will
+  // bleed into text rendering and corrupt character metrics. Always reset.
+  const resetTextState = () => {
+    pdf.setCharSpace(0);
+    pdf.setLineWidth(0);
+  };
+
   const drawLines = (
     lines: string[],
     x: number,
@@ -57,13 +65,13 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
     color: [number, number, number],
     lineHeight = 1.4,
   ) => {
-    pdf.setCharSpace(0);
+    resetTextState();
     pdf.setFont(family, style);
     pdf.setFontSize(size);
     pdf.setTextColor(...color);
     const lh = size * lineHeight;
     lines.forEach((line, i) => {
-      pdf.setCharSpace(0);
+      resetTextState();
       pdf.text(line, x, startY + i * lh + size);
     });
     return lines.length * lh;
@@ -82,12 +90,12 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
     pdf.setDrawColor(...border);
     pdf.setLineWidth(0.6);
     pdf.roundedRect(x, cardY, w, h, radius, radius, "FD");
+    pdf.setLineWidth(0); // prevent bleed into subsequent text
   };
 
-  // ─── small-caps label (no charSpace — triggers a kerning leak in jsPDF's
-  // bold helvetica that corrupts subsequent text() calls).
+  // ─── small-caps label (no charSpace tracking; no stroke width)
   const drawLabel = (text: string, x: number, baselineY: number, color = INK_FAINT) => {
-    pdf.setCharSpace(0);
+    resetTextState();
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(7.5);
     pdf.setTextColor(...color);
