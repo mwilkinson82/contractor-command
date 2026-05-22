@@ -25,6 +25,14 @@ const DependencyInput = z.object({
   lag: z.number().int().min(-100000).max(100000).optional(),
 });
 
+const AnnotationInput = z.object({
+  id: z.string().min(1).max(64),
+  kind: z.enum(["milestone", "callout"]),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  label: z.string().min(1).max(200),
+  taskId: z.string().max(64).optional().nullable(),
+});
+
 const SaveScheduleInput = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(1).max(255),
@@ -44,6 +52,7 @@ const SaveScheduleInput = z.object({
     .array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
     .max(365)
     .optional(),
+  annotations: z.array(AnnotationInput).max(200).optional(),
   tasks: z.array(TaskInput).max(2000),
   dependencies: z.array(DependencyInput).max(5000),
 });
@@ -78,7 +87,7 @@ export const loadSchedule = createServerFn({ method: "GET" })
     const { data: head, error: headErr } = await supabase
       .from("schedules")
       .select(
-        "id, name, project_start_date, data_date, notes, work_days, holidays, created_at, updated_at",
+        "id, name, project_start_date, data_date, notes, work_days, holidays, annotations, created_at, updated_at",
       )
       .eq("id", data.id)
       .maybeSingle();
@@ -130,6 +139,9 @@ export const loadSchedule = createServerFn({ method: "GET" })
         type: d.type as "FS" | "SS" | "FF" | "SF",
         lag: d.lag as number,
       })),
+      annotations: Array.isArray(head.annotations)
+        ? (head.annotations as unknown as Schedule["annotations"])
+        : [],
     };
 
     return {
@@ -166,6 +178,7 @@ export const saveSchedule = createServerFn({ method: "POST" })
           notes: data.notes ?? null,
           ...(data.workDays !== undefined ? { work_days: data.workDays } : {}),
           ...(data.holidays !== undefined ? { holidays: data.holidays } : {}),
+          ...(data.annotations !== undefined ? { annotations: data.annotations } : {}),
         })
         .eq("id", scheduleId);
       if (error) throw new Error(error.message);
@@ -180,6 +193,7 @@ export const saveSchedule = createServerFn({ method: "POST" })
           notes: data.notes ?? null,
           work_days: data.workDays ?? 31,
           holidays: data.holidays ?? [],
+          annotations: data.annotations ?? [],
         })
         .select("id")
         .single();

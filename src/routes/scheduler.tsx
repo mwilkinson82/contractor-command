@@ -13,7 +13,7 @@ import {
 } from "@/lib/scheduler/persistence.functions";
 import { calculateSchedule } from "@/lib/scheduler/engine";
 import { rescheduleFromDataDate } from "@/lib/scheduler/progress";
-import type { Dependency, DependencyType, Schedule, Task } from "@/lib/scheduler/types";
+import type { Annotation, Dependency, DependencyType, Schedule, Task } from "@/lib/scheduler/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,6 +34,7 @@ import { ReportsPanel } from "@/components/scheduler/ReportsPanel";
 import { ResourcesPanel } from "@/components/scheduler/ResourcesPanel";
 import { XerImportButton } from "@/components/scheduler/XerImportButton";
 import { FragnetPanel } from "@/components/scheduler/FragnetPanel";
+import { AnnotationsPanel } from "@/components/scheduler/AnnotationsPanel";
 import { Textarea } from "@/components/ui/textarea";
 
 const UNASSIGNED_WBS = "Unassigned";
@@ -83,6 +84,7 @@ type Draft = {
   holidays: string[];
   tasks: Task[];
   dependencies: Dependency[];
+  annotations: Annotation[];
 };
 
 function nextTaskId(tasks: Task[]): string {
@@ -149,6 +151,7 @@ function SchedulerPage() {
         holidays: s.calendar?.holidays ?? [],
         tasks: s.tasks.map((t) => ({ ...t })),
         dependencies: s.dependencies.map((d) => ({ ...d })),
+        annotations: (s.annotations ?? []).map((a) => ({ ...a })),
       });
       setDirty(false);
     } else {
@@ -193,6 +196,7 @@ function SchedulerPage() {
           dataDate: draft!.dataDate || undefined,
           workDays: draft!.workDays,
           holidays: draft!.holidays,
+          annotations: draft!.annotations,
           tasks: draft!.tasks,
           dependencies: draft!.dependencies,
         },
@@ -493,6 +497,17 @@ function SchedulerPage() {
                 dependencies={draft.dependencies}
                 onInsert={({ tasks, dependencies }) => {
                   setDraft({ ...draft, tasks, dependencies });
+                  setDirty(true);
+                }}
+              />
+            ) : null}
+
+            {selectedId && draft ? (
+              <AnnotationsPanel
+                annotations={draft.annotations}
+                tasks={draft.tasks}
+                onChange={(annotations) => {
+                  setDraft({ ...draft, annotations });
                   setDirty(true);
                 }}
               />
@@ -823,6 +838,7 @@ function SchedulerPage() {
                           baseline={baselineResult}
                           dataDate={draft.dataDate}
                           calendar={{ workDays: draft.workDays, holidays: draft.holidays }}
+                          annotations={draft.annotations}
                         />
                       </div>
                     </section>

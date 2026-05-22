@@ -1,4 +1,4 @@
-import type { ScheduleResult, ScheduledTask } from "@/lib/scheduler/types";
+import type { Annotation, ScheduleResult, ScheduledTask } from "@/lib/scheduler/types";
 import { workingDayOffset } from "@/lib/scheduler/progress";
 
 interface Props {
@@ -13,6 +13,7 @@ interface Props {
   dataDate?: string;
   /** Calendar used to convert dataDate ↔ working-day offset. */
   calendar?: { workDays: number; holidays: string[] };
+  annotations?: Annotation[];
 }
 
 const ROW_H = 26;
@@ -31,6 +32,7 @@ export function GanttTimeline({
   baseline,
   dataDate,
   calendar,
+  annotations,
 }: Props) {
   const baselineMap = new Map<string, ScheduledTask>();
   if (baseline) for (const b of baseline.tasks) baselineMap.set(b.id, b);
@@ -288,6 +290,53 @@ export function GanttTimeline({
             </text>
           </g>
         ) : null}
+
+        {/* Annotations (milestones + callouts) */}
+        {annotations && result.projectStartDate
+          ? annotations.map((a, i) => {
+              const off = workingDayOffset(
+                result.projectStartDate!,
+                a.date,
+                calendar ?? { workDays: 31, holidays: [] },
+              );
+              if (off < 0 || off > duration) return null;
+              const x = LABEL_W + off * dayPx;
+              const color = a.kind === "milestone" ? "#7a5cc4" : "#c47a1f";
+              const labelY = 14 + (i % 3) * 12;
+              return (
+                <g key={`an-${a.id}`}>
+                  <line
+                    x1={x}
+                    x2={x}
+                    y1={labelY + 2}
+                    y2={height - 16}
+                    stroke={color}
+                    strokeWidth={1}
+                    strokeDasharray="2 3"
+                    opacity={0.65}
+                  />
+                  {a.kind === "milestone" ? (
+                    <polygon
+                      points={`${x},${labelY - 5} ${x + 5},${labelY} ${x},${labelY + 5} ${x - 5},${labelY}`}
+                      fill={color}
+                    />
+                  ) : (
+                    <circle cx={x} cy={labelY} r={3.5} fill={color} />
+                  )}
+                  <text
+                    x={x + 8}
+                    y={labelY + 3}
+                    fontSize={9}
+                    fill={color}
+                    fontFamily="ui-sans-serif, system-ui"
+                    fontWeight={600}
+                  >
+                    {truncate(a.label, 28)}
+                  </text>
+                </g>
+              );
+            })
+          : null}
       </svg>
     </div>
   );

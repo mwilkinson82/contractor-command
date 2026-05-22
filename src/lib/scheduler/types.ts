@@ -36,6 +36,18 @@ export interface ProjectCalendar {
 
 export const DEFAULT_CALENDAR: ProjectCalendar = { workDays: 31, holidays: [] };
 
+export type AnnotationKind = "milestone" | "callout";
+
+export interface Annotation {
+  id: string;
+  kind: AnnotationKind;
+  /** ISO YYYY-MM-DD anchor date. */
+  date: string;
+  label: string;
+  /** Optional task association (for context only — date drives placement). */
+  taskId?: string;
+}
+
 export interface Schedule {
   id?: string;
   name: string;
@@ -45,6 +57,7 @@ export interface Schedule {
   calendar?: ProjectCalendar;
   tasks: Task[];
   dependencies: Dependency[];
+  annotations?: Annotation[];
 }
 
 export interface ScheduledTask extends Task {
