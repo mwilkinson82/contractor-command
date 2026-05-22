@@ -187,11 +187,12 @@ function runForwardPass(
   orderedTasks: WorkingTask[],
   dependencies: NormalizedDependency[],
   taskMap: Map<TaskId, WorkingTask>,
+  minStart?: Map<TaskId, number>,
 ) {
   const predecessors = groupBy(dependencies, "to");
 
   for (const task of orderedTasks) {
-    let earlyStart = 0;
+    let earlyStart = minStart?.get(task.id) ?? 0;
 
     for (const dependency of predecessors.get(task.id) ?? []) {
       const predecessor = taskMap.get(dependency.from)!;
