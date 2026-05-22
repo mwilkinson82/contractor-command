@@ -33,6 +33,11 @@ const SaveScheduleInput = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional()
     .nullable(),
+  dataDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .nullable(),
   notes: z.string().max(5000).optional().nullable(),
   workDays: z.number().int().min(0).max(127).optional(),
   holidays: z
@@ -49,7 +54,7 @@ export const listSchedules = createServerFn({ method: "GET" })
     const { supabase } = context;
     const { data, error } = await supabase
       .from("schedules")
-      .select("id, name, project_start_date, notes, created_at, updated_at")
+      .select("id, name, project_start_date, data_date, notes, created_at, updated_at")
       .order("updated_at", { ascending: false });
     if (error) throw new Error(error.message);
     return {
@@ -57,6 +62,7 @@ export const listSchedules = createServerFn({ method: "GET" })
         id: row.id as string,
         name: row.name as string,
         projectStartDate: (row.project_start_date as string | null) ?? undefined,
+        dataDate: (row.data_date as string | null) ?? undefined,
         notes: (row.notes as string | null) ?? undefined,
         createdAt: row.created_at as string,
         updatedAt: row.updated_at as string,
@@ -72,7 +78,7 @@ export const loadSchedule = createServerFn({ method: "GET" })
     const { data: head, error: headErr } = await supabase
       .from("schedules")
       .select(
-        "id, name, project_start_date, notes, work_days, holidays, created_at, updated_at",
+        "id, name, project_start_date, data_date, notes, work_days, holidays, created_at, updated_at",
       )
       .eq("id", data.id)
       .maybeSingle();
@@ -99,6 +105,7 @@ export const loadSchedule = createServerFn({ method: "GET" })
       id: head.id as string,
       name: head.name as string,
       projectStartDate: (head.project_start_date as string | null) ?? undefined,
+      dataDate: (head.data_date as string | null) ?? undefined,
       calendar: {
         workDays: (head.work_days as number | null) ?? 31,
         holidays: ((head.holidays as unknown as string[] | null) ?? []).filter(
@@ -155,6 +162,7 @@ export const saveSchedule = createServerFn({ method: "POST" })
         .update({
           name: data.name,
           project_start_date: data.projectStartDate ?? null,
+          data_date: data.dataDate ?? null,
           notes: data.notes ?? null,
           ...(data.workDays !== undefined ? { work_days: data.workDays } : {}),
           ...(data.holidays !== undefined ? { holidays: data.holidays } : {}),
@@ -168,6 +176,7 @@ export const saveSchedule = createServerFn({ method: "POST" })
           user_id: userId,
           name: data.name,
           project_start_date: data.projectStartDate ?? null,
+          data_date: data.dataDate ?? null,
           notes: data.notes ?? null,
           work_days: data.workDays ?? 31,
           holidays: data.holidays ?? [],

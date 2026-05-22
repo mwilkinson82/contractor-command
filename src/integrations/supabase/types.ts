@@ -631,6 +631,7 @@ export type Database = {
       schedules: {
         Row: {
           created_at: string
+          data_date: string | null
           holidays: Json
           id: string
           name: string
@@ -642,6 +643,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          data_date?: string | null
           holidays?: Json
           id?: string
           name: string
@@ -653,6 +655,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          data_date?: string | null
           holidays?: Json
           id?: string
           name?: string
