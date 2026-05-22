@@ -35,6 +35,7 @@ import { ResourcesPanel } from "@/components/scheduler/ResourcesPanel";
 import { XerImportButton } from "@/components/scheduler/XerImportButton";
 import { FragnetPanel } from "@/components/scheduler/FragnetPanel";
 import { AnnotationsPanel } from "@/components/scheduler/AnnotationsPanel";
+import { UpdateCyclePanel } from "@/components/scheduler/UpdateCyclePanel";
 import { Textarea } from "@/components/ui/textarea";
 
 const UNASSIGNED_WBS = "Unassigned";
@@ -509,6 +510,20 @@ function SchedulerPage() {
                 onChange={(annotations) => {
                   setDraft({ ...draft, annotations });
                   setDirty(true);
+                }}
+              />
+            ) : null}
+
+            {selectedId && draft ? (
+              <UpdateCyclePanel
+                scheduleId={selectedId}
+                dirty={dirty}
+                dataDate={draft.dataDate}
+                computed={computed}
+                onCycleClosed={(nextDate) => {
+                  setDraft({ ...draft, dataDate: nextDate });
+                  setDirty(true);
+                  toast.info(`Data date advanced to ${nextDate}`);
                 }}
               />
             ) : null}
