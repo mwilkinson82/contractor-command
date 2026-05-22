@@ -9,6 +9,7 @@ import {
   loadSchedule,
   saveSchedule,
   deleteSchedule,
+  loadBaseline,
 } from "@/lib/scheduler/persistence.functions";
 import { calculateSchedule } from "@/lib/scheduler/engine";
 import type { Dependency, DependencyType, Schedule, Task } from "@/lib/scheduler/types";
