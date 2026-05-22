@@ -195,10 +195,8 @@ function UpsellCardView({
   const Icon: LucideIcon = card.icon;
   const isInterest = card.checkout === "interest";
   const hasMultiple = card.plans.length > 1;
-  // Default to quarterly when both are offered (lock-in framing).
-  const [activePlanId, setActivePlanId] = useState<string>(
-    hasMultiple ? card.plans[1].id : card.plans[0].id,
-  );
+  // Default to monthly (first plan). Users can switch to quarterly explicitly.
+  const [activePlanId, setActivePlanId] = useState<string>(card.plans[0].id);
   const activePlan = card.plans.find((p) => p.id === activePlanId) ?? card.plans[0];
   const busy = busyPlanId === activePlan.id;
 
