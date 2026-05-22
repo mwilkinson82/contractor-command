@@ -21,9 +21,16 @@ import {
   type UpsellCard,
   type UpsellSku,
 } from "@/lib/upsell-catalog";
+import { isAllowedReturnTo, RETURN_TO_STORAGE_KEY } from "@/lib/return-to";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/upgrade")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    tier: typeof search.tier === "string" ? search.tier : undefined,
+    return_to: typeof search.return_to === "string" ? search.return_to : undefined,
+    upsell: typeof search.upsell === "string" ? search.upsell : undefined,
+    circle: typeof search.circle === "string" ? search.circle : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Upgrade — ALP Contractor Circle" },
@@ -41,12 +48,26 @@ function UpgradePage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [requested, setRequested] = useState<Set<UpsellSku>>(new Set());
 
-  // Read ?upsell=cancelled banner
+  // Read ?upsell=cancelled banner + persist ?return_to if AOS sent us here.
   const [cancelled, setCancelled] = useState(false);
+  const [returnTo, setReturnTo] = useState<string | null>(null);
   useEffect(() => {
     if (typeof window === "undefined") return;
     const sp = new URLSearchParams(window.location.search);
     if (sp.get("upsell") === "cancelled") setCancelled(true);
+
+    const incoming = isAllowedReturnTo(sp.get("return_to"));
+    if (incoming) {
+      try {
+        window.sessionStorage.setItem(RETURN_TO_STORAGE_KEY, incoming);
+      } catch {}
+      setReturnTo(incoming);
+    } else {
+      try {
+        const stored = window.sessionStorage.getItem(RETURN_TO_STORAGE_KEY);
+        if (stored && isAllowedReturnTo(stored)) setReturnTo(stored);
+      } catch {}
+    }
   }, []);
 
   const skus = upsellsForTier(tier);
@@ -61,12 +82,17 @@ function UpgradePage() {
         return;
       }
       if (card.sku === "circle") {
-        const { url } = await circleCheckout({ data: {} });
+        const { url } = await circleCheckout({
+          data: { returnTo: returnTo ?? undefined },
+        });
         window.location.href = url;
         return;
       }
       const { url } = await skuCheckout({
-        data: { plan: plan.id as Exclude<PlanOption["id"], "circle"> },
+        data: {
+          plan: plan.id as Exclude<PlanOption["id"], "circle">,
+          returnTo: returnTo ?? undefined,
+        },
       });
       window.location.href = url;
     } catch (e) {

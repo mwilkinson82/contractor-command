@@ -3,6 +3,13 @@ import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import Stripe from "stripe";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { isAllowedReturnTo } from "@/lib/return-to";
+
+function appendReturnTo(url: string, returnTo?: string): string {
+  const ok = isAllowedReturnTo(returnTo ?? null);
+  if (!ok) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}return_to=${encodeURIComponent(ok)}`;
+}
 
 const INTENSIVE_AMOUNT_CENTS = 500_000; // $5,000 USD
 const INTENSIVE_NAME = "Six-Week Contractor Intensive";
@@ -110,8 +117,8 @@ export const createBillingPortalSession = createServerFn({ method: "POST" })
 
 export const createCircleCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({}).parse)
-  .handler(async ({ context }): Promise<{ url: string }> => {
+  .inputValidator(z.object({ returnTo: z.string().url().optional() }).parse)
+  .handler(async ({ data, context }): Promise<{ url: string }> => {
     const stripe = getStripe();
     const priceId = process.env.STRIPE_PRICE_ID_CIRCLE;
     if (!priceId) {
@@ -131,7 +138,7 @@ export const createCircleCheckout = createServerFn({ method: "POST" })
       mode: "subscription",
       customer_email: profile?.email ?? undefined,
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${origin}/?circle=welcome`,
+      success_url: appendReturnTo(`${origin}/?circle=welcome`, data.returnTo),
       cancel_url: `${origin}/upgrade?circle=cancelled`,
       metadata: { user_id: userId, kind: "circle", product: "circle" },
       subscription_data: {
@@ -282,6 +289,7 @@ export const createSkuCheckout = createServerFn({ method: "POST" })
         "call_3",
         "call_6",
       ]),
+      returnTo: z.string().url().optional(),
     }).parse,
   )
   .handler(async ({ data, context }): Promise<{ url: string }> => {
@@ -314,7 +322,7 @@ export const createSkuCheckout = createServerFn({ method: "POST" })
       mode,
       customer_email: profile?.email ?? undefined,
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${origin}${cfg.success}`,
+      success_url: appendReturnTo(`${origin}${cfg.success}`, data.returnTo),
       cancel_url: `${origin}${cfg.cancel}`,
       metadata: meta,
       ...(mode === "subscription"
