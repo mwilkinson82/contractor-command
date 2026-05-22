@@ -289,6 +289,7 @@ export const createSkuCheckout = createServerFn({ method: "POST" })
         "call_3",
         "call_6",
       ]),
+      returnTo: z.string().url().optional(),
     }).parse,
   )
   .handler(async ({ data, context }): Promise<{ url: string }> => {
