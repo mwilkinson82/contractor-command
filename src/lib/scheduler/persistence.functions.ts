@@ -133,6 +133,7 @@ export const loadSchedule = createServerFn({ method: "GET" })
         actualCost: (t.actual_cost as number | null) ?? undefined,
         resourceName: (t.resource_name as string | null) ?? undefined,
         resourceUnitsPerDay: (t.resource_units_per_day as number | null) ?? undefined,
+        startNoEarlierThan: (t.start_no_earlier_than as string | null) ?? undefined,
       })),
       dependencies: (deps ?? []).map((d) => ({
         from: d.from_task_id as string,
