@@ -80,6 +80,110 @@ export const listSchedules = createServerFn({ method: "GET" })
     };
   });
 
+// ---------------- Projects (rich) ----------------
+
+const ProjectStatus = z.enum(["planning", "active", "on_hold", "closed"]);
+
+export const listProjects = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase } = context;
+    const { data, error } = await supabase
+      .from("schedules")
+      .select(
+        "id, name, client, project_number, status, tags, cover_color, project_start_date, data_date, notes, created_at, updated_at",
+      )
+      .order("updated_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return {
+      projects: (data ?? []).map((row) => ({
+        id: row.id as string,
+        name: row.name as string,
+        client: (row.client as string | null) ?? undefined,
+        projectNumber: (row.project_number as string | null) ?? undefined,
+        status:
+          (row.status as "planning" | "active" | "on_hold" | "closed" | null) ?? "planning",
+        tags: ((row.tags as string[] | null) ?? []) as string[],
+        coverColor: (row.cover_color as string | null) ?? undefined,
+        projectStartDate: (row.project_start_date as string | null) ?? undefined,
+        dataDate: (row.data_date as string | null) ?? undefined,
+        notes: (row.notes as string | null) ?? undefined,
+        createdAt: row.created_at as string,
+        updatedAt: row.updated_at as string,
+      })),
+    };
+  });
+
+export const createProject = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) =>
+    z
+      .object({
+        name: z.string().min(1).max(255),
+        client: z.string().max(255).optional().nullable(),
+        projectNumber: z.string().max(64).optional().nullable(),
+        status: ProjectStatus.optional(),
+        projectStartDate: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional()
+          .nullable(),
+        coverColor: z.string().max(32).optional().nullable(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: inserted, error } = await supabase
+      .from("schedules")
+      .insert({
+        user_id: userId,
+        name: data.name,
+        client: data.client ?? null,
+        project_number: data.projectNumber ?? null,
+        status: data.status ?? "planning",
+        project_start_date: data.projectStartDate ?? null,
+        cover_color: data.coverColor ?? null,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return { id: inserted.id as string };
+  });
+
+export const updateProjectMeta = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        name: z.string().min(1).max(255).optional(),
+        client: z.string().max(255).optional().nullable(),
+        projectNumber: z.string().max(64).optional().nullable(),
+        status: ProjectStatus.optional(),
+        tags: z.array(z.string().min(1).max(64)).max(20).optional(),
+        coverColor: z.string().max(32).optional().nullable(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const patch: Record<string, unknown> = {};
+    if (data.name !== undefined) patch.name = data.name;
+    if (data.client !== undefined) patch.client = data.client;
+    if (data.projectNumber !== undefined) patch.project_number = data.projectNumber;
+    if (data.status !== undefined) patch.status = data.status;
+    if (data.tags !== undefined) patch.tags = data.tags;
+    if (data.coverColor !== undefined) patch.cover_color = data.coverColor;
+    if (Object.keys(patch).length === 0) return { ok: true };
+    const { error } = await context.supabase
+      .from("schedules")
+      .update(patch)
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+
 export const loadSchedule = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { id: string }) => z.object({ id: z.string().uuid() }).parse(data))
