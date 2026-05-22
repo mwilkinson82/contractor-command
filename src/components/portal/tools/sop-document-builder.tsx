@@ -1032,10 +1032,10 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
 
   // ============================ FOOTER (every page) ============================
   const pageCount = pdf.getNumberOfPages();
-  // Right side is always full text — clip title to fit remaining width.
-  const titleSrc = `AOS  ·  ${d.title}`;
-  const titleClipped =
-    titleSrc.length > 38 ? titleSrc.slice(0, 36) + "…" : titleSrc;
+  const cadenceRaw = (d.revisionCadence || "").trim();
+  // If the cadence value already starts with "Review", strip it so we don't
+  // render "Review Review quarterly…" in the footer.
+  const cadenceClean = cadenceRaw.replace(/^review\s+/i, "");
   for (let i = 1; i <= pageCount; i++) {
     pdf.setPage(i);
     pdf.setCharSpace(0);
@@ -1046,13 +1046,32 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(7.5);
     pdf.setTextColor(...INK_FAINT);
-    pdf.text(safe(titleClipped), margin, pageH - 14);
-    pdf.text(
-      safe(`Page ${i} of ${pageCount}  ·  v1  ·  Review ${d.revisionCadence}`),
-      pageW - margin,
-      pageH - 14,
-      { align: "right" },
+
+    // Measure right-side text first so we can clip the left title to whatever
+    // space remains — prevents the two strings from overlapping.
+    const rightText = safe(
+      `Page ${i} of ${pageCount}  ·  v1  ·  Review ${cadenceClean}`,
     );
+    const rightW = pdf.getTextWidth(rightText);
+    const gap = 16;
+    const leftMax = Math.max(40, contentW - rightW - gap);
+
+    const titleFull = safe(`AOS  ·  ${d.title}`);
+    let titleOut = titleFull;
+    if (pdf.getTextWidth(titleOut) > leftMax) {
+      let lo = 0;
+      let hi = titleOut.length;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        const candidate = titleOut.slice(0, mid).trimEnd() + "…";
+        if (pdf.getTextWidth(candidate) <= leftMax) lo = mid;
+        else hi = mid - 1;
+      }
+      titleOut = titleOut.slice(0, lo).trimEnd() + "…";
+    }
+
+    pdf.text(titleOut, margin, pageH - 14);
+    pdf.text(rightText, pageW - margin, pageH - 14, { align: "right" });
   }
 }
 
