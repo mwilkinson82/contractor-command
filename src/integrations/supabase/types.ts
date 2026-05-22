@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      aos_addons: {
+        Row: {
+          created_at: string
+          current_period_end: string | null
+          email: string
+          id: string
+          kind: string
+          metadata: Json
+          price_id: string | null
+          quantity: number
+          status: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          current_period_end?: string | null
+          email: string
+          id?: string
+          kind: string
+          metadata?: Json
+          price_id?: string | null
+          quantity?: number
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          current_period_end?: string | null
+          email?: string
+          id?: string
+          kind?: string
+          metadata?: Json
+          price_id?: string | null
+          quantity?: number
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       aos_links: {
         Row: {
           aos_company_id: string | null
