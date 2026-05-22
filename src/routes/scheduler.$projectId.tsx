@@ -835,6 +835,12 @@ function SchedulerPage() {
                               />
                             </div>
                             <div>
+                              <div className="mb-1 text-xs uppercase tracking-wide text-[#7a6a4d]">
+                                Activity codes
+                              </div>
+                              <ActivityCodeChips scheduleId={selectedId} taskId={t.id} />
+                            </div>
+                            <div>
                               <div className="text-xs uppercase tracking-wide text-[#7a6a4d]">
                                 Predecessors
                               </div>
