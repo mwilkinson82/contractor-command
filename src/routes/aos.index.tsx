@@ -12,7 +12,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useCompany } from "@/hooks/use-company";
 import { useAosLimits } from "@/hooks/use-aos-limits";
 import { useTier } from "@/hooks/use-tier";
-import { AosAddonsPanel } from "@/components/portal/aos-addons-panel";
+import { AosAddonsModal, AosAddonsTriggerLink } from "@/components/portal/aos-addons-modal";
 
 export const Route = createFileRoute("/aos/")({
   head: () => ({
@@ -49,6 +49,7 @@ function AosGateway() {
   const [error, setError] = useState<string | null>(null);
   const [previouslyLinked, setPreviouslyLinked] = useState<boolean | null>(null);
   const [linkedEmail, setLinkedEmail] = useState<string | null>(null);
+  const [addonsOpen, setAddonsOpen] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -210,16 +211,24 @@ function AosGateway() {
                   </p>
                 )}
                 {limits && hasAccess && (
-                  <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-[#8e877c]">
-                    {isUnlimited
-                      ? "Unlimited workspaces · Unlimited seats"
-                      : `${limits.workspaceLimit} workspace${limits.workspaceLimit === 1 ? "" : "s"} · ${limits.seatLimit} seat${limits.seatLimit === 1 ? "" : "s"}`}
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-bold uppercase tracking-[0.28em] text-[#8e877c]">
+                    <span>
+                      {isUnlimited
+                        ? "Unlimited workspaces · Unlimited seats"
+                        : `${limits.workspaceLimit} workspace${limits.workspaceLimit === 1 ? "" : "s"} · ${limits.seatLimit} seat${limits.seatLimit === 1 ? "" : "s"}`}
+                    </span>
                     {!isUnlimited && (
                       <>
-                        {" · "}
+                        <span aria-hidden>·</span>
                         <Link to="/upgrade" className="text-signal underline-offset-4 hover:underline">
                           Upgrade
                         </Link>
+                      </>
+                    )}
+                    {isBookBuyer && (
+                      <>
+                        <span aria-hidden>·</span>
+                        <AosAddonsTriggerLink onClick={() => setAddonsOpen(true)} />
                       </>
                     )}
                   </p>
@@ -257,11 +266,8 @@ function AosGateway() {
                 </p>
               </div>
 
-              {/* Book buyers only: stack extra seats/workspaces. */}
               {isBookBuyer && hasAccess && (
-                <div className="mt-6">
-                  <AosAddonsPanel />
-                </div>
+                <AosAddonsModal open={addonsOpen} onOpenChange={setAddonsOpen} />
               )}
             </div>
 

@@ -42,6 +42,7 @@ import { Route as ApiOwnerPlaysRouteImport } from './routes/api/owner-plays'
 import { Route as ApiContractScanRouteImport } from './routes/api/contract-scan'
 import { Route as ApiAskRouteImport } from './routes/api/ask'
 import { Route as AosLinkRouteImport } from './routes/aos.link'
+import { Route as AosAddCapacityRouteImport } from './routes/aos.add-capacity'
 import { Route as AdminTopicsRouteImport } from './routes/admin.topics'
 import { Route as AdminMigrateRouteImport } from './routes/admin.migrate'
 import { Route as AdminLibraryRouteImport } from './routes/admin.library'
@@ -221,6 +222,11 @@ const AosLinkRoute = AosLinkRouteImport.update({
   path: '/aos/link',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AosAddCapacityRoute = AosAddCapacityRouteImport.update({
+  id: '/aos/add-capacity',
+  path: '/aos/add-capacity',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminTopicsRoute = AdminTopicsRouteImport.update({
   id: '/admin/topics',
   path: '/admin/topics',
@@ -315,6 +321,7 @@ export interface FileRoutesByFullPath {
   '/admin/library': typeof AdminLibraryRoute
   '/admin/migrate': typeof AdminMigrateRoute
   '/admin/topics': typeof AdminTopicsRoute
+  '/aos/add-capacity': typeof AosAddCapacityRoute
   '/aos/link': typeof AosLinkRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
@@ -363,6 +370,7 @@ export interface FileRoutesByTo {
   '/admin/library': typeof AdminLibraryRoute
   '/admin/migrate': typeof AdminMigrateRoute
   '/admin/topics': typeof AdminTopicsRoute
+  '/aos/add-capacity': typeof AosAddCapacityRoute
   '/aos/link': typeof AosLinkRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
@@ -412,6 +420,7 @@ export interface FileRoutesById {
   '/admin/library': typeof AdminLibraryRoute
   '/admin/migrate': typeof AdminMigrateRoute
   '/admin/topics': typeof AdminTopicsRoute
+  '/aos/add-capacity': typeof AosAddCapacityRoute
   '/aos/link': typeof AosLinkRoute
   '/api/ask': typeof ApiAskRoute
   '/api/contract-scan': typeof ApiContractScanRoute
@@ -462,6 +471,7 @@ export interface FileRouteTypes {
     | '/admin/library'
     | '/admin/migrate'
     | '/admin/topics'
+    | '/aos/add-capacity'
     | '/aos/link'
     | '/api/ask'
     | '/api/contract-scan'
@@ -510,6 +520,7 @@ export interface FileRouteTypes {
     | '/admin/library'
     | '/admin/migrate'
     | '/admin/topics'
+    | '/aos/add-capacity'
     | '/aos/link'
     | '/api/ask'
     | '/api/contract-scan'
@@ -558,6 +569,7 @@ export interface FileRouteTypes {
     | '/admin/library'
     | '/admin/migrate'
     | '/admin/topics'
+    | '/aos/add-capacity'
     | '/aos/link'
     | '/api/ask'
     | '/api/contract-scan'
@@ -607,6 +619,7 @@ export interface RootRouteChildren {
   AdminLibraryRoute: typeof AdminLibraryRoute
   AdminMigrateRoute: typeof AdminMigrateRoute
   AdminTopicsRoute: typeof AdminTopicsRoute
+  AosAddCapacityRoute: typeof AosAddCapacityRoute
   AosLinkRoute: typeof AosLinkRoute
   ApiAskRoute: typeof ApiAskRoute
   ApiContractScanRoute: typeof ApiContractScanRoute
@@ -862,6 +875,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AosLinkRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/aos/add-capacity': {
+      id: '/aos/add-capacity'
+      path: '/aos/add-capacity'
+      fullPath: '/aos/add-capacity'
+      preLoaderRoute: typeof AosAddCapacityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/topics': {
       id: '/admin/topics'
       path: '/admin/topics'
@@ -993,6 +1013,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminLibraryRoute: AdminLibraryRoute,
   AdminMigrateRoute: AdminMigrateRoute,
   AdminTopicsRoute: AdminTopicsRoute,
+  AosAddCapacityRoute: AosAddCapacityRoute,
   AosLinkRoute: AosLinkRoute,
   ApiAskRoute: ApiAskRoute,
   ApiContractScanRoute: ApiContractScanRoute,
