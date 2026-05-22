@@ -566,6 +566,38 @@ export type Database = {
           },
         ]
       }
+      schedule_members: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["schedule_member_role"]
+          schedule_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["schedule_member_role"]
+          schedule_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["schedule_member_role"]
+          schedule_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_members_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       schedule_tasks: {
         Row: {
           actual_cost: number | null
@@ -634,39 +666,54 @@ export type Database = {
       schedules: {
         Row: {
           annotations: Json
+          client: string | null
+          cover_color: string | null
           created_at: string
           data_date: string | null
           holidays: Json
           id: string
           name: string
           notes: string | null
+          project_number: string | null
           project_start_date: string | null
+          status: Database["public"]["Enums"]["schedule_status"]
+          tags: string[]
           updated_at: string
           user_id: string
           work_days: number
         }
         Insert: {
           annotations?: Json
+          client?: string | null
+          cover_color?: string | null
           created_at?: string
           data_date?: string | null
           holidays?: Json
           id?: string
           name: string
           notes?: string | null
+          project_number?: string | null
           project_start_date?: string | null
+          status?: Database["public"]["Enums"]["schedule_status"]
+          tags?: string[]
           updated_at?: string
           user_id: string
           work_days?: number
         }
         Update: {
           annotations?: Json
+          client?: string | null
+          cover_color?: string | null
           created_at?: string
           data_date?: string | null
           holidays?: Json
           id?: string
           name?: string
           notes?: string | null
+          project_number?: string | null
           project_start_date?: string | null
+          status?: Database["public"]["Enums"]["schedule_status"]
+          tags?: string[]
           updated_at?: string
           user_id?: string
           work_days?: number
@@ -970,6 +1017,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_schedule_member: {
+        Args: { _schedule_id: string; _user_id: string }
+        Returns: boolean
+      }
       move_to_dlq: {
         Args: {
           dlq_name: string
@@ -1008,6 +1059,8 @@ export type Database = {
         | "power_hour"
         | "sm_school"
         | "contractor_school"
+      schedule_member_role: "owner" | "scheduler" | "viewer"
+      schedule_status: "planning" | "active" | "on_hold" | "closed"
       scheduler_dep_type: "FS" | "SS" | "FF" | "SF"
     }
     CompositeTypes: {
@@ -1153,6 +1206,8 @@ export const Constants = {
         "sm_school",
         "contractor_school",
       ],
+      schedule_member_role: ["owner", "scheduler", "viewer"],
+      schedule_status: ["planning", "active", "on_hold", "closed"],
       scheduler_dep_type: ["FS", "SS", "FF", "SF"],
     },
   },
