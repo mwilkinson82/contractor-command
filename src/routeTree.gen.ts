@@ -17,6 +17,7 @@ import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SchedulerPreviewRouteImport } from './routes/scheduler-preview'
+import { Route as SchedulerFieldRouteImport } from './routes/scheduler-field'
 import { Route as SchedulerRouteImport } from './routes/scheduler'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ReplaysRouteImport } from './routes/replays'
@@ -98,6 +99,11 @@ const SignupRoute = SignupRouteImport.update({
 const SchedulerPreviewRoute = SchedulerPreviewRouteImport.update({
   id: '/scheduler-preview',
   path: '/scheduler-preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SchedulerFieldRoute = SchedulerFieldRouteImport.update({
+  id: '/scheduler-field',
+  path: '/scheduler-field',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SchedulerRoute = SchedulerRouteImport.update({
@@ -328,6 +334,7 @@ export interface FileRoutesByFullPath {
   '/replays': typeof ReplaysRoute
   '/reset-password': typeof ResetPasswordRoute
   '/scheduler': typeof SchedulerRoute
+  '/scheduler-field': typeof SchedulerFieldRoute
   '/scheduler-preview': typeof SchedulerPreviewRoute
   '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
@@ -380,6 +387,7 @@ export interface FileRoutesByTo {
   '/replays': typeof ReplaysRoute
   '/reset-password': typeof ResetPasswordRoute
   '/scheduler': typeof SchedulerRoute
+  '/scheduler-field': typeof SchedulerFieldRoute
   '/scheduler-preview': typeof SchedulerPreviewRoute
   '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
@@ -433,6 +441,7 @@ export interface FileRoutesById {
   '/replays': typeof ReplaysRoute
   '/reset-password': typeof ResetPasswordRoute
   '/scheduler': typeof SchedulerRoute
+  '/scheduler-field': typeof SchedulerFieldRoute
   '/scheduler-preview': typeof SchedulerPreviewRoute
   '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
@@ -487,6 +496,7 @@ export interface FileRouteTypes {
     | '/replays'
     | '/reset-password'
     | '/scheduler'
+    | '/scheduler-field'
     | '/scheduler-preview'
     | '/signup'
     | '/templates'
@@ -539,6 +549,7 @@ export interface FileRouteTypes {
     | '/replays'
     | '/reset-password'
     | '/scheduler'
+    | '/scheduler-field'
     | '/scheduler-preview'
     | '/signup'
     | '/templates'
@@ -591,6 +602,7 @@ export interface FileRouteTypes {
     | '/replays'
     | '/reset-password'
     | '/scheduler'
+    | '/scheduler-field'
     | '/scheduler-preview'
     | '/signup'
     | '/templates'
@@ -644,6 +656,7 @@ export interface RootRouteChildren {
   ReplaysRoute: typeof ReplaysRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SchedulerRoute: typeof SchedulerRoute
+  SchedulerFieldRoute: typeof SchedulerFieldRoute
   SchedulerPreviewRoute: typeof SchedulerPreviewRoute
   SignupRoute: typeof SignupRoute
   TemplatesRoute: typeof TemplatesRoute
@@ -737,6 +750,13 @@ declare module '@tanstack/react-router' {
       path: '/scheduler-preview'
       fullPath: '/scheduler-preview'
       preLoaderRoute: typeof SchedulerPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/scheduler-field': {
+      id: '/scheduler-field'
+      path: '/scheduler-field'
+      fullPath: '/scheduler-field'
+      preLoaderRoute: typeof SchedulerFieldRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/scheduler': {
@@ -1062,6 +1082,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReplaysRoute: ReplaysRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SchedulerRoute: SchedulerRoute,
+  SchedulerFieldRoute: SchedulerFieldRoute,
   SchedulerPreviewRoute: SchedulerPreviewRoute,
   SignupRoute: SignupRoute,
   TemplatesRoute: TemplatesRoute,
