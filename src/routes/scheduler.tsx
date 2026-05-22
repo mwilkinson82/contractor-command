@@ -454,6 +454,13 @@ function SchedulerPage() {
                 dirty={dirty}
               />
             ) : null}
+
+            {computed ? (
+              <ReportsPanel
+                result={computed}
+                ganttContainerSelector="[data-gantt-container]"
+              />
+            ) : null}
           </aside>
 
           {/* Right */}
