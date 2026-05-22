@@ -515,7 +515,7 @@ function SchedulerPage() {
                           const groups = Array.from(groupMap.entries()).sort((a, b) =>
                             a[0].localeCompare(b[0]),
                           );
-                          const rows: JSX.Element[] = [];
+                          const rows: React.ReactNode[] = [];
                           for (const [key, items] of groups) {
                             const collapsed = collapsedGroups.has(key);
                             const groupTaskIds = new Set(items.map((i) => i.t.id));
