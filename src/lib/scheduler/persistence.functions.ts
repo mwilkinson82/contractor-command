@@ -257,7 +257,7 @@ export const captureBaseline = createServerFn({ method: "POST" })
     const { supabase } = context;
     const { data: head, error: hErr } = await supabase
       .from("schedules")
-      .select("project_start_date")
+      .select("project_start_date, work_days, holidays")
       .eq("id", data.scheduleId)
       .maybeSingle();
     if (hErr) throw new Error(hErr.message);
@@ -299,6 +299,8 @@ export const captureBaseline = createServerFn({ method: "POST" })
         name: data.name,
         notes: data.notes ?? null,
         project_start_date: (head.project_start_date as string | null) ?? null,
+        work_days: (head.work_days as number | null) ?? 31,
+        holidays: (head.holidays as unknown) ?? [],
         tasks: tasksJson,
         dependencies: depsJson,
       })
