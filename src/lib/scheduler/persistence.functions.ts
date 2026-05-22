@@ -306,8 +306,8 @@ export const loadBaseline = createServerFn({ method: "GET" })
       id: row.id as string,
       name: row.name as string,
       projectStartDate: (row.project_start_date as string | null) ?? undefined,
-      tasks: (row.tasks as Schedule["tasks"]) ?? [],
-      dependencies: (row.dependencies as Schedule["dependencies"]) ?? [],
+      tasks: (row.tasks as unknown as Schedule["tasks"]) ?? [],
+      dependencies: (row.dependencies as unknown as Schedule["dependencies"]) ?? [],
     };
     return {
       schedule,
