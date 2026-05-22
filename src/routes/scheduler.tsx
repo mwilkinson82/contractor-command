@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -10,15 +10,21 @@ import {
   deleteSchedule,
 } from "@/lib/scheduler/persistence.functions";
 import { calculateSchedule } from "@/lib/scheduler/engine";
-import type { Schedule } from "@/lib/scheduler/types";
+import type { Dependency, DependencyType, Schedule, Task } from "@/lib/scheduler/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Trash2, Plus } from "lucide-react";
 
 export const Route = createFileRoute("/scheduler")({
-  head: () => ({
-    meta: [{ title: "Scheduler - AOS" }],
-  }),
+  head: () => ({ meta: [{ title: "Scheduler - AOS" }] }),
   component: SchedulerPage,
 });
 
@@ -48,6 +54,22 @@ const SAMPLE: Omit<Schedule, "id" | "name"> = {
   ],
 };
 
+type Draft = {
+  name: string;
+  projectStartDate?: string;
+  tasks: Task[];
+  dependencies: Dependency[];
+};
+
+function nextTaskId(tasks: Task[]): string {
+  const nums = tasks
+    .map((t) => /^A(\d+)$/.exec(t.id)?.[1])
+    .filter(Boolean)
+    .map((n) => parseInt(n!, 10));
+  const next = nums.length ? Math.max(...nums) + 10 : 100;
+  return `A${next}`;
+}
+
 function SchedulerPage() {
   const qc = useQueryClient();
   const listFn = useServerFn(listSchedules);
@@ -58,6 +80,8 @@ function SchedulerPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [newStart, setNewStart] = useState("");
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [dirty, setDirty] = useState(false);
 
   const listQuery = useQuery({
     queryKey: ["schedules"],
@@ -69,6 +93,22 @@ function SchedulerPage() {
     queryFn: () => loadFn({ data: { id: selectedId! } }),
     enabled: !!selectedId,
   });
+
+  // Hydrate draft when a schedule loads
+  useEffect(() => {
+    if (loadQuery.data) {
+      const s = loadQuery.data.schedule;
+      setDraft({
+        name: s.name,
+        projectStartDate: s.projectStartDate,
+        tasks: s.tasks.map((t) => ({ ...t })),
+        dependencies: s.dependencies.map((d) => ({ ...d })),
+      });
+      setDirty(false);
+    } else {
+      setDraft(null);
+    }
+  }, [loadQuery.data]);
 
   const createMut = useMutation({
     mutationFn: (input: { name: string; projectStartDate?: string; sample?: boolean }) =>
@@ -90,6 +130,26 @@ function SchedulerPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const saveMut = useMutation({
+    mutationFn: () =>
+      saveFn({
+        data: {
+          id: selectedId!,
+          name: draft!.name,
+          projectStartDate: draft!.projectStartDate || undefined,
+          tasks: draft!.tasks,
+          dependencies: draft!.dependencies,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Saved");
+      setDirty(false);
+      qc.invalidateQueries({ queryKey: ["schedules"] });
+      qc.invalidateQueries({ queryKey: ["schedule", selectedId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const deleteMut = useMutation({
     mutationFn: (id: string) => deleteFn({ data: { id } }),
     onSuccess: () => {
@@ -100,7 +160,114 @@ function SchedulerPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const result = loadQuery.data ? calculateSchedule(loadQuery.data.schedule) : null;
+  const result = useMemo(() => {
+    if (!draft) return null;
+    try {
+      return calculateSchedule({
+        id: selectedId ?? undefined,
+        name: draft.name,
+        projectStartDate: draft.projectStartDate,
+        tasks: draft.tasks,
+        dependencies: draft.dependencies,
+      });
+    } catch (e) {
+      return { error: (e as Error).message } as const;
+    }
+  }, [draft, selectedId]);
+
+  const computed = result && "tasks" in result ? result : null;
+  const computeError = result && "error" in result ? result.error : null;
+
+  const updateTask = (idx: number, patch: Partial<Task>) => {
+    setDraft((d) => {
+      if (!d) return d;
+      const tasks = d.tasks.slice();
+      tasks[idx] = { ...tasks[idx], ...patch };
+      return { ...d, tasks };
+    });
+    setDirty(true);
+  };
+
+  const renameTaskId = (idx: number, newId: string) => {
+    setDraft((d) => {
+      if (!d) return d;
+      const oldId = d.tasks[idx].id;
+      if (!newId || newId === oldId) return d;
+      if (d.tasks.some((t, i) => i !== idx && t.id === newId)) {
+        toast.error(`ID ${newId} already exists`);
+        return d;
+      }
+      const tasks = d.tasks.slice();
+      tasks[idx] = { ...tasks[idx], id: newId };
+      const dependencies = d.dependencies.map((dep) => ({
+        ...dep,
+        from: dep.from === oldId ? newId : dep.from,
+        to: dep.to === oldId ? newId : dep.to,
+      }));
+      return { ...d, tasks, dependencies };
+    });
+    setDirty(true);
+  };
+
+  const addTask = () => {
+    setDraft((d) => {
+      if (!d) return d;
+      const id = nextTaskId(d.tasks);
+      return {
+        ...d,
+        tasks: [...d.tasks, { id, name: "New task", duration: 1 }],
+      };
+    });
+    setDirty(true);
+  };
+
+  const removeTask = (idx: number) => {
+    setDraft((d) => {
+      if (!d) return d;
+      const removed = d.tasks[idx].id;
+      return {
+        ...d,
+        tasks: d.tasks.filter((_, i) => i !== idx),
+        dependencies: d.dependencies.filter((dep) => dep.from !== removed && dep.to !== removed),
+      };
+    });
+    setDirty(true);
+  };
+
+  const updateDep = (idx: number, patch: Partial<Dependency>) => {
+    setDraft((d) => {
+      if (!d) return d;
+      const dependencies = d.dependencies.slice();
+      dependencies[idx] = { ...dependencies[idx], ...patch };
+      return { ...d, dependencies };
+    });
+    setDirty(true);
+  };
+
+  const addDep = () => {
+    setDraft((d) => {
+      if (!d || d.tasks.length < 2) {
+        toast.error("Need at least 2 tasks");
+        return d;
+      }
+      return {
+        ...d,
+        dependencies: [
+          ...d.dependencies,
+          { from: d.tasks[0].id, to: d.tasks[1].id, type: "FS", lag: 0 },
+        ],
+      };
+    });
+    setDirty(true);
+  };
+
+  const removeDep = (idx: number) => {
+    setDraft((d) => {
+      if (!d) return d;
+      return { ...d, dependencies: d.dependencies.filter((_, i) => i !== idx) };
+    });
+    setDirty(true);
+  };
 
   return (
     <div className="min-h-screen bg-[#f7f4ed] px-4 py-8 text-[#1f241f] sm:px-6">
@@ -110,14 +277,10 @@ function SchedulerPage() {
             CPM Scheduler
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">Schedules</h1>
-          <p className="mt-2 max-w-2xl text-sm text-[#5c574e]">
-            Round-trip prototype: create a schedule, persist tasks/dependencies, reload, run CPM,
-            delete.
-          </p>
         </header>
 
         <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-          {/* Left: list + create */}
+          {/* Left */}
           <aside className="space-y-6">
             <section className="rounded border border-[#d8cdb8] bg-white p-4">
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[#675d4b]">
@@ -177,8 +340,6 @@ function SchedulerPage() {
               </h2>
               {listQuery.isLoading ? (
                 <p className="text-sm text-[#746b5c]">Loading…</p>
-              ) : listQuery.error ? (
-                <p className="text-sm text-red-600">{(listQuery.error as Error).message}</p>
               ) : listQuery.data?.schedules.length === 0 ? (
                 <p className="text-sm text-[#746b5c]">No schedules yet.</p>
               ) : (
@@ -186,7 +347,10 @@ function SchedulerPage() {
                   {listQuery.data?.schedules.map((s) => (
                     <li key={s.id}>
                       <button
-                        onClick={() => setSelectedId(s.id)}
+                        onClick={() => {
+                          if (dirty && !confirm("Discard unsaved changes?")) return;
+                          setSelectedId(s.id);
+                        }}
                         className={`w-full rounded px-2 py-2 text-left text-sm transition ${
                           selectedId === s.id
                             ? "bg-[#1f241f] text-white"
@@ -210,35 +374,63 @@ function SchedulerPage() {
             </section>
           </aside>
 
-          {/* Right: detail */}
+          {/* Right */}
           <main className="space-y-4">
             {!selectedId ? (
               <div className="rounded border border-dashed border-[#d8cdb8] bg-white/60 p-10 text-center text-sm text-[#746b5c]">
-                Select a schedule, or create one to see the CPM calculation.
+                Select a schedule, or create one to start editing.
               </div>
-            ) : loadQuery.isLoading ? (
+            ) : loadQuery.isLoading || !draft ? (
               <p className="text-sm text-[#746b5c]">Loading schedule…</p>
-            ) : loadQuery.error ? (
-              <p className="text-sm text-red-600">{(loadQuery.error as Error).message}</p>
-            ) : result && loadQuery.data ? (
+            ) : (
               <>
+                {/* Header */}
                 <div className="flex flex-wrap items-end justify-between gap-3 rounded border border-[#d8cdb8] bg-white p-4">
-                  <div>
-                    <h2 className="text-xl font-semibold">{result.name}</h2>
-                    <p className="text-xs text-[#746b5c]">
-                      {result.tasks.length} tasks · {result.dependencies.length} dependencies
-                    </p>
+                  <div className="flex-1 space-y-2">
+                    <div>
+                      <Label htmlFor="sched-name" className="text-xs">Name</Label>
+                      <Input
+                        id="sched-name"
+                        value={draft.name}
+                        onChange={(e) => {
+                          setDraft({ ...draft, name: e.target.value });
+                          setDirty(true);
+                        }}
+                      />
+                    </div>
+                    <div className="flex gap-3">
+                      <div>
+                        <Label htmlFor="sched-start" className="text-xs">Project start</Label>
+                        <Input
+                          id="sched-start"
+                          type="date"
+                          value={draft.projectStartDate ?? ""}
+                          onChange={(e) => {
+                            setDraft({ ...draft, projectStartDate: e.target.value || undefined });
+                            setDirty(true);
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="text-right text-sm">
-                      <div className="font-medium">Duration</div>
-                      <div className="text-2xl font-semibold">{result.projectDuration}d</div>
-                      {result.projectFinishDate ? (
-                        <div className="text-xs text-[#746b5c]">
-                          Finish {result.projectFinishDate}
-                        </div>
-                      ) : null}
-                    </div>
+                    {computed ? (
+                      <div className="text-right text-sm">
+                        <div className="font-medium">Duration</div>
+                        <div className="text-2xl font-semibold">{computed.projectDuration}d</div>
+                        {computed.projectFinishDate ? (
+                          <div className="text-xs text-[#746b5c]">
+                            Finish {computed.projectFinishDate}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    <Button
+                      onClick={() => saveMut.mutate()}
+                      disabled={!dirty || saveMut.isPending}
+                    >
+                      {saveMut.isPending ? "Saving…" : dirty ? "Save changes" : "Saved"}
+                    </Button>
                     <Button
                       variant="destructive"
                       onClick={() => {
@@ -246,55 +438,230 @@ function SchedulerPage() {
                       }}
                       disabled={deleteMut.isPending}
                     >
-                      Delete
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
 
+                {computeError ? (
+                  <div className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+                    CPM error: {computeError}
+                  </div>
+                ) : null}
+
+                {/* Tasks */}
                 <section className="overflow-hidden rounded border border-[#d8cdb8] bg-white">
+                  <div className="flex items-center justify-between border-b border-[#eee7d8] px-3 py-2">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-[#675d4b]">
+                      Tasks
+                    </h3>
+                    <Button size="sm" variant="outline" onClick={addTask}>
+                      <Plus className="mr-1 h-4 w-4" /> Add task
+                    </Button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-[#eee6d7] text-xs uppercase tracking-wide text-[#675d4b]">
+                        <tr>
+                          <th className="px-2 py-2 text-left">ID</th>
+                          <th className="px-2 py-2 text-left">Name</th>
+                          <th className="px-2 py-2 text-left">WBS</th>
+                          <th className="px-2 py-2 text-right">Dur</th>
+                          <th className="px-2 py-2 text-right">% Comp</th>
+                          <th className="px-2 py-2 text-right">ES</th>
+                          <th className="px-2 py-2 text-right">EF</th>
+                          <th className="px-2 py-2 text-right">TF</th>
+                          <th className="px-2 py-2"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {draft.tasks.map((t, idx) => {
+                          const calc = computed?.tasks.find((x) => x.id === t.id);
+                          const critical = calc?.isCritical;
+                          return (
+                            <tr key={idx} className="border-t border-[#eee7d8]">
+                              <td className="px-2 py-1">
+                                <Input
+                                  className={`h-8 w-20 ${critical ? "text-[#b42318] font-semibold" : ""}`}
+                                  value={t.id}
+                                  onChange={(e) => renameTaskId(idx, e.target.value.trim())}
+                                />
+                              </td>
+                              <td className="px-2 py-1">
+                                <Input
+                                  className="h-8"
+                                  value={t.name}
+                                  onChange={(e) => updateTask(idx, { name: e.target.value })}
+                                />
+                              </td>
+                              <td className="px-2 py-1">
+                                <Input
+                                  className="h-8 w-32"
+                                  value={t.wbs ?? ""}
+                                  onChange={(e) => updateTask(idx, { wbs: e.target.value })}
+                                />
+                              </td>
+                              <td className="px-2 py-1 text-right">
+                                <Input
+                                  className="h-8 w-16 text-right"
+                                  type="number"
+                                  min={0}
+                                  value={t.duration}
+                                  onChange={(e) =>
+                                    updateTask(idx, { duration: Number(e.target.value) || 0 })
+                                  }
+                                />
+                              </td>
+                              <td className="px-2 py-1 text-right">
+                                <Input
+                                  className="h-8 w-16 text-right"
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  value={t.percentComplete ?? ""}
+                                  onChange={(e) =>
+                                    updateTask(idx, {
+                                      percentComplete:
+                                        e.target.value === "" ? undefined : Number(e.target.value),
+                                    })
+                                  }
+                                />
+                              </td>
+                              <td className={`px-2 py-1 text-right ${critical ? "text-[#b42318] font-semibold" : ""}`}>
+                                {calc?.earlyStart ?? "—"}
+                              </td>
+                              <td className={`px-2 py-1 text-right ${critical ? "text-[#b42318] font-semibold" : ""}`}>
+                                {calc?.earlyFinish ?? "—"}
+                              </td>
+                              <td className={`px-2 py-1 text-right ${critical ? "text-[#b42318] font-semibold" : ""}`}>
+                                {calc?.totalFloat ?? "—"}
+                              </td>
+                              <td className="px-2 py-1 text-right">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => removeTask(idx)}
+                                  aria-label="Remove task"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {draft.tasks.length === 0 ? (
+                          <tr>
+                            <td colSpan={9} className="px-3 py-6 text-center text-[#746b5c]">
+                              No tasks. Click “Add task”.
+                            </td>
+                          </tr>
+                        ) : null}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+
+                {/* Dependencies */}
+                <section className="overflow-hidden rounded border border-[#d8cdb8] bg-white">
+                  <div className="flex items-center justify-between border-b border-[#eee7d8] px-3 py-2">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-[#675d4b]">
+                      Dependencies
+                    </h3>
+                    <Button size="sm" variant="outline" onClick={addDep}>
+                      <Plus className="mr-1 h-4 w-4" /> Add dependency
+                    </Button>
+                  </div>
                   <table className="w-full text-sm">
                     <thead className="bg-[#eee6d7] text-xs uppercase tracking-wide text-[#675d4b]">
                       <tr>
-                        <th className="px-3 py-2 text-left">ID</th>
-                        <th className="px-3 py-2 text-left">Task</th>
-                        <th className="px-3 py-2 text-right">Dur</th>
-                        <th className="px-3 py-2 text-right">ES</th>
-                        <th className="px-3 py-2 text-right">EF</th>
-                        <th className="px-3 py-2 text-right">TF</th>
+                        <th className="px-2 py-2 text-left">From</th>
+                        <th className="px-2 py-2 text-left">To</th>
+                        <th className="px-2 py-2 text-left">Type</th>
+                        <th className="px-2 py-2 text-right">Lag</th>
+                        <th className="px-2 py-2"></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {result.tasks.map((t) => (
-                        <tr key={t.id} className="border-t border-[#eee7d8]">
-                          <td
-                            className={`px-3 py-2 ${
-                              t.isCritical ? "font-semibold text-[#b42318]" : ""
-                            }`}
-                          >
-                            {t.id}
+                      {draft.dependencies.map((d, idx) => (
+                        <tr key={idx} className="border-t border-[#eee7d8]">
+                          <td className="px-2 py-1">
+                            <Select
+                              value={d.from}
+                              onValueChange={(v) => updateDep(idx, { from: v })}
+                            >
+                              <SelectTrigger className="h-8 w-28">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {draft.tasks.map((t) => (
+                                  <SelectItem key={t.id} value={t.id}>
+                                    {t.id}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </td>
-                          <td className="px-3 py-2">
-                            <div className="font-medium">{t.name}</div>
-                            {t.wbs ? (
-                              <div className="text-xs text-[#776e5e]">{t.wbs}</div>
-                            ) : null}
+                          <td className="px-2 py-1">
+                            <Select
+                              value={d.to}
+                              onValueChange={(v) => updateDep(idx, { to: v })}
+                            >
+                              <SelectTrigger className="h-8 w-28">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {draft.tasks.map((t) => (
+                                  <SelectItem key={t.id} value={t.id}>
+                                    {t.id}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </td>
-                          <td className="px-3 py-2 text-right">{t.duration}</td>
-                          <td className="px-3 py-2 text-right">{t.earlyStart}</td>
-                          <td className="px-3 py-2 text-right">{t.earlyFinish}</td>
-                          <td
-                            className={`px-3 py-2 text-right ${
-                              t.isCritical ? "font-semibold text-[#b42318]" : ""
-                            }`}
-                          >
-                            {t.totalFloat}
+                          <td className="px-2 py-1">
+                            <Select
+                              value={d.type ?? "FS"}
+                              onValueChange={(v) =>
+                                updateDep(idx, { type: v as DependencyType })
+                              }
+                            >
+                              <SelectTrigger className="h-8 w-20">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="FS">FS</SelectItem>
+                                <SelectItem value="SS">SS</SelectItem>
+                                <SelectItem value="FF">FF</SelectItem>
+                                <SelectItem value="SF">SF</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </td>
+                          <td className="px-2 py-1 text-right">
+                            <Input
+                              className="h-8 w-16 text-right"
+                              type="number"
+                              value={d.lag ?? 0}
+                              onChange={(e) =>
+                                updateDep(idx, { lag: Number(e.target.value) || 0 })
+                              }
+                            />
+                          </td>
+                          <td className="px-2 py-1 text-right">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => removeDep(idx)}
+                              aria-label="Remove dependency"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </td>
                         </tr>
                       ))}
-                      {result.tasks.length === 0 ? (
+                      {draft.dependencies.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-3 py-6 text-center text-[#746b5c]">
-                            Empty schedule. Editing UI lands in the next pass.
+                          <td colSpan={5} className="px-3 py-6 text-center text-[#746b5c]">
+                            No dependencies yet.
                           </td>
                         </tr>
                       ) : null}
@@ -302,21 +669,26 @@ function SchedulerPage() {
                   </table>
                 </section>
 
-                <section className="rounded border border-[#d8cdb8] bg-white p-4 text-sm">
-                  <div className="text-xs uppercase tracking-wide text-[#746b5c]">
-                    Critical path
-                  </div>
-                  <div className="mt-1 font-mono text-xs">
-                    {result.criticalPath.length > 0 ? result.criticalPath.join(" → ") : "—"}
-                  </div>
-                  {result.diagnostics.length > 0 ? (
-                    <div className="mt-3 text-xs text-[#b42318]">
-                      {result.diagnostics.join("; ")}
+                {/* Summary */}
+                {computed ? (
+                  <section className="rounded border border-[#d8cdb8] bg-white p-4 text-sm">
+                    <div className="text-xs uppercase tracking-wide text-[#746b5c]">
+                      Critical path
                     </div>
-                  ) : null}
-                </section>
+                    <div className="mt-1 font-mono text-xs">
+                      {computed.criticalPath.length > 0
+                        ? computed.criticalPath.join(" → ")
+                        : "—"}
+                    </div>
+                    {computed.diagnostics.length > 0 ? (
+                      <div className="mt-3 text-xs text-[#b42318]">
+                        {computed.diagnostics.join("; ")}
+                      </div>
+                    ) : null}
+                  </section>
+                ) : null}
               </>
-            ) : null}
+            )}
           </main>
         </div>
       </div>
