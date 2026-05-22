@@ -12,6 +12,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { vault, type Packet } from "@/lib/vault";
 import { useCompany } from "@/hooks/use-company";
+import { isAllowedReturnTo, RETURN_TO_STORAGE_KEY } from "@/lib/return-to";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { AosPulse } from "@/components/portal/aos-pulse";
 import { AosHero } from "@/components/portal/aos-hero";
