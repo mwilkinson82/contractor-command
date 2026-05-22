@@ -105,6 +105,7 @@ export const loadSchedule = createServerFn({ method: "GET" })
       id: head.id as string,
       name: head.name as string,
       projectStartDate: (head.project_start_date as string | null) ?? undefined,
+      dataDate: (head.data_date as string | null) ?? undefined,
       calendar: {
         workDays: (head.work_days as number | null) ?? 31,
         holidays: ((head.holidays as unknown as string[] | null) ?? []).filter(
