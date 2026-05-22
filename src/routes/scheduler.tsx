@@ -838,6 +838,7 @@ function SchedulerPage() {
                           baseline={baselineResult}
                           dataDate={draft.dataDate}
                           calendar={{ workDays: draft.workDays, holidays: draft.holidays }}
+                          annotations={draft.annotations}
                         />
                       </div>
                     </section>
