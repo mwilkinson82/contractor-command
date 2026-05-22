@@ -658,6 +658,7 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
       .replace(/[‘’]/g, "'")
       .replace(/[–—]/g, "-")
       .replace(/\u00a0/g, " ");
+  const trackedLabel = (text: string) => safePdfText(text.toUpperCase()).split("").join(" ");
 
   const measureWrappedHeight = (
     text: string,
@@ -699,10 +700,8 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
     const lineH = opts.size * (opts.lineHeight ?? 1.35);
     for (const line of lines) {
       ensure(lineH);
-      // Reset char tracking — section labels above use charSpace and jsPDF
-      // keeps it as global state, which mangles body words ("D ocum ent").
       resetTextTracking();
-      pdf.text(line, margin + indent, y, { charSpace: 0 });
+      pdf.text(line, margin + indent, y);
       y += lineH;
     }
 
@@ -715,7 +714,7 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(8.5);
     pdf.setTextColor(110, 110, 110);
-    pdf.text(label.toUpperCase(), margin, y, { charSpace: 1.6 });
+    pdf.text(trackedLabel(label), margin, y);
     resetTextTracking();
     y += 7;
     pdf.setDrawColor(220, 217, 210);
