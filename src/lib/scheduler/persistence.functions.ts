@@ -54,7 +54,7 @@ export const listSchedules = createServerFn({ method: "GET" })
     const { supabase } = context;
     const { data, error } = await supabase
       .from("schedules")
-      .select("id, name, project_start_date, notes, created_at, updated_at")
+      .select("id, name, project_start_date, data_date, notes, created_at, updated_at")
       .order("updated_at", { ascending: false });
     if (error) throw new Error(error.message);
     return {
@@ -62,6 +62,7 @@ export const listSchedules = createServerFn({ method: "GET" })
         id: row.id as string,
         name: row.name as string,
         projectStartDate: (row.project_start_date as string | null) ?? undefined,
+        dataDate: (row.data_date as string | null) ?? undefined,
         notes: (row.notes as string | null) ?? undefined,
         createdAt: row.created_at as string,
         updatedAt: row.updated_at as string,
@@ -77,7 +78,7 @@ export const loadSchedule = createServerFn({ method: "GET" })
     const { data: head, error: headErr } = await supabase
       .from("schedules")
       .select(
-        "id, name, project_start_date, notes, work_days, holidays, created_at, updated_at",
+        "id, name, project_start_date, data_date, notes, work_days, holidays, created_at, updated_at",
       )
       .eq("id", data.id)
       .maybeSingle();
