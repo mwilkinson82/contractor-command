@@ -333,3 +333,104 @@ export const createSkuCheckout = createServerFn({ method: "POST" })
     return { url: session.url };
   });
 
+
+// ---------------------------------------------------------------------------
+// AOS add-ons (extra seats / workspaces). Monthly recurring, quantity-based.
+// Today these are only offered to book buyers via the panel on /aos and
+// /upgrade. The DB function get_user_aos_limits() stacks aos_addons quantity
+// on top of the buyer's base 1 ws / 2 seats.
+// ---------------------------------------------------------------------------
+
+type AosAddonKind = "seat" | "workspace";
+
+const AOS_ADDON_PRICE_ENV: Record<AosAddonKind, string> = {
+  seat: "STRIPE_PRICE_ID_AOS_SEAT_MONTH",
+  workspace: "STRIPE_PRICE_ID_AOS_WORKSPACE_MONTH",
+};
+
+export const createAosAddonCheckout = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    z.object({
+      kind: z.enum(["seat", "workspace"]),
+      quantity: z.number().int().min(1).max(50),
+      returnTo: z.string().url().optional(),
+    }).parse,
+  )
+  .handler(
+    async ({ data, context }): Promise<{ url: string; mode: "checkout" | "portal" }> => {
+      const stripe = getStripe();
+      const priceId = process.env[AOS_ADDON_PRICE_ENV[data.kind]];
+      if (!priceId) {
+        throw new Error(
+          `AOS add-on pricing isn't configured for ${data.kind}. Reach out to support.`,
+        );
+      }
+      const { userId, supabase } = context;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("email")
+        .eq("id", userId)
+        .maybeSingle();
+      const email = profile?.email ?? undefined;
+
+      // If they already have an active addon row of this kind, send them to
+      // the Stripe billing portal so they can bump quantity in-place.
+      const { data: existing } = await supabase
+        .from("aos_addons")
+        .select("stripe_customer_id,stripe_subscription_id,status")
+        .eq("user_id", userId)
+        .eq("kind", data.kind)
+        .in("status", ["active", "trialing", "past_due"])
+        .maybeSingle();
+
+      const origin = originFromRequest();
+
+      if (existing?.stripe_customer_id) {
+        const portal = await stripe.billingPortal.sessions.create({
+          customer: existing.stripe_customer_id,
+          return_url: `${origin}/aos`,
+        });
+        return { url: portal.url, mode: "portal" };
+      }
+
+      const meta = {
+        user_id: userId,
+        kind: "aos_addon",
+        product: "aos_addon",
+        addon_kind: data.kind,
+      };
+
+      const session = await stripe.checkout.sessions.create({
+        mode: "subscription",
+        customer_email: email,
+        line_items: [{ price: priceId, quantity: data.quantity }],
+        success_url: appendReturnTo(`${origin}/aos?addon=success`, data.returnTo),
+        cancel_url: `${origin}/aos?addon=cancelled`,
+        metadata: meta,
+        subscription_data: { metadata: meta },
+      });
+      if (!session.url) throw new Error("Stripe returned no checkout URL.");
+      return { url: session.url, mode: "checkout" };
+    },
+  );
+
+export type AosAddonRow = {
+  kind: AosAddonKind;
+  quantity: number;
+  status: string;
+  stripe_subscription_id: string | null;
+  current_period_end: string | null;
+};
+
+export const getMyAosAddons = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<AosAddonRow[]> => {
+    const { supabase, userId } = context;
+    const { data, error } = await supabase
+      .from("aos_addons")
+      .select("kind,quantity,status,stripe_subscription_id,current_period_end")
+      .eq("user_id", userId);
+    if (error) throw new Error(error.message);
+    return (data as AosAddonRow[] | null) ?? [];
+  });

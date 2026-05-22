@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useCompany } from "@/hooks/use-company";
 import { useAosLimits } from "@/hooks/use-aos-limits";
 import { useTier } from "@/hooks/use-tier";
+import { AosAddonsPanel } from "@/components/portal/aos-addons-panel";
 
 export const Route = createFileRoute("/aos/")({
   head: () => ({
@@ -255,6 +256,13 @@ function AosGateway() {
                   </Link>
                 </p>
               </div>
+
+              {/* Book buyers only: stack extra seats/workspaces. */}
+              {isBookBuyer && hasAccess && (
+                <div className="mt-6">
+                  <AosAddonsPanel />
+                </div>
+              )}
             </div>
 
             {/* Right column — scorecard paper */}

@@ -22,6 +22,7 @@ import {
   type UpsellSku,
 } from "@/lib/upsell-catalog";
 import { isAllowedReturnTo, RETURN_TO_STORAGE_KEY } from "@/lib/return-to";
+import { AosAddonsPanel } from "@/components/portal/aos-addons-panel";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/upgrade")({
@@ -154,16 +155,10 @@ function UpgradePage() {
         </div>
       )}
 
-      {tier === "aos_only" && (
-        <div className="mt-12 rounded-2xl border border-dashed border-border bg-card p-6">
-          <p className="label-mono">AOS seats & workspaces</p>
-          <p className="mt-2 text-sm text-foreground/80">
-            Need more seats or workspaces in AOS? Manage them inside the AOS app.
-          </p>
-          <p className="mt-2 text-[12px] text-muted-foreground">
-            (Seat/workspace pricing is configured in AOS — this section will become a checkout
-            once AOS-side billing is wired.)
-          </p>
+      {tier === "book_buyer" && (
+        <div className="mt-12">
+          <p className="label-mono mb-3">AOS seats & workspaces</p>
+          <AosAddonsPanel />
         </div>
       )}
 
