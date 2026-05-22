@@ -21,6 +21,7 @@ const TaskInput = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional()
     .nullable(),
+  calendarId: z.string().uuid().optional().nullable(),
 });
 
 const DependencyInput = z.object({
