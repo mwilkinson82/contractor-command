@@ -138,6 +138,8 @@ function SchedulerPage() {
       setDraft({
         name: s.name,
         projectStartDate: s.projectStartDate,
+        workDays: s.calendar?.workDays ?? 31,
+        holidays: s.calendar?.holidays ?? [],
         tasks: s.tasks.map((t) => ({ ...t })),
         dependencies: s.dependencies.map((d) => ({ ...d })),
       });
