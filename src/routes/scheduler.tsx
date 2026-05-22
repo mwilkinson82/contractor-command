@@ -22,6 +22,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Trash2, Plus } from "lucide-react";
+import { GanttTimeline } from "@/components/scheduler/GanttTimeline";
+import { Textarea } from "@/components/ui/textarea";
 
 export const Route = createFileRoute("/scheduler")({
   head: () => ({ meta: [{ title: "Scheduler - AOS" }] }),
