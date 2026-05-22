@@ -30,7 +30,7 @@ Rules:
 - 6 to 14 steps. Each step has a clear single action. Use "detail" for examples, edge cases, or thresholds — not for filler.
 - Inputs and outputs are tangible artifacts (forms, files, sign-offs), not vibes.
 - Definition of Done is testable in under 30 seconds by an outsider.
-- KPIs are 2-4 measurable signals (lead time, defect rate, rework hours, $ recovered).
+- KPIs are 2-4 measurable signals, each formatted as "Metric → Target" (e.g. "Cycle time → < 48h", "Rework events per 10 completions → < 1", "Margin recovered per project → > $4k"). Always include a concrete target — no bare metrics.
 - Exceptions: name the 2-3 real edge cases that will happen in the first 90 days and where they escalate.
 - Speak construction-native. Reference real tools (Procore, Bluebeam, BuilderTrend, Acumatica, SharePoint) when relevant, but don't invent a stack the user didn't mention.
 
