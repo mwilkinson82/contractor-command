@@ -152,7 +152,7 @@ export function CpmGrid({
     if (baseline) for (const b of baseline.tasks) baselineMap.set(b.id, b);
 
     return { rows, baselineMap };
-  }, [result.tasks, collapsedGroups, baseline]);
+  }, [result.tasks, collapsedGroups, baseline, groupBy]);
 
   // Build header bands from working-day → calendar mapping
   const workingDates = useMemo(
