@@ -16,6 +16,7 @@ const TaskInput = z.object({
   actualCost: z.number().min(0).max(1e12).optional().nullable(),
   resourceName: z.string().max(128).optional().nullable(),
   resourceUnitsPerDay: z.number().min(0).max(10000).optional().nullable(),
+  startNoEarlierThan: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
 });
 
 const DependencyInput = z.object({
