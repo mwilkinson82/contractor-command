@@ -809,6 +809,8 @@ function SchedulerPage() {
                           collapsedGroups={collapsedGroups}
                           onToggleGroup={toggleGroup}
                           baseline={baselineResult}
+                          dataDate={draft.dataDate}
+                          calendar={{ workDays: draft.workDays, holidays: draft.holidays }}
                         />
                       </div>
                     </section>
