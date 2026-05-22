@@ -383,6 +383,3 @@ function Cell({
     </div>
   );
 }
-
-// silence unused-var lint warning on perDayCost / perDayEarned (kept for future use)
-export type _Unused = typeof Math;
