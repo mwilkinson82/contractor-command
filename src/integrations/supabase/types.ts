@@ -14,6 +14,85 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_code_types: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          position: number
+          schedule_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          position?: number
+          schedule_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          position?: number
+          schedule_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_code_types_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      activity_code_values: {
+        Row: {
+          code: string
+          color: string | null
+          created_at: string
+          description: string | null
+          id: string
+          position: number
+          type_id: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          position?: number
+          type_id: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          position?: number
+          type_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_code_values_type_id_fkey"
+            columns: ["type_id"]
+            isOneToOne: false
+            referencedRelation: "activity_code_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       aos_addons: {
         Row: {
           created_at: string
@@ -602,9 +681,11 @@ export type Database = {
         Row: {
           actual_cost: number | null
           budget_cost: number | null
+          constraint_type: string | null
           created_at: string
           description: string | null
           duration: number
+          finish_no_later_than: string | null
           id: string
           name: string
           percent_complete: number | null
@@ -616,13 +697,16 @@ export type Database = {
           task_id: string
           updated_at: string
           wbs: string | null
+          wbs_node_id: string | null
         }
         Insert: {
           actual_cost?: number | null
           budget_cost?: number | null
+          constraint_type?: string | null
           created_at?: string
           description?: string | null
           duration?: number
+          finish_no_later_than?: string | null
           id?: string
           name: string
           percent_complete?: number | null
@@ -634,13 +718,16 @@ export type Database = {
           task_id: string
           updated_at?: string
           wbs?: string | null
+          wbs_node_id?: string | null
         }
         Update: {
           actual_cost?: number | null
           budget_cost?: number | null
+          constraint_type?: string | null
           created_at?: string
           description?: string | null
           duration?: number
+          finish_no_later_than?: string | null
           id?: string
           name?: string
           percent_complete?: number | null
@@ -652,6 +739,7 @@ export type Database = {
           task_id?: string
           updated_at?: string
           wbs?: string | null
+          wbs_node_id?: string | null
         }
         Relationships: [
           {
@@ -659,6 +747,13 @@ export type Database = {
             columns: ["schedule_id"]
             isOneToOne: false
             referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_tasks_wbs_node_id_fkey"
+            columns: ["wbs_node_id"]
+            isOneToOne: false
+            referencedRelation: "wbs_nodes"
             referencedColumns: ["id"]
           },
         ]
@@ -849,6 +944,55 @@ export type Database = {
         }
         Relationships: []
       }
+      task_activity_codes: {
+        Row: {
+          created_at: string
+          id: string
+          schedule_id: string
+          task_id: string
+          type_id: string
+          value_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          schedule_id: string
+          task_id: string
+          type_id: string
+          value_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          schedule_id?: string
+          task_id?: string
+          type_id?: string
+          value_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_activity_codes_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_activity_codes_type_id_fkey"
+            columns: ["type_id"]
+            isOneToOne: false
+            referencedRelation: "activity_code_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_activity_codes_value_id_fkey"
+            columns: ["value_id"]
+            isOneToOne: false
+            referencedRelation: "activity_code_values"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       templates: {
         Row: {
           badge: string | null
@@ -953,6 +1097,54 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      wbs_nodes: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          name: string
+          parent_id: string | null
+          position: number
+          schedule_id: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          parent_id?: string | null
+          position?: number
+          schedule_id: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          parent_id?: string | null
+          position?: number
+          schedule_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wbs_nodes_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "wbs_nodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wbs_nodes_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
