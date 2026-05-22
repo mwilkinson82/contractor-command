@@ -206,21 +206,28 @@ export const loadSchedule = createServerFn({ method: "GET" })
     if (headErr) throw new Error(headErr.message);
     if (!head) throw new Error("Schedule not found");
 
-    const [{ data: tasks, error: tErr }, { data: deps, error: dErr }] = await Promise.all([
-      supabase
-        .from("schedule_tasks")
-        .select(
-          "task_id, name, duration, wbs, description, percent_complete, position, budget_cost, actual_cost, resource_name, resource_units_per_day, start_no_earlier_than",
-        )
-        .eq("schedule_id", data.id)
-        .order("position", { ascending: true }),
-      supabase
-        .from("schedule_dependencies")
-        .select("from_task_id, to_task_id, type, lag")
-        .eq("schedule_id", data.id),
-    ]);
+    const [{ data: tasks, error: tErr }, { data: deps, error: dErr }, { data: cals, error: cErr }] =
+      await Promise.all([
+        supabase
+          .from("schedule_tasks")
+          .select(
+            "task_id, name, duration, wbs, description, percent_complete, position, budget_cost, actual_cost, resource_name, resource_units_per_day, start_no_earlier_than, calendar_id",
+          )
+          .eq("schedule_id", data.id)
+          .order("position", { ascending: true }),
+        supabase
+          .from("schedule_dependencies")
+          .select("from_task_id, to_task_id, type, lag")
+          .eq("schedule_id", data.id),
+        supabase
+          .from("schedule_calendars")
+          .select("id, name, work_days, holidays, is_default, position")
+          .eq("schedule_id", data.id)
+          .order("position", { ascending: true }),
+      ]);
     if (tErr) throw new Error(tErr.message);
     if (dErr) throw new Error(dErr.message);
+    if (cErr) throw new Error(cErr.message);
 
     const schedule: Schedule = {
       id: head.id as string,
