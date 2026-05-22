@@ -7,6 +7,7 @@ interface Props {
   dayPx?: number;
   collapsedGroups?: Set<string>;
   onToggleGroup?: (key: string) => void;
+  baseline?: ScheduleResult | null;
 }
 
 const ROW_H = 26;
