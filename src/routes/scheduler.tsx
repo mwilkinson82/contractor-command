@@ -717,6 +717,7 @@ function SchedulerPage() {
                             <div className="grid grid-cols-2 gap-2 text-xs">
                               <Stat label="Duration" value={`${t.duration}d`} />
                               <Stat label="Total float" value={`${t.totalFloat}d`} />
+                              <Stat label="Free float" value={`${t.freeFloat}d`} />
                               <Stat label="Early start" value={`d${t.earlyStart}`} />
                               <Stat label="Early finish" value={`d${t.earlyFinish}`} />
                               <Stat label="Late start" value={`d${t.lateStart}`} />
