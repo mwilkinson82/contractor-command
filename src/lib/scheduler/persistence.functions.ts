@@ -16,6 +16,7 @@ const TaskInput = z.object({
   actualCost: z.number().min(0).max(1e12).optional().nullable(),
   resourceName: z.string().max(128).optional().nullable(),
   resourceUnitsPerDay: z.number().min(0).max(10000).optional().nullable(),
+  startNoEarlierThan: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
 });
 
 const DependencyInput = z.object({
@@ -98,7 +99,7 @@ export const loadSchedule = createServerFn({ method: "GET" })
       supabase
         .from("schedule_tasks")
         .select(
-          "task_id, name, duration, wbs, description, percent_complete, position, budget_cost, actual_cost, resource_name, resource_units_per_day",
+          "task_id, name, duration, wbs, description, percent_complete, position, budget_cost, actual_cost, resource_name, resource_units_per_day, start_no_earlier_than",
         )
         .eq("schedule_id", data.id)
         .order("position", { ascending: true }),
@@ -132,6 +133,7 @@ export const loadSchedule = createServerFn({ method: "GET" })
         actualCost: (t.actual_cost as number | null) ?? undefined,
         resourceName: (t.resource_name as string | null) ?? undefined,
         resourceUnitsPerDay: (t.resource_units_per_day as number | null) ?? undefined,
+        startNoEarlierThan: (t.start_no_earlier_than as string | null) ?? undefined,
       })),
       dependencies: (deps ?? []).map((d) => ({
         from: d.from_task_id as string,
@@ -223,6 +225,7 @@ export const saveSchedule = createServerFn({ method: "POST" })
           actual_cost: t.actualCost ?? null,
           resource_name: t.resourceName ?? null,
           resource_units_per_day: t.resourceUnitsPerDay ?? null,
+          start_no_earlier_than: t.startNoEarlierThan ?? null,
           position: i,
         })),
       );
@@ -304,7 +307,7 @@ export const captureBaseline = createServerFn({ method: "POST" })
       supabase
         .from("schedule_tasks")
         .select(
-          "task_id, name, duration, wbs, description, percent_complete, position, budget_cost, actual_cost, resource_name, resource_units_per_day",
+          "task_id, name, duration, wbs, description, percent_complete, position, budget_cost, actual_cost, resource_name, resource_units_per_day, start_no_earlier_than",
         )
         .eq("schedule_id", data.scheduleId)
         .order("position", { ascending: true }),
@@ -327,6 +330,7 @@ export const captureBaseline = createServerFn({ method: "POST" })
       actualCost: (t.actual_cost as number | null) ?? undefined,
       resourceName: (t.resource_name as string | null) ?? undefined,
       resourceUnitsPerDay: (t.resource_units_per_day as number | null) ?? undefined,
+      startNoEarlierThan: (t.start_no_earlier_than as string | null) ?? undefined,
     }));
     const depsJson = (deps ?? []).map((d) => ({
       from: d.from_task_id as string,

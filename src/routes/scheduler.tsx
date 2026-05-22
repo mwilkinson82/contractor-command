@@ -12,7 +12,7 @@ import {
   loadBaseline,
 } from "@/lib/scheduler/persistence.functions";
 import { calculateSchedule } from "@/lib/scheduler/engine";
-import { rescheduleFromDataDate } from "@/lib/scheduler/progress";
+import { rescheduleFromDataDate, addWorkingDaysIso } from "@/lib/scheduler/progress";
 import type { Annotation, Dependency, DependencyType, Schedule, Task } from "@/lib/scheduler/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -260,6 +260,44 @@ function SchedulerPage() {
       if (!d) return d;
       const tasks = d.tasks.slice();
       tasks[idx] = { ...tasks[idx], ...patch };
+      return { ...d, tasks };
+    });
+    setDirty(true);
+  };
+
+  const rescheduleTask = (
+    taskId: string,
+    patch: { startShiftDays?: number; duration?: number },
+  ) => {
+    setDraft((d) => {
+      if (!d) return d;
+      const idx = d.tasks.findIndex((t) => t.id === taskId);
+      if (idx < 0) return d;
+      const t = d.tasks[idx];
+      const next: Task = { ...t };
+      if (patch.duration !== undefined) {
+        next.duration = Math.max(0, Math.floor(patch.duration));
+      }
+      if (patch.startShiftDays && patch.startShiftDays !== 0) {
+        const cal = { workDays: d.workDays, holidays: d.holidays };
+        const computedTask = computed?.tasks.find((x) => x.id === taskId);
+        // Anchor: existing startNoEarlierThan if set, otherwise current earlyStartDate from CPM.
+        const anchorIso =
+          t.startNoEarlierThan ??
+          computedTask?.earlyStartDate ??
+          d.projectStartDate;
+        if (anchorIso) {
+          const shifted = addWorkingDaysIso(anchorIso, patch.startShiftDays, cal);
+          // Clamp to project start (don't allow before)
+          if (d.projectStartDate && shifted < d.projectStartDate) {
+            next.startNoEarlierThan = d.projectStartDate;
+          } else {
+            next.startNoEarlierThan = shifted;
+          }
+        }
+      }
+      const tasks = d.tasks.slice();
+      tasks[idx] = next;
       return { ...d, tasks };
     });
     setDirty(true);
@@ -854,6 +892,7 @@ function SchedulerPage() {
                           dataDate={draft.dataDate}
                           calendar={{ workDays: draft.workDays, holidays: draft.holidays }}
                           annotations={draft.annotations}
+                          onTaskReschedule={rescheduleTask}
                         />
                       </div>
                     </section>
@@ -896,6 +935,25 @@ function SchedulerPage() {
                               <Stat label="Late start" value={`d${t.lateStart}`} />
                               <Stat label="Late finish" value={`d${t.lateFinish}`} />
                             </div>
+                            {draft.tasks[idx]?.startNoEarlierThan ? (
+                              <div className="flex items-center justify-between rounded border border-[#d8cdb8] bg-[#fbf8f0] px-2 py-1.5 text-xs">
+                                <span>
+                                  <span className="font-mono uppercase tracking-wide text-[#7a6a4d]">
+                                    SNET
+                                  </span>{" "}
+                                  {draft.tasks[idx].startNoEarlierThan}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="text-[#b42318] underline-offset-2 hover:underline"
+                                  onClick={() =>
+                                    updateTask(idx, { startNoEarlierThan: undefined })
+                                  }
+                                >
+                                  Clear constraint
+                                </button>
+                              </div>
+                            ) : null}
                             <div>
                               <Label className="text-xs">Description</Label>
                               <Textarea

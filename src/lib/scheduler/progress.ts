@@ -25,6 +25,26 @@ export function workingDayOffset(
   return count;
 }
 
+/** Add N working days to an ISO date and return the resulting ISO date. N may be negative. */
+export function addWorkingDaysIso(
+  fromIso: string,
+  offset: number,
+  cal: ProjectCalendar = DEFAULT_CALENDAR,
+): string {
+  const base = new Date(`${fromIso}T00:00:00.000Z`);
+  if (Number.isNaN(base.getTime())) return fromIso;
+  if (offset === 0) return base.toISOString().slice(0, 10);
+  const step = offset > 0 ? 1 : -1;
+  let remaining = Math.abs(offset);
+  while (remaining > 0) {
+    base.setUTCDate(base.getUTCDate() + step);
+    if (isWorkingDay(base, cal)) remaining--;
+  }
+  return base.toISOString().slice(0, 10);
+}
+
+
+
 function isWorkingDay(d: Date, cal: ProjectCalendar): boolean {
   const dow = d.getUTCDay();
   const bitIdx = (dow + 6) % 7;

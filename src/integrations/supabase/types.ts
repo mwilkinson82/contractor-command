@@ -580,6 +580,7 @@ export type Database = {
           resource_name: string | null
           resource_units_per_day: number | null
           schedule_id: string
+          start_no_earlier_than: string | null
           task_id: string
           updated_at: string
           wbs: string | null
@@ -597,6 +598,7 @@ export type Database = {
           resource_name?: string | null
           resource_units_per_day?: number | null
           schedule_id: string
+          start_no_earlier_than?: string | null
           task_id: string
           updated_at?: string
           wbs?: string | null
@@ -614,6 +616,7 @@ export type Database = {
           resource_name?: string | null
           resource_units_per_day?: number | null
           schedule_id?: string
+          start_no_earlier_than?: string | null
           task_id?: string
           updated_at?: string
           wbs?: string | null

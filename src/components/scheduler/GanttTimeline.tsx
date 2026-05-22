@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import type { Annotation, ScheduleResult, ScheduledTask } from "@/lib/scheduler/types";
 import { workingDayOffset } from "@/lib/scheduler/progress";
 
@@ -14,6 +15,11 @@ interface Props {
   /** Calendar used to convert dataDate ↔ working-day offset. */
   calendar?: { workDays: number; holidays: string[] };
   annotations?: Annotation[];
+  /** Fired when user drags a bar (start shift) or its right edge (duration resize). */
+  onTaskReschedule?: (
+    taskId: string,
+    patch: { startShiftDays?: number; duration?: number },
+  ) => void;
 }
 
 const ROW_H = 26;
@@ -33,7 +39,49 @@ export function GanttTimeline({
   dataDate,
   calendar,
   annotations,
+  onTaskReschedule,
 }: Props) {
+  const [drag, setDrag] = useState<
+    | { id: string; mode: "move" | "resize"; startX: number; deltaDays: number }
+    | null
+  >(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
+
+  function beginDrag(
+    e: React.PointerEvent<SVGRectElement>,
+    id: string,
+    mode: "move" | "resize",
+  ) {
+    if (!onTaskReschedule) return;
+    e.stopPropagation();
+    (e.target as Element).setPointerCapture(e.pointerId);
+    setDrag({ id, mode, startX: e.clientX, deltaDays: 0 });
+  }
+  function moveDrag(e: React.PointerEvent) {
+    if (!drag) return;
+    const delta = Math.round((e.clientX - drag.startX) / dayPx);
+    if (delta !== drag.deltaDays) setDrag({ ...drag, deltaDays: delta });
+  }
+  function endDrag(e: React.PointerEvent) {
+    if (!drag) return;
+    if (drag.deltaDays !== 0 && onTaskReschedule) {
+      if (drag.mode === "move") {
+        onTaskReschedule(drag.id, { startShiftDays: drag.deltaDays });
+      } else {
+        const t = result.tasks.find((x) => x.id === drag.id);
+        if (t) {
+          const next = Math.max(0, t.duration + drag.deltaDays);
+          onTaskReschedule(drag.id, { duration: next });
+        }
+      }
+    }
+    try {
+      (e.target as Element).releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+    setDrag(null);
+  }
   const baselineMap = new Map<string, ScheduledTask>();
   if (baseline) for (const b of baseline.tasks) baselineMap.set(b.id, b);
   const duration = Math.max(result.projectDuration, 1);
@@ -103,7 +151,14 @@ export function GanttTimeline({
 
   return (
     <div className="overflow-x-auto">
-      <svg width={width} height={height} className="block">
+      <svg
+        ref={svgRef}
+        width={width}
+        height={height}
+        className="block select-none"
+        onPointerMove={moveDrag}
+        onPointerUp={endDrag}
+      >
         {/* Day grid */}
         {Array.from({ length: duration + 1 }).map((_, i) => {
           const x = LABEL_W + i * dayPx;
@@ -231,7 +286,40 @@ export function GanttTimeline({
                 rx={3}
                 fill={fill}
                 opacity={isSelected ? 1 : 0.9}
+                style={{ cursor: onTaskReschedule ? "grab" : "pointer" }}
+                onPointerDown={(e) => beginDrag(e, t.id, "move")}
               />
+              {/* Right-edge resize handle */}
+              {onTaskReschedule ? (
+                <rect
+                  x={x + w - 4}
+                  y={y + 4}
+                  width={6}
+                  height={rowH - 10}
+                  fill="transparent"
+                  style={{ cursor: "ew-resize" }}
+                  onPointerDown={(e) => beginDrag(e, t.id, "resize")}
+                />
+              ) : null}
+              {/* Drag preview ghost */}
+              {drag && drag.id === t.id && drag.deltaDays !== 0 ? (
+                <rect
+                  x={drag.mode === "move" ? x + drag.deltaDays * dayPx : x}
+                  y={y + 4}
+                  width={
+                    drag.mode === "move"
+                      ? w
+                      : Math.max((t.duration + drag.deltaDays) * dayPx, 2)
+                  }
+                  height={rowH - 10}
+                  rx={3}
+                  fill={fill}
+                  opacity={0.35}
+                  stroke="#1f241f"
+                  strokeDasharray="3 2"
+                  pointerEvents="none"
+                />
+              ) : null}
 
               {t.percentComplete && t.percentComplete > 0 ? (
                 <rect
@@ -241,6 +329,7 @@ export function GanttTimeline({
                   height={3}
                   fill="#f7f4ed"
                   opacity={0.85}
+                  pointerEvents="none"
                 />
               ) : null}
               {floatW > 0 && !t.isCritical ? (
@@ -251,6 +340,7 @@ export function GanttTimeline({
                   height={3}
                   fill="#9c8b6e"
                   opacity={0.6}
+                  pointerEvents="none"
                 />
               ) : null}
             </g>

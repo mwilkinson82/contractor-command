@@ -1,0 +1,1 @@
+ALTER TABLE public.schedule_tasks ADD COLUMN IF NOT EXISTS start_no_earlier_than date;

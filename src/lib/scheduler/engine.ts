@@ -41,8 +41,20 @@ export function calculateSchedule(
   const taskMap = new Map(tasks.map((task) => [task.id, task]));
   const dependencies = normalizeDependencies(schedule.dependencies, taskMap, diagnostics);
   const order = topologicalSort(tasks, dependencies);
+  const calendar = schedule.calendar ?? DEFAULT_CALENDAR;
 
-  runForwardPass(order, dependencies, taskMap);
+  // Compute minimum-start working-day offset per task from startNoEarlierThan
+  const minStart = new Map<TaskId, number>();
+  if (schedule.projectStartDate) {
+    for (const t of tasks) {
+      if (t.startNoEarlierThan) {
+        const off = workingDayDelta(schedule.projectStartDate, t.startNoEarlierThan, calendar);
+        if (off > 0) minStart.set(t.id, off);
+      }
+    }
+  }
+
+  runForwardPass(order, dependencies, taskMap, minStart);
   const projectDuration = Math.max(0, ...tasks.map((task) => task.earlyFinish));
   runBackwardPass([...order].reverse(), dependencies, taskMap, projectDuration);
   markFloat(tasks, dependencies, tolerance);
@@ -52,7 +64,6 @@ export function calculateSchedule(
     isDriving: dependencySlack(dependency, taskMap) <= tolerance,
   }));
 
-  const calendar = schedule.calendar ?? DEFAULT_CALENDAR;
   return {
     scheduleId: schedule.id,
     name: schedule.name,
@@ -176,11 +187,12 @@ function runForwardPass(
   orderedTasks: WorkingTask[],
   dependencies: NormalizedDependency[],
   taskMap: Map<TaskId, WorkingTask>,
+  minStart?: Map<TaskId, number>,
 ) {
   const predecessors = groupBy(dependencies, "to");
 
   for (const task of orderedTasks) {
-    let earlyStart = 0;
+    let earlyStart = minStart?.get(task.id) ?? 0;
 
     for (const dependency of predecessors.get(task.id) ?? []) {
       const predecessor = taskMap.get(dependency.from)!;
@@ -353,6 +365,20 @@ function addWorkingDaysIso(date: string, offset: number, cal: ProjectCalendar): 
     if (isWorkingDay(base, cal)) remaining--;
   }
   return base.toISOString().slice(0, 10);
+}
+
+function workingDayDelta(from: string, to: string, cal: ProjectCalendar): number {
+  const a = new Date(`${from}T00:00:00.000Z`);
+  const b = new Date(`${to}T00:00:00.000Z`);
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return 0;
+  if (b.getTime() <= a.getTime()) return 0;
+  let count = 0;
+  const cur = new Date(a.getTime());
+  while (cur.getTime() < b.getTime()) {
+    cur.setUTCDate(cur.getUTCDate() + 1);
+    if (isWorkingDay(cur, cal)) count++;
+  }
+  return count;
 }
 
 function groupBy<T extends Record<K, string>, K extends keyof T>(items: T[], key: K) {

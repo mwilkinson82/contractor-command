@@ -17,6 +17,8 @@ export interface Task {
   resourceName?: string;
   /** Units of that resource consumed per working day across the activity duration. */
   resourceUnitsPerDay?: number;
+  /** "Start no earlier than" constraint (ISO YYYY-MM-DD). Forward pass clamps earlyStart up to this date. */
+  startNoEarlierThan?: string;
 }
 
 export interface Dependency {
