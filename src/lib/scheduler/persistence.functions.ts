@@ -30,6 +30,11 @@ const SaveScheduleInput = z.object({
     .optional()
     .nullable(),
   notes: z.string().max(5000).optional().nullable(),
+  workDays: z.number().int().min(0).max(127).optional(),
+  holidays: z
+    .array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+    .max(365)
+    .optional(),
   tasks: z.array(TaskInput).max(2000),
   dependencies: z.array(DependencyInput).max(5000),
 });
