@@ -5,14 +5,13 @@ export interface Fragnet {
   name: string;
   description: string;
   category: "Sitework" | "Concrete" | "Framing" | "MEP" | "Finishes" | "Closeout";
-  tasks: Omit<Task, "id"> & { localId: string };
   /** Tasks inside the fragnet — local IDs are unique within the fragnet only. */
   items: Array<Omit<Task, "id"> & { localId: string }>;
   /** Dependencies use the localIds above. */
   links: Array<Omit<Dependency, "from" | "to"> & { from: string; to: string }>;
 }
 
-type FragnetDef = Omit<Fragnet, "tasks">;
+type FragnetDef = Fragnet;
 
 export const FRAGNETS: FragnetDef[] = [
   {
