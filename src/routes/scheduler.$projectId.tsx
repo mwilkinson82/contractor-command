@@ -811,8 +811,6 @@ function SchedulerPage() {
                           );
                         }
                         const idx = draft.tasks.findIndex((x) => x.id === t.id);
-                        const preds = computed.dependencies.filter((d) => d.to === t.id);
-                        const succs = computed.dependencies.filter((d) => d.from === t.id);
                         return (
                           <div className="space-y-3 text-sm">
                             <div>
