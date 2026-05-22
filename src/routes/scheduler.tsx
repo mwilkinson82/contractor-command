@@ -34,6 +34,7 @@ import { ReportsPanel } from "@/components/scheduler/ReportsPanel";
 import { ResourcesPanel } from "@/components/scheduler/ResourcesPanel";
 import { XerImportButton } from "@/components/scheduler/XerImportButton";
 import { FragnetPanel } from "@/components/scheduler/FragnetPanel";
+import { AnnotationsPanel } from "@/components/scheduler/AnnotationsPanel";
 import { Textarea } from "@/components/ui/textarea";
 
 const UNASSIGNED_WBS = "Unassigned";
