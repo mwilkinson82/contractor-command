@@ -714,6 +714,7 @@ function SchedulerPage() {
                           dayPx={dayPx}
                           collapsedGroups={collapsedGroups}
                           onToggleGroup={toggleGroup}
+                          baseline={baselineResult}
                         />
                       </div>
                     </section>
