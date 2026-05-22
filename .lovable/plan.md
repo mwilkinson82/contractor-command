@@ -1,49 +1,55 @@
-## The gap
+# SOP PDF Restyle — AOS Brand
 
-Today, tier flows Circle → AOS **only inside the signed SSO token** generated when a member clicks into AOS from the portal. If a member signs into AOS directly (Google, password, magic link on the AOS site), AOS never sees a token and falls back to whatever it has stored — usually base/no-tier — so Circle privileges don't apply.
+Adopt the **structure** from the Perplexity mockup (hero with summary panel, banded sections, carded steps, two-column overview, branded footer). Drop its color scheme and fonts entirely. Stay on the existing AOS "ALP Engine" palette already in `src/styles.css` — warm paper cream `#F4F3EF`, deep ink `#1A1918`, signal orange-red `#E4573D`, warm border `#D1CFC7`, Instrument Serif for display, Helvetica Neue for body, JetBrains Mono for labels.
 
-Ken hitting AOS directly is exactly this case.
+No AI prompt changes. Same JSON shape in / out. **No API cost change.**
 
-## Fix
+## Visual bands (top → bottom)
 
-Add a **pull-based** tier lookup so AOS can re-sync any user from Circle on demand, no SSO required.
+1. **Hero block** — cream background with a thin signal-orange rule across the top.
+   - Eyebrow: `STANDARD OPERATING PROCEDURE` in JetBrains Mono, 8pt, ink-muted.
+   - Title: Instrument Serif, ~26pt, tight leading, ink.
+   - Metadata row directly under title: `Department · Owner · v1 · Generated May 22, 2026` in 9pt Helvetica, muted.
 
-### 1. New Circle endpoint — `POST /api/public/aos/tier-lookup`
+2. **Summary panel** — single bordered card (warm border, paper-deep fill) holding Purpose, Scope, Trigger as three labeled rows. Replaces the current tracked-out `P U R P O S E` headers with normal small-caps labels (no manual letter-tracking — the kerning bug was fixed earlier, we don't need the workaround anymore).
 
-- Auth: HMAC of the request body using `AOS_SHARED_SECRET` (same secret already shared), in an `X-AOS-Signature` header. Same pattern as the SSO token signing string, just over the JSON body. Reject anything older than 60s (timestamp in body).
-- Input: `{ email, ts, nonce }`
-- Output: `{ tier, workspaceLimit, seatLimit }` — exactly the values `get_user_aos_limits` would return for that email. `-1` = unlimited.
-- Behavior: lowercase + trim email, look up via existing `get_user_aos_limits` logic (extended to accept an email when there's no `user_id` yet — same email-match path the function already uses).
-- No PII beyond what's asked; never returns user lists.
+3. **Inputs / Outputs** — two side-by-side bordered cards, equal width, bulleted.
 
-### 2. AOS-side changes (separate project — spec doc only, no code in this repo)
+4. **Procedure** — section heading in Instrument Serif. Each step as a **carded module**:
+   - Left rail: square ink badge (~22pt) with white step number, signal-orange accent on the badge's left edge.
+   - Right column: bold action line (Helvetica 11pt), then detail in muted 9.5pt with a hanging indent flush to the action text.
+   - Subtle warm divider between cards (1pt at 8% ink).
+   - Keep-together logic preserved — step card stays intact across page breaks.
 
-Update `docs/aos-tier-spec.md` with a new section:
+5. **Control band** — three small panels in a row: Definition of Done, KPIs, Exceptions/Escalation. KPIs render the existing `Metric → Target` split as a stacked label/value pair inside each row.
 
-> **On every AOS sign-in (and ideally on session refresh), call `POST https://app.alpcontractorcircle.com/api/public/aos/tier-lookup` with the user's email. Use the returned `{tier, workspaceLimit, seatLimit}` to overwrite the cached caps in AOS's own user record.** This makes Circle the source of truth even when the user never SSOs.
+6. **Footer bar** — runs on every page: left `AOS · {SOP title}` (clipped), right `v1 · Page N of M · Review {cadence}`, 8pt mono, hairline rule above.
 
-Hand that updated doc to the AOS project so Codex/AI can wire the call.
+## Color mapping (Perplexity → AOS)
 
-### 3. Immediate unblock for Ken
+| Perplexity mockup | AOS token |
+|---|---|
+| `--color-primary` teal `#0d5c63` | `--signal` orange-red `#E4573D` (use sparingly — step badge edge, eyebrow accent, top hero rule) |
+| `--color-bg` `#f7f6f2` | `--cream` `#F4F3EF` |
+| `--color-surface` `#fcfbf8` | `--card` `#FCFBF9` |
+| `--color-surface-2` panel fill | `--paper-deep` `#ECEBE5` |
+| `--color-border` | `--paper-edge` `#D1CFC7` |
+| `--color-text` / `--color-text-muted` | `--ink` / muted ink |
+| Boska display | Instrument Serif |
+| Satoshi body | Helvetica Neue |
 
-Independent of the endpoint work, confirm Ken's AOS account uses `ken@gmworksonline.com`. If yes, the tier-lookup will resolve him as Circle the moment AOS adopts step 2. If his AOS account is under a different email, he needs to either:
-- change his AOS email to `ken@gmworksonline.com`, **or**
-- use `/aos/link` from the Circle portal to bind his alt AOS email to his Circle account (the `aos_links` table already supports this; `get_user_aos_limits` would need a small extension to also match via `aos_links.aos_email`, which I'd include in the same migration if you want belt-and-suspenders).
+All rendered in jsPDF as solid RGB equivalents of these oklch tokens (jsPDF can't do oklch directly — we hard-code the matching hex once at the top of the renderer).
 
-## Technical detail
+## Files touched
 
-```text
-File changes (Circle repo):
-  + src/routes/api/public/aos/tier-lookup.ts   # new endpoint
-  ~ src/lib/aos.functions.ts                   # extract shared lookup helper
-  ~ supabase migration                         # overload get_user_aos_limits(_email text)
-                                               #   + optional aos_links email match
-  ~ docs/aos-tier-spec.md                      # new "Pull-based tier sync" section
-```
+- **`src/components/portal/tools/sop-document-builder.tsx`** — only the PDF rendering pipeline. Refactor into small helpers: `drawHero`, `drawSummaryPanel`, `drawTwoColumn`, `drawProcedureCard`, `drawControlBand`, `drawFooter`. Replace the current tracked-label workaround with normal small-caps drawn at 8pt with `setFontSize` (no charSpace).
+- No changes to `sop-draft.ts`, `/api/sop-draft.ts`, prompts, schema, or the email template.
 
-No client UI changes. No new secrets. Reuses `AOS_SHARED_SECRET`.
+## Out of scope (separate decision)
 
-## Out of scope
+- Adding "Why this matters" / "Common failure" per step — that's the only change that would raise token cost. Hold for a separate go/no-go after you see the restyle.
+- Changing the on-screen SOP preview component. This plan is PDF-only since the on-screen view already matches the AOS aesthetic.
 
-- Building the AOS-side caller (that's the AOS project's job; the spec doc tells them what to do).
-- Auto-merging duplicate emails between AOS and Circle.
+## QA
+
+After implementation, render a sample SOP to PDF, convert pages to images, and inspect every page for: footer alignment, step card spacing, keep-together on the Exceptions section, no clipped text, signal-orange used only as accent (never as fill behind body text).
