@@ -19,6 +19,8 @@ export interface Task {
   resourceUnitsPerDay?: number;
   /** "Start no earlier than" constraint (ISO YYYY-MM-DD). Forward pass clamps earlyStart up to this date. */
   startNoEarlierThan?: string;
+  /** Optional named calendar this activity follows. If unset, project default applies. */
+  calendarId?: string;
 }
 
 export interface Dependency {
