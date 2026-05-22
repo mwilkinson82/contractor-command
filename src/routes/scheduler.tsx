@@ -485,6 +485,17 @@ function SchedulerPage() {
                 ganttContainerSelector="[data-gantt-container]"
               />
             ) : null}
+
+            {selectedId && draft ? (
+              <FragnetPanel
+                tasks={draft.tasks}
+                dependencies={draft.dependencies}
+                onInsert={({ tasks, dependencies }) => {
+                  setDraft({ ...draft, tasks, dependencies });
+                  setDirty(true);
+                }}
+              />
+            ) : null}
           </aside>
 
           {/* Right */}
