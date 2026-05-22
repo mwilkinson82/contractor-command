@@ -307,7 +307,7 @@ export const captureBaseline = createServerFn({ method: "POST" })
       supabase
         .from("schedule_tasks")
         .select(
-          "task_id, name, duration, wbs, description, percent_complete, position, budget_cost, actual_cost, resource_name, resource_units_per_day",
+          "task_id, name, duration, wbs, description, percent_complete, position, budget_cost, actual_cost, resource_name, resource_units_per_day, start_no_earlier_than",
         )
         .eq("schedule_id", data.scheduleId)
         .order("position", { ascending: true }),
