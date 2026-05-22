@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Trash2, Plus } from "lucide-react";
-import { GanttTimeline } from "@/components/scheduler/GanttTimeline";
+import { CpmGrid } from "@/components/scheduler/CpmGrid";
 import { OpenEndsReport } from "@/components/scheduler/OpenEndsReport";
 import { Stat } from "@/components/scheduler/Stat";
 import { BaselinesPanel } from "@/components/scheduler/BaselinesPanel";
@@ -896,8 +896,8 @@ function SchedulerPage() {
                           </span>
                         </div>
                       </div>
-                      <div className="p-2" data-gantt-container>
-                        <GanttTimeline
+                      <div data-gantt-container>
+                        <CpmGrid
                           result={computed}
                           selectedId={selectedTaskId}
                           onSelect={setSelectedTaskId}
