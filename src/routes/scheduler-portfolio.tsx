@@ -2,10 +2,7 @@ import { useMemo } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import {
-  listSchedules,
-  loadSchedule,
-} from "@/lib/scheduler/persistence.functions";
+import { listSchedules, loadSchedule } from "@/lib/scheduler/persistence.functions";
 import { calculateSchedule } from "@/lib/scheduler/engine";
 import type { Schedule } from "@/lib/scheduler/types";
 import { ArrowLeft } from "lucide-react";
@@ -63,8 +60,8 @@ function computeRow(meta: { id: string; name: string }, schedule: Schedule): Row
       } else if (st.earlyStartDate && st.earlyStartDate <= dataDate) {
         const dur = Math.max(st.duration, 1);
         // crude calendar-day proration is fine for portfolio summary
-        const ms = (new Date(dataDate).getTime() - new Date(st.earlyStartDate).getTime()) /
-          86400000;
+        const ms =
+          (new Date(dataDate).getTime() - new Date(st.earlyStartDate).getTime()) / 86400000;
         const frac = Math.max(0, Math.min(1, ms / dur));
         pv += budget * frac;
       }
@@ -104,7 +101,7 @@ function PortfolioPage() {
   const loadFn = useServerFn(loadSchedule);
 
   const list = useQuery({ queryKey: ["schedules"], queryFn: () => listFn() });
-  const schedules = list.data?.schedules ?? [];
+  const schedules = useMemo(() => list.data?.schedules ?? [], [list.data?.schedules]);
 
   const queries = useQueries({
     queries: schedules.map((s) => ({
@@ -199,7 +196,11 @@ function PortfolioPage() {
         {/* Totals */}
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat label="Projects" value={String(totals.projects)} />
-          <Stat label="At risk" value={String(totals.atRisk)} tone={totals.atRisk > 0 ? "warn" : undefined} />
+          <Stat
+            label="At risk"
+            value={String(totals.atRisk)}
+            tone={totals.atRisk > 0 ? "warn" : undefined}
+          />
           <Stat label="BAC" value={fmtMoney(totals.bac)} />
           <Stat label="Forecast (EAC)" value={fmtMoney(totals.eac)} />
         </div>
@@ -234,13 +235,9 @@ function PortfolioPage() {
                         {r.name}
                       </Link>
                       {r.dataDate ? (
-                        <div className="text-[11px] text-[#776e5e]">
-                          Data date {r.dataDate}
-                        </div>
+                        <div className="text-[11px] text-[#776e5e]">Data date {r.dataDate}</div>
                       ) : null}
-                      {r.error ? (
-                        <div className="text-[11px] text-[#b42318]">{r.error}</div>
-                      ) : null}
+                      {r.error ? <div className="text-[11px] text-[#b42318]">{r.error}</div> : null}
                     </td>
                     <td className="px-3 py-2">
                       {r.loading ? (
@@ -248,9 +245,7 @@ function PortfolioPage() {
                       ) : (
                         <>
                           {r.finishDate ?? "—"}
-                          <div className="text-[11px] text-[#776e5e]">
-                            {r.durationDays}d total
-                          </div>
+                          <div className="text-[11px] text-[#776e5e]">{r.durationDays}d total</div>
                         </>
                       )}
                     </td>
@@ -262,9 +257,7 @@ function PortfolioPage() {
                             style={{ width: `${Math.min(100, r.pctComplete)}%` }}
                           />
                         </div>
-                        <span className="text-xs tabular-nums">
-                          {r.pctComplete.toFixed(0)}%
-                        </span>
+                        <span className="text-xs tabular-nums">{r.pctComplete.toFixed(0)}%</span>
                       </div>
                     </td>
                     <td className="px-3 py-2">
@@ -281,8 +274,8 @@ function PortfolioPage() {
                             r.eac > r.bac * 1.05
                               ? "text-[#b42318]"
                               : r.eac < r.bac * 0.95
-                              ? "text-[#2f7a3e]"
-                              : ""
+                                ? "text-[#2f7a3e]"
+                                : ""
                           }
                         >
                           {fmtMoney(r.eac)}
@@ -311,15 +304,7 @@ function PortfolioPage() {
   );
 }
 
-function Stat({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: "warn" | "good";
-}) {
+function Stat({ label, value, tone }: { label: string; value: string; tone?: "warn" | "good" }) {
   return (
     <div className="rounded border border-[#d8cdb8] bg-white p-3">
       <div className="text-[10px] font-semibold uppercase tracking-wider text-[#776e5e]">
@@ -338,7 +323,6 @@ function Stat({
 
 function Pi({ value }: { value: number | null }) {
   if (value === null) return <span className="text-[#776e5e]">—</span>;
-  const tone =
-    value >= 1 ? "text-[#2f7a3e]" : value >= 0.95 ? "text-[#9b7400]" : "text-[#b42318]";
+  const tone = value >= 1 ? "text-[#2f7a3e]" : value >= 0.95 ? "text-[#9b7400]" : "text-[#b42318]";
   return <span className={`tabular-nums ${tone}`}>{value.toFixed(2)}</span>;
 }

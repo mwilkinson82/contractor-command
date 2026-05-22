@@ -4,11 +4,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient, useQueries } from "@tanstack/react-query";
 import { toast } from "sonner";
-import {
-  listProjects,
-  createProject,
-  loadSchedule,
-} from "@/lib/scheduler/persistence.functions";
+import { listProjects, createProject, loadSchedule } from "@/lib/scheduler/persistence.functions";
 import { calculateSchedule } from "@/lib/scheduler/engine";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -88,7 +84,10 @@ function ProjectsHome() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const projects: Project[] = (projectsQ.data?.projects ?? []) as Project[];
+  const projects: Project[] = useMemo(
+    () => (projectsQ.data?.projects ?? []) as Project[],
+    [projectsQ.data?.projects],
+  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -192,9 +191,7 @@ function ProjectsHome() {
           <Stat
             label="Portfolio % complete"
             value={
-              portfolioStats.weightedPct == null
-                ? "—"
-                : `${portfolioStats.weightedPct.toFixed(1)}%`
+              portfolioStats.weightedPct == null ? "—" : `${portfolioStats.weightedPct.toFixed(1)}%`
             }
             sub={`${portfolioStats.loaded}/${portfolioStats.total} loaded`}
           />
@@ -253,7 +250,8 @@ function ProjectsHome() {
                   {createMut.isPending ? "Creating…" : "Create project"}
                 </Button>
                 <p className="text-xs text-[#7a6a4d]">
-                  After creating, open the project and import an XER, start from sample, or build by hand.
+                  After creating, open the project and import an XER, start from sample, or build by
+                  hand.
                 </p>
               </div>
             </section>
@@ -364,15 +362,9 @@ function ProjectsHome() {
                         </div>
 
                         <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                          <Mini
-                            label="% Comp"
-                            value={pct == null ? "—" : `${pct.toFixed(0)}%`}
-                          />
+                          <Mini label="% Comp" value={pct == null ? "—" : `${pct.toFixed(0)}%`} />
                           <Mini label="Critical" value={String(crit)} />
-                          <Mini
-                            label="Data date"
-                            value={p.dataDate ?? "—"}
-                          />
+                          <Mini label="Data date" value={p.dataDate ?? "—"} />
                         </div>
 
                         <div className="mt-3 text-[10px] uppercase tracking-wide text-[#9b9075]">

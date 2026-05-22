@@ -113,7 +113,6 @@ function SchedulerPage() {
     enabled: !!selectedId,
   });
 
-
   // Hydrate draft when a schedule loads
   useEffect(() => {
     if (loadQuery.data) {
@@ -169,7 +168,6 @@ function SchedulerPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
-
 
   const result = useMemo(() => {
     if (!draft) return null;
@@ -233,9 +231,7 @@ function SchedulerPage() {
         const computedTask = computed?.tasks.find((x) => x.id === taskId);
         // Anchor: existing startNoEarlierThan if set, otherwise current earlyStartDate from CPM.
         const anchorIso =
-          t.startNoEarlierThan ??
-          computedTask?.earlyStartDate ??
-          d.projectStartDate;
+          t.startNoEarlierThan ?? computedTask?.earlyStartDate ?? d.projectStartDate;
         if (anchorIso) {
           const shifted = addWorkingDaysIso(anchorIso, patch.startShiftDays, cal);
           // Clamp to project start (don't allow before)
@@ -371,8 +367,6 @@ function SchedulerPage() {
 
             {selectedId ? <StructurePanel scheduleId={selectedId} /> : null}
 
-
-
             {selectedId && draft ? (
               <CalendarPanel
                 workDays={draft.workDays}
@@ -394,10 +388,7 @@ function SchedulerPage() {
             ) : null}
 
             {computed ? (
-              <ReportsPanel
-                result={computed}
-                ganttContainerSelector="[data-gantt-container]"
-              />
+              <ReportsPanel result={computed} ganttContainerSelector="[data-gantt-container]" />
             ) : null}
 
             {selectedId && draft ? (
@@ -451,7 +442,9 @@ function SchedulerPage() {
                 <div className="flex flex-wrap items-end justify-between gap-3 rounded border border-[#d8cdb8] bg-white p-4">
                   <div className="flex-1 space-y-2">
                     <div>
-                      <Label htmlFor="sched-name" className="text-xs">Name</Label>
+                      <Label htmlFor="sched-name" className="text-xs">
+                        Name
+                      </Label>
                       <Input
                         id="sched-name"
                         value={draft.name}
@@ -463,7 +456,9 @@ function SchedulerPage() {
                     </div>
                     <div className="flex flex-wrap gap-3">
                       <div>
-                        <Label htmlFor="sched-start" className="text-xs">Project start</Label>
+                        <Label htmlFor="sched-start" className="text-xs">
+                          Project start
+                        </Label>
                         <Input
                           id="sched-start"
                           type="date"
@@ -531,10 +526,7 @@ function SchedulerPage() {
                         ) : null}
                       </div>
                     ) : null}
-                    <Button
-                      onClick={() => saveMut.mutate()}
-                      disabled={!dirty || saveMut.isPending}
-                    >
+                    <Button onClick={() => saveMut.mutate()} disabled={!dirty || saveMut.isPending}>
                       {saveMut.isPending ? "Saving…" : dirty ? "Save changes" : "Saved"}
                     </Button>
                     <Button
@@ -597,14 +589,18 @@ function SchedulerPage() {
                           for (const [key, items] of groups) {
                             const collapsed = collapsedGroups.has(key);
                             const groupTaskIds = new Set(items.map((i) => i.t.id));
-                            const groupCalcs = computed?.tasks.filter((c) => groupTaskIds.has(c.id)) ?? [];
+                            const groupCalcs =
+                              computed?.tasks.filter((c) => groupTaskIds.has(c.id)) ?? [];
                             const groupDur = groupCalcs.length
                               ? Math.max(...groupCalcs.map((c) => c.earlyFinish)) -
                                 Math.min(...groupCalcs.map((c) => c.earlyStart))
                               : 0;
                             const groupCritical = groupCalcs.some((c) => c.isCritical);
                             rows.push(
-                              <tr key={`g-${key}`} className="border-t border-[#d8cdb8] bg-[#eee6d7]">
+                              <tr
+                                key={`g-${key}`}
+                                className="border-t border-[#d8cdb8] bg-[#eee6d7]"
+                              >
                                 <td colSpan={9} className="px-2 py-1">
                                   <button
                                     type="button"
@@ -669,18 +665,26 @@ function SchedulerPage() {
                                       onChange={(e) =>
                                         updateTask(idx, {
                                           percentComplete:
-                                            e.target.value === "" ? undefined : Number(e.target.value),
+                                            e.target.value === ""
+                                              ? undefined
+                                              : Number(e.target.value),
                                         })
                                       }
                                     />
                                   </td>
-                                  <td className={`px-2 py-1 text-right ${critical ? "text-[#b42318] font-semibold" : ""}`}>
+                                  <td
+                                    className={`px-2 py-1 text-right ${critical ? "text-[#b42318] font-semibold" : ""}`}
+                                  >
                                     {calc?.earlyStart ?? "—"}
                                   </td>
-                                  <td className={`px-2 py-1 text-right ${critical ? "text-[#b42318] font-semibold" : ""}`}>
+                                  <td
+                                    className={`px-2 py-1 text-right ${critical ? "text-[#b42318] font-semibold" : ""}`}
+                                  >
                                     {calc?.earlyFinish ?? "—"}
                                   </td>
-                                  <td className={`px-2 py-1 text-right ${critical ? "text-[#b42318] font-semibold" : ""}`}>
+                                  <td
+                                    className={`px-2 py-1 text-right ${critical ? "text-[#b42318] font-semibold" : ""}`}
+                                  >
                                     {calc?.totalFloat ?? "—"}
                                   </td>
                                   <td className="px-2 py-1 text-right">
@@ -740,10 +744,12 @@ function SchedulerPage() {
                             ))}
                           </div>
                           <span className="inline-flex items-center gap-1">
-                            <span className="inline-block h-2 w-3 rounded-sm bg-[#b42318]" /> Critical
+                            <span className="inline-block h-2 w-3 rounded-sm bg-[#b42318]" />{" "}
+                            Critical
                           </span>
                           <span className="inline-flex items-center gap-1">
-                            <span className="inline-block h-2 w-3 rounded-sm bg-[#1f241f]" /> Activity
+                            <span className="inline-block h-2 w-3 rounded-sm bg-[#1f241f]" />{" "}
+                            Activity
                           </span>
                           <span className="inline-flex items-center gap-1">
                             <span className="inline-block h-[3px] w-4 bg-[#9c8b6e]" /> Float
@@ -816,9 +822,7 @@ function SchedulerPage() {
                                 <button
                                   type="button"
                                   className="text-[#b42318] underline-offset-2 hover:underline"
-                                  onClick={() =>
-                                    updateTask(idx, { startNoEarlierThan: undefined })
-                                  }
+                                  onClick={() => updateTask(idx, { startNoEarlierThan: undefined })}
                                 >
                                   Clear constraint
                                 </button>
@@ -829,9 +833,7 @@ function SchedulerPage() {
                               <Textarea
                                 className="min-h-[60px] text-sm"
                                 value={draft.tasks[idx]?.description ?? ""}
-                                onChange={(e) =>
-                                  updateTask(idx, { description: e.target.value })
-                                }
+                                onChange={(e) => updateTask(idx, { description: e.target.value })}
                               />
                             </div>
                             <div>
@@ -884,7 +886,6 @@ function SchedulerPage() {
 
                 {/* Dependencies */}
                 <section className="overflow-hidden rounded border border-[#d8cdb8] bg-white">
-
                   <div className="flex items-center justify-between border-b border-[#eee7d8] px-3 py-2">
                     <h3 className="text-sm font-semibold uppercase tracking-wide text-[#675d4b]">
                       Dependencies
@@ -924,10 +925,7 @@ function SchedulerPage() {
                             </Select>
                           </td>
                           <td className="px-2 py-1">
-                            <Select
-                              value={d.to}
-                              onValueChange={(v) => updateDep(idx, { to: v })}
-                            >
+                            <Select value={d.to} onValueChange={(v) => updateDep(idx, { to: v })}>
                               <SelectTrigger className="h-8 w-28">
                                 <SelectValue />
                               </SelectTrigger>
@@ -943,9 +941,7 @@ function SchedulerPage() {
                           <td className="px-2 py-1">
                             <Select
                               value={d.type ?? "FS"}
-                              onValueChange={(v) =>
-                                updateDep(idx, { type: v as DependencyType })
-                              }
+                              onValueChange={(v) => updateDep(idx, { type: v as DependencyType })}
                             >
                               <SelectTrigger className="h-8 w-20">
                                 <SelectValue />
@@ -963,9 +959,7 @@ function SchedulerPage() {
                               className="h-8 w-16 text-right"
                               type="number"
                               value={d.lag ?? 0}
-                              onChange={(e) =>
-                                updateDep(idx, { lag: Number(e.target.value) || 0 })
-                              }
+                              onChange={(e) => updateDep(idx, { lag: Number(e.target.value) || 0 })}
                             />
                           </td>
                           <td className="px-2 py-1 text-right">
@@ -998,9 +992,7 @@ function SchedulerPage() {
                       Critical path
                     </div>
                     <div className="mt-1 font-mono text-xs">
-                      {computed.criticalPath.length > 0
-                        ? computed.criticalPath.join(" → ")
-                        : "—"}
+                      {computed.criticalPath.length > 0 ? computed.criticalPath.join(" → ") : "—"}
                     </div>
                     {computed.diagnostics.length > 0 ? (
                       <div className="mt-3 text-xs text-[#b42318]">
@@ -1019,11 +1011,7 @@ function SchedulerPage() {
                 ) : null}
 
                 {computed ? (
-                  <ResourcesPanel
-                    result={computed}
-                    tasks={draft.tasks}
-                    onTaskChange={updateTask}
-                  />
+                  <ResourcesPanel result={computed} tasks={draft.tasks} onTaskChange={updateTask} />
                 ) : null}
               </>
             )}
@@ -1033,4 +1021,3 @@ function SchedulerPage() {
     </div>
   );
 }
-

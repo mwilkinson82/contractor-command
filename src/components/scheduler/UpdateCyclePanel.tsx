@@ -29,13 +29,7 @@ function addDays(iso: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function UpdateCyclePanel({
-  scheduleId,
-  dirty,
-  dataDate,
-  computed,
-  onCycleClosed,
-}: Props) {
+export function UpdateCyclePanel({ scheduleId, dirty, dataDate, computed, onCycleClosed }: Props) {
   const qc = useQueryClient();
   const listFn = useServerFn(listBaselines);
   const captureFn = useServerFn(captureBaseline);
@@ -110,9 +104,7 @@ export function UpdateCyclePanel({
       return { id, finishDate: r.projectFinishDate, duration: r.projectDuration };
     },
     onSuccess: (res) => {
-      toast.success(
-        `${res.finishDate ?? "—"} · ${res.duration}d (recomputed from snapshot)`,
-      );
+      toast.success(`${res.finishDate ?? "—"} · ${res.duration}d (recomputed from snapshot)`);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -127,13 +119,16 @@ export function UpdateCyclePanel({
         <CalendarClock className="h-4 w-4" /> Update cycles
       </h2>
       <p className="mb-3 text-[11px] text-[#776e5e]">
-        Close out each progress period — snapshots the schedule for trend tracking and slip reporting.
+        Close out each progress period — snapshots the schedule for trend tracking and slip
+        reporting.
       </p>
 
       <div className="mb-3 rounded border border-[#eee7d8] bg-[#faf6ec] p-2 text-[11px]">
         <div className="flex items-center justify-between">
           <span className="text-[#776e5e]">Next update</span>
-          <span className="font-semibold text-[#1f241f]">#{String(nextNumber).padStart(2, "0")}</span>
+          <span className="font-semibold text-[#1f241f]">
+            #{String(nextNumber).padStart(2, "0")}
+          </span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-[#776e5e]">Data date</span>
@@ -150,13 +145,7 @@ export function UpdateCyclePanel({
         disabled={!dataDate || dirty || closeMut.isPending}
         className="w-full"
         size="sm"
-        title={
-          dirty
-            ? "Save changes first"
-            : !dataDate
-              ? "Set a data date first"
-              : ""
-        }
+        title={dirty ? "Save changes first" : !dataDate ? "Set a data date first" : ""}
       >
         Close out period {String(nextNumber).padStart(2, "0")}
       </Button>
@@ -189,10 +178,7 @@ export function UpdateCyclePanel({
                     ? next.duration - r.duration
                     : null;
                 return (
-                  <li
-                    key={r.id}
-                    className="rounded border border-[#eee7d8] px-2 py-1.5 text-xs"
-                  >
+                  <li key={r.id} className="rounded border border-[#eee7d8] px-2 py-1.5 text-xs">
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-[#1f241f]">{r.label}</span>
                       {slip !== null && slip !== 0 ? (
@@ -205,7 +191,9 @@ export function UpdateCyclePanel({
                       ) : null}
                     </div>
                     <div className="mt-0.5 flex items-center justify-between text-[10px] text-[#776e5e]">
-                      <span>Finish {r.finishDate ?? "—"} · {r.duration ?? "—"}d</span>
+                      <span>
+                        Finish {r.finishDate ?? "—"} · {r.duration ?? "—"}d
+                      </span>
                       <button
                         type="button"
                         onClick={() => recomputeMut.mutate(r.id)}

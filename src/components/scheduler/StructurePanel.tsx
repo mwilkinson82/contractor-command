@@ -19,7 +19,16 @@ import {
 
 type Props = { scheduleId: string };
 
-const SWATCHES = ["#dc2626", "#ea580c", "#ca8a04", "#16a34a", "#0891b2", "#4f46e5", "#9333ea", "#db2777"];
+const SWATCHES = [
+  "#dc2626",
+  "#ea580c",
+  "#ca8a04",
+  "#16a34a",
+  "#0891b2",
+  "#4f46e5",
+  "#9333ea",
+  "#db2777",
+];
 
 export function StructurePanel({ scheduleId }: Props) {
   const qc = useQueryClient();
@@ -62,8 +71,7 @@ export function StructurePanel({ scheduleId }: Props) {
   });
 
   const valAddMut = useMutation({
-    mutationFn: (v: { typeId: string; code: string; color: string }) =>
-      upsertValueFn({ data: v }),
+    mutationFn: (v: { typeId: string; code: string; color: string }) => upsertValueFn({ data: v }),
     onSuccess: () => invalidate(),
     onError: (e: Error) => toast.error(e.message),
   });
@@ -78,9 +86,7 @@ export function StructurePanel({ scheduleId }: Props) {
   return (
     <section className="rounded border border-[#d8cdb8] bg-white">
       <header className="flex items-center justify-between border-b border-[#e4dcc8] px-3 py-2">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-[#1f241f]">
-          Structure
-        </h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-[#1f241f]">Structure</h2>
         <div className="flex gap-1 text-[10px]">
           <button
             onClick={() => setTab("wbs")}
@@ -170,7 +176,11 @@ function WbsTree({
           >
             {kids.length > 0 ? (
               <button onClick={() => toggle(n.id)} className="text-[#7a6a4d]">
-                {isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                {isOpen ? (
+                  <ChevronDown className="h-3 w-3" />
+                ) : (
+                  <ChevronRight className="h-3 w-3" />
+                )}
               </button>
             ) : (
               <span className="inline-block w-3" />
@@ -207,7 +217,7 @@ function WbsTree({
   };
 
   const parentLabel =
-    parentId === null ? "Root" : nodes.find((n) => n.id === parentId)?.code ?? "Root";
+    parentId === null ? "Root" : (nodes.find((n) => n.id === parentId)?.code ?? "Root");
 
   return (
     <div className="space-y-3">

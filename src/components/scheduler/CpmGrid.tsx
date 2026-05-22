@@ -81,12 +81,14 @@ export function CpmGrid({
   annotations,
   onTaskReschedule,
 }: Props) {
-  const cal = calendar ?? { workDays: 31, holidays: [] };
+  const cal = useMemo(() => calendar ?? { workDays: 31, holidays: [] }, [calendar]);
   const duration = Math.max(result.projectDuration, 1);
-  const [drag, setDrag] = useState<
-    | { id: string; mode: "move" | "resize"; startX: number; deltaDays: number }
-    | null
-  >(null);
+  const [drag, setDrag] = useState<{
+    id: string;
+    mode: "move" | "resize";
+    startX: number;
+    deltaDays: number;
+  } | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // Group tasks by WBS, ordered by ES
@@ -149,7 +151,8 @@ export function CpmGrid({
   const timelineWidth = duration * dayPx + 1;
 
   const monthBands = useMemo(() => {
-    if (workingDates.length === 0) return [] as Array<{ x: number; w: number; label: string; year: number }>;
+    if (workingDates.length === 0)
+      return [] as Array<{ x: number; w: number; label: string; year: number }>;
     const bands: Array<{ x: number; w: number; label: string; year: number }> = [];
     let startIdx = 0;
     let curKey = `${workingDates[0].getUTCFullYear()}-${workingDates[0].getUTCMonth()}`;
@@ -202,11 +205,7 @@ export function CpmGrid({
   }, [dataDate, result.projectStartDate, workingDates]);
 
   // ---- drag handlers (bar move / right-edge resize) --------------------
-  function beginDrag(
-    e: React.PointerEvent<SVGElement>,
-    id: string,
-    mode: "move" | "resize",
-  ) {
+  function beginDrag(e: React.PointerEvent<SVGElement>, id: string, mode: "move" | "resize") {
     if (!onTaskReschedule) return;
     e.stopPropagation();
     (e.target as Element).setPointerCapture(e.pointerId);
@@ -289,7 +288,10 @@ export function CpmGrid({
           </div>
 
           {/* Rows */}
-          <table className="w-full border-collapse text-[11px] text-[#1f241f]" style={{ fontFamily: "ui-sans-serif, system-ui" }}>
+          <table
+            className="w-full border-collapse text-[11px] text-[#1f241f]"
+            style={{ fontFamily: "ui-sans-serif, system-ui" }}
+          >
             <colgroup>
               <col style={{ width: 72 }} />
               <col style={{ width: 240 }} />
@@ -374,8 +376,8 @@ export function CpmGrid({
                         t.isCritical
                           ? "font-semibold text-[#b42318]"
                           : t.totalFloat <= 5
-                          ? "text-[#9b7400]"
-                          : "text-[#5c574e]"
+                            ? "text-[#9b7400]"
+                            : "text-[#5c574e]"
                       }`}
                     >
                       {t.totalFloat}
@@ -522,13 +524,7 @@ export function CpmGrid({
                     height={rowH}
                     fill={isSelected ? "#fff7e0" : i % 2 ? "#faf7ee" : "white"}
                   />
-                  <line
-                    x1={0}
-                    x2={timelineWidth}
-                    y1={y + rowH}
-                    y2={y + rowH}
-                    stroke="#eee6d7"
-                  />
+                  <line x1={0} x2={timelineWidth} y1={y + rowH} y2={y + rowH} stroke="#eee6d7" />
 
                   {/* baseline ghost */}
                   {baselineT ? (

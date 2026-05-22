@@ -16,7 +16,11 @@ const TaskInput = z.object({
   actualCost: z.number().min(0).max(1e12).optional().nullable(),
   resourceName: z.string().max(128).optional().nullable(),
   resourceUnitsPerDay: z.number().min(0).max(10000).optional().nullable(),
-  startNoEarlierThan: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  startNoEarlierThan: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .nullable(),
 });
 
 const DependencyInput = z.object({
@@ -101,8 +105,7 @@ export const listProjects = createServerFn({ method: "GET" })
         name: row.name as string,
         client: (row.client as string | null) ?? undefined,
         projectNumber: (row.project_number as string | null) ?? undefined,
-        status:
-          (row.status as "planning" | "active" | "on_hold" | "closed" | null) ?? "planning",
+        status: (row.status as "planning" | "active" | "on_hold" | "closed" | null) ?? "planning",
         tags: ((row.tags as string[] | null) ?? []) as string[],
         coverColor: (row.cover_color as string | null) ?? undefined,
         projectStartDate: (row.project_start_date as string | null) ?? undefined,
@@ -182,14 +185,10 @@ export const updateProjectMeta = createServerFn({ method: "POST" })
     if (data.tags !== undefined) patch.tags = data.tags;
     if (data.coverColor !== undefined) patch.cover_color = data.coverColor;
     if (Object.keys(patch).length === 0) return { ok: true };
-    const { error } = await context.supabase
-      .from("schedules")
-      .update(patch)
-      .eq("id", data.id);
+    const { error } = await context.supabase.from("schedules").update(patch).eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
-
 
 export const loadSchedule = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -505,11 +504,7 @@ export const deleteBaseline = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { id: string }) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
-      .from("schedule_baselines")
-      .delete()
-      .eq("id", data.id);
+    const { error } = await context.supabase.from("schedule_baselines").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
-

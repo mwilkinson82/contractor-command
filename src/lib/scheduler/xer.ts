@@ -93,12 +93,8 @@ export function importXer(text: string, hoursPerDay = 8): XerImportResult {
 
   const project = projects[0];
   const projectName =
-    project?.["proj_short_name"] ||
-    project?.["proj_name"] ||
-    "Imported P6 schedule";
-  const projectStartDate = parseDate(
-    project?.["plan_start_date"] || project?.["scd_end_date"],
-  );
+    project?.["proj_short_name"] || project?.["proj_name"] || "Imported P6 schedule";
+  const projectStartDate = parseDate(project?.["plan_start_date"] || project?.["scd_end_date"]);
 
   // WBS lookup: wbs_id -> readable name
   const wbsName = new Map<string, string>();
@@ -118,7 +114,7 @@ export function importXer(text: string, hoursPerDay = 8): XerImportResult {
   for (const t of taskRows) {
     const xerId = t["task_id"];
     if (!xerId) continue;
-    let code = (t["task_code"] || `A${xerId}`).trim();
+    const code = (t["task_code"] || `A${xerId}`).trim();
     // Avoid collisions
     let unique = code;
     let n = 2;
@@ -157,9 +153,7 @@ export function importXer(text: string, hoursPerDay = 8): XerImportResult {
     }
     const type = DEP_MAP[p["pred_type"] || "PR_FS"] ?? "FS";
     const lagHours = parseFloat(p["lag_hr_cnt"] || "0");
-    const lag = isFinite(lagHours)
-      ? Math.round(lagHours / hoursPerDay)
-      : 0;
+    const lag = isFinite(lagHours) ? Math.round(lagHours / hoursPerDay) : 0;
     dependencies.push({ from, to, type, lag });
   }
   if (skipped > 0) {
@@ -170,7 +164,9 @@ export function importXer(text: string, hoursPerDay = 8): XerImportResult {
     warnings.push(`Schedule has ${tasks.length} tasks; only first 2000 will be saved.`);
   }
   if (dependencies.length > 5000) {
-    warnings.push(`Schedule has ${dependencies.length} dependencies; only first 5000 will be saved.`);
+    warnings.push(
+      `Schedule has ${dependencies.length} dependencies; only first 5000 will be saved.`,
+    );
   }
 
   return {

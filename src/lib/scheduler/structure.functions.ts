@@ -109,24 +109,25 @@ export const loadStructure = createServerFn({ method: "GET" })
 /** ---------------- WBS CRUD ---------------- */
 export const upsertWbsNode = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: {
-    scheduleId: string;
-    id?: string;
-    parentId?: string | null;
-    code: string;
-    name: string;
-    position?: number;
-  }) =>
-    z
-      .object({
-        scheduleId: z.string().uuid(),
-        id: z.string().uuid().optional(),
-        parentId: z.string().uuid().nullable().optional(),
-        code: z.string().min(1).max(64),
-        name: z.string().min(1).max(255),
-        position: z.number().int().min(0).max(100000).optional(),
-      })
-      .parse(d),
+  .inputValidator(
+    (d: {
+      scheduleId: string;
+      id?: string;
+      parentId?: string | null;
+      code: string;
+      name: string;
+      position?: number;
+    }) =>
+      z
+        .object({
+          scheduleId: z.string().uuid(),
+          id: z.string().uuid().optional(),
+          parentId: z.string().uuid().nullable().optional(),
+          code: z.string().min(1).max(64),
+          name: z.string().min(1).max(255),
+          position: z.number().int().min(0).max(100000).optional(),
+        })
+        .parse(d),
   )
   .handler(async ({ data, context }) => {
     const { supabase } = context;
@@ -163,22 +164,23 @@ export const deleteWbsNode = createServerFn({ method: "POST" })
 /** ---------------- Code type CRUD ---------------- */
 export const upsertCodeType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: {
-    scheduleId: string;
-    id?: string;
-    name: string;
-    description?: string | null;
-    position?: number;
-  }) =>
-    z
-      .object({
-        scheduleId: z.string().uuid(),
-        id: z.string().uuid().optional(),
-        name: z.string().min(1).max(64),
-        description: z.string().max(500).nullable().optional(),
-        position: z.number().int().min(0).max(1000).optional(),
-      })
-      .parse(d),
+  .inputValidator(
+    (d: {
+      scheduleId: string;
+      id?: string;
+      name: string;
+      description?: string | null;
+      position?: number;
+    }) =>
+      z
+        .object({
+          scheduleId: z.string().uuid(),
+          id: z.string().uuid().optional(),
+          name: z.string().min(1).max(64),
+          description: z.string().max(500).nullable().optional(),
+          position: z.number().int().min(0).max(1000).optional(),
+        })
+        .parse(d),
   )
   .handler(async ({ data, context }) => {
     const { supabase } = context;
@@ -209,10 +211,7 @@ export const deleteCodeType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
-      .from("activity_code_types")
-      .delete()
-      .eq("id", data.id);
+    const { error } = await context.supabase.from("activity_code_types").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -220,28 +219,29 @@ export const deleteCodeType = createServerFn({ method: "POST" })
 /** ---------------- Code value CRUD ---------------- */
 export const upsertCodeValue = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: {
-    typeId: string;
-    id?: string;
-    code: string;
-    description?: string | null;
-    color?: string | null;
-    position?: number;
-  }) =>
-    z
-      .object({
-        typeId: z.string().uuid(),
-        id: z.string().uuid().optional(),
-        code: z.string().min(1).max(32),
-        description: z.string().max(500).nullable().optional(),
-        color: z
-          .string()
-          .regex(/^#?[0-9a-fA-F]{3,8}$/)
-          .nullable()
-          .optional(),
-        position: z.number().int().min(0).max(1000).optional(),
-      })
-      .parse(d),
+  .inputValidator(
+    (d: {
+      typeId: string;
+      id?: string;
+      code: string;
+      description?: string | null;
+      color?: string | null;
+      position?: number;
+    }) =>
+      z
+        .object({
+          typeId: z.string().uuid(),
+          id: z.string().uuid().optional(),
+          code: z.string().min(1).max(32),
+          description: z.string().max(500).nullable().optional(),
+          color: z
+            .string()
+            .regex(/^#?[0-9a-fA-F]{3,8}$/)
+            .nullable()
+            .optional(),
+          position: z.number().int().min(0).max(1000).optional(),
+        })
+        .parse(d),
   )
   .handler(async ({ data, context }) => {
     const { supabase } = context;
@@ -284,20 +284,16 @@ export const deleteCodeValue = createServerFn({ method: "POST" })
 /** ---------------- Task code assignment ---------------- */
 export const assignTaskCode = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: {
-    scheduleId: string;
-    taskId: string;
-    typeId: string;
-    valueId: string | null;
-  }) =>
-    z
-      .object({
-        scheduleId: z.string().uuid(),
-        taskId: z.string().min(1).max(64),
-        typeId: z.string().uuid(),
-        valueId: z.string().uuid().nullable(),
-      })
-      .parse(d),
+  .inputValidator(
+    (d: { scheduleId: string; taskId: string; typeId: string; valueId: string | null }) =>
+      z
+        .object({
+          scheduleId: z.string().uuid(),
+          taskId: z.string().min(1).max(64),
+          typeId: z.string().uuid(),
+          valueId: z.string().uuid().nullable(),
+        })
+        .parse(d),
   )
   .handler(async ({ data, context }) => {
     const { supabase } = context;

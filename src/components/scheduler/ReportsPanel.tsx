@@ -69,9 +69,7 @@ export function ReportsPanel({ result, ganttContainerSelector }: Props) {
               ))}
             </SelectContent>
           </Select>
-          {active ? (
-            <p className="mt-1 text-[11px] text-[#776e5e]">{active.hint}</p>
-          ) : null}
+          {active ? <p className="mt-1 text-[11px] text-[#776e5e]">{active.hint}</p> : null}
         </div>
 
         {kind === "lookahead" ? (

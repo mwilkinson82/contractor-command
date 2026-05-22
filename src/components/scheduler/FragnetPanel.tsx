@@ -29,15 +29,12 @@ export function FragnetPanel({ tasks, dependencies, onInsert }: Props) {
 
   const insert = () => {
     try {
-      const result = insertFragnet(
-        { tasks, dependencies },
-        fragnetId,
-        { prefix, attachToTaskId: attachTo === "__none__" ? undefined : attachTo },
-      );
+      const result = insertFragnet({ tasks, dependencies }, fragnetId, {
+        prefix,
+        attachToTaskId: attachTo === "__none__" ? undefined : attachTo,
+      });
       onInsert({ tasks: result.tasks, dependencies: result.dependencies });
-      toast.success(
-        `Inserted "${def.name}" (${result.addedIds.length} activities)`,
-      );
+      toast.success(`Inserted "${def.name}" (${result.addedIds.length} activities)`);
     } catch (e) {
       toast.error((e as Error).message);
     }

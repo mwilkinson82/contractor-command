@@ -1,11 +1,6 @@
 import type { ScheduleResult, ScheduledTask } from "./types";
 
-export type ReportKind =
-  | "critical"
-  | "float"
-  | "lookahead"
-  | "full"
-  | "gantt";
+export type ReportKind = "critical" | "float" | "lookahead" | "full" | "gantt";
 
 export interface ReportOptions {
   kind: ReportKind;
@@ -85,10 +80,7 @@ function reportTitle(opts: ReportOptions): string {
   }
 }
 
-export function buildReportHtml(
-  result: ScheduleResult,
-  opts: ReportOptions,
-): string {
+export function buildReportHtml(result: ScheduleResult, opts: ReportOptions): string {
   const title = reportTitle(opts);
   const subtitle = [
     result.name,

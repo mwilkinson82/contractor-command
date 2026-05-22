@@ -41,17 +41,15 @@ export function GanttTimeline({
   annotations,
   onTaskReschedule,
 }: Props) {
-  const [drag, setDrag] = useState<
-    | { id: string; mode: "move" | "resize"; startX: number; deltaDays: number }
-    | null
-  >(null);
+  const [drag, setDrag] = useState<{
+    id: string;
+    mode: "move" | "resize";
+    startX: number;
+    deltaDays: number;
+  } | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
 
-  function beginDrag(
-    e: React.PointerEvent<SVGRectElement>,
-    id: string,
-    mode: "move" | "resize",
-  ) {
+  function beginDrag(e: React.PointerEvent<SVGRectElement>, id: string, mode: "move" | "resize") {
     if (!onTaskReschedule) return;
     e.stopPropagation();
     (e.target as Element).setPointerCapture(e.pointerId);
@@ -116,7 +114,14 @@ export function GanttTimeline({
 
   // Build flat row list (group headers + visible tasks)
   type Row =
-    | { kind: "group"; key: string; minES: number; maxEF: number; anyCritical: boolean; collapsed: boolean }
+    | {
+        kind: "group";
+        key: string;
+        minES: number;
+        maxEF: number;
+        anyCritical: boolean;
+        collapsed: boolean;
+      }
     | { kind: "task"; task: ScheduledTask };
   const rows: Row[] = [];
   for (const g of groups) {
@@ -223,7 +228,14 @@ export function GanttTimeline({
                   opacity={0.45}
                 />
                 {/* End caps */}
-                <rect x={x} y={y + rowH / 2 - 6} width={2} height={12} fill="#1f241f" opacity={0.6} />
+                <rect
+                  x={x}
+                  y={y + rowH / 2 - 6}
+                  width={2}
+                  height={12}
+                  fill="#1f241f"
+                  opacity={0.6}
+                />
                 <rect
                   x={x + w - 2}
                   y={y + rowH / 2 - 6}
@@ -307,9 +319,7 @@ export function GanttTimeline({
                   x={drag.mode === "move" ? x + drag.deltaDays * dayPx : x}
                   y={y + 4}
                   width={
-                    drag.mode === "move"
-                      ? w
-                      : Math.max((t.duration + drag.deltaDays) * dayPx, 2)
+                    drag.mode === "move" ? w : Math.max((t.duration + drag.deltaDays) * dayPx, 2)
                   }
                   height={rowH - 10}
                   rx={3}

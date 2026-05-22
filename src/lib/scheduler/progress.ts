@@ -43,8 +43,6 @@ export function addWorkingDaysIso(
   return base.toISOString().slice(0, 10);
 }
 
-
-
 function isWorkingDay(d: Date, cal: ProjectCalendar): boolean {
   const dow = d.getUTCDay();
   const bitIdx = (dow + 6) % 7;
@@ -71,10 +69,7 @@ export interface RescheduleResult {
  * The project start date is moved to the data date so remaining work begins there.
  * Sequence (predecessor logic) is preserved.
  */
-export function rescheduleFromDataDate(
-  tasks: Task[],
-  dataDateIso: string,
-): RescheduleResult {
+export function rescheduleFromDataDate(tasks: Task[], dataDateIso: string): RescheduleResult {
   let completed = 0;
   let inProgress = 0;
   let notStarted = 0;

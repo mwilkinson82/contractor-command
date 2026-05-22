@@ -3,11 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import {
-  listSchedules,
-  loadSchedule,
-  saveSchedule,
-} from "@/lib/scheduler/persistence.functions";
+import { listSchedules, loadSchedule, saveSchedule } from "@/lib/scheduler/persistence.functions";
 import { calculateSchedule } from "@/lib/scheduler/engine";
 import type { Schedule, Task } from "@/lib/scheduler/types";
 import { Button } from "@/components/ui/button";
@@ -84,9 +80,7 @@ function FieldUpdatePage() {
     return (
       <div className="min-h-screen bg-[#f5f0e2] px-4 py-6">
         <h1 className="mb-4 text-2xl font-semibold text-[#1f241f]">Field Update</h1>
-        <p className="mb-4 text-sm text-[#776e5e]">
-          Pick a schedule to update from the field.
-        </p>
+        <p className="mb-4 text-sm text-[#776e5e]">Pick a schedule to update from the field.</p>
         {list.isLoading ? (
           <p className="text-sm text-[#776e5e]">Loading…</p>
         ) : (list.data?.schedules ?? []).length === 0 ? (
@@ -175,12 +169,7 @@ function FieldUpdateActive({
     <div className="min-h-screen bg-[#f5f0e2]">
       <header className="sticky top-0 z-10 border-b border-[#d8cdb8] bg-[#f5f0e2]/95 px-4 py-3 backdrop-blur">
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onBack}
-            className="-ml-2 text-[#1f241f]"
-          >
+          <Button variant="ghost" size="sm" onClick={onBack} className="-ml-2 text-[#1f241f]">
             <ArrowLeft className="mr-1 h-4 w-4" /> Schedules
           </Button>
         </div>
@@ -213,18 +202,13 @@ function FieldUpdateActive({
 
       <main className="px-4 py-3 pb-24">
         {visible.length === 0 ? (
-          <p className="py-12 text-center text-sm text-[#776e5e]">
-            All activities complete.
-          </p>
+          <p className="py-12 text-center text-sm text-[#776e5e]">All activities complete.</p>
         ) : (
           <ul className="space-y-2">
             {visible.map((t) => {
               const pct = t.percentComplete ?? 0;
               return (
-                <li
-                  key={t.id}
-                  className="rounded border border-[#d8cdb8] bg-white p-3 shadow-sm"
-                >
+                <li key={t.id} className="rounded border border-[#d8cdb8] bg-white p-3 shadow-sm">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-medium text-[#1f241f]">
@@ -233,7 +217,9 @@ function FieldUpdateActive({
                       <div className="mt-0.5 text-[11px] text-[#776e5e]">
                         {t.wbs ? `${t.wbs} · ` : ""}
                         {t.duration}d
-                        {t.earlyStartDate ? ` · plan ${t.earlyStartDate} → ${t.earlyFinishDate}` : ""}
+                        {t.earlyStartDate
+                          ? ` · plan ${t.earlyStartDate} → ${t.earlyFinishDate}`
+                          : ""}
                         {t.isCritical ? " · CRITICAL" : ""}
                       </div>
                     </div>
@@ -266,14 +252,10 @@ function FieldUpdateActive({
                     max={100}
                     step={5}
                     value={pct}
-                    onChange={(e) =>
-                      patch(t.id, { percentComplete: Number(e.target.value) })
-                    }
+                    onChange={(e) => patch(t.id, { percentComplete: Number(e.target.value) })}
                     className="mt-3 w-full accent-[#1f241f]"
                   />
-                  <div className="mt-1 text-right text-[11px] text-[#776e5e]">
-                    {pct}% complete
-                  </div>
+                  <div className="mt-1 text-right text-[11px] text-[#776e5e]">{pct}% complete</div>
                 </li>
               );
             })}

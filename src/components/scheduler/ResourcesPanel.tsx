@@ -40,7 +40,7 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
         if (dur > 0) {
           const dailyBudget = budget / dur;
           const dailyEarned = (budget * pct) / dur;
-          const dailyActual = (actCost) / dur;
+          const dailyActual = actCost / dur;
           for (let d = st.earlyStart; d < st.earlyStart + dur && d < duration; d++) {
             cost[d] += dailyBudget;
             earned[d] += dailyEarned;
@@ -78,8 +78,7 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
         dd = Math.max(0, Math.min(duration, Math.round(elapsedCal * (5 / 7))));
       }
 
-      const pvAtDD =
-        dd > 0 && dd <= duration ? cum[Math.min(dd - 1, duration - 1)] : bacSum;
+      const pvAtDD = dd > 0 && dd <= duration ? cum[Math.min(dd - 1, duration - 1)] : bacSum;
 
       return {
         cumCost: cum,
@@ -353,9 +352,7 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
                     }
                   />
                 </td>
-                <td className="px-2 py-1 text-right text-[#5c574e]">
-                  {t.percentComplete ?? 0}%
-                </td>
+                <td className="px-2 py-1 text-right text-[#5c574e]">{t.percentComplete ?? 0}%</td>
               </tr>
             ))}
           </tbody>
@@ -365,15 +362,7 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
   );
 }
 
-function Cell({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: "good" | "bad";
-}) {
+function Cell({ label, value, tone }: { label: string; value: string; tone?: "good" | "bad" }) {
   const toneClass =
     tone === "good" ? "text-[#2f7a3e]" : tone === "bad" ? "text-[#b42318]" : "text-[#1f241f]";
   return (

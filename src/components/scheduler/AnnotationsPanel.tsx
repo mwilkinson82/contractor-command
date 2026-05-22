@@ -55,7 +55,8 @@ export function AnnotationsPanel({ annotations, tasks, onChange }: Props) {
         <Flag className="h-4 w-4" /> Annotations
       </h2>
       <p className="mb-3 text-[11px] text-[#776e5e]">
-        Pin milestones (owner approval, permit) and callouts to dates. They appear on the Gantt and on the printable PDF.
+        Pin milestones (owner approval, permit) and callouts to dates. They appear on the Gantt and
+        on the printable PDF.
       </p>
 
       <div className="space-y-2">
@@ -104,12 +105,7 @@ export function AnnotationsPanel({ annotations, tasks, onChange }: Props) {
             </Select>
           </div>
         </div>
-        <Button
-          onClick={add}
-          disabled={!label.trim() || !date}
-          className="w-full"
-          size="sm"
-        >
+        <Button onClick={add} disabled={!label.trim() || !date} className="w-full" size="sm">
           <Plus className="mr-1 h-4 w-4" /> Add annotation
         </Button>
       </div>

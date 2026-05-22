@@ -18,12 +18,7 @@ interface Props {
   dirty: boolean;
 }
 
-export function BaselinesPanel({
-  scheduleId,
-  comparisonId,
-  onComparisonChange,
-  dirty,
-}: Props) {
+export function BaselinesPanel({ scheduleId, comparisonId, onComparisonChange, dirty }: Props) {
   const qc = useQueryClient();
   const listFn = useServerFn(listBaselines);
   const captureFn = useServerFn(captureBaseline);
@@ -110,11 +105,7 @@ export function BaselinesPanel({
                   onClick={() => onComparisonChange(isActive ? null : b.id)}
                 >
                   <div className="text-sm font-medium">{b.name}</div>
-                  <div
-                    className={`text-[11px] ${
-                      isActive ? "text-white/70" : "text-[#776e5e]"
-                    }`}
-                  >
+                  <div className={`text-[11px] ${isActive ? "text-white/70" : "text-[#776e5e]"}`}>
                     {new Date(b.createdAt).toLocaleString()}
                   </div>
                 </button>
@@ -135,8 +126,8 @@ export function BaselinesPanel({
       )}
       {comparisonId ? (
         <p className="mt-3 text-[11px] text-[#5c574e]">
-          Gantt is showing baseline as a tan ghost bar below each activity. Slip days appear
-          next to each label.
+          Gantt is showing baseline as a tan ghost bar below each activity. Slip days appear next to
+          each label.
         </p>
       ) : null}
     </section>

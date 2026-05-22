@@ -90,15 +90,23 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="max-w-md text-center">
         <h1 className="text-xl font-display">This page didn't load.</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Try again, or head back to the command center.</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Try again, or head back to the command center.
+        </p>
         <div className="mt-6 flex justify-center gap-2">
           <button
-            onClick={() => { router.invalidate(); reset(); }}
+            onClick={() => {
+              router.invalidate();
+              reset();
+            }}
             className="rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-cream hover:opacity-90"
           >
             Try again
           </button>
-          <a href="/" className="rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium hover:bg-muted">
+          <a
+            href="/"
+            className="rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium hover:bg-muted"
+          >
             Home
           </a>
         </div>
@@ -113,13 +121,30 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "ALP Contractor Circle — Command Center" },
-      { name: "description", content: "The operating environment for serious construction business owners." },
+      {
+        name: "description",
+        content: "The operating environment for serious construction business owners.",
+      },
       { property: "og:title", content: "ALP Contractor Circle — Command Center" },
       { name: "twitter:title", content: "ALP Contractor Circle — Command Center" },
-      { property: "og:description", content: "The operating environment for serious construction business owners." },
-      { name: "twitter:description", content: "The operating environment for serious construction business owners." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/15a4c1a0-be64-49a7-9625-ccc9acf09437/id-preview-50072c33--362c776b-68ab-4871-bedb-c42cb9843c1b.lovable.app-1779076615220.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/15a4c1a0-be64-49a7-9625-ccc9acf09437/id-preview-50072c33--362c776b-68ab-4871-bedb-c42cb9843c1b.lovable.app-1779076615220.png" },
+      {
+        property: "og:description",
+        content: "The operating environment for serious construction business owners.",
+      },
+      {
+        name: "twitter:description",
+        content: "The operating environment for serious construction business owners.",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/15a4c1a0-be64-49a7-9625-ccc9acf09437/id-preview-50072c33--362c776b-68ab-4871-bedb-c42cb9843c1b.lovable.app-1779076615220.png",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/15a4c1a0-be64-49a7-9625-ccc9acf09437/id-preview-50072c33--362c776b-68ab-4871-bedb-c42cb9843c1b.lovable.app-1779076615220.png",
+      },
       { name: "twitter:card", content: "summary_large_image" },
       { property: "og:type", content: "website" },
     ],
@@ -194,7 +219,8 @@ function useGlobalReveal() {
     if (typeof window === "undefined") return;
 
     if (pathname === "/handbook") {
-      document.querySelector("main")
+      document
+        .querySelector("main")
         ?.querySelectorAll<HTMLElement>("[data-reveal]")
         .forEach((el) => {
           el.removeAttribute("data-reveal");
@@ -305,7 +331,11 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
   useEffect(() => {
     if (loading) return;
     if (!session && !isPublic) {
-      navigate({ to: "/login" });
+      const redirectTo =
+        typeof window === "undefined"
+          ? pathname
+          : `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      navigate({ to: "/login", search: { redirect: redirectTo }, replace: true });
       return;
     }
     if (session && !companyLoading && needsOnboarding && !isOnboarding) {
@@ -322,7 +352,19 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
         navigate({ to: "/upgrade" });
       }
     }
-  }, [loading, session, isPublic, isOnboarding, companyLoading, needsOnboarding, tierLoading, tier, isAdmin, pathname, navigate]);
+  }, [
+    loading,
+    session,
+    isPublic,
+    isOnboarding,
+    companyLoading,
+    needsOnboarding,
+    tierLoading,
+    tier,
+    isAdmin,
+    pathname,
+    navigate,
+  ]);
 
   if (isPublic) return <>{children(false)}</>;
 
