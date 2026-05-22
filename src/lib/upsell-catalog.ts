@@ -191,17 +191,16 @@ export function upsellsForTier(tier: Tier | null): UpsellSku[] {
     case "aos_only":
       return ["book_buyer", "circle", "call_3", "call_1"];
     case "book_buyer":
-      return ["circle", "power_hour", "sm_school", "call_3"];
-    case "power_hour":
-      return ["circle", "sm_school", "contractor_school", "call_3"];
-    case "sm_school":
-      return ["circle", "power_hour", "contractor_school", "call_3"];
-    case "contractor_school":
-      return ["circle", "power_hour", "sm_school", "call_3"];
+      return ["circle", "call_3", "call_1"];
     case "intensive":
       return ["circle", "call_3", "call_1"];
+    // Power Hour, S&M School, Contractor School all pay the same as Circle
+    // and unlock the same surfaces — only Hardcore + private calls to upsell.
+    case "power_hour":
+    case "sm_school":
+    case "contractor_school":
     case "circle":
-      return ["power_hour", "sm_school", "contractor_school", "call_3"];
+      return ["hardcore", "call_6", "call_3", "call_1"];
     case "hardcore":
       return ["call_6", "call_3", "call_1"];
     default:
