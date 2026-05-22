@@ -6,6 +6,8 @@ import type {
   ScheduledTask,
 } from "@/lib/scheduler/types";
 
+export type GroupByMode = "wbs" | "critical" | "none";
+
 interface Props {
   result: ScheduleResult;
   selectedId: string | null;
@@ -17,11 +19,13 @@ interface Props {
   dataDate?: string;
   calendar?: ProjectCalendar;
   annotations?: Annotation[];
+  groupBy?: GroupByMode;
   onTaskReschedule?: (
     taskId: string,
     patch: { startShiftDays?: number; duration?: number },
   ) => void;
 }
+
 
 const ROW_H = 24;
 const GROUP_H = 22;
