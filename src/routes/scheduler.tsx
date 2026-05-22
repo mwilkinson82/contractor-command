@@ -434,6 +434,17 @@ function SchedulerPage() {
               )}
             </section>
 
+            {selectedId && draft ? (
+              <CalendarPanel
+                workDays={draft.workDays}
+                holidays={draft.holidays}
+                onChange={({ workDays, holidays }) => {
+                  setDraft({ ...draft, workDays, holidays });
+                  setDirty(true);
+                }}
+              />
+            ) : null}
+
             {selectedId ? (
               <BaselinesPanel
                 scheduleId={selectedId}
