@@ -87,7 +87,7 @@ export const loadSchedule = createServerFn({ method: "GET" })
     const { data: head, error: headErr } = await supabase
       .from("schedules")
       .select(
-        "id, name, project_start_date, data_date, notes, work_days, holidays, created_at, updated_at",
+        "id, name, project_start_date, data_date, notes, work_days, holidays, annotations, created_at, updated_at",
       )
       .eq("id", data.id)
       .maybeSingle();
