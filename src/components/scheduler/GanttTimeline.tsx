@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import type { Annotation, ScheduleResult, ScheduledTask } from "@/lib/scheduler/types";
 import { workingDayOffset } from "@/lib/scheduler/progress";
 
@@ -14,6 +15,11 @@ interface Props {
   /** Calendar used to convert dataDate ↔ working-day offset. */
   calendar?: { workDays: number; holidays: string[] };
   annotations?: Annotation[];
+  /** Fired when user drags a bar (start shift) or its right edge (duration resize). */
+  onTaskReschedule?: (
+    taskId: string,
+    patch: { startShiftDays?: number; duration?: number },
+  ) => void;
 }
 
 const ROW_H = 26;
