@@ -1,4 +1,4 @@
-import type { ScheduleResult, ScheduledTask } from "@/lib/scheduler/types";
+import type { Annotation, ScheduleResult, ScheduledTask } from "@/lib/scheduler/types";
 import { workingDayOffset } from "@/lib/scheduler/progress";
 
 interface Props {
@@ -13,6 +13,7 @@ interface Props {
   dataDate?: string;
   /** Calendar used to convert dataDate ↔ working-day offset. */
   calendar?: { workDays: number; holidays: string[] };
+  annotations?: Annotation[];
 }
 
 const ROW_H = 26;
