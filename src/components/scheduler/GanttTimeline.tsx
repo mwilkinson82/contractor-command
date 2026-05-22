@@ -32,6 +32,7 @@ export function GanttTimeline({
   baseline,
   dataDate,
   calendar,
+  annotations,
 }: Props) {
   const baselineMap = new Map<string, ScheduledTask>();
   if (baseline) for (const b of baseline.tasks) baselineMap.set(b.id, b);
