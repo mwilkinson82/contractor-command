@@ -501,6 +501,17 @@ function SchedulerPage() {
                 }}
               />
             ) : null}
+
+            {selectedId && draft ? (
+              <AnnotationsPanel
+                annotations={draft.annotations}
+                tasks={draft.tasks}
+                onChange={(annotations) => {
+                  setDraft({ ...draft, annotations });
+                  setDirty(true);
+                }}
+              />
+            ) : null}
           </aside>
 
           {/* Right */}
