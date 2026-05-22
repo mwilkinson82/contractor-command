@@ -56,6 +56,7 @@ import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/e
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api/public/stripe/webhook'
+import { Route as ApiPublicAosTierLookupRouteImport } from './routes/api/public/aos/tier-lookup'
 
 const WorkWithMarshallRoute = WorkWithMarshallRouteImport.update({
   id: '/work-with-marshall',
@@ -295,6 +296,11 @@ const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
   path: '/api/public/stripe/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicAosTierLookupRoute = ApiPublicAosTierLookupRouteImport.update({
+  id: '/api/public/aos/tier-lookup',
+  path: '/api/public/aos/tier-lookup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -338,6 +344,7 @@ export interface FileRoutesByFullPath {
   '/ask/': typeof AskIndexRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
+  '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -387,6 +394,7 @@ export interface FileRoutesByTo {
   '/ask': typeof AskIndexRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
+  '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -437,6 +445,7 @@ export interface FileRoutesById {
   '/ask/': typeof AskIndexRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
+  '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -488,6 +497,7 @@ export interface FileRouteTypes {
     | '/ask/'
     | '/api/public/aos-fp'
     | '/lovable/email/suppression'
+    | '/api/public/aos/tier-lookup'
     | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -537,6 +547,7 @@ export interface FileRouteTypes {
     | '/ask'
     | '/api/public/aos-fp'
     | '/lovable/email/suppression'
+    | '/api/public/aos/tier-lookup'
     | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -586,6 +597,7 @@ export interface FileRouteTypes {
     | '/ask/'
     | '/api/public/aos-fp'
     | '/lovable/email/suppression'
+    | '/api/public/aos/tier-lookup'
     | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -634,6 +646,7 @@ export interface RootRouteChildren {
   AskIndexRoute: typeof AskIndexRoute
   ApiPublicAosFpRoute: typeof ApiPublicAosFpRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
+  ApiPublicAosTierLookupRoute: typeof ApiPublicAosTierLookupRoute
   ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
@@ -973,6 +986,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/aos/tier-lookup': {
+      id: '/api/public/aos/tier-lookup'
+      path: '/api/public/aos/tier-lookup'
+      fullPath: '/api/public/aos/tier-lookup'
+      preLoaderRoute: typeof ApiPublicAosTierLookupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -1028,6 +1048,7 @@ const rootRouteChildren: RootRouteChildren = {
   AskIndexRoute: AskIndexRoute,
   ApiPublicAosFpRoute: ApiPublicAosFpRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
+  ApiPublicAosTierLookupRoute: ApiPublicAosTierLookupRoute,
   ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
