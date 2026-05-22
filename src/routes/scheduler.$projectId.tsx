@@ -117,6 +117,14 @@ function SchedulerPage() {
     enabled: !!selectedId,
   });
 
+  const listCalendarsFn = useServerFn(listCalendars);
+  const calendarsQuery = useQuery({
+    queryKey: ["calendars", selectedId],
+    queryFn: () => listCalendarsFn({ data: { scheduleId: selectedId } }),
+    enabled: !!selectedId,
+  });
+  const calendars = calendarsQuery.data?.calendars ?? [];
+
   // Hydrate draft when a schedule loads
   useEffect(() => {
     if (loadQuery.data) {
