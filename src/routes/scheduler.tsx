@@ -29,6 +29,7 @@ import { OpenEndsReport } from "@/components/scheduler/OpenEndsReport";
 import { Stat } from "@/components/scheduler/Stat";
 import { BaselinesPanel } from "@/components/scheduler/BaselinesPanel";
 import { CalendarPanel } from "@/components/scheduler/CalendarPanel";
+import { ReportsPanel } from "@/components/scheduler/ReportsPanel";
 import { Textarea } from "@/components/ui/textarea";
 
 const UNASSIGNED_WBS = "Unassigned";
