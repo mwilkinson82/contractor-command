@@ -32,7 +32,7 @@ import { BaselinesPanel } from "@/components/scheduler/BaselinesPanel";
 import { CalendarPanel } from "@/components/scheduler/CalendarPanel";
 import { ReportsPanel } from "@/components/scheduler/ReportsPanel";
 import { ResourcesPanel } from "@/components/scheduler/ResourcesPanel";
-import { XerImportButton } from "@/components/scheduler/XerImportButton";
+
 import { FragnetPanel } from "@/components/scheduler/FragnetPanel";
 import { AnnotationsPanel } from "@/components/scheduler/AnnotationsPanel";
 import { UpdateCyclePanel } from "@/components/scheduler/UpdateCyclePanel";
