@@ -9,6 +9,14 @@ export interface Task {
   description?: string;
   wbs?: string;
   percentComplete?: number;
+  /** Planned total cost for this activity (Budget at Completion contribution). */
+  budgetCost?: number;
+  /** Actual cost incurred to date (AC for EVM). */
+  actualCost?: number;
+  /** Optional resource / crew label (e.g. "Carpentry", "Crew A"). */
+  resourceName?: string;
+  /** Units of that resource consumed per working day across the activity duration. */
+  resourceUnitsPerDay?: number;
 }
 
 export interface Dependency {

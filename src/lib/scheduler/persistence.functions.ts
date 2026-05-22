@@ -12,6 +12,10 @@ const TaskInput = z.object({
   wbs: z.string().max(128).optional().nullable(),
   description: z.string().max(2000).optional().nullable(),
   percentComplete: z.number().min(0).max(100).optional().nullable(),
+  budgetCost: z.number().min(0).max(1e12).optional().nullable(),
+  actualCost: z.number().min(0).max(1e12).optional().nullable(),
+  resourceName: z.string().max(128).optional().nullable(),
+  resourceUnitsPerDay: z.number().min(0).max(10000).optional().nullable(),
 });
 
 const DependencyInput = z.object({
@@ -78,7 +82,9 @@ export const loadSchedule = createServerFn({ method: "GET" })
     const [{ data: tasks, error: tErr }, { data: deps, error: dErr }] = await Promise.all([
       supabase
         .from("schedule_tasks")
-        .select("task_id, name, duration, wbs, description, percent_complete, position")
+        .select(
+          "task_id, name, duration, wbs, description, percent_complete, position, budget_cost, actual_cost, resource_name, resource_units_per_day",
+        )
         .eq("schedule_id", data.id)
         .order("position", { ascending: true }),
       supabase
@@ -106,6 +112,10 @@ export const loadSchedule = createServerFn({ method: "GET" })
         wbs: (t.wbs as string | null) ?? undefined,
         description: (t.description as string | null) ?? undefined,
         percentComplete: (t.percent_complete as number | null) ?? undefined,
+        budgetCost: (t.budget_cost as number | null) ?? undefined,
+        actualCost: (t.actual_cost as number | null) ?? undefined,
+        resourceName: (t.resource_name as string | null) ?? undefined,
+        resourceUnitsPerDay: (t.resource_units_per_day as number | null) ?? undefined,
       })),
       dependencies: (deps ?? []).map((d) => ({
         from: d.from_task_id as string,
@@ -186,6 +196,10 @@ export const saveSchedule = createServerFn({ method: "POST" })
           wbs: t.wbs ?? null,
           description: t.description ?? null,
           percent_complete: t.percentComplete ?? null,
+          budget_cost: t.budgetCost ?? null,
+          actual_cost: t.actualCost ?? null,
+          resource_name: t.resourceName ?? null,
+          resource_units_per_day: t.resourceUnitsPerDay ?? null,
           position: i,
         })),
       );
@@ -266,7 +280,9 @@ export const captureBaseline = createServerFn({ method: "POST" })
     const [{ data: tasks, error: tErr }, { data: deps, error: dErr }] = await Promise.all([
       supabase
         .from("schedule_tasks")
-        .select("task_id, name, duration, wbs, description, percent_complete, position")
+        .select(
+          "task_id, name, duration, wbs, description, percent_complete, position, budget_cost, actual_cost, resource_name, resource_units_per_day",
+        )
         .eq("schedule_id", data.scheduleId)
         .order("position", { ascending: true }),
       supabase
@@ -284,6 +300,10 @@ export const captureBaseline = createServerFn({ method: "POST" })
       wbs: (t.wbs as string | null) ?? undefined,
       description: (t.description as string | null) ?? undefined,
       percentComplete: (t.percent_complete as number | null) ?? undefined,
+      budgetCost: (t.budget_cost as number | null) ?? undefined,
+      actualCost: (t.actual_cost as number | null) ?? undefined,
+      resourceName: (t.resource_name as string | null) ?? undefined,
+      resourceUnitsPerDay: (t.resource_units_per_day as number | null) ?? undefined,
     }));
     const depsJson = (deps ?? []).map((d) => ({
       from: d.from_task_id as string,

@@ -30,6 +30,7 @@ import { Stat } from "@/components/scheduler/Stat";
 import { BaselinesPanel } from "@/components/scheduler/BaselinesPanel";
 import { CalendarPanel } from "@/components/scheduler/CalendarPanel";
 import { ReportsPanel } from "@/components/scheduler/ReportsPanel";
+import { ResourcesPanel } from "@/components/scheduler/ResourcesPanel";
 import { Textarea } from "@/components/ui/textarea";
 
 const UNASSIGNED_WBS = "Unassigned";
@@ -970,6 +971,14 @@ function SchedulerPage() {
                       </div>
                     </div>
                   </section>
+                ) : null}
+
+                {computed ? (
+                  <ResourcesPanel
+                    result={computed}
+                    tasks={draft.tasks}
+                    onTaskChange={updateTask}
+                  />
                 ) : null}
               </>
             )}
