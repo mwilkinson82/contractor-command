@@ -91,6 +91,7 @@ function SchedulerPage() {
   const loadFn = useServerFn(loadSchedule);
   const saveFn = useServerFn(saveSchedule);
   const deleteFn = useServerFn(deleteSchedule);
+  const loadBaselineFn = useServerFn(loadBaseline);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
