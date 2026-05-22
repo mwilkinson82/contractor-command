@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -23,8 +24,17 @@ import {
 } from "@/components/ui/select";
 import { Trash2, Plus } from "lucide-react";
 import { GanttTimeline } from "@/components/scheduler/GanttTimeline";
+import { OpenEndsReport } from "@/components/scheduler/OpenEndsReport";
 import { Stat } from "@/components/scheduler/Stat";
 import { Textarea } from "@/components/ui/textarea";
+
+const UNASSIGNED_WBS = "Unassigned";
+const ZOOM_LEVELS: { label: string; dayPx: number }[] = [
+  { label: "Month", dayPx: 6 },
+  { label: "Week", dayPx: 12 },
+  { label: "Day", dayPx: 22 },
+  { label: "Wide", dayPx: 36 },
+];
 
 export const Route = createFileRoute("/scheduler")({
   head: () => ({ meta: [{ title: "Scheduler - AOS" }] }),
@@ -86,6 +96,17 @@ function SchedulerPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [dirty, setDirty] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [dayPx, setDayPx] = useState(22);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  const toggleGroup = (key: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const listQuery = useQuery({
     queryKey: ["schedules"],
@@ -483,87 +504,133 @@ function SchedulerPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {draft.tasks.map((t, idx) => {
-                          const calc = computed?.tasks.find((x) => x.id === t.id);
-                          const critical = calc?.isCritical;
-                          return (
-                            <tr key={idx} className="border-t border-[#eee7d8]">
-                              <td className="px-2 py-1">
-                                <Input
-                                  className={`h-8 w-20 ${critical ? "text-[#b42318] font-semibold" : ""}`}
-                                  value={t.id}
-                                  onChange={(e) => renameTaskId(idx, e.target.value.trim())}
-                                />
-                              </td>
-                              <td className="px-2 py-1">
-                                <Input
-                                  className="h-8"
-                                  value={t.name}
-                                  onChange={(e) => updateTask(idx, { name: e.target.value })}
-                                />
-                              </td>
-                              <td className="px-2 py-1">
-                                <Input
-                                  className="h-8 w-32"
-                                  value={t.wbs ?? ""}
-                                  onChange={(e) => updateTask(idx, { wbs: e.target.value })}
-                                />
-                              </td>
-                              <td className="px-2 py-1 text-right">
-                                <Input
-                                  className="h-8 w-16 text-right"
-                                  type="number"
-                                  min={0}
-                                  value={t.duration}
-                                  onChange={(e) =>
-                                    updateTask(idx, { duration: Number(e.target.value) || 0 })
-                                  }
-                                />
-                              </td>
-                              <td className="px-2 py-1 text-right">
-                                <Input
-                                  className="h-8 w-16 text-right"
-                                  type="number"
-                                  min={0}
-                                  max={100}
-                                  value={t.percentComplete ?? ""}
-                                  onChange={(e) =>
-                                    updateTask(idx, {
-                                      percentComplete:
-                                        e.target.value === "" ? undefined : Number(e.target.value),
-                                    })
-                                  }
-                                />
-                              </td>
-                              <td className={`px-2 py-1 text-right ${critical ? "text-[#b42318] font-semibold" : ""}`}>
-                                {calc?.earlyStart ?? "—"}
-                              </td>
-                              <td className={`px-2 py-1 text-right ${critical ? "text-[#b42318] font-semibold" : ""}`}>
-                                {calc?.earlyFinish ?? "—"}
-                              </td>
-                              <td className={`px-2 py-1 text-right ${critical ? "text-[#b42318] font-semibold" : ""}`}>
-                                {calc?.totalFloat ?? "—"}
-                              </td>
-                              <td className="px-2 py-1 text-right">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => removeTask(idx)}
-                                  aria-label="Remove task"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </td>
-                            </tr>
+                        {(() => {
+                          // Group draft.tasks by WBS, preserving original indices
+                          const groupMap = new Map<string, { idx: number; t: Task }[]>();
+                          draft.tasks.forEach((t, idx) => {
+                            const key = t.wbs?.trim() || UNASSIGNED_WBS;
+                            const arr = groupMap.get(key) ?? [];
+                            arr.push({ idx, t });
+                            groupMap.set(key, arr);
+                          });
+                          const groups = Array.from(groupMap.entries()).sort((a, b) =>
+                            a[0].localeCompare(b[0]),
                           );
-                        })}
-                        {draft.tasks.length === 0 ? (
-                          <tr>
-                            <td colSpan={9} className="px-3 py-6 text-center text-[#746b5c]">
-                              No tasks. Click “Add task”.
-                            </td>
-                          </tr>
-                        ) : null}
+                          const rows: React.ReactNode[] = [];
+                          for (const [key, items] of groups) {
+                            const collapsed = collapsedGroups.has(key);
+                            const groupTaskIds = new Set(items.map((i) => i.t.id));
+                            const groupCalcs = computed?.tasks.filter((c) => groupTaskIds.has(c.id)) ?? [];
+                            const groupDur = groupCalcs.length
+                              ? Math.max(...groupCalcs.map((c) => c.earlyFinish)) -
+                                Math.min(...groupCalcs.map((c) => c.earlyStart))
+                              : 0;
+                            const groupCritical = groupCalcs.some((c) => c.isCritical);
+                            rows.push(
+                              <tr key={`g-${key}`} className="border-t border-[#d8cdb8] bg-[#eee6d7]">
+                                <td colSpan={9} className="px-2 py-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleGroup(key)}
+                                    className="flex w-full items-center gap-2 text-left text-xs font-semibold uppercase tracking-wide text-[#1f241f]"
+                                  >
+                                    <span className="w-3">{collapsed ? "▸" : "▾"}</span>
+                                    <span>{key}</span>
+                                    <span className="text-[10px] font-normal text-[#7a6a4d]">
+                                      {items.length} act · span {groupDur}d
+                                      {groupCritical ? " · critical" : ""}
+                                    </span>
+                                  </button>
+                                </td>
+                              </tr>,
+                            );
+                            if (collapsed) continue;
+                            for (const { idx, t } of items) {
+                              const calc = computed?.tasks.find((x) => x.id === t.id);
+                              const critical = calc?.isCritical;
+                              rows.push(
+                                <tr key={idx} className="border-t border-[#eee7d8]">
+                                  <td className="px-2 py-1">
+                                    <Input
+                                      className={`h-8 w-20 ${critical ? "text-[#b42318] font-semibold" : ""}`}
+                                      value={t.id}
+                                      onChange={(e) => renameTaskId(idx, e.target.value.trim())}
+                                    />
+                                  </td>
+                                  <td className="px-2 py-1">
+                                    <Input
+                                      className="h-8"
+                                      value={t.name}
+                                      onChange={(e) => updateTask(idx, { name: e.target.value })}
+                                    />
+                                  </td>
+                                  <td className="px-2 py-1">
+                                    <Input
+                                      className="h-8 w-32"
+                                      value={t.wbs ?? ""}
+                                      onChange={(e) => updateTask(idx, { wbs: e.target.value })}
+                                    />
+                                  </td>
+                                  <td className="px-2 py-1 text-right">
+                                    <Input
+                                      className="h-8 w-16 text-right"
+                                      type="number"
+                                      min={0}
+                                      value={t.duration}
+                                      onChange={(e) =>
+                                        updateTask(idx, { duration: Number(e.target.value) || 0 })
+                                      }
+                                    />
+                                  </td>
+                                  <td className="px-2 py-1 text-right">
+                                    <Input
+                                      className="h-8 w-16 text-right"
+                                      type="number"
+                                      min={0}
+                                      max={100}
+                                      value={t.percentComplete ?? ""}
+                                      onChange={(e) =>
+                                        updateTask(idx, {
+                                          percentComplete:
+                                            e.target.value === "" ? undefined : Number(e.target.value),
+                                        })
+                                      }
+                                    />
+                                  </td>
+                                  <td className={`px-2 py-1 text-right ${critical ? "text-[#b42318] font-semibold" : ""}`}>
+                                    {calc?.earlyStart ?? "—"}
+                                  </td>
+                                  <td className={`px-2 py-1 text-right ${critical ? "text-[#b42318] font-semibold" : ""}`}>
+                                    {calc?.earlyFinish ?? "—"}
+                                  </td>
+                                  <td className={`px-2 py-1 text-right ${critical ? "text-[#b42318] font-semibold" : ""}`}>
+                                    {calc?.totalFloat ?? "—"}
+                                  </td>
+                                  <td className="px-2 py-1 text-right">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => removeTask(idx)}
+                                      aria-label="Remove task"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </td>
+                                </tr>,
+                              );
+                            }
+                          }
+                          if (rows.length === 0) {
+                            rows.push(
+                              <tr key="empty">
+                                <td colSpan={9} className="px-3 py-6 text-center text-[#746b5c]">
+                                  No tasks. Click “Add task”.
+                                </td>
+                              </tr>,
+                            );
+                          }
+                          return rows;
+                        })()}
                       </tbody>
                     </table>
                   </div>
@@ -573,11 +640,28 @@ function SchedulerPage() {
                 {computed ? (
                   <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
                     <section className="overflow-hidden rounded border border-[#d8cdb8] bg-white">
-                      <div className="flex items-center justify-between border-b border-[#eee7d8] px-3 py-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#eee7d8] px-3 py-2">
                         <h3 className="text-sm font-semibold uppercase tracking-wide text-[#675d4b]">
                           Gantt · Critical path
                         </h3>
                         <div className="flex items-center gap-3 text-xs text-[#776e5e]">
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] uppercase tracking-wide">Zoom</span>
+                            {ZOOM_LEVELS.map((z) => (
+                              <button
+                                key={z.label}
+                                type="button"
+                                onClick={() => setDayPx(z.dayPx)}
+                                className={`rounded px-1.5 py-0.5 text-[10px] ${
+                                  dayPx === z.dayPx
+                                    ? "bg-[#1f241f] text-white"
+                                    : "border border-[#d8cdb8] text-[#5c574e] hover:bg-[#eee6d7]"
+                                }`}
+                              >
+                                {z.label}
+                              </button>
+                            ))}
+                          </div>
                           <span className="inline-flex items-center gap-1">
                             <span className="inline-block h-2 w-3 rounded-sm bg-[#b42318]" /> Critical
                           </span>
@@ -594,6 +678,9 @@ function SchedulerPage() {
                           result={computed}
                           selectedId={selectedTaskId}
                           onSelect={setSelectedTaskId}
+                          dayPx={dayPx}
+                          collapsedGroups={collapsedGroups}
+                          onToggleGroup={toggleGroup}
                         />
                       </div>
                     </section>
@@ -630,6 +717,7 @@ function SchedulerPage() {
                             <div className="grid grid-cols-2 gap-2 text-xs">
                               <Stat label="Duration" value={`${t.duration}d`} />
                               <Stat label="Total float" value={`${t.totalFloat}d`} />
+                              <Stat label="Free float" value={`${t.freeFloat}d`} />
                               <Stat label="Early start" value={`d${t.earlyStart}`} />
                               <Stat label="Early finish" value={`d${t.earlyFinish}`} />
                               <Stat label="Late start" value={`d${t.lateStart}`} />
@@ -812,6 +900,14 @@ function SchedulerPage() {
                         {computed.diagnostics.join("; ")}
                       </div>
                     ) : null}
+                    <div className="mt-4 border-t border-[#eee7d8] pt-3">
+                      <div className="text-xs uppercase tracking-wide text-[#746b5c]">
+                        Open ends
+                      </div>
+                      <div className="mt-1">
+                        <OpenEndsReport result={computed} />
+                      </div>
+                    </div>
                   </section>
                 ) : null}
               </>
