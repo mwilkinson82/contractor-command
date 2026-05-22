@@ -22,7 +22,7 @@ import {
   type UpsellSku,
 } from "@/lib/upsell-catalog";
 import { isAllowedReturnTo, RETURN_TO_STORAGE_KEY } from "@/lib/return-to";
-import { AosAddonsPanel } from "@/components/portal/aos-addons-panel";
+import { AosAddonsModal, AosAddonsTriggerLink } from "@/components/portal/aos-addons-modal";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/upgrade")({
@@ -48,6 +48,7 @@ function UpgradePage() {
   const interest = useServerFn(requestUpsellInterest);
   const [busy, setBusy] = useState<string | null>(null);
   const [requested, setRequested] = useState<Set<UpsellSku>>(new Set());
+  const [addonsOpen, setAddonsOpen] = useState(false);
 
   // Read ?upsell=cancelled banner + persist ?return_to if AOS sent us here.
   const [cancelled, setCancelled] = useState(false);
@@ -125,6 +126,13 @@ function UpgradePage() {
             ? "Add the daily classes, or buy private time with Marshall."
             : "Pick the depth you need. Membership for the room, private calls for the hard inflection points."}
         </p>
+        {tier === "book_buyer" && (
+          <p className="mt-5 text-[13px] text-foreground/70">
+            Already in AOS?{" "}
+            <AosAddonsTriggerLink onClick={() => setAddonsOpen(true)} />{" "}
+            without changing your membership.
+          </p>
+        )}
       </div>
 
       {cancelled && (
@@ -156,10 +164,7 @@ function UpgradePage() {
       )}
 
       {tier === "book_buyer" && (
-        <div className="mt-12">
-          <p className="label-mono mb-3">AOS seats & workspaces</p>
-          <AosAddonsPanel />
-        </div>
+        <AosAddonsModal open={addonsOpen} onOpenChange={setAddonsOpen} />
       )}
 
       {tier === "circle" || tier === "hardcore" ? (
