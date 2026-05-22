@@ -21,53 +21,52 @@ export const Route = createFileRoute("/replays")({
 });
 
 type ShelfKey = ReplayCategory;
-const ALL_SHELVES: ShelfKey[] = ["circle_call", "power_hour", "sm_school", "contractor_school"];
+// Only Circle Calls live in the replay portal. Power Hour, S&M School, and
+// Contractor School recordings live inside the Google Meet calendar invite
+// itself — Meet records and attaches them to the event automatically.
+const ALL_SHELVES: ShelfKey[] = ["circle_call"];
 
 const SHELF_META: Record<ShelfKey, { label: string; eyebrow: string; lede: string; unlockCopy: string }> = {
   circle_call: {
     label: "Circle Calls",
     eyebrow: "Bi-weekly + bootcamp",
     lede: "Every past bi-weekly working session and monthly bootcamp.",
-    unlockCopy: "Unlock with the ALP Handbook or Contractor Circle.",
+    unlockCopy: "Unlock with Contractor Circle or higher.",
   },
   power_hour: {
     label: "Power Hour",
-    eyebrow: "Daily · Mon–Fri 8AM PT",
-    lede: "Daily Power Hour replays from the ALP Hardcore room.",
-    unlockCopy: "Add Power Hour to your plan to unlock daily replays.",
+    eyebrow: "",
+    lede: "",
+    unlockCopy: "",
   },
   sm_school: {
     label: "Sales & Marketing School",
-    eyebrow: "Wednesdays · 7PM PT",
-    lede: "Sales & Marketing School class replays.",
-    unlockCopy: "Add S&M School to your plan to unlock class replays.",
+    eyebrow: "",
+    lede: "",
+    unlockCopy: "",
   },
   contractor_school: {
     label: "Contractor School",
-    eyebrow: "Tuesdays · 7PM PT",
-    lede: "Contractor School class replays — Hardcore only.",
-    unlockCopy: "Upgrade to ALP Hardcore to unlock Contractor School.",
+    eyebrow: "",
+    lede: "",
+    unlockCopy: "",
   },
 };
 
-// What shelves does each tier see?
+// What shelves does each tier see? Book buyers and AOS-only are locked.
 function unlockedShelves(tier: ReturnType<typeof useTier>["tier"]): ShelfKey[] {
   if (!tier) return [];
   switch (tier) {
     case "aos_only":
-      return [];
     case "book_buyer":
-      return ["circle_call"];
-    case "power_hour":
-      return ["power_hour"];
-    case "sm_school":
-      return ["sm_school"];
+      return [];
     case "intensive":
-      return ["circle_call", "power_hour", "sm_school"];
+    case "power_hour":
+    case "sm_school":
+    case "contractor_school":
     case "circle":
-      return ["circle_call", "power_hour", "sm_school"];
     case "hardcore":
-      return ["circle_call", "power_hour", "sm_school", "contractor_school"];
+      return ["circle_call"];
     default:
       return [];
   }

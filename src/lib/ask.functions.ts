@@ -147,6 +147,7 @@ export const expressIntensiveInterest = createServerFn({ method: "POST" })
   });
 
 export const DAILY_ASK_LIMIT = 30;
+export const DAILY_ASK_LIMIT_BOOK_BUYER = 15;
 
 export const getDailyAskUsage = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -155,8 +156,18 @@ export const getDailyAskUsage = createServerFn({ method: "GET" })
       const { supabase, userId } = context;
       const startOfDay = new Date();
       startOfDay.setUTCHours(0, 0, 0, 0);
-      // Defense-in-depth: explicit user_id filter so we never depend solely on
-      // RLS for the per-user daily count. Mirrors src/routes/api/ask.ts.
+
+      // Tier-aware cap: book buyers (and aos_only) get 15/day; everyone
+      // else gets 30/day. Mirrors src/routes/api/ask.ts.
+      const { data: tierRow } = await supabase.rpc("get_user_tier", {
+        _user_id: userId,
+      });
+      const userTier = (tierRow as string | null) ?? null;
+      const limit =
+        userTier === "book_buyer" || userTier === "aos_only" || userTier === null
+          ? DAILY_ASK_LIMIT_BOOK_BUYER
+          : DAILY_ASK_LIMIT;
+
       const { count } = await supabase
         .from("ask_messages")
         .select("id", { count: "exact", head: true })
@@ -164,7 +175,6 @@ export const getDailyAskUsage = createServerFn({ method: "GET" })
         .eq("role", "user")
         .gte("created_at", startOfDay.toISOString());
       const used = count ?? 0;
-      const limit = DAILY_ASK_LIMIT;
       return { used, limit, remaining: Math.max(0, limit - used) };
     },
   );

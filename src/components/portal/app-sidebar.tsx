@@ -146,7 +146,8 @@ const HARDCORE_REAL: Group = {
   items: [{ to: "/hardcore", label: "Hardcore Room", icon: Flame }],
 };
 
-// Book Buyer: Handbook + AOS only, with Upgrade as the obvious next step.
+// Book Buyer: Handbook + AOS + Ask Marshall (15/day cap), with Upgrade as
+// the obvious next step. No replays, no templates, no calls.
 const BOOK_BUYER_GROUPS: Group[] = [
   {
     label: "Your tools",
@@ -154,6 +155,7 @@ const BOOK_BUYER_GROUPS: Group[] = [
       { to: "/", label: "Home", icon: Home },
       { to: "/handbook", label: "Handbook", icon: BookOpen },
       { to: "/aos", label: "AOS", icon: Compass },
+      { to: "/ask", label: "Ask Marshall", icon: Megaphone, match: "/ask" },
     ],
   },
   {
@@ -212,10 +214,13 @@ function groupsForTier(tier: Tier | null): Group[] {
       return BOOK_BUYER_GROUPS;
     case "intensive":
       return INTENSIVE_GROUPS;
+    case "power_hour":
+    case "sm_school":
+    case "contractor_school":
     case "hardcore":
     case "circle":
     default:
-      // Default to full nav while tier is loading or admin/legacy.
+      // Full nav — these all pay the same as Circle and get everything.
       return CIRCLE_GROUPS;
   }
 }

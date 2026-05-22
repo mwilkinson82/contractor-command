@@ -63,8 +63,17 @@ export const Route = createFileRoute("/api/ask")({
           return new Response("Forbidden", { status: 403 });
         }
 
-        // Daily message cap (per-user, UTC day). Keeps cost predictable.
-        const DAILY_USER_MESSAGE_CAP = 30;
+        // Daily message cap (per-user, UTC day). Book buyers get 15/day;
+        // all paying members (intensive and above) get 30/day. Keeps cost
+        // predictable while still giving the cheaper tier real value.
+        const { data: tierRow } = await supabaseAdmin.rpc("get_user_tier", {
+          _user_id: userId,
+        });
+        const userTier = (tierRow as string | null) ?? null;
+        const DAILY_USER_MESSAGE_CAP =
+          userTier === "book_buyer" || userTier === "aos_only" || userTier === null
+            ? 15
+            : 30;
         const startOfDay = new Date();
         startOfDay.setUTCHours(0, 0, 0, 0);
         const { count: todayCount } = await supabaseAdmin

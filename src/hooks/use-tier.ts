@@ -22,13 +22,15 @@ export type Tier =
 
 // Rank-based gates. power_hour, sm_school, contractor_school share rank 2 —
 // they unlock the same surfaces but different replay shelves.
+// power_hour, sm_school, contractor_school all pay the same as Circle and
+// unlock the same surfaces — they sit at rank 4. Hardcore stays highest.
 const RANK: Record<Tier, number> = {
   aos_only: 0,
   book_buyer: 1,
-  power_hour: 2,
-  sm_school: 2,
-  contractor_school: 2,
   intensive: 3,
+  power_hour: 4,
+  sm_school: 4,
+  contractor_school: 4,
   circle: 4,
   hardcore: 5,
 };
