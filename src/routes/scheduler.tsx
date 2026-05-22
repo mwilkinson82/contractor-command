@@ -277,9 +277,13 @@ function SchedulerPage() {
       <div className="mx-auto max-w-7xl">
         <header className="mb-6">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7a6a4d]">
-            CPM Scheduler
+            CPM Workbench · Primavera-style scheduling, AOS ease
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">Schedules</h1>
+          <p className="mt-1 max-w-2xl text-sm text-[#5c574e]">
+            Activities, WBS, FS/SS/FF/SF logic with lag, forward/backward pass, total float, and a
+            critical-path Gantt — built for contractors, not meeting calendars.
+          </p>
         </header>
 
         <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
