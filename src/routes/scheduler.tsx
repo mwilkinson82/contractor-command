@@ -503,87 +503,133 @@ function SchedulerPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {draft.tasks.map((t, idx) => {
-                          const calc = computed?.tasks.find((x) => x.id === t.id);
-                          const critical = calc?.isCritical;
-                          return (
-                            <tr key={idx} className="border-t border-[#eee7d8]">
-                              <td className="px-2 py-1">
-                                <Input
-                                  className={`h-8 w-20 ${critical ? "text-[#b42318] font-semibold" : ""}`}
-                                  value={t.id}
-                                  onChange={(e) => renameTaskId(idx, e.target.value.trim())}
-                                />
-                              </td>
-                              <td className="px-2 py-1">
-                                <Input
-                                  className="h-8"
-                                  value={t.name}
-                                  onChange={(e) => updateTask(idx, { name: e.target.value })}
-                                />
-                              </td>
-                              <td className="px-2 py-1">
-                                <Input
-                                  className="h-8 w-32"
-                                  value={t.wbs ?? ""}
-                                  onChange={(e) => updateTask(idx, { wbs: e.target.value })}
-                                />
-                              </td>
-                              <td className="px-2 py-1 text-right">
-                                <Input
-                                  className="h-8 w-16 text-right"
-                                  type="number"
-                                  min={0}
-                                  value={t.duration}
-                                  onChange={(e) =>
-                                    updateTask(idx, { duration: Number(e.target.value) || 0 })
-                                  }
-                                />
-                              </td>
-                              <td className="px-2 py-1 text-right">
-                                <Input
-                                  className="h-8 w-16 text-right"
-                                  type="number"
-                                  min={0}
-                                  max={100}
-                                  value={t.percentComplete ?? ""}
-                                  onChange={(e) =>
-                                    updateTask(idx, {
-                                      percentComplete:
-                                        e.target.value === "" ? undefined : Number(e.target.value),
-                                    })
-                                  }
-                                />
-                              </td>
-                              <td className={`px-2 py-1 text-right ${critical ? "text-[#b42318] font-semibold" : ""}`}>
-                                {calc?.earlyStart ?? "—"}
-                              </td>
-                              <td className={`px-2 py-1 text-right ${critical ? "text-[#b42318] font-semibold" : ""}`}>
-                                {calc?.earlyFinish ?? "—"}
-                              </td>
-                              <td className={`px-2 py-1 text-right ${critical ? "text-[#b42318] font-semibold" : ""}`}>
-                                {calc?.totalFloat ?? "—"}
-                              </td>
-                              <td className="px-2 py-1 text-right">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => removeTask(idx)}
-                                  aria-label="Remove task"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </td>
-                            </tr>
+                        {(() => {
+                          // Group draft.tasks by WBS, preserving original indices
+                          const groupMap = new Map<string, { idx: number; t: Task }[]>();
+                          draft.tasks.forEach((t, idx) => {
+                            const key = t.wbs?.trim() || UNASSIGNED_WBS;
+                            const arr = groupMap.get(key) ?? [];
+                            arr.push({ idx, t });
+                            groupMap.set(key, arr);
+                          });
+                          const groups = Array.from(groupMap.entries()).sort((a, b) =>
+                            a[0].localeCompare(b[0]),
                           );
-                        })}
-                        {draft.tasks.length === 0 ? (
-                          <tr>
-                            <td colSpan={9} className="px-3 py-6 text-center text-[#746b5c]">
-                              No tasks. Click “Add task”.
-                            </td>
-                          </tr>
-                        ) : null}
+                          const rows: JSX.Element[] = [];
+                          for (const [key, items] of groups) {
+                            const collapsed = collapsedGroups.has(key);
+                            const groupTaskIds = new Set(items.map((i) => i.t.id));
+                            const groupCalcs = computed?.tasks.filter((c) => groupTaskIds.has(c.id)) ?? [];
+                            const groupDur = groupCalcs.length
+                              ? Math.max(...groupCalcs.map((c) => c.earlyFinish)) -
+                                Math.min(...groupCalcs.map((c) => c.earlyStart))
+                              : 0;
+                            const groupCritical = groupCalcs.some((c) => c.isCritical);
+                            rows.push(
+                              <tr key={`g-${key}`} className="border-t border-[#d8cdb8] bg-[#eee6d7]">
+                                <td colSpan={9} className="px-2 py-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleGroup(key)}
+                                    className="flex w-full items-center gap-2 text-left text-xs font-semibold uppercase tracking-wide text-[#1f241f]"
+                                  >
+                                    <span className="w-3">{collapsed ? "▸" : "▾"}</span>
+                                    <span>{key}</span>
+                                    <span className="text-[10px] font-normal text-[#7a6a4d]">
+                                      {items.length} act · span {groupDur}d
+                                      {groupCritical ? " · critical" : ""}
+                                    </span>
+                                  </button>
+                                </td>
+                              </tr>,
+                            );
+                            if (collapsed) continue;
+                            for (const { idx, t } of items) {
+                              const calc = computed?.tasks.find((x) => x.id === t.id);
+                              const critical = calc?.isCritical;
+                              rows.push(
+                                <tr key={idx} className="border-t border-[#eee7d8]">
+                                  <td className="px-2 py-1">
+                                    <Input
+                                      className={`h-8 w-20 ${critical ? "text-[#b42318] font-semibold" : ""}`}
+                                      value={t.id}
+                                      onChange={(e) => renameTaskId(idx, e.target.value.trim())}
+                                    />
+                                  </td>
+                                  <td className="px-2 py-1">
+                                    <Input
+                                      className="h-8"
+                                      value={t.name}
+                                      onChange={(e) => updateTask(idx, { name: e.target.value })}
+                                    />
+                                  </td>
+                                  <td className="px-2 py-1">
+                                    <Input
+                                      className="h-8 w-32"
+                                      value={t.wbs ?? ""}
+                                      onChange={(e) => updateTask(idx, { wbs: e.target.value })}
+                                    />
+                                  </td>
+                                  <td className="px-2 py-1 text-right">
+                                    <Input
+                                      className="h-8 w-16 text-right"
+                                      type="number"
+                                      min={0}
+                                      value={t.duration}
+                                      onChange={(e) =>
+                                        updateTask(idx, { duration: Number(e.target.value) || 0 })
+                                      }
+                                    />
+                                  </td>
+                                  <td className="px-2 py-1 text-right">
+                                    <Input
+                                      className="h-8 w-16 text-right"
+                                      type="number"
+                                      min={0}
+                                      max={100}
+                                      value={t.percentComplete ?? ""}
+                                      onChange={(e) =>
+                                        updateTask(idx, {
+                                          percentComplete:
+                                            e.target.value === "" ? undefined : Number(e.target.value),
+                                        })
+                                      }
+                                    />
+                                  </td>
+                                  <td className={`px-2 py-1 text-right ${critical ? "text-[#b42318] font-semibold" : ""}`}>
+                                    {calc?.earlyStart ?? "—"}
+                                  </td>
+                                  <td className={`px-2 py-1 text-right ${critical ? "text-[#b42318] font-semibold" : ""}`}>
+                                    {calc?.earlyFinish ?? "—"}
+                                  </td>
+                                  <td className={`px-2 py-1 text-right ${critical ? "text-[#b42318] font-semibold" : ""}`}>
+                                    {calc?.totalFloat ?? "—"}
+                                  </td>
+                                  <td className="px-2 py-1 text-right">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => removeTask(idx)}
+                                      aria-label="Remove task"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </td>
+                                </tr>,
+                              );
+                            }
+                          }
+                          if (rows.length === 0) {
+                            rows.push(
+                              <tr key="empty">
+                                <td colSpan={9} className="px-3 py-6 text-center text-[#746b5c]">
+                                  No tasks. Click “Add task”.
+                                </td>
+                              </tr>,
+                            );
+                          }
+                          return rows;
+                        })()}
                       </tbody>
                     </table>
                   </div>
