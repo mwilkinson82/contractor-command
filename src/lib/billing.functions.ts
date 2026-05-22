@@ -3,6 +3,13 @@ import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import Stripe from "stripe";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { isAllowedReturnTo } from "@/lib/return-to";
+
+function appendReturnTo(url: string, returnTo?: string): string {
+  const ok = isAllowedReturnTo(returnTo ?? null);
+  if (!ok) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}return_to=${encodeURIComponent(ok)}`;
+}
 
 const INTENSIVE_AMOUNT_CENTS = 500_000; // $5,000 USD
 const INTENSIVE_NAME = "Six-Week Contractor Intensive";
