@@ -972,6 +972,14 @@ function SchedulerPage() {
                     </div>
                   </section>
                 ) : null}
+
+                {computed ? (
+                  <ResourcesPanel
+                    result={computed}
+                    tasks={draft.tasks}
+                    onTaskChange={updateTask}
+                  />
+                ) : null}
               </>
             )}
           </main>
