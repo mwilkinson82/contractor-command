@@ -1024,24 +1024,28 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
 
   // ============================ FOOTER (every page) ============================
   const pageCount = pdf.getNumberOfPages();
+  // Right side is always full text — clip title to fit remaining width.
+  const titleSrc = `AOS  ·  ${d.title}`;
   const titleClipped =
-    d.title.length > 60 ? d.title.slice(0, 57) + "…" : d.title;
+    titleSrc.length > 38 ? titleSrc.slice(0, 36) + "…" : titleSrc;
   for (let i = 1; i <= pageCount; i++) {
     pdf.setPage(i);
+    pdf.setCharSpace(0);
     // hairline rule
     pdf.setDrawColor(...DIVIDER);
     pdf.setLineWidth(0.4);
     pdf.line(margin, pageH - 26, pageW - margin, pageH - 26);
-    pdf.setFont("courier", "normal");
+    pdf.setFont("helvetica", "normal");
     pdf.setFontSize(7.5);
     pdf.setTextColor(...INK_FAINT);
-    pdf.text(safe(`AOS  ·  ${titleClipped}`), margin, pageH - 14);
+    pdf.text(safe(titleClipped), margin, pageH - 14);
     pdf.text(
-      safe(`v1  ·  Page ${i} of ${pageCount}  ·  Review ${d.revisionCadence}`),
+      safe(`Page ${i} of ${pageCount}  ·  v1  ·  Review ${d.revisionCadence}`),
       pageW - margin,
       pageH - 14,
       { align: "right" },
     );
   }
+}
 }
 
