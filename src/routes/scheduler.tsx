@@ -208,6 +208,7 @@ function SchedulerPage() {
         id: selectedId ?? undefined,
         name: draft.name,
         projectStartDate: draft.projectStartDate,
+        calendar: { workDays: draft.workDays, holidays: draft.holidays },
         tasks: draft.tasks,
         dependencies: draft.dependencies,
       });
