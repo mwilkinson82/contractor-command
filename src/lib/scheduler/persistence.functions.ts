@@ -140,14 +140,14 @@ export const saveSchedule = createServerFn({ method: "POST" })
     let scheduleId = data.id;
 
     if (scheduleId) {
-      const { error } = await supabase
-        .from("schedules")
-        .update({
-          name: data.name,
-          project_start_date: data.projectStartDate ?? null,
-          notes: data.notes ?? null,
-        })
-        .eq("id", scheduleId);
+      const update: Record<string, unknown> = {
+        name: data.name,
+        project_start_date: data.projectStartDate ?? null,
+        notes: data.notes ?? null,
+      };
+      if (data.workDays !== undefined) update.work_days = data.workDays;
+      if (data.holidays !== undefined) update.holidays = data.holidays;
+      const { error } = await supabase.from("schedules").update(update).eq("id", scheduleId);
       if (error) throw new Error(error.message);
     } else {
       const { data: inserted, error } = await supabase
@@ -157,6 +157,8 @@ export const saveSchedule = createServerFn({ method: "POST" })
           name: data.name,
           project_start_date: data.projectStartDate ?? null,
           notes: data.notes ?? null,
+          work_days: data.workDays ?? 31,
+          holidays: data.holidays ?? [],
         })
         .select("id")
         .single();
