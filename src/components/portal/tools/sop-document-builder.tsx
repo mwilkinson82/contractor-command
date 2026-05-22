@@ -842,14 +842,14 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
       pdf.setFont("helvetica", "normal");
       pdf.setTextColor(30, 30, 30);
       for (let i = 0; i < metricLines.length; i++) {
-        pdf.text(metricLines[i], margin + 10, rowStartY + i * lineH, { charSpace: 0 });
+        pdf.text(metricLines[i], margin + 10, rowStartY + i * lineH);
       }
       // target column (right-aligned, bold)
       pdf.setFont("helvetica", "bold");
       pdf.setTextColor(20, 20, 20);
       const targetX = margin + contentW;
       for (let i = 0; i < targetLines.length; i++) {
-        pdf.text(targetLines[i], targetX, rowStartY + i * lineH, { align: "right", charSpace: 0 });
+        pdf.text(targetLines[i], targetX, rowStartY + i * lineH, { align: "right" });
       }
       resetTextTracking();
       y = rowStartY + rows * lineH + 3;
@@ -882,10 +882,9 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
     const footerY = pageH - margin / 2;
     const titleClipped =
       d.title.length > 70 ? d.title.slice(0, 67) + "…" : d.title;
-    pdf.text(titleClipped, margin, footerY, { charSpace: 0 });
+    pdf.text(safePdfText(titleClipped), margin, footerY);
     pdf.text(`Page ${i} of ${pageCount}`, margin + contentW, footerY, {
       align: "right",
-      charSpace: 0,
     });
   }
 }
