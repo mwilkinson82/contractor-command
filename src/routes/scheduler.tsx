@@ -511,7 +511,7 @@ function SchedulerPage() {
                         }}
                       />
                     </div>
-                    <div className="flex gap-3">
+                    <div className="flex flex-wrap gap-3">
                       <div>
                         <Label htmlFor="sched-start" className="text-xs">Project start</Label>
                         <Input
@@ -523,6 +523,49 @@ function SchedulerPage() {
                             setDirty(true);
                           }}
                         />
+                      </div>
+                      <div>
+                        <Label htmlFor="sched-dd" className="text-xs">
+                          Data date (as-of)
+                        </Label>
+                        <Input
+                          id="sched-dd"
+                          type="date"
+                          value={draft.dataDate ?? ""}
+                          onChange={(e) => {
+                            setDraft({ ...draft, dataDate: e.target.value || undefined });
+                            setDirty(true);
+                          }}
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={!draft.dataDate}
+                          onClick={() => {
+                            if (!draft.dataDate) return;
+                            if (
+                              !confirm(
+                                "Reschedule from data date?\n\n• Completed activities → 0d milestones\n• In-progress → remaining duration, %comp reset\n• Project start moves to the data date\n\nCapture a baseline first if you want to compare.",
+                              )
+                            )
+                              return;
+                            const r = rescheduleFromDataDate(draft.tasks, draft.dataDate);
+                            setDraft({
+                              ...draft,
+                              tasks: r.tasks,
+                              projectStartDate: r.projectStartDate,
+                            });
+                            setDirty(true);
+                            toast.success(
+                              `Reset ${r.summary.inProgress} in-progress · ${r.summary.completed} done · ${r.summary.notStarted} not started`,
+                            );
+                          }}
+                        >
+                          Reschedule from data date
+                        </Button>
                       </div>
                     </div>
                   </div>
