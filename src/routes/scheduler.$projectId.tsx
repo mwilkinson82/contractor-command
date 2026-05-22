@@ -36,7 +36,7 @@ import { ResourcesPanel } from "@/components/scheduler/ResourcesPanel";
 import { StructurePanel } from "@/components/scheduler/StructurePanel";
 import { WbsSelect } from "@/components/scheduler/WbsSelect";
 import { ActivityCodeChips } from "@/components/scheduler/ActivityCodeChips";
-import { listCalendars, assignTaskCalendar } from "@/lib/scheduler/calendars.functions";
+import { listCalendars } from "@/lib/scheduler/calendars.functions";
 
 import { FragnetPanel } from "@/components/scheduler/FragnetPanel";
 import { AnnotationsPanel } from "@/components/scheduler/AnnotationsPanel";
@@ -116,6 +116,14 @@ function SchedulerPage() {
     queryFn: () => loadFn({ data: { id: selectedId } }),
     enabled: !!selectedId,
   });
+
+  const listCalendarsFn = useServerFn(listCalendars);
+  const calendarsQuery = useQuery({
+    queryKey: ["calendars", selectedId],
+    queryFn: () => listCalendarsFn({ data: { scheduleId: selectedId } }),
+    enabled: !!selectedId,
+  });
+  const calendars = calendarsQuery.data?.calendars ?? [];
 
   // Hydrate draft when a schedule loads
   useEffect(() => {
@@ -889,6 +897,40 @@ function SchedulerPage() {
                                 value={draft.tasks[idx]?.description ?? ""}
                                 onChange={(e) => updateTask(idx, { description: e.target.value })}
                               />
+                            </div>
+                            <div>
+                              <Label className="text-xs">Calendar</Label>
+                              <Select
+                                value={draft.tasks[idx]?.calendarId ?? "__default"}
+                                onValueChange={(v) =>
+                                  updateTask(idx, {
+                                    calendarId: v === "__default" ? undefined : v,
+                                  })
+                                }
+                              >
+                                <SelectTrigger className="h-8 text-xs">
+                                  <SelectValue placeholder="Project default" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__default">
+                                    Project default
+                                    {calendars.find((c) => c.isDefault)
+                                      ? ` (${calendars.find((c) => c.isDefault)!.name})`
+                                      : ""}
+                                  </SelectItem>
+                                  {calendars
+                                    .filter((c) => !c.isDefault)
+                                    .map((c) => (
+                                      <SelectItem key={c.id} value={c.id}>
+                                        {c.name}
+                                      </SelectItem>
+                                    ))}
+                                </SelectContent>
+                              </Select>
+                              <p className="mt-1 text-[10px] text-[#776e5e]">
+                                Per-activity calendar is captured for reporting today; full
+                                per-activity math is on the roadmap.
+                              </p>
                             </div>
                             <div>
                               <div className="mb-1 text-xs uppercase tracking-wide text-[#7a6a4d]">
