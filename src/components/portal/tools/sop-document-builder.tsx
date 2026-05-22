@@ -640,13 +640,43 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
   const pageH = pdf.internal.pageSize.getHeight();
   const margin = 64; // ~0.9in for breathing room
   const contentW = pageW - margin * 2;
+  const contentBottom = pageH - margin - 28; // reserve a hard footer safety zone
   let y = margin;
 
   const ensure = (need: number) => {
-    if (y + need > pageH - margin) {
+    if (y + need > contentBottom) {
       pdf.addPage();
       y = margin;
     }
+  };
+
+  const resetTextTracking = () => pdf.setCharSpace(0);
+  const safePdfText = (text: string) =>
+    text
+      .replace(/[→⟶➜]/g, "->")
+      .replace(/[“”]/g, '"')
+      .replace(/[‘’]/g, "'")
+      .replace(/[–—]/g, "-")
+      .replace(/\u00a0/g, " ");
+  const trackedLabel = (text: string) => safePdfText(text.toUpperCase()).split("").join(" ");
+
+  const measureWrappedHeight = (
+    text: string,
+    opts: {
+      size: number;
+      family?: "times" | "helvetica";
+      style?: "normal" | "bold" | "italic";
+      indent?: number;
+      lineGap?: number;
+      lineHeight?: number;
+    },
+  ) => {
+    resetTextTracking();
+    pdf.setFont(opts.family ?? "times", opts.style ?? "normal");
+    pdf.setFontSize(opts.size);
+    const indent = opts.indent ?? 0;
+    const lines = pdf.splitTextToSize(safePdfText(text), contentW - indent) as string[];
+    return lines.length * opts.size * (opts.lineHeight ?? 1.35) + (opts.lineGap ?? 0);
   };
 
   const writeWrapped = (
@@ -661,42 +691,51 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
       lineHeight?: number;
     },
   ) => {
+    resetTextTracking();
     pdf.setFont(opts.family ?? "times", opts.style ?? "normal");
     pdf.setFontSize(opts.size);
     pdf.setTextColor(...(opts.color ?? [30, 30, 30]));
     const indent = opts.indent ?? 0;
-    const lines = pdf.splitTextToSize(text, contentW - indent) as string[];
+    const lines = pdf.splitTextToSize(safePdfText(text), contentW - indent) as string[];
     const lineH = opts.size * (opts.lineHeight ?? 1.35);
     for (const line of lines) {
       ensure(lineH);
-      // Reset char tracking — section labels above use charSpace and jsPDF
-      // keeps it as global state, which mangles body words ("D ocum ent").
-      pdf.text(line, margin + indent, y, { charSpace: 0 });
+      resetTextTracking();
+      pdf.text(line, margin + indent, y);
       y += lineH;
     }
 
     if (opts.lineGap) y += opts.lineGap;
   };
 
-  const h2 = (label: string) => {
+  const h2 = (label: string, keepWith = 0) => {
     y += 16;
-    ensure(30);
+    ensure(Math.min(30 + keepWith, contentBottom - margin));
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(8.5);
     pdf.setTextColor(110, 110, 110);
-    pdf.text(label.toUpperCase(), margin, y, { charSpace: 1.6 });
+    pdf.text(trackedLabel(label), margin, y);
+    resetTextTracking();
     y += 7;
     pdf.setDrawColor(220, 217, 210);
     pdf.line(margin, y, margin + contentW, y);
     y += 14;
   };
 
+  const bulletListHeight = (items: string[]) =>
+    items.reduce(
+      (sum, it) =>
+        sum + measureWrappedHeight(`•   ${it}`, { size: 11, family: "helvetica", indent: 10, lineGap: 3, lineHeight: 1.45 }),
+      0,
+    );
+
   // Eyebrow
   y += 4;
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(8);
   pdf.setTextColor(140, 140, 140);
-  pdf.text("STANDARD OPERATING PROCEDURE", margin, y, { charSpace: 1.8 });
+  pdf.text(trackedLabel("STANDARD OPERATING PROCEDURE"), margin, y);
+  resetTextTracking();
   y += 34;
 
   // Title — Instrument Serif feel via Times
@@ -741,21 +780,23 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
   const stepGutter = 22;
   for (const s of d.steps) {
     const numLabel = `${s.number}.`;
-    pdf.setFont("times", "bold");
+    resetTextTracking();
+    pdf.setFont("helvetica", "bold");
     pdf.setFontSize(12);
     pdf.setTextColor(20, 20, 20);
     const lineH = 12 * 1.35;
     ensure(lineH);
     // Action body wrapped at content width minus gutter
-    const actionLines = pdf.splitTextToSize(s.action, contentW - stepGutter) as string[];
+    const actionLines = pdf.splitTextToSize(safePdfText(s.action), contentW - stepGutter) as string[];
     // Draw number aligned with first action line
-    pdf.text(numLabel, margin, y, { charSpace: 0 });
+    pdf.text(numLabel, margin, y);
     for (const line of actionLines) {
       ensure(lineH);
-      pdf.setFont("times", "bold");
+      resetTextTracking();
+      pdf.setFont("helvetica", "bold");
       pdf.setFontSize(12);
       pdf.setTextColor(20, 20, 20);
-      pdf.text(line, margin + stepGutter, y, { charSpace: 0 });
+      pdf.text(line, margin + stepGutter, y);
       y += lineH;
     }
     if (s.detail?.trim()) {
@@ -777,15 +818,16 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
   h2("KPIs");
   // Metric → Target table-ish rendering. Split on → or : ; right-align target.
   for (const it of d.kpis) {
-    const splitMatch = it.match(/^(.*?)(?:\s*(?:→|->|:)\s*)(.+)$/);
+    const cleaned = safePdfText(it);
+    const splitMatch = cleaned.match(/^(.*?)(?:\s*(?:->|:)\s*)(.+)$/);
     const lineH = 11 * 1.45;
-    ensure(lineH);
     if (splitMatch) {
       const metric = splitMatch[1].trim();
       const target = splitMatch[2].trim();
       // Reserve ~35% of width for target column on the right
       const targetColW = contentW * 0.32;
       const metricColW = contentW - targetColW - 10;
+      resetTextTracking();
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(11);
       pdf.setTextColor(30, 30, 30);
@@ -793,39 +835,42 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
       pdf.setFont("helvetica", "bold");
       const targetLines = pdf.splitTextToSize(target, targetColW) as string[];
       const rows = Math.max(metricLines.length, targetLines.length);
+      ensure(rows * lineH + 3);
       const rowStartY = y;
       // metric column
+      resetTextTracking();
       pdf.setFont("helvetica", "normal");
       pdf.setTextColor(30, 30, 30);
       for (let i = 0; i < metricLines.length; i++) {
-        pdf.text(metricLines[i], margin + 10, rowStartY + i * lineH, { charSpace: 0 });
+        pdf.text(metricLines[i], margin + 10, rowStartY + i * lineH);
       }
       // target column (right-aligned, bold)
       pdf.setFont("helvetica", "bold");
       pdf.setTextColor(20, 20, 20);
       const targetX = margin + contentW;
       for (let i = 0; i < targetLines.length; i++) {
-        pdf.text(targetLines[i], targetX, rowStartY + i * lineH, { align: "right", charSpace: 0 });
+        pdf.text(targetLines[i], targetX, rowStartY + i * lineH, { align: "right" });
       }
+      resetTextTracking();
       y = rowStartY + rows * lineH + 3;
     } else {
       writeWrapped(`•   ${it}`, { size: 11, family: "helvetica", indent: 10, lineGap: 3, lineHeight: 1.45 });
     }
   }
 
-  h2("Exceptions / escalation");
+  h2("Exceptions / escalation", bulletListHeight(d.exceptions));
   for (const it of d.exceptions) {
     writeWrapped(`•   ${it}`, { size: 11, family: "helvetica", indent: 10, lineGap: 3, lineHeight: 1.45 });
   }
 
   y += 22;
-  ensure(20);
+  ensure(46 + measureWrappedHeight(`Revision cadence: ${d.revisionCadence}`, { size: 9, family: "helvetica", lineHeight: 1.4 }));
   pdf.setDrawColor(220, 217, 210);
   pdf.line(margin, y, margin + contentW, y);
   y += 14;
   writeWrapped(`Revision cadence: ${d.revisionCadence}`, { size: 9, family: "helvetica", color: [130, 130, 130], lineHeight: 1.4 });
   y += 4;
-  writeWrapped(`Generated by AOS — the Altitude Operating System.`, { size: 8.5, family: "helvetica", style: "italic", color: [150, 150, 150], lineHeight: 1.4 });
+  writeWrapped(`Generated by AOS — the Altitude Operating System.`, { size: 8.5, family: "helvetica", color: [150, 150, 150], lineHeight: 1.4 });
 
   // Footer: SOP title left, "Page N of M" right, on every page
   const pageCount = pdf.getNumberOfPages();
@@ -837,10 +882,9 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
     const footerY = pageH - margin / 2;
     const titleClipped =
       d.title.length > 70 ? d.title.slice(0, 67) + "…" : d.title;
-    pdf.text(titleClipped, margin, footerY, { charSpace: 0 });
+    pdf.text(safePdfText(titleClipped), margin, footerY);
     pdf.text(`Page ${i} of ${pageCount}`, margin + contentW, footerY, {
       align: "right",
-      charSpace: 0,
     });
   }
 }
