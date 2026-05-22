@@ -781,17 +781,19 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
   const stepGutter = 22;
   for (const s of d.steps) {
     const numLabel = `${s.number}.`;
+    resetTextTracking();
     pdf.setFont("times", "bold");
     pdf.setFontSize(12);
     pdf.setTextColor(20, 20, 20);
     const lineH = 12 * 1.35;
     ensure(lineH);
     // Action body wrapped at content width minus gutter
-    const actionLines = pdf.splitTextToSize(s.action, contentW - stepGutter) as string[];
+    const actionLines = pdf.splitTextToSize(safePdfText(s.action), contentW - stepGutter) as string[];
     // Draw number aligned with first action line
     pdf.text(numLabel, margin, y, { charSpace: 0 });
     for (const line of actionLines) {
       ensure(lineH);
+      resetTextTracking();
       pdf.setFont("times", "bold");
       pdf.setFontSize(12);
       pdf.setTextColor(20, 20, 20);
@@ -850,6 +852,7 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
       for (let i = 0; i < targetLines.length; i++) {
         pdf.text(targetLines[i], targetX, rowStartY + i * lineH, { align: "right", charSpace: 0 });
       }
+      resetTextTracking();
       y = rowStartY + rows * lineH + 3;
     } else {
       writeWrapped(`•   ${it}`, { size: 11, family: "helvetica", indent: 10, lineGap: 3, lineHeight: 1.45 });
