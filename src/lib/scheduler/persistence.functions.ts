@@ -196,6 +196,10 @@ export const saveSchedule = createServerFn({ method: "POST" })
           wbs: t.wbs ?? null,
           description: t.description ?? null,
           percent_complete: t.percentComplete ?? null,
+          budget_cost: t.budgetCost ?? null,
+          actual_cost: t.actualCost ?? null,
+          resource_name: t.resourceName ?? null,
+          resource_units_per_day: t.resourceUnitsPerDay ?? null,
           position: i,
         })),
       );
