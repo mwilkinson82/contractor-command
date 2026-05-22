@@ -157,7 +157,7 @@ function WbsTree({
       return n;
     });
 
-  const render = (parent: string | null, depth: number): React.ReactNode => {
+  const render = (parent: string | null, depth: number): ReactNode => {
     const list = byParent.get(parent) ?? [];
     return list.map((n) => {
       const kids = byParent.get(n.id) ?? [];
