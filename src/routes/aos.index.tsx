@@ -256,6 +256,13 @@ function AosGateway() {
                   </Link>
                 </p>
               </div>
+
+              {/* Book buyers only: stack extra seats/workspaces. */}
+              {isBookBuyer && hasAccess && (
+                <div className="mt-6">
+                  <AosAddonsPanel />
+                </div>
+              )}
             </div>
 
             {/* Right column — scorecard paper */}
