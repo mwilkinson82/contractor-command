@@ -17,6 +17,7 @@ import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SchedulerPreviewRouteImport } from './routes/scheduler-preview'
+import { Route as SchedulerRouteImport } from './routes/scheduler'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ReplaysRouteImport } from './routes/replays'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
@@ -97,6 +98,11 @@ const SignupRoute = SignupRouteImport.update({
 const SchedulerPreviewRoute = SchedulerPreviewRouteImport.update({
   id: '/scheduler-preview',
   path: '/scheduler-preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SchedulerRoute = SchedulerRouteImport.update({
+  id: '/scheduler',
+  path: '/scheduler',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -321,6 +327,7 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof OnboardingRoute
   '/replays': typeof ReplaysRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/scheduler': typeof SchedulerRoute
   '/scheduler-preview': typeof SchedulerPreviewRoute
   '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
@@ -372,6 +379,7 @@ export interface FileRoutesByTo {
   '/onboarding': typeof OnboardingRoute
   '/replays': typeof ReplaysRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/scheduler': typeof SchedulerRoute
   '/scheduler-preview': typeof SchedulerPreviewRoute
   '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
@@ -424,6 +432,7 @@ export interface FileRoutesById {
   '/onboarding': typeof OnboardingRoute
   '/replays': typeof ReplaysRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/scheduler': typeof SchedulerRoute
   '/scheduler-preview': typeof SchedulerPreviewRoute
   '/signup': typeof SignupRoute
   '/templates': typeof TemplatesRoute
@@ -477,6 +486,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/replays'
     | '/reset-password'
+    | '/scheduler'
     | '/scheduler-preview'
     | '/signup'
     | '/templates'
@@ -528,6 +538,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/replays'
     | '/reset-password'
+    | '/scheduler'
     | '/scheduler-preview'
     | '/signup'
     | '/templates'
@@ -579,6 +590,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/replays'
     | '/reset-password'
+    | '/scheduler'
     | '/scheduler-preview'
     | '/signup'
     | '/templates'
@@ -631,6 +643,7 @@ export interface RootRouteChildren {
   OnboardingRoute: typeof OnboardingRoute
   ReplaysRoute: typeof ReplaysRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  SchedulerRoute: typeof SchedulerRoute
   SchedulerPreviewRoute: typeof SchedulerPreviewRoute
   SignupRoute: typeof SignupRoute
   TemplatesRoute: typeof TemplatesRoute
@@ -724,6 +737,13 @@ declare module '@tanstack/react-router' {
       path: '/scheduler-preview'
       fullPath: '/scheduler-preview'
       preLoaderRoute: typeof SchedulerPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/scheduler': {
+      id: '/scheduler'
+      path: '/scheduler'
+      fullPath: '/scheduler'
+      preLoaderRoute: typeof SchedulerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reset-password': {
@@ -1041,6 +1061,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRoute: OnboardingRoute,
   ReplaysRoute: ReplaysRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  SchedulerRoute: SchedulerRoute,
   SchedulerPreviewRoute: SchedulerPreviewRoute,
   SignupRoute: SignupRoute,
   TemplatesRoute: TemplatesRoute,
@@ -1080,13 +1101,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
