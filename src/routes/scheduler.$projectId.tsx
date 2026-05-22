@@ -899,6 +899,40 @@ function SchedulerPage() {
                               />
                             </div>
                             <div>
+                              <Label className="text-xs">Calendar</Label>
+                              <Select
+                                value={draft.tasks[idx]?.calendarId ?? "__default"}
+                                onValueChange={(v) =>
+                                  updateTask(idx, {
+                                    calendarId: v === "__default" ? undefined : v,
+                                  })
+                                }
+                              >
+                                <SelectTrigger className="h-8 text-xs">
+                                  <SelectValue placeholder="Project default" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__default">
+                                    Project default
+                                    {calendars.find((c) => c.isDefault)
+                                      ? ` (${calendars.find((c) => c.isDefault)!.name})`
+                                      : ""}
+                                  </SelectItem>
+                                  {calendars
+                                    .filter((c) => !c.isDefault)
+                                    .map((c) => (
+                                      <SelectItem key={c.id} value={c.id}>
+                                        {c.name}
+                                      </SelectItem>
+                                    ))}
+                                </SelectContent>
+                              </Select>
+                              <p className="mt-1 text-[10px] text-[#776e5e]">
+                                Per-activity calendar is captured for reporting today; full
+                                per-activity math is on the roadmap.
+                              </p>
+                            </div>
+                            <div>
                               <div className="mb-1 text-xs uppercase tracking-wide text-[#7a6a4d]">
                                 Activity codes
                               </div>
