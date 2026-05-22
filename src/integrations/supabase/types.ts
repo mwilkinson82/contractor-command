@@ -568,6 +568,8 @@ export type Database = {
       }
       schedule_tasks: {
         Row: {
+          actual_cost: number | null
+          budget_cost: number | null
           created_at: string
           description: string | null
           duration: number
@@ -575,12 +577,16 @@ export type Database = {
           name: string
           percent_complete: number | null
           position: number
+          resource_name: string | null
+          resource_units_per_day: number | null
           schedule_id: string
           task_id: string
           updated_at: string
           wbs: string | null
         }
         Insert: {
+          actual_cost?: number | null
+          budget_cost?: number | null
           created_at?: string
           description?: string | null
           duration?: number
@@ -588,12 +594,16 @@ export type Database = {
           name: string
           percent_complete?: number | null
           position?: number
+          resource_name?: string | null
+          resource_units_per_day?: number | null
           schedule_id: string
           task_id: string
           updated_at?: string
           wbs?: string | null
         }
         Update: {
+          actual_cost?: number | null
+          budget_cost?: number | null
           created_at?: string
           description?: string | null
           duration?: number
@@ -601,6 +611,8 @@ export type Database = {
           name?: string
           percent_complete?: number | null
           position?: number
+          resource_name?: string | null
+          resource_units_per_day?: number | null
           schedule_id?: string
           task_id?: string
           updated_at?: string
