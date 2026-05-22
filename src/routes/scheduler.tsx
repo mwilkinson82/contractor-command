@@ -568,8 +568,127 @@ function SchedulerPage() {
                   </div>
                 </section>
 
+                {/* Gantt + Activity detail */}
+                {computed ? (
+                  <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+                    <section className="overflow-hidden rounded border border-[#d8cdb8] bg-white">
+                      <div className="flex items-center justify-between border-b border-[#eee7d8] px-3 py-2">
+                        <h3 className="text-sm font-semibold uppercase tracking-wide text-[#675d4b]">
+                          Gantt · Critical path
+                        </h3>
+                        <div className="flex items-center gap-3 text-xs text-[#776e5e]">
+                          <span className="inline-flex items-center gap-1">
+                            <span className="inline-block h-2 w-3 rounded-sm bg-[#b42318]" /> Critical
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <span className="inline-block h-2 w-3 rounded-sm bg-[#1f241f]" /> Activity
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <span className="inline-block h-[3px] w-4 bg-[#9c8b6e]" /> Float
+                          </span>
+                        </div>
+                      </div>
+                      <div className="p-2">
+                        <GanttTimeline
+                          result={computed}
+                          selectedId={selectedTaskId}
+                          onSelect={setSelectedTaskId}
+                        />
+                      </div>
+                    </section>
+
+                    <section className="rounded border border-[#d8cdb8] bg-white p-4">
+                      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[#675d4b]">
+                        Activity detail
+                      </h3>
+                      {(() => {
+                        const t = selectedTaskId
+                          ? computed.tasks.find((x) => x.id === selectedTaskId)
+                          : null;
+                        if (!t) {
+                          return (
+                            <p className="text-sm text-[#746b5c]">
+                              Click a bar in the Gantt to inspect an activity.
+                            </p>
+                          );
+                        }
+                        const idx = draft.tasks.findIndex((x) => x.id === t.id);
+                        const preds = computed.dependencies.filter((d) => d.to === t.id);
+                        const succs = computed.dependencies.filter((d) => d.from === t.id);
+                        return (
+                          <div className="space-y-3 text-sm">
+                            <div>
+                              <div className="text-xs uppercase tracking-wide text-[#7a6a4d]">
+                                {t.id} {t.isCritical ? "· CRITICAL" : ""}
+                              </div>
+                              <div className="font-medium">{t.name}</div>
+                              {t.wbs ? (
+                                <div className="text-xs text-[#776e5e]">WBS {t.wbs}</div>
+                              ) : null}
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <Stat label="Duration" value={`${t.duration}d`} />
+                              <Stat label="Total float" value={`${t.totalFloat}d`} />
+                              <Stat label="Early start" value={`d${t.earlyStart}`} />
+                              <Stat label="Early finish" value={`d${t.earlyFinish}`} />
+                              <Stat label="Late start" value={`d${t.lateStart}`} />
+                              <Stat label="Late finish" value={`d${t.lateFinish}`} />
+                            </div>
+                            <div>
+                              <Label className="text-xs">Description</Label>
+                              <Textarea
+                                className="min-h-[60px] text-sm"
+                                value={draft.tasks[idx]?.description ?? ""}
+                                onChange={(e) =>
+                                  updateTask(idx, { description: e.target.value })
+                                }
+                              />
+                            </div>
+                            <div>
+                              <div className="text-xs uppercase tracking-wide text-[#7a6a4d]">
+                                Predecessors
+                              </div>
+                              {preds.length === 0 ? (
+                                <div className="text-xs text-[#776e5e]">None</div>
+                              ) : (
+                                <ul className="text-xs">
+                                  {preds.map((d) => (
+                                    <li key={`${d.from}-${d.to}-${d.type}`} className="font-mono">
+                                      {d.from} → {d.type}
+                                      {d.lag ? ` ${d.lag > 0 ? "+" : ""}${d.lag}d` : ""}
+                                      {d.isDriving ? " ·★" : ""}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                            <div>
+                              <div className="text-xs uppercase tracking-wide text-[#7a6a4d]">
+                                Successors
+                              </div>
+                              {succs.length === 0 ? (
+                                <div className="text-xs text-[#776e5e]">None</div>
+                              ) : (
+                                <ul className="text-xs">
+                                  {succs.map((d) => (
+                                    <li key={`${d.from}-${d.to}-${d.type}`} className="font-mono">
+                                      {d.type}
+                                      {d.lag ? ` ${d.lag > 0 ? "+" : ""}${d.lag}d` : ""} → {d.to}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </section>
+                  </div>
+                ) : null}
+
                 {/* Dependencies */}
                 <section className="overflow-hidden rounded border border-[#d8cdb8] bg-white">
+
                   <div className="flex items-center justify-between border-b border-[#eee7d8] px-3 py-2">
                     <h3 className="text-sm font-semibold uppercase tracking-wide text-[#675d4b]">
                       Dependencies
