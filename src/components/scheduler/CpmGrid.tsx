@@ -652,89 +652,145 @@ export function CpmGrid({
               );
             })}
 
-            {/* ===== Relationship lines (FS/SS/FF/SF) ===== */}
+            {/* ============ Relationship lines (FS/SS/FF/SF) ============ */}
             {(() => {
               const taskRowIdx = new Map<string, number>();
               rows.forEach((r, i) => {
                 if (r.kind === "task") taskRowIdx.set(r.task.id, i);
               });
-              const taskById = new Map(result.tasks.map((t) => [t.id, t]));
-              const out: React.ReactNode[] = [];
-              for (const d of result.dependencies) {
-                const si = taskRowIdx.get(d.from);
-                const ti = taskRowIdx.get(d.to);
-                if (si === undefined || ti === undefined) continue; // collapsed
-                const s = taskById.get(d.from);
-                const t = taskById.get(d.to);
-                if (!s || !t) continue;
-                const sY = rowYs[si] + ROW_H / 2;
-                const tY = rowYs[ti] + ROW_H / 2;
-                const sX =
-                  (d.type === "SS" || d.type === "SF" ? s.earlyStart : s.earlyFinish) * dayPx;
-                const tXraw =
-                  (d.type === "FF" || d.type === "SF" ? t.earlyFinish : t.earlyStart) * dayPx;
-                const enterFromLeft = d.type === "FS" || d.type === "SS";
-                const tX = tXraw + (enterFromLeft ? 0 : 0);
-                const stub = 6;
-                // Right-angle routing: out → horizontal stub → vertical to target row → into target side
-                const midX = enterFromLeft ? Math.max(sX + stub, tX - stub) : Math.max(sX + stub, tX + stub);
-                const path =
-                  `M ${sX} ${sY} ` +
-                  `L ${sX + (enterFromLeft ? stub : stub)} ${sY} ` +
-                  `L ${midX} ${sY} ` +
-                  `L ${midX} ${tY} ` +
-                  `L ${tX} ${tY}`;
-                const isCriticalLink = d.isDriving && s.isCritical && t.isCritical;
-                const stroke = isCriticalLink
-                  ? "#b42318"
-                  : d.isDriving
-                  ? "#3554a5"
-                  : "#9c8b6e";
-                const opacity = d.isDriving ? 0.9 : 0.45;
-                const marker = isCriticalLink
-                  ? "url(#arrow-crit)"
-                  : d.isDriving
-                  ? "url(#arrow-drive)"
-                  : "url(#arrow-soft)";
-                out.push(
-                  <path
-                    key={`dep-${d.from}-${d.to}-${d.type}`}
-                    d={path}
-                    fill="none"
-                    stroke={stroke}
-                    strokeWidth={isCriticalLink ? 1.4 : 1}
-                    opacity={opacity}
-                    markerEnd={marker}
-                    pointerEvents="none"
-                  />,
-                );
+              const taskById = new Map(result.tasks.map((t) => [t.id, t] as const));
+
+              // Build driving-chain back from selected activity
+              const drivingChain = new Set<string>();
+              if (selectedId) {
+                const incoming = new Map<string, typeof result.dependencies>();
+                for (const d of result.dependencies) {
+                  if (!d.isDriving) continue;
+                  const arr = incoming.get(d.to) ?? [];
+                  arr.push(d);
+                  incoming.set(d.to, arr);
+                }
+                const stack = [selectedId];
+                const visited = new Set<string>();
+                while (stack.length) {
+                  const cur = stack.pop()!;
+                  if (visited.has(cur)) continue;
+                  visited.add(cur);
+                  for (const d of incoming.get(cur) ?? []) {
+                    drivingChain.add(`${d.from}->${d.to}`);
+                    stack.push(d.from);
+                  }
+                }
               }
+
               return (
                 <g>
                   <defs>
-                    {[
-                      { id: "arrow-crit", color: "#b42318" },
-                      { id: "arrow-drive", color: "#3554a5" },
-                      { id: "arrow-soft", color: "#9c8b6e" },
-                    ].map((m) => (
-                      <marker
-                        key={m.id}
-                        id={m.id}
-                        viewBox="0 0 10 10"
-                        refX="9"
-                        refY="5"
-                        markerWidth="6"
-                        markerHeight="6"
-                        orient="auto-start-reverse"
-                      >
-                        <path d="M 0 0 L 10 5 L 0 10 z" fill={m.color} />
-                      </marker>
-                    ))}
+                    <marker
+                      id="cpm-arrow-crit"
+                      viewBox="0 0 10 10"
+                      refX="9"
+                      refY="5"
+                      markerWidth="6"
+                      markerHeight="6"
+                      orient="auto-start-reverse"
+                    >
+                      <path d="M0,0 L10,5 L0,10 z" fill="#b42318" />
+                    </marker>
+                    <marker
+                      id="cpm-arrow-drv"
+                      viewBox="0 0 10 10"
+                      refX="9"
+                      refY="5"
+                      markerWidth="6"
+                      markerHeight="6"
+                      orient="auto-start-reverse"
+                    >
+                      <path d="M0,0 L10,5 L0,10 z" fill="#3554a5" />
+                    </marker>
+                    <marker
+                      id="cpm-arrow-soft"
+                      viewBox="0 0 10 10"
+                      refX="9"
+                      refY="5"
+                      markerWidth="6"
+                      markerHeight="6"
+                      orient="auto-start-reverse"
+                    >
+                      <path d="M0,0 L10,5 L0,10 z" fill="#9c8b6e" />
+                    </marker>
+                    <marker
+                      id="cpm-arrow-chain"
+                      viewBox="0 0 10 10"
+                      refX="9"
+                      refY="5"
+                      markerWidth="7"
+                      markerHeight="7"
+                      orient="auto-start-reverse"
+                    >
+                      <path d="M0,0 L10,5 L0,10 z" fill="#7a5cc4" />
+                    </marker>
                   </defs>
-                  {out}
+                  {result.dependencies.map((d, di) => {
+                    const si = taskRowIdx.get(d.from);
+                    const ti = taskRowIdx.get(d.to);
+                    if (si == null || ti == null) return null;
+                    const src = taskById.get(d.from);
+                    const tgt = taskById.get(d.to);
+                    if (!src || !tgt) return null;
+                    const sy = rowYs[si] + ROW_H / 2;
+                    const ty = rowYs[ti] + ROW_H / 2;
+                    const startX =
+                      d.type === "SS" || d.type === "SF"
+                        ? src.earlyStart * dayPx
+                        : src.earlyFinish * dayPx;
+                    const endX =
+                      d.type === "FF" || d.type === "SF"
+                        ? tgt.earlyFinish * dayPx
+                        : tgt.earlyStart * dayPx;
+                    const stub = 6;
+                    const sOut = d.type === "SS" || d.type === "SF" ? startX - stub : startX + stub;
+                    const tIn = d.type === "FF" || d.type === "SF" ? endX + stub : endX - stub;
+                    const midX = (d.type === "SS" || d.type === "SF")
+                      ? Math.min(sOut, tIn)
+                      : Math.max(sOut, tIn);
+                    const path = `M ${startX} ${sy} L ${sOut} ${sy} L ${midX} ${sy} L ${midX} ${ty} L ${tIn} ${ty} L ${endX} ${ty}`;
+                    const chainKey = `${d.from}->${d.to}`;
+                    const onChain = drivingChain.has(chainKey);
+                    const bothCrit = src.isCritical && tgt.isCritical;
+                    const stroke = onChain
+                      ? "#7a5cc4"
+                      : d.isDriving
+                      ? bothCrit
+                        ? "#b42318"
+                        : "#3554a5"
+                      : "#9c8b6e";
+                    const marker = onChain
+                      ? "url(#cpm-arrow-chain)"
+                      : d.isDriving
+                      ? bothCrit
+                        ? "url(#cpm-arrow-crit)"
+                        : "url(#cpm-arrow-drv)"
+                      : "url(#cpm-arrow-soft)";
+                    const opacity = onChain ? 1 : d.isDriving ? 0.85 : 0.4;
+                    const sw = onChain ? 1.6 : d.isDriving ? 1.1 : 0.8;
+                    return (
+                      <path
+                        key={`dep-${d.id ?? di}`}
+                        d={path}
+                        stroke={stroke}
+                        strokeWidth={sw}
+                        opacity={opacity}
+                        fill="none"
+                        markerEnd={marker}
+                        pointerEvents="none"
+                      />
+                    );
+                  })}
                 </g>
               );
             })()}
+
 
 
             {/* Data date line */}
