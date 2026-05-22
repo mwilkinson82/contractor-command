@@ -709,9 +709,9 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
     if (opts.lineGap) y += opts.lineGap;
   };
 
-  const h2 = (label: string) => {
+  const h2 = (label: string, keepWith = 0) => {
     y += 16;
-    ensure(30);
+    ensure(Math.min(30 + keepWith, contentBottom - margin));
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(8.5);
     pdf.setTextColor(110, 110, 110);
@@ -723,12 +723,20 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
     y += 14;
   };
 
+  const bulletListHeight = (items: string[]) =>
+    items.reduce(
+      (sum, it) =>
+        sum + measureWrappedHeight(`•   ${it}`, { size: 11, family: "helvetica", indent: 10, lineGap: 3, lineHeight: 1.45 }),
+      0,
+    );
+
   // Eyebrow
   y += 4;
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(8);
   pdf.setTextColor(140, 140, 140);
   pdf.text("STANDARD OPERATING PROCEDURE", margin, y, { charSpace: 1.8 });
+  resetTextTracking();
   y += 34;
 
   // Title — Instrument Serif feel via Times
