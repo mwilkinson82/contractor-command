@@ -745,6 +745,14 @@ export type Database = {
           workspace_limit: number
         }[]
       }
+      get_user_aos_limits_by_email: {
+        Args: { _email: string }
+        Returns: {
+          seat_limit: number
+          tier: Database["public"]["Enums"]["app_tier"]
+          workspace_limit: number
+        }[]
+      }
       get_user_tier: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_tier"]
