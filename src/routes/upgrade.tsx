@@ -22,6 +22,7 @@ import {
   type UpsellSku,
 } from "@/lib/upsell-catalog";
 import { isAllowedReturnTo, RETURN_TO_STORAGE_KEY } from "@/lib/return-to";
+import { AosAddonsPanel } from "@/components/portal/aos-addons-panel";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/upgrade")({
