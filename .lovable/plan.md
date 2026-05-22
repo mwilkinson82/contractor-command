@@ -21,7 +21,7 @@ Paste the block below into the AOS Lovable project as a single message. It tells
 Tier               Portal price                AOS workspaces   AOS seats     Notes
 -----------------  --------------------------  ---------------  ------------  -------------------------------------------
 aos_only           standalone SKU (TBD)        1 + metadata     1 + metadata  Caps stack from subscriptions.metadata.workspaces / .seats
-book_buyer         $497 one-time (Handbook)    1                2             Entry tier; ships with the book
+book_buyer         $47 one-time (Handbook)     1                2             Entry tier; ships with the book
 power_hour         $997/mo or $2,997/qtr       inherits         inherits      Add-on, no extra AOS caps of its own
 sm_school          $497/mo or $1,497/qtr       inherits         inherits      Add-on, no extra AOS caps
 contractor_school  $497/mo or $1,497/qtr       inherits         inherits      Add-on, no extra AOS caps

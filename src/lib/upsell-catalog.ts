@@ -66,7 +66,7 @@ export const UPSELL_CATALOG: Record<UpsellSku, UpsellCard> = {
       "Foundation for everything above",
     ],
     checkout: "interest",
-    plans: [{ id: "circle" /* unused */, label: "One-time", price: "$497", cadence: "one-time" }],
+    plans: [{ id: "circle" /* unused */, label: "One-time", price: "$47", cadence: "one-time" }],
   },
   circle: {
     sku: "circle",
