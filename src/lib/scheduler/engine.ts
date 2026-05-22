@@ -64,7 +64,6 @@ export function calculateSchedule(
     isDriving: dependencySlack(dependency, taskMap) <= tolerance,
   }));
 
-  const calendar = schedule.calendar ?? DEFAULT_CALENDAR;
   return {
     scheduleId: schedule.id,
     name: schedule.name,
