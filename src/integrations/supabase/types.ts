@@ -475,6 +475,127 @@ export type Database = {
         }
         Relationships: []
       }
+      schedule_dependencies: {
+        Row: {
+          created_at: string
+          from_task_id: string
+          id: string
+          lag: number
+          schedule_id: string
+          to_task_id: string
+          type: Database["public"]["Enums"]["scheduler_dep_type"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          from_task_id: string
+          id?: string
+          lag?: number
+          schedule_id: string
+          to_task_id: string
+          type?: Database["public"]["Enums"]["scheduler_dep_type"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          from_task_id?: string
+          id?: string
+          lag?: number
+          schedule_id?: string
+          to_task_id?: string
+          type?: Database["public"]["Enums"]["scheduler_dep_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_dependencies_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      schedule_tasks: {
+        Row: {
+          created_at: string
+          description: string | null
+          duration: number
+          id: string
+          name: string
+          percent_complete: number | null
+          position: number
+          schedule_id: string
+          task_id: string
+          updated_at: string
+          wbs: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          duration?: number
+          id?: string
+          name: string
+          percent_complete?: number | null
+          position?: number
+          schedule_id: string
+          task_id: string
+          updated_at?: string
+          wbs?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          duration?: number
+          id?: string
+          name?: string
+          percent_complete?: number | null
+          position?: number
+          schedule_id?: string
+          task_id?: string
+          updated_at?: string
+          wbs?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_tasks_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      schedules: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          project_start_date: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          project_start_date?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          project_start_date?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       stripe_webhook_events: {
         Row: {
           attempts: number
@@ -810,6 +931,7 @@ export type Database = {
         | "power_hour"
         | "sm_school"
         | "contractor_school"
+      scheduler_dep_type: "FS" | "SS" | "FF" | "SF"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -954,6 +1076,7 @@ export const Constants = {
         "sm_school",
         "contractor_school",
       ],
+      scheduler_dep_type: ["FS", "SS", "FF", "SF"],
     },
   },
 } as const
