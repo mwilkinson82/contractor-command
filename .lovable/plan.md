@@ -1,27 +1,49 @@
-## Grant Circle access to Ken & Paul
+## The gap
 
-Two-step data operation, no code changes:
+Today, tier flows Circle → AOS **only inside the signed SSO token** generated when a member clicks into AOS from the portal. If a member signs into AOS directly (Google, password, magic link on the AOS site), AOS never sees a token and falls back to whatever it has stored — usually base/no-tier — so Circle privileges don't apply.
 
-### 1. Create comped Circle subscriptions
-Insert one row per user into `public.subscriptions`:
-- `email`: ken@gmworksonline.com / paul@gmworksonline.com
-- `tier`: `circle`
-- `status`: `active`
-- `is_comped`: `true`
-- `metadata`: `{"source": "admin_comp", "granted_by": "marshall", "note": "manual add"}`
+Ken hitting AOS directly is exactly this case.
 
-This immediately unlocks Circle-tier access (templates, replays, all tools, unlimited AOS seats/workspaces) the moment they sign in. `get_user_tier` / `get_user_aos_limits` resolve via email match until `user_id` gets linked on first login (the `claim_pending_subscription` trigger handles that automatically).
+## Fix
 
-### 2. Send portal invites
-Use Supabase admin `inviteUserByEmail` for each (same path as `sendMemberAccessLink`):
-- Redirect to `https://app.alpcontractorcircle.com/welcome`
-- They click the link, set a password, and land in the portal already on the Circle tier.
+Add a **pull-based** tier lookup so AOS can re-sync any user from Circle on demand, no SSO required.
 
-### Ken's AOS alignment
-AOS membership is keyed on email. As long as Ken signs into the portal with `ken@gmworksonline.com` (the same email he uses in AOS), the existing `aos_links` flow + `get_user_aos_limits` will see his Circle tier and grant unlimited seats/workspaces. No data migration needed — the email is the join key. If his AOS account is under a different email, he'd need to use the `/aos/link` flow to link them; flag that to him in the invite if uncertain.
+### 1. New Circle endpoint — `POST /api/public/aos/tier-lookup`
 
-### Execution
-- `supabase--insert` — two INSERT rows into `subscriptions`
-- `code--exec` — call `inviteUserByEmail` via a small node script using the service role key, OR I can do it through the admin UI's existing `sendMemberAccessLink` server fn if you'd rather trigger it from `/admin` yourself
+- Auth: HMAC of the request body using `AOS_SHARED_SECRET` (same secret already shared), in an `X-AOS-Signature` header. Same pattern as the SSO token signing string, just over the JSON body. Reject anything older than 60s (timestamp in body).
+- Input: `{ email, ts, nonce }`
+- Output: `{ tier, workspaceLimit, seatLimit }` — exactly the values `get_user_aos_limits` would return for that email. `-1` = unlimited.
+- Behavior: lowercase + trim email, look up via existing `get_user_aos_limits` logic (extended to accept an email when there's no `user_id` yet — same email-match path the function already uses).
+- No PII beyond what's asked; never returns user lists.
 
-No migrations, no schema changes, no new code.
+### 2. AOS-side changes (separate project — spec doc only, no code in this repo)
+
+Update `docs/aos-tier-spec.md` with a new section:
+
+> **On every AOS sign-in (and ideally on session refresh), call `POST https://app.alpcontractorcircle.com/api/public/aos/tier-lookup` with the user's email. Use the returned `{tier, workspaceLimit, seatLimit}` to overwrite the cached caps in AOS's own user record.** This makes Circle the source of truth even when the user never SSOs.
+
+Hand that updated doc to the AOS project so Codex/AI can wire the call.
+
+### 3. Immediate unblock for Ken
+
+Independent of the endpoint work, confirm Ken's AOS account uses `ken@gmworksonline.com`. If yes, the tier-lookup will resolve him as Circle the moment AOS adopts step 2. If his AOS account is under a different email, he needs to either:
+- change his AOS email to `ken@gmworksonline.com`, **or**
+- use `/aos/link` from the Circle portal to bind his alt AOS email to his Circle account (the `aos_links` table already supports this; `get_user_aos_limits` would need a small extension to also match via `aos_links.aos_email`, which I'd include in the same migration if you want belt-and-suspenders).
+
+## Technical detail
+
+```text
+File changes (Circle repo):
+  + src/routes/api/public/aos/tier-lookup.ts   # new endpoint
+  ~ src/lib/aos.functions.ts                   # extract shared lookup helper
+  ~ supabase migration                         # overload get_user_aos_limits(_email text)
+                                               #   + optional aos_links email match
+  ~ docs/aos-tier-spec.md                      # new "Pull-based tier sync" section
+```
+
+No client UI changes. No new secrets. Reuses `AOS_SHARED_SECRET`.
+
+## Out of scope
+
+- Building the AOS-side caller (that's the AOS project's job; the spec doc tells them what to do).
+- Auto-merging duplicate emails between AOS and Circle.

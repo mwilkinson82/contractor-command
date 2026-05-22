@@ -220,3 +220,71 @@ After AOS ships, please confirm here in writing so Circle can drop the legacy co
 - Circle SSO mint function: `src/lib/aos.functions.ts → mintAosSsoToken`
 - Circle limits function (DB): `public.get_user_aos_limits(_user_id uuid)`
 - Shared secret: `AOS_SHARED_SECRET` (same secret on both projects — rotate together)
+
+---
+
+## Pull-based tier sync (for direct AOS sign-ins)
+
+The SSO token only fires when a member clicks into AOS from the Circle portal. If a member signs into AOS directly (Google, password, magic link on the AOS site), AOS never sees a token — so its cached tier/caps stay stale. This is the bug where a paid Circle member shows up in AOS as base/no-tier.
+
+The fix: on **every AOS sign-in** (and ideally on every session refresh), AOS should call Circle to re-sync the user's tier.
+
+### Endpoint
+
+```
+POST https://app.alpcontractorcircle.com/api/public/aos/tier-lookup
+Content-Type: application/json
+x-aos-signature: <hex sha256>
+
+{ "email": "user@example.com", "ts": 1700000000, "nonce": "abc123..." }
+```
+
+- `email` — lowercased, trimmed
+- `ts` — unix seconds; rejected if more than 60s old
+- `nonce` — any opaque string (4–128 chars)
+- `x-aos-signature` — `HMAC_SHA256(AOS_SHARED_SECRET, "{email}|{ts}|{nonce}")` as hex (same signing convention as the SSO token's 3-field variant)
+
+### Response (200)
+
+```json
+{
+  "email": "user@example.com",
+  "tier": "circle",          // or "intensive" / "book_buyer" / "aos_only" / null
+  "workspaceLimit": -1,      // -1 unlimited, 0 no access, otherwise the cap
+  "seatLimit": -1
+}
+```
+
+`null` tier means no active or comped subscription resolved for that email — treat as no Circle access.
+
+### AOS implementation
+
+In the AOS sign-in handler (and any session-refresh path), call this endpoint with the freshly-authenticated email and overwrite the user's cached `tier` / `workspaceLimit` / `seatLimit` with the response. Fall back to existing cached values on network/HTTP failure (don't lock someone out of AOS because Circle is briefly unavailable).
+
+Pseudocode:
+
+```ts
+import { createHmac } from "crypto";
+
+async function syncTierFromCircle(email: string) {
+  const ts = Math.floor(Date.now() / 1000);
+  const nonce = crypto.randomUUID();
+  const signingString = `${email}|${ts}|${nonce}`;
+  const sig = createHmac("sha256", process.env.AOS_SHARED_SECRET!)
+    .update(signingString)
+    .digest("hex");
+
+  const res = await fetch("https://app.alpcontractorcircle.com/api/public/aos/tier-lookup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-aos-signature": sig },
+    body: JSON.stringify({ email, ts, nonce }),
+  });
+  if (!res.ok) return; // keep cached caps on failure
+  const { tier, workspaceLimit, seatLimit } = await res.json();
+  await persistCapsForUser(email, { tier, workspaceLimit, seatLimit });
+}
+```
+
+### Email-mismatch coverage
+
+The Circle-side resolver also matches against `aos_links.aos_email`. So if a member's Circle email is `marshall@example.com` but they linked their AOS account under `marshall+aos@example.com` via `/aos/link`, calling tier-lookup with **either** email resolves to their Circle tier.
