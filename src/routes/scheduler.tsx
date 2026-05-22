@@ -212,6 +212,21 @@ function SchedulerPage() {
   const computed = result && "tasks" in result ? result : null;
   const computeError = result && "error" in result ? result.error : null;
 
+  const baselineQuery = useQuery({
+    queryKey: ["baseline", comparisonBaselineId],
+    queryFn: () => loadBaselineFn({ data: { id: comparisonBaselineId! } }),
+    enabled: !!comparisonBaselineId,
+  });
+
+  const baselineResult = useMemo(() => {
+    if (!baselineQuery.data) return null;
+    try {
+      return calculateSchedule(baselineQuery.data.schedule);
+    } catch {
+      return null;
+    }
+  }, [baselineQuery.data]);
+
   const updateTask = (idx: number, patch: Partial<Task>) => {
     setDraft((d) => {
       if (!d) return d;
