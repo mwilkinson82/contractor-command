@@ -669,9 +669,12 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
     const lineH = opts.size * (opts.lineHeight ?? 1.35);
     for (const line of lines) {
       ensure(lineH);
-      pdf.text(line, margin + indent, y);
+      // Reset char tracking — section labels above use charSpace and jsPDF
+      // keeps it as global state, which mangles body words ("D ocum ent").
+      pdf.text(line, margin + indent, y, { charSpace: 0 });
       y += lineH;
     }
+
     if (opts.lineGap) y += opts.lineGap;
   };
 
