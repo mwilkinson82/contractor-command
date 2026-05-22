@@ -33,6 +33,8 @@ import { CalendarPanel } from "@/components/scheduler/CalendarPanel";
 import { ReportsPanel } from "@/components/scheduler/ReportsPanel";
 import { ResourcesPanel } from "@/components/scheduler/ResourcesPanel";
 import { StructurePanel } from "@/components/scheduler/StructurePanel";
+import { WbsSelect } from "@/components/scheduler/WbsSelect";
+import { ActivityCodeChips } from "@/components/scheduler/ActivityCodeChips";
 
 import { FragnetPanel } from "@/components/scheduler/FragnetPanel";
 import { AnnotationsPanel } from "@/components/scheduler/AnnotationsPanel";
@@ -640,10 +642,10 @@ function SchedulerPage() {
                                     />
                                   </td>
                                   <td className="px-2 py-1">
-                                    <Input
-                                      className="h-8 w-32"
+                                    <WbsSelect
+                                      scheduleId={selectedId}
                                       value={t.wbs ?? ""}
-                                      onChange={(e) => updateTask(idx, { wbs: e.target.value })}
+                                      onChange={(v) => updateTask(idx, { wbs: v })}
                                     />
                                   </td>
                                   <td className="px-2 py-1 text-right">
