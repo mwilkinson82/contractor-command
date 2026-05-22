@@ -1,4 +1,5 @@
 import type { ScheduleResult, ScheduledTask } from "@/lib/scheduler/types";
+import { workingDayOffset } from "@/lib/scheduler/progress";
 
 interface Props {
   result: ScheduleResult;
@@ -8,6 +9,10 @@ interface Props {
   collapsedGroups?: Set<string>;
   onToggleGroup?: (key: string) => void;
   baseline?: ScheduleResult | null;
+  /** ISO date for the status line on the chart. */
+  dataDate?: string;
+  /** Calendar used to convert dataDate ↔ working-day offset. */
+  calendar?: { workDays: number; holidays: string[] };
 }
 
 const ROW_H = 26;
