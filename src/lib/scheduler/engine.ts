@@ -52,16 +52,17 @@ export function calculateSchedule(
     isDriving: dependencySlack(dependency, taskMap) <= tolerance,
   }));
 
+  const calendar = schedule.calendar ?? DEFAULT_CALENDAR;
   return {
     scheduleId: schedule.id,
     name: schedule.name,
     projectStartDate: schedule.projectStartDate,
     projectDuration,
     projectFinishDate: schedule.projectStartDate
-      ? addDaysIso(schedule.projectStartDate, projectDuration)
+      ? addWorkingDaysIso(schedule.projectStartDate, projectDuration, calendar)
       : undefined,
     tasks: tasks
-      .map((task) => toScheduledTask(task, schedule.projectStartDate))
+      .map((task) => toScheduledTask(task, schedule.projectStartDate, calendar))
       .sort(
         (a, b) =>
           a.earlyStart - b.earlyStart || a.earlyFinish - b.earlyFinish || a.id.localeCompare(b.id),
