@@ -31,6 +31,7 @@ import { BaselinesPanel } from "@/components/scheduler/BaselinesPanel";
 import { CalendarPanel } from "@/components/scheduler/CalendarPanel";
 import { ReportsPanel } from "@/components/scheduler/ReportsPanel";
 import { ResourcesPanel } from "@/components/scheduler/ResourcesPanel";
+import { XerImportButton } from "@/components/scheduler/XerImportButton";
 import { Textarea } from "@/components/ui/textarea";
 
 const UNASSIGNED_WBS = "Unassigned";
@@ -152,13 +153,20 @@ function SchedulerPage() {
   }, [loadQuery.data]);
 
   const createMut = useMutation({
-    mutationFn: (input: { name: string; projectStartDate?: string; sample?: boolean }) =>
+    mutationFn: (input: {
+      name: string;
+      projectStartDate?: string;
+      sample?: boolean;
+      tasks?: Task[];
+      dependencies?: Dependency[];
+    }) =>
       saveFn({
         data: {
           name: input.name,
           projectStartDate: input.projectStartDate || undefined,
-          tasks: input.sample ? SAMPLE.tasks : [],
-          dependencies: input.sample ? SAMPLE.dependencies : [],
+          tasks: input.tasks ?? (input.sample ? SAMPLE.tasks : []),
+          dependencies:
+            input.dependencies ?? (input.sample ? SAMPLE.dependencies : []),
         },
       }),
     onSuccess: (res) => {
@@ -393,6 +401,17 @@ function SchedulerPage() {
                   >
                     Create from sample
                   </Button>
+                  <XerImportButton
+                    disabled={createMut.isPending}
+                    onImport={(input) =>
+                      createMut.mutate({
+                        name: newName || input.name,
+                        projectStartDate: newStart || input.projectStartDate,
+                        tasks: input.tasks,
+                        dependencies: input.dependencies,
+                      })
+                    }
+                  />
                 </div>
               </div>
             </section>
