@@ -33,6 +33,11 @@ const SaveScheduleInput = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional()
     .nullable(),
+  dataDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .nullable(),
   notes: z.string().max(5000).optional().nullable(),
   workDays: z.number().int().min(0).max(127).optional(),
   holidays: z
