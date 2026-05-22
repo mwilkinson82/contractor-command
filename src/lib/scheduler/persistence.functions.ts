@@ -252,6 +252,7 @@ export const loadSchedule = createServerFn({ method: "GET" })
         resourceName: (t.resource_name as string | null) ?? undefined,
         resourceUnitsPerDay: (t.resource_units_per_day as number | null) ?? undefined,
         startNoEarlierThan: (t.start_no_earlier_than as string | null) ?? undefined,
+        calendarId: (t.calendar_id as string | null) ?? undefined,
       })),
       dependencies: (deps ?? []).map((d) => ({
         from: d.from_task_id as string,
@@ -262,6 +263,15 @@ export const loadSchedule = createServerFn({ method: "GET" })
       annotations: Array.isArray(head.annotations)
         ? (head.annotations as unknown as Schedule["annotations"])
         : [],
+      calendars: (cals ?? []).map((c) => ({
+        id: c.id as string,
+        name: c.name as string,
+        workDays: (c.work_days as number | null) ?? 31,
+        holidays: ((c.holidays as unknown as string[] | null) ?? []).filter(
+          (h): h is string => typeof h === "string",
+        ),
+        isDefault: !!c.is_default,
+      })),
     };
 
     return {
