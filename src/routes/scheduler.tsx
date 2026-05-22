@@ -733,7 +733,7 @@ function SchedulerPage() {
                           </span>
                         </div>
                       </div>
-                      <div className="p-2">
+                      <div className="p-2" data-gantt-container>
                         <GanttTimeline
                           result={computed}
                           selectedId={selectedTaskId}
