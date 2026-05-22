@@ -117,8 +117,8 @@ export const createBillingPortalSession = createServerFn({ method: "POST" })
 
 export const createCircleCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({}).parse)
-  .handler(async ({ context }): Promise<{ url: string }> => {
+  .inputValidator(z.object({ returnTo: z.string().url().optional() }).parse)
+  .handler(async ({ data, context }): Promise<{ url: string }> => {
     const stripe = getStripe();
     const priceId = process.env.STRIPE_PRICE_ID_CIRCLE;
     if (!priceId) {
@@ -138,7 +138,7 @@ export const createCircleCheckout = createServerFn({ method: "POST" })
       mode: "subscription",
       customer_email: profile?.email ?? undefined,
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${origin}/?circle=welcome`,
+      success_url: appendReturnTo(`${origin}/?circle=welcome`, data.returnTo),
       cancel_url: `${origin}/upgrade?circle=cancelled`,
       metadata: { user_id: userId, kind: "circle", product: "circle" },
       subscription_data: {
