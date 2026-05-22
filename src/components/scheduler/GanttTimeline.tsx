@@ -169,6 +169,8 @@ export function GanttTimeline({
           const isSelected = selectedId === t.id;
           const fill = t.isCritical ? "#b42318" : "#1f241f";
           const floatW = t.totalFloat * dayPx;
+          const b = baselineMap.get(t.id);
+          const slipped = b ? t.earlyFinish - b.earlyFinish : 0;
           return (
             <g key={t.id} className="cursor-pointer" onClick={() => onSelect(t.id)}>
               <rect
@@ -187,7 +189,22 @@ export function GanttTimeline({
                 fontWeight={t.isCritical ? 600 : 400}
               >
                 {t.id} · {truncate(t.name, 18)}
+                {b && slipped !== 0 ? (
+                  <tspan fill={slipped > 0 ? "#b42318" : "#2f7a3e"} fontSize={10}>
+                    {` ${slipped > 0 ? "+" : ""}${slipped}d`}
+                  </tspan>
+                ) : null}
               </text>
+              {b ? (
+                <rect
+                  x={LABEL_W + b.earlyStart * dayPx}
+                  y={y + rowH - 6}
+                  width={Math.max(b.duration * dayPx, 2)}
+                  height={3}
+                  fill="#9c8b6e"
+                  opacity={0.9}
+                />
+              ) : null}
               <rect
                 x={x}
                 y={y + 4}
@@ -197,6 +214,7 @@ export function GanttTimeline({
                 fill={fill}
                 opacity={isSelected ? 1 : 0.9}
               />
+
               {t.percentComplete && t.percentComplete > 0 ? (
                 <rect
                   x={x}
