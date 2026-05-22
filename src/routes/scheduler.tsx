@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Trash2, Plus } from "lucide-react";
 import { GanttTimeline } from "@/components/scheduler/GanttTimeline";
+import { Stat } from "@/components/scheduler/Stat";
 import { Textarea } from "@/components/ui/textarea";
 
 export const Route = createFileRoute("/scheduler")({
