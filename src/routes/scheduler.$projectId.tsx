@@ -728,6 +728,20 @@ function SchedulerPage() {
                           Gantt · Critical path
                         </h3>
                         <div className="flex items-center gap-3 text-xs text-[#776e5e]">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!computed || computed.tasks.length === 0) return;
+                              const finish = computed.tasks.reduce((a, b) =>
+                                b.earlyFinish > a.earlyFinish ? b : a,
+                              );
+                              setSelectedTaskId(finish.id);
+                            }}
+                            className="rounded border border-[#7a5cc4] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#7a5cc4] hover:bg-[#f1ecf9]"
+                            title="Highlight the longest driving chain into project finish"
+                          >
+                            Driving path → finish
+                          </button>
                           <div className="flex items-center gap-1">
                             <span className="text-[10px] uppercase tracking-wide">Group</span>
                             {(["wbs", "critical", "none"] as const).map((g) => (
