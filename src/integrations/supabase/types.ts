@@ -604,6 +604,42 @@ export type Database = {
           },
         ]
       }
+      schedule_calendars: {
+        Row: {
+          created_at: string
+          holidays: Json
+          id: string
+          is_default: boolean
+          name: string
+          position: number
+          schedule_id: string
+          updated_at: string
+          work_days: number
+        }
+        Insert: {
+          created_at?: string
+          holidays?: Json
+          id?: string
+          is_default?: boolean
+          name: string
+          position?: number
+          schedule_id: string
+          updated_at?: string
+          work_days?: number
+        }
+        Update: {
+          created_at?: string
+          holidays?: Json
+          id?: string
+          is_default?: boolean
+          name?: string
+          position?: number
+          schedule_id?: string
+          updated_at?: string
+          work_days?: number
+        }
+        Relationships: []
+      }
       schedule_dependencies: {
         Row: {
           created_at: string
@@ -681,6 +717,7 @@ export type Database = {
         Row: {
           actual_cost: number | null
           budget_cost: number | null
+          calendar_id: string | null
           constraint_type: string | null
           created_at: string
           description: string | null
@@ -702,6 +739,7 @@ export type Database = {
         Insert: {
           actual_cost?: number | null
           budget_cost?: number | null
+          calendar_id?: string | null
           constraint_type?: string | null
           created_at?: string
           description?: string | null
@@ -723,6 +761,7 @@ export type Database = {
         Update: {
           actual_cost?: number | null
           budget_cost?: number | null
+          calendar_id?: string | null
           constraint_type?: string | null
           created_at?: string
           description?: string | null
