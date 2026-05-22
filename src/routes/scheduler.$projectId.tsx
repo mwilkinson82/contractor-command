@@ -131,38 +131,11 @@ function SchedulerPage() {
     }
   }, [loadQuery.data]);
 
-  const createMut = useMutation({
-    mutationFn: (input: {
-      name: string;
-      projectStartDate?: string;
-      sample?: boolean;
-      tasks?: Task[];
-      dependencies?: Dependency[];
-    }) =>
-      saveFn({
-        data: {
-          name: input.name,
-          projectStartDate: input.projectStartDate || undefined,
-          tasks: input.tasks ?? (input.sample ? SAMPLE.tasks : []),
-          dependencies:
-            input.dependencies ?? (input.sample ? SAMPLE.dependencies : []),
-        },
-      }),
-    onSuccess: (res) => {
-      toast.success("Schedule created");
-      setNewName("");
-      setNewStart("");
-      setSelectedId(res.id);
-      qc.invalidateQueries({ queryKey: ["schedules"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   const saveMut = useMutation({
     mutationFn: () =>
       saveFn({
         data: {
-          id: selectedId!,
+          id: selectedId,
           name: draft!.name,
           projectStartDate: draft!.projectStartDate || undefined,
           dataDate: draft!.dataDate || undefined,
@@ -176,6 +149,7 @@ function SchedulerPage() {
     onSuccess: () => {
       toast.success("Saved");
       setDirty(false);
+      qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["schedules"] });
       qc.invalidateQueries({ queryKey: ["schedule", selectedId] });
     },
@@ -186,11 +160,13 @@ function SchedulerPage() {
     mutationFn: (id: string) => deleteFn({ data: { id } }),
     onSuccess: () => {
       toast.success("Deleted");
-      setSelectedId(null);
+      qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["schedules"] });
+      navigate({ to: "/scheduler" });
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
 
   const result = useMemo(() => {
     if (!draft) return null;
