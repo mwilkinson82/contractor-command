@@ -254,6 +254,40 @@ export function GanttTimeline({
             </g>
           );
         })}
+
+        {/* Data-date status line */}
+        {dataDateOffset !== null && dataDateOffset >= 0 && dataDateOffset <= duration ? (
+          <g>
+            <line
+              x1={LABEL_W + dataDateOffset * dayPx}
+              x2={LABEL_W + dataDateOffset * dayPx}
+              y1={0}
+              y2={height - 16}
+              stroke="#2f7a3e"
+              strokeWidth={1.5}
+              strokeDasharray="4 3"
+            />
+            <rect
+              x={LABEL_W + dataDateOffset * dayPx - 28}
+              y={0}
+              width={56}
+              height={14}
+              fill="#2f7a3e"
+              rx={2}
+            />
+            <text
+              x={LABEL_W + dataDateOffset * dayPx}
+              y={10}
+              fontSize={9}
+              fill="#ffffff"
+              textAnchor="middle"
+              fontFamily="ui-sans-serif, system-ui"
+              fontWeight={600}
+            >
+              DATA DATE
+            </text>
+          </g>
+        ) : null}
       </svg>
     </div>
   );
