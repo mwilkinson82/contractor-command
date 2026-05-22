@@ -346,35 +346,48 @@ export function ContractReadinessTool({ onClose }: { onClose?: () => void }) {
                 ))}
               </div>
 
-              <div className="mt-5 space-y-4 text-[14px] leading-relaxed text-foreground/85">
-                <div>
-                  <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                    Top risk
+              <div className="mt-6 space-y-6 text-[14px] leading-relaxed text-foreground/85">
+                <div className="rounded-md border-l-4 border-destructive bg-destructive/5 p-4">
+                  <p className="font-display text-[11px] font-bold uppercase tracking-[0.18em] text-destructive">
+                    Top Risk
                   </p>
-                  <p className="mt-1" style={{ fontFamily: "var(--font-serif)" }}>
+                  <p
+                    className="mt-2 text-[16px] leading-snug text-foreground"
+                    style={{ fontFamily: "var(--font-serif)" }}
+                  >
                     {result.topRisk}
                   </p>
                 </div>
-                <div>
-                  <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                    Financial consequence
+                <div className="rounded-md border-l-4 border-amber-500 bg-amber-500/5 p-4">
+                  <p className="font-display text-[11px] font-bold uppercase tracking-[0.18em] text-amber-700 dark:text-amber-500">
+                    Financial Consequence
                   </p>
-                  <p className="mt-1" style={{ fontFamily: "var(--font-serif)" }}>
+                  <p
+                    className="mt-2 text-[16px] leading-snug text-foreground"
+                    style={{ fontFamily: "var(--font-serif)" }}
+                  >
                     {result.financialConsequence}
                   </p>
                 </div>
                 {result.missingClauses.length > 0 && (
                   <div>
-                    <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                      Missing clauses · sample language + how to ask
+                    <h3
+                      className="text-[20px] font-semibold text-foreground"
+                      style={{ fontFamily: "var(--font-serif)" }}
+                    >
+                      Missing Clauses
+                    </h3>
+                    <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                      Sample language + how to ask
                     </p>
-                    <div className="mt-2 space-y-3">
+                    <div className="mt-3 space-y-3">
                       {result.missingClauses.map((c, i) => (
                         <MissingClauseCard key={i} clause={c} />
                       ))}
                     </div>
                   </div>
                 )}
+
                 <div className="rounded-md border border-border bg-background/60 p-4">
                   <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
                     Recommended next move
