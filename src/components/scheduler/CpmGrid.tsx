@@ -83,8 +83,10 @@ export function CpmGrid({
   dataDate,
   calendar,
   annotations,
+  groupBy = "wbs",
   onTaskReschedule,
 }: Props) {
+
   const cal = useMemo(() => calendar ?? { workDays: 31, holidays: [] }, [calendar]);
   const duration = Math.max(result.projectDuration, 1);
   const [drag, setDrag] = useState<{
