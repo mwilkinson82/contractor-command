@@ -19,10 +19,20 @@ export interface Dependency {
   lag?: number;
 }
 
+export interface ProjectCalendar {
+  /** Bitmask: bit0=Mon, bit1=Tue, … bit5=Sat, bit6=Sun. Default 31 = Mon–Fri. */
+  workDays: number;
+  /** ISO YYYY-MM-DD holidays (non-working days). */
+  holidays: string[];
+}
+
+export const DEFAULT_CALENDAR: ProjectCalendar = { workDays: 31, holidays: [] };
+
 export interface Schedule {
   id?: string;
   name: string;
   projectStartDate?: string;
+  calendar?: ProjectCalendar;
   tasks: Task[];
   dependencies: Dependency[];
 }
