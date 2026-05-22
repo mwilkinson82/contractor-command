@@ -23,7 +23,10 @@ export function GanttTimeline({
   dayPx = 22,
   collapsedGroups,
   onToggleGroup,
+  baseline,
 }: Props) {
+  const baselineMap = new Map<string, ScheduledTask>();
+  if (baseline) for (const b of baseline.tasks) baselineMap.set(b.id, b);
   const duration = Math.max(result.projectDuration, 1);
 
   // Group tasks by WBS, sorted by earliest ES
