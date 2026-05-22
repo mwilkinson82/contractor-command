@@ -149,7 +149,11 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
             case "customer.subscription.updated":
             case "customer.subscription.deleted": {
               const sub = event.data.object as Stripe.Subscription;
-              await upsertSubscription(stripe, sub);
+              if (isAosAddonSubscription(sub)) {
+                await upsertAosAddon(stripe, sub);
+              } else {
+                await upsertSubscription(stripe, sub);
+              }
               break;
             }
             case "checkout.session.completed": {
@@ -160,7 +164,11 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
                     ? session.subscription
                     : session.subscription.id,
                 );
-                await upsertSubscription(stripe, sub);
+                if (isAosAddonSubscription(sub)) {
+                  await upsertAosAddon(stripe, sub);
+                } else {
+                  await upsertSubscription(stripe, sub);
+                }
               } else {
                 // One-time purchase (book, intensive). No subscription object;
                 // we synthesize a row keyed on the session id so the tier
