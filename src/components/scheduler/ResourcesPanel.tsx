@@ -82,9 +82,7 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
         dd > 0 && dd <= duration ? cum[Math.min(dd - 1, duration - 1)] : bacSum;
 
       return {
-        perDayCost: cost,
         cumCost: cum,
-        perDayEarned: earned,
         cumEarned: cumE,
         perDayActual: actual,
         resourceSeries: resources,
