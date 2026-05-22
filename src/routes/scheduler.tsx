@@ -892,6 +892,7 @@ function SchedulerPage() {
                           dataDate={draft.dataDate}
                           calendar={{ workDays: draft.workDays, holidays: draft.holidays }}
                           annotations={draft.annotations}
+                          onTaskReschedule={rescheduleTask}
                         />
                       </div>
                     </section>
