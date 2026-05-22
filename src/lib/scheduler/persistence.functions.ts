@@ -140,14 +140,16 @@ export const saveSchedule = createServerFn({ method: "POST" })
     let scheduleId = data.id;
 
     if (scheduleId) {
-      const update: Record<string, unknown> = {
-        name: data.name,
-        project_start_date: data.projectStartDate ?? null,
-        notes: data.notes ?? null,
-      };
-      if (data.workDays !== undefined) update.work_days = data.workDays;
-      if (data.holidays !== undefined) update.holidays = data.holidays;
-      const { error } = await supabase.from("schedules").update(update).eq("id", scheduleId);
+      const { error } = await supabase
+        .from("schedules")
+        .update({
+          name: data.name,
+          project_start_date: data.projectStartDate ?? null,
+          notes: data.notes ?? null,
+          ...(data.workDays !== undefined ? { work_days: data.workDays } : {}),
+          ...(data.holidays !== undefined ? { holidays: data.holidays } : {}),
+        })
+        .eq("id", scheduleId);
       if (error) throw new Error(error.message);
     } else {
       const { data: inserted, error } = await supabase
