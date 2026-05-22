@@ -178,6 +178,7 @@ export const saveSchedule = createServerFn({ method: "POST" })
           notes: data.notes ?? null,
           ...(data.workDays !== undefined ? { work_days: data.workDays } : {}),
           ...(data.holidays !== undefined ? { holidays: data.holidays } : {}),
+          ...(data.annotations !== undefined ? { annotations: data.annotations } : {}),
         })
         .eq("id", scheduleId);
       if (error) throw new Error(error.message);
