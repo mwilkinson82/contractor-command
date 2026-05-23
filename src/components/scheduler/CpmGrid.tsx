@@ -29,9 +29,9 @@ interface Props {
 }
 
 
-const ROW_H = 24;
-const GROUP_H = 22;
-const HEADER_H = 44; // year band + month band
+const ROW_H = 22;
+const GROUP_H = 20;
+const HEADER_H = 38; // year band + month band
 const UNASSIGNED = "Unassigned";
 
 // ---- calendar helpers --------------------------------------------------
