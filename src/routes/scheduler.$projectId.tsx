@@ -964,7 +964,17 @@ function SchedulerPage() {
                 ) : null}
 
                 {/* Split: activity table + Gantt */}
-                <div className="scheduler-print-split flex flex-1 min-h-0 overflow-hidden">
+                <div className="scheduler-print-split relative flex flex-1 min-h-0 overflow-hidden">
+                  {draft.tasks.length === 0 ? (
+                    <div className="absolute inset-0 z-10 overflow-auto bg-[#faf8f3]/95 backdrop-blur-sm print:hidden">
+                      <EmptyScheduleState
+                        onAddActivity={addTask}
+                        onApplySample={applySample}
+                        onApplyPasted={applyPasted}
+                        onXerImport={applyXerImport}
+                      />
+                    </div>
+                  ) : null}
                   {/* Print-only title block (P6-style) */}
                   <div className="print-only mb-3 border-b-2 border-[#1f241f] pb-2">
                     <div className="flex items-end justify-between">
