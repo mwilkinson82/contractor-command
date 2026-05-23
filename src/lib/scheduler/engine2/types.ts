@@ -134,6 +134,12 @@ export interface Resource {
   calendarId?: string;
   path?: HierarchicalPath;
   defaultRoleId?: string;
+  /**
+   * Phase 1.6 — per-day capacity in assignment units. Undefined means
+   * unlimited (leveling will not consider this resource). Whole-day
+   * granularity only; shift/hour-level capacity is deferred.
+   */
+  maxUnitsPerDay?: number;
 }
 
 /** Placeholder — rate book not yet consumed by the engine. */
