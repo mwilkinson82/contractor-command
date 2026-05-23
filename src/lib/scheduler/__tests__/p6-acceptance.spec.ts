@@ -13,26 +13,214 @@
  * obvious which acceptance criterion a failure maps to.
  */
 
-import { describe, it } from "vitest";
+import { describe, expect, it } from "vitest";
+import {
+  calculateCpm,
+  createWholeDayWorkClock,
+  type EngineActivity,
+  type EngineRelationship,
+  type WorkClock,
+} from "../engine2";
 
-describe("P6 acceptance — CPM", () => {
-  it.todo(
-    "CPM-1: simple FS chain on one calendar computes expected ES/EF/LS/LF and controlling path",
-  );
+// ---------------------------------------------------------------------------
+// Test fixture helpers (Phase 1.1 — narrow but correctly designed).
+// ---------------------------------------------------------------------------
 
-  it.todo(
-    "CPM-2: two parallel paths of unequal duration give the shorter path positive total float and the longer path critical marking",
-  );
+const DAY_MIN = 8 * 60; // 480 working minutes per workday
 
-  it.todo(
-    "CPM-3: free float equals the maximum delay that does not delay any immediate successor's early start (Oracle definition)",
-  );
+function monFri(id = "cal-mf"): WorkClock {
+  return createWholeDayWorkClock({
+    id,
+    name: "Mon-Fri 8h",
+    workDays: 0b0111110, // Mon..Fri
+    holidays: [],
+    hoursPerDay: 8,
+  });
+}
+
+function activity(id: string, durDays: number, calendarId = "cal-mf"): EngineActivity {
+  return {
+    id,
+    name: id,
+    type: "task",
+    durationType: "fixed-dur-units",
+    percentCompleteType: "duration",
+    calendarId,
+    originalDuration: { minutes: durDays * DAY_MIN, authoringCalendarId: calendarId },
+    remainingDuration: { minutes: durDays * DAY_MIN, authoringCalendarId: calendarId },
+    constraints: [],
+  };
+}
+
+function link(
+  id: string,
+  from: string,
+  to: string,
+  type: "FS" | "SS" | "FF" | "SF" = "FS",
+  lagDays = 0,
+): EngineRelationship {
+  return {
+    id,
+    from,
+    to,
+    type,
+    lag: { minutes: lagDays * DAY_MIN, authoringCalendarId: "cal-mf" },
+    lagCalendarBasis: "project",
+  };
+}
+
+// 2025-01-06 is a Monday (UTC). No holidays in this fixture week.
+const MON_2025_01_06 = Date.UTC(2025, 0, 6);
+
+describe("P6 acceptance — CPM (engine2)", () => {
+  it("CPM-1: simple FS chain on one calendar computes expected ES/EF/LS/LF and controlling path", () => {
+    const cal = monFri();
+    const activities = [activity("A", 10), activity("B", 5), activity("C", 3)];
+    const rels = [link("A-B", "A", "B"), link("B-C", "B", "C")];
+    const result = calculateCpm({
+      dataDate: MON_2025_01_06,
+      projectStart: MON_2025_01_06,
+      projectCalendarId: "cal-mf",
+      calendars: new Map([["cal-mf", cal]]),
+      activities,
+      relationships: rels,
+    });
+
+    const byId = new Map(result.activities.map((a) => [a.id, a]));
+    const A = byId.get("A")!;
+    const B = byId.get("B")!;
+    const C = byId.get("C")!;
+
+    // Positions, measured in working minutes from project start under the
+    // project calendar — robust against day-end-boundary representation
+    // (e.g. Fri 08:00 ≡ following Mon 00:00 in position).
+    expect(cal.diffWork(MON_2025_01_06, A.earlyStart)).toBe(0);
+    expect(cal.diffWork(MON_2025_01_06, A.earlyFinish)).toBe(10 * DAY_MIN);
+    expect(cal.diffWork(MON_2025_01_06, B.earlyStart)).toBe(10 * DAY_MIN);
+    expect(cal.diffWork(MON_2025_01_06, B.earlyFinish)).toBe(15 * DAY_MIN);
+    expect(cal.diffWork(MON_2025_01_06, C.earlyStart)).toBe(15 * DAY_MIN);
+    expect(cal.diffWork(MON_2025_01_06, C.earlyFinish)).toBe(18 * DAY_MIN);
+
+    for (const a of [A, B, C]) {
+      expect(a.totalFloatMinutes).toBe(0);
+      expect(a.isCritical).toBe(true);
+    }
+
+    // Late dates equal early dates in working-minute position.
+    expect(cal.diffWork(A.earlyStart, A.lateStart)).toBe(0);
+    expect(cal.diffWork(C.earlyFinish, C.lateFinish)).toBe(0);
+
+    expect(result.criticalPath).toEqual(["A", "B", "C"]);
+  });
+
+  it("CPM-2: two parallel paths of unequal duration give the shorter path positive total float and the longer path critical marking", () => {
+    const cal = monFri();
+    const activities = [
+      activity("A", 1),
+      activity("B", 3),
+      activity("C", 5),
+      activity("D", 1),
+    ];
+    const rels = [
+      link("A-B", "A", "B"),
+      link("A-C", "A", "C"),
+      link("B-D", "B", "D"),
+      link("C-D", "C", "D"),
+    ];
+    const result = calculateCpm({
+      dataDate: MON_2025_01_06,
+      projectStart: MON_2025_01_06,
+      projectCalendarId: "cal-mf",
+      calendars: new Map([["cal-mf", cal]]),
+      activities,
+      relationships: rels,
+    });
+
+    const byId = new Map(result.activities.map((a) => [a.id, a]));
+    expect(byId.get("A")!.isCritical).toBe(true);
+    expect(byId.get("C")!.isCritical).toBe(true);
+    expect(byId.get("D")!.isCritical).toBe(true);
+    expect(byId.get("B")!.isCritical).toBe(false);
+    expect(byId.get("B")!.totalFloatMinutes).toBe(2 * DAY_MIN);
+    expect(byId.get("C")!.totalFloatMinutes).toBe(0);
+  });
+
+  it("CPM-3: free float equals the maximum delay that does not delay any immediate successor's early start (Oracle definition)", () => {
+    const cal = monFri();
+    // A(1d) ─┬─ B(2d) ─┐
+    //        └─ C(5d) ─┴─ D(1d)
+    // B finishes 3d in, D starts at 6d (driven by C). Delaying B up to 3d
+    // does not delay D → B.freeFloat = 3 workdays.
+    const activities = [
+      activity("A", 1),
+      activity("B", 2),
+      activity("C", 5),
+      activity("D", 1),
+    ];
+    const rels = [
+      link("A-B", "A", "B"),
+      link("A-C", "A", "C"),
+      link("B-D", "B", "D"),
+      link("C-D", "C", "D"),
+    ];
+    const result = calculateCpm({
+      dataDate: MON_2025_01_06,
+      projectStart: MON_2025_01_06,
+      projectCalendarId: "cal-mf",
+      calendars: new Map([["cal-mf", cal]]),
+      activities,
+      relationships: rels,
+    });
+
+    const byId = new Map(result.activities.map((a) => [a.id, a]));
+    expect(byId.get("B")!.freeFloatMinutes).toBe(3 * DAY_MIN);
+    expect(byId.get("C")!.freeFloatMinutes).toBe(0);
+    expect(byId.get("A")!.freeFloatMinutes).toBe(0);
+  });
 });
 
-describe("P6 acceptance — Calendars", () => {
-  it.todo(
-    "CAL-4: two otherwise identical activities on different calendars yield different dates when non-work periods differ",
-  );
+describe("P6 acceptance — Calendars (engine2)", () => {
+  it("CAL-4: two otherwise identical activities on different calendars yield different dates when non-work periods differ", () => {
+    const calNoHoliday = createWholeDayWorkClock({
+      id: "cal-clean",
+      name: "Mon-Fri 8h clean",
+      workDays: 0b0111110,
+      holidays: [],
+      hoursPerDay: 8,
+    });
+    const calWithHoliday = createWholeDayWorkClock({
+      id: "cal-holiday",
+      name: "Mon-Fri 8h + Tue holiday",
+      workDays: 0b0111110,
+      holidays: ["2025-01-07"], // Tue of the project's first week
+      hoursPerDay: 8,
+    });
+
+    const X = activity("X", 5, "cal-clean");
+    const Y = activity("Y", 5, "cal-holiday");
+
+    const result = calculateCpm({
+      dataDate: MON_2025_01_06,
+      projectStart: MON_2025_01_06,
+      projectCalendarId: "cal-clean",
+      calendars: new Map<string, WorkClock>([
+        ["cal-clean", calNoHoliday],
+        ["cal-holiday", calWithHoliday],
+      ]),
+      activities: [X, Y],
+      relationships: [],
+    });
+
+    const byId = new Map(result.activities.map((a) => [a.id, a]));
+    const xEF = byId.get("X")!.earlyFinish;
+    const yEF = byId.get("Y")!.earlyFinish;
+
+    // Same project start, same nominal duration (5 workdays) — Y finishes
+    // exactly one calendar day later because of its Tue holiday.
+    expect(yEF - xEF).toBe(86_400_000);
+    expect(calNoHoliday.diffWork(MON_2025_01_06, xEF)).toBe(5 * DAY_MIN);
+    expect(calWithHoliday.diffWork(MON_2025_01_06, yEF)).toBe(5 * DAY_MIN);
+  });
 
   it.todo(
     "CAL-5: holiday and shift exceptions alter working-time addition without corrupting neighboring work shifts",
