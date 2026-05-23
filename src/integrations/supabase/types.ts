@@ -638,7 +638,15 @@ export type Database = {
           updated_at?: string
           work_days?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "schedule_calendars_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       schedule_dependencies: {
         Row: {
@@ -781,6 +789,13 @@ export type Database = {
           wbs_node_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "schedule_tasks_calendar_id_fkey"
+            columns: ["calendar_id"]
+            isOneToOne: false
+            referencedRelation: "schedule_calendars"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "schedule_tasks_schedule_id_fkey"
             columns: ["schedule_id"]
@@ -1208,6 +1223,10 @@ export type Database = {
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
         Returns: number
+      }
+      ensure_default_calendar: {
+        Args: { _schedule_id: string }
+        Returns: string
       }
       finish_stripe_webhook_event: {
         Args: { _event_id: string; _last_error?: string; _status: string }

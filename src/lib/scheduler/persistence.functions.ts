@@ -206,6 +206,11 @@ export const loadSchedule = createServerFn({ method: "GET" })
     if (headErr) throw new Error(headErr.message);
     if (!head) throw new Error("Schedule not found");
 
+    // Idempotently guarantee a project default calendar for this schedule.
+    // Safe to call on every load; the helper is a no-op if a default already exists.
+    await supabase.rpc("ensure_default_calendar", { _schedule_id: data.id });
+
+
     const [{ data: tasks, error: tErr }, { data: deps, error: dErr }, { data: cals, error: cErr }] =
       await Promise.all([
         supabase
