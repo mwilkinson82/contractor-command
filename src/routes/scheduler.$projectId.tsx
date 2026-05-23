@@ -942,7 +942,7 @@ function SchedulerPage() {
                 ) : null}
 
                 {/* Project meta strip — compact single-line pill row */}
-                <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[#eee7d8] bg-white px-4 py-1 text-[11px] text-[#5c574e]">
+                <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[#eee7d8] bg-white px-4 py-0.5 text-[11px] text-[#5c574e]">
                   <label className="inline-flex items-center gap-1.5">
                     <span className="text-[9px] font-semibold uppercase tracking-wider text-[#9c8b6e]">Start</span>
                     <input
