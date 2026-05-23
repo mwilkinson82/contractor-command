@@ -933,3 +933,90 @@ Overall scheduler test count: **48 passing, 7 todo** across 4 files.
 3. XER-17: multi-project relationship execution when both projects are
    present in the import.
 4. XER-18: ignore-external-relationships scheduling option.
+
+---
+
+## 18. Phase 1.8 — XER reconciliation harness
+
+Status: **complete**. No engine-version bump (calculation logic
+unchanged from Phase 1.6). New harness lives entirely in
+`src/lib/scheduler/engine2/xer-pipeline.ts` +
+`src/lib/scheduler/engine2/reconciliation.ts`, plus fixtures and
+pipeline tests under `__tests__/fixtures/xer-fixtures.ts` and
+`__tests__/xer-pipeline.spec.ts`. The legacy engine, the production
+`XerImportButton`, and the `VITE_SCHEDULER_ENGINE` flag are
+untouched.
+
+### Public surface added
+
+- `xerToCpmInput(importResult, options?) → { cpmInput, synthesizedCalendarIds, diagnostics }`
+  - Builds a `WorkClock` per imported calendar (whole-day, work-day
+    bitmask + holidays + hours-per-day), synthesizes Mon-Fri 8h
+    fallbacks for any referenced-but-undefined calendar id (emitting
+    a `calendar_synthesized` diagnostic), derives `projectStart`
+    from `dataDate` / earliest actual / earliest constraint / a
+    deterministic fallback, and forwards `resources` / `roles` /
+    `assignments` when present.
+- `reconcileSchedule(input) → ReconciliationReport`
+  - Classifies every finding into one of four buckets: `match`,
+    `acceptable-known-limitation`, `mismatch`,
+    `unsupported-preserved-only`.
+  - Maps Phase 1.7 diagnostic codes to buckets via a curated default
+    set; callers may extend `acceptableLimitationCodes`.
+  - Compares optional `expectedActivities` (earlyStart, earlyFinish,
+    isCritical, totalFloatMinutes) against engine2 output with a
+    configurable `toleranceMinutes`.
+  - Always emits a `baseline:not-provided` entry as
+    acceptable-known-limitation unless a baseline was supplied —
+    enforcing the "engine2 never fabricates baselines from XER" rule.
+
+### Fixtures (`__tests__/fixtures/xer-fixtures.ts`)
+
+10 minimal hand-written XER blocks covering simple FS chain, parallel
+paths, mixed calendars, supported constraint (`CS_MSOA → snet`),
+actuals/progress, resources/roles/assignments, external (cross-
+project) relationship, baseline absence, unsupported constraint type,
+and non-standard hours-per-day calendar.
+
+### Acceptance tests now active
+
+- **XER-19** — XER import does not fabricate baselines from absent
+  baseline data. Importer always emits `baseline_not_in_xer`; pipeline
+  output has no `baselines`; engine result's
+  `runRecord.optionsSnapshot.baselinesProvided` is `false` and no
+  activity has a synthesized `baselineVariance`.
+
+Active acceptance total: **14 of 20**. XER-17, XER-18, XER-20 remain
+`.todo()` — multi-project relationship execution, ignore-external-
+relationships scheduling option, and Update / Replace / Add-Into
+import-action behaviors are still out of scope.
+
+### Test counts
+
+`bunx vitest run src/lib/scheduler`: **67 passing, 6 todo** across
+5 files (added: `xer-pipeline.spec.ts` with 18 tests covering all 10
+fixtures, reconciliation classification, XER-19 path, and explicit
+diagnostic-code coverage).
+
+### Known limitations after Phase 1.8 (intentional)
+
+- **No execution of preserved external relationships.** They are
+  reported via `unsupported-preserved-only` reconciliation entries
+  and remain on `importResult.raw.taskpred`; engine2 does not wire
+  them into the graph until XER-17 / XER-18 are honestly implemented.
+- **Calendar synthesis is conservative.** Referenced-but-undefined
+  calendar ids fall back to Mon-Fri 8h. Diagnosed, not silent.
+- **No real .xer file fixtures yet.** All fixtures are inline
+  representative blocks. Real fixture ingestion is deferred to avoid
+  bloating the repo before the dual-engine parity harness lands.
+- **Reconciliation does not yet drive the UI.** The harness is a
+  pure-function module consumed by tests only; surfacing it in the
+  UI is out of scope for Phase 1.8.
+
+### Phase 1.9 entry criteria
+
+1. Dual-engine parity harness (legacy ↔ engine2) on shared fixtures.
+2. Promote XER-17 / XER-18 when external relationship execution +
+   ignore-external option are implemented.
+3. Start surfacing `ReconciliationReport` in a developer-only diagnostic
+   view (still behind the legacy flag).
