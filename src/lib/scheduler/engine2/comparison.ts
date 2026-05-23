@@ -385,7 +385,26 @@ function deriveVerdict(
   return "expected-differences";
 }
 
+function rankTopDifferences(
+  diffs: ComparisonDifference[],
+  limit: number,
+): ComparisonDifference[] {
+  const order: Record<ComparisonClassification, number> = {
+    investigate: 0,
+    "known-engine-limitation": 1,
+    "expected-bridge-limitation": 2,
+  };
+  return [...diffs]
+    .sort((a, b) => {
+      const ca = order[a.classification] - order[b.classification];
+      if (ca !== 0) return ca;
+      return a.category.localeCompare(b.category) || a.id.localeCompare(b.id);
+    })
+    .slice(0, limit);
+}
+
 /**
+
  * Run both engines against the same schedule and produce a structured
  * comparison. Does not throw on mismatch — the report carries the verdict.
  * If engine2 throws, the legacy result is still returned and the error is
