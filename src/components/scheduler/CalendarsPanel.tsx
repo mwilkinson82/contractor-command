@@ -174,11 +174,20 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
                   </button>
                 );
               })}
-              <span className="ml-2 text-[10px] text-[#7a6a4d]">
-                {c.holidays.length} holiday{c.holidays.length === 1 ? "" : "s"}
-              </span>
             </div>
+            <HolidaysEditor
+              holidays={c.holidays}
+              onChange={(next) =>
+                updateMut.mutate({
+                  id: c.id,
+                  name: c.name,
+                  workDays: c.workDays,
+                  holidays: next,
+                })
+              }
+            />
           </li>
+
         ))}
       </ul>
 
