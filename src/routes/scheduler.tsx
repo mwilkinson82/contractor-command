@@ -375,8 +375,11 @@ function ProjectsIndex() {
                           <Mini label="Data date" value={p.dataDate ?? "—"} />
                         </div>
 
-                        <div className="mt-3 text-[10px] uppercase tracking-wide text-[#9b9075]">
-                          Updated {new Date(p.updatedAt).toLocaleDateString()}
+                        <div className="mt-3 flex items-center justify-between gap-3 text-[10px] uppercase tracking-wide text-[#9b9075]">
+                          <span>Updated {new Date(p.updatedAt).toLocaleDateString()}</span>
+                          <span className="font-semibold text-[#1f241f] group-hover:underline">
+                            Open CPM workbench →
+                          </span>
                         </div>
                       </Link>
                     </li>
