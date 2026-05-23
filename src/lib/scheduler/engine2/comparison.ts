@@ -46,7 +46,14 @@ export type ComparisonDifferenceCategory =
   | "constraint_behavior_difference"
   | "progress_behavior_difference"
   | "missing_legacy_field"
-  | "legacy_missing_engine2_field";
+  | "legacy_missing_engine2_field"
+  // Phase 2.6 — additional structured buckets.
+  | "leveling_behavior_difference"
+  | "baseline_behavior_difference"
+  | "precision_rounding_difference"
+  | "known_unsupported_behavior"
+  | "missing_engine2_field";
+
 
 export type ComparisonClassification =
   | "expected-bridge-limitation"
@@ -62,7 +69,12 @@ export interface ComparisonDifference {
   legacy?: string | number | boolean | null;
   engine2?: string | number | boolean | null;
   note?: string;
+  /** Phase 2.6 — short reason explaining why the two engines diverged. */
+  likelyCause?: string;
+  /** Phase 2.6 — concrete next step a developer can take. */
+  recommendedAction?: string;
 }
+
 
 export interface ComparisonReport {
   scheduleName: string;
@@ -77,6 +89,8 @@ export interface ComparisonReport {
   knownLimitationDifferences: number;
   engine2OnlyDiagnostics: number;
   differences: ComparisonDifference[];
+  /** Phase 2.6 — bounded slice of differences ranked investigate→known→expected for quick scanning. */
+  topDifferences: ComparisonDifference[];
   countsByCategory: Record<ComparisonDifferenceCategory, number>;
   countsByClassification: Record<ComparisonClassification, number>;
   verdict: ComparisonVerdict;
@@ -90,6 +104,7 @@ export interface ComparisonReport {
     useExceptionAwareCalendars: boolean;
   };
 }
+
 
 export interface ComparisonRun {
   legacy: ScheduleResult;
@@ -119,8 +134,14 @@ function emptyCounts(): Record<ComparisonDifferenceCategory, number> {
     progress_behavior_difference: 0,
     missing_legacy_field: 0,
     legacy_missing_engine2_field: 0,
+    leveling_behavior_difference: 0,
+    baseline_behavior_difference: 0,
+    precision_rounding_difference: 0,
+    known_unsupported_behavior: 0,
+    missing_engine2_field: 0,
   };
 }
+
 
 function emptyClassCounts(): Record<ComparisonClassification, number> {
   return {
@@ -145,10 +166,15 @@ function defaultClassificationFor(
     case "constraint_behavior_difference":
     case "missing_legacy_field":
     case "legacy_missing_engine2_field":
+    case "baseline_behavior_difference":
+    case "missing_engine2_field":
+    case "known_unsupported_behavior":
       return "expected-bridge-limitation";
     case "total_float":
     case "free_float":
     case "progress_behavior_difference":
+    case "leveling_behavior_difference":
+    case "precision_rounding_difference":
     case "engine2_only_diagnostic":
       return "known-engine-limitation";
     case "early_start_date":
@@ -164,6 +190,129 @@ function defaultClassificationFor(
   }
 }
 
+/**
+ * Phase 2.6 — derive a likely cause + recommended next action for a
+ * difference category so every report row is actionable. Callers may
+ * override per-difference; this is the default fallback.
+ */
+function defaultActionableContext(category: ComparisonDifferenceCategory): {
+  likelyCause: string;
+  recommendedAction: string;
+} {
+  switch (category) {
+    case "early_start_date":
+    case "early_finish_date":
+    case "late_start_date":
+    case "late_finish_date":
+      return {
+        likelyCause:
+          "Date math differs (working-minute vs calendar-day basis, or progress not bridged as actuals).",
+        recommendedAction:
+          "Confirm whether the activity carries percent-complete; if so, expected until actuals are bridged. Otherwise inspect lag/calendar basis for this activity.",
+      };
+    case "total_float":
+    case "free_float":
+      return {
+        likelyCause:
+          "Float unit basis differs (legacy=calendar days, engine2=working minutes).",
+        recommendedAction:
+          "Treat as unit-basis difference. No action required until both engines emit a common float unit.",
+      };
+    case "critical_flag":
+      return {
+        likelyCause: "Downstream of date/float deltas on this activity or its successors.",
+        recommendedAction: "Resolve upstream date/float deltas first; flag will follow.",
+      };
+    case "driving_link":
+      return {
+        likelyCause:
+          "Driving-link slack computed in working minutes (engine2) vs default-calendar days (legacy).",
+        recommendedAction:
+          "Expected until driving-link math shares a unit basis. Re-check after calendar parity lands.",
+      };
+    case "missing_in_engine2":
+    case "missing_in_legacy":
+      return {
+        likelyCause: "One engine produced an entity the other did not — possible bridge bug.",
+        recommendedAction:
+          "Inspect the bridge mapping for this id; engine2 should mirror legacy structure 1:1.",
+      };
+    case "calendar_model_difference":
+      return {
+        likelyCause:
+          "Engine2 emitted a calendar-related diagnostic the legacy engine cannot model.",
+        recommendedAction:
+          "Expected. Track the diagnostic code; only action if it appears with date deltas.",
+      };
+    case "lag_basis_difference":
+      return {
+        likelyCause: "Lag is interpreted as project-calendar working days; engine basis differs.",
+        recommendedAction:
+          "Expected bridge limitation. No action until lag-on-successor-calendar parity lands.",
+      };
+    case "constraint_behavior_difference":
+      return {
+        likelyCause: "Engine2 supports more constraint types than legacy can express.",
+        recommendedAction:
+          "Expected when activity uses non-SNET constraints. Verify SNET mapping is intact.",
+      };
+    case "progress_behavior_difference":
+      return {
+        likelyCause:
+          "Legacy stores percent-complete only; engine2 expects actualStart/actualFinish.",
+        recommendedAction:
+          "Expected. Will close once Phase 2.x bridges percent-complete to actuals.",
+      };
+    case "leveling_behavior_difference":
+      return {
+        likelyCause: "Legacy engine does not perform resource leveling; engine2 does.",
+        recommendedAction:
+          "Expected. Compare engine2 leveling output only against engine2; do not expect parity.",
+      };
+    case "baseline_behavior_difference":
+      return {
+        likelyCause: "Legacy engine does not consume baselines for math; engine2 reports them.",
+        recommendedAction: "Expected. Baseline math comparison is out of scope for the bridge.",
+      };
+    case "precision_rounding_difference":
+      return {
+        likelyCause: "Rounding difference between calendar-day and working-minute math.",
+        recommendedAction:
+          "Acceptable for now. Revisit if rounding ever flips a critical flag.",
+      };
+    case "missing_legacy_field":
+      return {
+        likelyCause: "Engine2 carries a field that has no legacy equivalent.",
+        recommendedAction:
+          "Informational. Surface in dev report only; no action required.",
+      };
+    case "legacy_missing_engine2_field":
+    case "missing_engine2_field":
+      return {
+        likelyCause: "Field exists on one engine's output but not the other.",
+        recommendedAction:
+          "Document and accept until bridge surface is expanded.",
+      };
+    case "known_unsupported_behavior":
+      return {
+        likelyCause: "Behavior the bridge knowingly does not cross-emit.",
+        recommendedAction: "No action — tracked as a known unsupported behavior.",
+      };
+    case "known_limitation":
+      return {
+        likelyCause: "Difference is a documented bridge/engine limitation.",
+        recommendedAction: "No action — already documented in ARCHITECTURE.md.",
+      };
+    case "engine2_only_diagnostic":
+    default:
+      return {
+        likelyCause: "Engine2 surfaced a diagnostic the legacy engine cannot produce.",
+        recommendedAction:
+          "Review the diagnostic message; if it correlates with date deltas, escalate.",
+      };
+  }
+}
+
 function pushDiff(
   diffs: ComparisonDifference[],
   counts: Record<ComparisonDifferenceCategory, number>,
@@ -173,7 +322,13 @@ function pushDiff(
 ) {
   const classification =
     partial.classification ?? defaultClassificationFor(partial.category);
-  const d: ComparisonDifference = { ...partial, classification };
+  const ctx = defaultActionableContext(partial.category);
+  const d: ComparisonDifference = {
+    ...partial,
+    classification,
+    likelyCause: partial.likelyCause ?? ctx.likelyCause,
+    recommendedAction: partial.recommendedAction ?? ctx.recommendedAction,
+  };
   diffs.push(d);
   counts[d.category]++;
   classCounts[d.classification]++;
@@ -195,7 +350,7 @@ export interface CompareEnginesOptions {
  * Map an engine2 diagnostic code to a tighter category bucket when possible.
  */
 function categorizeEngine2Diagnostic(code: string): ComparisonDifferenceCategory {
-  if (code.startsWith("calendar_") || code.includes("_calendar_")) {
+  if (code.startsWith("calendar_") || code.includes("_calendar_") || code.includes("work_clock")) {
     return "calendar_model_difference";
   }
   if (code.startsWith("lag_") || code.includes("_lag_")) return "lag_basis_difference";
@@ -208,8 +363,18 @@ function categorizeEngine2Diagnostic(code: string): ComparisonDifferenceCategory
   ) {
     return "progress_behavior_difference";
   }
+  if (code.startsWith("leveling_") || code.includes("_leveling_") || code.includes("overallocation")) {
+    return "leveling_behavior_difference";
+  }
+  if (code.startsWith("baseline_") || code.includes("_baseline_")) {
+    return "baseline_behavior_difference";
+  }
+  if (code.includes("rounding") || code.includes("precision")) {
+    return "precision_rounding_difference";
+  }
   return "engine2_only_diagnostic";
 }
+
 
 function deriveVerdict(
   classCounts: Record<ComparisonClassification, number>,
@@ -220,7 +385,26 @@ function deriveVerdict(
   return "expected-differences";
 }
 
+function rankTopDifferences(
+  diffs: ComparisonDifference[],
+  limit: number,
+): ComparisonDifference[] {
+  const order: Record<ComparisonClassification, number> = {
+    investigate: 0,
+    "known-engine-limitation": 1,
+    "expected-bridge-limitation": 2,
+  };
+  return [...diffs]
+    .sort((a, b) => {
+      const ca = order[a.classification] - order[b.classification];
+      if (ca !== 0) return ca;
+      return a.category.localeCompare(b.category) || a.id.localeCompare(b.id);
+    })
+    .slice(0, limit);
+}
+
 /**
+
  * Run both engines against the same schedule and produce a structured
  * comparison. Does not throw on mismatch — the report carries the verdict.
  * If engine2 throws, the legacy result is still returned and the error is
@@ -234,36 +418,34 @@ export function compareEnginesOnSchedule(
   const legacy = calculateSchedule(schedule);
   const legacyMs = Date.now() - t0Legacy;
 
-  const bridge = bridgeLegacyScheduleToEngine2(schedule, {
-    useExceptionAwareCalendars: options.useExceptionAwareCalendars,
-  });
-
   let engine2: EngineResult;
   let engine2Ms = 0;
   let engine2Error: string | undefined;
+  let bridgeNotes: string[] = [];
   try {
+    const bridge = bridgeLegacyScheduleToEngine2(schedule, {
+      useExceptionAwareCalendars: options.useExceptionAwareCalendars,
+    });
+    bridgeNotes = bridge.conversionNotes;
     const t0Engine2 = Date.now();
     engine2 = calculateCpm(bridge.input);
     engine2Ms = Date.now() - t0Engine2;
   } catch (err) {
     engine2Error = err instanceof Error ? err.message : String(err);
-    // Return a minimal empty engine2 result so the report stays well-typed.
     engine2 = {
       activities: [],
       relationships: [],
       diagnostics: [],
-      projectFinish: bridge.input.projectStart,
-      runRecord: {
-        engineVersion: "engine2-error",
-        durationMs: 0,
-      },
+      projectFinish: 0,
+      runRecord: { engineVersion: "engine2-error", durationMs: 0 },
     } as unknown as EngineResult;
   }
 
   const differences: ComparisonDifference[] = [];
   const counts = emptyCounts();
   const classCounts = emptyClassCounts();
-  const knownLimitations: string[] = [...bridge.conversionNotes];
+  const knownLimitations: string[] = [...bridgeNotes];
+
 
   const legacyById = new Map(legacy.tasks.map((t) => [t.id, t]));
   const engine2ById = new Map(engine2.activities.map((a) => [a.id, a]));
@@ -482,8 +664,10 @@ export function compareEnginesOnSchedule(
       counts.constraint_behavior_difference +
       counts.progress_behavior_difference,
     differences,
+    topDifferences: rankTopDifferences(differences, 10),
     countsByCategory: counts,
     countsByClassification: classCounts,
+
     verdict: deriveVerdict(classCounts, differences.length),
     knownLimitations,
     engine2DiagnosticsCount: engine2.diagnostics?.length ?? 0,
@@ -533,6 +717,17 @@ export function formatComparisonReport(report: ComparisonReport): string {
   for (const [k, v] of Object.entries(report.countsByCategory)) {
     if (v > 0) lines.push(`    ${k}: ${v}`);
   }
+  if (report.topDifferences.length > 0) {
+    lines.push(`  top differences:`);
+    for (const d of report.topDifferences) {
+      const legacyStr = d.legacy === undefined ? "" : ` legacy=${JSON.stringify(d.legacy)}`;
+      const engine2Str = d.engine2 === undefined ? "" : ` engine2=${JSON.stringify(d.engine2)}`;
+      lines.push(`    - [${d.classification}] ${d.category} ${d.id}${legacyStr}${engine2Str}`);
+      if (d.likelyCause) lines.push(`        cause: ${d.likelyCause}`);
+      if (d.recommendedAction) lines.push(`        action: ${d.recommendedAction}`);
+    }
+  }
+
   if (report.knownLimitations.length > 0) {
     lines.push(`  known limitations:`);
     for (const l of report.knownLimitations) lines.push(`    - ${l}`);
