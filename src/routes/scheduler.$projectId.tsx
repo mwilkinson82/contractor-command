@@ -35,6 +35,7 @@ import { ReportsPanel } from "@/components/scheduler/ReportsPanel";
 import { ResourcesPanel } from "@/components/scheduler/ResourcesPanel";
 import { ScheduleKpiBar } from "@/components/scheduler/ScheduleKpiBar";
 import { DashboardsPanel } from "@/components/scheduler/DashboardsPanel";
+import { DcmaPanel } from "@/components/scheduler/DcmaPanel";
 import { StructurePanel } from "@/components/scheduler/StructurePanel";
 import { WbsSelect } from "@/components/scheduler/WbsSelect";
 import { ActivityCodeChips } from "@/components/scheduler/ActivityCodeChips";
