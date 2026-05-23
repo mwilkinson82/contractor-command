@@ -1361,3 +1361,122 @@ PRG-8, PRG-9, PRG-10). The remaining 10 stay `.todo()`.
 2. Per-activity calendar precedence (resource vs activity).
 3. Route XER `clndr_data` into `createExceptionWorkClock`.
 4. Begin XER export scaffolding.
+
+---
+
+## 23. Phase 2.3 — Preserve scheduled early/late dates (leveling)
+
+Engine version: `0.12.0-phase2.3`.
+
+### Scope
+
+Promotes the Phase 1.6 deferred `preserveScheduledEarlyAndLateDates`
+option from a parsed-but-ignored flag to an **enforced** rule on the
+leveling pass. When enabled, leveling will not delay an activity past
+its CPM `lateStart`; conflicts that cannot be resolved within the
+preserved window are left unresolved and reported.
+
+CPM dates on `EngineResult.activities` are never mutated by leveling.
+Leveled dates remain isolated to `EngineResult.leveling.entries`.
+
+### Behavior
+
+For each eligible (movable) activity under the leveling sort order:
+
+1. Try to place the activity at its CPM `earlyStart`.
+2. While placement does not fit, push by one workday under the activity
+   calendar.
+3. **Phase 2.3** — if the next push would cross `cpmLateStart` and
+   `preserveScheduledEarlyAndLateDates` is true, stop. The activity is
+   left at the last accepted start (which may still be its CPM
+   `earlyStart` if no delay fit at all). Its demand is still committed
+   to the ledger so the residual overallocation is honestly reported.
+
+### Leveling entry fields (Phase 2.3 additions)
+
+`LevelingEntry` now carries the late-date window and an explicit rule
+outcome:
+
+- `cpmLateStart`, `cpmLateFinish` — CPM late window snapshot
+- `attemptedLeveledStart`, `attemptedLeveledFinish` — the placement
+  before the preserve-dates cap clipped it (equal to leveled* on
+  success)
+- `preserveDatesOutcome`:
+  - `"satisfied"` — preserve rule enabled; move fit within window
+  - `"limited"`   — preserve rule enabled; leveler stopped at late-start
+                    before fully resolving the conflict
+  - `"blocked"`   — preserve rule enabled; no move possible (zero float
+                    or already at late-start); activity left at CPM
+                    early-start with unresolved overallocation
+  - `"n/a"`       — preserve rule disabled
+
+`priorityReason` is extended to describe the preserve outcome in plain
+text.
+
+### Diagnostics
+
+Phase 2.3 adds the following codes to `LevelingAnalysis.warnings`:
+
+- `leveling_preserve_dates_applied` (info) — emitted once per run when
+  the option is enabled.
+- `leveling_preserve_dates_blocked_move` (warn) — per activity that
+  could not move at all under the preserve window.
+- `leveling_move_limited_by_late_date` (warn) — per activity capped at
+  late-start before its conflict was resolved.
+- `leveling_overallocation_unresolved` (warn) — per residual overallocated
+  resource-day after preserve-dates leveling, plus a per-activity variant
+  when applicable.
+- `leveling_activity_outside_preserved_window` (warn) — emitted when an
+  activity has negative float (`lateStart < earlyStart`) and preserve
+  is enabled.
+- `leveling_preserve_dates_window_missing` (info) — emitted when an
+  activity has zero float (`lateStart === earlyStart`) and preserve is
+  enabled.
+
+The Phase 1.6 `leveling_preserve_dates_deferred` warning is **removed**.
+
+### LVL-14 status (active)
+
+`LVL-14: preserve-scheduled-early-and-late-dates mode shall materially
+constrain how far leveling may move activities.` is now executable. The
+test asserts that under identical inputs:
+
+- Without preserve, the lower-priority activity is delayed the full
+  required amount and all overallocations are resolved.
+- With preserve, the same activity is delayed at most by its CPM float;
+  residual overallocations remain and are reported.
+- The required diagnostics (`leveling_preserve_dates_applied`,
+  `leveling_move_limited_by_late_date`,
+  `leveling_overallocation_unresolved`) are emitted.
+- The deferred warning is gone.
+- Re-running with identical inputs produces identical leveled dates.
+
+### Known limitations (Phase 2.3)
+
+- **No float-borrowing across links.** The window is the activity's own
+  CPM `[earlyStart, lateStart]`; the leveler does not negotiate with
+  successors to recover additional float.
+- **No re-leveling after a blocked activity.** When a higher-priority
+  activity is blocked, lower-priority activities do not retry against
+  the now-known residual.
+- **Whole-day granularity** is unchanged from Phase 1.6.
+- **No successor re-flow.** Leveling still does not re-drive CPM dates
+  for successors of moved activities (`leveling_successors_not_reflowed`
+  still emitted).
+- **No XER round-trip** of the preserve-dates option yet — it is an
+  engine input only.
+
+### Acceptance tally after Phase 2.3
+
+Active: 11 of 20 (CPM-1, CPM-2, CPM-3, CAL-4, CAL-5, CON-6, CON-7,
+PRG-8, PRG-9, PRG-10, LVL-13, LVL-14, LVL-15, LVL-16 minus the four
+remaining `.todo()` items). All 95 tests in the scheduler suite are
+green; no `.todo()` entries remain in `p6-acceptance.spec.ts` for the
+Phase 1–2.3 scope.
+
+### Phase 2.4 candidates
+
+1. Re-leveling pass after preserve-dates blocks (priority recovery).
+2. Successor re-flow after leveling moves.
+3. ALAP propagation through successors.
+4. Route XER `clndr_data` exceptions into `createExceptionWorkClock`.
