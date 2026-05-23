@@ -46,6 +46,7 @@ import type {
   GoverningCause,
   Instant,
   LagCalendarBasis,
+  LevelingOptions,
   RelationshipType,
   Resource,
   ResourceAssignment,
