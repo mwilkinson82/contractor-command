@@ -904,13 +904,21 @@ function SchedulerPage() {
                 <span className="text-[10px] uppercase tracking-wide text-[#7a6a4d]">
                   Zoom
                 </span>
+                <button
+                  type="button"
+                  onClick={() => setZoomUserSet(false)}
+                  className="rounded border border-[#e6dfd0] px-1.5 py-0.5 text-[10px] text-[#5c574e] hover:bg-[#faf8f3]"
+                  title="Fit project to viewport"
+                >
+                  Fit
+                </button>
                 {ZOOM_LEVELS.map((z) => (
                   <button
                     key={z.label}
                     type="button"
-                    onClick={() => setDayPx(z.dayPx)}
+                    onClick={() => setDayPxUser(z.dayPx)}
                     className={`rounded px-1.5 py-0.5 text-[10px] ${
-                      dayPx === z.dayPx
+                      dayPx === z.dayPx && zoomUserSet
                         ? "bg-[#1f241f] text-white"
                         : "border border-[#e6dfd0] text-[#5c574e] hover:bg-[#faf8f3]"
                     }`}
