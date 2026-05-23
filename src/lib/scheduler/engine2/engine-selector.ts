@@ -47,6 +47,10 @@ import {
   type PromotionReadiness,
 } from "./burndown";
 import type { EvidenceLog } from "./shadow";
+import {
+  evaluateScheduleEligibility,
+  type ScheduleEligibility,
+} from "./schedule-eligibility";
 
 // ---------------------------------------------------------------------------
 // Mode + flag resolution
