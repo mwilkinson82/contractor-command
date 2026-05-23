@@ -739,6 +739,7 @@ export function calculateCpm(input: CpmInput): EngineResult {
       atCompletionDurationMinutes,
       durationPercentComplete,
       reportedPercentComplete,
+      assignmentSummary,
     };
   });
 
