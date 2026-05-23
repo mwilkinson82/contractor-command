@@ -1137,12 +1137,13 @@ function SchedulerPage() {
                     ) : null}
                   </div>
 
-                  <div className="max-h-[200px] overflow-auto px-4 py-2 text-sm">
+                  <div className={`${selectedTaskCalc ? "max-h-[200px]" : "max-h-[120px]"} overflow-auto px-4 py-2 text-sm`}>
                     {!selectedTaskCalc || selectedTaskIdx < 0 ? (
-                      <div className="py-6 text-center text-xs text-[#9c8b6e]">
-                        Select an activity to inspect details, relationships, resources, codes,
-                        calendar, or notes.
-                      </div>
+                      <ScheduleContextSummary
+                        draft={draft}
+                        computed={computed}
+                        onSelect={setSelectedTaskId}
+                      />
                     ) : inspectorTab === "details" ? (
                       <InspectorDetails
                         t={selectedTaskCalc}
