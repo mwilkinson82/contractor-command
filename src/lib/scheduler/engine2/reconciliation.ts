@@ -108,6 +108,7 @@ const DEFAULT_ACCEPTABLE_CODES = new Set<string>([
 const UNSUPPORTED_PRESERVED_CODES = new Set<string>([
   "unsupported_constraint_type",
   "missing_calendar_reference",
+  "calendar_reference_missing",
   "missing_resource_reference",
   "external_project_missing",
   "interproject_relationship_unresolved",
