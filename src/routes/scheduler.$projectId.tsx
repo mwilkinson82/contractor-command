@@ -926,7 +926,7 @@ function SchedulerPage() {
                   </div>
 
                   {/* LEFT: activity table */}
-                  <div className="scheduler-print-left flex w-[520px] shrink-0 flex-col overflow-hidden border-r border-[#e6dfd0] bg-white">
+                  <div className="scheduler-print-left flex w-[680px] shrink-0 flex-col overflow-hidden border-r border-[#e6dfd0] bg-white">
                     <div className="flex shrink-0 items-center justify-between border-b border-[#eee7d8] bg-[#faf8f3] px-3 py-1.5">
                       <span className="text-[10px] font-semibold uppercase tracking-wide text-[#7a6a4d]">
                         Activities · {totalActivities}
