@@ -305,6 +305,21 @@ function SchedulerPage() {
   const computed = result && "tasks" in result ? result : null;
   const computeError = result && "error" in result ? result.error : null;
 
+  // Auto-fit zoom: pick a dayPx that fits the project horizontally on first load
+  // for this schedule. User changes (setDayPxUser) opt out.
+  useEffect(() => {
+    if (zoomUserSet) return;
+    if (!computed || computed.projectDuration < 1) return;
+    const container = rightScrollRef.current;
+    if (!container) return;
+    const available = container.clientWidth - 668 /* sticky table width */ - 16;
+    if (available <= 0) return;
+    const ideal = Math.floor(available / computed.projectDuration);
+    const clamped = Math.max(4, Math.min(36, ideal));
+    if (clamped !== dayPx) setDayPx(clamped);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [computed?.projectDuration, zoomUserSet]);
+
   const baselineQuery = useQuery({
     queryKey: ["baseline", comparisonBaselineId],
     queryFn: () => loadBaselineFn({ data: { id: comparisonBaselineId! } }),
