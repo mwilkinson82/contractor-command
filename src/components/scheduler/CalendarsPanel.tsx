@@ -296,6 +296,34 @@ function HolidaysEditor({
               Add
             </Button>
           </div>
+          <div className="flex flex-wrap items-center gap-1 border-t border-dashed border-[#e8ddc4] pt-1">
+            <span className="text-[10px] uppercase tracking-wide text-[#7a6a4d]">Quick add:</span>
+            <Input
+              type="number"
+              className="h-6 w-[70px] text-xs"
+              value={year}
+              onChange={(e) => setYear(parseInt(e.target.value) || new Date().getFullYear())}
+            />
+            <button
+              type="button"
+              className="rounded border border-[#d8cdb8] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[#3d3527] hover:bg-[#eee6d7]"
+              onClick={() => mergeDates(usFederalHolidays(year))}
+            >
+              US federal {year}
+            </button>
+            {holidays.length ? (
+              <button
+                type="button"
+                className="ml-auto text-[10px] uppercase tracking-wide text-[#b42318] hover:underline"
+                onClick={() => {
+                  if (confirm("Clear all holidays?")) onChange([]);
+                }}
+              >
+                Clear all
+              </button>
+            ) : null}
+          </div>
+
           {sorted.length ? (
             <div className="flex flex-wrap gap-1">
               {sorted.map((h) => (
