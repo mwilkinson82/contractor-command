@@ -942,9 +942,9 @@ function SchedulerPage() {
                 ) : null}
 
                 {/* Project meta strip — compact single-line pill row */}
-                <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[#eee7d8] bg-white/70 px-4 py-1.5 text-[11px] text-[#5c574e]">
+                <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[#eee7d8] bg-white px-4 py-1 text-[11px] text-[#5c574e]">
                   <label className="inline-flex items-center gap-1.5">
-                    <span className="text-[10px] uppercase tracking-wide text-[#9c8b6e]">Start</span>
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-[#9c8b6e]">Start</span>
                     <input
                       type="date"
                       className="h-6 rounded border border-[#e6dfd0] bg-white px-1.5 text-[11px] tabular-nums"
@@ -956,7 +956,7 @@ function SchedulerPage() {
                     />
                   </label>
                   <label className="inline-flex items-center gap-1.5">
-                    <span className="text-[10px] uppercase tracking-wide text-[#9c8b6e]">Data date</span>
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-[#9c8b6e]">Data date</span>
                     <input
                       type="date"
                       className="h-6 rounded border border-[#e6dfd0] bg-white px-1.5 text-[11px] tabular-nums"
@@ -967,18 +967,6 @@ function SchedulerPage() {
                       }}
                     />
                   </label>
-                  {computed?.projectFinishDate ? (
-                    <span className="inline-flex items-center gap-1">
-                      <span className="text-[10px] uppercase tracking-wide text-[#9c8b6e]">Finish</span>
-                      <span className="font-medium text-[#1f241f] tabular-nums">{computed.projectFinishDate}</span>
-                    </span>
-                  ) : null}
-                  {computed ? (
-                    <span className="inline-flex items-center gap-1">
-                      <span className="text-[10px] uppercase tracking-wide text-[#9c8b6e]">Duration</span>
-                      <span className="font-medium text-[#1f241f] tabular-nums">{computed.projectDuration}d</span>
-                    </span>
-                  ) : null}
                   <button
                     type="button"
                     disabled={!draft.dataDate}
@@ -1003,7 +991,7 @@ function SchedulerPage() {
                     }}
                     className="ml-auto rounded border border-[#e6dfd0] bg-white px-2 py-0.5 text-[10px] uppercase tracking-wide text-[#3d3527] hover:bg-[#faf8f3] disabled:opacity-40"
                   >
-                    Reschedule
+                    Reschedule from data date
                   </button>
                 </div>
 
@@ -1090,19 +1078,20 @@ function SchedulerPage() {
                     </div>
                     {/* Legend — slim inline strip */}
                     <div className="flex shrink-0 items-center justify-center gap-4 border-t border-[#eee7d8] bg-[#faf8f3] px-4 py-1 text-[10px] text-[#5c574e]">
-                      <LegendDot color="#3d8a5c" label="Completed" />
-                      <LegendDot color="#5b8bd6" label="In Progress" />
-                      <LegendDot color="#9b87d3" label="Planned" />
-                      <LegendDot color="#cfd9e8" label="Lookahead" />
-                      <LegendDot color="#b42318" label="Critical" />
+                      <LegendDot color="#2a3e5f" label="Planned" />
+                      <LegendDot color="#9c2418" label="Critical" />
                       {nearCriticalFloat > 0 ? (
                         <LegendDot
-                          color="#d97706"
+                          color="#c2750a"
                           label={`Near-critical (≤${nearCriticalFloat}d)`}
                         />
                       ) : null}
+                      <LegendDot color="#9c8b6e" label="Float / baseline" />
                       <span className="inline-flex items-center gap-1">
-                        <span className="inline-block h-2 w-2 rotate-45 bg-[#1f241f]" /> Milestone
+                        <span className="inline-block h-2 w-2 rotate-45 bg-[#7a5cc4]" /> Milestone
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="inline-block h-3 w-0.5 bg-[#2f7a3e]" /> Data date
                       </span>
                     </div>
                   </div>
@@ -1149,12 +1138,13 @@ function SchedulerPage() {
                     ) : null}
                   </div>
 
-                  <div className="max-h-[200px] overflow-auto px-4 py-2 text-sm">
+                  <div className={`${selectedTaskCalc ? "max-h-[200px]" : "max-h-[120px]"} overflow-auto px-4 py-2 text-sm`}>
                     {!selectedTaskCalc || selectedTaskIdx < 0 ? (
-                      <div className="py-6 text-center text-xs text-[#9c8b6e]">
-                        Select an activity to inspect details, relationships, resources, codes,
-                        calendar, or notes.
-                      </div>
+                      <ScheduleContextSummary
+                        draft={draft}
+                        computed={computed}
+                        onSelect={setSelectedTaskId}
+                      />
                     ) : inspectorTab === "details" ? (
                       <InspectorDetails
                         t={selectedTaskCalc}
@@ -1447,6 +1437,94 @@ function LegendDot({ color, label }: { color: string; label: string }) {
       <span className="inline-block h-2 w-3 rounded-sm" style={{ background: color }} />
       {label}
     </span>
+  );
+}
+
+function ScheduleContextSummary({
+  draft,
+  computed,
+  onSelect,
+}: {
+  draft: Draft;
+  computed: { tasks: { id: string; name: string; isCritical: boolean; totalFloat: number; earlyFinish: number; earlyFinishDate?: string }[]; projectFinishDate?: string; projectDuration: number } | null;
+  onSelect: (id: string) => void;
+}) {
+  if (!computed) {
+    return (
+      <div className="py-4 text-center text-xs text-[#9c8b6e]">
+        Select an activity to inspect.
+      </div>
+    );
+  }
+  const critical = computed.tasks.filter((t) => t.isCritical);
+  const nearCrit = computed.tasks
+    .filter((t) => !t.isCritical && t.totalFloat > 0 && t.totalFloat <= 5)
+    .sort((a, b) => a.totalFloat - b.totalFloat)
+    .slice(0, 4);
+  const drivingFinish = computed.tasks.reduce<typeof computed.tasks[number] | null>(
+    (a, b) => (!a || b.earlyFinish > a.earlyFinish ? b : a),
+    null,
+  );
+  return (
+    <div className="grid grid-cols-12 gap-4 text-[11px]">
+      <div className="col-span-3">
+        <div className="text-[9px] font-semibold uppercase tracking-wider text-[#9c8b6e]">
+          Project finish
+        </div>
+        <div className="mt-0.5 text-[14px] font-semibold tabular-nums text-[#1f241f]">
+          {computed.projectFinishDate ?? "—"}
+        </div>
+        <div className="text-[10px] text-[#7a6a4d]">
+          {computed.projectDuration}d duration · DD {draft.dataDate ?? "—"}
+        </div>
+      </div>
+      <div className="col-span-3">
+        <div className="text-[9px] font-semibold uppercase tracking-wider text-[#9c8b6e]">
+          Critical path
+        </div>
+        <div className="mt-0.5 text-[14px] font-semibold tabular-nums text-[#b42318]">
+          {critical.length} <span className="text-[10px] font-normal text-[#7a6a4d]">activities</span>
+        </div>
+        {drivingFinish ? (
+          <button
+            type="button"
+            onClick={() => onSelect(drivingFinish.id)}
+            className="mt-0.5 truncate text-left text-[10px] text-[#5c574e] hover:text-[#1f241f] hover:underline"
+            title={drivingFinish.name}
+          >
+            Driving → {drivingFinish.name}
+          </button>
+        ) : null}
+      </div>
+      <div className="col-span-6">
+        <div className="text-[9px] font-semibold uppercase tracking-wider text-[#9c8b6e]">
+          Near-critical (≤5d float)
+        </div>
+        {nearCrit.length === 0 ? (
+          <div className="mt-1 text-[10px] text-[#9c8b6e]">None — buffer is healthy.</div>
+        ) : (
+          <ul className="mt-1 space-y-0.5">
+            {nearCrit.map((t) => (
+              <li key={t.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelect(t.id)}
+                  className="flex w-full items-center gap-2 text-left hover:bg-[#faf8f3] rounded px-1 py-0.5"
+                >
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#c2750a]" />
+                  <span className="font-mono text-[10px] text-[#776e5e]">{t.id}</span>
+                  <span className="flex-1 truncate text-[#1f241f]">{t.name}</span>
+                  <span className="tabular-nums text-[10px] text-[#c2750a]">{t.totalFloat}d</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="col-span-12 text-[10px] text-[#9c8b6e]">
+        Click any activity in the table or Gantt to inspect details, relationships, resources, codes, and notes.
+      </div>
+    </div>
   );
 }
 

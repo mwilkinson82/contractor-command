@@ -324,17 +324,17 @@ export function CpmGrid({
                   return (
                     <tr
                       key={`g-${row.key}`}
-                      className="cursor-pointer bg-[#dde6c8] font-semibold text-[#23341a] hover:bg-[#d4dfb9]"
+                      className="cursor-pointer bg-[#ede5d2] font-semibold text-[#3d3527] hover:bg-[#e6dcc4]"
                       style={{ height: GROUP_H }}
                       onClick={() => onToggleGroup?.(row.key)}
                     >
-                      <td colSpan={9} className="border-b border-[#c5cfaf] px-2">
-                        <span className="mr-1 inline-block w-3 text-center">
+                      <td colSpan={9} className="border-b border-[#d8cdb8] border-t border-t-[#d8cdb8] px-2">
+                        <span className="mr-1.5 inline-block w-3 text-center text-[#7a6a4d]">
                           {row.collapsed ? "▸" : "▾"}
                         </span>
-                        {row.key}
-                        <span className="ml-2 text-[10px] font-normal text-[#5a6a44]">
-                          {row.taskCount} {row.taskCount === 1 ? "activity" : "activities"}
+                        <span className="text-[10px] uppercase tracking-[0.08em]">{row.key}</span>
+                        <span className="ml-2 text-[10px] font-normal text-[#9c8b6e]">
+                          · {row.taskCount}
                         </span>
                       </td>
                     </tr>
@@ -350,40 +350,40 @@ export function CpmGrid({
                   <tr
                     key={t.id}
                     onClick={() => onSelect(t.id)}
-                    className={`cursor-pointer border-b border-[#eee6d7] ${
-                      isSelected ? "bg-[#fff7e0]" : i % 2 ? "bg-[#faf7ee]" : "bg-white"
-                    } hover:bg-[#fff3d0]`}
+                    className={`cursor-pointer border-b border-[#f0e9d8] ${
+                      isSelected ? "bg-[#fff7e0]" : i % 2 ? "bg-[#fbf9f3]" : "bg-white"
+                    } hover:bg-[#fff8e6]`}
                     style={{ height: ROW_H }}
                   >
-                    <td className="border-r border-[#eee6d7] px-2 font-mono text-[10px] text-[#5c574e]">
+                    <td className="border-r border-[#f0e9d8] px-2 font-mono text-[10px] text-[#776e5e]">
                       {t.id}
                     </td>
                     <td
-                      className={`truncate border-r border-[#eee6d7] px-2 ${
-                        t.isCritical ? "font-semibold text-[#1f241f]" : ""
+                      className={`truncate border-r border-[#f0e9d8] px-2 pl-3 text-[#1f241f] ${
+                        t.isCritical ? "font-semibold" : ""
                       }`}
                       style={{ maxWidth: 240 }}
                       title={t.name}
                     >
-                      {isMilestone ? "◆ " : ""}
+                      {isMilestone ? <span className="mr-1 text-[#7a5cc4]">◆</span> : null}
                       {t.name}
                     </td>
-                    <td className="border-r border-[#eee6d7] px-1 text-right tabular-nums">
+                    <td className="border-r border-[#f0e9d8] px-1 text-right tabular-nums text-[#1f241f]">
                       {t.duration}
                     </td>
-                    <td className="border-r border-[#eee6d7] px-1 text-right tabular-nums text-[#776e5e]">
+                    <td className="border-r border-[#f0e9d8] px-1 text-right tabular-nums text-[#9c8b6e]">
                       {actual || ""}
                     </td>
-                    <td className="border-r border-[#eee6d7] px-1 text-right tabular-nums">
+                    <td className="border-r border-[#f0e9d8] px-1 text-right tabular-nums text-[#1f241f]">
                       {remaining}
                     </td>
-                    <td className="border-r border-[#eee6d7] px-1 text-right tabular-nums">
+                    <td className="border-r border-[#f0e9d8] px-1 text-right tabular-nums text-[#5c574e]">
                       {pct > 0 ? `${pct}%` : ""}
                     </td>
-                    <td className="border-r border-[#eee6d7] px-2 text-[10px] tabular-nums text-[#5c574e]">
+                    <td className="border-r border-[#f0e9d8] px-2 text-[10px] tabular-nums text-[#5c574e]">
                       {formatDate(t.earlyStartDate)}
                     </td>
-                    <td className="border-r border-[#eee6d7] px-2 text-[10px] tabular-nums text-[#5c574e]">
+                    <td className="border-r border-[#f0e9d8] px-2 text-[10px] tabular-nums text-[#5c574e]">
                       {formatDate(t.earlyFinishDate)}
                     </td>
                     <td
@@ -391,8 +391,8 @@ export function CpmGrid({
                         t.isCritical
                           ? "font-semibold text-[#b42318]"
                           : nearCriticalFloat > 0 && t.totalFloat > 0 && t.totalFloat <= nearCriticalFloat
-                            ? "font-medium text-[#d97706]"
-                            : "text-[#5c574e]"
+                            ? "font-medium text-[#c2750a]"
+                            : "text-[#776e5e]"
                       }`}
                     >
                       {t.totalFloat}
@@ -504,16 +504,18 @@ export function CpmGrid({
                 const w = Math.max((row.maxEF - row.minES) * dayPx, 2);
                 return (
                   <g key={`g-${row.key}`}>
-                    <rect x={0} y={y} width={timelineWidth} height={rowH} fill="#dde6c8" />
+                    <rect x={0} y={y} width={timelineWidth} height={rowH} fill="#ede5d2" />
+                    <line x1={0} x2={timelineWidth} y1={y} y2={y} stroke="#d8cdb8" strokeWidth={1} />
+                    <line x1={0} x2={timelineWidth} y1={y + rowH} y2={y + rowH} stroke="#d8cdb8" strokeWidth={1} />
                     {/* summary bracket */}
                     <path
-                      d={`M ${x} ${y + rowH / 2 + 6} L ${x} ${y + rowH / 2 - 4} L ${x + w} ${
-                        y + rowH / 2 - 4
-                      } L ${x + w} ${y + rowH / 2 + 6} M ${x} ${y + rowH / 2 - 4} L ${x + w} ${
-                        y + rowH / 2 - 4
+                      d={`M ${x} ${y + rowH / 2 + 5} L ${x} ${y + rowH / 2 - 3} L ${x + w} ${
+                        y + rowH / 2 - 3
+                      } L ${x + w} ${y + rowH / 2 + 5} M ${x} ${y + rowH / 2 - 3} L ${x + w} ${
+                        y + rowH / 2 - 3
                       }`}
-                      stroke={row.anyCritical ? "#b42318" : "#23341a"}
-                      strokeWidth={3}
+                      stroke={row.anyCritical ? "#9c2418" : "#3d3527"}
+                      strokeWidth={2}
                       fill="none"
                     />
                   </g>
@@ -527,7 +529,7 @@ export function CpmGrid({
               const w = Math.max(t.duration * dayPx, 2);
               const isNearCritical =
                 !t.isCritical && nearCriticalFloat > 0 && t.totalFloat > 0 && t.totalFloat <= nearCriticalFloat;
-              const fill = t.isCritical ? "#b42318" : isNearCritical ? "#d97706" : "#3554a5";
+              const fill = t.isCritical ? "#9c2418" : isNearCritical ? "#c2750a" : "#2a3e5f";
               const baselineT = baselineMap.get(t.id);
               const slipped = baselineT ? t.earlyFinish - baselineT.earlyFinish : 0;
 
@@ -563,9 +565,9 @@ export function CpmGrid({
                     y={y}
                     width={timelineWidth}
                     height={rowH}
-                    fill={isSelected ? "#fff7e0" : i % 2 ? "#faf7ee" : "white"}
+                    fill={isSelected ? "#fff7e0" : i % 2 ? "#fbf9f3" : "white"}
                   />
-                  <line x1={0} x2={timelineWidth} y1={y + rowH} y2={y + rowH} stroke="#eee6d7" />
+                  <line x1={0} x2={timelineWidth} y1={y + rowH} y2={y + rowH} stroke="#f0e9d8" />
 
                   {/* baseline ghost */}
                   {baselineT ? (
@@ -747,7 +749,7 @@ export function CpmGrid({
                       markerHeight="6"
                       orient="auto-start-reverse"
                     >
-                      <path d="M0,0 L10,5 L0,10 z" fill="#3554a5" />
+                      <path d="M0,0 L10,5 L0,10 z" fill="#2a3e5f" />
                     </marker>
                     <marker
                       id="cpm-arrow-soft"
@@ -803,8 +805,8 @@ export function CpmGrid({
                       ? "#7a5cc4"
                       : d.isDriving
                       ? bothCrit
-                        ? "#b42318"
-                        : "#3554a5"
+                        ? "#9c2418"
+                        : "#2a3e5f"
                       : "#9c8b6e";
                     const marker = onChain
                       ? "url(#cpm-arrow-chain)"
