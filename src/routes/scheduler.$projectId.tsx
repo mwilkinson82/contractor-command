@@ -202,10 +202,29 @@ function SchedulerPage() {
   });
   const calendars = calendarsQuery.data?.calendars ?? [];
 
-  // Hydrate draft when a schedule loads
+  // Hydrate draft when a schedule loads. If the loaded schedule has no
+  // activities, seed the workbench with the Commercial Fit-Out sample so the
+  // first screen is alive and demonstrable (unsaved until user clicks Save).
   useEffect(() => {
     if (loadQuery.data) {
       const s = loadQuery.data.schedule;
+      if (s.tasks.length === 0) {
+        import("@/lib/scheduler/sample").then(({ commercialFitOutSample }) => {
+          const p = commercialFitOutSample();
+          setDraft({
+            name: s.name && s.name !== "Untitled" ? s.name : p.name,
+            projectStartDate: p.projectStartDate,
+            dataDate: p.dataDate,
+            workDays: p.workDays,
+            holidays: p.holidays,
+            tasks: p.tasks.map((t) => ({ ...t })),
+            dependencies: p.dependencies.map((d) => ({ ...d })),
+            annotations: p.annotations.map((a) => ({ ...a })),
+          });
+          setDirty(true);
+        });
+        return;
+      }
       setDraft({
         name: s.name,
         projectStartDate: s.projectStartDate,
