@@ -1167,7 +1167,7 @@ untouched. Feature flag remains defaulted to legacy. UI unchanged.
   `partial_commit_risk` diagnostic.
 - XER export still out of scope.
 
-### Phase 2.1 entry criteria
+### Phase 2.1 entry criteria (carried forward)
 
 1. External activity date injection (still pending from Phase 1.10
    carry-over).
@@ -1176,4 +1176,109 @@ untouched. Feature flag remains defaulted to legacy. UI unchanged.
    the dry-run plan before any future UI exposure.
 3. Begin XER export scaffolding now that the engine can faithfully
    round-trip identity through the action layer.
+
+## §21 — Phase 2.1: calendar exception subsystem (landed)
+
+Version `0.11.0-phase2.1`. Engine2 calendars now honor explicit
+working / non-working exceptions and per-day shift windows in addition
+to the existing whole-day workdays + holidays. CAL-5 is promoted from
+`.todo()` to an active acceptance test.
+
+### What landed
+
+- New factory `createExceptionWorkClock(opts)` in
+  `engine2/work-clock-exceptions.ts`. Conforms to the same `WorkClock`
+  interface as `createWholeDayWorkClock`, so no downstream engine code
+  needed to change.
+- Per-day "day shape" resolver: each UTC day-start resolves to a list of
+  `WorkWindow` `[startMinuteOfDay, endMinuteOfDay)`. Base pattern is a
+  single `[0, hoursPerDay*60)` window driven by the `workDays` bitmask.
+  Holidays and explicit `non-working` exceptions resolve to `[]`. An
+  explicit `working` exception with `windows` overrides the base pattern
+  for that day only and supports split shifts (morning + afternoon with
+  a lunch gap).
+- `isWorking`, `nextWorkInstant`, `prevWorkInstant`, `addWork` (forward
+  and backward) and `diffWork` all iterate via the resolver, so
+  neighboring days are never touched by an exception.
+- Overlapping or out-of-range exception windows are clamped and merged;
+  a `calendar_exception_conflict` info diagnostic is emitted.
+- Each applied exception emits a `calendar_exception_applied` info
+  diagnostic (collected via an optional `diagnostics` sink on the
+  factory).
+- XER importer additionally emits `calendar_shift_preserved_only` when
+  a calendar row carries shift definitions that the default whole-day
+  WorkClock cannot execute, making the preservation explicit in the
+  reconciliation report.
+- Reconciliation accepts the new codes
+  (`calendar_exception_applied`, `calendar_exception_conflict`,
+  `calendar_shift_preserved_only`) and the alias
+  `calendar_reference_missing` (kept alongside the existing
+  `missing_calendar_reference` for back-compat).
+
+### Diagnostic codes (Phase 2.1)
+
+Constants live in `CALENDAR_DIAGNOSTIC_CODES`:
+
+- `calendar_exception_applied` — info; one per honored exception.
+- `calendar_exception_conflict` — info; emitted when windows overlap
+  or fall outside `[0, 1440)`. Result is normalized, never dropped
+  silently.
+- `calendar_reference_missing` — alias for the existing
+  `missing_calendar_reference`. Same semantics; either code is
+  classified as `unsupported-preserved-only`.
+- `calendar_shift_preserved_only` — info; XER row carried shift
+  definitions; preserved on the raw row, not executed by the default
+  whole-day WorkClock.
+- `unsupported_calendar_shift` — info; pre-existing; XER shifts.
+- `unsupported_calendar_hours_per_day` — info; pre-existing.
+
+### CAL-5 status (active)
+
+`CAL-5: holiday and shift exceptions alter working-time addition
+without corrupting neighboring work shifts.` is now an executable
+test. It uses `createExceptionWorkClock` directly (the XER pipeline
+still maps to the whole-day clock — see limitations below) and
+asserts:
+
+- Adding 5 workdays from Mon-06 across a Tue holiday + a Sat split
+  shift lands at end-of-second-shift on Saturday, not on the
+  clean-calendar Friday.
+- Adding 4h + 1 min from Sat 08:00 jumps the lunch gap to 13:01, never
+  to 12:01.
+- Backward addition across the holiday is the inverse of forward.
+- `diffWork` on the Saturday returns 480 min (two 4h shifts, lunch hour
+  excluded).
+- Neighboring days (Mon, Thu, Fri) remain on the standard 8h window.
+
+### Known limitations (Phase 2.1)
+
+- **XER pipeline still uses `createWholeDayWorkClock`** (via
+  `xer-pipeline.ts`). Shift exceptions parsed out of `clndr_data` are
+  not yet routed through `createExceptionWorkClock`; they are preserved
+  raw and flagged with `calendar_shift_preserved_only`. Promoting that
+  routing is a follow-up pass — the XER `clndr_data` parser needs to
+  emit structured exceptions before the pipeline can consume them.
+- **No inheritance chains.** P6 supports a Global → Project → Resource
+  inheritance stack. `createExceptionWorkClock` accepts a flat list of
+  exceptions only. Composition is deferred.
+- **No per-week patterns.** Only per-day overrides are supported.
+- **No timezone shifting.** All math is UTC. Display-level local-time
+  conversion is a UI concern.
+- **Resource-vs-activity calendar precedence** is unchanged from Phase
+  1.5: activity calendar still governs CPM math; resource calendar
+  influence on dates remains deferred.
+
+### Acceptance tally after Phase 2.1
+
+Active: 9 of 20 (CPM-1, CPM-2, CPM-3, CAL-4, CAL-5, CON-6, CON-7,
+PRG-8, PRG-9). The remaining 11 stay `.todo()`.
+
+### Phase 2.2 entry criteria
+
+1. Route XER `clndr_data` exceptions into `createExceptionWorkClock` so
+   imported P6 calendars actually execute their shifts.
+2. Add calendar inheritance composition (Global → Project → Resource).
+3. Begin XER export scaffolding (still gated by Phase 2.1's
+   round-trip-identity requirement).
+
 
