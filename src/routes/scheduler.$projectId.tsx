@@ -1052,7 +1052,7 @@ function SchedulerPage() {
 
                   {/* RIGHT: Gantt */}
                   <div className="scheduler-print-right flex flex-1 min-w-0 flex-col bg-white">
-                    <div className="flex-1 overflow-auto" data-gantt-container>
+                    <div ref={rightScrollRef} className="flex-1 overflow-auto" data-gantt-container>
                       {computed ? (
                         <CpmGrid
                           result={computed}
