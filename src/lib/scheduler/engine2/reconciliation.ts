@@ -137,7 +137,14 @@ export function reconcileSchedule(input: ReconciliationInput): ReconciliationRep
     ...input.engineResult.diagnostics,
   ];
   for (const d of allDiagnostics) {
-    if (acceptable.has(d.code)) {
+    if (MISMATCH_CODES.has(d.code)) {
+      entries.push({
+        kind: "mismatch",
+        subject: `diagnostic:${d.code}${d.activityId ? `:${d.activityId}` : ""}`,
+        message: d.message,
+        justifyingCodes: [d.code],
+      });
+    } else if (acceptable.has(d.code)) {
       entries.push({
         kind: "acceptable-known-limitation",
         subject: `diagnostic:${d.code}${d.activityId ? `:${d.activityId}` : ""}`,
