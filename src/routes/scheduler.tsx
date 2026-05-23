@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useMemo, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient, useQueries } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -49,6 +49,12 @@ const STATUS_DOT: Record<Project["status"], string> = {
 };
 
 function ProjectsHome() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+
+  if (pathname !== "/scheduler") {
+    return <Outlet />;
+  }
+
   const qc = useQueryClient();
   const listFn = useServerFn(listProjects);
   const createFn = useServerFn(createProject);
