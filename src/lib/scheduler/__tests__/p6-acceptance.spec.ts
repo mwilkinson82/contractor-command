@@ -388,13 +388,97 @@ describe("P6 acceptance — Progress", () => {
 });
 
 describe("P6 acceptance — Float paths", () => {
-  it.todo(
-    "PTH-11: multiple float-path analysis produces ranked paths using total float and, separately, free float as the basis",
-  );
+  it("PTH-11: multiple float-path analysis ranks paths by total float, path 1 = critical chain", () => {
+    const cal = monFri();
+    // Diamond: A→B(3d)→D and A→C(5d)→D. C-path is critical (path 1),
+    // B-path has 2d of total float (path 2).
+    const activities = [
+      activity("A", 1),
+      activity("B", 3),
+      activity("C", 5),
+      activity("D", 1),
+    ];
+    const rels = [
+      link("A-B", "A", "B"),
+      link("A-C", "A", "C"),
+      link("B-D", "B", "D"),
+      link("C-D", "C", "D"),
+    ];
+    const result = calculateCpm({
+      dataDate: MON_2025_01_06,
+      projectStart: MON_2025_01_06,
+      projectCalendarId: "cal-mf",
+      calendars: new Map([["cal-mf", cal]]),
+      activities,
+      relationships: rels,
+      floatPathCount: 2,
+    });
 
-  it.todo(
-    "PTH-12: path analysis targeted to a selected milestone differs from whole-project-finish analysis when the selected endpoint lies on a different controlling chain",
-  );
+    expect(result.floatPaths).toBeDefined();
+    const fp = result.floatPaths!;
+    expect(fp.basis).toBe("total-float");
+    expect(fp.endpointActivityId).toBe("D");
+    expect(fp.paths).toHaveLength(2);
+
+    const p1 = fp.paths[0];
+    expect(p1.rank).toBe(1);
+    expect(p1.pathFloatMinutes).toBe(0);
+    expect(p1.steps.map((s) => s.activityId)).toEqual(["A", "C", "D"]);
+
+    const p2 = fp.paths[1];
+    expect(p2.rank).toBe(2);
+    expect(p2.pathFloatMinutes).toBe(2 * DAY_MIN);
+    expect(p2.steps.map((s) => s.activityId)).toContain("B");
+    expect(p1.pathFloatMinutes).toBeLessThanOrEqual(p2.pathFloatMinutes);
+  });
+
+  it("PTH-12: float-path analysis targeted to a selected milestone endpoint differs from whole-project analysis", () => {
+    const cal = monFri();
+    // A(1d) → B(3d) → M1, A(1d) → C(5d) → M2. M2 is project finish (default).
+    // Selecting M1 must route the path through B, not C.
+    const activities: EngineActivity[] = [
+      activity("A", 1),
+      activity("B", 3),
+      activity("C", 5),
+      { ...activity("M1", 0), type: "milestone-finish" },
+      { ...activity("M2", 0), type: "milestone-finish" },
+    ];
+    const rels = [
+      link("A-B", "A", "B"),
+      link("A-C", "A", "C"),
+      link("B-M1", "B", "M1"),
+      link("C-M2", "C", "M2"),
+    ];
+
+    const defaultRun = calculateCpm({
+      dataDate: MON_2025_01_06,
+      projectStart: MON_2025_01_06,
+      projectCalendarId: "cal-mf",
+      calendars: new Map([["cal-mf", cal]]),
+      activities,
+      relationships: rels,
+      floatPathCount: 1,
+    });
+    expect(defaultRun.floatPaths!.endpointActivityId).toBe("M2");
+    expect(
+      defaultRun.floatPaths!.paths[0].steps.map((s) => s.activityId),
+    ).toEqual(["A", "C", "M2"]);
+
+    const selectedRun = calculateCpm({
+      dataDate: MON_2025_01_06,
+      projectStart: MON_2025_01_06,
+      projectCalendarId: "cal-mf",
+      calendars: new Map([["cal-mf", cal]]),
+      activities,
+      relationships: rels,
+      floatPathCount: 1,
+      floatPathEndpointActivityId: "M1",
+    });
+    expect(selectedRun.floatPaths!.endpointActivityId).toBe("M1");
+    const ids = selectedRun.floatPaths!.paths[0].steps.map((s) => s.activityId);
+    expect(ids).toEqual(["A", "B", "M1"]);
+    expect(ids).not.toContain("C");
+  });
 });
 
 describe("P6 acceptance — Leveling", () => {

@@ -124,6 +124,47 @@ export type GoverningCause =
   | "leveling"
   | "external";
 
+/**
+ * High-level grouping of `GoverningCause`. Useful for explainability UIs
+ * that want to show "what kind of thing drove this date".
+ */
+export type GoverningCategory =
+  | "logic"
+  | "constraint"
+  | "progress"
+  | "calendar"
+  | "leveling"
+  | "external";
+
+export interface DrivingLink {
+  relationshipId: string;
+  /** Predecessor id when listed in `drivingPredecessors`, successor id when listed in `drivingSuccessors`. */
+  otherActivityId: string;
+  type: RelationshipType;
+  lagMinutes: number;
+  lagCalendarBasis: LagCalendarBasis;
+  /**
+   * Slack on this link in the successor's calendar (working minutes).
+   * <= criticalFloatToleranceMinutes when "driving".
+   */
+  slackMinutes: number;
+}
+
+export interface BaselineActivity {
+  activityId: string;
+  start: Instant;
+  finish: Instant;
+}
+
+export interface BaselineVariance {
+  /** Working-minute variance (current − baseline) in the activity's calendar. Positive = late. */
+  startVarianceMinutes: number;
+  finishVarianceMinutes: number;
+  /** Calendar-day variance (current − baseline). Positive = late. */
+  startVarianceCalendarDays: number;
+  finishVarianceCalendarDays: number;
+}
+
 export interface EngineActivityResult {
   id: string;
   earlyStart: Instant;
@@ -134,28 +175,30 @@ export interface EngineActivityResult {
   freeFloatMinutes: number;
   isCritical: boolean;
   governingCause: GoverningCause;
+  governingCategory: GoverningCategory;
   drivingPredecessorId?: string;
+
+  /** Phase 1.4 — full driving trace (may be empty for open-ended activities). */
+  drivingPredecessors: DrivingLink[];
+  /** Phase 1.4 — relationships where this activity is the driver of the successor. */
+  drivingSuccessors: DrivingLink[];
+
+  /** No predecessor relationships at all. */
+  isOpenStart: boolean;
+  /** No successor relationships at all. */
+  isOpenFinish: boolean;
+  /** totalFloat < 0. */
+  hasNegativeFloat: boolean;
+
+  /** Present only when a baseline was provided for this activity. */
+  baselineVariance?: BaselineVariance;
 
   /** Derived from actualStart / actualFinish. */
   status: ActivityStatus;
-  /** Working minutes of work already performed. 0 for not-started. */
   actualDurationMinutes: number;
-  /** Working minutes still required to complete. 0 for completed. */
   remainingDurationMinutes: number;
-  /** actual + remaining (= original for not-started, = actual for completed). */
   atCompletionDurationMinutes: number;
-  /**
-   * Computed 0..100 from actual / (actual + remaining). Independent of
-   * `percentCompleteType` — this is the duration-based value only.
-   */
   durationPercentComplete: number;
-  /**
-   * The 0..100 value that should be REPORTED to the user, selected by the
-   * activity's `percentCompleteType`:
-   *   - duration → durationPercentComplete
-   *   - physical → activity.physicalPercentComplete ?? 0
-   *   - units    → activity.unitsPercentComplete ?? 0 (Phase 1.3 stub)
-   */
   reportedPercentComplete: number;
 }
 
@@ -174,11 +217,59 @@ export interface EngineDiagnostic {
   activityId?: string;
 }
 
+export type FloatPathBasis = "total-float" | "free-float";
+
+export interface FloatPathStep {
+  activityId: string;
+  /** Relationship id walked from the previous step to this step. Absent on the endpoint. */
+  relationshipIdFromPrev?: string;
+}
+
+export interface FloatPath {
+  rank: number;
+  basis: FloatPathBasis;
+  /** The governing float of the chain (worst-case along the path) in working minutes. */
+  pathFloatMinutes: number;
+  /** Steps in chronological order from start of chain to endpoint. */
+  steps: FloatPathStep[];
+}
+
+export interface FloatPathAnalysis {
+  basis: FloatPathBasis;
+  /** Activity used as the chain endpoint. Defaults to project-finish-driving activity. */
+  endpointActivityId: string;
+  paths: FloatPath[];
+}
+
+export interface EngineRunRecord {
+  startedAt: number;
+  durationMs: number;
+  engineVersion: string;
+  dataDate: Instant;
+  activityCount: number;
+  relationshipCount: number;
+  diagnosticCounts: { info: number; warn: number; error: number };
+  /** Present only when a `priorResult` was passed in to compare against. */
+  changedActivityCount?: number;
+  optionsSnapshot: {
+    criticalFloatToleranceMinutes: number;
+    floatPathCount: number;
+    floatPathBasis: FloatPathBasis;
+    floatPathEndpointActivityId?: string;
+    baselinesProvided: boolean;
+  };
+}
+
 export interface EngineResult {
   dataDate: Instant;
   activities: EngineActivityResult[];
   relationships: EngineRelationshipResult[];
   criticalPath: string[];
   diagnostics: EngineDiagnostic[];
+  /** Phase 1.4 — multiple float-path analysis. Present when floatPathCount > 0. */
+  floatPaths?: FloatPathAnalysis;
+  /** Phase 1.4 — auditable run summary. */
+  runRecord: EngineRunRecord;
+  /** @deprecated use `runRecord`. Retained for back-compat through Phase 1.x. */
   runMeta: { startedAt: number; durationMs: number; optionsHash: string };
 }

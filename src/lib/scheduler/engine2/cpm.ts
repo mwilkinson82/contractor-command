@@ -25,19 +25,30 @@
 
 import type {
   ActivityStatus,
+  BaselineActivity,
+  BaselineVariance,
   Constraint,
+  DrivingLink,
   EngineActivity,
   EngineActivityResult,
   EngineDiagnostic,
   EngineRelationship,
   EngineRelationshipResult,
   EngineResult,
+  EngineRunRecord,
+  FloatPath,
+  FloatPathAnalysis,
+  FloatPathBasis,
+  FloatPathStep,
+  GoverningCategory,
   GoverningCause,
   Instant,
   LagCalendarBasis,
   RelationshipType,
 } from "./types";
-import { MS_PER_MIN, type WorkClock } from "./work-clock";
+import { MS_PER_DAY, MS_PER_MIN, type WorkClock } from "./work-clock";
+
+export const ENGINE2_VERSION = "0.4.0-phase1.4";
 
 export interface CpmInput {
   /** Data date / status date as an absolute UTC instant. */
@@ -52,6 +63,18 @@ export interface CpmInput {
   relationships: EngineRelationship[];
   /** Activities with totalFloat <= this are critical. Default 0. */
   criticalFloatToleranceMinutes?: number;
+
+  /** Phase 1.4 — optional per-activity baseline start/finish. */
+  baselines?: BaselineActivity[];
+
+  /** Phase 1.4 — number of float paths to extract. 0 (default) disables analysis. */
+  floatPathCount?: number;
+  floatPathBasis?: FloatPathBasis;
+  /** Endpoint activity for float-path analysis. Defaults to project-finish driver. */
+  floatPathEndpointActivityId?: string;
+
+  /** Phase 1.4 — prior engine result for changed-activity counting. */
+  priorResult?: EngineResult;
 }
 
 interface WorkState {
@@ -440,37 +463,147 @@ export function calculateCpm(input: CpmInput): EngineResult {
     }
   }
 
-  // ---- Float + critical ----
+  // ---- Relationship slack (computed first so activityResults can use it) ----
+  const relSlack = new Map<string, number>();
+  const relResults: EngineRelationshipResult[] = validRels.map((dep) => {
+    const pred = actMap.get(dep.from)!;
+    const succ = actMap.get(dep.to)!;
+    const slack = linkSlackMinutes(
+      dep,
+      pred,
+      succ,
+      state.get(pred.id)!,
+      state.get(succ.id)!,
+      getCal,
+      input.projectCalendarId,
+    );
+    relSlack.set(dep.id, slack);
+    return { id: dep.id, isDriving: slack <= tolerance, slackMinutes: slack };
+  });
+
+  // ---- Baseline lookup ----
+  const baselineMap = new Map<string, BaselineActivity>();
+  if (input.baselines) {
+    for (const b of input.baselines) baselineMap.set(b.activityId, b);
+  }
+  const baselinesProvided = !!input.baselines && input.baselines.length > 0;
+
+  // ---- Float + critical + driving trace + progress derivation ----
   const activityResults: EngineActivityResult[] = activities.map((a) => {
     const st = state.get(a.id)!;
     const cal = getCal(a.calendarId);
     const totalFloat = cal.diffWork(st.earlyStart, st.lateStart);
 
+    const preds = predsOf.get(a.id) ?? [];
     const succs = succsOf.get(a.id) ?? [];
+
+    // Free float: min successor-link slack, or end-of-network slack.
     let freeFloat: number;
     if (succs.length === 0) {
       freeFloat = cal.diffWork(st.earlyFinish, st.lateFinish);
     } else {
       let min = Number.POSITIVE_INFINITY;
       for (const dep of succs) {
-        const succ = actMap.get(dep.to)!;
-        const succState = state.get(succ.id)!;
-        const slack = linkSlackMinutes(
-          dep,
-          a,
-          succ,
-          state.get(a.id)!,
-          succState,
-          getCal,
-          input.projectCalendarId,
-        );
-        if (slack < min) min = slack;
+        const s = relSlack.get(dep.id) ?? 0;
+        if (s < min) min = s;
       }
       freeFloat = min === Number.POSITIVE_INFINITY ? 0 : min;
     }
 
+    // Driving predecessors: every link whose slack <= tolerance.
+    const drivingPredecessors: DrivingLink[] = preds
+      .filter((dep) => (relSlack.get(dep.id) ?? Number.POSITIVE_INFINITY) <= tolerance)
+      .map((dep) => ({
+        relationshipId: dep.id,
+        otherActivityId: dep.from,
+        type: dep.type,
+        lagMinutes: dep.lag.minutes,
+        lagCalendarBasis: dep.lagCalendarBasis,
+        slackMinutes: relSlack.get(dep.id) ?? 0,
+      }));
+
+    const drivingSuccessors: DrivingLink[] = succs
+      .filter((dep) => (relSlack.get(dep.id) ?? Number.POSITIVE_INFINITY) <= tolerance)
+      .map((dep) => ({
+        relationshipId: dep.id,
+        otherActivityId: dep.to,
+        type: dep.type,
+        lagMinutes: dep.lag.minutes,
+        lagCalendarBasis: dep.lagCalendarBasis,
+        slackMinutes: relSlack.get(dep.id) ?? 0,
+      }));
+
+    const isOpenStart = preds.length === 0;
+    const isOpenFinish = succs.length === 0;
+    const hasNegativeFloat = totalFloat < 0;
+
     // Flush per-activity diagnostic notes into the global diagnostics list.
     for (const n of st.notes) diagnostics.push(n);
+
+    // Phase 1.4 structured diagnostics.
+    if (hasNegativeFloat) {
+      diagnostics.push({
+        severity: "warn",
+        code: "negative_float",
+        message: `Activity "${a.id}" has negative total float (${totalFloat}m)`,
+        activityId: a.id,
+      });
+    }
+    if (
+      isOpenStart &&
+      isOpenFinish &&
+      !st.completed &&
+      a.type !== "milestone-start" &&
+      a.type !== "milestone-finish"
+    ) {
+      diagnostics.push({
+        severity: "warn",
+        code: "open_ended_activity",
+        message: `Activity "${a.id}" has no predecessors and no successors`,
+        activityId: a.id,
+      });
+    } else if (isOpenStart && !st.completed && !st.inProgress) {
+      // Open-start (no preds) on a not-yet-started activity is informational —
+      // common for project-start activities but flagged for explainability.
+      diagnostics.push({
+        severity: "info",
+        code: "open_ended_activity",
+        message: `Activity "${a.id}" has no predecessor logic`,
+        activityId: a.id,
+      });
+    } else if (isOpenFinish && !st.completed) {
+      diagnostics.push({
+        severity: "info",
+        code: "open_ended_activity",
+        message: `Activity "${a.id}" has no successor logic`,
+        activityId: a.id,
+      });
+    }
+
+    // Baseline variance.
+    let baselineVariance: BaselineVariance | undefined;
+    if (baselinesProvided) {
+      const b = baselineMap.get(a.id);
+      if (!b) {
+        diagnostics.push({
+          severity: "info",
+          code: "baseline_missing",
+          message: `Activity "${a.id}" has no baseline record`,
+          activityId: a.id,
+        });
+      } else {
+        baselineVariance = {
+          startVarianceMinutes: cal.diffWork(b.start, st.earlyStart),
+          finishVarianceMinutes: cal.diffWork(b.finish, st.earlyFinish),
+          startVarianceCalendarDays: Math.round(
+            (st.earlyStart - b.start) / MS_PER_DAY,
+          ),
+          finishVarianceCalendarDays: Math.round(
+            (st.earlyFinish - b.finish) / MS_PER_DAY,
+          ),
+        };
+      }
+    }
 
     // ---- Progress / duration derivation (Phase 1.3) ----
     const status: ActivityStatus = st.completed
@@ -535,7 +668,14 @@ export function calculateCpm(input: CpmInput): EngineResult {
       freeFloatMinutes: freeFloat,
       isCritical: totalFloat <= tolerance,
       governingCause: st.governingCause,
+      governingCategory: causeToCategory(st.governingCause),
       drivingPredecessorId: st.drivingPredecessorId,
+      drivingPredecessors,
+      drivingSuccessors,
+      isOpenStart,
+      isOpenFinish,
+      hasNegativeFloat,
+      baselineVariance,
       status,
       actualDurationMinutes,
       remainingDurationMinutes,
@@ -545,30 +685,79 @@ export function calculateCpm(input: CpmInput): EngineResult {
     };
   });
 
-  const relResults: EngineRelationshipResult[] = validRels.map((dep) => {
-    const pred = actMap.get(dep.from)!;
-    const succ = actMap.get(dep.to)!;
-    const slack = linkSlackMinutes(
-      dep,
-      pred,
-      succ,
-      state.get(pred.id)!,
-      state.get(succ.id)!,
-      getCal,
-      input.projectCalendarId,
-    );
-    return { id: dep.id, isDriving: slack <= tolerance, slackMinutes: slack };
-  });
-
   const criticalPath = activityResults
     .filter((r) => r.isCritical)
     .sort((a, b) => a.earlyStart - b.earlyStart || a.id.localeCompare(b.id))
     .map((r) => r.id);
 
+  // ---- Float-path analysis (Phase 1.4) ----
+  let floatPaths: FloatPathAnalysis | undefined;
+  const fpCount = Math.max(0, input.floatPathCount ?? 0);
+  const fpBasis: FloatPathBasis = input.floatPathBasis ?? "total-float";
+  if (fpCount > 0) {
+    floatPaths = computeFloatPaths({
+      count: fpCount,
+      basis: fpBasis,
+      endpointActivityId: input.floatPathEndpointActivityId,
+      activityResults,
+      relResults,
+      predsOf,
+    });
+  }
+
+  // ---- Run record (Phase 1.4) ----
+  const diagnosticCounts = diagnostics.reduce(
+    (acc, d) => {
+      acc[d.severity] = (acc[d.severity] ?? 0) + 1;
+      return acc;
+    },
+    { info: 0, warn: 0, error: 0 } as { info: number; warn: number; error: number },
+  );
+
+  let changedActivityCount: number | undefined;
+  if (input.priorResult) {
+    const prior = new Map(input.priorResult.activities.map((p) => [p.id, p]));
+    let n = 0;
+    for (const r of activityResults) {
+      const p = prior.get(r.id);
+      if (!p) {
+        n += 1;
+        continue;
+      }
+      if (
+        p.earlyStart !== r.earlyStart ||
+        p.earlyFinish !== r.earlyFinish ||
+        p.lateStart !== r.lateStart ||
+        p.lateFinish !== r.lateFinish
+      ) {
+        n += 1;
+      }
+    }
+    changedActivityCount = n;
+  }
+
   const t1 =
     typeof performance !== "undefined" && typeof performance.now === "function"
       ? performance.now()
       : Date.now();
+
+  const runRecord: EngineRunRecord = {
+    startedAt,
+    durationMs: t1 - t0,
+    engineVersion: ENGINE2_VERSION,
+    dataDate: input.dataDate,
+    activityCount: activities.length,
+    relationshipCount: validRels.length,
+    diagnosticCounts,
+    changedActivityCount,
+    optionsSnapshot: {
+      criticalFloatToleranceMinutes: tolerance,
+      floatPathCount: fpCount,
+      floatPathBasis: fpBasis,
+      floatPathEndpointActivityId: floatPaths?.endpointActivityId,
+      baselinesProvided,
+    },
+  };
 
   return {
     dataDate: input.dataDate,
@@ -576,10 +765,12 @@ export function calculateCpm(input: CpmInput): EngineResult {
     relationships: relResults,
     criticalPath,
     diagnostics,
+    floatPaths,
+    runRecord,
     runMeta: {
       startedAt,
       durationMs: t1 - t0,
-      optionsHash: `tol:${tolerance}`,
+      optionsHash: `tol:${tolerance};fp:${fpCount}:${fpBasis}`,
     },
   };
 }
@@ -608,6 +799,124 @@ function clampPct(n: number): number {
   if (n < 0) return 0;
   if (n > 100) return 100;
   return n;
+}
+
+function causeToCategory(cause: GoverningCause): GoverningCategory {
+  switch (cause) {
+    case "logic":
+      return "logic";
+    case "snet":
+    case "snlt":
+    case "fnet":
+    case "fnlt":
+    case "mso":
+    case "mfo":
+    case "alap":
+    case "expected-finish":
+      return "constraint";
+    case "data-date":
+    case "actual":
+      return "progress";
+    case "calendar":
+      return "calendar";
+    case "leveling":
+      return "leveling";
+    case "external":
+      return "external";
+  }
+}
+
+/**
+ * Multiple float-path analysis (Phase 1.4 foundation).
+ *
+ * Algorithm:
+ *   1. Choose endpoint. If caller provided one, use it; else use the
+ *      not-completed activity with the latest earlyFinish.
+ *   2. For each rank 1..N:
+ *        - Walk backward from endpoint via the predecessor link with the
+ *          smallest slack (basis = total-float uses total-float-of-pred;
+ *          basis = free-float uses link slack).
+ *        - Skip relationships already consumed by a higher-ranked path.
+ *        - Stop when no predecessor link remains or chain length would
+ *          collapse to just the endpoint (already emitted).
+ *        - Path float = max-along-chain `totalFloatMinutes` for the
+ *          activities in the chain (governing float).
+ *
+ * This is a defensible foundation, not full P6 MFP parity. Sufficient
+ * for PATH-11 (rank-by-total-float) and PATH-12 (selected endpoint).
+ */
+function computeFloatPaths(args: {
+  count: number;
+  basis: FloatPathBasis;
+  endpointActivityId?: string;
+  activityResults: EngineActivityResult[];
+  relResults: EngineRelationshipResult[];
+  predsOf: Map<string, EngineRelationship[]>;
+}): FloatPathAnalysis {
+  const { count, basis, activityResults, relResults, predsOf } = args;
+  const byId = new Map(activityResults.map((a) => [a.id, a]));
+  const slackById = new Map(relResults.map((r) => [r.id, r.slackMinutes]));
+
+  // Endpoint selection.
+  let endpointActivityId = args.endpointActivityId;
+  if (!endpointActivityId || !byId.has(endpointActivityId)) {
+    let best: EngineActivityResult | undefined;
+    for (const a of activityResults) {
+      if (a.status === "completed") continue;
+      if (!best || a.earlyFinish > best.earlyFinish) best = a;
+    }
+    endpointActivityId = (best ?? activityResults[0])?.id ?? "";
+  }
+
+  const used = new Set<string>();
+  const paths: FloatPath[] = [];
+
+  for (let rank = 1; rank <= count; rank++) {
+    const steps: FloatPathStep[] = [];
+    const ids: string[] = [];
+    let cur = endpointActivityId;
+    steps.push({ activityId: cur });
+    ids.push(cur);
+
+    // Walk back via best (lowest-slack) unused predecessor link.
+    while (true) {
+      const preds = predsOf.get(cur) ?? [];
+      let bestRel: EngineRelationship | undefined;
+      let bestKey = Number.POSITIVE_INFINITY;
+      for (const dep of preds) {
+        if (used.has(dep.id)) continue;
+        const linkSlack = slackById.get(dep.id) ?? 0;
+        const predRes = byId.get(dep.from);
+        const key =
+          basis === "free-float" ? linkSlack : predRes?.totalFloatMinutes ?? linkSlack;
+        if (key < bestKey) {
+          bestKey = key;
+          bestRel = dep;
+        }
+      }
+      if (!bestRel) break;
+      used.add(bestRel.id);
+      cur = bestRel.from;
+      steps.unshift({ activityId: cur, relationshipIdFromPrev: bestRel.id });
+      ids.unshift(cur);
+      if (ids.length > activityResults.length) break; // safety
+    }
+
+    // Path 2+ requires a real chain (more than just the endpoint repeating).
+    if (rank > 1 && ids.length <= 1) break;
+
+    let pathFloat = Number.NEGATIVE_INFINITY;
+    for (const id of ids) {
+      const a = byId.get(id);
+      if (!a) continue;
+      if (a.totalFloatMinutes > pathFloat) pathFloat = a.totalFloatMinutes;
+    }
+    if (pathFloat === Number.NEGATIVE_INFINITY) pathFloat = 0;
+
+    paths.push({ rank, basis, pathFloatMinutes: pathFloat, steps });
+  }
+
+  return { basis, endpointActivityId, paths };
 }
 
 function applyLagForward(
