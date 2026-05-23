@@ -224,9 +224,69 @@ describe("P6 acceptance — Calendars (engine2)", () => {
     expect(calWithHoliday.diffWork(MON_2025_01_06, yEF)).toBe(5 * DAY_MIN);
   });
 
-  it.todo(
-    "CAL-5: holiday and shift exceptions alter working-time addition without corrupting neighboring work shifts",
-  );
+  it("CAL-5: holiday and shift exceptions alter working-time addition without corrupting neighboring work shifts", async () => {
+    const { createExceptionWorkClock } = await import("../engine2/work-clock-exceptions");
+    // Base: Mon-Fri 8h. Exceptions:
+    //   - Tue 2025-01-07 → holiday (non-working).
+    //   - Sat 2025-01-11 → working exception with split shift 08:00-12:00 + 13:00-17:00.
+    const cal = createExceptionWorkClock({
+      id: "cal-ex",
+      name: "Mon-Fri 8h + Tue holiday + Sat split shift",
+      workDays: 0b0111110,
+      hoursPerDay: 8,
+      holidays: ["2025-01-07"],
+      exceptions: [
+        {
+          date: "2025-01-11",
+          kind: "working",
+          windows: [
+            { startMinuteOfDay: 8 * 60, endMinuteOfDay: 12 * 60 },
+            { startMinuteOfDay: 13 * 60, endMinuteOfDay: 17 * 60 },
+          ],
+        },
+      ],
+    });
+    const cleanCal = createExceptionWorkClock({
+      id: "cal-clean",
+      name: "Mon-Fri 8h clean",
+      workDays: 0b0111110,
+      hoursPerDay: 8,
+    });
+
+    // 5 workdays starting Mon-06 on the clean calendar lands Fri-10 16:00? No,
+    // hoursPerDay window is [00:00, 08:00). 5*480 min from Mon 00:00 → Fri 08:00.
+    expect(cleanCal.addWork(MON_2025_01_06, 5 * DAY_MIN)).toBe(
+      Date.UTC(2025, 0, 10, 8, 0),
+    );
+
+    // Same 5 workdays on the exception calendar: Tue is skipped (holiday), so
+    // the 5th workday is consumed on the Saturday split shift, ending at the
+    // end of the second shift (17:00 Sat).
+    // Days consumed: Mon-06, Wed-08, Thu-09, Fri-10, Sat-11.
+    // On Sat the 480-min budget = 4h shift 1 + 4h shift 2 → end at 17:00.
+    expect(cal.addWork(MON_2025_01_06, 5 * DAY_MIN)).toBe(
+      Date.UTC(2025, 0, 11, 17, 0),
+    );
+
+    // Neighboring shift integrity: Sat shift 1 ending at 12:00, +1 min jumps
+    // to 13:01 (does not bleed into lunch).
+    expect(cal.addWork(Date.UTC(2025, 0, 11, 8, 0), 4 * 60 + 1)).toBe(
+      Date.UTC(2025, 0, 11, 13, 1),
+    );
+
+    // Backward across the holiday is the inverse: Wed 00:30 - 60 min →
+    // 30 min Wed (0 because non-Wed has no exception, Wed is workday on this
+    // clean cal; ...). For exception cal Wed is workday (not in exceptions),
+    // so Wed 00:30 - 60 min = 30 min Wed + 30 min Mon end (Tue holiday).
+    const wed0030 = Date.UTC(2025, 0, 8, 0, 30);
+    expect(cal.addWork(wed0030, -60)).toBe(Date.UTC(2025, 0, 6, 7, 30));
+
+    // Sanity: diffWork on the Saturday accounts for 480 min total split across
+    // two shifts; the lunch hour does not count.
+    expect(cal.diffWork(Date.UTC(2025, 0, 11), Date.UTC(2025, 0, 12))).toBe(
+      8 * 60,
+    );
+  });
 });
 
 describe("P6 acceptance — Constraints", () => {
