@@ -97,32 +97,11 @@ function SchedulerPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [dirty, setDirty] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const leftScrollRef = useRef<HTMLDivElement | null>(null);
+  // Single scroll container — CpmGrid renders the table + Gantt as one
+  // unified surface, so vertical sync is intrinsic. This ref is used for
+  // the auto-fit zoom calculation (chart width = container - sticky table).
   const rightScrollRef = useRef<HTMLDivElement | null>(null);
-  const syncingRef = useRef<"left" | "right" | null>(null);
-  useEffect(() => {
-    const left = leftScrollRef.current;
-    const right = rightScrollRef.current;
-    if (!left || !right) return;
-    const onLeft = () => {
-      if (syncingRef.current === "right") return;
-      syncingRef.current = "left";
-      right.scrollTop = left.scrollTop;
-      requestAnimationFrame(() => { syncingRef.current = null; });
-    };
-    const onRight = () => {
-      if (syncingRef.current === "left") return;
-      syncingRef.current = "right";
-      left.scrollTop = right.scrollTop;
-      requestAnimationFrame(() => { syncingRef.current = null; });
-    };
-    left.addEventListener("scroll", onLeft, { passive: true });
-    right.addEventListener("scroll", onRight, { passive: true });
-    return () => {
-      left.removeEventListener("scroll", onLeft);
-      right.removeEventListener("scroll", onRight);
-    };
-  }, []);
+
   const [dayPx, setDayPx] = useState(22);
   const [zoomUserSet, setZoomUserSet] = useState(false);
   const setDayPxUser = (n: number) => { setZoomUserSet(true); setDayPx(n); };
