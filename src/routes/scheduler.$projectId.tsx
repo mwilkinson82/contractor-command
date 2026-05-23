@@ -1520,6 +1520,69 @@ function InspectorDetails({
   );
 }
 
+function wouldCreateCycle(
+  deps: Dependency[],
+  from: string,
+  to: string,
+): boolean {
+  if (from === to) return true;
+  // Build adjacency excluding the candidate; then see if `to` already reaches `from`.
+  const adj = new Map<string, string[]>();
+  for (const d of deps) {
+    if (!d.from || !d.to) continue;
+    const arr = adj.get(d.from) ?? [];
+    arr.push(d.to);
+    adj.set(d.from, arr);
+  }
+  // DFS from `to` looking for `from`
+  const stack = [to];
+  const seen = new Set<string>();
+  while (stack.length) {
+    const n = stack.pop()!;
+    if (n === from) return true;
+    if (seen.has(n)) continue;
+    seen.add(n);
+    for (const nx of adj.get(n) ?? []) stack.push(nx);
+  }
+  return false;
+}
+
+function validateDep(
+  deps: Dependency[],
+  idx: number,
+  tasks: Task[],
+): string[] {
+  const d = deps[idx];
+  const errors: string[] = [];
+  if (!d) return errors;
+  const taskIds = new Set(tasks.map((t) => t.id));
+  if (!d.from || !d.to) errors.push("Missing endpoint");
+  if (d.from && !taskIds.has(d.from)) errors.push(`Unknown activity "${d.from}"`);
+  if (d.to && !taskIds.has(d.to)) errors.push(`Unknown activity "${d.to}"`);
+  if (d.from && d.to && d.from === d.to) errors.push("Self-link not allowed");
+  // Duplicate (same from, to, type)
+  const type = d.type ?? "FS";
+  const dup = deps.some(
+    (o, i) =>
+      i !== idx &&
+      o.from === d.from &&
+      o.to === d.to &&
+      (o.type ?? "FS") === type,
+  );
+  if (dup) errors.push("Duplicate link");
+  // Cycle (consider all deps except this one)
+  if (d.from && d.to && d.from !== d.to) {
+    const others = deps.filter((_, i) => i !== idx);
+    if (wouldCreateCycle(others, d.from, d.to)) errors.push("Creates cycle");
+  }
+  // Negative lag larger than predecessor duration is suspicious
+  const fromTask = tasks.find((t) => t.id === d.from);
+  if (typeof d.lag === "number" && d.lag < 0 && fromTask && -d.lag > (fromTask.duration ?? 0)) {
+    errors.push("Lag exceeds predecessor duration");
+  }
+  return errors;
+}
+
 function InspectorRelationships({
   taskId,
   draft,
@@ -1550,12 +1613,29 @@ function InspectorRelationships({
       .map((x) => `${x.from}|${x.to}|${x.type}`),
   );
 
+  const pickCandidate = (side: "pred" | "succ"): string | null => {
+    for (const o of otherTasks) {
+      const candidate: Dependency =
+        side === "pred"
+          ? { from: o.id, to: taskId, type: "FS", lag: 0 }
+          : { from: taskId, to: o.id, type: "FS", lag: 0 };
+      const probe = [...draft.dependencies, candidate];
+      const errs = validateDep(probe, probe.length - 1, draft.tasks);
+      if (errs.length === 0) return o.id;
+    }
+    return null;
+  };
+
   const addLink = (side: "pred" | "succ") => {
     if (otherTasks.length === 0) {
       toast.error("Need another activity to link to");
       return;
     }
-    const other = otherTasks[0].id;
+    const other = pickCandidate(side);
+    if (!other) {
+      toast.error("No valid activity available — all candidates would duplicate or cycle");
+      return;
+    }
     setDraft((dd) => {
       if (!dd) return dd;
       return {
@@ -1577,99 +1657,127 @@ function InspectorRelationships({
   ) => {
     const otherId = side === "pred" ? d.from : d.to;
     const driving = drivingSet.has(`${d.from}|${d.to}|${d.type ?? "FS"}`);
+    const errors = validateDep(draft.dependencies, di, draft.tasks);
+    const hasError = errors.length > 0;
     return (
-      <div key={di} className="flex items-center gap-1.5 py-0.5 text-xs">
-        <Select
-          value={otherId}
-          onValueChange={(v) => updateDep(di, side === "pred" ? { from: v } : { to: v })}
-        >
-          <SelectTrigger className="h-7 flex-1 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {otherTasks.map((x) => (
-              <SelectItem key={x.id} value={x.id}>
-                {x.id} · {x.name.slice(0, 24)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={d.type ?? "FS"}
-          onValueChange={(v) => updateDep(di, { type: v as DependencyType })}
-        >
-          <SelectTrigger className="h-7 w-16 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="FS">FS</SelectItem>
-            <SelectItem value="SS">SS</SelectItem>
-            <SelectItem value="FF">FF</SelectItem>
-            <SelectItem value="SF">SF</SelectItem>
-          </SelectContent>
-        </Select>
-        <Input
-          type="number"
-          className="h-7 w-14 text-right text-xs"
-          value={d.lag ?? 0}
-          onChange={(e) => updateDep(di, { lag: Number(e.target.value) || 0 })}
-        />
-        {driving ? (
-          <span className="text-[10px] font-semibold text-[#7a5cc4]" title="Driving">
-            ★
-          </span>
+      <div key={di} className="py-0.5">
+        <div className="flex items-center gap-1.5 text-xs">
+          <Select
+            value={otherId}
+            onValueChange={(v) => updateDep(di, side === "pred" ? { from: v } : { to: v })}
+          >
+            <SelectTrigger
+              className={`h-7 flex-1 text-xs ${hasError ? "border-[#b42318] ring-1 ring-[#b42318]/30" : ""}`}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {otherTasks.map((x) => (
+                <SelectItem key={x.id} value={x.id}>
+                  {x.id} · {x.name.slice(0, 24)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={d.type ?? "FS"}
+            onValueChange={(v) => updateDep(di, { type: v as DependencyType })}
+          >
+            <SelectTrigger className="h-7 w-16 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="FS">FS</SelectItem>
+              <SelectItem value="SS">SS</SelectItem>
+              <SelectItem value="FF">FF</SelectItem>
+              <SelectItem value="SF">SF</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            type="number"
+            className="h-7 w-14 text-right text-xs"
+            value={d.lag ?? 0}
+            onChange={(e) => updateDep(di, { lag: Number(e.target.value) || 0 })}
+            title="Lag in working days (negative = lead)"
+          />
+          {driving ? (
+            <span className="text-[10px] font-semibold text-[#7a5cc4]" title="Driving">
+              ★
+            </span>
+          ) : null}
+          <button
+            type="button"
+            className="text-[#b42318]"
+            onClick={() => removeDep(di)}
+            aria-label="Remove link"
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+        </div>
+        {hasError ? (
+          <div className="ml-1 mt-0.5 text-[10px] font-medium text-[#b42318]">
+            {errors.join(" · ")}
+          </div>
         ) : null}
-        <button
-          type="button"
-          className="text-[#b42318]"
-          onClick={() => removeDep(di)}
-          aria-label="Remove link"
-        >
-          <Trash2 className="h-3 w-3" />
-        </button>
       </div>
     );
   };
 
+  const allErrors = draft.dependencies
+    .map((_, i) => validateDep(draft.dependencies, i, draft.tasks))
+    .filter((e) => e.length > 0).length;
+
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <div>
-        <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-[#7a6a4d]">
-          <span>Predecessors</span>
-          <button
-            type="button"
-            onClick={() => addLink("pred")}
-            className="text-[#1f241f] hover:underline"
-          >
-            + add
-          </button>
+    <div className="space-y-3">
+      {allErrors > 0 ? (
+        <div className="rounded border border-[#b42318]/30 bg-[#fdf2f0] px-2 py-1 text-[11px] text-[#b42318]">
+          {allErrors} relationship issue{allErrors === 1 ? "" : "s"} — fix before saving to avoid CPM errors.
         </div>
-        {predRows.length === 0 ? (
-          <div className="text-xs text-[#9c8b6e]">No predecessors</div>
-        ) : (
-          predRows.map((r) => renderRow(r, "pred"))
-        )}
+      ) : null}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
+          <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-[#7a6a4d]">
+            <span>Predecessors · {predRows.length}</span>
+            <button
+              type="button"
+              onClick={() => addLink("pred")}
+              className="text-[#1f241f] hover:underline"
+            >
+              + add
+            </button>
+          </div>
+          {predRows.length === 0 ? (
+            <div className="text-xs text-[#9c8b6e]">No predecessors</div>
+          ) : (
+            predRows.map((r) => renderRow(r, "pred"))
+          )}
+        </div>
+        <div>
+          <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-[#7a6a4d]">
+            <span>Successors · {succRows.length}</span>
+            <button
+              type="button"
+              onClick={() => addLink("succ")}
+              className="text-[#1f241f] hover:underline"
+            >
+              + add
+            </button>
+          </div>
+          {succRows.length === 0 ? (
+            <div className="text-xs text-[#9c8b6e]">No successors</div>
+          ) : (
+            succRows.map((r) => renderRow(r, "succ"))
+          )}
+        </div>
       </div>
-      <div>
-        <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-[#7a6a4d]">
-          <span>Successors</span>
-          <button
-            type="button"
-            onClick={() => addLink("succ")}
-            className="text-[#1f241f] hover:underline"
-          >
-            + add
-          </button>
-        </div>
-        {succRows.length === 0 ? (
-          <div className="text-xs text-[#9c8b6e]">No successors</div>
-        ) : (
-          succRows.map((r) => renderRow(r, "succ"))
-        )}
+      <div className="text-[10px] text-[#7a6a4d]">
+        FS = Finish-to-Start · SS = Start-to-Start · FF = Finish-to-Finish · SF = Start-to-Finish ·
+        Lag in working days (negative = lead) · ★ = driving relationship
       </div>
     </div>
   );
 }
+
 
 function DependenciesEditor({
   draft,
