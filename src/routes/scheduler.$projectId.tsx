@@ -760,6 +760,7 @@ function SchedulerPage() {
                           <tr>
                             <th className="px-2 py-2 text-left font-semibold">Activity ID</th>
                             <th className="px-2 py-2 text-left font-semibold">Activity Name</th>
+                            <th className="px-2 py-2 text-right font-semibold">Dur</th>
                             <th className="px-2 py-2 text-right font-semibold">Start</th>
                             <th className="px-2 py-2 text-right font-semibold">Finish</th>
                             <th className="px-2 py-2 text-right font-semibold">%</th>
