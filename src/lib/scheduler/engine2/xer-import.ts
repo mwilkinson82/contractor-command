@@ -335,6 +335,11 @@ function parseCalendarRow(
         code: "unsupported_calendar_shift",
         message: `Calendar "${name}" defines shifts; engine2 treats it as whole-day for now.`,
       });
+      diagnostics.push({
+        severity: "info",
+        code: "calendar_shift_preserved_only",
+        message: `Calendar "${name}" shift definitions are preserved on the raw row but not executed by the default whole-day WorkClock.`,
+      });
     }
     if (hoursPerDay && hoursPerDay !== 8) {
       diagnostics.push({
