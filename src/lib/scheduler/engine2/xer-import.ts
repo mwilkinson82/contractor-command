@@ -622,35 +622,127 @@ export function importXerForEngine2(
     activities.push(activity);
   }
 
-  // -- Relationships
+  // -- Relationships (Phase 1.9 multi-project classification)
   const relationships: EngineRelationship[] = [];
+  const interprojectRelationships: InterprojectRelationshipRecord[] = [];
+  const externalRelationships: ExternalRelationshipRecord[] = [];
   let externalRelationshipsPreservedRaw = 0;
+  const missingExternalProjects = new Set<string>();
+
   for (const p of predRows) {
-    const fromX = p["pred_task_id"];
-    const toX = p["task_id"];
+    const fromX = p["pred_task_id"] || "";
+    const toX = p["task_id"] || "";
     const from = taskIdByXer.get(fromX);
     const to = taskIdByXer.get(toX);
+    const type = RELATIONSHIP_MAP[p["pred_type"] || "PR_FS"] ?? "FS";
+    const lagHours = num(p["lag_hr_cnt"]);
+    const lagMinutes = Math.round(lagHours * minutesPerHour);
+
+    // Project ids on the TASKPRED row. Fall back to the owning task's
+    // project when only one side is given; fall back to the default
+    // project when nothing is.
+    const predProjIdRaw = (p["pred_proj_id"] || "").trim();
+    const succProjIdRaw = (p["proj_id"] || "").trim();
+    const predProjectId =
+      predProjIdRaw || taskProjectByXer.get(fromX) || undefined;
+    const succProjectId =
+      succProjIdRaw || taskProjectByXer.get(toX) || undefined;
+
     if (!from || !to) {
       // External / cross-project relationship — preserve raw, do not drop.
       externalRelationshipsPreservedRaw++;
+      const predProjectMissing =
+        !!predProjectId && !projectIdSet.has(predProjectId);
+      const succProjectMissing =
+        !!succProjectId && !projectIdSet.has(succProjectId);
+      externalRelationships.push({
+        predProjectId,
+        succProjectId,
+        predTaskXerId: fromX,
+        succTaskXerId: toX,
+        type,
+        lagMinutes,
+        predProjectMissing,
+        succProjectMissing,
+        activityMissing: true,
+        raw: p,
+      });
+      // Back-compat broad code (kept so legacy tests / consumers keep working).
       diagnostics.push({
         severity: "info",
         code: "external_relationship_preserved_raw",
         message: `Relationship ${fromX}→${toX} references a task outside this XER; preserved raw, not added to engine2 graph.`,
       });
+      // Phase 1.9 finer-grained code with project identity.
+      diagnostics.push({
+        severity: "info",
+        code: "external_relationship_preserved",
+        message: `External relationship pred=${predProjectId ?? "?"}/${fromX} → succ=${succProjectId ?? "?"}/${toX} (${type}, lag ${lagMinutes}min) preserved; not in engine graph.`,
+      });
+      if (predProjectMissing && predProjectId) {
+        if (!missingExternalProjects.has(predProjectId)) {
+          missingExternalProjects.add(predProjectId);
+          diagnostics.push({
+            severity: "warn",
+            code: "external_project_missing",
+            message: `Predecessor project ${predProjectId} referenced by external relationship is not present in this XER; activity dates cannot be derived from imported data.`,
+          });
+        }
+      }
+      if (succProjectMissing && succProjectId) {
+        if (!missingExternalProjects.has(succProjectId)) {
+          missingExternalProjects.add(succProjectId);
+          diagnostics.push({
+            severity: "warn",
+            code: "external_project_missing",
+            message: `Successor project ${succProjectId} referenced by external relationship is not present in this XER; activity dates cannot be derived from imported data.`,
+          });
+        }
+      }
+      if (!predProjectMissing && !succProjectMissing) {
+        // Both projects present but the activity itself is missing — rare;
+        // surface as unresolved so reconciliation can flag it.
+        diagnostics.push({
+          severity: "warn",
+          code: "interproject_relationship_unresolved",
+          message: `Relationship ${fromX}→${toX} references activities not found in TASK; preserved raw.`,
+        });
+      }
       continue;
     }
-    const type = RELATIONSHIP_MAP[p["pred_type"] || "PR_FS"] ?? "FS";
-    const lagHours = num(p["lag_hr_cnt"]);
-    const lagMinutes = Math.round(lagHours * minutesPerHour);
+
+    const relId = `${fromX}->${toX}:${type}`;
     relationships.push({
-      id: `${fromX}->${toX}:${type}`,
+      id: relId,
       from,
       to,
       type,
       lag: { minutes: lagMinutes, authoringCalendarId: fallbackCalendarId },
       lagCalendarBasis: "successor",
     });
+
+    // Phase 1.9: track interproject relationships (both projects present).
+    const fromProj = taskProjectByXer.get(fromX);
+    const toProj = taskProjectByXer.get(toX);
+    if (fromProj && toProj && fromProj !== toProj) {
+      interprojectRelationships.push({
+        relationshipId: relId,
+        predProjectId: fromProj,
+        succProjectId: toProj,
+        predActivityId: from,
+        succActivityId: to,
+        predTaskXerId: fromX,
+        succTaskXerId: toX,
+        type,
+        lagMinutes,
+        raw: p,
+      });
+      diagnostics.push({
+        severity: "info",
+        code: "interproject_relationship_mapped",
+        message: `Interproject relationship ${fromProj}/${fromX} → ${toProj}/${toX} mapped into engine2 graph (both projects present).`,
+      });
+    }
   }
 
   // -- Assignments
