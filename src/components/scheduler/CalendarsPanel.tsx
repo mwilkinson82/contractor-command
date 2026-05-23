@@ -221,14 +221,7 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
                   type="button"
                   className="text-[10px] uppercase tracking-wide text-[#3554a5] hover:underline"
                   onClick={() => dupeMut.mutate(c)}
-                >
-                  Duplicate
-                </button>
-
-                <button
-                  type="button"
-                  className="text-[10px] uppercase tracking-wide text-[#3554a5] hover:underline"
-                  onClick={() => dupeMut.mutate(c)}
+                  disabled={dupeMut.isPending}
                 >
                   Duplicate
                 </button>
