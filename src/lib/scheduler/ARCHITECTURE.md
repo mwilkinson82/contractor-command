@@ -2393,3 +2393,75 @@ and eligibility warnings as separate sections.
 - `legacyAuthoritative` is always `true` today because the selector
   never returns engine2 output as the public `result`. The field is
   in the provenance shape so future phases can flip it deliberately.
+
+## 32. Phase 3.1.1 — Repo cleanliness pass (no feature changes)
+
+This pass is a blocker cleanup, not a feature pass. It resolves three
+real issues that surfaced from a clean checkout and clarifies the
+engine2 selector's production status. No engine2 behavior changes; no
+UI changes; no broadening of selection.
+
+### 32.1 Package manager
+
+- npm remains supported. `package-lock.json` was regenerated so that
+  `npm install` pulls in `vitest@^4.1.7` and the rest of the dev
+  dependencies that had only been recorded in `bun.lock`.
+- Verified clean-install commands:
+  - `npm install` — succeeds, installs vitest.
+  - `npm run test` — 225 tests pass (14 files).
+  - `npx tsc --noEmit` — no vitest / scheduler / test-file errors.
+    (Pre-existing TanStack-router `search`-param errors on `/login` and
+    `/upgrade` Links remain; unrelated to this pass.)
+  - `npm run build` — performed by the harness on every change; no
+    new build failures introduced.
+
+### 32.2 RLS helper grant restored
+
+- A prior hardening migration (`20260522230640_harden_scheduler_schema.sql`)
+  revoked `EXECUTE` on `public.is_schedule_member(uuid, uuid)` from
+  `authenticated`. Multiple RLS policies on `schedule_baselines`,
+  `schedule_calendars`, `activity_code_types`, `activity_code_values`,
+  `task_activity_codes`, `wbs_nodes`, and `schedule_members` call this
+  helper from `USING` / `WITH CHECK`. Without `EXECUTE` granted to the
+  caller's role, those policies effectively deny all access for
+  legitimate signed-in users on a fresh deploy.
+- New migration explicitly:
+  - `REVOKE ALL ... FROM PUBLIC, anon` on `is_schedule_member`.
+  - `GRANT EXECUTE ... TO authenticated, service_role`.
+- The function is `SECURITY DEFINER`, `STABLE`, and performs a single
+  bounded membership lookup, so granting `EXECUTE` to `authenticated`
+  is safe and the policies above evaluate as intended. `anon` cannot
+  execute it and the policies therefore still reject unauthenticated
+  callers.
+
+### 32.3 `replace_schedule_graph` calendar integrity guard
+
+- The `SECURITY DEFINER` RPC now validates that every task's
+  `calendar_id` is either `NULL` or refers to a `schedule_calendars`
+  row whose `schedule_id` matches the `_schedule_id` argument.
+- A single foreign calendar reference raises
+  `Task calendar_id <uuid> does not belong to schedule <uuid>`
+  (`SQLSTATE 23503`) before any `DELETE` / `INSERT` runs, so the
+  existing schedule graph is preserved by the transaction's automatic
+  rollback.
+- Verified manually against live data (two real schedules owned by the
+  same user): foreign calendar rejected, owning schedule's tasks
+  unchanged after the rejected call, `NULL` calendars accepted, and
+  same-schedule calendars accepted.
+
+### 32.4 Engine2 selector — production status (honest)
+
+- The engine2 selector (`runScheduleWithSelectedEngine` in
+  `engine2/engine-selector.ts`) exists as library + test
+  infrastructure only. It is NOT called from any user-facing route.
+- The production scheduler UI continues to call legacy
+  `calculateSchedule` directly:
+  - `src/routes/scheduler.tsx`
+  - `src/routes/scheduler.$projectId.tsx`
+  - `src/routes/scheduler-field.tsx`
+  - `src/routes/scheduler-portfolio.tsx`
+- Legacy remains authoritative for every user-visible schedule view.
+- engine2 comparison / shadow / debug surfaces remain flag-gated and
+  dev-only; none of them mutate authoritative schedule output.
+- No P6 parity claim. Engine2 is not wired into the user-visible
+  schedule route, and this pass does not change that.
