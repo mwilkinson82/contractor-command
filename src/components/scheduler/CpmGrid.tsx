@@ -33,6 +33,9 @@ const ROW_H = 22;
 const GROUP_H = 20;
 const HEADER_H = 38; // year band + month band
 const UNASSIGNED = "Unassigned";
+/** Sticky activity-table width — sum of <colgroup> col widths below. */
+export const CPM_STICKY_TABLE_WIDTH = 72 + 240 + 36 + 36 + 36 + 44 + 80 + 80 + 44;
+
 
 // ---- calendar helpers --------------------------------------------------
 

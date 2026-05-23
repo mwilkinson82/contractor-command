@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Trash2, Plus } from "lucide-react";
-import { CpmGrid } from "@/components/scheduler/CpmGrid";
+import { CpmGrid, CPM_STICKY_TABLE_WIDTH } from "@/components/scheduler/CpmGrid";
 import { OpenEndsReport } from "@/components/scheduler/OpenEndsReport";
 import { Stat } from "@/components/scheduler/Stat";
 import { BaselinesPanel } from "@/components/scheduler/BaselinesPanel";
@@ -97,32 +97,11 @@ function SchedulerPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [dirty, setDirty] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const leftScrollRef = useRef<HTMLDivElement | null>(null);
+  // Single scroll container — CpmGrid renders the table + Gantt as one
+  // unified surface, so vertical sync is intrinsic. This ref is used for
+  // the auto-fit zoom calculation (chart width = container - sticky table).
   const rightScrollRef = useRef<HTMLDivElement | null>(null);
-  const syncingRef = useRef<"left" | "right" | null>(null);
-  useEffect(() => {
-    const left = leftScrollRef.current;
-    const right = rightScrollRef.current;
-    if (!left || !right) return;
-    const onLeft = () => {
-      if (syncingRef.current === "right") return;
-      syncingRef.current = "left";
-      right.scrollTop = left.scrollTop;
-      requestAnimationFrame(() => { syncingRef.current = null; });
-    };
-    const onRight = () => {
-      if (syncingRef.current === "left") return;
-      syncingRef.current = "right";
-      left.scrollTop = right.scrollTop;
-      requestAnimationFrame(() => { syncingRef.current = null; });
-    };
-    left.addEventListener("scroll", onLeft, { passive: true });
-    right.addEventListener("scroll", onRight, { passive: true });
-    return () => {
-      left.removeEventListener("scroll", onLeft);
-      right.removeEventListener("scroll", onRight);
-    };
-  }, []);
+
   const [dayPx, setDayPx] = useState(22);
   const [zoomUserSet, setZoomUserSet] = useState(false);
   const setDayPxUser = (n: number) => { setZoomUserSet(true); setDayPx(n); };
@@ -306,20 +285,34 @@ function SchedulerPage() {
   const computed = result && "tasks" in result ? result : null;
   const computeError = result && "error" in result ? result.error : null;
 
-  // Auto-fit zoom: pick a dayPx that fits the project horizontally on first load
-  // for this schedule. User changes (setDayPxUser) opt out.
-  useEffect(() => {
-    if (zoomUserSet) return;
+  // Auto-fit zoom: pick a dayPx that fits the project horizontally on first
+  // load for this schedule. User changes (setDayPxUser) opt out. Re-runs on
+  // container resize so the schedule stays readable when the window changes.
+  const fitToContainer = React.useCallback(() => {
     if (!computed || computed.projectDuration < 1) return;
     const container = rightScrollRef.current;
     if (!container) return;
-    const available = container.clientWidth - 668 /* sticky table width */ - 16;
+    const available = container.clientWidth - CPM_STICKY_TABLE_WIDTH - 16;
     if (available <= 0) return;
     const ideal = Math.floor(available / computed.projectDuration);
     const clamped = Math.max(4, Math.min(36, ideal));
-    if (clamped !== dayPx) setDayPx(clamped);
+    setDayPx(clamped);
+    container.scrollLeft = 0;
+  }, [computed]);
+  useEffect(() => {
+    if (zoomUserSet) return;
+    fitToContainer();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [computed?.projectDuration, zoomUserSet]);
+  useEffect(() => {
+    if (zoomUserSet) return;
+    const container = rightScrollRef.current;
+    if (!container || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => fitToContainer());
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [zoomUserSet, fitToContainer]);
+
 
   const baselineQuery = useQuery({
     queryKey: ["baseline", comparisonBaselineId],
@@ -906,12 +899,13 @@ function SchedulerPage() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => setZoomUserSet(false)}
+                  onClick={() => { setZoomUserSet(false); fitToContainer(); }}
                   className="rounded border border-[#e6dfd0] px-1.5 py-0.5 text-[10px] text-[#5c574e] hover:bg-[#faf8f3]"
                   title="Fit project to viewport"
                 >
                   Fit
                 </button>
+
                 {ZOOM_LEVELS.map((z) => (
                   <button
                     key={z.label}
