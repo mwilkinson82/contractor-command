@@ -187,16 +187,11 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
                 <button
                   type="button"
                   className="text-[10px] uppercase tracking-wide text-[#3554a5] hover:underline"
-                  onClick={() =>
-                    addMut.mutate(undefined, {
-                      // Use addMut shape via direct save call instead
-                    })
-                  }
-                  // Replaced below by dedicated dupe handler
-                  style={{ display: "none" }}
+                  onClick={() => dupeMut.mutate(c)}
                 >
                   Duplicate
                 </button>
+
                 <button
                   type="button"
                   className="text-[10px] uppercase tracking-wide text-[#3554a5] hover:underline"
