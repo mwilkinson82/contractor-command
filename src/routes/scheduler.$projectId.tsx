@@ -1439,6 +1439,94 @@ function LegendDot({ color, label }: { color: string; label: string }) {
   );
 }
 
+function ScheduleContextSummary({
+  draft,
+  computed,
+  onSelect,
+}: {
+  draft: Draft;
+  computed: { tasks: { id: string; name: string; isCritical: boolean; totalFloat: number; earlyFinish: number; earlyFinishDate?: string }[]; projectFinishDate?: string; projectDuration: number } | null;
+  onSelect: (id: string) => void;
+}) {
+  if (!computed) {
+    return (
+      <div className="py-4 text-center text-xs text-[#9c8b6e]">
+        Select an activity to inspect.
+      </div>
+    );
+  }
+  const critical = computed.tasks.filter((t) => t.isCritical);
+  const nearCrit = computed.tasks
+    .filter((t) => !t.isCritical && t.totalFloat > 0 && t.totalFloat <= 5)
+    .sort((a, b) => a.totalFloat - b.totalFloat)
+    .slice(0, 4);
+  const drivingFinish = computed.tasks.reduce<typeof computed.tasks[number] | null>(
+    (a, b) => (!a || b.earlyFinish > a.earlyFinish ? b : a),
+    null,
+  );
+  return (
+    <div className="grid grid-cols-12 gap-4 text-[11px]">
+      <div className="col-span-3">
+        <div className="text-[9px] font-semibold uppercase tracking-wider text-[#9c8b6e]">
+          Project finish
+        </div>
+        <div className="mt-0.5 text-[14px] font-semibold tabular-nums text-[#1f241f]">
+          {computed.projectFinishDate ?? "—"}
+        </div>
+        <div className="text-[10px] text-[#7a6a4d]">
+          {computed.projectDuration}d duration · DD {draft.dataDate ?? "—"}
+        </div>
+      </div>
+      <div className="col-span-3">
+        <div className="text-[9px] font-semibold uppercase tracking-wider text-[#9c8b6e]">
+          Critical path
+        </div>
+        <div className="mt-0.5 text-[14px] font-semibold tabular-nums text-[#b42318]">
+          {critical.length} <span className="text-[10px] font-normal text-[#7a6a4d]">activities</span>
+        </div>
+        {drivingFinish ? (
+          <button
+            type="button"
+            onClick={() => onSelect(drivingFinish.id)}
+            className="mt-0.5 truncate text-left text-[10px] text-[#5c574e] hover:text-[#1f241f] hover:underline"
+            title={drivingFinish.name}
+          >
+            Driving → {drivingFinish.name}
+          </button>
+        ) : null}
+      </div>
+      <div className="col-span-6">
+        <div className="text-[9px] font-semibold uppercase tracking-wider text-[#9c8b6e]">
+          Near-critical (≤5d float)
+        </div>
+        {nearCrit.length === 0 ? (
+          <div className="mt-1 text-[10px] text-[#9c8b6e]">None — buffer is healthy.</div>
+        ) : (
+          <ul className="mt-1 space-y-0.5">
+            {nearCrit.map((t) => (
+              <li key={t.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelect(t.id)}
+                  className="flex w-full items-center gap-2 text-left hover:bg-[#faf8f3] rounded px-1 py-0.5"
+                >
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#c2750a]" />
+                  <span className="font-mono text-[10px] text-[#776e5e]">{t.id}</span>
+                  <span className="flex-1 truncate text-[#1f241f]">{t.name}</span>
+                  <span className="tabular-nums text-[10px] text-[#c2750a]">{t.totalFloat}d</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="col-span-12 text-[10px] text-[#9c8b6e]">
+        Click any activity in the table or Gantt to inspect details, relationships, resources, codes, and notes.
+      </div>
+    </div>
+  );
+}
+
 function InspectorDetails({
   t,
   draftTask,
