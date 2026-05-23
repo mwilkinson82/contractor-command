@@ -2016,3 +2016,94 @@ users.
   opt-in dev hook that runs `calculateScheduleWithEngine2Comparison`
   for the active project and pipes the report into this drawer.
 - No P6 parity claim. Engine2 remains observational.
+
+## §28 — Phase 2.8: shadow mode + evidence log
+
+Phase 2.8 adds a flag-gated shadow runner that exercises the engine2
+comparison harness across a batch of real-shaped schedules (Commercial
+Fit-Out demo, manual fixtures from §26, schedules with constraints /
+progress / resources / baselines) and aggregates the results into a
+deterministic **evidence log**. Legacy remains authoritative.
+
+### Surface
+
+- `src/lib/scheduler/engine2/shadow.ts`
+  - `runShadowComparisons(inputs, opts)` — runs one comparison per
+    (schedule × calendarMode). Default mode is `whole-day`. Returns an
+    inert `ran: false` result when the shadow flag is off and `force`
+    is not set.
+  - `runDualCalendarShadow(inputs, opts)` — convenience that runs both
+    `whole-day` and `exception-aware` modes side-by-side so we can
+    detect whether exception-aware routing introduces only explainable
+    differences.
+  - `isBoringReport(report)` / `summarizeBoringness(report)` — the
+    centralized **boring-report bar**.
+  - `exportEvidenceLogToJson(log)` / `exportEvidenceLogToCsv(log)` —
+    deterministic exports for dev review.
+  - `isEngine2ShadowEnabled()` — env-gated; requires
+    `VITE_SCHEDULER_ENGINE2_SHADOW=1` **and** the comparison flag.
+
+### Evidence log entry shape
+
+Each entry captures: `scheduleId`, `scheduleName`, optional `intent`,
+ISO `timestamp`, `legacyEngineVersion`, `engine2Version`, `calendarMode`,
+`verdict`, `mismatchCount`, `exactDateMatches`, `classificationCounts`,
+`topDifferenceCategories`, `useExceptionAwareCalendars`, optional
+`engine2Error`, and a `boring` boolean.
+
+### Boring-report definition
+
+A report is "boring" (no developer action needed) when ALL of:
+
+1. No bridge or engine2 error.
+2. No `investigate`-classified differences.
+3. Verdict is `clean` or `expected-differences`.
+
+This is the single bar engine2 must clear across the shadow batch
+before promotion is considered.
+
+### Exception-aware calendar shadow test
+
+`runDualCalendarShadow` is the internal-only path that runs legacy vs
+engine2-whole-day AND legacy vs engine2-exception-aware in the same
+batch. It does NOT change defaults. Goal: confirm exception-aware
+routing produces only differences that map to known calendar buckets.
+
+### Guardrails
+
+- Shadow mode is off by default. Default flags → `runShadowComparisons`
+  returns `{ ran: false, log: { entries: [] } }`.
+- Shadow runs never mutate the source schedule or the legacy result
+  (tested via snapshot equality before/after).
+- Engine2 / bridge errors are captured per entry; the run never throws.
+- Exports are pure projections of the log.
+- The Phase 2.7 debug drawer still renders only when both comparison
+  AND dev-mode flags are on, so production users never see the drawer
+  or any shadow output.
+
+### Tests
+
+`src/lib/scheduler/__tests__/engine2-shadow.spec.ts` (15 tests) covers:
+flag gating, no-op default, legacy invariance, schedule immutability,
+dual-clock opt-in, boring detector edge cases, deterministic JSON/CSV
+export, and a Commercial Fit-Out shadow run that asserts no engine2
+error and a non-`investigate` verdict.
+
+### Status
+
+- Engine2 version bumped to `0.13.0-phase2.8`.
+- 168 tests pass (was 153, +15).
+- Legacy engine untouched. UI unchanged. All flags default off.
+- No P6 parity claim. Engine2 remains observational.
+
+### Known limitations (Phase 2.8)
+
+- The shadow batch is assembled by callers (typically tests or a
+  future internal dev page). Production code paths do not call
+  `runShadowComparisons` anywhere.
+- Evidence-log persistence is in-memory only; export to JSON/CSV is
+  the persistence story for now. A later phase can persist runs to
+  storage if shadow comparisons start being run continuously.
+- Exception-aware shadow comparisons still depend on the bridge's
+  current exception-data fidelity (§25); meaningful differences will
+  only appear once richer calendar exceptions are bridged.
