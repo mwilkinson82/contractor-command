@@ -479,9 +479,14 @@ export function importXerForEngine2(
   // -- Tasks (activities)
   const activities: EngineActivity[] = [];
   const taskIdByXer = new Map<string, string>();
+  /** Phase 1.9 — xer task_id → owning xer proj_id. */
+  const taskProjectByXer = new Map<string, string>();
+  /** Phase 1.9 — internal activity id → owning xer proj_id. */
+  const activityProjectIds: Record<string, string> = {};
   const seen = new Set<string>();
   let constraintsMapped = 0;
   let constraintsUnsupported = 0;
+  const defaultProjectId = primaryProject?.id ?? "proj-unknown";
 
   for (const t of taskRows) {
     const xerId = t["task_id"];
@@ -493,6 +498,9 @@ export function importXerForEngine2(
     while (seen.has(unique)) unique = `${code}_${n++}`;
     seen.add(unique);
     taskIdByXer.set(xerId, unique);
+    const taskProjId = (t["proj_id"] || "").trim() || defaultProjectId;
+    taskProjectByXer.set(xerId, taskProjId);
+    activityProjectIds[unique] = taskProjId;
 
     const calendarId = t["clndr_id"] || fallbackCalendarId;
     if (t["clndr_id"] && !calendarById.has(t["clndr_id"])) {
