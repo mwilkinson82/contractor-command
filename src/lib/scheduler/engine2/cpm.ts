@@ -87,6 +87,9 @@ export interface CpmInput {
   roles?: Role[];
   assignments?: ResourceAssignment[];
   expenseAssignments?: ExpenseAssignment[];
+
+  /** Phase 1.6 — optional resource leveling pass run on top of CPM dates. */
+  leveling?: LevelingOptions;
 }
 
 interface WorkState {
