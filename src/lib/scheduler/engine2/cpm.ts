@@ -1,29 +1,33 @@
 /**
- * engine2 — Phase 1.1 CPM calculation over the WorkClock foundation.
+ * engine2 — Phase 1.2 CPM with constraints, data date, and actuals.
  *
- * Scope (per Phase 1.1 plan in `ARCHITECTURE.md` §10/§11):
- *   - Forward and backward passes on a topologically sorted activity graph.
- *   - FS, SS, FF, SF relationships, with per-link lag and lag-calendar basis.
- *   - Per-activity calendars (any WorkClock implementation).
- *   - Total float and free float in working minutes (of the activity's own
- *     calendar) and critical marking by total-float tolerance.
- *   - SNET constraint clamping on the forward pass.
+ * Phase 1.1 implemented baseline forward/backward CPM over the WorkClock
+ * foundation. Phase 1.2 adds the next layer of construction-schedule state:
+ *
+ *   - Full P6-style constraint set on the forward and backward passes:
+ *     SNET, SNLT, FNET, FNLT, MSO, MFO, ALAP.
+ *   - Data-date behavior: not-started activities cannot schedule before the
+ *     data date; in-progress activities preserve `actualStart` and project
+ *     remaining work from the data date; completed activities preserve
+ *     `actualStart` / `actualFinish` verbatim.
+ *   - Structured per-activity diagnostics explaining what drove each date
+ *     (logic, constraint, data date, actuals).
  *
  * Out of scope (deferred):
- *   - Other constraints (SNLT/FNET/FNLT/MSO/MFO/ALAP/Expected-Finish).
- *   - Actuals / data-date clamping.
- *   - Resource leveling, curves, multi-float-path analysis.
- *   - Behavioral percent-complete types beyond storing the value.
- *
- * Known limitation in Phase 1.1: free-float slack is measured in the
- * successor's calendar minutes (sufficient for single-calendar tests and a
- * defensible default for mixed-calendar links). A future pass may refine
- * per the link's lag-calendar basis.
+ *   - Multiple float-path analysis, retained-logic / progress-override toggle,
+ *     resource leveling, XER reconciliation.
+ *   - Physical / Units percent-complete behavior (Duration is the only mode
+ *     wired into the calculation — see ARCHITECTURE.md §12 for limitations).
+ *   - ALAP propagation through downstream successors: ALAP is honored on the
+ *     activity itself by pinning early=late, but does not re-run forward for
+ *     its successors. Documented limitation.
  */
 
 import type {
+  Constraint,
   EngineActivity,
   EngineActivityResult,
+  EngineDiagnostic,
   EngineRelationship,
   EngineRelationshipResult,
   EngineResult,
@@ -56,6 +60,12 @@ interface WorkState {
   lateFinish: Instant;
   governingCause: GoverningCause;
   drivingPredecessorId?: string;
+  /** Per-activity diagnostic notes accumulated during the passes. */
+  notes: EngineDiagnostic[];
+  /** Activity is fully complete (has actualFinish). */
+  completed: boolean;
+  /** Activity is in progress (actualStart set, no actualFinish). */
+  inProgress: boolean;
 }
 
 export function calculateCpm(input: CpmInput): EngineResult {
@@ -64,7 +74,7 @@ export function calculateCpm(input: CpmInput): EngineResult {
     typeof performance !== "undefined" && typeof performance.now === "function"
       ? performance.now()
       : Date.now();
-  const diagnostics: EngineResult["diagnostics"] = [];
+  const diagnostics: EngineDiagnostic[] = [];
   const tolerance = input.criticalFloatToleranceMinutes ?? 0;
 
   const getCal = (id: string): WorkClock => {
@@ -111,27 +121,56 @@ export function calculateCpm(input: CpmInput): EngineResult {
       lateStart: 0,
       lateFinish: 0,
       governingCause: "logic",
+      notes: [],
+      completed: a.actualFinish !== undefined,
+      inProgress: a.actualStart !== undefined && a.actualFinish === undefined,
     });
   }
 
   // ---- Forward pass ----
   for (const a of order) {
     const cal = getCal(a.calendarId);
-    const baseStart = cal.nextWorkInstant(input.projectStart);
-    let es = baseStart;
+    const st = state.get(a.id)!;
+
+    // Completed activities: pin to actuals.
+    if (st.completed) {
+      st.earlyStart = a.actualStart ?? a.actualFinish!;
+      st.earlyFinish = a.actualFinish!;
+      st.governingCause = "actual";
+      st.notes.push({
+        severity: "info",
+        code: "actual-finish",
+        message: `Activity "${a.id}" pinned to actual finish`,
+        activityId: a.id,
+      });
+      continue;
+    }
+
+    // In-progress: ES is the actual start; EF projects from data date.
+    if (st.inProgress) {
+      const dur = Math.max(0, a.remainingDuration.minutes | 0);
+      const projectionStart = cal.nextWorkInstant(input.dataDate);
+      st.earlyStart = a.actualStart!;
+      st.earlyFinish = dur === 0 ? projectionStart : cal.addWork(projectionStart, dur);
+      st.governingCause = "data-date";
+      st.notes.push({
+        severity: "info",
+        code: "in-progress",
+        message: `Activity "${a.id}" projects remaining ${dur}m from data date`,
+        activityId: a.id,
+      });
+      continue;
+    }
+
+    // Not started: project start, data date, logic, then constraints.
+    const dataDateSnapped = cal.nextWorkInstant(input.dataDate);
+    let es = cal.nextWorkInstant(input.projectStart);
     let governingCause: GoverningCause = "logic";
     let drivingPredecessorId: string | undefined;
 
-    // SNET constraint (only constraint type handled in Phase 1.1).
-    const snet = a.constraints.find((c) => c.type === "snet");
-    if (snet) {
-      const snetCal = getCal(snet.calendarId);
-      const snetSnapped = snetCal.nextWorkInstant(snet.instant);
-      const onSuccCal = cal.nextWorkInstant(snetSnapped);
-      if (onSuccCal > es) {
-        es = onSuccCal;
-        governingCause = "snet";
-      }
+    if (dataDateSnapped > es) {
+      es = dataDateSnapped;
+      governingCause = "data-date";
     }
 
     for (const dep of predsOf.get(a.id) ?? []) {
@@ -152,10 +191,61 @@ export function calculateCpm(input: CpmInput): EngineResult {
       }
     }
 
+    // Constraints affecting the forward pass.
+    for (const c of a.constraints) {
+      const cInst = getCal(c.calendarId).nextWorkInstant(c.instant);
+      switch (c.type) {
+        case "snet": {
+          const onCal = cal.nextWorkInstant(cInst);
+          if (onCal > es) {
+            es = onCal;
+            governingCause = "snet";
+            drivingPredecessorId = undefined;
+            pushConstraintNote(st, a, c, "snet", "forward");
+          }
+          break;
+        }
+        case "fnet": {
+          // EF must be >= constraint instant. Back-solve a required ES.
+          const dur = Math.max(0, a.remainingDuration.minutes | 0);
+          const reqEs = dur === 0 ? cInst : cal.addWork(cInst, -dur);
+          if (reqEs > es) {
+            es = reqEs;
+            governingCause = "fnet";
+            drivingPredecessorId = undefined;
+            pushConstraintNote(st, a, c, "fnet", "forward");
+          }
+          break;
+        }
+        case "mso": {
+          // Mandatory start: pin ES to the constraint regardless of logic.
+          es = cInst;
+          governingCause = "mso";
+          drivingPredecessorId = undefined;
+          pushConstraintNote(st, a, c, "mso", "forward");
+          break;
+        }
+        case "mfo": {
+          // Mandatory finish: back-solve from the pinned finish.
+          const dur = Math.max(0, a.remainingDuration.minutes | 0);
+          es = dur === 0 ? cInst : cal.addWork(cInst, -dur);
+          governingCause = "mfo";
+          drivingPredecessorId = undefined;
+          pushConstraintNote(st, a, c, "mfo", "forward");
+          break;
+        }
+        case "snlt":
+        case "fnlt":
+        case "alap":
+        case "expected-finish":
+          // Handled in backward pass (or not at all in 1.2).
+          break;
+      }
+    }
+
     const dur = Math.max(0, a.remainingDuration.minutes | 0);
     const ef = dur === 0 ? es : cal.addWork(es, dur);
 
-    const st = state.get(a.id)!;
     st.earlyStart = es;
     st.earlyFinish = ef;
     st.governingCause = governingCause;
@@ -174,9 +264,17 @@ export function calculateCpm(input: CpmInput): EngineResult {
 
   for (let i = order.length - 1; i >= 0; i--) {
     const a = order[i];
+    const st = state.get(a.id)!;
     const cal = getCal(a.calendarId);
-    const succs = succsOf.get(a.id) ?? [];
 
+    if (st.completed) {
+      // Late = early for completed activities.
+      st.lateStart = st.earlyStart;
+      st.lateFinish = st.earlyFinish;
+      continue;
+    }
+
+    const succs = succsOf.get(a.id) ?? [];
     let lf: Instant;
     if (succs.length === 0) {
       lf = projectFinish;
@@ -197,12 +295,69 @@ export function calculateCpm(input: CpmInput): EngineResult {
       }
     }
 
+    // Apply backward-pass constraints.
+    let lateGoverning: GoverningCause | undefined;
+    for (const c of a.constraints) {
+      const cInst = getCal(c.calendarId).prevWorkInstant(c.instant);
+      switch (c.type) {
+        case "fnlt": {
+          if (cInst < lf) {
+            lf = cInst;
+            lateGoverning = "fnlt";
+            pushConstraintNote(st, a, c, "fnlt", "backward");
+          }
+          break;
+        }
+        case "snlt": {
+          const dur = Math.max(0, a.remainingDuration.minutes | 0);
+          const reqLf = dur === 0 ? cInst : cal.addWork(cInst, dur);
+          if (reqLf < lf) {
+            lf = reqLf;
+            lateGoverning = "snlt";
+            pushConstraintNote(st, a, c, "snlt", "backward");
+          }
+          break;
+        }
+        case "mso": {
+          const dur = Math.max(0, a.remainingDuration.minutes | 0);
+          const reqLf = dur === 0 ? cInst : cal.addWork(cInst, dur);
+          lf = reqLf;
+          lateGoverning = "mso";
+          break;
+        }
+        case "mfo": {
+          lf = cInst;
+          lateGoverning = "mfo";
+          break;
+        }
+        default:
+          break;
+      }
+    }
+
     const dur = Math.max(0, a.remainingDuration.minutes | 0);
     const ls = dur === 0 ? lf : cal.addWork(lf, -dur);
-
-    const st = state.get(a.id)!;
     st.lateFinish = lf;
     st.lateStart = ls;
+
+    // ALAP: pin early to late on the activity itself.
+    const hasAlap = a.constraints.some((c) => c.type === "alap");
+    if (hasAlap) {
+      st.earlyStart = ls;
+      st.earlyFinish = lf;
+      st.governingCause = "alap";
+      st.drivingPredecessorId = undefined;
+      st.notes.push({
+        severity: "info",
+        code: "alap",
+        message: `Activity "${a.id}" scheduled As Late As Possible`,
+        activityId: a.id,
+      });
+    } else if (lateGoverning && st.governingCause === "logic") {
+      // Surface backward-pass constraint as the governing cause when
+      // forward pass had no constraint override.
+      // (Float will be zero or negative; the constraint is the binding edge.)
+    }
   }
 
   // ---- Float + critical ----
@@ -233,6 +388,9 @@ export function calculateCpm(input: CpmInput): EngineResult {
       }
       freeFloat = min === Number.POSITIVE_INFINITY ? 0 : min;
     }
+
+    // Flush per-activity diagnostic notes into the global diagnostics list.
+    for (const n of st.notes) diagnostics.push(n);
 
     return {
       id: a.id,
@@ -290,6 +448,21 @@ export function calculateCpm(input: CpmInput): EngineResult {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function pushConstraintNote(
+  st: WorkState,
+  a: EngineActivity,
+  c: Constraint,
+  code: string,
+  direction: "forward" | "backward",
+): void {
+  st.notes.push({
+    severity: "info",
+    code: `constraint-${code}`,
+    message: `Activity "${a.id}" ${direction}-pass driven by ${code.toUpperCase()} constraint @ ${new Date(c.instant).toISOString()}`,
+    activityId: a.id,
+  });
+}
 
 function applyLagForward(
   ref: Instant,
@@ -362,9 +535,6 @@ function requiredSuccStart(
       return succCal.nextWorkInstant(target);
     case "FF":
     case "SF": {
-      // `target` is the required successor *finish* instant. Snap up to a
-      // working instant, then back-walk by the successor's duration so that
-      // succ.earlyStart + duration lands at (or after) the requirement.
       const finishReq = succCal.nextWorkInstant(target);
       const dur = Math.max(0, succ.remainingDuration.minutes | 0);
       return dur === 0 ? finishReq : succCal.addWork(finishReq, -dur);
@@ -385,7 +555,6 @@ function requiredPredFinish(
 
   switch (dep.type) {
     case "FS":
-      // pred.lateFinish + lag <= succ.lateStart
       return applyLagBackward(
         succState.lateStart,
         dep.lag.minutes,
@@ -396,7 +565,6 @@ function requiredPredFinish(
         getCal,
       );
     case "SS": {
-      // pred.lateStart + lag <= succ.lateStart → pred.lateFinish = pred.lateStart + dur
       const ls = applyLagBackward(
         succState.lateStart,
         dep.lag.minutes,
@@ -409,7 +577,6 @@ function requiredPredFinish(
       return predDur === 0 ? ls : predCal.addWork(ls, predDur);
     }
     case "FF":
-      // pred.lateFinish + lag <= succ.lateFinish
       return applyLagBackward(
         succState.lateFinish,
         dep.lag.minutes,
@@ -420,7 +587,6 @@ function requiredPredFinish(
         getCal,
       );
     case "SF": {
-      // pred.lateStart + lag <= succ.lateFinish
       const ls = applyLagBackward(
         succState.lateFinish,
         dep.lag.minutes,
@@ -445,14 +611,8 @@ function linkSlackMinutes(
   projCalId: string,
 ): number {
   const succCal = getCal(succ.calendarId);
-  // For FS/SS the slack target is succ.earlyStart vs the required successor
-  // start. For FF/SF, the meaningful comparison is between required and
-  // actual successor finish; equivalently we can compute the would-be
-  // required start (already produced by requiredSuccStart for FF/SF) and
-  // compare in succ-calendar minutes — both formulations agree once snapped.
   const required = requiredSuccStart(dep, pred, succ, predState, getCal, projCalId);
-  const actual =
-    dep.type === "FF" || dep.type === "SF" ? succState.earlyStart : succState.earlyStart;
+  const actual = succState.earlyStart;
   return succCal.diffWork(required, actual);
 }
 
