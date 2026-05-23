@@ -137,21 +137,39 @@ export function createWholeDayWorkClock(opts: WholeDayWorkClockOptions): WorkClo
       throw new Error("WorkClock.addWork: exceeded iteration bound");
     }
 
-    // minutes < 0: walk backward.
-    let cur = prevWorkInstant(instant);
+    // minutes < 0: walk backward, treating `instant` as a *position* (so that
+    // forward and backward are inverses across day-end boundaries, e.g.
+    // `addWork(addWork(t, +D), -D) === t` for working-aligned `t`).
+    let cur = instant;
     let remaining = -minutes;
     for (let i = 0; i < 366 * 50; i++) {
       const ds = utcDayStart(cur);
-      // working window is [ds, ds + windowMs); minutes already "passed" since ds:
-      const consumedMs = cur - ds + MS_PER_MIN; // include current minute
-      const consumedMin = Math.floor(consumedMs / MS_PER_MIN);
-      if (remaining < consumedMin) {
-        return cur - remaining * MS_PER_MIN;
+      const dayEnd = ds + windowMs;
+      // Working minutes available in this day strictly before `cur` (clamped
+      // to the day's work window).
+      let availableMin = 0;
+      if (isWorkDayStart(ds)) {
+        const effectiveCur = Math.min(cur, dayEnd);
+        availableMin = Math.max(0, Math.floor((effectiveCur - ds) / MS_PER_MIN));
       }
-      remaining -= consumedMin;
-      cur = prevWorkInstant(ds - MS_PER_MIN);
+      if (remaining <= availableMin) {
+        const effectiveCur = Math.min(cur, dayEnd);
+        return effectiveCur - remaining * MS_PER_MIN;
+      }
+      remaining -= availableMin;
+      // Jump to the day-end boundary of the previous workday.
+      let prevDs = ds - MS_PER_DAY;
+      let guard = 0;
+      while (!isWorkDayStart(prevDs)) {
+        prevDs -= MS_PER_DAY;
+        if (++guard > 366 * 4) {
+          throw new Error("WorkClock.addWork: no prior workday found within ~4y");
+        }
+      }
+      cur = prevDs + windowMs;
     }
     throw new Error("WorkClock.addWork: exceeded iteration bound (backward)");
+
   };
 
   const diffWork = (a: Instant, b: Instant): number => {
