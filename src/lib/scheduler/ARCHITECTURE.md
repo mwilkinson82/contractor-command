@@ -1660,3 +1660,176 @@ harness above; no new XER UI is wired.
 4. Begin matching float units between engines (project-wide decision:
    keep legacy or migrate to working-minute basis).
 
+
+---
+
+## 25. Phase 2.5 — Actionable comparison + exception-aware bridge plan
+
+Phase 2.5 makes the engine2 comparison harness useful for internal
+development without changing what end users see. Three deliverables:
+
+1. A tighter, classified difference surface on `ComparisonReport`.
+2. A developer-only emission path gated by the same comparison flag.
+3. A documented internal plan (and dev-only opt-in) for routing the
+   legacy bridge through the exception-aware WorkClock.
+
+Legacy engine, default UI behavior, and feature-flag defaults are
+unchanged.
+
+### Tighter difference classification
+
+`ComparisonDifferenceCategory` now includes:
+
+`calendar_model_difference | lag_basis_difference |
+ constraint_behavior_difference | progress_behavior_difference |
+ missing_legacy_field | legacy_missing_engine2_field`
+
+in addition to the Phase 2.4 categories. Engine2-only diagnostics are
+mapped into these buckets by inspecting their `code` (e.g. anything
+starting with `calendar_` lands in `calendar_model_difference`; OOS /
+actuals codes land in `progress_behavior_difference`).
+
+Every `ComparisonDifference` now carries a `classification`:
+
+`expected-bridge-limitation | known-engine-limitation | investigate`
+
+with the following defaults:
+
+| Category | Classification |
+|---|---|
+| `known_limitation`, `calendar_model_difference`, `lag_basis_difference`, `constraint_behavior_difference`, `missing_legacy_field`, `legacy_missing_engine2_field` | expected-bridge-limitation |
+| `total_float`, `free_float`, `progress_behavior_difference`, `engine2_only_diagnostic` | known-engine-limitation |
+| date deltas, `critical_flag`, `driving_link`, `missing_in_*` | known-engine-limitation when the bridge has a documented reason (e.g. legacy has no actuals modeling), else investigate |
+
+Reports also carry a `verdict`:
+
+- `clean` — zero differences,
+- `expected-differences` — differences exist but none are classified as
+  `investigate`,
+- `investigate` — at least one difference is classified as `investigate`.
+
+The report adds rollup counters: `dateMismatches`, `floatMismatches`,
+`criticalFlagMismatches`, `knownLimitationDifferences`,
+`engine2OnlyDiagnostics`, and `countsByClassification`. The pretty-printer
+includes the verdict and per-classification counts.
+
+### Developer-only emission path
+
+`calculateScheduleWithEngine2Comparison` (in
+`src/lib/scheduler/compare.ts`) now accepts:
+
+- `forceComparison?: boolean` — bypass the env flag (tests / debug UI),
+- `forceExceptionAwareCalendars?: boolean` — bypass the exception flag,
+- `devReportSink?: (text, report) => void` — overrides where the
+  formatted report goes. Default sink is `console.info`.
+
+When the comparison flag is **off**, the sink is never called and no
+report is attached — the function returns the legacy result only.
+
+When the comparison flag is **on**:
+
+- the legacy result is returned unchanged,
+- the structured report is attached on `engine2Comparison`,
+- the formatted report is passed to the dev sink,
+- if engine2 threw, the legacy result is still returned and
+  `engine2Error` carries the message.
+
+This output path is intentionally invisible to normal users: there is no
+UI surface in this phase, and the env flag defaults to off in production.
+
+### Commercial Fit-Out baseline
+
+`__tests__/engine2-comparison.spec.ts` pins:
+
+- the report is deterministic across runs (`countsByCategory` and
+  `countsByClassification` are stable),
+- every difference is classified (no diff with `classification`
+  undefined),
+- the verdict is one of the three known values,
+- the schedule is not mutated by the harness,
+- legacy output is byte-for-byte unchanged whether the harness runs or
+  not,
+- an engine2 error (forced by stripping `projectStartDate`) does not
+  alter the legacy result and surfaces as `engine2Error`,
+- `forceExceptionAwareCalendars` flips
+  `runRecord.useExceptionAwareCalendars` to true without affecting
+  legacy output.
+
+### Exception-aware bridge routing plan
+
+`bridgeLegacyScheduleToEngine2(schedule, { useExceptionAwareCalendars })`
+is the single internal switch. Default is `false` (whole-day). When
+`true`, every bridged calendar is constructed via
+`createExceptionWorkClock` instead of `createWholeDayWorkClock`.
+
+Today this is effectively a no-op behavioral change because legacy
+schedules carry only weekday-mask + holidays — the exception clock
+accepts both. The path exists so that:
+
+- we can validate the exception clock against real schedules with no
+  date deltas before any new exception data is bridged,
+- a future pass can synthesize XER `clndr_data` shifts/exceptions
+  directly into the exception clock from the legacy import side,
+- the dev flag (`VITE_SCHEDULER_ENGINE2_EXCEPTION_CLOCK`) lets internal
+  testers flip it without code changes.
+
+Decision matrix for which clock to use:
+
+| Source of calendar data | Clock |
+|---|---|
+| Legacy `Schedule.calendar` (weekday mask + holidays only) | Whole-day (default), exception-aware also valid |
+| Named legacy `NamedCalendar[]` (same shape) | Whole-day (default), exception-aware also valid |
+| XER `clndr_data` with shift / exception windows | Exception-aware **required** once bridged |
+| Mixed: some calendars carry exceptions, others do not | Exception-aware for the whole project (mixed clocks would split float math across engines) |
+
+### Guardrails (Phase 2.5)
+
+The comparison path is verified to:
+
+- never mutate the input `Schedule` (snapshot test),
+- never alter legacy output (byte-for-byte test),
+- never block the user (engine2 errors are swallowed into the report),
+- never leak the dev report into the production UI (no UI surface,
+  flag defaulted off, sink is opt-in),
+- never make engine2 authoritative (the function returns
+  `result: ScheduleResult` from the legacy engine, full stop).
+
+### Regression posture
+
+- 109 scheduler tests green (100 prior + 9 new for verdict /
+  classification / dev sink / engine2-error tolerance / exception
+  routing).
+- Legacy engine untouched.
+- `getSchedulerEngine()` defaults to `"legacy"`.
+- `isEngine2ComparisonEnabled()` defaults to `false`.
+- `isEngine2ExceptionClockEnabled()` defaults to `false`.
+- Build / typecheck pass.
+
+### Known limitations (Phase 2.5)
+
+- **No UI surface.** The dev report is still console-only by default.
+  An internal debug panel can opt in by passing its own `devReportSink`.
+- **Exception data not yet bridged from XER.** The exception-clock
+  routing exists, but legacy schedules don't carry shift/exception
+  data, so flipping the flag does not yet produce different math on
+  real data.
+- **Date deltas not auto-classified as `investigate`.** Until
+  successor re-flow and actuals modeling land, all date deltas are
+  classified as `known-engine-limitation`. This is honest — every
+  current delta has a documented structural cause — but means the
+  verdict will rarely be `investigate` on the demo schedule. The
+  verdict path is still exercised by the unit tests.
+- **No engine2 production path.** Flipping `getSchedulerEngine()` to
+  `"engine2"` still does not change rendered UI.
+
+### Phase 2.6 candidates
+
+1. Bridge legacy `percentComplete` to engine2 actuals (linear
+   approximation) and reclassify the resulting reduced date deltas.
+2. Implement successor re-flow after leveling so leveled engine2
+   downstream dates can be compared to legacy.
+3. Wire XER `clndr_data` shifts/exceptions into the bridge and turn on
+   the exception-aware clock by default once parity is observable.
+4. Add an internal debug route (gated by admin role) that runs the
+   comparison harness against the active project and shows the
+   formatted report — still invisible to normal users.

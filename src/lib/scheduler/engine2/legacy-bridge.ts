@@ -20,6 +20,44 @@ import type {
   Instant,
 } from "./types";
 import { createWholeDayWorkClock, type WorkClock } from "./work-clock";
+import { createExceptionWorkClock } from "./work-clock-exceptions";
+
+export interface LegacyBridgeOptions {
+  /**
+   * Phase 2.5 — dev-only opt-in. Route calendars through
+   * `createExceptionWorkClock` instead of the whole-day fallback. Default
+   * is false (whole-day). Legacy schedules carry no shift/exception data
+   * today, so the exception clock receives only weekday-mask + holidays
+   * and produces equivalent behavior — the flag exists so the routing
+   * path can be exercised before real exception data is bridged.
+   */
+  useExceptionAwareCalendars?: boolean;
+}
+
+function buildCalendarClock(
+  id: string,
+  name: string,
+  workDays: number,
+  holidays: readonly string[],
+  useExceptions: boolean,
+): WorkClock {
+  if (useExceptions) {
+    return createExceptionWorkClock({
+      id,
+      name,
+      workDays,
+      holidays,
+      hoursPerDay: HOURS_PER_DAY,
+    });
+  }
+  return createWholeDayWorkClock({
+    id,
+    name,
+    workDays,
+    holidays,
+    hoursPerDay: HOURS_PER_DAY,
+  });
+}
 
 /** Convert legacy workDays bitmask (bit0=Mon..bit5=Sat,bit6=Sun) to engine2 bitmask (bit0=Sun..bit6=Sat). */
 function convertWorkDaysMask(legacyMask: number): number {
@@ -67,7 +105,9 @@ export interface BridgeResult {
  */
 export function bridgeLegacyScheduleToEngine2(
   schedule: Schedule,
+  options: LegacyBridgeOptions = {},
 ): BridgeResult {
+  const useExceptions = !!options.useExceptionAwareCalendars;
   const notes: string[] = [];
   const projectStartIso = schedule.projectStartDate;
   if (!projectStartIso) {
@@ -85,26 +125,26 @@ export function bridgeLegacyScheduleToEngine2(
   const defaultLegacy = schedule.calendar ?? { workDays: 31, holidays: [] };
   calendars.set(
     DEFAULT_CALENDAR_ID,
-    createWholeDayWorkClock({
-      id: DEFAULT_CALENDAR_ID,
-      name: "Project Default (bridged)",
-      workDays: convertWorkDaysMask(defaultLegacy.workDays),
-      holidays: defaultLegacy.holidays,
-      hoursPerDay: HOURS_PER_DAY,
-    }),
+    buildCalendarClock(
+      DEFAULT_CALENDAR_ID,
+      "Project Default (bridged)",
+      convertWorkDaysMask(defaultLegacy.workDays),
+      defaultLegacy.holidays,
+      useExceptions,
+    ),
   );
 
   for (const named of schedule.calendars ?? []) {
     if (calendars.has(named.id)) continue;
     calendars.set(
       named.id,
-      createWholeDayWorkClock({
-        id: named.id,
-        name: named.name,
-        workDays: convertWorkDaysMask(named.workDays),
-        holidays: named.holidays,
-        hoursPerDay: HOURS_PER_DAY,
-      }),
+      buildCalendarClock(
+        named.id,
+        named.name,
+        convertWorkDaysMask(named.workDays),
+        named.holidays,
+        useExceptions,
+      ),
     );
   }
 
@@ -170,7 +210,9 @@ export function bridgeLegacyScheduleToEngine2(
     "All durations and lags interpreted as 8-hour working days against a whole-day calendar.",
   );
   notes.push(
-    "Per-activity calendars use legacy whole-day shape; XER-style exception windows are not synthesized in this bridge.",
+    useExceptions
+      ? "Per-activity calendars routed through createExceptionWorkClock (dev-only). Legacy carries no shift data, so behavior matches whole-day."
+      : "Per-activity calendars use legacy whole-day shape; XER-style exception windows are not synthesized in this bridge.",
   );
 
   const input: CpmInput = {
