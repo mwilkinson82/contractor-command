@@ -9,7 +9,9 @@ import {
   saveSchedule,
   deleteSchedule,
   loadBaseline,
+  captureBaseline,
 } from "@/lib/scheduler/persistence.functions";
+
 import { calculateSchedule } from "@/lib/scheduler/engine";
 import { rescheduleFromDataDate, addWorkingDaysIso } from "@/lib/scheduler/progress";
 import type { Annotation, Dependency, DependencyType, Schedule, Task } from "@/lib/scheduler/types";
