@@ -623,13 +623,118 @@ describe("P6 acceptance — Leveling", () => {
 });
 
 describe("P6 acceptance — Interoperability / XER", () => {
-  it.todo(
-    "XER-17: importing a multi-project XER file preserves interproject relationships where both projects are included",
-  );
+  it("XER-17: importing a multi-project XER preserves interproject relationships when both projects are included", async () => {
+    const { importXerForEngine2, xerToCpmInput } = await import("../engine2");
+    const { FIXTURE_MULTI_PROJECT_INTERPROJECT } = await import(
+      "./fixtures/xer-fixtures"
+    );
+    const importResult = importXerForEngine2(FIXTURE_MULTI_PROJECT_INTERPROJECT);
 
-  it.todo(
-    "XER-18: scheduling a project with missing external projects and the ignore-external-relationships option enabled preserves external activity dates",
-  );
+    // Both projects parsed; both tasks present in the engine graph.
+    expect(importResult.projects.map((p) => p.id).sort()).toEqual(["P1", "P2"]);
+    expect(importResult.stats.projectsParsed).toBe(2);
+    expect(importResult.activities.map((a) => a.id).sort()).toEqual([
+      "P1A",
+      "P2B",
+    ]);
+    // Cross-project task → project map preserved.
+    expect(importResult.activityProjectIds["P1A"]).toBe("P1");
+    expect(importResult.activityProjectIds["P2B"]).toBe("P2");
+
+    // Interproject relationship is in the engine graph (NOT in externals).
+    expect(importResult.relationships).toHaveLength(1);
+    expect(importResult.externalRelationships).toHaveLength(0);
+    expect(importResult.interprojectRelationships).toHaveLength(1);
+    const ip = importResult.interprojectRelationships[0];
+    expect(ip.predProjectId).toBe("P1");
+    expect(ip.succProjectId).toBe("P2");
+    expect(ip.predActivityId).toBe("P1A");
+    expect(ip.succActivityId).toBe("P2B");
+    expect(ip.type).toBe("FS");
+
+    // Diagnostic emitted.
+    expect(
+      importResult.diagnostics.some(
+        (d) => d.code === "interproject_relationship_mapped",
+      ),
+    ).toBe(true);
+
+    // Schedule actually calculates: P2B starts after P1A finishes.
+    const { cpmInput } = xerToCpmInput(importResult);
+    const result = calculateCpm(cpmInput);
+    const byId = new Map(result.activities.map((a) => [a.id, a]));
+    const a = byId.get("P1A")!;
+    const b = byId.get("P2B")!;
+    expect(b.earlyStart).toBeGreaterThanOrEqual(a.earlyFinish);
+  });
+
+  it("XER-18: missing-external-project behavior with ignore-external-relationships option", async () => {
+    const { importXerForEngine2, xerToCpmInput, reconcileSchedule } =
+      await import("../engine2");
+    const { FIXTURE_MISSING_EXTERNAL_PROJECT } = await import(
+      "./fixtures/xer-fixtures"
+    );
+    const importResult = importXerForEngine2(FIXTURE_MISSING_EXTERNAL_PROJECT);
+
+    // External relationship preserved with full identity (incl. predProjectId).
+    expect(importResult.externalRelationships).toHaveLength(1);
+    const ext = importResult.externalRelationships[0];
+    expect(ext.predProjectId).toBe("P_EXT");
+    expect(ext.predTaskXerId).toBe("9999");
+    expect(ext.succProjectId).toBe("P1");
+    expect(ext.predProjectMissing).toBe(true);
+
+    // external_project_missing diagnostic raised (not silently dropped).
+    expect(
+      importResult.diagnostics.some((d) => d.code === "external_project_missing"),
+    ).toBe(true);
+    // engine2 graph does NOT contain the external link.
+    expect(importResult.relationships).toHaveLength(0);
+
+    // -- ignoreExternalRelationships=true → calculation succeeds, classified acceptable.
+    const ignored = xerToCpmInput(importResult, {
+      ignoreExternalRelationships: true,
+    });
+    expect(ignored.externalRelationshipsIgnored).toBe(true);
+    expect(
+      ignored.diagnostics.some(
+        (d) => d.code === "external_relationship_ignored_by_option",
+      ),
+    ).toBe(true);
+    const okResult = calculateCpm(ignored.cpmInput);
+    const okReport = reconcileSchedule({
+      importResult,
+      engineResult: okResult,
+      externalRelationshipsIgnored: true,
+    });
+    const okEntry = okReport.entries.find(
+      (e) => e.subject === "relationships:external",
+    );
+    expect(okEntry?.kind).toBe("acceptable-known-limitation");
+    expect(okReport.summary.mismatch).toBe(0);
+
+    // -- ignoreExternalRelationships=false → reconciliation flags mismatch.
+    const honored = xerToCpmInput(importResult, {
+      ignoreExternalRelationships: false,
+    });
+    expect(honored.externalRelationshipsIgnored).toBe(false);
+    expect(
+      honored.diagnostics.some(
+        (d) => d.code === "external_relationship_requires_imported_project",
+      ),
+    ).toBe(true);
+    const honoredResult = calculateCpm(honored.cpmInput);
+    const honoredReport = reconcileSchedule({
+      importResult,
+      engineResult: honoredResult,
+      externalRelationshipsIgnored: false,
+    });
+    const mismatchEntry = honoredReport.entries.find(
+      (e) => e.subject === "relationships:external",
+    );
+    expect(mismatchEntry?.kind).toBe("mismatch");
+    expect(honoredReport.summary.mismatch).toBeGreaterThan(0);
+  });
 
   it("XER-19: XER import does not fabricate baselines from absent baseline data", async () => {
     const { importXerForEngine2, xerToCpmInput } = await import("../engine2");

@@ -61,9 +61,17 @@ export interface ReconciliationInput {
   /**
    * Diagnostic codes whose presence should be classified as
    * "acceptable-known-limitation" rather than "unsupported-preserved-only".
-   * Default: a curated list of Phase 1.7 deferral codes.
+   * Default: a curated list of Phase 1.7–1.9 deferral codes.
    */
   acceptableLimitationCodes?: string[];
+  /**
+   * Phase 1.9 — signal from the pipeline that external/interproject
+   * relationships were ignored by option. When true, preserved external
+   * relationships classify as "acceptable-known-limitation". When false
+   * (default), they classify as "mismatch" since the engine has not
+   * honored documented logic.
+   */
+  externalRelationshipsIgnored?: boolean;
 }
 
 export interface ReconciliationReport {
@@ -87,6 +95,9 @@ const DEFAULT_ACCEPTABLE_CODES = new Set<string>([
   "unsupported_duration_type_behavior",
   "unsupported_percent_complete_type_behavior",
   "external_relationship_preserved_raw",
+  "external_relationship_preserved",
+  "external_relationship_ignored_by_option",
+  "interproject_relationship_mapped",
   "calendar_synthesized",
 ]);
 
@@ -94,6 +105,17 @@ const UNSUPPORTED_PRESERVED_CODES = new Set<string>([
   "unsupported_constraint_type",
   "missing_calendar_reference",
   "missing_resource_reference",
+  "external_project_missing",
+  "interproject_relationship_unresolved",
+]);
+
+/**
+ * Phase 1.9 — codes that signal real divergence the engine cannot honor
+ * without additional input. Classified as "mismatch" regardless of
+ * severity, so reconciliation surfaces them prominently.
+ */
+const MISMATCH_CODES = new Set<string>([
+  "external_relationship_requires_imported_project",
 ]);
 
 function findActivity(r: EngineResult, id: string): EngineActivityResult | undefined {
@@ -115,7 +137,14 @@ export function reconcileSchedule(input: ReconciliationInput): ReconciliationRep
     ...input.engineResult.diagnostics,
   ];
   for (const d of allDiagnostics) {
-    if (acceptable.has(d.code)) {
+    if (MISMATCH_CODES.has(d.code)) {
+      entries.push({
+        kind: "mismatch",
+        subject: `diagnostic:${d.code}${d.activityId ? `:${d.activityId}` : ""}`,
+        message: d.message,
+        justifyingCodes: [d.code],
+      });
+    } else if (acceptable.has(d.code)) {
       entries.push({
         kind: "acceptable-known-limitation",
         subject: `diagnostic:${d.code}${d.activityId ? `:${d.activityId}` : ""}`,
@@ -215,13 +244,45 @@ export function reconcileSchedule(input: ReconciliationInput): ReconciliationRep
     });
   }
 
-  // 4. External-relationship preservation count
-  if (input.importResult.stats.externalRelationshipsPreservedRaw > 0) {
+  // 4. External-relationship summary — Phase 1.9 classification.
+  //   - explicit ignore (option true)  → acceptable-known-limitation
+  //   - explicit honor  (option false) → mismatch
+  //   - unspecified (back-compat)      → unsupported-preserved-only
+  const extCount = input.importResult.stats.externalRelationshipsPreservedRaw;
+  if (extCount > 0) {
+    const ignored = input.externalRelationshipsIgnored;
+    if (ignored === true) {
+      entries.push({
+        kind: "acceptable-known-limitation",
+        subject: "relationships:external",
+        message: `${extCount} external relationship(s) preserved as metadata; honored per ignoreExternalRelationships option.`,
+        justifyingCodes: ["external_relationship_ignored_by_option"],
+      });
+    } else if (ignored === false) {
+      entries.push({
+        kind: "mismatch",
+        subject: "relationships:external",
+        message: `${extCount} external relationship(s) cannot be honored: missing project(s) not in this XER and ignoreExternalRelationships is not enabled.`,
+        justifyingCodes: ["external_relationship_requires_imported_project"],
+      });
+    } else {
+      entries.push({
+        kind: "unsupported-preserved-only",
+        subject: "relationships:external",
+        message: `${extCount} external relationship(s) preserved as raw XER rows; engine2 does not execute them in this pass.`,
+        justifyingCodes: ["external_relationship_preserved_raw"],
+      });
+    }
+  }
+
+  // 5. Interproject relationships honored — explicit "match" entry so the
+  // report shows positive coverage when multi-project XERs link cleanly.
+  if (input.importResult.stats.interprojectRelationshipsCount > 0) {
     entries.push({
-      kind: "unsupported-preserved-only",
-      subject: "relationships:external",
-      message: `${input.importResult.stats.externalRelationshipsPreservedRaw} external relationship(s) preserved as raw XER rows; engine2 does not execute them in this pass.`,
-      justifyingCodes: ["external_relationship_preserved_raw"],
+      kind: "match",
+      subject: "relationships:interproject",
+      message: `${input.importResult.stats.interprojectRelationshipsCount} interproject relationship(s) wired into engine2 graph (both projects present).`,
+      justifyingCodes: ["interproject_relationship_mapped"],
     });
   }
 

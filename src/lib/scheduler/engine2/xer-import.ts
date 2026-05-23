@@ -178,6 +178,53 @@ export interface XerCalendarRaw {
   raw: XerRow;
 }
 
+/** Phase 1.9 — preserved per-project header. */
+export interface XerProject {
+  /** XER `proj_id`. May be synthesized when PROJECT omits it. */
+  id: string;
+  shortName: string;
+  name: string;
+  planStartDate?: string;
+  dataDate?: Instant;
+  raw: XerRow;
+}
+
+/**
+ * Phase 1.9 — relationship between activities in two DIFFERENT projects
+ * where both projects are present in this XER. Wired into engine2's
+ * graph normally; this record exists for reporting/reconciliation.
+ */
+export interface InterprojectRelationshipRecord {
+  relationshipId: string;
+  predProjectId: string;
+  succProjectId: string;
+  predActivityId: string;
+  succActivityId: string;
+  predTaskXerId: string;
+  succTaskXerId: string;
+  type: RelationshipType;
+  lagMinutes: number;
+  raw: XerRow;
+}
+
+/**
+ * Phase 1.9 — relationship to/from an activity (or whole project) NOT
+ * present in this XER. Identity preserved raw; NOT added to the engine
+ * graph. External dates must be supplied elsewhere to schedule it.
+ */
+export interface ExternalRelationshipRecord {
+  predProjectId?: string;
+  succProjectId?: string;
+  predTaskXerId: string;
+  succTaskXerId: string;
+  type: RelationshipType;
+  lagMinutes: number;
+  predProjectMissing: boolean;
+  succProjectMissing: boolean;
+  activityMissing: boolean;
+  raw: XerRow;
+}
+
 export interface XerRawPreservation {
   projects: XerRow[];
   calendars: XerRow[];
@@ -192,17 +239,28 @@ export interface XerRawPreservation {
 }
 
 export interface XerEngine2ImportResult {
+  /** Backwards-compatible single-project header (first PROJECT row). */
   projectName: string;
   projectStartDate?: string;
-  /** P6 data date (last_recalc_date) when present in PROJECT row. */
+  /** P6 data date (last_recalc_date) when present in first PROJECT row. */
   dataDate?: Instant;
+
+  /** Phase 1.9 — every PROJECT row imported. */
+  projects: XerProject[];
 
   calendars: XerCalendarRaw[];
   /** Calendar id → activity calendar mapping used for engine2 activities. */
   defaultCalendarId: string;
 
   activities: EngineActivity[];
+  /** Phase 1.9 — internal activityId → projectId. */
+  activityProjectIds: Record<string, string>;
   relationships: EngineRelationship[];
+  /** Phase 1.9 — cross-project relationships where BOTH projects are present. */
+  interprojectRelationships: InterprojectRelationshipRecord[];
+  /** Phase 1.9 — relationships referencing tasks/projects NOT in this XER. */
+  externalRelationships: ExternalRelationshipRecord[];
+
   resources: Resource[];
   roles: Role[];
   assignments: ResourceAssignment[];
@@ -211,8 +269,10 @@ export interface XerEngine2ImportResult {
   raw: XerRawPreservation;
 
   stats: {
+    projectsParsed: number;
     tasksParsed: number;
     relationshipsParsed: number;
+    interprojectRelationshipsCount: number;
     calendarsParsed: number;
     resourcesParsed: number;
     rolesParsed: number;
@@ -220,6 +280,7 @@ export interface XerEngine2ImportResult {
     constraintsMapped: number;
     constraintsUnsupported: number;
     externalRelationshipsPreservedRaw: number;
+    externalProjectsMissingCount: number;
   };
 }
 
@@ -340,18 +401,30 @@ export function importXerForEngine2(
     if (!handledTables.has(name)) otherTableNames.push(name);
   }
 
-  // -- Project header
-  const project = projectRows[0];
-  const projectName =
-    project?.["proj_short_name"]?.trim() ||
-    project?.["proj_name"]?.trim() ||
-    "Imported P6 schedule";
-  const projectStartDate = parseDateOnly(
-    project?.["plan_start_date"] || project?.["scd_end_date"],
-  );
-  const dataDate =
-    parseInstant(project?.["last_recalc_date"]) ??
-    parseInstant(project?.["plan_start_date"]);
+  // -- Project header(s) — Phase 1.9 multi-project support.
+  const projects: XerProject[] = [];
+  for (let i = 0; i < projectRows.length; i++) {
+    const r = projectRows[i];
+    const id =
+      r["proj_id"]?.trim() ||
+      r["proj_short_name"]?.trim() ||
+      `proj-${i + 1}`;
+    projects.push({
+      id,
+      shortName: (r["proj_short_name"] || r["proj_name"] || id).trim(),
+      name: (r["proj_name"] || r["proj_short_name"] || id).trim(),
+      planStartDate: parseDateOnly(r["plan_start_date"] || r["scd_end_date"]),
+      dataDate:
+        parseInstant(r["last_recalc_date"]) ??
+        parseInstant(r["plan_start_date"]),
+      raw: r,
+    });
+  }
+  const projectIdSet = new Set(projects.map((p) => p.id));
+  const primaryProject = projects[0];
+  const projectName = primaryProject?.shortName || "Imported P6 schedule";
+  const projectStartDate = primaryProject?.planStartDate;
+  const dataDate = primaryProject?.dataDate;
 
   // -- Calendars
   const calendars: XerCalendarRaw[] = [];
@@ -406,9 +479,14 @@ export function importXerForEngine2(
   // -- Tasks (activities)
   const activities: EngineActivity[] = [];
   const taskIdByXer = new Map<string, string>();
+  /** Phase 1.9 — xer task_id → owning xer proj_id. */
+  const taskProjectByXer = new Map<string, string>();
+  /** Phase 1.9 — internal activity id → owning xer proj_id. */
+  const activityProjectIds: Record<string, string> = {};
   const seen = new Set<string>();
   let constraintsMapped = 0;
   let constraintsUnsupported = 0;
+  const defaultProjectId = primaryProject?.id ?? "proj-unknown";
 
   for (const t of taskRows) {
     const xerId = t["task_id"];
@@ -420,6 +498,9 @@ export function importXerForEngine2(
     while (seen.has(unique)) unique = `${code}_${n++}`;
     seen.add(unique);
     taskIdByXer.set(xerId, unique);
+    const taskProjId = (t["proj_id"] || "").trim() || defaultProjectId;
+    taskProjectByXer.set(xerId, taskProjId);
+    activityProjectIds[unique] = taskProjId;
 
     const calendarId = t["clndr_id"] || fallbackCalendarId;
     if (t["clndr_id"] && !calendarById.has(t["clndr_id"])) {
@@ -541,35 +622,127 @@ export function importXerForEngine2(
     activities.push(activity);
   }
 
-  // -- Relationships
+  // -- Relationships (Phase 1.9 multi-project classification)
   const relationships: EngineRelationship[] = [];
+  const interprojectRelationships: InterprojectRelationshipRecord[] = [];
+  const externalRelationships: ExternalRelationshipRecord[] = [];
   let externalRelationshipsPreservedRaw = 0;
+  const missingExternalProjects = new Set<string>();
+
   for (const p of predRows) {
-    const fromX = p["pred_task_id"];
-    const toX = p["task_id"];
+    const fromX = p["pred_task_id"] || "";
+    const toX = p["task_id"] || "";
     const from = taskIdByXer.get(fromX);
     const to = taskIdByXer.get(toX);
+    const type = RELATIONSHIP_MAP[p["pred_type"] || "PR_FS"] ?? "FS";
+    const lagHours = num(p["lag_hr_cnt"]);
+    const lagMinutes = Math.round(lagHours * minutesPerHour);
+
+    // Project ids on the TASKPRED row. Fall back to the owning task's
+    // project when only one side is given; fall back to the default
+    // project when nothing is.
+    const predProjIdRaw = (p["pred_proj_id"] || "").trim();
+    const succProjIdRaw = (p["proj_id"] || "").trim();
+    const predProjectId =
+      predProjIdRaw || taskProjectByXer.get(fromX) || undefined;
+    const succProjectId =
+      succProjIdRaw || taskProjectByXer.get(toX) || undefined;
+
     if (!from || !to) {
       // External / cross-project relationship — preserve raw, do not drop.
       externalRelationshipsPreservedRaw++;
+      const predProjectMissing =
+        !!predProjectId && !projectIdSet.has(predProjectId);
+      const succProjectMissing =
+        !!succProjectId && !projectIdSet.has(succProjectId);
+      externalRelationships.push({
+        predProjectId,
+        succProjectId,
+        predTaskXerId: fromX,
+        succTaskXerId: toX,
+        type,
+        lagMinutes,
+        predProjectMissing,
+        succProjectMissing,
+        activityMissing: true,
+        raw: p,
+      });
+      // Back-compat broad code (kept so legacy tests / consumers keep working).
       diagnostics.push({
         severity: "info",
         code: "external_relationship_preserved_raw",
         message: `Relationship ${fromX}→${toX} references a task outside this XER; preserved raw, not added to engine2 graph.`,
       });
+      // Phase 1.9 finer-grained code with project identity.
+      diagnostics.push({
+        severity: "info",
+        code: "external_relationship_preserved",
+        message: `External relationship pred=${predProjectId ?? "?"}/${fromX} → succ=${succProjectId ?? "?"}/${toX} (${type}, lag ${lagMinutes}min) preserved; not in engine graph.`,
+      });
+      if (predProjectMissing && predProjectId) {
+        if (!missingExternalProjects.has(predProjectId)) {
+          missingExternalProjects.add(predProjectId);
+          diagnostics.push({
+            severity: "warn",
+            code: "external_project_missing",
+            message: `Predecessor project ${predProjectId} referenced by external relationship is not present in this XER; activity dates cannot be derived from imported data.`,
+          });
+        }
+      }
+      if (succProjectMissing && succProjectId) {
+        if (!missingExternalProjects.has(succProjectId)) {
+          missingExternalProjects.add(succProjectId);
+          diagnostics.push({
+            severity: "warn",
+            code: "external_project_missing",
+            message: `Successor project ${succProjectId} referenced by external relationship is not present in this XER; activity dates cannot be derived from imported data.`,
+          });
+        }
+      }
+      if (!predProjectMissing && !succProjectMissing) {
+        // Both projects present but the activity itself is missing — rare;
+        // surface as unresolved so reconciliation can flag it.
+        diagnostics.push({
+          severity: "warn",
+          code: "interproject_relationship_unresolved",
+          message: `Relationship ${fromX}→${toX} references activities not found in TASK; preserved raw.`,
+        });
+      }
       continue;
     }
-    const type = RELATIONSHIP_MAP[p["pred_type"] || "PR_FS"] ?? "FS";
-    const lagHours = num(p["lag_hr_cnt"]);
-    const lagMinutes = Math.round(lagHours * minutesPerHour);
+
+    const relId = `${fromX}->${toX}:${type}`;
     relationships.push({
-      id: `${fromX}->${toX}:${type}`,
+      id: relId,
       from,
       to,
       type,
       lag: { minutes: lagMinutes, authoringCalendarId: fallbackCalendarId },
       lagCalendarBasis: "successor",
     });
+
+    // Phase 1.9: track interproject relationships (both projects present).
+    const fromProj = taskProjectByXer.get(fromX);
+    const toProj = taskProjectByXer.get(toX);
+    if (fromProj && toProj && fromProj !== toProj) {
+      interprojectRelationships.push({
+        relationshipId: relId,
+        predProjectId: fromProj,
+        succProjectId: toProj,
+        predActivityId: from,
+        succActivityId: to,
+        predTaskXerId: fromX,
+        succTaskXerId: toX,
+        type,
+        lagMinutes,
+        raw: p,
+      });
+      diagnostics.push({
+        severity: "info",
+        code: "interproject_relationship_mapped",
+        message: `Interproject relationship ${fromProj}/${fromX} → ${toProj}/${toX} mapped into engine2 graph (both projects present).`,
+      });
+    }
   }
 
   // -- Assignments
@@ -629,10 +802,14 @@ export function importXerForEngine2(
     projectName,
     projectStartDate,
     dataDate,
+    projects,
     calendars,
     defaultCalendarId: fallbackCalendarId,
     activities,
+    activityProjectIds,
     relationships,
+    interprojectRelationships,
+    externalRelationships,
     resources,
     roles,
     assignments,
@@ -649,8 +826,10 @@ export function importXerForEngine2(
       otherTableNames,
     },
     stats: {
+      projectsParsed: projects.length,
       tasksParsed: activities.length,
       relationshipsParsed: relationships.length,
+      interprojectRelationshipsCount: interprojectRelationships.length,
       calendarsParsed: calendars.length,
       resourcesParsed: resources.length,
       rolesParsed: roles.length,
@@ -658,9 +837,10 @@ export function importXerForEngine2(
       constraintsMapped,
       constraintsUnsupported,
       externalRelationshipsPreservedRaw,
+      externalProjectsMissingCount: missingExternalProjects.size,
     },
   };
 }
 
-/** Bump engine2 version marker for Phase 1.7. Kept here to avoid touching cpm.ts behavior. */
-export const ENGINE2_XER_IMPORT_VERSION = "0.7.0-phase1.7";
+/** Bump engine2 version marker for Phase 1.9. */
+export const ENGINE2_XER_IMPORT_VERSION = "0.9.0-phase1.9";
