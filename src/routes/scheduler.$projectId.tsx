@@ -94,6 +94,8 @@ function SchedulerPage() {
   const saveFn = useServerFn(saveSchedule);
   const deleteFn = useServerFn(deleteSchedule);
   const loadBaselineFn = useServerFn(loadBaseline);
+  const captureBaselineFn = useServerFn(captureBaseline);
+
 
   const selectedId = projectId;
   const [draft, setDraft] = useState<Draft | null>(null);
