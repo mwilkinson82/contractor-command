@@ -801,6 +801,124 @@ function clampPct(n: number): number {
   return n;
 }
 
+function causeToCategory(cause: GoverningCause): GoverningCategory {
+  switch (cause) {
+    case "logic":
+      return "logic";
+    case "snet":
+    case "snlt":
+    case "fnet":
+    case "fnlt":
+    case "mso":
+    case "mfo":
+    case "alap":
+    case "expected-finish":
+      return "constraint";
+    case "data-date":
+    case "actual":
+      return "progress";
+    case "calendar":
+      return "calendar";
+    case "leveling":
+      return "leveling";
+    case "external":
+      return "external";
+  }
+}
+
+/**
+ * Multiple float-path analysis (Phase 1.4 foundation).
+ *
+ * Algorithm:
+ *   1. Choose endpoint. If caller provided one, use it; else use the
+ *      not-completed activity with the latest earlyFinish.
+ *   2. For each rank 1..N:
+ *        - Walk backward from endpoint via the predecessor link with the
+ *          smallest slack (basis = total-float uses total-float-of-pred;
+ *          basis = free-float uses link slack).
+ *        - Skip relationships already consumed by a higher-ranked path.
+ *        - Stop when no predecessor link remains or chain length would
+ *          collapse to just the endpoint (already emitted).
+ *        - Path float = max-along-chain `totalFloatMinutes` for the
+ *          activities in the chain (governing float).
+ *
+ * This is a defensible foundation, not full P6 MFP parity. Sufficient
+ * for PATH-11 (rank-by-total-float) and PATH-12 (selected endpoint).
+ */
+function computeFloatPaths(args: {
+  count: number;
+  basis: FloatPathBasis;
+  endpointActivityId?: string;
+  activityResults: EngineActivityResult[];
+  relResults: EngineRelationshipResult[];
+  predsOf: Map<string, EngineRelationship[]>;
+}): FloatPathAnalysis {
+  const { count, basis, activityResults, relResults, predsOf } = args;
+  const byId = new Map(activityResults.map((a) => [a.id, a]));
+  const slackById = new Map(relResults.map((r) => [r.id, r.slackMinutes]));
+
+  // Endpoint selection.
+  let endpointActivityId = args.endpointActivityId;
+  if (!endpointActivityId || !byId.has(endpointActivityId)) {
+    let best: EngineActivityResult | undefined;
+    for (const a of activityResults) {
+      if (a.status === "completed") continue;
+      if (!best || a.earlyFinish > best.earlyFinish) best = a;
+    }
+    endpointActivityId = (best ?? activityResults[0])?.id ?? "";
+  }
+
+  const used = new Set<string>();
+  const paths: FloatPath[] = [];
+
+  for (let rank = 1; rank <= count; rank++) {
+    const steps: FloatPathStep[] = [];
+    const ids: string[] = [];
+    let cur = endpointActivityId;
+    steps.push({ activityId: cur });
+    ids.push(cur);
+
+    // Walk back via best (lowest-slack) unused predecessor link.
+    while (true) {
+      const preds = predsOf.get(cur) ?? [];
+      let bestRel: EngineRelationship | undefined;
+      let bestKey = Number.POSITIVE_INFINITY;
+      for (const dep of preds) {
+        if (used.has(dep.id)) continue;
+        const linkSlack = slackById.get(dep.id) ?? 0;
+        const predRes = byId.get(dep.from);
+        const key =
+          basis === "free-float" ? linkSlack : predRes?.totalFloatMinutes ?? linkSlack;
+        if (key < bestKey) {
+          bestKey = key;
+          bestRel = dep;
+        }
+      }
+      if (!bestRel) break;
+      used.add(bestRel.id);
+      cur = bestRel.from;
+      steps.unshift({ activityId: cur, relationshipIdFromPrev: bestRel.id });
+      ids.unshift(cur);
+      if (ids.length > activityResults.length) break; // safety
+    }
+
+    // Path 2+ requires a real chain (more than just the endpoint repeating).
+    if (rank > 1 && ids.length <= 1) break;
+
+    let pathFloat = Number.NEGATIVE_INFINITY;
+    for (const id of ids) {
+      const a = byId.get(id);
+      if (!a) continue;
+      if (a.totalFloatMinutes > pathFloat) pathFloat = a.totalFloatMinutes;
+    }
+    if (pathFloat === Number.NEGATIVE_INFINITY) pathFloat = 0;
+
+    paths.push({ rank, basis, pathFloatMinutes: pathFloat, steps });
+  }
+
+  return { basis, endpointActivityId, paths };
+}
+
 function applyLagForward(
   ref: Instant,
   lagMin: number,
