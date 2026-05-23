@@ -230,13 +230,65 @@ describe("P6 acceptance — Calendars (engine2)", () => {
 });
 
 describe("P6 acceptance — Constraints", () => {
-  it.todo(
-    "CON-6: applying a finish constraint alters late or early dates per the selected constraint semantics and emits a visible diagnostic",
-  );
+  it("CON-6: FNLT finish constraint pulls late finish earlier and emits a diagnostic", () => {
+    const cal = monFri();
+    // A(5d) → B(5d). Without constraint, project finish = 10 workdays.
+    // Add FNLT on B at end of workday 7 (Mon-13 EOD == Tue-14 00:00 wall).
+    // Late finish for B should be the constraint, not project finish.
+    const A = activity("A", 5);
+    const B = activity("B", 5);
+    const fnltInstant = Date.UTC(2025, 0, 14); // Tue 00:00 (== Mon EOD position)
+    B.constraints = [
+      { type: "fnlt", instant: fnltInstant, calendarId: "cal-mf" },
+    ];
+    const result = calculateCpm({
+      dataDate: MON_2025_01_06,
+      projectStart: MON_2025_01_06,
+      projectCalendarId: "cal-mf",
+      calendars: new Map([["cal-mf", cal]]),
+      activities: [A, B],
+      relationships: [link("A-B", "A", "B")],
+    });
+    const byId = new Map(result.activities.map((a) => [a.id, a]));
+    const bRes = byId.get("B")!;
+    // B's late finish should be at or earlier than the constraint snap.
+    expect(bRes.lateFinish).toBeLessThanOrEqual(fnltInstant);
+    // The constraint should have created negative total float on B (5 days
+    // of work needs to fit in 2 days of slack window).
+    expect(bRes.totalFloatMinutes).toBeLessThan(0);
+    // A diagnostic should mention the FNLT constraint.
+    expect(
+      result.diagnostics.some(
+        (d) => d.activityId === "B" && d.code === "constraint-fnlt",
+      ),
+    ).toBe(true);
+  });
 
-  it.todo(
-    "CON-7: constraint-driven dates remain distinguishable from pure logic-driven dates in trace output",
-  );
+  it("CON-7: constraint-driven dates expose a non-logic governingCause", () => {
+    const cal = monFri();
+    const A = activity("A", 3);
+    const snetInstant = Date.UTC(2025, 0, 13); // Mon week 2
+    A.constraints = [
+      { type: "snet", instant: snetInstant, calendarId: "cal-mf" },
+    ];
+    const result = calculateCpm({
+      dataDate: MON_2025_01_06,
+      projectStart: MON_2025_01_06,
+      projectCalendarId: "cal-mf",
+      calendars: new Map([["cal-mf", cal]]),
+      activities: [A],
+      relationships: [],
+    });
+    const aRes = result.activities[0];
+    expect(aRes.governingCause).toBe("snet");
+    expect(aRes.earlyStart).toBe(snetInstant);
+    // Constraint diagnostic must be present and tagged with the activity id.
+    const diag = result.diagnostics.find(
+      (d) => d.activityId === "A" && d.code === "constraint-snet",
+    );
+    expect(diag).toBeDefined();
+    expect(diag!.severity).toBe("info");
+  });
 });
 
 describe("P6 acceptance — Progress", () => {
@@ -244,9 +296,33 @@ describe("P6 acceptance — Progress", () => {
     "PRG-8: Physical, Duration, and Units percent-complete types produce distinct progress results under identical base activity and assignment data",
   );
 
-  it.todo(
-    "PRG-9: updating actual start and remaining duration on an in-progress activity correctly recalculates projected finish",
-  );
+  it("PRG-9: in-progress activity projects remaining duration from the data date", () => {
+    const cal = monFri();
+    // A started Mon-06, originally 10d, has 4d remaining, data date Mon-13.
+    // Projected finish = data date + 4 workdays under cal = Fri-17 EOD.
+    const A = activity("A", 10);
+    A.actualStart = MON_2025_01_06;
+    A.remainingDuration = { minutes: 4 * DAY_MIN, authoringCalendarId: "cal-mf" };
+    const dataDate = Date.UTC(2025, 0, 13);
+    const result = calculateCpm({
+      dataDate,
+      projectStart: MON_2025_01_06,
+      projectCalendarId: "cal-mf",
+      calendars: new Map([["cal-mf", cal]]),
+      activities: [A],
+      relationships: [],
+    });
+    const aRes = result.activities[0];
+    expect(aRes.earlyStart).toBe(MON_2025_01_06);
+    // 4 workdays from Mon-13 00:00 lands at Fri-17 08:00 (position equiv to Sat).
+    expect(cal.diffWork(dataDate, aRes.earlyFinish)).toBe(4 * DAY_MIN);
+    expect(aRes.governingCause).toBe("data-date");
+    expect(
+      result.diagnostics.some(
+        (d) => d.activityId === "A" && d.code === "in-progress",
+      ),
+    ).toBe(true);
+  });
 
   it.todo(
     "PRG-10: out-of-sequence updates follow the selected progress rule (retained logic / progress override / actual dates) and produce repeatable outcomes",
