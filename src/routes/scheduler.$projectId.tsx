@@ -124,6 +124,8 @@ function SchedulerPage() {
     };
   }, []);
   const [dayPx, setDayPx] = useState(22);
+  const [zoomUserSet, setZoomUserSet] = useState(false);
+  const setDayPxUser = (n: number) => { setZoomUserSet(true); setDayPx(n); };
   const [nearCriticalFloat, setNearCriticalFloat] = useState(5);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [groupBy, setGroupBy] = useState<"wbs" | "critical" | "none">("wbs");
