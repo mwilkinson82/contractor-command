@@ -629,6 +629,110 @@ Active total: **10 of 20**.
 4. Optional: free-float-basis float-path acceptance test, and
    project-start exemption for `open_ended_activity` diagnostics.
 
+---
+
+## 15. Phase 1.5 status — resource / assignment foundation
+
+Phase 1.5 introduces the data-model shape required for future P6/XER
+resource fidelity without pretending leveling, resource calendars, or
+rate-book pricing are implemented.
+
+### What landed
+
+- **First-class engine types** (`engine2/types.ts`):
+  - `Resource` (`labor | nonlabor | material`), `Role`, with optional
+    `HierarchicalPath` (root → self) and optional `defaultRoleId`.
+  - `ResourceAssignment` with budgeted/actual/remaining units,
+    optional `unitsPerTime`, optional cost triplet, and placeholder
+    fields for `rateSource`, `rateType`, `curveId`, and
+    `manualFuturePeriod` (none of which the engine consumes yet).
+  - `ExpenseAssignment` (lightweight cost-only assignment with
+    `accrualType` placeholder).
+  - `ActivityAssignmentSummary` rollup attached to each
+    `EngineActivityResult.assignmentSummary` when assignments exist.
+- **Pure assignment-math helpers** (`engine2/assignments.ts`):
+  - `assignmentAtCompletionUnits`, `assignmentRemainingUnits`,
+    `assignmentUnitsPercentComplete`, `assignmentAtCompletionCost`.
+  - `rollupActivityAssignments` (returns `undefined` when none).
+  - `validateAssignments` returns diagnostic-shaped records.
+- **CpmInput extensions**: optional `resources`, `roles`,
+  `assignments`, `expenseAssignments`. All default to empty arrays;
+  legacy callers are unaffected.
+- **Units Percent Complete foundation**:
+  - If `percentCompleteType === "units"` AND the activity has
+    assignments, `reportedPercentComplete` is derived from the
+    rolled-up `actualUnits / atCompletionUnits`.
+  - If `percentCompleteType === "units"` AND no assignments exist,
+    the engine falls back to the authored `unitsPercentComplete` value
+    AND emits `units_percent_without_assignments`. PRG-8 (which uses
+    the authored stub) remains green.
+  - Physical % and Duration % behavior from Phase 1.3 is unchanged.
+- **Resource calendar references**: validated structurally
+  (`missing_resource_calendar` when the calendar id is unknown). They
+  do NOT yet drive CPM date math — see "limitations" below.
+
+### Diagnostics added
+
+- `units_percent_without_assignments` (info)
+- `missing_resource` (warn) — assignment references unknown resource id
+- `missing_resource_calendar` (warn) — resource references unknown calendar
+- `assignment_units_inconsistent` (warn) — negative units, or
+  actual > at-completion
+- `resource_calendar_deferred` (info, once per run) — reminder that
+  resource calendars are wired but not yet authoritative for CPM
+- `assignment_unknown_activity` (warn) — assignment references missing
+  activity
+
+### Acceptance / unit tests
+
+- New file: `src/lib/scheduler/__tests__/resource-assignments.spec.ts`
+  - assignment-math helpers (single + multi)
+  - units% derivation from assignments
+  - `units_percent_without_assignments` fallback
+  - `missing_resource`, `missing_resource_calendar`,
+    `resource_calendar_deferred`, `assignment_units_inconsistent`
+  - **guardrail test** asserting that a 24/7 resource calendar does
+    NOT compress a Mon-Fri activity's duration (activity calendar
+    still governs).
+- P6 acceptance promotions: **none**. Active total stays at **10 of
+  20**; leveling tests (LVL-13..16) remain `.todo()` and XER tests
+  (XER-17..20) remain `.todo()`. PRG-8 unchanged.
+
+### Engine version
+
+- `ENGINE2_VERSION` = `0.5.0-phase1.5`.
+
+### Known limitations after Phase 1.5
+
+- **Resource calendars do not drive CPM dates.** Activity calendar
+  remains authoritative. Switching to resource-calendar-driven dates
+  is intentionally deferred — it interacts with leveling and the
+  duration-type / units-per-time recompute loop and should land
+  alongside Phase 1.6/1.7.
+- **No duration-type recompute.** `EngineActivity.durationType` is
+  preserved but the engine does not yet enforce the P6 duration-type
+  invariants (e.g. fixed-units recomputing duration when units/time
+  changes).
+- **No rate-book pricing.** `rateSource`/`rateType` are stored, never
+  consumed. Cost rollups use authored cost fields verbatim.
+- **No curve spread.** `curveId` is stored, never consumed. All
+  rollups are aggregate.
+- **No manual future-period reconciliation.** `manualFuturePeriod`
+  marker is preserved structurally.
+- **No leveling.** LVL-13..16 still `.todo()`.
+- **Adapter and dual-engine harness still deferred.** UI continues to
+  run on the legacy engine; feature flag still defaults to `"legacy"`.
+
+### Phase 1.6 entry criteria
+
+1. `Schedule → CpmInput` adapter and dual-engine assertion harness
+   (originally Phase 1.5 entry criterion #1).
+2. Out-of-sequence progress rule selector (PRG-10).
+3. First leveling pass behind a sub-flag, leaving Phase 1.5 resource
+   structures untouched.
+
+
+
 
 
 
