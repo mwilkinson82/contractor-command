@@ -892,6 +892,10 @@ function mergeUpdate(
   plan: ImportPlan,
 ): void {
   const incScope = activityScope(incoming, targetProjectId);
+  // Capture original scope BEFORE any mutation so relationship/assignment
+  // filters can correctly identify in-scope records even after their
+  // endpoint activities have been removed from `activityProjectIds`.
+  const originalScope = activityScope(next, targetProjectId);
 
   const toDeleteActivities = new Set(
     plan.entries
@@ -935,7 +939,8 @@ function mergeUpdate(
     }
   }
 
-  // Relationships
+  // Relationships — use originalScope for in-scope check (post-deletion
+  // activityProjectIds would lie about scope).
   const incomingRelByKey = new Map<string, EngineRelationship>();
   for (const r of incoming.relationships) {
     if (incScope.relationshipKeys.has(relIdentity(r))) {
@@ -943,11 +948,19 @@ function mergeUpdate(
     }
   }
   next.relationships = next.relationships.filter((r) => {
-    const inScope =
-      next.activityProjectIds[r.from] === targetProjectId &&
-      next.activityProjectIds[r.to] === targetProjectId;
+    const inScope = originalScope.relationshipKeys.has(relIdentity(r));
     if (!inScope) return true;
     if (toDeleteRels.has(r.id)) return false;
+    // Cascade: if either endpoint was deleted, drop the orphan even if
+    // the plan listed it as preserve (incoming had nothing to compare).
+    if (
+      toDeleteActivities.has(r.from) ||
+      toDeleteActivities.has(r.to) ||
+      !next.activityProjectIds[r.from] ||
+      !next.activityProjectIds[r.to]
+    ) {
+      return false;
+    }
     const inc = incomingRelByKey.get(relIdentity(r));
     if (inc) Object.assign(r, inc);
     return true;
@@ -957,17 +970,22 @@ function mergeUpdate(
     if (!existingKeys.has(key)) next.relationships.push(inc);
   }
 
-  // Assignments
+  // Assignments — same pattern.
   const incomingAssignById = new Map(
     incoming.assignments.filter((a) => incScope.assignmentIds.has(a.id)).map((a) => [a.id, a]),
   );
   next.assignments = next.assignments.filter((a) => {
-    if (next.activityProjectIds[a.activityId] !== targetProjectId) return true;
+    const inScope = originalScope.assignmentIds.has(a.id);
+    if (!inScope) return true;
     if (toDeleteAssigns.has(a.id)) return false;
+    if (toDeleteActivities.has(a.activityId) || !next.activityProjectIds[a.activityId]) {
+      return false;
+    }
     const inc = incomingAssignById.get(a.id);
     if (inc) Object.assign(a, inc);
     return true;
   });
+
   const existingAssignIds = new Set(next.assignments.map((a) => a.id));
   for (const [id, inc] of incomingAssignById) {
     if (!existingAssignIds.has(id)) next.assignments.push(inc);
