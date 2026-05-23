@@ -1080,14 +1080,22 @@ function SchedulerPage() {
                                 const calc = computed?.tasks.find((x) => x.id === t.id);
                                 const critical = calc?.isCritical;
                                 const pct = t.percentComplete ?? 0;
+                                const tf = calc?.totalFloat ?? 0;
+                                const nearCrit =
+                                  !critical &&
+                                  nearCriticalFloat > 0 &&
+                                  tf > 0 &&
+                                  tf <= nearCriticalFloat;
                                 const statusColor =
                                   pct >= 100
                                     ? "bg-[#3d8a5c]"
                                     : critical
                                       ? "bg-[#b42318]"
-                                      : pct > 0
-                                        ? "bg-[#5b8bd6]"
-                                        : "bg-[#c7b89d]";
+                                      : nearCrit
+                                        ? "bg-[#d97706]"
+                                        : pct > 0
+                                          ? "bg-[#5b8bd6]"
+                                          : "bg-[#c7b89d]";
                                 const isSel = selectedTaskId === t.id;
                                 return rows.push(
                                   <tr
