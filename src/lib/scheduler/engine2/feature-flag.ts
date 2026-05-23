@@ -76,3 +76,27 @@ export function isEngine2ComparisonEnabled(): boolean {
   return false;
 }
 
+/**
+ * Phase 2.5 — dev-only opt-in: route the legacy bridge through the
+ * exception-aware WorkClock instead of the whole-day fallback.
+ *
+ * Default: off. This flag exists so the routing path can be exercised
+ * before real exception data is bridged from XER or legacy inputs.
+ * Resolution order:
+ *   1. `import.meta.env.VITE_SCHEDULER_ENGINE2_EXCEPTION_CLOCK` truthy.
+ *   2. `process.env.SCHEDULER_ENGINE2_EXCEPTION_CLOCK` truthy.
+ *   3. Default: off.
+ */
+export function isEngine2ExceptionClockEnabled(): boolean {
+  const vals = [
+    readEnv("VITE_SCHEDULER_ENGINE2_EXCEPTION_CLOCK"),
+    readEnv("SCHEDULER_ENGINE2_EXCEPTION_CLOCK"),
+  ];
+  for (const v of vals) {
+    if (v && v !== "0" && v.toLowerCase() !== "false" && v.toLowerCase() !== "off") {
+      return true;
+    }
+  }
+  return false;
+}
+
