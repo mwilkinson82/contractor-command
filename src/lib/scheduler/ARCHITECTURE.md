@@ -2690,3 +2690,57 @@ The dry-run is the substrate the next phases will use to:
 - XER import behavior is unchanged.
 - No new resource / leveling / progress capability.
 - Legacy `calculateSchedule` remains the authoritative production engine.
+
+## §36 — Phase 3.5: Dry-run fixture reconciliation
+
+### Purpose
+Phase 3.4 wired a dry-run comparison entrypoint (`runScheduleDryRunComparison`) that runs legacy authoritatively and engine2 alongside on eligible schedules. Phase 3.5 builds a small, deterministic corpus of **clean, engine2-eligible** schedule fixtures and exercises that entrypoint on each one so engine2 can earn trust through measured reconciliation rather than ad-hoc inspection.
+
+This is **comparison infrastructure only**. Nothing in production or scheduler UI calls this path; the fixtures live under `src/lib/scheduler/__tests__/fixtures/dry-run-fixtures.ts` and the reconciliation runs as part of the regular test suite.
+
+### Why it exists
+Engine2 already passes its own unit + parity tests on synthetic inputs, but the dry-run path adds two pieces of evidence we did not have before:
+1. **Per-feature reconciliation rows** — for a fixed catalog of shapes (FS chain, parallel-with-float, mixed relationship types, calendar+holiday, milestones, FS-lag), we record matching/differing activity counts, max date delta, max float delta, project-finish delta, and the differing-IDs buckets exposed by `DryRunSummary`. Future engine2 regressions on any of these shapes show up immediately in CI.
+2. **Skipped-summary proof** — an intentionally ineligible fixture (in-progress activity) confirms the eligibility gate fires and engine2 is not invoked.
+
+### Fixtures covered
+| Fixture | Shape exercised |
+|---|---|
+| `simple-fs-chain` | Linear FS chain on standard Mon–Fri calendar. |
+| `parallel-paths-with-float` | Two parallel paths converging — short path has slack. |
+| `mixed-relationships` | FS + SS + FF mix to exercise non-FS bridging. |
+| `weekend-and-holiday-calendar` | Mon–Fri calendar with a mid-stream holiday. |
+| `milestone-fixture` | Zero-duration start/finish milestones around two paths. |
+| `fs-lag-fixture` | FS relationship with a positive working-day lag. |
+| `ineligible-in-progress` (negative) | In-progress activity → engine2 skipped, reason recorded. |
+
+All eligible fixtures avoid the unsupported-feature surface enumerated in §31: no resources, no in-progress / completed actuals, no unsupported constraints, no per-activity calendars, no multiple named calendars, no leveling, no baselines, no XER-imported metadata.
+
+### Reconciliation metrics
+Per fixture the suite captures (via `DryRunSummary`):
+- `engine2Ran` — whether engine2 actually ran (eligibility gate).
+- `matchingCount` / `differingCount` — activities whose ES/EF/LS/LF agreed vs diverged between legacy and engine2.
+- `maxDateDeltaDays` — worst absolute ES/EF/LS/LF delta in whole days.
+- `maxFloatDeltaDays` — worst total/free float delta.
+- `projectFinish.{legacy,engine2,deltaDays}` — derived from `max(earlyFinish)` on the engine2 side.
+- `mismatchIds.{earlyDates,lateDates,totalFloat,freeFloat,criticalFlag,drivingLink,missingInEngine2,missingInLegacy}` — sorted/unique ID buckets per dimension.
+- `eligibilityBlockers` / `eligibilityWarnings` — Phase 3.1 audit findings as observed at reconciliation time.
+
+### Why legacy remains authoritative
+`runScheduleDryRunComparison` always returns the legacy `ScheduleResult` as `result`. Engine2 output is only ever exposed via `comparison` and `dryRun.*`. The dry-run path enforces the Phase 3.4 invariants:
+- never mutates schedule state,
+- never returns engine2 output as the authoritative result,
+- catches engine2 errors and records them in `engine2Error` without failing the legacy calculation,
+- respects eligibility — ineligible schedules return a skipped summary.
+
+### How this prepares for future rollout
+The reconciliation corpus becomes the first quantitative signal we can point to when promoting engine2 toward `engine2-internal` for opt-in engineering use (§30). Regressions on any fixture surface in CI before they can leak into a wider rollout. New fixtures can be added to `DRY_RUN_FIXTURES` as additional eligible shapes are characterized, building up a multi-shape parity record that the boring-bar (§29/§30) can eventually consume.
+
+### Scope guarantees (Phase 3.5)
+- No scheduler UI changes.
+- No production wiring; nothing in user-facing routes calls the dry-run.
+- Engine2 is **not** made default or authoritative.
+- Eligibility is **not** broadened.
+- XER import behavior is unchanged.
+- No new resource / leveling / baseline / progress capability.
+- Legacy `calculateSchedule` remains the authoritative production engine.
