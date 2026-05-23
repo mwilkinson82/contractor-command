@@ -70,9 +70,31 @@ export interface EngineActivity {
   /** 0..2 per P6 (primary + secondary). */
   constraints: Constraint[];
 
-  /** Optional, only meaningful for `physical` percentCompleteType. */
+  /**
+   * Independently editable Physical Percent Complete (0..100).
+   * Only consumed when `percentCompleteType === "physical"`.
+   * Phase 1.3: stored verbatim; does NOT influence date calculations.
+   */
+  physicalPercentComplete?: number;
+
+  /**
+   * Reported Units Percent Complete (0..100).
+   * Only consumed when `percentCompleteType === "units"`.
+   * Phase 1.3: structural stub — no resource-unit derivation yet. Treated
+   * as a verbatim authored value for reporting; does NOT influence dates.
+   */
+  unitsPercentComplete?: number;
+
+  /**
+   * Deprecated catch-all percent value retained for backward compatibility
+   * with earlier phases. Not consumed by the calculation; use
+   * `physicalPercentComplete` / `unitsPercentComplete` instead.
+   */
   percentComplete?: number;
 }
+
+/** Deterministically derived from actualStart / actualFinish. */
+export type ActivityStatus = "not-started" | "in-progress" | "completed";
 
 export type RelationshipType = "FS" | "SS" | "FF" | "SF";
 export type LagCalendarBasis = "predecessor" | "successor" | "project" | "24h";
@@ -113,6 +135,28 @@ export interface EngineActivityResult {
   isCritical: boolean;
   governingCause: GoverningCause;
   drivingPredecessorId?: string;
+
+  /** Derived from actualStart / actualFinish. */
+  status: ActivityStatus;
+  /** Working minutes of work already performed. 0 for not-started. */
+  actualDurationMinutes: number;
+  /** Working minutes still required to complete. 0 for completed. */
+  remainingDurationMinutes: number;
+  /** actual + remaining (= original for not-started, = actual for completed). */
+  atCompletionDurationMinutes: number;
+  /**
+   * Computed 0..100 from actual / (actual + remaining). Independent of
+   * `percentCompleteType` — this is the duration-based value only.
+   */
+  durationPercentComplete: number;
+  /**
+   * The 0..100 value that should be REPORTED to the user, selected by the
+   * activity's `percentCompleteType`:
+   *   - duration → durationPercentComplete
+   *   - physical → activity.physicalPercentComplete ?? 0
+   *   - units    → activity.unitsPercentComplete ?? 0 (Phase 1.3 stub)
+   */
+  reportedPercentComplete: number;
 }
 
 export interface EngineRelationshipResult {

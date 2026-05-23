@@ -440,15 +440,118 @@ The remaining 13 of the 20 P6 acceptance tests stay `.todo()`.
   `EngineActivity`, used for shape only — no type-specific scheduling
   behavior beyond what Duration% implies through `remainingDuration`.
 
-### Phase 1.3 entry criteria (next pass)
+### Phase 1.3 entry criteria (superseded — see §13)
 
-1. `Schedule → CpmInput` adapter and dual-engine harness (the deferred
-   1.2 items).
+---
+
+## 13. Phase 1.3 status (landed)
+
+Phase 1.3 turns engine2's progress model into a real construction-update
+foundation. Progress is no longer a single opaque percent: status,
+durations, and percent-complete are now explicit, derived deterministically,
+and structurally separated by `percentCompleteType`.
+
+The user explicitly deferred the adapter, dual-engine harness, ALAP
+re-flow, and PRG-10 out-of-sequence rules out of this pass. Legacy engine
+is still the only engine wired to the UI; the feature flag still defaults
+to `"legacy"`.
+
+### What Phase 1.3 implements
+
+- **Activity status** (`ActivityStatus = "not-started" | "in-progress" | "completed"`)
+  is derived deterministically from `actualStart` / `actualFinish` and
+  surfaced on `EngineActivityResult.status`.
+- **Status consistency diagnostics** emitted at calc time:
+  - `actualFinish` set without `actualStart` (warn).
+  - `actualFinish` precedes `actualStart` (warn).
+  - Completed activity with `remainingDuration > 0` (warn; engine treats
+    remaining as 0 once `actualFinish` is set).
+  - Not-started activity whose `remainingDuration !== originalDuration`
+    (info — baseline drift).
+  - Negative `originalDuration` or `remainingDuration` (warn).
+  - `physicalPercentComplete` / `unitsPercentComplete` outside [0,100]
+    (warn).
+- **Percent-complete types** are structurally distinguished on the result:
+  - `duration` → computed `durationPercentComplete` =
+    `actual / (actual + remaining)` in working minutes of the activity's
+    calendar; clamped to `[0,100]`; 100 for completed.
+  - `physical` → independently authored `physicalPercentComplete` reported
+    verbatim. Does NOT influence calculated dates in Phase 1.3.
+  - `units` → independently authored `unitsPercentComplete` reported
+    verbatim as a Phase 1.3 stub. NO resource-unit derivation yet.
+  - `reportedPercentComplete` on the result is the value driven by the
+    activity's `percentCompleteType` — the field UIs should read.
+- **Duration fields formalized** on `EngineActivityResult`:
+  - `actualDurationMinutes` (working minutes between `actualStart` and
+    `dataDate` for in-progress, or `actualStart`→`actualFinish` for
+    completed, in the activity's calendar).
+  - `remainingDurationMinutes` (clamped to 0 for completed).
+  - `atCompletionDurationMinutes` = actual + remaining.
+  - `durationPercentComplete` always computed, independent of which
+    percent-complete type is reported.
+- **In-progress projection** refined:
+  - `actualStart` preserved on `earlyStart` (never re-derived from logic).
+  - Remaining work projected from `cal.nextWorkInstant(dataDate)` through
+    WorkClock, never from project start.
+  - Completed activities pin both early and late dates to actuals — no
+    forward/backward recalculation, no float.
+  - Not-started activities clamp to `max(projectStart, dataDate)` snapped
+    into their own calendar's working time, then apply logic + constraints.
+  - A new `data-date-shift` info diagnostic is emitted when the data date
+    pushed a not-started activity's ES later than project start.
+- **Duration-type field** (`fixed-dur-units`, `fixed-dur-units-per-time`,
+  `fixed-units`, `fixed-units-per-time`) is on `EngineActivity` and
+  carried through unchanged. **No type-specific recalculation behavior is
+  implemented yet** — see deferred list. The shape exists so resource
+  assignments (Phase 2+) can flip the locked variable per P6 rules without
+  another type churn.
+
+### Acceptance tests now active (in addition to 1.1/1.2)
+
+- **PRG-8** — Three activities with identical base data but different
+  `percentCompleteType` values produce three mutually distinct
+  `reportedPercentComplete` values (Duration ≈ 55.5%, Physical = 25,
+  Units = 80). Confirms types are structurally distinguished, not labels.
+
+Active total: 8 of 20 (CPM-1, CPM-2, CPM-3, CAL-4, CON-6, CON-7, PRG-8,
+PRG-9). The remaining 12 stay `.todo()`.
+
+### Known limitations of engine2 after Phase 1.3
+
+- **Physical % and Units %** are stored/reported but do NOT influence
+  dates. The forward pass still projects in-progress work from
+  `remainingDuration` regardless of which percent-complete type is
+  authored. P6 also does not re-derive remaining duration from Physical%
+  by default, so this matches default P6 behavior; Units%-driven
+  remaining derivation depends on resource assignments which are out of
+  scope until Phase 2.
+- **Duration-type recalculation rules** (e.g. Fixed Duration & Units
+  recomputing units-per-time when duration changes) are NOT implemented.
+  The field is carried through but no recalculation logic acts on it.
+  Deferred until resource assignments land.
+- **At-completion duration** is the simple `actual + remaining` sum. No
+  separate at-completion estimate vs. baseline-driven forecast.
+- **Actual duration for in-progress** is computed as working minutes
+  between `actualStart` and `dataDate` in the activity's calendar. This
+  is the engine's projection, not an authored field. If the user
+  authored an explicit actual duration that disagrees with
+  (`dataDate − actualStart`), engine2 will currently use the projected
+  value; an explicit `actualDuration` override field is deferred.
+- **PRG-10** (out-of-sequence progress rule selector — retained logic /
+  progress override / actual dates) still `.todo()`.
+- **ALAP successor re-flow** still deferred.
+- **Adapter and dual-engine harness** still deferred. Engine2 remains
+  test-only; production UI runs entirely on the legacy engine.
+
+### Phase 1.4 entry criteria (next pass)
+
+1. `Schedule → CpmInput` adapter + dual-engine assertion harness against
+   the existing schedule fixtures.
 2. ALAP successor re-flow.
-3. Out-of-sequence progress rule selector (retained logic / progress
-   override / actual dates) and PRG-10 activation.
-4. Begin Physical / Units percent-complete behavior or document why
-   Duration% is the only mode the engine will calculate against.
+3. Out-of-sequence progress rule selector and PRG-10 activation.
+4. Begin duration-type recalculation behavior once resource assignments
+   are scoped.
+
 
 
 

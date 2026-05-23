@@ -292,9 +292,67 @@ describe("P6 acceptance — Constraints", () => {
 });
 
 describe("P6 acceptance — Progress", () => {
-  it.todo(
-    "PRG-8: Physical, Duration, and Units percent-complete types produce distinct progress results under identical base activity and assignment data",
-  );
+  it("PRG-8: Physical, Duration, and Units percent-complete types produce distinct reported percent-complete values given the same base activity and assignment data", () => {
+    const cal = monFri();
+    // All three start Mon-06, original 10d, remaining 4d, data date Mon-13.
+    // Duration%   = actual / (actual + remaining) = 5 / (5+4) = 55.55…
+    // Physical%   = author-supplied 25 (independent of duration).
+    // Units%      = author-supplied 80 (Phase 1.3 stub, independent of duration).
+    const dataDate = Date.UTC(2025, 0, 13);
+    const mk = (id: string, pct: "duration" | "physical" | "units"): EngineActivity => {
+      const a = activity(id, 10);
+      a.percentCompleteType = pct;
+      a.actualStart = MON_2025_01_06;
+      a.remainingDuration = { minutes: 4 * DAY_MIN, authoringCalendarId: "cal-mf" };
+      if (pct === "physical") a.physicalPercentComplete = 25;
+      if (pct === "units") a.unitsPercentComplete = 80;
+      return a;
+    };
+    const D = mk("D", "duration");
+    const P = mk("P", "physical");
+    const U = mk("U", "units");
+    const result = calculateCpm({
+      dataDate,
+      projectStart: MON_2025_01_06,
+      projectCalendarId: "cal-mf",
+      calendars: new Map([["cal-mf", cal]]),
+      activities: [D, P, U],
+      relationships: [],
+    });
+    const byId = new Map(result.activities.map((a) => [a.id, a]));
+    const d = byId.get("D")!;
+    const p = byId.get("P")!;
+    const u = byId.get("U")!;
+
+    // Status is derived deterministically from actuals.
+    expect(d.status).toBe("in-progress");
+    expect(p.status).toBe("in-progress");
+    expect(u.status).toBe("in-progress");
+
+    // Duration% derives from actual/at-completion working minutes.
+    expect(d.actualDurationMinutes).toBe(5 * DAY_MIN);
+    expect(d.remainingDurationMinutes).toBe(4 * DAY_MIN);
+    expect(d.atCompletionDurationMinutes).toBe(9 * DAY_MIN);
+    expect(d.durationPercentComplete).toBeCloseTo((5 / 9) * 100, 6);
+    expect(d.reportedPercentComplete).toBeCloseTo((5 / 9) * 100, 6);
+
+    // Physical% reports the author-supplied value verbatim and is NOT the
+    // duration-derived value.
+    expect(p.reportedPercentComplete).toBe(25);
+    expect(p.reportedPercentComplete).not.toBeCloseTo(d.durationPercentComplete, 3);
+
+    // Units% reports the author-supplied stub value verbatim and is NOT the
+    // duration-derived value.
+    expect(u.reportedPercentComplete).toBe(80);
+    expect(u.reportedPercentComplete).not.toBeCloseTo(d.durationPercentComplete, 3);
+
+    // The three reported values are mutually distinct.
+    expect(new Set([
+      Math.round(d.reportedPercentComplete * 1000),
+      Math.round(p.reportedPercentComplete * 1000),
+      Math.round(u.reportedPercentComplete * 1000),
+    ]).size).toBe(3);
+  });
 
   it("PRG-9: in-progress activity projects remaining duration from the data date", () => {
     const cal = monFri();
