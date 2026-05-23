@@ -46,6 +46,8 @@ import { FragnetPanel } from "@/components/scheduler/FragnetPanel";
 import { AnnotationsPanel } from "@/components/scheduler/AnnotationsPanel";
 import { UpdateCyclePanel } from "@/components/scheduler/UpdateCyclePanel";
 import { InlineText, InlineNumber } from "@/components/scheduler/InlineEdit";
+import { EmptyScheduleState } from "@/components/scheduler/EmptyScheduleState";
+import type { SamplePayload } from "@/lib/scheduler/sample";
 import { exportScheduleCsv } from "@/lib/scheduler/csv-export";
 import { Textarea } from "@/components/ui/textarea";
 
