@@ -264,8 +264,7 @@ export function CpmGrid({
   return (
     <div
       ref={scrollRef}
-      className="overflow-auto border-t border-[#d8cdb8] bg-white"
-      style={{ maxHeight: "70vh" }}
+      className="h-full w-full overflow-auto border-t border-[#d8cdb8] bg-white"
     >
       <div className="flex min-w-max">
         {/* ============ LEFT: activity table ============ */}
