@@ -422,7 +422,7 @@ export function importXerForEngine2(
   }
   const projectIdSet = new Set(projects.map((p) => p.id));
   const primaryProject = projects[0];
-  const projectName = primaryProject?.name || "Imported P6 schedule";
+  const projectName = primaryProject?.shortName || "Imported P6 schedule";
   const projectStartDate = primaryProject?.planStartDate;
   const dataDate = primaryProject?.dataDate;
 
