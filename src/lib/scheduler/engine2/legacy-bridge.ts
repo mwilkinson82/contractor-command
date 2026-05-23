@@ -210,7 +210,9 @@ export function bridgeLegacyScheduleToEngine2(
     "All durations and lags interpreted as 8-hour working days against a whole-day calendar.",
   );
   notes.push(
-    "Per-activity calendars use legacy whole-day shape; XER-style exception windows are not synthesized in this bridge.",
+    useExceptions
+      ? "Per-activity calendars routed through createExceptionWorkClock (dev-only). Legacy carries no shift data, so behavior matches whole-day."
+      : "Per-activity calendars use legacy whole-day shape; XER-style exception windows are not synthesized in this bridge.",
   );
 
   const input: CpmInput = {
