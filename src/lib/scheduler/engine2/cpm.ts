@@ -95,7 +95,11 @@ export interface CpmInput {
 
   /** Phase 1.6 — optional resource leveling pass run on top of CPM dates. */
   leveling?: LevelingOptions;
+
+  /** Phase 2.2 — out-of-sequence progress rule selector. */
+  progress?: ProgressOptions;
 }
+
 
 interface WorkState {
   earlyStart: Instant;
