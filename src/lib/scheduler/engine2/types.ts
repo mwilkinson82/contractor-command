@@ -305,6 +305,12 @@ export interface EngineActivityResult {
   atCompletionDurationMinutes: number;
   durationPercentComplete: number;
   reportedPercentComplete: number;
+
+  /**
+   * Phase 1.5 — per-activity assignment rollup. Present only when at least
+   * one `ResourceAssignment` references this activity in `CpmInput`.
+   */
+  assignmentSummary?: ActivityAssignmentSummary;
 }
 
 export interface EngineRelationshipResult {
