@@ -22,7 +22,8 @@
  *  - It does not implement Update / Replace / Add-Into behaviors.
  */
 
-import type { CpmInput, EngineDiagnostic, Instant } from "./types";
+import type { EngineDiagnostic, Instant } from "./types";
+import type { CpmInput } from "./cpm";
 import { createWholeDayWorkClock, type WorkClock } from "./work-clock";
 import type { XerCalendarRaw, XerEngine2ImportResult } from "./xer-import";
 
