@@ -244,6 +244,12 @@ export function calculateCpm(input: CpmInput): EngineResult {
     if (dataDateSnapped > es) {
       es = dataDateSnapped;
       governingCause = "data-date";
+      st.notes.push({
+        severity: "info",
+        code: "data-date-shift",
+        message: `Activity "${a.id}" early start clamped forward to data date`,
+        activityId: a.id,
+      });
     }
 
     for (const dep of predsOf.get(a.id) ?? []) {
