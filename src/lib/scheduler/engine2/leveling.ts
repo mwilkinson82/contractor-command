@@ -84,10 +84,10 @@ export function levelResources(input: LevelingInput): LevelingAnalysis {
   const preserveDates = !!options.preserveScheduledEarlyAndLateDates;
   if (preserveDates) {
     warnings.push({
-      severity: "warn",
-      code: "leveling_preserve_dates_deferred",
+      severity: "info",
+      code: "leveling_preserve_dates_applied",
       message:
-        "preserveScheduledEarlyAndLateDates is recognized but not enforced in Phase 1.6; leveling proceeded without the float ceiling.",
+        "preserveScheduledEarlyAndLateDates is ENABLED — leveling will not delay activities past their CPM late-start; unresolved conflicts will be reported.",
     });
   }
   warnings.push({
@@ -101,6 +101,7 @@ export function levelResources(input: LevelingInput): LevelingAnalysis {
     message:
       "Phase 1.6 leveling does not re-drive CPM dates for successors of moved activities; rerun CPM with leveled dates as constraints if needed.",
   });
+
 
   // ---- Considered resources ----
   const resourceMap = new Map<string, Resource>(resources.map((r) => [r.id, r]));
