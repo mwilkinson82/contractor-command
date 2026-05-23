@@ -29,9 +29,9 @@ interface Props {
 }
 
 
-const ROW_H = 24;
-const GROUP_H = 22;
-const HEADER_H = 44; // year band + month band
+const ROW_H = 22;
+const GROUP_H = 20;
+const HEADER_H = 38; // year band + month band
 const UNASSIGNED = "Unassigned";
 
 // ---- calendar helpers --------------------------------------------------
@@ -324,16 +324,16 @@ export function CpmGrid({
                   return (
                     <tr
                       key={`g-${row.key}`}
-                      className="cursor-pointer bg-[#ede5d2] font-semibold text-[#3d3527] hover:bg-[#e6dcc4]"
+                      className="cursor-pointer bg-[#f5efe0] font-medium text-[#3d3527] hover:bg-[#efe7d2]"
                       style={{ height: GROUP_H }}
                       onClick={() => onToggleGroup?.(row.key)}
                     >
-                      <td colSpan={9} className="border-b border-[#d8cdb8] border-t border-t-[#d8cdb8] px-2">
-                        <span className="mr-1.5 inline-block w-3 text-center text-[#7a6a4d]">
+                      <td colSpan={9} className="border-b border-[#e8dfc8] px-2">
+                        <span className="mr-1.5 inline-block w-3 text-center text-[10px] text-[#9c8b6e]">
                           {row.collapsed ? "▸" : "▾"}
                         </span>
-                        <span className="text-[10px] uppercase tracking-[0.08em]">{row.key}</span>
-                        <span className="ml-2 text-[10px] font-normal text-[#9c8b6e]">
+                        <span className="text-[10px] uppercase tracking-[0.1em] text-[#5c574e]">{row.key}</span>
+                        <span className="ml-2 text-[10px] font-normal text-[#a8997a]">
                           · {row.taskCount}
                         </span>
                       </td>
@@ -504,19 +504,16 @@ export function CpmGrid({
                 const w = Math.max((row.maxEF - row.minES) * dayPx, 2);
                 return (
                   <g key={`g-${row.key}`}>
-                    <rect x={0} y={y} width={timelineWidth} height={rowH} fill="#ede5d2" />
-                    <line x1={0} x2={timelineWidth} y1={y} y2={y} stroke="#d8cdb8" strokeWidth={1} />
-                    <line x1={0} x2={timelineWidth} y1={y + rowH} y2={y + rowH} stroke="#d8cdb8" strokeWidth={1} />
-                    {/* summary bracket */}
-                    <path
-                      d={`M ${x} ${y + rowH / 2 + 5} L ${x} ${y + rowH / 2 - 3} L ${x + w} ${
-                        y + rowH / 2 - 3
-                      } L ${x + w} ${y + rowH / 2 + 5} M ${x} ${y + rowH / 2 - 3} L ${x + w} ${
-                        y + rowH / 2 - 3
-                      }`}
-                      stroke={row.anyCritical ? "#9c2418" : "#3d3527"}
-                      strokeWidth={2}
-                      fill="none"
+                    <rect x={0} y={y} width={timelineWidth} height={rowH} fill="#f5efe0" />
+                    <line x1={0} x2={timelineWidth} y1={y + rowH} y2={y + rowH} stroke="#e8dfc8" strokeWidth={1} />
+                    {/* slim summary span — quiet, no heavy brackets */}
+                    <rect
+                      x={x}
+                      y={y + rowH / 2 - 1}
+                      width={w}
+                      height={2}
+                      fill={row.anyCritical ? "#9c2418" : "#5c574e"}
+                      opacity={0.55}
                     />
                   </g>
                 );
@@ -815,8 +812,8 @@ export function CpmGrid({
                         ? "url(#cpm-arrow-crit)"
                         : "url(#cpm-arrow-drv)"
                       : "url(#cpm-arrow-soft)";
-                    const opacity = onChain ? 1 : d.isDriving ? 0.85 : 0.4;
-                    const sw = onChain ? 1.6 : d.isDriving ? 1.1 : 0.8;
+                    const opacity = onChain ? 1 : d.isDriving ? (bothCrit ? 0.75 : 0.55) : 0.22;
+                    const sw = onChain ? 1.4 : d.isDriving ? 0.9 : 0.7;
                     return (
                       <path
                         key={`dep-${d.id ?? di}`}

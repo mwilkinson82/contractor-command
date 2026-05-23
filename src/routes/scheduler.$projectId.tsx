@@ -570,7 +570,7 @@ function SchedulerPage() {
   return (
     <div className="scheduler-print-root flex h-screen flex-col bg-[#faf8f3] text-[#1f241f]">
       {/* ============ TOP HEADER ============ */}
-      <header className="flex h-12 shrink-0 items-center gap-4 border-b border-[#e6dfd0] bg-white/80 px-4 backdrop-blur">
+      <header className="flex h-11 shrink-0 items-center gap-4 border-b border-[#e6dfd0] bg-white/80 px-4 backdrop-blur">
         <Link
           to="/scheduler"
           className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#5c574e] hover:text-[#1f241f]"
@@ -674,7 +674,7 @@ function SchedulerPage() {
       </header>
 
       {/* ============ TAB BAR ============ */}
-      <nav className="flex h-9 shrink-0 items-end gap-0 border-b border-[#e6dfd0] bg-white/60 px-4">
+      <nav className="flex h-8 shrink-0 items-end gap-0 border-b border-[#e6dfd0] bg-white/60 px-4">
         {(
           [
             ["schedule", "Schedule"],
@@ -689,7 +689,7 @@ function SchedulerPage() {
             key={key}
             type="button"
             onClick={() => setActiveTab(key)}
-            className={`relative px-4 py-2 text-sm font-medium transition ${
+            className={`relative px-3.5 py-1.5 text-[12px] font-medium transition ${
               activeTab === key
                 ? "text-[#1f241f]"
                 : "text-[#7a6a4d] hover:text-[#3d3527]"
@@ -731,7 +731,7 @@ function SchedulerPage() {
       ) : (
         <>
           {/* ============ TOOLBAR ============ */}
-          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[#e6dfd0] bg-white px-4 py-1.5">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[#e6dfd0] bg-white px-4 py-1">
             {/* View modes (only Gantt is wired) */}
             <div className="flex items-center rounded-md border border-[#e6dfd0] bg-[#faf8f3] p-0.5">
               <button className="rounded bg-white px-3 py-1 text-xs font-medium shadow-sm">
@@ -942,7 +942,7 @@ function SchedulerPage() {
                 ) : null}
 
                 {/* Project meta strip — compact single-line pill row */}
-                <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[#eee7d8] bg-white px-4 py-1 text-[11px] text-[#5c574e]">
+                <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[#eee7d8] bg-white px-4 py-0.5 text-[11px] text-[#5c574e]">
                   <label className="inline-flex items-center gap-1.5">
                     <span className="text-[9px] font-semibold uppercase tracking-wider text-[#9c8b6e]">Start</span>
                     <input
