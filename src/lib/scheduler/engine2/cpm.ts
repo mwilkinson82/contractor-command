@@ -149,6 +149,37 @@ export function calculateCpm(input: CpmInput): EngineResult {
   const predsOf = groupBy(validRels, (r) => r.to);
   const succsOf = groupBy(validRels, (r) => r.from);
 
+  // ---- Phase 1.5 — resources + assignments ----
+  const resourceMap = new Map<string, Resource>(
+    (input.resources ?? []).map((r) => [r.id, r]),
+  );
+  const assignmentsByActivity = new Map<string, ResourceAssignment[]>();
+  for (const asn of input.assignments ?? []) {
+    if (!actMap.has(asn.activityId)) {
+      diagnostics.push({
+        severity: "warn",
+        code: "assignment_unknown_activity",
+        message: `Assignment "${asn.id}" references unknown activity "${asn.activityId}"`,
+      });
+      continue;
+    }
+    const list = assignmentsByActivity.get(asn.activityId) ?? [];
+    list.push(asn);
+    assignmentsByActivity.set(asn.activityId, list);
+  }
+  const assignmentSummaries = new Map<string, ActivityAssignmentSummary>();
+  for (const [actId, list] of assignmentsByActivity) {
+    const sum = rollupActivityAssignments(actId, list);
+    if (sum) assignmentSummaries.set(actId, sum);
+  }
+  for (const d of validateAssignments({
+    assignments: input.assignments ?? [],
+    resources: resourceMap,
+    calendars: input.calendars as Map<string, unknown>,
+  })) {
+    diagnostics.push(d);
+  }
+
   const state = new Map<string, WorkState>();
   for (const a of activities) {
     const completed = a.actualFinish !== undefined;
