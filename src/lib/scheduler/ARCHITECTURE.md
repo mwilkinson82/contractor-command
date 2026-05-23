@@ -543,14 +543,92 @@ PRG-9). The remaining 12 stay `.todo()`.
 - **Adapter and dual-engine harness** still deferred. Engine2 remains
   test-only; production UI runs entirely on the legacy engine.
 
-### Phase 1.4 entry criteria (next pass)
+### Phase 1.4 entry criteria (superseded — see §14)
 
-1. `Schedule → CpmInput` adapter + dual-engine assertion harness against
-   the existing schedule fixtures.
+---
+
+## 14. Phase 1.4 status (landed)
+
+Phase 1.4 makes engine2 *explainable*. The engine still does not own the
+UI or the production schedule, but each result now carries enough trace,
+ranking, baseline, and audit data to power an explainability surface.
+
+### What Phase 1.4 implements
+
+- **Driving trace** on `EngineActivityResult`:
+  - `drivingPredecessors` / `drivingSuccessors`: arrays of `DrivingLink`
+    (relationship id, other activity id, type, lag minutes, lag calendar
+    basis, link slack) for every link with slack <= tolerance.
+  - `governingCategory`: high-level grouping of `governingCause`
+    (`logic | constraint | progress | calendar | leveling | external`).
+  - `isOpenStart`, `isOpenFinish`, `hasNegativeFloat` flags.
+- **Multiple float-path analysis** (`EngineResult.floatPaths`):
+  - Opt-in via `floatPathCount > 0`; basis `total-float` (default) or
+    `free-float`; endpoint = caller-supplied or latest-EF not-completed
+    activity.
+  - Walks backward via lowest-slack unused predecessor and consumes
+    relationships across ranks. Each path carries rank, basis,
+    governing `pathFloatMinutes`, and ordered steps with the
+    relationship walked from the previous step.
+- **Baseline comparison foundation**:
+  - Independent `baselines: BaselineActivity[]` input (XER imports do
+    NOT fabricate baselines).
+  - Per-activity `baselineVariance` (working-minute + calendar-day,
+    start + finish, positive = late). Missing baseline emits
+    `baseline_missing` info diagnostic (only when baselines supplied).
+- **Engine run record** (`EngineResult.runRecord`):
+  - `startedAt`, `durationMs`, `engineVersion` (`ENGINE2_VERSION` =
+    `0.4.0-phase1.4`), `dataDate`, activity/relationship counts,
+    `diagnosticCounts` (info/warn/error), optional
+    `changedActivityCount` (when `priorResult` supplied), and
+    `optionsSnapshot` of calc inputs.
+  - Legacy `runMeta` retained for back-compat.
+- **Structured diagnostics added** (kebab-case codes from earlier
+  phases retained to avoid breaking tests):
+  - `negative_float` — `totalFloat < 0`.
+  - `open_ended_activity` — info for one open side on non-completed
+    activities; warn when *both* sides are open on a non-milestone.
+  - `baseline_missing` — see above.
+
+### Acceptance tests now active (in addition to 1.1/1.2/1.3)
+
+- **PTH-11** — Diamond network: path 1 = critical chain A→C→D
+  (pathFloat = 0); path 2 = B chain (pathFloat = 2 workdays).
+- **PTH-12** — Selecting `M1` endpoint routes the path through B;
+  default endpoint routes through C to `M2`. Selection actually
+  changes the analysis.
+
+Active total: **10 of 20**.
+
+### Known limitations of engine2 after Phase 1.4
+
+- **Float-path algorithm is foundation, not full P6 MFP parity**. It
+  walks back via lowest-slack unused predecessor and consumes
+  relationships. Correct for diamond / fan-in topologies and the
+  PTH-11/12 fixtures, but does not reproduce every nuance of P6's MFP
+  enumeration on contested schedules.
+- **Free-float basis** is wired but not separately covered by an
+  acceptance test.
+- **Baseline variance** is vs. `earlyStart`/`earlyFinish` only — no
+  late-date variance, no project-level rollup.
+- **Changed-activity count** compares only the four CPM dates.
+- **Open-ended diagnostics** do not exempt the project's intended start
+  activity yet.
+- **Diagnostic code naming** is mixed (kebab-case from earlier phases
+  + new snake_case codes). A future pass should unify with an alias
+  map.
+- **PRG-10**, **ALAP successor re-flow**, **adapter**, and
+  **dual-engine harness** all still deferred. UI still runs entirely
+  on the legacy engine; feature flag still defaults to `"legacy"`.
+
+### Phase 1.5 entry criteria (next pass)
+
+1. `Schedule → CpmInput` adapter and dual-engine assertion harness.
 2. ALAP successor re-flow.
 3. Out-of-sequence progress rule selector and PRG-10 activation.
-4. Begin duration-type recalculation behavior once resource assignments
-   are scoped.
+4. Optional: free-float-basis float-path acceptance test, and
+   project-start exemption for `open_ended_activity` diagnostics.
+
 
 
 
