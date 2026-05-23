@@ -1088,8 +1088,8 @@ function SchedulerPage() {
                         />
                       ) : null}
                     </div>
-                    {/* Legend */}
-                    <div className="flex shrink-0 items-center justify-center gap-5 border-t border-[#eee7d8] bg-[#faf8f3] px-4 py-1.5 text-[10px] text-[#5c574e]">
+                    {/* Legend — slim inline strip */}
+                    <div className="flex shrink-0 items-center justify-center gap-4 border-t border-[#eee7d8] bg-[#faf8f3] px-4 py-1 text-[10px] text-[#5c574e]">
                       <LegendDot color="#3d8a5c" label="Completed" />
                       <LegendDot color="#5b8bd6" label="In Progress" />
                       <LegendDot color="#9b87d3" label="Planned" />
