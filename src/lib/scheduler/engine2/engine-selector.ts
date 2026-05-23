@@ -469,5 +469,3 @@ export function formatProvenance(p: EngineSelectionProvenance): string {
   lines.push(`selectedAt=${p.selectedAt}`);
   return lines.join("\n");
 }
-
-}
