@@ -1288,6 +1288,10 @@ export type Database = {
           read_ct: number
         }[]
       }
+      replace_schedule_graph: {
+        Args: { _dependencies: Json; _schedule_id: string; _tasks: Json }
+        Returns: undefined
+      }
       tier_rank: {
         Args: { _tier: Database["public"]["Enums"]["app_tier"] }
         Returns: number
