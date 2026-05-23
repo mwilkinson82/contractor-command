@@ -9,7 +9,9 @@ import {
   saveSchedule,
   deleteSchedule,
   loadBaseline,
+  captureBaseline,
 } from "@/lib/scheduler/persistence.functions";
+
 import { calculateSchedule } from "@/lib/scheduler/engine";
 import { rescheduleFromDataDate, addWorkingDaysIso } from "@/lib/scheduler/progress";
 import type { Annotation, Dependency, DependencyType, Schedule, Task } from "@/lib/scheduler/types";
@@ -92,6 +94,8 @@ function SchedulerPage() {
   const saveFn = useServerFn(saveSchedule);
   const deleteFn = useServerFn(deleteSchedule);
   const loadBaselineFn = useServerFn(loadBaseline);
+  const captureBaselineFn = useServerFn(captureBaseline);
+
 
   const selectedId = projectId;
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -964,14 +968,31 @@ function SchedulerPage() {
                   <button
                     type="button"
                     disabled={!draft.dataDate}
-                    onClick={() => {
+                    onClick={async () => {
                       if (!draft.dataDate) return;
+                      if (dirty) {
+                        toast.error("Save your edits before rescheduling — the rollback baseline snapshots the saved schedule.");
+                        return;
+                      }
                       if (
                         !confirm(
-                          "Reschedule from data date?\n\n• Completed → 0d milestones\n• In-progress → remaining duration\n• Project start moves to data date\n\nCapture a baseline first if you want to compare.",
+                          "Reschedule from data date?\n\n• A rollback baseline will be captured first\n• Completed → 0d milestones\n• In-progress → remaining duration\n• Project start moves to data date",
                         )
                       )
                         return;
+                      try {
+                        await captureBaselineFn({
+                          data: {
+                            scheduleId: selectedId,
+                            name: `Pre-reschedule ${draft.dataDate}`,
+                            notes: JSON.stringify({ kind: "auto_pre_reschedule", dataDate: draft.dataDate }),
+                          },
+                        });
+                        qc.invalidateQueries({ queryKey: ["baselines", selectedId] });
+                      } catch (e) {
+                        toast.error(`Rollback baseline failed: ${(e as Error).message}`);
+                        return;
+                      }
                       const r = rescheduleFromDataDate(draft.tasks, draft.dataDate);
                       setDraft({
                         ...draft,
@@ -980,13 +1001,14 @@ function SchedulerPage() {
                       });
                       setDirty(true);
                       toast.success(
-                        `Reset ${r.summary.inProgress} in-progress · ${r.summary.completed} done · ${r.summary.notStarted} not started`,
+                        `Reset ${r.summary.inProgress} in-progress · ${r.summary.completed} done · ${r.summary.notStarted} not started (rollback baseline saved)`,
                       );
                     }}
                     className="ml-auto rounded border border-[#e6dfd0] bg-white px-2 py-0.5 text-[10px] uppercase tracking-wide text-[#3d3527] hover:bg-[#faf8f3] disabled:opacity-40"
                   >
                     Reschedule from data date
                   </button>
+
                 </div>
 
                 {/* KPI strip */}

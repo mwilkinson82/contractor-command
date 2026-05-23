@@ -336,51 +336,38 @@ export const saveSchedule = createServerFn({ method: "POST" })
       scheduleId = inserted.id as string;
     }
 
-    // Replace tasks + dependencies (simple, atomic-enough for v1).
-    const [delDeps, delTasks] = await Promise.all([
-      supabase.from("schedule_dependencies").delete().eq("schedule_id", scheduleId),
-      supabase.from("schedule_tasks").delete().eq("schedule_id", scheduleId),
-    ]);
-    if (delDeps.error) throw new Error(delDeps.error.message);
-    if (delTasks.error) throw new Error(delTasks.error.message);
-
-    if (data.tasks.length > 0) {
-      const { error } = await supabase.from("schedule_tasks").insert(
-        data.tasks.map((t, i) => ({
-          schedule_id: scheduleId!,
-          task_id: t.id,
-          name: t.name,
-          duration: t.duration,
-          wbs: t.wbs ?? null,
-          description: t.description ?? null,
-          percent_complete: t.percentComplete ?? null,
-          budget_cost: t.budgetCost ?? null,
-          actual_cost: t.actualCost ?? null,
-          resource_name: t.resourceName ?? null,
-          resource_units_per_day: t.resourceUnitsPerDay ?? null,
-          start_no_earlier_than: t.startNoEarlierThan ?? null,
-          calendar_id: t.calendarId ?? null,
-          position: i,
-        })),
-      );
-      if (error) throw new Error(error.message);
-    }
-
-    if (data.dependencies.length > 0) {
-      const { error } = await supabase.from("schedule_dependencies").insert(
-        data.dependencies.map((d) => ({
-          schedule_id: scheduleId!,
-          from_task_id: d.from,
-          to_task_id: d.to,
-          type: d.type ?? "FS",
-          lag: d.lag ?? 0,
-        })),
-      );
-      if (error) throw new Error(error.message);
-    }
+    // Replace tasks + dependencies atomically inside a SECURITY DEFINER RPC.
+    // If the insert leg fails, the prior tasks/deps stay intact instead of
+    // being wiped by the delete leg (previous delete-then-insert behavior).
+    const { error: graphErr } = await supabase.rpc("replace_schedule_graph", {
+      _schedule_id: scheduleId,
+      _tasks: data.tasks.map((t, i) => ({
+        task_id: t.id,
+        name: t.name,
+        duration: t.duration,
+        wbs: t.wbs ?? null,
+        description: t.description ?? null,
+        percent_complete: t.percentComplete ?? null,
+        budget_cost: t.budgetCost ?? null,
+        actual_cost: t.actualCost ?? null,
+        resource_name: t.resourceName ?? null,
+        resource_units_per_day: t.resourceUnitsPerDay ?? null,
+        start_no_earlier_than: t.startNoEarlierThan ?? null,
+        calendar_id: t.calendarId ?? null,
+        position: i,
+      })),
+      _dependencies: data.dependencies.map((d) => ({
+        from_task_id: d.from,
+        to_task_id: d.to,
+        type: d.type ?? "FS",
+        lag: d.lag ?? 0,
+      })),
+    });
+    if (graphErr) throw new Error(graphErr.message);
 
     return { id: scheduleId! };
   });
+
 
 export const deleteSchedule = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -441,7 +428,7 @@ export const captureBaseline = createServerFn({ method: "POST" })
       supabase
         .from("schedule_tasks")
         .select(
-          "task_id, name, duration, wbs, description, percent_complete, position, budget_cost, actual_cost, resource_name, resource_units_per_day, start_no_earlier_than",
+          "task_id, name, duration, wbs, description, percent_complete, position, budget_cost, actual_cost, resource_name, resource_units_per_day, start_no_earlier_than, calendar_id",
         )
         .eq("schedule_id", data.scheduleId)
         .order("position", { ascending: true }),
@@ -465,7 +452,9 @@ export const captureBaseline = createServerFn({ method: "POST" })
       resourceName: (t.resource_name as string | null) ?? undefined,
       resourceUnitsPerDay: (t.resource_units_per_day as number | null) ?? undefined,
       startNoEarlierThan: (t.start_no_earlier_than as string | null) ?? undefined,
+      calendarId: (t.calendar_id as string | null) ?? undefined,
     }));
+
     const depsJson = (deps ?? []).map((d) => ({
       from: d.from_task_id as string,
       to: d.to_task_id as string,
