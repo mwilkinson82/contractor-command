@@ -845,7 +845,8 @@ function SchedulerPage() {
                         <Plus className="mr-1 h-3 w-3" /> Add
                       </Button>
                     </div>
-                    <div className="flex-1 overflow-auto">
+                    <div ref={leftScrollRef} className="flex-1 overflow-auto">
+
                       <table className="w-full text-xs">
                         <thead className="sticky top-0 z-10 bg-[#faf8f3] text-[10px] uppercase tracking-wide text-[#7a6a4d] shadow-sm">
                           <tr>
