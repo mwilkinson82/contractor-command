@@ -89,6 +89,8 @@ export interface ComparisonReport {
   knownLimitationDifferences: number;
   engine2OnlyDiagnostics: number;
   differences: ComparisonDifference[];
+  /** Phase 2.6 — bounded slice of differences ranked investigate→known→expected for quick scanning. */
+  topDifferences: ComparisonDifference[];
   countsByCategory: Record<ComparisonDifferenceCategory, number>;
   countsByClassification: Record<ComparisonClassification, number>;
   verdict: ComparisonVerdict;
@@ -102,6 +104,7 @@ export interface ComparisonReport {
     useExceptionAwareCalendars: boolean;
   };
 }
+
 
 export interface ComparisonRun {
   legacy: ScheduleResult;
