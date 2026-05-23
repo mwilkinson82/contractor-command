@@ -61,9 +61,17 @@ export interface ReconciliationInput {
   /**
    * Diagnostic codes whose presence should be classified as
    * "acceptable-known-limitation" rather than "unsupported-preserved-only".
-   * Default: a curated list of Phase 1.7 deferral codes.
+   * Default: a curated list of Phase 1.7–1.9 deferral codes.
    */
   acceptableLimitationCodes?: string[];
+  /**
+   * Phase 1.9 — signal from the pipeline that external/interproject
+   * relationships were ignored by option. When true, preserved external
+   * relationships classify as "acceptable-known-limitation". When false
+   * (default), they classify as "mismatch" since the engine has not
+   * honored documented logic.
+   */
+  externalRelationshipsIgnored?: boolean;
 }
 
 export interface ReconciliationReport {
@@ -87,6 +95,9 @@ const DEFAULT_ACCEPTABLE_CODES = new Set<string>([
   "unsupported_duration_type_behavior",
   "unsupported_percent_complete_type_behavior",
   "external_relationship_preserved_raw",
+  "external_relationship_preserved",
+  "external_relationship_ignored_by_option",
+  "interproject_relationship_mapped",
   "calendar_synthesized",
 ]);
 
@@ -94,6 +105,17 @@ const UNSUPPORTED_PRESERVED_CODES = new Set<string>([
   "unsupported_constraint_type",
   "missing_calendar_reference",
   "missing_resource_reference",
+  "external_project_missing",
+  "interproject_relationship_unresolved",
+]);
+
+/**
+ * Phase 1.9 — codes that signal real divergence the engine cannot honor
+ * without additional input. Classified as "mismatch" regardless of
+ * severity, so reconciliation surfaces them prominently.
+ */
+const MISMATCH_CODES = new Set<string>([
+  "external_relationship_requires_imported_project",
 ]);
 
 function findActivity(r: EngineResult, id: string): EngineActivityResult | undefined {
