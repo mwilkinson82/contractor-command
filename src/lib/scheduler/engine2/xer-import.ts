@@ -802,10 +802,14 @@ export function importXerForEngine2(
     projectName,
     projectStartDate,
     dataDate,
+    projects,
     calendars,
     defaultCalendarId: fallbackCalendarId,
     activities,
+    activityProjectIds,
     relationships,
+    interprojectRelationships,
+    externalRelationships,
     resources,
     roles,
     assignments,
@@ -822,8 +826,10 @@ export function importXerForEngine2(
       otherTableNames,
     },
     stats: {
+      projectsParsed: projects.length,
       tasksParsed: activities.length,
       relationshipsParsed: relationships.length,
+      interprojectRelationshipsCount: interprojectRelationships.length,
       calendarsParsed: calendars.length,
       resourcesParsed: resources.length,
       rolesParsed: roles.length,
@@ -831,9 +837,10 @@ export function importXerForEngine2(
       constraintsMapped,
       constraintsUnsupported,
       externalRelationshipsPreservedRaw,
+      externalProjectsMissingCount: missingExternalProjects.size,
     },
   };
 }
 
-/** Bump engine2 version marker for Phase 1.7. Kept here to avoid touching cpm.ts behavior. */
-export const ENGINE2_XER_IMPORT_VERSION = "0.7.0-phase1.7";
+/** Bump engine2 version marker for Phase 1.9. */
+export const ENGINE2_XER_IMPORT_VERSION = "0.9.0-phase1.9";
