@@ -20,6 +20,8 @@ interface Props {
   calendar?: ProjectCalendar;
   annotations?: Annotation[];
   groupBy?: GroupByMode;
+  /** Tasks with totalFloat in (0, nearCriticalFloat] render in amber. 0 disables. */
+  nearCriticalFloat?: number;
   onTaskReschedule?: (
     taskId: string,
     patch: { startShiftDays?: number; duration?: number },
