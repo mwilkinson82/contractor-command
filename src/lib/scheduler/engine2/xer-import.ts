@@ -120,16 +120,16 @@ const RELATIONSHIP_MAP: Record<string, RelationshipType> = {
 };
 
 // CSTR_* identifier set seen in real XER exports.
-const CONSTRAINT_MAP: Record<string, ConstraintType | "unsupported"> = {
-  CS_MSO: "snet", // "Start On" — closest engine2 mapping is SNET; MSO is a separate "mandatory" flavor (see below)
-  CS_MSOB: "snlt", // "Start On or Before"
-  CS_MEO: "fnlt", // "Finish On"
-  CS_MEOB: "fnlt", // "Finish On or Before"
-  CS_MEOA: "fnet", // "Finish On or After"
-  CS_MANDFIN: "mfo", // "Mandatory Finish"
-  CS_MANDSTART: "mso", // "Mandatory Start"
+const CONSTRAINT_MAP: Record<string, ConstraintType> = {
+  CS_MSO: "snet",
+  CS_MSOB: "snlt",
+  CS_MEO: "fnlt",
+  CS_MEOB: "fnlt",
+  CS_MEOA: "fnet",
+  CS_MANDFIN: "mfo",
+  CS_MANDSTART: "mso",
   CS_ALAP: "alap",
-  CS_MSOA: "snet", // "Start On or After"
+  CS_MSOA: "snet",
 };
 
 // activity type (task_type) → engine2 ActivityType
