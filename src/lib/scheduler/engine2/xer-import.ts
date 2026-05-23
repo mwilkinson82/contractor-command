@@ -401,18 +401,30 @@ export function importXerForEngine2(
     if (!handledTables.has(name)) otherTableNames.push(name);
   }
 
-  // -- Project header
-  const project = projectRows[0];
-  const projectName =
-    project?.["proj_short_name"]?.trim() ||
-    project?.["proj_name"]?.trim() ||
-    "Imported P6 schedule";
-  const projectStartDate = parseDateOnly(
-    project?.["plan_start_date"] || project?.["scd_end_date"],
-  );
-  const dataDate =
-    parseInstant(project?.["last_recalc_date"]) ??
-    parseInstant(project?.["plan_start_date"]);
+  // -- Project header(s) — Phase 1.9 multi-project support.
+  const projects: XerProject[] = [];
+  for (let i = 0; i < projectRows.length; i++) {
+    const r = projectRows[i];
+    const id =
+      r["proj_id"]?.trim() ||
+      r["proj_short_name"]?.trim() ||
+      `proj-${i + 1}`;
+    projects.push({
+      id,
+      shortName: (r["proj_short_name"] || r["proj_name"] || id).trim(),
+      name: (r["proj_name"] || r["proj_short_name"] || id).trim(),
+      planStartDate: parseDateOnly(r["plan_start_date"] || r["scd_end_date"]),
+      dataDate:
+        parseInstant(r["last_recalc_date"]) ??
+        parseInstant(r["plan_start_date"]),
+      raw: r,
+    });
+  }
+  const projectIdSet = new Set(projects.map((p) => p.id));
+  const primaryProject = projects[0];
+  const projectName = primaryProject?.name || "Imported P6 schedule";
+  const projectStartDate = primaryProject?.planStartDate;
+  const dataDate = primaryProject?.dataDate;
 
   // -- Calendars
   const calendars: XerCalendarRaw[] = [];
