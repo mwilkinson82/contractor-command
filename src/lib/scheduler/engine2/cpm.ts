@@ -821,7 +821,7 @@ export function calculateCpm(input: CpmInput): EngineResult {
     },
   };
 
-  return {
+  const baseResult: EngineResult = {
     dataDate: input.dataDate,
     activities: activityResults,
     relationships: relResults,
@@ -835,6 +835,21 @@ export function calculateCpm(input: CpmInput): EngineResult {
       optionsHash: `tol:${tolerance};fp:${fpCount}:${fpBasis}`,
     },
   };
+
+  // ---- Phase 1.6 — optional leveling pass ----
+  if (input.leveling?.enabled) {
+    baseResult.leveling = levelResources({
+      options: input.leveling,
+      cpm: baseResult,
+      activities,
+      calendars: input.calendars,
+      resources: input.resources ?? [],
+      assignments: input.assignments ?? [],
+      dataDate: input.dataDate,
+    });
+  }
+
+  return baseResult;
 }
 
 // ---------------------------------------------------------------------------
