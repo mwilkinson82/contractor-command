@@ -1023,7 +1023,7 @@ function SchedulerPage() {
                           result={computed!}
                           tasks={draft.tasks}
                           onTaskChange={updateTask}
-                          focusedTaskId={selectedTaskCalc.id}
+                          
                         />
                       </div>
                     ) : inspectorTab === "codes" ? (
