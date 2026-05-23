@@ -409,3 +409,75 @@
 }
 
 
+
+/* ============================================================
+   Scheduler print styles — P6-style clean output
+   Activated when <body> has class .printing-schedule
+   ============================================================ */
+@media print {
+  body.printing-schedule {
+    background: white !important;
+  }
+  /* Hide everything by default */
+  body.printing-schedule > *:not(.scheduler-print-root) {
+    display: none !important;
+  }
+  body.printing-schedule .scheduler-print-root {
+    display: block !important;
+    position: static !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: white !important;
+  }
+  /* Hide app chrome inside the scheduler */
+  body.printing-schedule .no-print,
+  body.printing-schedule header,
+  body.printing-schedule nav,
+  body.printing-schedule [role="dialog"],
+  body.printing-schedule [data-sonner-toaster] {
+    display: none !important;
+  }
+  /* Reveal scrollable regions fully */
+  body.printing-schedule .scheduler-print-root,
+  body.printing-schedule .scheduler-print-root * {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+  /* Show print-only title block */
+  body.printing-schedule .print-only {
+    display: block !important;
+  }
+  /* Convert flex split to natural flow for paginated output */
+  body.printing-schedule .scheduler-print-split {
+    display: block !important;
+  }
+  body.printing-schedule .scheduler-print-split > .scheduler-print-left {
+    width: 100% !important;
+    border-right: none !important;
+    page-break-after: always;
+  }
+  body.printing-schedule .scheduler-print-split > .scheduler-print-right {
+    width: 100% !important;
+  }
+  /* Keep table rows together where possible */
+  body.printing-schedule table { page-break-inside: auto; }
+  body.printing-schedule tr   { page-break-inside: avoid; page-break-after: auto; }
+  body.printing-schedule thead { display: table-header-group; }
+  /* Make SVG scale to page width */
+  body.printing-schedule svg {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+  /* Crisper monochrome-friendly colors */
+  body.printing-schedule * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  @page {
+    size: landscape;
+    margin: 0.4in;
+  }
+}
+
+/* Hidden in normal view; print CSS reveals it */
+.print-only { display: none; }
