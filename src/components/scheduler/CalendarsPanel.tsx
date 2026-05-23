@@ -23,6 +23,24 @@ function toggleBit(mask: number, bit: number): number {
   return mask ^ (1 << bit);
 }
 
+/** Approximate working days per year given weekly bitmask + holiday ISO list (current year). */
+function workingDaysPerYear(workDays: number, holidays: string[]): number {
+  const year = new Date().getFullYear();
+  let count = 0;
+  const holidaySet = new Set(holidays);
+  const d = new Date(year, 0, 1);
+  while (d.getFullYear() === year) {
+    // JS getDay: 0=Sun..6=Sat. Our mask: bit0=Mon..bit5=Sat,bit6=Sun.
+    const js = d.getDay();
+    const bit = js === 0 ? 6 : js - 1;
+    const iso = `${year}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (workDays & (1 << bit) && !holidaySet.has(iso)) count++;
+    d.setDate(d.getDate() + 1);
+  }
+  return count;
+}
+
+
 function pad(n: number) {
   return n.toString().padStart(2, "0");
 }
