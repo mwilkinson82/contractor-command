@@ -1833,3 +1833,110 @@ The comparison path is verified to:
 4. Add an internal debug route (gated by admin role) that runs the
    comparison harness against the active project and shows the
    formatted report — still invisible to normal users.
+
+---
+
+## 26. Phase 2.6 — comparison stability across realistic fixtures
+
+Phase 2.5 proved the comparison harness can run safely. Phase 2.6's job is
+to make the *reports it produces* boring, classified, and actionable across
+more than just the Commercial Fit-Out demo. The goal is to remove every
+"mystery" mismatch before engine2 is allowed anywhere near production.
+
+### What landed
+
+- **Fixture set.** `src/lib/scheduler/__tests__/fixtures/comparison-fixtures.ts`
+  ships eleven small, intent-tagged schedules — FS chain, parallel paths,
+  mixed FS/SS/FF, SNET constraint, in-progress, completed-only,
+  out-of-sequence, resource-loaded, leveling candidate, calendar
+  exception (holiday), 7-day calendar. The Commercial Fit-Out sample
+  remains the twelfth realistic case via the existing suite.
+- **Wider category vocabulary.** `ComparisonDifferenceCategory` gained
+  `leveling_behavior_difference`, `baseline_behavior_difference`,
+  `precision_rounding_difference`, `known_unsupported_behavior`, and
+  `missing_engine2_field`. The diagnostic categorizer routes
+  `leveling_*` / `overallocation_*` codes, `baseline_*` codes, and
+  rounding/precision codes into these buckets.
+- **Actionable rows.** Every `ComparisonDifference` now carries
+  `likelyCause` and `recommendedAction`. Defaults come from
+  `defaultActionableContext(category)`; callers may override.
+- **Top-differences slice.** Reports include a 10-row
+  `topDifferences` slice sorted investigate → known-engine-limitation →
+  expected-bridge-limitation so a developer sees the most important rows
+  first.
+- **Formatter upgrade.** `formatComparisonReport` now prints the top
+  differences with their classification, legacy/engine2 values, likely
+  cause, and recommended action.
+- **Bridge-error resilience.** `compareEnginesOnSchedule` now catches
+  bridge errors (e.g. missing `projectStartDate`) the same way it
+  catches engine2 errors — the report carries `engine2Error` and the
+  legacy result is still returned. Tests assert this against an
+  intentionally broken schedule.
+- **Exception-aware routing parity.** Every fixture is exercised under
+  both whole-day and exception-aware clocks. The exception path is
+  still opt-in (`VITE_SCHEDULER_ENGINE2_EXCEPTION_CLOCK` /
+  `useExceptionAwareCalendars`), still produces no date drift on
+  legacy-shaped calendars, and now leaves an explicit known-limitation
+  note on every report so future drift cannot go silent.
+
+### Verdict policy
+
+Until successor re-flow and actual-date bridging land, every date /
+float / critical-flag delta has a documented structural cause, so the
+default classification is `known-engine-limitation`, never
+`investigate`. Fixture tests therefore assert verdicts collapse to
+`clean | expected-differences`. The `investigate` lane is wired and
+tested via the ranking test, but is intentionally empty in practice.
+
+### Guardrails (Phase 2.6)
+
+The comparison path is verified to:
+
+- never mutate the input `Schedule` (snapshot test per fixture),
+- never alter legacy output (byte-for-byte test per fixture),
+- never block the user (bridge AND engine2 errors are swallowed into
+  the report),
+- never leak the dev report into the production UI (no UI surface,
+  flag defaulted off, sink is opt-in),
+- never make engine2 authoritative.
+
+### Regression posture
+
+- 144 scheduler tests green (109 prior + 35 new across the fixture
+  suite and the bridge-error / top-differences ranking tests).
+- Legacy engine untouched.
+- `getSchedulerEngine()` defaults to `"legacy"`.
+- `isEngine2ComparisonEnabled()` defaults to `false`.
+- `isEngine2ExceptionClockEnabled()` defaults to `false`.
+- Build / typecheck pass.
+- Engine2 version bumped to `0.13.0-phase2.6`.
+
+### Known limitations (Phase 2.6)
+
+- **No `investigate` verdicts yet.** Date deltas are honestly all
+  structural until actuals bridging lands; the verdict surface exists
+  but is exercised only by the ranking test.
+- **Baseline / leveling buckets are diagnostic-driven.** Until engine2
+  emits richer baseline/leveling diagnostics, those category counts
+  will frequently be zero. They exist so future signal lands in the
+  right bucket, not a generic one.
+- **Fixtures are deliberately small.** Real customer schedules are
+  larger and may surface new categories; when they do, add the
+  fixture, classify the delta, and update this section.
+- **No engine2 production path.** Flipping `getSchedulerEngine()` to
+  `"engine2"` still does not change rendered UI.
+
+### Phase 2.7 candidates
+
+1. Bridge legacy `percentComplete` to engine2 `actualStart` /
+   `actualFinish` (linear approximation against the data date) and
+   reclassify the resulting reduced date deltas.
+2. Add a "leveled-engine2 vs leveled-engine2" comparison axis once
+   successor re-flow is wired, so leveling-behavior diffs become
+   meaningful.
+3. Wire XER `clndr_data` shifts/exceptions into the bridge, then turn
+   `useExceptionAwareCalendars` on by default once the fixture suite
+   stays `clean | expected-differences`.
+4. Add an admin-gated internal debug route that runs the harness
+   against the active project and shows the formatted report — still
+   invisible to normal users.
