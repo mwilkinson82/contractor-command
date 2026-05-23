@@ -504,19 +504,16 @@ export function CpmGrid({
                 const w = Math.max((row.maxEF - row.minES) * dayPx, 2);
                 return (
                   <g key={`g-${row.key}`}>
-                    <rect x={0} y={y} width={timelineWidth} height={rowH} fill="#ede5d2" />
-                    <line x1={0} x2={timelineWidth} y1={y} y2={y} stroke="#d8cdb8" strokeWidth={1} />
-                    <line x1={0} x2={timelineWidth} y1={y + rowH} y2={y + rowH} stroke="#d8cdb8" strokeWidth={1} />
-                    {/* summary bracket */}
-                    <path
-                      d={`M ${x} ${y + rowH / 2 + 5} L ${x} ${y + rowH / 2 - 3} L ${x + w} ${
-                        y + rowH / 2 - 3
-                      } L ${x + w} ${y + rowH / 2 + 5} M ${x} ${y + rowH / 2 - 3} L ${x + w} ${
-                        y + rowH / 2 - 3
-                      }`}
-                      stroke={row.anyCritical ? "#9c2418" : "#3d3527"}
-                      strokeWidth={2}
-                      fill="none"
+                    <rect x={0} y={y} width={timelineWidth} height={rowH} fill="#f5efe0" />
+                    <line x1={0} x2={timelineWidth} y1={y + rowH} y2={y + rowH} stroke="#e8dfc8" strokeWidth={1} />
+                    {/* slim summary span — quiet, no heavy brackets */}
+                    <rect
+                      x={x}
+                      y={y + rowH / 2 - 1}
+                      width={w}
+                      height={2}
+                      fill={row.anyCritical ? "#9c2418" : "#5c574e"}
+                      opacity={0.55}
                     />
                   </g>
                 );
