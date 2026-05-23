@@ -647,8 +647,10 @@ export function compareEnginesOnSchedule(
       counts.constraint_behavior_difference +
       counts.progress_behavior_difference,
     differences,
+    topDifferences: rankTopDifferences(differences, 10),
     countsByCategory: counts,
     countsByClassification: classCounts,
+
     verdict: deriveVerdict(classCounts, differences.length),
     knownLimitations,
     engine2DiagnosticsCount: engine2.diagnostics?.length ?? 0,
