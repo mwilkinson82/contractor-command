@@ -942,9 +942,9 @@ function SchedulerPage() {
                 ) : null}
 
                 {/* Project meta strip — compact single-line pill row */}
-                <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[#eee7d8] bg-white/70 px-4 py-1.5 text-[11px] text-[#5c574e]">
+                <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[#eee7d8] bg-white px-4 py-1 text-[11px] text-[#5c574e]">
                   <label className="inline-flex items-center gap-1.5">
-                    <span className="text-[10px] uppercase tracking-wide text-[#9c8b6e]">Start</span>
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-[#9c8b6e]">Start</span>
                     <input
                       type="date"
                       className="h-6 rounded border border-[#e6dfd0] bg-white px-1.5 text-[11px] tabular-nums"
@@ -956,7 +956,7 @@ function SchedulerPage() {
                     />
                   </label>
                   <label className="inline-flex items-center gap-1.5">
-                    <span className="text-[10px] uppercase tracking-wide text-[#9c8b6e]">Data date</span>
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-[#9c8b6e]">Data date</span>
                     <input
                       type="date"
                       className="h-6 rounded border border-[#e6dfd0] bg-white px-1.5 text-[11px] tabular-nums"
@@ -967,18 +967,6 @@ function SchedulerPage() {
                       }}
                     />
                   </label>
-                  {computed?.projectFinishDate ? (
-                    <span className="inline-flex items-center gap-1">
-                      <span className="text-[10px] uppercase tracking-wide text-[#9c8b6e]">Finish</span>
-                      <span className="font-medium text-[#1f241f] tabular-nums">{computed.projectFinishDate}</span>
-                    </span>
-                  ) : null}
-                  {computed ? (
-                    <span className="inline-flex items-center gap-1">
-                      <span className="text-[10px] uppercase tracking-wide text-[#9c8b6e]">Duration</span>
-                      <span className="font-medium text-[#1f241f] tabular-nums">{computed.projectDuration}d</span>
-                    </span>
-                  ) : null}
                   <button
                     type="button"
                     disabled={!draft.dataDate}
@@ -1003,7 +991,7 @@ function SchedulerPage() {
                     }}
                     className="ml-auto rounded border border-[#e6dfd0] bg-white px-2 py-0.5 text-[10px] uppercase tracking-wide text-[#3d3527] hover:bg-[#faf8f3] disabled:opacity-40"
                   >
-                    Reschedule
+                    Reschedule from data date
                   </button>
                 </div>
 
