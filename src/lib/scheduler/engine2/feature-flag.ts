@@ -50,3 +50,29 @@ export function getSchedulerEngine(): SchedulerEngineChoice {
 /** Convenience for tests / dev. Returns the constant identifier, never throws. */
 export const SCHEDULER_ENGINE_LEGACY: SchedulerEngineChoice = "legacy";
 export const SCHEDULER_ENGINE_ENGINE2: SchedulerEngineChoice = "engine2";
+
+/**
+ * Phase 2.4 — internal-only side-by-side comparison flag.
+ *
+ * When enabled, callers that opt in (e.g. `calculateScheduleWithEngine2Comparison`)
+ * will additionally run engine2 against the same inputs and attach a
+ * `ComparisonReport`. Legacy output is NEVER overwritten by this flag.
+ *
+ * Resolution order:
+ *   1. `import.meta.env.VITE_SCHEDULER_ENGINE2_COMPARE` truthy.
+ *   2. `process.env.SCHEDULER_ENGINE2_COMPARE` truthy.
+ *   3. Default: off.
+ */
+export function isEngine2ComparisonEnabled(): boolean {
+  const vals = [
+    readEnv("VITE_SCHEDULER_ENGINE2_COMPARE"),
+    readEnv("SCHEDULER_ENGINE2_COMPARE"),
+  ];
+  for (const v of vals) {
+    if (v && v !== "0" && v.toLowerCase() !== "false" && v.toLowerCase() !== "off") {
+      return true;
+    }
+  }
+  return false;
+}
+
