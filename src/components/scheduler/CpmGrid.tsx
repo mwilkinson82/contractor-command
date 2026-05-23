@@ -812,8 +812,8 @@ export function CpmGrid({
                         ? "url(#cpm-arrow-crit)"
                         : "url(#cpm-arrow-drv)"
                       : "url(#cpm-arrow-soft)";
-                    const opacity = onChain ? 1 : d.isDriving ? 0.85 : 0.4;
-                    const sw = onChain ? 1.6 : d.isDriving ? 1.1 : 0.8;
+                    const opacity = onChain ? 1 : d.isDriving ? (bothCrit ? 0.75 : 0.55) : 0.22;
+                    const sw = onChain ? 1.4 : d.isDriving ? 0.9 : 0.7;
                     return (
                       <path
                         key={`dep-${d.id ?? di}`}
