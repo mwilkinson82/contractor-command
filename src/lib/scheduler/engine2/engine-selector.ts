@@ -413,6 +413,9 @@ function makeProvenance(input: {
   comparisonVerdict?: ComparisonVerdict;
   diagnosticsCount?: number;
   readiness: PromotionReadiness;
+  eligibility: ScheduleEligibility;
+  gateDecision: string;
+  warnings: string[];
   selectedAt: string;
 }): EngineSelectionProvenance {
   return {
@@ -426,7 +429,14 @@ function makeProvenance(input: {
     comparisonVerdict: input.comparisonVerdict,
     readinessReady: input.readiness.ready,
     readinessBlockers: [...input.readiness.blockers],
+    scheduleEligible: input.eligibility.eligible,
+    eligibilityBlockers: [...input.eligibility.blockers],
+    eligibilityWarnings: [...input.eligibility.warnings],
+    gateDecision: input.gateDecision,
     diagnosticsCount: input.diagnosticsCount ?? 0,
+    warnings: [...input.warnings],
+    // Phase 3.1 — legacy still produces the public `result` in every mode.
+    legacyAuthoritative: true,
     selectedAt: input.selectedAt,
   };
 }
@@ -438,14 +448,26 @@ export function formatProvenance(p: EngineSelectionProvenance): string {
     "=".repeat(40),
     `requested=${p.requestedMode} effective=${p.effectiveMode} engineUsed=${p.engineUsed}`,
     `legacy=${p.legacyEngineVersion} engine2=${p.engine2Version}`,
+    `legacyAuthoritative=${p.legacyAuthoritative}`,
+    `gate: ${p.gateDecision}`,
     `fallback=${p.fallbackUsed}${p.fallbackReason ? ` (${p.fallbackReason})` : ""}`,
     `verdict=${p.comparisonVerdict ?? "—"} diagnostics=${p.diagnosticsCount}`,
-    `readinessReady=${p.readinessReady}`,
+    `readinessReady=${p.readinessReady} scheduleEligible=${p.scheduleEligible}`,
   ];
   if (p.readinessBlockers.length > 0) {
-    lines.push("blockers:");
+    lines.push("readiness blockers:");
     for (const b of p.readinessBlockers) lines.push(`  - ${b}`);
+  }
+  if (p.eligibilityBlockers.length > 0) {
+    lines.push("eligibility blockers:");
+    for (const b of p.eligibilityBlockers) lines.push(`  - ${b}`);
+  }
+  if (p.eligibilityWarnings.length > 0) {
+    lines.push("eligibility warnings:");
+    for (const w of p.eligibilityWarnings) lines.push(`  - ${w}`);
   }
   lines.push(`selectedAt=${p.selectedAt}`);
   return lines.join("\n");
+}
+
 }
