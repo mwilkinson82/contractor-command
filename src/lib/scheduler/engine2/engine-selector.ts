@@ -156,8 +156,18 @@ export interface EngineSelectionProvenance {
   /** Promotion-readiness snapshot used by this selection. */
   readinessReady: boolean;
   readinessBlockers: string[];
+  /** Phase 3.1 — per-schedule eligibility result. */
+  scheduleEligible: boolean;
+  eligibilityBlockers: string[];
+  eligibilityWarnings: string[];
+  /** Single-string summary of every gate decision (boring-bar + eligibility). */
+  gateDecision: string;
   /** engine2 diagnostics count when a comparison was run; otherwise 0. */
   diagnosticsCount: number;
+  /** Non-fatal warnings the selector wants to surface to the dev drawer. */
+  warnings: string[];
+  /** True when the authoritative `result` came from legacy (always true today). */
+  legacyAuthoritative: boolean;
   /** ISO timestamp of the selection (for evidence trails). */
   selectedAt: string;
 }
