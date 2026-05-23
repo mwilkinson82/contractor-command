@@ -418,10 +418,6 @@ export function compareEnginesOnSchedule(
   const legacy = calculateSchedule(schedule);
   const legacyMs = Date.now() - t0Legacy;
 
-  const bridge = bridgeLegacyScheduleToEngine2(schedule, {
-    useExceptionAwareCalendars: options.useExceptionAwareCalendars,
-  });
-
   let engine2: EngineResult;
   let engine2Ms = 0;
   let engine2Error: string | undefined;
@@ -436,24 +432,20 @@ export function compareEnginesOnSchedule(
     engine2Ms = Date.now() - t0Engine2;
   } catch (err) {
     engine2Error = err instanceof Error ? err.message : String(err);
-    // Return a minimal empty engine2 result so the report stays well-typed.
     engine2 = {
       activities: [],
       relationships: [],
       diagnostics: [],
       projectFinish: 0,
-      runRecord: {
-        engineVersion: "engine2-error",
-        durationMs: 0,
-      },
+      runRecord: { engineVersion: "engine2-error", durationMs: 0 },
     } as unknown as EngineResult;
   }
-
 
   const differences: ComparisonDifference[] = [];
   const counts = emptyCounts();
   const classCounts = emptyClassCounts();
-  const knownLimitations: string[] = [...bridge.conversionNotes];
+  const knownLimitations: string[] = [...bridgeNotes];
+
 
   const legacyById = new Map(legacy.tasks.map((t) => [t.id, t]));
   const engine2ById = new Map(engine2.activities.map((a) => [a.id, a]));
