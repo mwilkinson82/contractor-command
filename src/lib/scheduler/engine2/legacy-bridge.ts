@@ -13,13 +13,13 @@
  */
 
 import type { Schedule } from "../types";
+import type { CpmInput } from "./cpm";
 import type {
-  CpmInput,
   EngineActivity,
   EngineRelationship,
   Instant,
 } from "./types";
-import { createWholeDayWorkClock, MS_PER_MIN, type WorkClock } from "./work-clock";
+import { createWholeDayWorkClock, type WorkClock } from "./work-clock";
 
 /** Convert legacy workDays bitmask (bit0=Mon..bit5=Sat,bit6=Sun) to engine2 bitmask (bit0=Sun..bit6=Sat). */
 function convertWorkDaysMask(legacyMask: number): number {
