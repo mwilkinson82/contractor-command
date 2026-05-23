@@ -887,9 +887,14 @@ function SchedulerPage() {
                                       </div>
                                     </td>
                                     <td className="px-2 py-1.5">
-                                      <span className="text-[12px] text-[#1f241f]">
-                                        {t.name}
-                                      </span>
+                                      <InlineText
+                                        value={t.name}
+                                        onCommit={(next) =>
+                                          updateTask(idx, { name: next })
+                                        }
+                                        className="text-[12px] text-[#1f241f]"
+                                        placeholder="Untitled activity"
+                                      />
                                     </td>
                                     <td className="px-2 py-1.5 text-right text-[11px] text-[#5c574e]">
                                       {formatShort(calc?.earlyStartDate)}
@@ -898,7 +903,15 @@ function SchedulerPage() {
                                       {formatShort(calc?.earlyFinishDate)}
                                     </td>
                                     <td className="px-2 py-1.5 text-right text-[11px] font-medium text-[#3d3527]">
-                                      {pct}%
+                                      <InlineNumber
+                                        value={pct}
+                                        min={0}
+                                        max={100}
+                                        suffix="%"
+                                        onCommit={(next) =>
+                                          updateTask(idx, { percentComplete: next })
+                                        }
+                                      />
                                     </td>
                                     <td className="px-1 py-1.5 text-right">
                                       <button
