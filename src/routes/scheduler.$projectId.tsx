@@ -1228,6 +1228,12 @@ function SchedulerPage() {
                       <LegendDot color="#9b87d3" label="Planned" />
                       <LegendDot color="#cfd9e8" label="Lookahead" />
                       <LegendDot color="#b42318" label="Critical" />
+                      {nearCriticalFloat > 0 ? (
+                        <LegendDot
+                          color="#d97706"
+                          label={`Near-critical (≤${nearCriticalFloat}d)`}
+                        />
+                      ) : null}
                       <span className="inline-flex items-center gap-1">
                         <span className="inline-block h-2 w-2 rotate-45 bg-[#1f241f]" /> Milestone
                       </span>
