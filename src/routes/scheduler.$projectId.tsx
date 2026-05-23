@@ -824,7 +824,7 @@ function SchedulerPage() {
                                   key={`g-${key}`}
                                   className="border-t border-[#eee7d8] bg-[#faf8f3]"
                                 >
-                                  <td colSpan={6} className="px-2 py-1.5">
+                                  <td colSpan={7} className="px-2 py-1.5">
                                     <button
                                       type="button"
                                       onClick={() => toggleGroup(key)}
