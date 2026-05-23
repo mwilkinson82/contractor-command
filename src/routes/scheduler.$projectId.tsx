@@ -671,6 +671,55 @@ function SchedulerPage() {
               </select>
             ) : null}
 
+            {(() => {
+              const resources = Array.from(
+                new Set(
+                  (draft?.tasks ?? [])
+                    .map((t) => t.resourceName?.trim())
+                    .filter((r): r is string => !!r),
+                ),
+              ).sort();
+              if (resources.length === 0) return null;
+              return (
+                <select
+                  value={resourceFilter}
+                  onChange={(e) => setResourceFilter(e.target.value)}
+                  className="h-7 rounded-md border border-[#e6dfd0] bg-white px-2 text-xs text-[#3d3527] hover:bg-[#faf8f3]"
+                  title="Filter by resource"
+                >
+                  <option value="">◇ Resource (All)</option>
+                  <option value="__none">Unassigned</option>
+                  {resources.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              );
+            })()}
+
+            {structure && structure.codeTypes.length > 0 ? (
+              <select
+                value={codeFilter}
+                onChange={(e) => setCodeFilter(e.target.value)}
+                className="h-7 rounded-md border border-[#e6dfd0] bg-white px-2 text-xs text-[#3d3527] hover:bg-[#faf8f3]"
+                title="Filter by activity code"
+              >
+                <option value="">◊ Code (All)</option>
+                {structure.codeTypes.map((t) => (
+                  <optgroup key={t.id} label={t.name}>
+                    {t.values.map((v) => (
+                      <option key={v.id} value={`${t.id}:${v.id}`}>
+                        {t.name}: {v.code}
+                        {v.description ? ` · ${v.description}` : ""}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            ) : null}
+
+
             <div className="flex items-center rounded-md border border-[#e6dfd0] bg-white">
               {(["wbs", "critical", "none"] as const).map((g, i) => (
                 <button
