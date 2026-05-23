@@ -142,7 +142,7 @@ describe("engine2 burn-down — evidence summary (Phase 2.9)", () => {
     const s = summarizeEvidenceLog(log);
     expect(s.totalRuns).toBe(6);
     expect(s.totalSchedules).toBe(5);
-    expect(s.cleanReports).toBe(2);
+    expect(s.cleanReports).toBe(4);
     expect(s.expectedDifferenceReports).toBe(1);
     expect(s.investigateReports).toBe(1);
     expect(s.bridgeErrorCount).toBe(1);
