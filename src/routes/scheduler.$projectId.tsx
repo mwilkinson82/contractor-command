@@ -899,12 +899,13 @@ function SchedulerPage() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => setZoomUserSet(false)}
+                  onClick={() => { setZoomUserSet(false); fitToContainer(); }}
                   className="rounded border border-[#e6dfd0] px-1.5 py-0.5 text-[10px] text-[#5c574e] hover:bg-[#faf8f3]"
                   title="Fit project to viewport"
                 >
                   Fit
                 </button>
+
                 {ZOOM_LEVELS.map((z) => (
                   <button
                     key={z.label}
