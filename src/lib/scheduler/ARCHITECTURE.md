@@ -1088,3 +1088,92 @@ unchanged.
    delete-unreferenced toggles.
 3. Begin surfacing multi-project structure + reconciliation report in
    a developer-only diagnostic view (still behind the legacy flag).
+
+---
+
+## §20 — Phase 2.0: XER import action semantics
+
+Status: **shipped** at
+`ENGINE2_XER_IMPORT_ACTIONS_VERSION = "0.10.0-phase2.0"`. Legacy engine
+untouched. Feature flag remains defaulted to legacy. UI unchanged.
+
+### Scope delivered
+
+1. **Action model.** New module `engine2/xer-import-actions.ts` exposes
+   four explicit `XerImportAction` values: `create-new-project`,
+   `update-existing-project`, `replace-existing-project`,
+   `add-into-existing-project`.
+2. **Identity model.**
+   - Activities matched by `EngineActivity.id` (XER `task_code`,
+     de-duplicated by importer) scoped via
+     `XerEngine2ImportResult.activityProjectIds[projectId]`.
+   - Relationships matched by `${from}|${to}|${type}` tuple.
+   - Assignments matched by `ResourceAssignment.id` (XER `taskrsrc_id`).
+3. **Update Existing.** Matches by identity, updates changed fields,
+   preserves untouched records unless delete-unreferenced is enabled
+   per category. Emits per-record `update / create / preserve / delete`
+   entries.
+4. **Replace Existing.** Removes the entire prior scope for the target
+   project (activities, relationships, assignments, interproject and
+   external records) and rebuilds from the incoming XER. No orphan
+   `activityProjectIds` mappings remain.
+5. **Add Into Existing.** Merges new activities/relationships/assignments
+   into the existing project. Detects collisions and emits diagnostics:
+   `activity_id_collision`, `assignment_id_collision`,
+   `relationship_endpoint_missing`. Existing record wins; incoming is
+   preserved-only.
+6. **Delete-unreferenced options.** Supported per category for
+   `activities`, `relationships`, `assignments`. Unsupported categories
+   (`calendars`, `resources`, `roles`) are honored as a request but
+   surface `delete_unreferenced_category_unsupported` (warn) rather
+   than being silently ignored. Activity deletion cascades to drop
+   orphan relationships and assignments whose endpoints are gone.
+7. **Plan / dry-run.** `planImportAction` returns an `ImportPlan` with
+   per-record entries, `summary { create/update/delete/preserve/
+   warnings/errors }`, `criticalErrors`, `unsupportedPreservedOnly`,
+   and a `transactional: boolean` flag.
+8. **Transactional safety.** `applyImportAction` clones the existing
+   state, performs the merge in memory, and either returns the new
+   state or — if `plan.criticalErrors.length > 0` — returns the
+   original `existing` reference untouched plus an
+   `import_action_aborted` (error) diagnostic. The dry-run plan never
+   mutates input.
+9. **Critical-error codes.** `import_collision_project_id` (create
+   into existing id), `import_target_project_missing` (update/replace/
+   add-into without a matching existing project),
+   `import_target_project_missing_in_incoming` (incoming XER lacks the
+   chosen project).
+10. **Acceptance tests.** XER-20 promoted to active. New unit suite
+    `xer-import-actions.spec.ts` (11 tests) exercises every action,
+    delete-unreferenced for all three supported categories, the
+    unsupported-category diagnostic path, collision diagnostics, and
+    plan/apply transactional safety.
+
+### Honest limitations (still deferred)
+
+- Delete-unreferenced for calendars/resources/roles is **not**
+  implemented; the option is preserved and a warn diagnostic is
+  emitted so callers know it was honored as a request only.
+- Add-into across mismatched source/target project ids merges from the
+  first incoming project; multi-project add-into is not addressed.
+- No UI wiring yet. Action selection, dry-run preview, and confirm/abort
+  controls are intentionally out of scope for this pass — the engine
+  must be able to say "we understand how an XER import should modify
+  an existing project graph" before users see toggles.
+- Persistence transactionality: `applyImportAction` is in-memory only,
+  so `plan.transactional` is always true. When this is wired to durable
+  storage, that layer must either honor the same in-memory snapshot
+  pattern or set `transactional: false` and emit a
+  `partial_commit_risk` diagnostic.
+- XER export still out of scope.
+
+### Phase 2.1 entry criteria
+
+1. External activity date injection (still pending from Phase 1.10
+   carry-over).
+2. Wire `planImportAction` + `applyImportAction` into a developer-only
+   diagnostic view (still behind the legacy flag) so reviewers can see
+   the dry-run plan before any future UI exposure.
+3. Begin XER export scaffolding now that the engine can faithfully
+   round-trip identity through the action layer.
+
