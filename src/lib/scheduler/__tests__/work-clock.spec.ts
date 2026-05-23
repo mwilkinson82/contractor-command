@@ -32,12 +32,14 @@ function basicClock() {
 }
 
 describe("WorkClock — whole-day", () => {
-  it("isWorking: true at 09:00 Monday, false on Saturday, false on holiday", () => {
+  it("isWorking: true inside the 8h window on Mon, false on Sat, false on holiday Tue", () => {
     const c = basicClock();
-    expect(c.isWorking(MON_2025_01_06 + 9 * 60 * MS_PER_MIN)).toBe(true);
-    expect(c.isWorking(SAT_2025_01_11 + 9 * 60 * MS_PER_MIN)).toBe(false);
-    expect(c.isWorking(TUE_2025_01_07 + 9 * 60 * MS_PER_MIN)).toBe(false); // holiday
+    // Window is [00:00, 08:00) UTC on a workday.
+    expect(c.isWorking(MON_2025_01_06 + 3 * 60 * MS_PER_MIN)).toBe(true);
+    expect(c.isWorking(SAT_2025_01_11 + 3 * 60 * MS_PER_MIN)).toBe(false);
+    expect(c.isWorking(TUE_2025_01_07 + 3 * 60 * MS_PER_MIN)).toBe(false); // holiday
   });
+
 
   it("isWorking: false outside the 8h window on a workday", () => {
     const c = basicClock();
@@ -89,15 +91,15 @@ describe("WorkClock — whole-day", () => {
     expect(out).toBe(MON_2025_01_13 + 30 * MS_PER_MIN);
   });
 
-  it("addWork: 8h * 5 = one work week → next Monday start", () => {
+  it("addWork: 8h * 5 = one work week, skipping a holiday in the middle", () => {
     const c = basicClock();
-    // Start Mon 00:00, add 5 full workdays' worth of minutes.
-    // Skips holiday Tuesday so we cross a 6th calendar day.
+    // Start Mon 2025-01-06 00:00, add 5 full workdays of minutes.
+    // Days consumed: Mon-06, Wed-08 (Tue is holiday), Thu-09, Fri-10, Mon-13.
+    // Last minute consumed is the 480th of Mon-13 → end at Mon-13 08:00.
     const out = c.addWork(MON_2025_01_06, 5 * 8 * 60);
-    // 5 workdays from Mon (skipping Tue holiday): Mon, Wed, Thu, Fri, Mon-13 → end of Mon-13 window
-    // Result: start of next workday after consuming Mon-13's window = Tue 2025-01-14 00:00
-    expect(out).toBe(Date.UTC(2025, 0, 14));
+    expect(out).toBe(Date.UTC(2025, 0, 13, 8, 0));
   });
+
 
   it("addWork: negative minutes walks backward across a weekend", () => {
     const c = basicClock();
