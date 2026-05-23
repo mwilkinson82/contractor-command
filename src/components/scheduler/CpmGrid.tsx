@@ -1014,3 +1014,30 @@ export function CpmGrid({
     </div>
   );
 }
+
+function HC({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "good" | "bad" | "warn";
+}) {
+  const toneClass =
+    tone === "good"
+      ? "text-[#2f7a3e]"
+      : tone === "bad"
+        ? "text-[#b42318]"
+        : tone === "warn"
+          ? "text-[#a35d10]"
+          : "text-[#1f241f]";
+  return (
+    <div>
+      <div className="text-[9px] font-semibold uppercase tracking-wider text-[#9c8b6e]">
+        {label}
+      </div>
+      <div className={`text-[12px] font-semibold tabular-nums ${toneClass}`}>{value}</div>
+    </div>
+  );
+}
