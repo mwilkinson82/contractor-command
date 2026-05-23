@@ -94,6 +94,32 @@ function SchedulerPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [dirty, setDirty] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const leftScrollRef = useRef<HTMLDivElement | null>(null);
+  const rightScrollRef = useRef<HTMLDivElement | null>(null);
+  const syncingRef = useRef<"left" | "right" | null>(null);
+  useEffect(() => {
+    const left = leftScrollRef.current;
+    const right = rightScrollRef.current;
+    if (!left || !right) return;
+    const onLeft = () => {
+      if (syncingRef.current === "right") return;
+      syncingRef.current = "left";
+      right.scrollTop = left.scrollTop;
+      requestAnimationFrame(() => { syncingRef.current = null; });
+    };
+    const onRight = () => {
+      if (syncingRef.current === "left") return;
+      syncingRef.current = "right";
+      left.scrollTop = right.scrollTop;
+      requestAnimationFrame(() => { syncingRef.current = null; });
+    };
+    left.addEventListener("scroll", onLeft, { passive: true });
+    right.addEventListener("scroll", onRight, { passive: true });
+    return () => {
+      left.removeEventListener("scroll", onLeft);
+      right.removeEventListener("scroll", onRight);
+    };
+  }, []);
   const [dayPx, setDayPx] = useState(22);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [groupBy, setGroupBy] = useState<"wbs" | "critical" | "none">("wbs");
