@@ -189,13 +189,20 @@ function SchedulerPage() {
         name: draft.name,
         projectStartDate: draft.projectStartDate,
         calendar: { workDays: draft.workDays, holidays: draft.holidays },
+        calendars: calendars.map((c) => ({
+          id: c.id,
+          name: c.name,
+          isDefault: c.isDefault,
+          workDays: c.workDays,
+          holidays: c.holidays,
+        })),
         tasks: draft.tasks,
         dependencies: draft.dependencies,
       });
     } catch (e) {
       return { error: (e as Error).message } as const;
     }
-  }, [draft, selectedId]);
+  }, [draft, selectedId, calendars]);
 
   const computed = result && "tasks" in result ? result : null;
   const computeError = result && "error" in result ? result.error : null;
@@ -928,8 +935,8 @@ function SchedulerPage() {
                                 </SelectContent>
                               </Select>
                               <p className="mt-1 text-[10px] text-[#776e5e]">
-                                Per-activity calendar is captured for reporting today; full
-                                per-activity math is on the roadmap.
+                                Duration is walked in this activity's calendar. Lag stays in
+                                project-default working days.
                               </p>
                             </div>
                             <div>

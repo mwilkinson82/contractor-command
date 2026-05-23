@@ -233,8 +233,8 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
       ) : null}
 
       <p className="mt-3 text-[10px] leading-snug text-[#776e5e]">
-        The default calendar drives forward/back-pass math. Per-activity calendar assignments are
-        captured for reporting today; full per-activity calendar math is on the roadmap.
+        The default calendar drives lag math and any activity without a per-activity calendar.
+        Activity-level calendars drive each activity's own duration walk.
       </p>
     </section>
   );
