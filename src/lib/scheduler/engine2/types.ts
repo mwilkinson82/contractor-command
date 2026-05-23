@@ -417,12 +417,17 @@ export interface LevelingOptions {
    */
   selectedResourceIds?: string[];
   /**
-   * If true, an activity is never delayed past its CPM `lateStart` (i.e.
-   * the leveler refuses to consume float beyond zero). Phase 1.6: DEFERRED —
-   * the leveler logs a `leveling_preserve_dates_deferred` warning and
-   * proceeds as if `false`. See ARCHITECTURE.md §16.
+   * If true, leveling will not delay an activity past its CPM `lateStart`
+   * (i.e. the leveler may consume float but not push beyond zero float).
+   * Phase 2.3: ENFORCED. Activities that cannot be resolved without
+   * exceeding their late-start window are left at their late-start (or
+   * CPM early-start if they had no float) and the resulting
+   * overallocation is reported via `overallocationsAfter` and per-day
+   * `leveling_overallocation_unresolved` diagnostics. See
+   * ARCHITECTURE.md §23.
    */
   preserveScheduledEarlyAndLateDates?: boolean;
+
   /**
    * Hard cap on how many workdays a single activity may be delayed.
    * Default 365. Prevents runaway loops on infeasible inputs.
