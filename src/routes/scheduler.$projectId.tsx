@@ -179,6 +179,7 @@ function SchedulerPage() {
     setComparisonBaselineId(null);
     setDraft(null);
     setDirty(false);
+    setZoomUserSet(false);
   }, [selectedId]);
 
   const toggleGroup = (key: string) => {
