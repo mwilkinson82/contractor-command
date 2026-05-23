@@ -751,6 +751,27 @@ function SchedulerPage() {
               {showCompleted ? "All activities" : "Remaining only"}
             </button>
 
+            <label
+              className="flex items-center gap-1.5 rounded-md border border-[#e6dfd0] bg-white px-2 py-0.5 text-[11px] text-[#5c574e]"
+              title="Activities with total float at or below this many working days are highlighted as near-critical."
+            >
+              <span className="inline-block h-2 w-2 rounded-sm bg-[#d97706]" />
+              <span className="uppercase tracking-wide text-[10px] text-[#7a6a4d]">Near-crit ≤</span>
+              <input
+                type="number"
+                min={0}
+                max={99}
+                step={1}
+                value={nearCriticalFloat}
+                onChange={(e) =>
+                  setNearCriticalFloat(Math.max(0, Math.min(99, Number(e.target.value) || 0)))
+                }
+                className="h-5 w-10 rounded border border-[#e6dfd0] bg-white px-1 text-right text-[11px] tabular-nums"
+              />
+              <span className="text-[10px] text-[#9c8b6e]">d</span>
+            </label>
+
+
             <button
               type="button"
               onClick={() => {
