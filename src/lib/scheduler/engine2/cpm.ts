@@ -602,6 +602,13 @@ function pushConstraintNote(
   });
 }
 
+function clampPct(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  if (n < 0) return 0;
+  if (n > 100) return 100;
+  return n;
+}
+
 function applyLagForward(
   ref: Instant,
   lagMin: number,
