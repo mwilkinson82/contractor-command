@@ -478,6 +478,24 @@ function SchedulerPage() {
           </button>
           <button
             type="button"
+            onClick={() => {
+              document.body.classList.add("printing-schedule");
+              const cleanup = () => {
+                document.body.classList.remove("printing-schedule");
+                window.removeEventListener("afterprint", cleanup);
+              };
+              window.addEventListener("afterprint", cleanup);
+              // Give the layout a tick to apply print styles before opening the dialog
+              setTimeout(() => window.print(), 50);
+            }}
+            disabled={!draft || !computed}
+            className="rounded-md border border-[#e6dfd0] bg-white px-2.5 py-1.5 text-xs font-medium text-[#3d3527] hover:bg-[#faf8f3] disabled:opacity-50"
+            title="Print / Save as PDF (P6-style layout)"
+          >
+            ⎙ Print
+          </button>
+          <button
+            type="button"
             onClick={() => setDrawerOpen(true)}
             className="rounded-md border border-[#e6dfd0] bg-white px-2.5 py-1.5 text-xs font-medium text-[#3d3527] hover:bg-[#faf8f3]"
             title="Calendars, baselines, codes, reports, fragnet, update cycle, annotations"
