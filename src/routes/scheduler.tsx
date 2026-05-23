@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useMemo, useState } from "react";
-import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient, useQueries } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -56,6 +56,7 @@ function ProjectsHome() {
 
 function ProjectsIndex() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const listFn = useServerFn(listProjects);
   const createFn = useServerFn(createProject);
   const loadFn = useServerFn(loadSchedule);
@@ -80,12 +81,13 @@ function ProjectsIndex() {
           projectStartDate: start || null,
         },
       }),
-    onSuccess: () => {
+    onSuccess: (data) => {
       setName("");
       setClient("");
       setStart("");
       toast.success("Project created");
       qc.invalidateQueries({ queryKey: ["projects"] });
+      navigate({ to: "/scheduler/$projectId", params: { projectId: data.id } });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -373,8 +375,11 @@ function ProjectsIndex() {
                           <Mini label="Data date" value={p.dataDate ?? "—"} />
                         </div>
 
-                        <div className="mt-3 text-[10px] uppercase tracking-wide text-[#9b9075]">
-                          Updated {new Date(p.updatedAt).toLocaleDateString()}
+                        <div className="mt-3 flex items-center justify-between gap-3 text-[10px] uppercase tracking-wide text-[#9b9075]">
+                          <span>Updated {new Date(p.updatedAt).toLocaleDateString()}</span>
+                          <span className="font-semibold text-[#1f241f] group-hover:underline">
+                            Open CPM workbench →
+                          </span>
                         </div>
                       </Link>
                     </li>
