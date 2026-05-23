@@ -253,6 +253,16 @@ export function levelResources(input: LevelingInput): LevelingAnalysis {
       : { ok: false, resourceIds: [...offenders] };
   }
 
+  // Phase 2.3 — per-activity preserve-dates outcome.
+  const preserveOutcome = new Map<
+    string,
+    {
+      outcome: "blocked" | "limited" | "satisfied" | "n/a";
+      attemptedStart: Instant;
+      attemptedFinish: Instant;
+    }
+  >();
+
   for (const a of eligible) {
     const cpmRes = cpmById.get(a.id);
     if (!cpmRes) continue;
@@ -284,7 +294,28 @@ export function levelResources(input: LevelingInput): LevelingAnalysis {
       continue;
     }
 
+    // Phase 2.3 — preserve-dates window for this activity.
+    const lateStart = cpmRes.lateStart;
+    if (preserveDates) {
+      if (lateStart < cpmRes.earlyStart) {
+        warnings.push({
+          severity: "warn",
+          code: "leveling_activity_outside_preserved_window",
+          message: `Activity "${a.id}" has negative float (lateStart < earlyStart); preserve-dates cannot guarantee a feasible window.`,
+          activityId: a.id,
+        });
+      } else if (lateStart === cpmRes.earlyStart) {
+        warnings.push({
+          severity: "info",
+          code: "leveling_preserve_dates_window_missing",
+          message: `Activity "${a.id}" has zero float; preserve-dates allows no delay.`,
+          activityId: a.id,
+        });
+      }
+    }
+
     let demand = initialDemand;
+    let limitedByLateDate = false;
     while (delaySteps <= maxDelayWorkdays) {
       const fit = placementFits(demand);
       if (fit.ok) break;
@@ -292,13 +323,51 @@ export function levelResources(input: LevelingInput): LevelingAnalysis {
       // Push by one workday: jump start to the day AFTER current start's workday.
       const ds = Math.floor(start / MS_PER_DAY) * MS_PER_DAY;
       const nextStart = cal.nextWorkInstant(ds + MS_PER_DAY);
+      // Phase 2.3 — preserve-dates cap.
+      if (preserveDates && nextStart > lateStart) {
+        limitedByLateDate = true;
+        break;
+      }
       start = nextStart;
       finish = durMinutes === 0 ? start : cal.addWork(start, durMinutes);
       demand = demandFor(a, start, finish);
       delaySteps++;
     }
 
-    if (delaySteps > maxDelayWorkdays) {
+    const attemptedStart = start;
+    const attemptedFinish = finish;
+    const finalFit = placementFits(demand);
+    let outcome: "blocked" | "limited" | "satisfied" | "n/a" = "n/a";
+    if (preserveDates) {
+      if (finalFit.ok) {
+        outcome = "satisfied";
+      } else if (delaySteps === 0) {
+        outcome = "blocked";
+        warnings.push({
+          severity: "warn",
+          code: "leveling_preserve_dates_blocked_move",
+          message: `Activity "${a.id}" cannot be moved without violating preserve-dates window; left at CPM early-start with unresolved overallocation on ${causingResources.join(", ")}.`,
+          activityId: a.id,
+        });
+      } else {
+        outcome = "limited";
+        warnings.push({
+          severity: "warn",
+          code: "leveling_move_limited_by_late_date",
+          message: `Activity "${a.id}" delayed ${delaySteps} workday(s) and capped at preserve-dates late-start; overallocation on ${causingResources.join(", ")} remains unresolved.`,
+          activityId: a.id,
+        });
+      }
+      if (limitedByLateDate && !finalFit.ok) {
+        // Record per-activity unresolved diagnostic for clarity.
+        warnings.push({
+          severity: "warn",
+          code: "leveling_overallocation_unresolved",
+          message: `Activity "${a.id}" leaves overallocation on ${causingResources.join(", ")} after preserve-dates leveling.`,
+          activityId: a.id,
+        });
+      }
+    } else if (delaySteps > maxDelayWorkdays) {
       warnings.push({
         severity: "warn",
         code: "leveling_max_delay_reached",
@@ -306,6 +375,12 @@ export function levelResources(input: LevelingInput): LevelingAnalysis {
         activityId: a.id,
       });
     }
+
+    preserveOutcome.set(a.id, {
+      outcome,
+      attemptedStart,
+      attemptedFinish,
+    });
 
     // Commit demand to ledger.
     for (const [resId, byDay] of demand) {
@@ -325,7 +400,7 @@ export function levelResources(input: LevelingInput): LevelingAnalysis {
       perResource: demand,
     });
 
-    if (start !== cpmRes.earlyStart) {
+    if (start !== cpmRes.earlyStart || causingResources.length > 0) {
       // We'll create the LevelingEntry below; remember which resources caused it.
       (placements.get(a.id)! as Placement & { _cause?: string[] })._cause = causingResources;
     }
@@ -348,18 +423,31 @@ export function levelResources(input: LevelingInput): LevelingAnalysis {
     }
     if (!touches) continue;
     const cause = (p as Placement & { _cause?: string[] })._cause ?? [];
-    const priorityReason = buildPriorityReason(a, cause, p.delayMinutes);
+    const po = preserveOutcome.get(a.id);
+    const outcome = po?.outcome ?? (preserveDates ? "satisfied" : "n/a");
+    const priorityReason = buildPriorityReason(
+      a,
+      cause,
+      p.delayMinutes,
+      outcome,
+    );
     entries.push({
       activityId: a.id,
       cpmEarlyStart: cpmRes.earlyStart,
       cpmEarlyFinish: cpmRes.earlyFinish,
+      cpmLateStart: cpmRes.lateStart,
+      cpmLateFinish: cpmRes.lateFinish,
       leveledStart: p.start,
       leveledFinish: p.finish,
+      attemptedLeveledStart: po?.attemptedStart ?? p.start,
+      attemptedLeveledFinish: po?.attemptedFinish ?? p.finish,
       delayMinutes: p.delayMinutes,
       resourcesCausingConflict: cause,
       priorityReason,
+      preserveDatesOutcome: outcome,
     });
   }
+
 
   // ---- Build overallocation reports ----
   const before = buildOverallocations({
