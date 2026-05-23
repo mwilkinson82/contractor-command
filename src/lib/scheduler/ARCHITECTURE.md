@@ -1282,3 +1282,82 @@ PRG-8, PRG-9). The remaining 11 stay `.todo()`.
    round-trip-identity requirement).
 
 
+
+---
+
+## 22. Phase 2.2 — Out-of-sequence progress handling
+
+Engine version: `0.11.0-phase2.2`.
+
+### Scope
+
+Implements deterministic out-of-sequence (OOS) progress detection and a
+progress-rule selector that controls how the forward pass handles
+actuals that violate relationship logic.
+
+### Detection
+
+For every relationship whose successor has reached the relevant
+actual milestone (start for FS/SS, finish for FF/SF) but whose
+predecessor has not, the engine emits:
+
+- `out_of_sequence_progress_detected` (warn) — one per violating link
+- `relationship_logic_violated_by_actuals` (warn) — link-specific
+- `predecessor_incomplete_successor_started` (warn) — if successor is
+  in-progress
+- `predecessor_incomplete_successor_completed` (warn) — if successor is
+  already complete
+
+Diagnostics are emitted regardless of the selected rule so violations
+are never hidden.
+
+### Progress rule selector
+
+`CpmInput.progress.outOfSequenceRule`:
+
+- `"retained-logic"` (default) — successor's remaining work must
+  respect predecessor logic; emits `retained_logic_applied`.
+- `"progress-override"` — broken link is ignored for remaining work;
+  successor projects from data date; emits `progress_override_applied`.
+- `"actual-dates"` — **DEFERRED**. Emits `out_of_sequence_rule_deferred`
+  (warn) and falls back to retained-logic.
+
+Actuals (`actualStart`, `actualFinish`) are always preserved verbatim;
+the rule only governs how the remaining-work projection is anchored.
+
+### PRG-10 status (active)
+
+`PRG-10: out-of-sequence updates shall follow the selected progress
+rule and generate repeatable schedule outcomes.` is now executable.
+The test asserts:
+
+- Retained-logic holds B's remaining work until A's projected EF.
+- Progress-override projects B's remaining work from the data date.
+- Both rules emit the violation diagnostics + their rule diagnostic.
+- "actual-dates" emits the deferral warning and falls back.
+- Identical inputs produce identical outputs (repeatability).
+
+### Known limitations (Phase 2.2)
+
+- **"actual-dates" rule is not implemented.** Falls back to
+  retained-logic with a warn diagnostic.
+- **OOS for completed successors** emits the diagnostic but does not
+  recompute anything — actuals are pinned regardless of rule, by design.
+- **Per-link rule override** is not exposed. The rule is project-wide.
+- **Retained-logic propagation** uses `requiredSuccStart` on each
+  violating predecessor; complex multi-link interactions resolve via
+  the standard forward-pass `max` aggregation.
+- **No P6 "Progress Override + Out-of-Sequence Logic" hybrid.** The
+  selector is binary (plus deferred third).
+
+### Acceptance tally after Phase 2.2
+
+Active: 10 of 20 (CPM-1, CPM-2, CPM-3, CAL-4, CAL-5, CON-6, CON-7,
+PRG-8, PRG-9, PRG-10). The remaining 10 stay `.todo()`.
+
+### Phase 2.3 candidates
+
+1. ALAP successor re-flow.
+2. Per-activity calendar precedence (resource vs activity).
+3. Route XER `clndr_data` into `createExceptionWorkClock`.
+4. Begin XER export scaffolding.
