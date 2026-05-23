@@ -158,14 +158,8 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
     onError: (e: Error) => toast.error(e.message),
   });
 
-      refresh();
-      onDefaultChanged?.();
-      toast.success("Project default calendar updated");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   const cals = data?.calendars ?? [];
+
 
   return (
     <section className="rounded border border-[#d8cdb8] bg-white p-3">
