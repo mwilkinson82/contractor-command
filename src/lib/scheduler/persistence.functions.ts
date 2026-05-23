@@ -428,7 +428,7 @@ export const captureBaseline = createServerFn({ method: "POST" })
       supabase
         .from("schedule_tasks")
         .select(
-          "task_id, name, duration, wbs, description, percent_complete, position, budget_cost, actual_cost, resource_name, resource_units_per_day, start_no_earlier_than",
+          "task_id, name, duration, wbs, description, percent_complete, position, budget_cost, actual_cost, resource_name, resource_units_per_day, start_no_earlier_than, calendar_id",
         )
         .eq("schedule_id", data.scheduleId)
         .order("position", { ascending: true }),
@@ -452,7 +452,9 @@ export const captureBaseline = createServerFn({ method: "POST" })
       resourceName: (t.resource_name as string | null) ?? undefined,
       resourceUnitsPerDay: (t.resource_units_per_day as number | null) ?? undefined,
       startNoEarlierThan: (t.start_no_earlier_than as string | null) ?? undefined,
+      calendarId: (t.calendar_id as string | null) ?? undefined,
     }));
+
     const depsJson = (deps ?? []).map((d) => ({
       from: d.from_task_id as string,
       to: d.to_task_id as string,
