@@ -24,6 +24,7 @@
  */
 
 import type {
+  ActivityAssignmentSummary,
   ActivityStatus,
   BaselineActivity,
   BaselineVariance,
@@ -36,6 +37,7 @@ import type {
   EngineRelationshipResult,
   EngineResult,
   EngineRunRecord,
+  ExpenseAssignment,
   FloatPath,
   FloatPathAnalysis,
   FloatPathBasis,
@@ -45,8 +47,12 @@ import type {
   Instant,
   LagCalendarBasis,
   RelationshipType,
+  Resource,
+  ResourceAssignment,
+  Role,
 } from "./types";
 import { MS_PER_DAY, MS_PER_MIN, type WorkClock } from "./work-clock";
+import { rollupActivityAssignments, validateAssignments } from "./assignments";
 
 export const ENGINE2_VERSION = "0.4.0-phase1.4";
 
