@@ -258,7 +258,14 @@ function HolidaysEditor({
 }) {
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState("");
+  const [year, setYear] = useState(new Date().getFullYear());
   const sorted = [...holidays].sort();
+
+  const mergeDates = (extras: string[]) => {
+    const set = new Set([...holidays, ...extras]);
+    onChange([...set]);
+  };
+
   return (
     <div className="mt-2">
       <button
