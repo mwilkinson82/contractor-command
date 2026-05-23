@@ -19,6 +19,11 @@
  */
 
 import type { Schedule } from "../types";
+import {
+  getCapabilityMetadata,
+  projectCapabilityEligibility,
+  type CapabilityFlagId,
+} from "./capability-metadata";
 
 export type EligibilityCheckId =
   | "no-tasks"
