@@ -59,6 +59,25 @@ export interface Annotation {
   taskId?: string;
 }
 
+/**
+ * Phase 3.2 — JSON-serializable shape mirroring
+ * `engine2/capability-metadata.ScheduleCapabilityMetadata`. Declared
+ * here (rather than imported) so `Schedule` stays free of any runtime
+ * dependency on engine2 and remains serializable across TanStack server
+ * function boundaries.
+ */
+export interface ScheduleEngine2CapabilitiesPayload {
+  version: number;
+  source: "xer" | "manual" | "default";
+  derivedAt?: string;
+  flags: Array<{
+    id: string;
+    verdict: "pass" | "block" | "unknown";
+    detail?: string;
+    evidenceCount?: number;
+  }>;
+}
+
 export interface Schedule {
   id?: string;
   name: string;
@@ -76,12 +95,8 @@ export interface Schedule {
    * pipeline today) to record per-feature PASS/BLOCK/UNKNOWN verdicts the
    * engine selector consults. Legacy code paths ignore this field; it is
    * additive and never persisted to the legacy DB columns.
-   *
-   * Typed as `unknown` here to avoid a runtime import cycle from
-   * `engine2/capability-metadata`; consumers under `engine2/` import the
-   * concrete `ScheduleCapabilityMetadata` and narrow as needed.
    */
-  engine2Capabilities?: unknown;
+  engine2Capabilities?: ScheduleEngine2CapabilitiesPayload;
 }
 
 export interface ScheduledTask extends Task {
