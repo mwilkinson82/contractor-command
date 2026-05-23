@@ -23,6 +23,24 @@ function toggleBit(mask: number, bit: number): number {
   return mask ^ (1 << bit);
 }
 
+/** Approximate working days per year given weekly bitmask + holiday ISO list (current year). */
+function workingDaysPerYear(workDays: number, holidays: string[]): number {
+  const year = new Date().getFullYear();
+  let count = 0;
+  const holidaySet = new Set(holidays);
+  const d = new Date(year, 0, 1);
+  while (d.getFullYear() === year) {
+    // JS getDay: 0=Sun..6=Sat. Our mask: bit0=Mon..bit5=Sat,bit6=Sun.
+    const js = d.getDay();
+    const bit = js === 0 ? 6 : js - 1;
+    const iso = `${year}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (workDays & (1 << bit) && !holidaySet.has(iso)) count++;
+    d.setDate(d.getDate() + 1);
+  }
+  return count;
+}
+
+
 function pad(n: number) {
   return n.toString().padStart(2, "0");
 }
@@ -126,7 +144,22 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const dupeMut = useMutation({
+    mutationFn: (c: { name: string; workDays: number; holidays: string[] }) =>
+      saveFn({
+        data: {
+          scheduleId,
+          name: `${c.name} copy`,
+          workDays: c.workDays,
+          holidays: c.holidays,
+        },
+      }),
+    onSuccess: () => refresh(),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const cals = data?.calendars ?? [];
+
 
   return (
     <section className="rounded border border-[#d8cdb8] bg-white p-3">
@@ -165,6 +198,12 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
                 }
               />
               <div className="flex items-center gap-1">
+                <span
+                  className="rounded border border-[#d8cdb8] bg-white px-1.5 py-0.5 text-[10px] text-[#7a6a4d]"
+                  title="Approx working days per year, accounting for weekly pattern and holidays"
+                >
+                  ~{workingDaysPerYear(c.workDays, c.holidays)}/yr
+                </span>
                 {c.isDefault ? (
                   <span className="rounded bg-[#1f241f] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
                     Default
@@ -178,6 +217,21 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
                     Set default
                   </button>
                 )}
+                <button
+                  type="button"
+                  className="text-[10px] uppercase tracking-wide text-[#3554a5] hover:underline"
+                  onClick={() => dupeMut.mutate(c)}
+                >
+                  Duplicate
+                </button>
+
+                <button
+                  type="button"
+                  className="text-[10px] uppercase tracking-wide text-[#3554a5] hover:underline"
+                  onClick={() => dupeMut.mutate(c)}
+                >
+                  Duplicate
+                </button>
                 {!c.isDefault ? (
                   <button
                     type="button"
@@ -190,6 +244,7 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
                   </button>
                 ) : null}
               </div>
+
             </div>
             <div className="mt-2 flex flex-wrap gap-1">
               {DOW.map((d, i) => {
