@@ -814,7 +814,7 @@ describe("P6 acceptance — Leveling", () => {
     expect(lv.overallocationsBefore.find((o) => o.resourceId === "R2")).toBeUndefined();
   });
 
-  it("LVL-16: leveling emits an entry-level log with original CPM dates, leveled dates, delay, causing resource, and priority reason", () => {
+  it("LVL-16: leveling emits an entry-level log with original CPM dates, leveled dates, delay, causing resource, and priority reason — AND surfaces honest-limitation warnings (whole-day-only leveling, successors not reflowed). Test validates the diagnostic surface, NOT sub-day leveling or successor reflow.", () => {
     const A = lvlActivity("A", 3, 1);
     const B = lvlActivity("B", 3, 5);
     const result = calculateCpm({
