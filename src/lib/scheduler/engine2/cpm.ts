@@ -24,6 +24,7 @@
  */
 
 import type {
+  ActivityStatus,
   Constraint,
   EngineActivity,
   EngineActivityResult,
