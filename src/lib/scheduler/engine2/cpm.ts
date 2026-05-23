@@ -54,6 +54,14 @@ import type {
 import { MS_PER_DAY, MS_PER_MIN, type WorkClock } from "./work-clock";
 import { rollupActivityAssignments, validateAssignments } from "./assignments";
 
+// Re-export to keep the engine2 surface stable for downstream consumers.
+export type {
+  ExpenseAssignment,
+  Resource,
+  ResourceAssignment,
+  Role,
+};
+
 export const ENGINE2_VERSION = "0.5.0-phase1.5";
 
 export interface CpmInput {
