@@ -19,6 +19,7 @@ export * from "./xer-import-actions";
 export * from "./legacy-bridge";
 export * from "./comparison";
 export * from "./debug-viewer";
+export * from "./shadow";
 
 
 
