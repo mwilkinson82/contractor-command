@@ -54,7 +54,7 @@ import type {
 import { MS_PER_DAY, MS_PER_MIN, type WorkClock } from "./work-clock";
 import { rollupActivityAssignments, validateAssignments } from "./assignments";
 
-export const ENGINE2_VERSION = "0.4.0-phase1.4";
+export const ENGINE2_VERSION = "0.5.0-phase1.5";
 
 export interface CpmInput {
   /** Data date / status date as an absolute UTC instant. */
@@ -63,7 +63,7 @@ export interface CpmInput {
   projectStart: Instant;
   /** Calendar id used when a relationship's lagCalendarBasis is "project". */
   projectCalendarId: string;
-  /** All calendars referenced by activities and links, keyed by id. */
+  /** All calendars referenced by activities, links, and resources. */
   calendars: Map<string, WorkClock>;
   activities: EngineActivity[];
   relationships: EngineRelationship[];
@@ -81,6 +81,12 @@ export interface CpmInput {
 
   /** Phase 1.4 — prior engine result for changed-activity counting. */
   priorResult?: EngineResult;
+
+  /** Phase 1.5 — resource/role/assignment foundation (all optional). */
+  resources?: Resource[];
+  roles?: Role[];
+  assignments?: ResourceAssignment[];
+  expenseAssignments?: ExpenseAssignment[];
 }
 
 interface WorkState {
