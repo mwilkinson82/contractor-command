@@ -47,6 +47,8 @@ import type {
   Instant,
   LagCalendarBasis,
   LevelingOptions,
+  OutOfSequenceProgressRule,
+  ProgressOptions,
   RelationshipType,
   Resource,
   ResourceAssignment,
@@ -56,7 +58,8 @@ import { MS_PER_DAY, MS_PER_MIN, type WorkClock } from "./work-clock";
 import { rollupActivityAssignments, validateAssignments } from "./assignments";
 import { levelResources } from "./leveling";
 
-export const ENGINE2_VERSION = "0.6.0-phase1.6";
+export const ENGINE2_VERSION = "0.11.0-phase2.2";
+
 
 export interface CpmInput {
   /** Data date / status date as an absolute UTC instant. */
