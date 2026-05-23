@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Trash2, Plus } from "lucide-react";
-import { CpmGrid } from "@/components/scheduler/CpmGrid";
+import { CpmGrid, CPM_STICKY_TABLE_WIDTH } from "@/components/scheduler/CpmGrid";
 import { OpenEndsReport } from "@/components/scheduler/OpenEndsReport";
 import { Stat } from "@/components/scheduler/Stat";
 import { BaselinesPanel } from "@/components/scheduler/BaselinesPanel";
