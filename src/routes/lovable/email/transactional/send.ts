@@ -37,6 +37,20 @@ export const Route = createFileRoute("/lovable/email/transactional/send")({
         const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
         if (!supabaseUrl || !supabaseServiceKey) {
+          // Local dev fallback: when SUPABASE_SERVICE_ROLE_KEY is unset
+          // (typical for local `npm run dev` without secrets wired in),
+          // we cannot actually queue or send. Treat as a no-op success so
+          // fire-and-forget callers (e.g. login-nudge) do not surface a 500
+          // to the browser. Production always has the secret set.
+          if (import.meta.env.DEV) {
+            console.warn(
+              '[email/transactional/send] SUPABASE_SERVICE_ROLE_KEY not configured locally — email send skipped (local-dev no-op).',
+            )
+            return Response.json(
+              { ok: true, skipped: true, reason: 'email_not_configured_local_dev' },
+              { status: 200 },
+            )
+          }
           console.error('Missing required environment variables')
           return Response.json(
             { error: 'Server configuration error' },
