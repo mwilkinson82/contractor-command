@@ -46,6 +46,8 @@ import { FragnetPanel } from "@/components/scheduler/FragnetPanel";
 import { AnnotationsPanel } from "@/components/scheduler/AnnotationsPanel";
 import { UpdateCyclePanel } from "@/components/scheduler/UpdateCyclePanel";
 import { InlineText, InlineNumber } from "@/components/scheduler/InlineEdit";
+import { EmptyScheduleState } from "@/components/scheduler/EmptyScheduleState";
+import type { SamplePayload } from "@/lib/scheduler/sample";
 import { exportScheduleCsv } from "@/lib/scheduler/csv-export";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -375,6 +377,59 @@ function SchedulerPage() {
     });
     setDirty(true);
   };
+
+  const applySample = (payload: SamplePayload) => {
+    setDraft({
+      name: payload.name,
+      projectStartDate: payload.projectStartDate,
+      dataDate: payload.dataDate,
+      workDays: payload.workDays,
+      holidays: payload.holidays,
+      tasks: payload.tasks.map((t) => ({ ...t })),
+      dependencies: payload.dependencies.map((d) => ({ ...d })),
+      annotations: payload.annotations.map((a) => ({ ...a })),
+    });
+    setDirty(true);
+    toast.success(`Loaded ${payload.tasks.length} sample activities — review and Save.`);
+  };
+
+  const applyPasted = ({ tasks, dependencies }: { tasks: Task[]; dependencies: Dependency[] }) => {
+    setDraft((d) => {
+      if (!d) return d;
+      return {
+        ...d,
+        tasks: [...d.tasks, ...tasks],
+        dependencies: [...d.dependencies, ...dependencies],
+      };
+    });
+    setDirty(true);
+    toast.success(`Added ${tasks.length} activities from paste.`);
+  };
+
+  const applyXerImport = ({
+    name,
+    projectStartDate,
+    tasks,
+    dependencies,
+  }: {
+    name: string;
+    projectStartDate?: string;
+    tasks: Task[];
+    dependencies: Dependency[];
+  }) => {
+    setDraft((d) => {
+      if (!d) return d;
+      return {
+        ...d,
+        name: d.tasks.length === 0 ? name : d.name,
+        projectStartDate: d.projectStartDate ?? projectStartDate,
+        tasks: [...d.tasks, ...tasks],
+        dependencies: [...d.dependencies, ...dependencies],
+      };
+    });
+    setDirty(true);
+  };
+
 
   const removeTask = (idx: number) => {
     setDraft((d) => {
@@ -909,7 +964,17 @@ function SchedulerPage() {
                 ) : null}
 
                 {/* Split: activity table + Gantt */}
-                <div className="scheduler-print-split flex flex-1 min-h-0 overflow-hidden">
+                <div className="scheduler-print-split relative flex flex-1 min-h-0 overflow-hidden">
+                  {draft.tasks.length === 0 ? (
+                    <div className="absolute inset-0 z-10 overflow-auto bg-[#faf8f3]/95 backdrop-blur-sm print:hidden">
+                      <EmptyScheduleState
+                        onAddActivity={addTask}
+                        onApplySample={applySample}
+                        onApplyPasted={applyPasted}
+                        onXerImport={applyXerImport}
+                      />
+                    </div>
+                  ) : null}
                   {/* Print-only title block (P6-style) */}
                   <div className="print-only mb-3 border-b-2 border-[#1f241f] pb-2">
                     <div className="flex items-end justify-between">
