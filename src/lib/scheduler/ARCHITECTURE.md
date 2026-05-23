@@ -2107,3 +2107,75 @@ error and a non-`investigate` verdict.
 - Exception-aware shadow comparisons still depend on the bridge's
   current exception-data fidelity (§25); meaningful differences will
   only appear once richer calendar exceptions are bridged.
+
+## §29 — Phase 2.9 · Shadow evidence review & mismatch burn-down
+
+Phase 2.9 turns the Phase 2.8 evidence log into an engineering review
+surface. Lives in `src/lib/scheduler/engine2/burndown.ts`.
+
+### Surface
+
+- `summarizeEvidenceLog(log)` — deterministic aggregate (totals, verdict
+  counts, engine2 vs bridge errors, whole-day vs exception-aware run
+  counts, per-schedule exception-clock deltas, recurring categories).
+- `buildMismatchBurnDown(log)` — grouped per-category rows with
+  classification, severity (high/medium/low), origin (bridge /
+  legacy-limitation / engine2 / known-limitation), likely cause,
+  recommended action, `impactsDates`, `affectsRealSchedules`,
+  `blocksPromotion`. Ranked by `rankBurnDown`.
+- `rankBurnDown(rows)` — deterministic order:
+  classification → severity → impactsDates → affectsRealSchedules →
+  count desc → category name asc.
+- `evaluatePromotionReadiness(log)` — formalized criteria for moving
+  engine2 from shadow-only → internal selectable mode (see below).
+- `formatEvidenceReview(log)` — text projection for PRs / chat.
+
+### Promotion-readiness criteria (boring-report bar)
+
+Engine2 is NOT promoted unless ALL pass on the latest evidence log:
+
+1. Zero engine2 thrown errors.
+2. Zero bridge errors.
+3. Every recurring category has a documented classification + origin.
+4. No `investigate` verdicts on the demo schedule (`commercial-fit-out`).
+5. Burn-down has zero `investigate`-classified categories.
+6. Commercial Fit-Out has no errors and no investigate verdict.
+7. Exception-aware clock runs have no investigate verdicts.
+
+Failing any criterion is a blocker, surfaced via
+`PromotionReadiness.blockers[]`.
+
+### Guardrails
+
+- Pure projection over `EvidenceLog`. Never mutates the log, schedules,
+  legacy results, or flags. Verified by tests.
+- Never throws — empty / malformed logs return zeroed reports.
+- Does NOT touch `isEngine2ShadowEnabled()` / comparison flags.
+- No UI surface in this phase — burn-down is consumed by tests and
+  (eventually) the existing dev-only debug drawer.
+
+### Tests
+
+`src/lib/scheduler/__tests__/engine2-burndown.spec.ts` covers:
+empty-log safety, summary determinism, verdict/error/EA-clock
+aggregation, category grouping, stable ranking, blocker detection
+(engine2 error, bridge error, CFO investigate, EA-clock investigate),
+ready-state on a clean log, and that running burn-down on a real
+shadow log does not change legacy `calculateSchedule` output.
+
+### Status
+
+- Engine2 version bumped to `0.13.0-phase2.9`.
+- Legacy engine untouched. UI unchanged. All flags default off.
+- No P6 parity claim. Engine2 remains observational.
+
+### Known limitations (Phase 2.9)
+
+- The evidence log carries per-category counts but not per-id diffs, so
+  `topRecurringIds` is currently empty. Closing this requires extending
+  `EvidenceLogEntry` with sampled difference ids, which is deferred to
+  a later phase that demonstrably needs it.
+- `bridgeErrorCount` is heuristic (regex on the error message). The
+  evidence log does not yet carry an explicit error origin field.
+- Promotion readiness reads only the in-memory log it's given; there is
+  still no persisted shadow-run history.
