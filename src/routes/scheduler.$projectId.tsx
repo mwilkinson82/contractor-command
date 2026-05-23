@@ -468,6 +468,15 @@ function SchedulerPage() {
           ) : null}
           <button
             type="button"
+            onClick={() => exportScheduleCsv(draft, computed)}
+            disabled={!draft || !computed}
+            className="rounded-md border border-[#e6dfd0] bg-white px-2.5 py-1.5 text-xs font-medium text-[#3d3527] hover:bg-[#faf8f3] disabled:opacity-50"
+            title="Export activities as CSV"
+          >
+            ↓ Export
+          </button>
+          <button
+            type="button"
             onClick={() => setDrawerOpen(true)}
             className="rounded-md border border-[#e6dfd0] bg-white px-2.5 py-1.5 text-xs font-medium text-[#3d3527] hover:bg-[#faf8f3]"
             title="Calendars, baselines, codes, reports, fragnet, update cycle, annotations"
