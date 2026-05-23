@@ -425,7 +425,12 @@ export function compareEnginesOnSchedule(
   let engine2: EngineResult;
   let engine2Ms = 0;
   let engine2Error: string | undefined;
+  let bridgeNotes: string[] = [];
   try {
+    const bridge = bridgeLegacyScheduleToEngine2(schedule, {
+      useExceptionAwareCalendars: options.useExceptionAwareCalendars,
+    });
+    bridgeNotes = bridge.conversionNotes;
     const t0Engine2 = Date.now();
     engine2 = calculateCpm(bridge.input);
     engine2Ms = Date.now() - t0Engine2;
@@ -436,13 +441,14 @@ export function compareEnginesOnSchedule(
       activities: [],
       relationships: [],
       diagnostics: [],
-      projectFinish: bridge.input.projectStart,
+      projectFinish: 0,
       runRecord: {
         engineVersion: "engine2-error",
         durationMs: 0,
       },
     } as unknown as EngineResult;
   }
+
 
   const differences: ComparisonDifference[] = [];
   const counts = emptyCounts();
