@@ -71,6 +71,17 @@ export interface Schedule {
   tasks: Task[];
   dependencies: Dependency[];
   annotations?: Annotation[];
+  /**
+   * Phase 3.2 — engine2 capability metadata. Populated by importers (XER
+   * pipeline today) to record per-feature PASS/BLOCK/UNKNOWN verdicts the
+   * engine selector consults. Legacy code paths ignore this field; it is
+   * additive and never persisted to the legacy DB columns.
+   *
+   * Typed as `unknown` here to avoid a runtime import cycle from
+   * `engine2/capability-metadata`; consumers under `engine2/` import the
+   * concrete `ScheduleCapabilityMetadata` and narrow as needed.
+   */
+  engine2Capabilities?: unknown;
 }
 
 export interface ScheduledTask extends Task {
