@@ -935,8 +935,8 @@ function SchedulerPage() {
                                 </SelectContent>
                               </Select>
                               <p className="mt-1 text-[10px] text-[#776e5e]">
-                                Per-activity calendar is captured for reporting today; full
-                                per-activity math is on the roadmap.
+                                Duration is walked in this activity's calendar. Lag stays in
+                                project-default working days.
                               </p>
                             </div>
                             <div>
