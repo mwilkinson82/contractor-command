@@ -115,6 +115,8 @@ export function calculateCpm(input: CpmInput): EngineResult {
 
   const state = new Map<string, WorkState>();
   for (const a of activities) {
+    const completed = a.actualFinish !== undefined;
+    const inProgress = a.actualStart !== undefined && a.actualFinish === undefined;
     state.set(a.id, {
       earlyStart: 0,
       earlyFinish: 0,
@@ -122,10 +124,81 @@ export function calculateCpm(input: CpmInput): EngineResult {
       lateFinish: 0,
       governingCause: "logic",
       notes: [],
-      completed: a.actualFinish !== undefined,
-      inProgress: a.actualStart !== undefined && a.actualFinish === undefined,
+      completed,
+      inProgress,
     });
+
+    // ---- Activity status consistency diagnostics (Phase 1.3) ----
+    const orig = a.originalDuration.minutes | 0;
+    const rem = a.remainingDuration.minutes | 0;
+    if (a.actualFinish !== undefined && a.actualStart === undefined) {
+      diagnostics.push({
+        severity: "warn",
+        code: "status-inconsistent",
+        message: `Activity "${a.id}" has actualFinish without actualStart`,
+        activityId: a.id,
+      });
+    }
+    if (
+      a.actualStart !== undefined &&
+      a.actualFinish !== undefined &&
+      a.actualFinish < a.actualStart
+    ) {
+      diagnostics.push({
+        severity: "warn",
+        code: "status-inconsistent",
+        message: `Activity "${a.id}" actualFinish precedes actualStart`,
+        activityId: a.id,
+      });
+    }
+    if (completed && rem > 0) {
+      diagnostics.push({
+        severity: "warn",
+        code: "status-inconsistent",
+        message: `Activity "${a.id}" is completed but remainingDuration=${rem}m (treated as 0)`,
+        activityId: a.id,
+      });
+    }
+    if (!completed && !inProgress && orig > 0 && rem !== orig) {
+      diagnostics.push({
+        severity: "info",
+        code: "status-baseline-drift",
+        message: `Activity "${a.id}" not started but remainingDuration (${rem}m) differs from originalDuration (${orig}m)`,
+        activityId: a.id,
+      });
+    }
+    if (orig < 0 || rem < 0) {
+      diagnostics.push({
+        severity: "warn",
+        code: "status-inconsistent",
+        message: `Activity "${a.id}" has negative duration (orig=${orig}m, rem=${rem}m)`,
+        activityId: a.id,
+      });
+    }
+    if (a.percentCompleteType === "physical") {
+      const v = a.physicalPercentComplete;
+      if (v !== undefined && (v < 0 || v > 100 || Number.isNaN(v))) {
+        diagnostics.push({
+          severity: "warn",
+          code: "percent-out-of-range",
+          message: `Activity "${a.id}" physicalPercentComplete=${v} outside [0,100]`,
+          activityId: a.id,
+        });
+      }
+    }
+    if (a.percentCompleteType === "units") {
+      const v = a.unitsPercentComplete;
+      if (v !== undefined && (v < 0 || v > 100 || Number.isNaN(v))) {
+        diagnostics.push({
+          severity: "warn",
+          code: "percent-out-of-range",
+          message: `Activity "${a.id}" unitsPercentComplete=${v} outside [0,100]`,
+          activityId: a.id,
+        });
+      }
+    }
   }
+
 
   // ---- Forward pass ----
   for (const a of order) {
