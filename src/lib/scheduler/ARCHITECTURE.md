@@ -2538,3 +2538,71 @@ source rather than relying on importer diagnostics.
   `engine2-capability-metadata.spec.ts` covering derivation and
   negative selector behavior (imported unsupported features force
   legacy fallback).
+
+## §34 — P6 Acceptance Suite Honesty Audit (Phase 3.3 verification)
+
+Per-test classification of `src/lib/scheduler/__tests__/p6-acceptance.spec.ts`.
+The goal is to make the suite's coverage **honestly** match what engine2 can
+actually do today, so the suite cannot be used to overstate maturity.
+
+Definitions:
+- **Real** — validates implemented engine2 behavior end-to-end.
+- **Scaffold / simplified** — exercises a narrow, correctly-typed slice that
+  passes today, but does **not** fully validate the spec-class requirement.
+  Test stays green; the description is renamed so the limitation is visible.
+- **Todo** — engine does not truly support the feature; should remain `.todo()`.
+
+| ID     | Spec area                                              | What the test actually verifies                                                                                       | Classification | Renamed? | Eligibility still blocks in prod? |
+|--------|--------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|----------------|----------|------------------------------------|
+| CPM-1  | FS chain ES/EF/LS/LF + critical path                   | Pure forward/backward pass on one calendar; critical path identification.                                              | Real           | No       | n/a — engine2 not wired             |
+| CPM-2  | Parallel paths, float distribution                     | Diamond float math + critical-flag distribution.                                                                       | Real           | No       | n/a                                 |
+| CPM-3  | Free float (Oracle definition)                         | Free-float computed against earliest successor ES.                                                                     | Real           | No       | n/a                                 |
+| CAL-4  | Per-activity calendar differences                      | Two activities, two calendars, holiday-driven date split. Engine math is correct.                                      | Real           | No       | YES — per-activity calendars block engine2 selection until validated |
+| CAL-5  | Holiday + working-day exceptions, split shifts         | `createExceptionWorkClock` add/sub across split shifts & holidays.                                                     | Real (helper)  | No       | YES — exception calendars block engine2 |
+| CON-6  | FNLT pulls late finish, emits diagnostic               | Constraint snap + negative-float diagnostic.                                                                           | Real           | No       | n/a                                 |
+| CON-7  | Constraint-driven `governingCause` exposure            | `governingCause === 'snet'`, info diagnostic, snap applied.                                                            | Real           | No       | n/a                                 |
+| PRG-8  | Physical / Duration / Units % distinctness             | Duration% is derived; Physical% is echoed; **Units% is an author-supplied stub echo, NOT derived from assignment actuals**. | **Scaffold**  | **YES** — description now states units% is a Phase 1.3 stub | YES — in-progress activities block engine2 |
+| PRG-9  | Projection of remaining work from data date            | Forward forecast from data date on in-progress activity + `data-date` governingCause.                                  | Real           | No       | YES                                 |
+| PRG-10 | OOS retained-logic vs progress-override, with deferred actual-dates fallback | Both rules implemented; diagnostics codes asserted; deferred rule falls back + warns.                | Real           | No       | YES                                 |
+| PTH-11 | Multi-path float-path analysis, total-float basis      | `floatPaths.paths` ranked, path 1 = critical chain, pathFloatMinutes increases.                                        | Real           | No       | n/a                                 |
+| PTH-12 | Endpoint-selected float-path                           | Endpoint override routes through the milestone-correct chain.                                                          | Real           | No       | n/a                                 |
+| LVL-13 | Overallocation detection + priority-driven delay       | Two activities sharing one resource; lower-priority moved; `overallocationsAfter` empty.                               | Real           | No       | YES — resource leveling blocks engine2 |
+| LVL-14 | preserve-scheduled-early-and-late-dates                | `preserveScheduledEarlyAndLateDates` caps delay at activity float; residual overallocation surfaced + diagnostics.     | Real           | No       | YES                                 |
+| LVL-15 | Selected-resource leveling                             | `selectedResourceIds` filter prevents moves caused by non-selected resources.                                          | Real           | No       | YES                                 |
+| LVL-16 | Leveling entry log + per-entry causing-resource record | Entry log + `priorityReason` are real. **Also asserts the engine's own honest-limitation warnings (`leveling_whole_day_only`, `leveling_successors_not_reflowed`) — does NOT prove sub-day leveling or successor reflow.** | **Scaffold (honest-limit assertion)** | **YES** — description now states what is and is not validated | YES — leveling-required schedules block engine2 |
+| XER-17 | Interproject relationships preserved                   | Both projects parsed; cross-project FS link in engine graph; CPM honors it.                                            | Real           | No       | n/a (import-time)                   |
+| XER-18 | Missing external project + ignore-external option      | External relationship captured with full identity; reconciliation flags mismatch vs accepts when ignored.              | Real           | No       | n/a (import-time)                   |
+| XER-19 | No baseline fabrication from absent XER data           | Importer emits `baseline_not_in_xer`; engine reports `baselinesProvided: false`; no variance.                          | Real (honesty test) | No   | n/a                                 |
+| XER-20 | update-existing + delete-unreferenced for tasks/preds/assignments | Seed + update; delete-unreferenced ON removes B/C and their links/assignments; OFF preserves them.                  | Real           | No       | n/a (import-time)                   |
+
+### Aggregate counts
+- 20 acceptance tests; **18 Real**, **2 Scaffold** (PRG-8 units%, LVL-16 limitation-warnings).
+- 0 `.todo()` downgrades required — every test asserts something that is actually true of today's engine. The two scaffold tests are kept (they cover real narrow behavior) but renamed so the description does not overstate what is verified.
+
+### What this audit does NOT claim
+- Eligibility still gates **every** non-trivial schedule away from engine2 in
+  production. CAL-4/5, CAL exception clocks, PRG-8/9/10 (in-progress), and
+  LVL-13–16 (any resource/leveling-bearing schedule) all force the legacy
+  fallback today. The acceptance suite exercises engine2 math directly via
+  `calculateCpm`; it does **not** prove engine2 is wired into the production
+  scheduler route, and it does **not** broaden the boring-bar.
+- Units% is acknowledged as a stub (PRG-8). Real Units% derivation from
+  assignment `actualUnits / budgetedUnits` is a future phase; until then,
+  units% should be treated as author-supplied metadata, not a derivation.
+- Sub-day leveling and post-leveling successor reflow are explicitly **not**
+  implemented; LVL-16 asserts only that the engine reports these gaps via
+  warnings (`leveling_whole_day_only`, `leveling_successors_not_reflowed`).
+- Resource-calendar lag basis is not implemented; lag math uses the
+  authoring/project calendar basis only.
+- Driving-relationship flag is computed but is only spot-checked via
+  comparison fixtures, not by a dedicated acceptance test.
+
+### Scope guarantees (this audit pass)
+- No engine2 behavior changes.
+- No engine2 wiring into production routes.
+- No broadening of eligibility — schedules using per-activity calendars,
+  exception clocks, in-progress activities, resources, leveling, or XER
+  features still force the legacy `calculateSchedule` path.
+- Two `it(...)` descriptions edited to remove overstatement (PRG-8, LVL-16).
+  No tests deleted, no tests reverted to `.todo()`.
+- Legacy `calculateSchedule` remains the authoritative production engine.
