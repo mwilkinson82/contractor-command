@@ -45,6 +45,7 @@ import { FragnetPanel } from "@/components/scheduler/FragnetPanel";
 import { AnnotationsPanel } from "@/components/scheduler/AnnotationsPanel";
 import { UpdateCyclePanel } from "@/components/scheduler/UpdateCyclePanel";
 import { InlineText, InlineNumber } from "@/components/scheduler/InlineEdit";
+import { exportScheduleCsv } from "@/lib/scheduler/csv-export";
 import { Textarea } from "@/components/ui/textarea";
 
 const UNASSIGNED_WBS = "Unassigned";
@@ -468,6 +469,15 @@ function SchedulerPage() {
           ) : null}
           <button
             type="button"
+            onClick={() => exportScheduleCsv(draft, computed)}
+            disabled={!draft || !computed}
+            className="rounded-md border border-[#e6dfd0] bg-white px-2.5 py-1.5 text-xs font-medium text-[#3d3527] hover:bg-[#faf8f3] disabled:opacity-50"
+            title="Export activities as CSV"
+          >
+            ↓ Export
+          </button>
+          <button
+            type="button"
             onClick={() => setDrawerOpen(true)}
             className="rounded-md border border-[#e6dfd0] bg-white px-2.5 py-1.5 text-xs font-medium text-[#3d3527] hover:bg-[#faf8f3]"
             title="Calendars, baselines, codes, reports, fragnet, update cycle, annotations"
@@ -760,6 +770,7 @@ function SchedulerPage() {
                           <tr>
                             <th className="px-2 py-2 text-left font-semibold">Activity ID</th>
                             <th className="px-2 py-2 text-left font-semibold">Activity Name</th>
+                            <th className="px-2 py-2 text-right font-semibold">Dur</th>
                             <th className="px-2 py-2 text-right font-semibold">Start</th>
                             <th className="px-2 py-2 text-right font-semibold">Finish</th>
                             <th className="px-2 py-2 text-right font-semibold">%</th>
@@ -823,7 +834,7 @@ function SchedulerPage() {
                                   key={`g-${key}`}
                                   className="border-t border-[#eee7d8] bg-[#faf8f3]"
                                 >
-                                  <td colSpan={6} className="px-2 py-1.5">
+                                  <td colSpan={7} className="px-2 py-1.5">
                                     <button
                                       type="button"
                                       onClick={() => toggleGroup(key)}
@@ -896,6 +907,17 @@ function SchedulerPage() {
                                         placeholder="Untitled activity"
                                       />
                                     </td>
+                                    <td className="px-2 py-1.5 text-right text-[11px] text-[#3d3527]">
+                                      <InlineNumber
+                                        value={t.duration}
+                                        min={0}
+                                        step={1}
+                                        suffix="d"
+                                        onCommit={(next) =>
+                                          updateTask(idx, { duration: next })
+                                        }
+                                      />
+                                    </td>
                                     <td className="px-2 py-1.5 text-right text-[11px] text-[#5c574e]">
                                       {formatShort(calc?.earlyStartDate)}
                                     </td>
@@ -933,7 +955,7 @@ function SchedulerPage() {
                             if (rows.length === 0) {
                               rows.push(
                                 <tr key="empty">
-                                  <td colSpan={6} className="px-3 py-10 text-center text-[#9c8b6e]">
+                                  <td colSpan={7} className="px-3 py-10 text-center text-[#9c8b6e]">
                                     No activities match. Click "Add" to create one.
                                   </td>
                                 </tr>,
