@@ -945,7 +945,7 @@ function SchedulerPage() {
                             if (rows.length === 0) {
                               rows.push(
                                 <tr key="empty">
-                                  <td colSpan={6} className="px-3 py-10 text-center text-[#9c8b6e]">
+                                  <td colSpan={7} className="px-3 py-10 text-center text-[#9c8b6e]">
                                     No activities match. Click "Add" to create one.
                                   </td>
                                 </tr>,
