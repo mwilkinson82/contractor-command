@@ -1,6 +1,7 @@
 import type {
   Dependency,
   DependencyType,
+  NamedCalendar,
   ProjectCalendar,
   Schedule,
   ScheduledDependency,
@@ -17,63 +18,93 @@ interface NormalizedDependency {
   from: TaskId;
   to: TaskId;
   type: DependencyType;
+  /** Lag expressed in project-default working days (as authored by the user). */
   lag: number;
 }
 
 interface WorkingTask extends Task {
   duration: number;
+  /** Effective calendar for this task (per-task assignment or project default). */
+  calendar: ProjectCalendar;
+  /** Calendar-day offsets from projectStart. */
   earlyStart: number;
   earlyFinish: number;
   lateStart: number;
   lateFinish: number;
+  /** Floats expressed in calendar days. */
   totalFloat: number;
   freeFloat: number;
   isCritical: boolean;
 }
 
+/**
+ * CPM engine. Internal time unit is CALENDAR-DAY OFFSET from projectStart.
+ * - Task durations are stored as working days of the task's own calendar; the
+ *   engine converts them to elapsed calendar days using that calendar.
+ * - Dependency lags are interpreted as working days of the project default
+ *   calendar and converted to elapsed calendar days at the predecessor's
+ *   reference point.
+ * - When `projectStartDate` is absent, the engine falls back to treating
+ *   durations as raw integer offsets (so callers without dates still get a
+ *   self-consistent topological schedule).
+ */
 export function calculateSchedule(
   schedule: Schedule,
   options: SchedulerOptions = {},
 ): ScheduleResult {
   const diagnostics: string[] = [];
   const tolerance = options.criticalFloatTolerance ?? 0;
-  const tasks = normalizeTasks(schedule.tasks, diagnostics);
+
+  const defaultCalendar = schedule.calendar ?? DEFAULT_CALENDAR;
+  const namedCalendars = schedule.calendars ?? [];
+  const calendarLookup = new Map<string, ProjectCalendar>();
+  for (const c of namedCalendars) {
+    calendarLookup.set(c.id, { workDays: c.workDays, holidays: c.holidays });
+  }
+
+  const projectStart = schedule.projectStartDate;
+  const tasks = normalizeTasks(schedule.tasks, defaultCalendar, calendarLookup, diagnostics);
   const taskMap = new Map(tasks.map((task) => [task.id, task]));
   const dependencies = normalizeDependencies(schedule.dependencies, taskMap, diagnostics);
   const order = topologicalSort(tasks, dependencies);
-  const calendar = schedule.calendar ?? DEFAULT_CALENDAR;
 
-  // Compute minimum-start working-day offset per task from startNoEarlierThan
+  // Build per-task minimum start (calendar-day offset) from startNoEarlierThan.
   const minStart = new Map<TaskId, number>();
-  if (schedule.projectStartDate) {
+  if (projectStart) {
     for (const t of tasks) {
       if (t.startNoEarlierThan) {
-        const off = workingDayDelta(schedule.projectStartDate, t.startNoEarlierThan, calendar);
+        const off = calendarDayDelta(projectStart, t.startNoEarlierThan);
         if (off > 0) minStart.set(t.id, off);
       }
     }
   }
 
-  runForwardPass(order, dependencies, taskMap, minStart);
+  runForwardPass(order, dependencies, taskMap, defaultCalendar, projectStart, minStart);
   const projectDuration = Math.max(0, ...tasks.map((task) => task.earlyFinish));
-  runBackwardPass([...order].reverse(), dependencies, taskMap, projectDuration);
+  runBackwardPass(
+    [...order].reverse(),
+    dependencies,
+    taskMap,
+    defaultCalendar,
+    projectStart,
+    projectDuration,
+  );
   markFloat(tasks, dependencies, tolerance);
 
   const scheduledDependencies = dependencies.map((dependency) => ({
     ...dependency,
-    isDriving: dependencySlack(dependency, taskMap) <= tolerance,
+    isDriving:
+      dependencySlack(dependency, taskMap, defaultCalendar, projectStart) <= tolerance,
   }));
 
   return {
     scheduleId: schedule.id,
     name: schedule.name,
-    projectStartDate: schedule.projectStartDate,
+    projectStartDate: projectStart,
     projectDuration,
-    projectFinishDate: schedule.projectStartDate
-      ? addWorkingDaysIso(schedule.projectStartDate, projectDuration, calendar)
-      : undefined,
+    projectFinishDate: projectStart ? addCalendarDaysIso(projectStart, projectDuration) : undefined,
     tasks: tasks
-      .map((task) => toScheduledTask(task, schedule.projectStartDate, calendar))
+      .map((task) => toScheduledTask(task, projectStart))
       .sort(
         (a, b) =>
           a.earlyStart - b.earlyStart || a.earlyFinish - b.earlyFinish || a.id.localeCompare(b.id),
@@ -88,7 +119,12 @@ export function getTaskById(result: ScheduleResult, taskId: TaskId): ScheduledTa
   return result.tasks.find((task) => task.id === taskId);
 }
 
-function normalizeTasks(tasks: Task[], diagnostics: string[]): WorkingTask[] {
+function normalizeTasks(
+  tasks: Task[],
+  defaultCalendar: ProjectCalendar,
+  calendarLookup: Map<string, ProjectCalendar>,
+  diagnostics: string[],
+): WorkingTask[] {
   const seen = new Set<TaskId>();
   return tasks.map((task) => {
     if (seen.has(task.id)) {
@@ -101,13 +137,17 @@ function normalizeTasks(tasks: Task[], diagnostics: string[]): WorkingTask[] {
       diagnostics.push(`Task "${task.id}" duration was normalized to ${duration}.`);
     }
 
+    const cal =
+      (task.calendarId && calendarLookup.get(task.calendarId)) || defaultCalendar;
+
     return {
       ...task,
       duration,
+      calendar: cal,
       earlyStart: 0,
-      earlyFinish: duration,
+      earlyFinish: 0,
       lateStart: 0,
-      lateFinish: duration,
+      lateFinish: 0,
       totalFloat: 0,
       freeFloat: 0,
       isCritical: false,
@@ -183,27 +223,52 @@ function topologicalSort(
   return ordered;
 }
 
+/** Convert N working days (positive) starting at `startOffset` into elapsed calendar days using `cal`. */
+function workingDaysToCalendarDays(
+  startOffset: number,
+  workDays: number,
+  cal: ProjectCalendar,
+  projectStart?: string,
+): number {
+  if (workDays <= 0) return 0;
+  if (!projectStart) return workDays; // dateless mode: treat as raw offset
+  const base = new Date(`${projectStart}T00:00:00.000Z`);
+  if (Number.isNaN(base.getTime())) return workDays;
+  let walked = 0;
+  let counted = 0;
+  while (counted < workDays) {
+    walked++;
+    const d = new Date(base.getTime());
+    d.setUTCDate(d.getUTCDate() + startOffset + walked);
+    if (isWorkingDay(d, cal)) counted++;
+  }
+  return walked;
+}
+
 function runForwardPass(
   orderedTasks: WorkingTask[],
   dependencies: NormalizedDependency[],
   taskMap: Map<TaskId, WorkingTask>,
-  minStart?: Map<TaskId, number>,
+  defaultCal: ProjectCalendar,
+  projectStart: string | undefined,
+  minStart: Map<TaskId, number>,
 ) {
   const predecessors = groupBy(dependencies, "to");
 
   for (const task of orderedTasks) {
-    let earlyStart = minStart?.get(task.id) ?? 0;
+    let earlyStart = minStart.get(task.id) ?? 0;
 
     for (const dependency of predecessors.get(task.id) ?? []) {
       const predecessor = taskMap.get(dependency.from)!;
       earlyStart = Math.max(
         earlyStart,
-        successorEarlyStart(dependency, predecessor, task.duration),
+        successorEarlyStart(dependency, predecessor, task, defaultCal, projectStart),
       );
     }
 
+    const dur = workingDaysToCalendarDays(earlyStart, task.duration, task.calendar, projectStart);
     task.earlyStart = earlyStart;
-    task.earlyFinish = earlyStart + task.duration;
+    task.earlyFinish = earlyStart + dur;
   }
 }
 
@@ -211,13 +276,16 @@ function runBackwardPass(
   reversedTasks: WorkingTask[],
   dependencies: NormalizedDependency[],
   taskMap: Map<TaskId, WorkingTask>,
+  defaultCal: ProjectCalendar,
+  projectStart: string | undefined,
   projectDuration: number,
 ) {
   const successors = groupBy(dependencies, "from");
 
   for (const task of taskMap.values()) {
+    const dur = task.earlyFinish - task.earlyStart;
     task.lateFinish = projectDuration;
-    task.lateStart = projectDuration - task.duration;
+    task.lateStart = projectDuration - dur;
   }
 
   for (const task of reversedTasks) {
@@ -227,12 +295,13 @@ function runBackwardPass(
       const successor = taskMap.get(dependency.to)!;
       lateFinish = Math.min(
         lateFinish,
-        predecessorLateFinish(dependency, task.duration, successor),
+        predecessorLateFinish(dependency, task, successor, defaultCal, projectStart),
       );
     }
 
+    const dur = task.earlyFinish - task.earlyStart;
     task.lateFinish = lateFinish;
-    task.lateStart = lateFinish - task.duration;
+    task.lateStart = lateFinish - dur;
   }
 }
 
@@ -244,7 +313,8 @@ function markFloat(tasks: WorkingTask[], dependencies: NormalizedDependency[], t
   for (const task of tasks) {
     task.totalFloat = task.lateStart - task.earlyStart;
     const successorSlack = (successors.get(task.id) ?? []).map((dependency) =>
-      dependencySlack(dependency, taskMap),
+      // Float calc uses defaultCal-derived slack (lag offset cancels in slack semantics enough for FF heuristic).
+      dependencySlack(dependency, taskMap, task.calendar, undefined),
     );
     task.freeFloat =
       successorSlack.length > 0 ? Math.min(...successorSlack) : projectDuration - task.earlyFinish;
@@ -252,56 +322,148 @@ function markFloat(tasks: WorkingTask[], dependencies: NormalizedDependency[], t
   }
 }
 
+/** Resolve calendar-day offset to apply to predecessor for lag (positive or negative). */
+function lagCalendarOffset(
+  refOffset: number,
+  lagWorkingDays: number,
+  defaultCal: ProjectCalendar,
+  projectStart?: string,
+): number {
+  if (lagWorkingDays === 0) return 0;
+  if (lagWorkingDays > 0) {
+    return workingDaysToCalendarDays(refOffset, lagWorkingDays, defaultCal, projectStart);
+  }
+  // Negative lag: walk backward.
+  if (!projectStart) return lagWorkingDays;
+  const base = new Date(`${projectStart}T00:00:00.000Z`);
+  let walked = 0;
+  let counted = 0;
+  const target = -lagWorkingDays;
+  while (counted < target) {
+    walked++;
+    const d = new Date(base.getTime());
+    d.setUTCDate(d.getUTCDate() + refOffset - walked);
+    if (isWorkingDay(d, defaultCal)) counted++;
+  }
+  return -walked;
+}
+
 function successorEarlyStart(
   dependency: NormalizedDependency,
   predecessor: WorkingTask,
-  successorDuration: number,
+  successor: WorkingTask,
+  defaultCal: ProjectCalendar,
+  projectStart: string | undefined,
 ) {
   switch (dependency.type) {
-    case "SS":
-      return predecessor.earlyStart + dependency.lag;
-    case "FF":
-      return predecessor.earlyFinish + dependency.lag - successorDuration;
-    case "SF":
-      return predecessor.earlyStart + dependency.lag - successorDuration;
+    case "SS": {
+      const ref = predecessor.earlyStart;
+      return ref + lagCalendarOffset(ref, dependency.lag, defaultCal, projectStart);
+    }
+    case "FF": {
+      const ref = predecessor.earlyFinish;
+      const lagOff = lagCalendarOffset(ref, dependency.lag, defaultCal, projectStart);
+      const succFinish = ref + lagOff;
+      // Need succ.earlyStart such that earlyStart + dur(succ from earlyStart) == succFinish.
+      // Approximate by subtracting successor duration in its own calendar walking backward.
+      return succFinish - workingDaysBackToCalendarDays(succFinish, successor.duration, successor.calendar, projectStart);
+    }
+    case "SF": {
+      const ref = predecessor.earlyStart;
+      const lagOff = lagCalendarOffset(ref, dependency.lag, defaultCal, projectStart);
+      const succFinish = ref + lagOff;
+      return succFinish - workingDaysBackToCalendarDays(succFinish, successor.duration, successor.calendar, projectStart);
+    }
     case "FS":
-    default:
-      return predecessor.earlyFinish + dependency.lag;
+    default: {
+      const ref = predecessor.earlyFinish;
+      return ref + lagCalendarOffset(ref, dependency.lag, defaultCal, projectStart);
+    }
   }
 }
 
 function predecessorLateFinish(
   dependency: NormalizedDependency,
-  predecessorDuration: number,
+  predecessor: WorkingTask,
   successor: WorkingTask,
+  defaultCal: ProjectCalendar,
+  projectStart: string | undefined,
 ) {
+  const predDur = predecessor.earlyFinish - predecessor.earlyStart;
   switch (dependency.type) {
-    case "SS":
-      return successor.lateStart - dependency.lag + predecessorDuration;
-    case "FF":
-      return successor.lateFinish - dependency.lag;
-    case "SF":
-      return successor.lateFinish - dependency.lag + predecessorDuration;
+    case "SS": {
+      const ref = successor.lateStart;
+      // pred.lateStart = ref - lag; pred.lateFinish = pred.lateStart + predDur
+      const lagOff = lagCalendarOffset(ref, dependency.lag, defaultCal, projectStart);
+      return ref - lagOff + predDur;
+    }
+    case "FF": {
+      const ref = successor.lateFinish;
+      const lagOff = lagCalendarOffset(ref, dependency.lag, defaultCal, projectStart);
+      return ref - lagOff;
+    }
+    case "SF": {
+      const ref = successor.lateFinish;
+      const lagOff = lagCalendarOffset(ref, dependency.lag, defaultCal, projectStart);
+      return ref - lagOff + predDur;
+    }
     case "FS":
-    default:
-      return successor.lateStart - dependency.lag;
+    default: {
+      const ref = successor.lateStart;
+      const lagOff = lagCalendarOffset(ref, dependency.lag, defaultCal, projectStart);
+      return ref - lagOff;
+    }
   }
 }
 
-function dependencySlack(dependency: NormalizedDependency, taskMap: Map<TaskId, WorkingTask>) {
+/** Walk N working days backward from `endOffset` using `cal`; return elapsed calendar days. */
+function workingDaysBackToCalendarDays(
+  endOffset: number,
+  workDays: number,
+  cal: ProjectCalendar,
+  projectStart?: string,
+): number {
+  if (workDays <= 0) return 0;
+  if (!projectStart) return workDays;
+  const base = new Date(`${projectStart}T00:00:00.000Z`);
+  let walked = 0;
+  let counted = 0;
+  while (counted < workDays) {
+    walked++;
+    const d = new Date(base.getTime());
+    d.setUTCDate(d.getUTCDate() + endOffset - walked);
+    if (isWorkingDay(d, cal)) counted++;
+  }
+  return walked;
+}
+
+function dependencySlack(
+  dependency: NormalizedDependency,
+  taskMap: Map<TaskId, WorkingTask>,
+  defaultCal: ProjectCalendar,
+  projectStart: string | undefined,
+) {
   const predecessor = taskMap.get(dependency.from)!;
   const successor = taskMap.get(dependency.to)!;
 
   switch (dependency.type) {
-    case "SS":
-      return successor.earlyStart - (predecessor.earlyStart + dependency.lag);
-    case "FF":
-      return successor.earlyFinish - (predecessor.earlyFinish + dependency.lag);
-    case "SF":
-      return successor.earlyFinish - (predecessor.earlyStart + dependency.lag);
+    case "SS": {
+      const ref = predecessor.earlyStart;
+      return successor.earlyStart - (ref + lagCalendarOffset(ref, dependency.lag, defaultCal, projectStart));
+    }
+    case "FF": {
+      const ref = predecessor.earlyFinish;
+      return successor.earlyFinish - (ref + lagCalendarOffset(ref, dependency.lag, defaultCal, projectStart));
+    }
+    case "SF": {
+      const ref = predecessor.earlyStart;
+      return successor.earlyFinish - (ref + lagCalendarOffset(ref, dependency.lag, defaultCal, projectStart));
+    }
     case "FS":
-    default:
-      return successor.earlyStart - (predecessor.earlyFinish + dependency.lag);
+    default: {
+      const ref = predecessor.earlyFinish;
+      return successor.earlyStart - (ref + lagCalendarOffset(ref, dependency.lag, defaultCal, projectStart));
+    }
   }
 }
 
@@ -324,30 +486,20 @@ function buildCriticalPath(tasks: WorkingTask[], dependencies: ScheduledDependen
     .map((task) => task.id);
 }
 
-function toScheduledTask(
-  task: WorkingTask,
-  projectStartDate?: string,
-  calendar: ProjectCalendar = DEFAULT_CALENDAR,
-): ScheduledTask {
+function toScheduledTask(task: WorkingTask, projectStartDate?: string): ScheduledTask {
+  // Strip internal-only `calendar` field from the working task before returning.
+  const { calendar: _omit, ...rest } = task;
+  void _omit;
   return {
-    ...task,
-    earlyStartDate: projectStartDate
-      ? addWorkingDaysIso(projectStartDate, task.earlyStart, calendar)
-      : undefined,
-    earlyFinishDate: projectStartDate
-      ? addWorkingDaysIso(projectStartDate, task.earlyFinish, calendar)
-      : undefined,
-    lateStartDate: projectStartDate
-      ? addWorkingDaysIso(projectStartDate, task.lateStart, calendar)
-      : undefined,
-    lateFinishDate: projectStartDate
-      ? addWorkingDaysIso(projectStartDate, task.lateFinish, calendar)
-      : undefined,
+    ...rest,
+    earlyStartDate: projectStartDate ? addCalendarDaysIso(projectStartDate, task.earlyStart) : undefined,
+    earlyFinishDate: projectStartDate ? addCalendarDaysIso(projectStartDate, task.earlyFinish) : undefined,
+    lateStartDate: projectStartDate ? addCalendarDaysIso(projectStartDate, task.lateStart) : undefined,
+    lateFinishDate: projectStartDate ? addCalendarDaysIso(projectStartDate, task.lateFinish) : undefined,
   };
 }
 
 function isWorkingDay(d: Date, cal: ProjectCalendar): boolean {
-  // JS getUTCDay(): 0=Sun..6=Sat. Bitmask: bit0=Mon..bit5=Sat,bit6=Sun.
   const dow = d.getUTCDay();
   const bitIdx = (dow + 6) % 7;
   if (!(cal.workDays & (1 << bitIdx))) return false;
@@ -355,30 +507,18 @@ function isWorkingDay(d: Date, cal: ProjectCalendar): boolean {
   return !cal.holidays.includes(iso);
 }
 
-function addWorkingDaysIso(date: string, offset: number, cal: ProjectCalendar): string {
+function addCalendarDaysIso(date: string, offset: number): string {
   const base = new Date(`${date}T00:00:00.000Z`);
   if (Number.isNaN(base.getTime())) return date;
-  if (offset <= 0) return base.toISOString().slice(0, 10);
-  let remaining = offset;
-  while (remaining > 0) {
-    base.setUTCDate(base.getUTCDate() + 1);
-    if (isWorkingDay(base, cal)) remaining--;
-  }
+  base.setUTCDate(base.getUTCDate() + offset);
   return base.toISOString().slice(0, 10);
 }
 
-function workingDayDelta(from: string, to: string, cal: ProjectCalendar): number {
+function calendarDayDelta(from: string, to: string): number {
   const a = new Date(`${from}T00:00:00.000Z`);
   const b = new Date(`${to}T00:00:00.000Z`);
   if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return 0;
-  if (b.getTime() <= a.getTime()) return 0;
-  let count = 0;
-  const cur = new Date(a.getTime());
-  while (cur.getTime() < b.getTime()) {
-    cur.setUTCDate(cur.getUTCDate() + 1);
-    if (isWorkingDay(cur, cal)) count++;
-  }
-  return count;
+  return Math.round((b.getTime() - a.getTime()) / 86400000);
 }
 
 function groupBy<T extends Record<K, string>, K extends keyof T>(items: T[], key: K) {
