@@ -103,7 +103,12 @@ const DEFAULT_ACCEPTABLE_CODES = new Set<string>([
   "calendar_exception_applied",
   "calendar_exception_conflict",
   "calendar_shift_preserved_only",
+  // Phase 2.2 — out-of-sequence progress (informational rule application).
+  "retained_logic_applied",
+  "progress_override_applied",
+  "out_of_sequence_rule_deferred",
 ]);
+
 
 const UNSUPPORTED_PRESERVED_CODES = new Set<string>([
   "unsupported_constraint_type",
