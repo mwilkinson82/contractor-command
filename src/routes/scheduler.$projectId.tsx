@@ -378,6 +378,59 @@ function SchedulerPage() {
     setDirty(true);
   };
 
+  const applySample = (payload: SamplePayload) => {
+    setDraft({
+      name: payload.name,
+      projectStartDate: payload.projectStartDate,
+      dataDate: payload.dataDate,
+      workDays: payload.workDays,
+      holidays: payload.holidays,
+      tasks: payload.tasks.map((t) => ({ ...t })),
+      dependencies: payload.dependencies.map((d) => ({ ...d })),
+      annotations: payload.annotations.map((a) => ({ ...a })),
+    });
+    setDirty(true);
+    toast.success(`Loaded ${payload.tasks.length} sample activities — review and Save.`);
+  };
+
+  const applyPasted = ({ tasks, dependencies }: { tasks: Task[]; dependencies: Dependency[] }) => {
+    setDraft((d) => {
+      if (!d) return d;
+      return {
+        ...d,
+        tasks: [...d.tasks, ...tasks],
+        dependencies: [...d.dependencies, ...dependencies],
+      };
+    });
+    setDirty(true);
+    toast.success(`Added ${tasks.length} activities from paste.`);
+  };
+
+  const applyXerImport = ({
+    name,
+    projectStartDate,
+    tasks,
+    dependencies,
+  }: {
+    name: string;
+    projectStartDate?: string;
+    tasks: Task[];
+    dependencies: Dependency[];
+  }) => {
+    setDraft((d) => {
+      if (!d) return d;
+      return {
+        ...d,
+        name: d.tasks.length === 0 ? name : d.name,
+        projectStartDate: d.projectStartDate ?? projectStartDate,
+        tasks: [...d.tasks, ...tasks],
+        dependencies: [...d.dependencies, ...dependencies],
+      };
+    });
+    setDirty(true);
+  };
+
+
   const removeTask = (idx: number) => {
     setDraft((d) => {
       if (!d) return d;
