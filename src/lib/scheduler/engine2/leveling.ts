@@ -469,6 +469,20 @@ export function levelResources(input: LevelingInput): LevelingAnalysis {
     usePlacements: placements,
   });
 
+  // Phase 2.3 — surface residual overallocations as structured diagnostics.
+  if (preserveDates && after.length > 0) {
+    for (const ov of after) {
+      for (const day of ov.days) {
+        warnings.push({
+          severity: "warn",
+          code: "leveling_overallocation_unresolved",
+          message: `Resource "${ov.resourceId}" overallocated by ${day.overUnits} units on ${new Date(day.dayStart).toISOString().slice(0, 10)} after preserve-dates leveling (activities: ${day.activityIds.join(", ")}).`,
+        });
+      }
+    }
+  }
+
+
   return {
     options: {
       enabled: true,
