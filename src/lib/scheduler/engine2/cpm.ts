@@ -54,7 +54,7 @@ import type {
 import { MS_PER_DAY, MS_PER_MIN, type WorkClock } from "./work-clock";
 import { rollupActivityAssignments, validateAssignments } from "./assignments";
 
-export const ENGINE2_VERSION = "0.5.0-phase1.5";
+export const ENGINE2_VERSION = "0.6.0-phase1.6";
 
 export interface CpmInput {
   /** Data date / status date as an absolute UTC instant. */
