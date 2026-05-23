@@ -20,6 +20,44 @@ import type {
   Instant,
 } from "./types";
 import { createWholeDayWorkClock, type WorkClock } from "./work-clock";
+import { createExceptionWorkClock } from "./work-clock-exceptions";
+
+export interface LegacyBridgeOptions {
+  /**
+   * Phase 2.5 — dev-only opt-in. Route calendars through
+   * `createExceptionWorkClock` instead of the whole-day fallback. Default
+   * is false (whole-day). Legacy schedules carry no shift/exception data
+   * today, so the exception clock receives only weekday-mask + holidays
+   * and produces equivalent behavior — the flag exists so the routing
+   * path can be exercised before real exception data is bridged.
+   */
+  useExceptionAwareCalendars?: boolean;
+}
+
+function buildCalendarClock(
+  id: string,
+  name: string,
+  workDays: number,
+  holidays: readonly string[],
+  useExceptions: boolean,
+): WorkClock {
+  if (useExceptions) {
+    return createExceptionWorkClock({
+      id,
+      name,
+      workDays,
+      holidays,
+      hoursPerDay: HOURS_PER_DAY,
+    });
+  }
+  return createWholeDayWorkClock({
+    id,
+    name,
+    workDays,
+    holidays,
+    hoursPerDay: HOURS_PER_DAY,
+  });
+}
 
 /** Convert legacy workDays bitmask (bit0=Mon..bit5=Sat,bit6=Sun) to engine2 bitmask (bit0=Sun..bit6=Sat). */
 function convertWorkDaysMask(legacyMask: number): number {
