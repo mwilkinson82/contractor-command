@@ -25,7 +25,48 @@ const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
   }
 });
 
+/**
+ * Same-origin CSRF guard for state-changing requests.
+ *
+ * Defense-in-depth on top of the Bearer-token check in `requireSupabaseAuth`:
+ * a browser cannot forge the Origin/Referer header, and same-origin server
+ * function calls always include it. We explicitly allow:
+ *   - safe HTTP methods (GET/HEAD/OPTIONS)
+ *   - external webhook + cron endpoints under /api/public/* and /lovable/*
+ *     which authenticate themselves via signatures / shared secrets.
+ */
+const csrfOriginGuard = createMiddleware().server(async ({ next, request }) => {
+  const method = request.method.toUpperCase();
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") {
+    return next();
+  }
+
+  const url = new URL(request.url);
+  if (
+    url.pathname.startsWith("/api/public/") ||
+    url.pathname.startsWith("/lovable/")
+  ) {
+    return next();
+  }
+
+  const origin = request.headers.get("origin") ?? request.headers.get("referer");
+  if (!origin) {
+    return new Response("Missing Origin", { status: 403 });
+  }
+  try {
+    const originHost = new URL(origin).host;
+    if (originHost !== url.host) {
+      return new Response("Cross-origin request blocked", { status: 403 });
+    }
+  } catch {
+    return new Response("Invalid Origin", { status: 403 });
+  }
+
+  return next();
+});
+
 export const startInstance = createStart(() => ({
-  requestMiddleware: [errorMiddleware],
+  requestMiddleware: [errorMiddleware, csrfOriginGuard],
   functionMiddleware: [attachSupabaseAuth],
 }));
+
