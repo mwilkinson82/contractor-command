@@ -124,6 +124,8 @@ function SchedulerPage() {
     };
   }, []);
   const [dayPx, setDayPx] = useState(22);
+  const [zoomUserSet, setZoomUserSet] = useState(false);
+  const setDayPxUser = (n: number) => { setZoomUserSet(true); setDayPx(n); };
   const [nearCriticalFloat, setNearCriticalFloat] = useState(5);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [groupBy, setGroupBy] = useState<"wbs" | "critical" | "none">("wbs");
@@ -177,6 +179,7 @@ function SchedulerPage() {
     setComparisonBaselineId(null);
     setDraft(null);
     setDirty(false);
+    setZoomUserSet(false);
   }, [selectedId]);
 
   const toggleGroup = (key: string) => {
@@ -302,6 +305,21 @@ function SchedulerPage() {
 
   const computed = result && "tasks" in result ? result : null;
   const computeError = result && "error" in result ? result.error : null;
+
+  // Auto-fit zoom: pick a dayPx that fits the project horizontally on first load
+  // for this schedule. User changes (setDayPxUser) opt out.
+  useEffect(() => {
+    if (zoomUserSet) return;
+    if (!computed || computed.projectDuration < 1) return;
+    const container = rightScrollRef.current;
+    if (!container) return;
+    const available = container.clientWidth - 668 /* sticky table width */ - 16;
+    if (available <= 0) return;
+    const ideal = Math.floor(available / computed.projectDuration);
+    const clamped = Math.max(4, Math.min(36, ideal));
+    if (clamped !== dayPx) setDayPx(clamped);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [computed?.projectDuration, zoomUserSet]);
 
   const baselineQuery = useQuery({
     queryKey: ["baseline", comparisonBaselineId],
@@ -552,7 +570,7 @@ function SchedulerPage() {
   return (
     <div className="scheduler-print-root flex h-screen flex-col bg-[#faf8f3] text-[#1f241f]">
       {/* ============ TOP HEADER ============ */}
-      <header className="flex h-14 shrink-0 items-center gap-4 border-b border-[#e6dfd0] bg-white/80 px-4 backdrop-blur">
+      <header className="flex h-12 shrink-0 items-center gap-4 border-b border-[#e6dfd0] bg-white/80 px-4 backdrop-blur">
         <Link
           to="/scheduler"
           className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#5c574e] hover:text-[#1f241f]"
@@ -656,7 +674,7 @@ function SchedulerPage() {
       </header>
 
       {/* ============ TAB BAR ============ */}
-      <nav className="flex h-10 shrink-0 items-end gap-0 border-b border-[#e6dfd0] bg-white/60 px-4">
+      <nav className="flex h-9 shrink-0 items-end gap-0 border-b border-[#e6dfd0] bg-white/60 px-4">
         {(
           [
             ["schedule", "Schedule"],
@@ -713,7 +731,7 @@ function SchedulerPage() {
       ) : (
         <>
           {/* ============ TOOLBAR ============ */}
-          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[#e6dfd0] bg-white px-4 py-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[#e6dfd0] bg-white px-4 py-1.5">
             {/* View modes (only Gantt is wired) */}
             <div className="flex items-center rounded-md border border-[#e6dfd0] bg-[#faf8f3] p-0.5">
               <button className="rounded bg-white px-3 py-1 text-xs font-medium shadow-sm">
@@ -886,13 +904,21 @@ function SchedulerPage() {
                 <span className="text-[10px] uppercase tracking-wide text-[#7a6a4d]">
                   Zoom
                 </span>
+                <button
+                  type="button"
+                  onClick={() => setZoomUserSet(false)}
+                  className="rounded border border-[#e6dfd0] px-1.5 py-0.5 text-[10px] text-[#5c574e] hover:bg-[#faf8f3]"
+                  title="Fit project to viewport"
+                >
+                  Fit
+                </button>
                 {ZOOM_LEVELS.map((z) => (
                   <button
                     key={z.label}
                     type="button"
-                    onClick={() => setDayPx(z.dayPx)}
+                    onClick={() => setDayPxUser(z.dayPx)}
                     className={`rounded px-1.5 py-0.5 text-[10px] ${
-                      dayPx === z.dayPx
+                      dayPx === z.dayPx && zoomUserSet
                         ? "bg-[#1f241f] text-white"
                         : "border border-[#e6dfd0] text-[#5c574e] hover:bg-[#faf8f3]"
                     }`}
@@ -1062,8 +1088,8 @@ function SchedulerPage() {
                         />
                       ) : null}
                     </div>
-                    {/* Legend */}
-                    <div className="flex shrink-0 items-center justify-center gap-5 border-t border-[#eee7d8] bg-[#faf8f3] px-4 py-1.5 text-[10px] text-[#5c574e]">
+                    {/* Legend — slim inline strip */}
+                    <div className="flex shrink-0 items-center justify-center gap-4 border-t border-[#eee7d8] bg-[#faf8f3] px-4 py-1 text-[10px] text-[#5c574e]">
                       <LegendDot color="#3d8a5c" label="Completed" />
                       <LegendDot color="#5b8bd6" label="In Progress" />
                       <LegendDot color="#9b87d3" label="Planned" />
@@ -1123,7 +1149,7 @@ function SchedulerPage() {
                     ) : null}
                   </div>
 
-                  <div className="max-h-[280px] overflow-auto px-4 py-3 text-sm">
+                  <div className="max-h-[200px] overflow-auto px-4 py-2 text-sm">
                     {!selectedTaskCalc || selectedTaskIdx < 0 ? (
                       <div className="py-6 text-center text-xs text-[#9c8b6e]">
                         Select an activity to inspect details, relationships, resources, codes,

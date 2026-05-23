@@ -77,59 +77,33 @@ export function ScheduleKpiBar({ result, tasks, dataDate }: Props) {
   }, [result, tasks, dataDate]);
 
   return (
-    <div className="flex shrink-0 items-stretch gap-2 border-b border-[#e6dfd0] bg-white px-4 py-2 text-xs">
-      <Tile label="Activities" value={kpis.total.toString()} sub={`${kpis.notStarted} not started`} />
-      <Tile
-        label="Critical"
-        value={kpis.critical.toString()}
-        sub={`+${kpis.nearCrit} near-crit`}
-        accent="bg-[#b42318]"
-      />
-      <Tile
-        label="In progress"
-        value={kpis.inProg.toString()}
-        sub={`${kpis.completed} done`}
-        accent="bg-[#5b8bd6]"
-      />
-      <Tile
-        label="% Complete"
-        value={`${kpis.pctComplete}%`}
-        sub={kpis.bac > 0 ? `EV ${fmtMoney(kpis.ev)} / ${fmtMoney(kpis.bac)}` : "no cost loaded"}
-        accent="bg-[#3d8a5c]"
-      />
-      <Tile
-        label="SPI"
-        value={kpis.spi ? kpis.spi.toFixed(2) : "—"}
-        sub={kpis.spi ? (kpis.spi >= 1 ? "on / ahead" : "behind plan") : "set data date"}
-        tone={kpis.spi ? (kpis.spi >= 1 ? "good" : "bad") : undefined}
-      />
-      <Tile
-        label="CPI"
-        value={kpis.cpi ? kpis.cpi.toFixed(2) : "—"}
-        sub={kpis.cpi ? (kpis.cpi >= 1 ? "under budget" : "over budget") : "no actuals"}
-        tone={kpis.cpi ? (kpis.cpi >= 1 ? "good" : "bad") : undefined}
-      />
-      <Tile
-        label="Finish"
-        value={result.projectFinishDate ?? "—"}
-        sub={`${result.projectDuration}d total`}
-      />
+    <div className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-1 border-b border-[#e6dfd0] bg-white px-4 py-1 text-[11px] text-[#5c574e]">
+      <Pill label="Activities" value={kpis.total.toString()} sub={`${kpis.notStarted} ns`} />
+      <Pill label="Critical" value={kpis.critical.toString()} sub={`+${kpis.nearCrit} nc`} dot="#b42318" />
+      <Pill label="In progress" value={kpis.inProg.toString()} sub={`${kpis.completed} done`} dot="#5b8bd6" />
+      <Pill label="% Complete" value={`${kpis.pctComplete}%`} dot="#3d8a5c" />
+      <Pill label="SPI" value={kpis.spi ? kpis.spi.toFixed(2) : "—"} tone={kpis.spi ? (kpis.spi >= 1 ? "good" : "bad") : undefined} />
+      <Pill label="CPI" value={kpis.cpi ? kpis.cpi.toFixed(2) : "—"} tone={kpis.cpi ? (kpis.cpi >= 1 ? "good" : "bad") : undefined} />
+      <Pill label="Finish" value={result.projectFinishDate ?? "—"} sub={`${result.projectDuration}d`} />
+      {kpis.bac > 0 ? (
+        <Pill label="EV" value={fmtMoney(kpis.ev)} sub={`/ ${fmtMoney(kpis.bac)}`} />
+      ) : null}
     </div>
   );
 }
 
-function Tile({
+function Pill({
   label,
   value,
   sub,
   tone,
-  accent,
+  dot,
 }: {
   label: string;
   value: string;
   sub?: string;
   tone?: "good" | "bad";
-  accent?: string;
+  dot?: string;
 }) {
   const toneClass =
     tone === "good"
@@ -138,19 +112,11 @@ function Tile({
         ? "text-[#b42318]"
         : "text-[#1f241f]";
   return (
-    <div className="relative flex min-w-[120px] flex-1 flex-col justify-center rounded-md border border-[#e6dfd0] bg-[#faf8f3] px-3 py-1.5">
-      {accent ? (
-        <span className={`absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r ${accent}`} />
-      ) : null}
-      <div className="text-[9px] font-semibold uppercase tracking-wider text-[#7a6a4d]">
-        {label}
-      </div>
-      <div className={`text-base font-semibold leading-tight tabular-nums ${toneClass}`}>
-        {value}
-      </div>
-      {sub ? (
-        <div className="truncate text-[10px] text-[#776e5e]">{sub}</div>
-      ) : null}
-    </div>
+    <span className="inline-flex items-center gap-1.5">
+      {dot ? <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: dot }} /> : null}
+      <span className="text-[9px] font-semibold uppercase tracking-wider text-[#7a6a4d]">{label}</span>
+      <span className={`font-semibold tabular-nums ${toneClass}`}>{value}</span>
+      {sub ? <span className="text-[10px] text-[#9c8b6e]">{sub}</span> : null}
+    </span>
   );
 }

@@ -269,9 +269,9 @@ export function CpmGrid({
       <div className="flex min-w-max">
         {/* ============ LEFT: activity table ============ */}
         <div className="sticky left-0 z-20 shrink-0 border-r border-[#d8cdb8] bg-white shadow-[2px_0_0_rgba(0,0,0,0.03)]">
-          {/* Column header */}
+          {/* Column header — quiet ink on cream to match the gantt header */}
           <div
-            className="sticky top-0 z-30 border-b border-[#d8cdb8] bg-[#1f241f] text-[10px] font-semibold uppercase tracking-wider text-[#e8e0cd]"
+            className="sticky top-0 z-30 border-b border-[#d8cdb8] bg-[#f3ecdb] text-[10px] font-semibold uppercase tracking-wider text-[#3d3527]"
             style={{ height: HEADER_H }}
           >
             <table className="w-full border-collapse">
