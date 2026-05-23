@@ -70,9 +70,31 @@ export interface EngineActivity {
   /** 0..2 per P6 (primary + secondary). */
   constraints: Constraint[];
 
-  /** Optional, only meaningful for `physical` percentCompleteType. */
+  /**
+   * Independently editable Physical Percent Complete (0..100).
+   * Only consumed when `percentCompleteType === "physical"`.
+   * Phase 1.3: stored verbatim; does NOT influence date calculations.
+   */
+  physicalPercentComplete?: number;
+
+  /**
+   * Reported Units Percent Complete (0..100).
+   * Only consumed when `percentCompleteType === "units"`.
+   * Phase 1.3: structural stub — no resource-unit derivation yet. Treated
+   * as a verbatim authored value for reporting; does NOT influence dates.
+   */
+  unitsPercentComplete?: number;
+
+  /**
+   * Deprecated catch-all percent value retained for backward compatibility
+   * with earlier phases. Not consumed by the calculation; use
+   * `physicalPercentComplete` / `unitsPercentComplete` instead.
+   */
   percentComplete?: number;
 }
+
+/** Deterministically derived from actualStart / actualFinish. */
+export type ActivityStatus = "not-started" | "in-progress" | "completed";
 
 export type RelationshipType = "FS" | "SS" | "FF" | "SF";
 export type LagCalendarBasis = "predecessor" | "successor" | "project" | "24h";
