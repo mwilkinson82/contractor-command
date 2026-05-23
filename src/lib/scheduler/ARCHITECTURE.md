@@ -737,3 +737,85 @@ rate-book pricing are implemented.
 
 
 
+
+## 16. Phase 1.6 status — resource leveling foundation
+
+Deterministic, narrow leveling pass on top of CPM. CPM dates on
+`EngineResult.activities` are NEVER mutated; leveled dates live
+exclusively on `EngineResult.leveling`.
+
+### What landed
+
+- **New module** `engine2/leveling.ts` with `levelResources(input)`.
+  Triggered automatically when `CpmInput.leveling.enabled === true`.
+- **Types** (`engine2/types.ts`):
+  - `LevelingOptions` (enabled, selectedResourceIds,
+    preserveScheduledEarlyAndLateDates, maxDelayWorkdays).
+  - `ResourceOverallocation` / `ResourceDayDemand` (per-day demand vs.
+    capacity).
+  - `LevelingEntry` (cpm dates, leveled dates, delay, causing
+    resources, priorityReason).
+  - `LevelingAnalysis` (options echo, considered ids,
+    overallocationsBefore/After, entries, structured warnings).
+  - `EngineActivity.levelingPriority` (P6 convention: lower = higher
+    priority).
+  - `Resource.maxUnitsPerDay` (undefined = unlimited).
+- **Algorithm**: whole-day, uniform-spread demand
+  (atCompletionUnits / numWorkdays); sort eligible activities by
+  `(levelingPriority asc, cpmEarlyStart asc, id asc)`; push each
+  forward one workday at a time on its own calendar until no
+  considered resource exceeds capacity. Completed / in-progress
+  activities are pinned (consume capacity, never moved).
+- **Selected vs. all-resource leveling**: `selectedResourceIds`
+  filters which resources can trigger moves; non-selected
+  overallocations are silently ignored (LVL-15 behavior).
+- **Engine version**: `ENGINE2_VERSION = "0.6.0-phase1.6"`.
+
+### Diagnostics / warnings (always emitted on a leveling run)
+
+- `leveling_whole_day_only` (info)
+- `leveling_successors_not_reflowed` (info)
+- `leveling_preserve_dates_deferred` (warn — only when option set)
+- `leveling_no_capacity_defined` (warn — empty considered set)
+- `leveling_max_delay_reached` (warn — per offending activity)
+
+### Acceptance tests now active
+
+- **LVL-13** — overallocations detected before, resolved after, lower-
+  priority B delayed by A's duration.
+- **LVL-15** — selected-resource leveling on R1 leaves R2-driven
+  conflicts alone; no moves.
+- **LVL-16** — entries carry cpm/leveled dates, delay, causing
+  resource, `priority=N` reason; options echoed; warnings present.
+
+Active total: **13 of 20**. LVL-14 remains `.todo()` (preserve
+scheduled early/late dates is deferred, not silently faked).
+
+### Known limitations after Phase 1.6 (intentional)
+
+- **Successors are not re-driven** after a move. Callers needing
+  post-leveling logic must re-run CPM with leveled dates as
+  constraints. Warned in every run.
+- **Preserve-scheduled-early-and-late-dates** option is echoed but
+  does not block moves. Warned when set.
+- **Whole-day granularity only.** No shift/hour-level leveling.
+- **Uniform per-day spread.** No curve-aware spread, no
+  units-per-time enforcement, no manual future-period reconciliation.
+- **Activity calendar still governs demand windows.** Resource
+  calendars validated structurally only (Phase 1.5 stance unchanged).
+- **No cost recalculation** post-leveling. LVL-16's "post-level cost
+  recalculation when enabled" clause is partially satisfied: the log
+  exists and explains moves; cost rollups remain the Phase 1.5
+  authored values.
+- **No project-level priority placeholder** beyond
+  `levelingPriority`. Multi-project leveling is deferred.
+- **UI untouched.** Feature flag still defaults to `"legacy"`; the
+  legacy engine and the existing Gantt are unchanged.
+
+### Phase 1.7 entry criteria
+
+1. `Schedule → CpmInput` adapter + dual-engine parity harness.
+2. Successor re-flow after leveling (re-run CPM with leveled starts
+   as SNET constraints, or integrated iteration).
+3. LVL-14: implement preserve-scheduled-early-and-late-dates.
+4. PRG-10: out-of-sequence progress rule selector.
