@@ -86,6 +86,7 @@ export function CpmGrid({
   calendar,
   annotations,
   groupBy = "wbs",
+  nearCriticalFloat = 0,
   onTaskReschedule,
 }: Props) {
 
