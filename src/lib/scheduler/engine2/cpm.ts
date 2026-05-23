@@ -25,19 +25,30 @@
 
 import type {
   ActivityStatus,
+  BaselineActivity,
+  BaselineVariance,
   Constraint,
+  DrivingLink,
   EngineActivity,
   EngineActivityResult,
   EngineDiagnostic,
   EngineRelationship,
   EngineRelationshipResult,
   EngineResult,
+  EngineRunRecord,
+  FloatPath,
+  FloatPathAnalysis,
+  FloatPathBasis,
+  FloatPathStep,
+  GoverningCategory,
   GoverningCause,
   Instant,
   LagCalendarBasis,
   RelationshipType,
 } from "./types";
-import { MS_PER_MIN, type WorkClock } from "./work-clock";
+import { MS_PER_DAY, MS_PER_MIN, type WorkClock } from "./work-clock";
+
+export const ENGINE2_VERSION = "0.4.0-phase1.4";
 
 export interface CpmInput {
   /** Data date / status date as an absolute UTC instant. */
@@ -52,6 +63,18 @@ export interface CpmInput {
   relationships: EngineRelationship[];
   /** Activities with totalFloat <= this are critical. Default 0. */
   criticalFloatToleranceMinutes?: number;
+
+  /** Phase 1.4 — optional per-activity baseline start/finish. */
+  baselines?: BaselineActivity[];
+
+  /** Phase 1.4 — number of float paths to extract. 0 (default) disables analysis. */
+  floatPathCount?: number;
+  floatPathBasis?: FloatPathBasis;
+  /** Endpoint activity for float-path analysis. Defaults to project-finish driver. */
+  floatPathEndpointActivityId?: string;
+
+  /** Phase 1.4 — prior engine result for changed-activity counting. */
+  priorResult?: EngineResult;
 }
 
 interface WorkState {
