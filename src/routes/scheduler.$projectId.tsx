@@ -946,6 +946,8 @@ function SchedulerPage() {
                             <th className="px-2 py-2 text-right font-semibold">Start</th>
                             <th className="px-2 py-2 text-right font-semibold">Finish</th>
                             <th className="px-2 py-2 text-right font-semibold">%</th>
+                            <th className="px-2 py-2 text-left font-semibold">Resource</th>
+                            <th className="px-2 py-2 text-left font-semibold">Codes</th>
                             <th className="px-2 py-2"></th>
                           </tr>
                         </thead>
@@ -957,11 +959,27 @@ function SchedulerPage() {
                               if (calendarFilter === "__default") return !t.calendarId;
                               return t.calendarId === calendarFilter;
                             };
+                            const matchesResource = (t: Task) => {
+                              if (!resourceFilter) return true;
+                              const r = t.resourceName?.trim() ?? "";
+                              if (resourceFilter === "__none") return r === "";
+                              return r === resourceFilter;
+                            };
+                            const matchesCode = (t: Task) => {
+                              if (!codeFilter) return true;
+                              const [typeId, valueId] = codeFilter.split(":");
+                              const codes = codesByTask.get(t.id) ?? [];
+                              return codes.some(
+                                (c) => c.typeId === typeId && c.valueId === valueId,
+                              );
+                            };
                             const visible = (t: Task) => {
                               if (!matchesSearch(t) || !matchesCal(t)) return false;
+                              if (!matchesResource(t) || !matchesCode(t)) return false;
                               if (!showCompleted && (t.percentComplete ?? 0) >= 100) return false;
                               return true;
                             };
+
                             draft.tasks.forEach((t, idx) => {
                               if (!visible(t)) return;
                               const key = t.wbs?.trim() || UNASSIGNED_WBS;
