@@ -458,16 +458,38 @@ export interface LevelingEntry {
   /** Snapshot of CPM dates before leveling moved the activity. */
   cpmEarlyStart: Instant;
   cpmEarlyFinish: Instant;
+  /** Phase 2.3 — CPM late-start / late-finish window snapshot. */
+  cpmLateStart: Instant;
+  cpmLateFinish: Instant;
   /** Post-leveling dates. */
   leveledStart: Instant;
   leveledFinish: Instant;
+  /**
+   * Phase 2.3 — the last start/finish the leveler attempted before
+   * either succeeding or being capped by the preserve-dates rule.
+   * Equal to leveledStart/Finish on success.
+   */
+  attemptedLeveledStart: Instant;
+  attemptedLeveledFinish: Instant;
   /** Working-minute delay under the activity calendar. >= 0. */
   delayMinutes: number;
   /** Resources whose capacity drove the move (empty if the activity didn't move). */
   resourcesCausingConflict: string[];
   /** Human-readable reason: priority comparison and trigger. */
   priorityReason: string;
+  /**
+   * Phase 2.3 — preserve-scheduled-dates rule outcome for this activity.
+   *  - "blocked"  : preserve rule prevented any move; activity has
+   *                 unresolved overallocation at its CPM early-start.
+   *  - "limited"  : leveler moved the activity but stopped at late-start
+   *                 before fully resolving the conflict.
+   *  - "satisfied": preserve rule was enabled and the move fit within
+   *                 the window without trimming.
+   *  - "n/a"      : preserve rule was not enabled.
+   */
+  preserveDatesOutcome: "blocked" | "limited" | "satisfied" | "n/a";
 }
+
 
 export interface LevelingAnalysis {
   /** Echo of the options the run was executed with. */
