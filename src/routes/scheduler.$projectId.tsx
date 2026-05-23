@@ -1216,6 +1216,7 @@ function SchedulerPage() {
                           calendar={{ workDays: draft.workDays, holidays: draft.holidays }}
                           annotations={draft.annotations}
                           groupBy={groupBy}
+                          nearCriticalFloat={nearCriticalFloat}
                           onTaskReschedule={rescheduleTask}
                         />
                       ) : null}
