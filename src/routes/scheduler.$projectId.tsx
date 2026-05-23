@@ -408,7 +408,7 @@ function SchedulerPage() {
 
   // ---------- render ----------
   return (
-    <div className="flex h-screen flex-col bg-[#faf8f3] text-[#1f241f]">
+    <div className="scheduler-print-root flex h-screen flex-col bg-[#faf8f3] text-[#1f241f]">
       {/* ============ TOP HEADER ============ */}
       <header className="flex h-14 shrink-0 items-center gap-4 border-b border-[#e6dfd0] bg-white/80 px-4 backdrop-blur">
         <Link
