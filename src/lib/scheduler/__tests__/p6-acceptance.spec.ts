@@ -631,7 +631,27 @@ describe("P6 acceptance — Interoperability / XER", () => {
     "XER-18: scheduling a project with missing external projects and the ignore-external-relationships option enabled preserves external activity dates",
   );
 
-  it.todo("XER-19: XER import does not fabricate baselines from absent baseline data");
+  it("XER-19: XER import does not fabricate baselines from absent baseline data", async () => {
+    const { importXerForEngine2, xerToCpmInput } = await import("../engine2");
+    const xer = [
+      "ERMHDR\t6.2",
+      "%T\tPROJECT",
+      "%F\tproj_short_name\tplan_start_date",
+      "%R\tX\t2025-01-06 08:00",
+      "%T\tTASK",
+      "%F\ttask_id\ttask_code\ttask_name\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt",
+      "%R\t1\tA\tOnly\t8\t8",
+      "%E",
+    ].join("\n");
+    const importResult = importXerForEngine2(xer);
+    // Importer always emits baseline_not_in_xer; never fabricates baseline data.
+    expect(importResult.diagnostics.some((d) => d.code === "baseline_not_in_xer")).toBe(true);
+    const { cpmInput } = xerToCpmInput(importResult);
+    expect(cpmInput.baselines).toBeUndefined();
+    const result = calculateCpm(cpmInput);
+    expect(result.runRecord.optionsSnapshot.baselinesProvided).toBe(false);
+    expect(result.activities.every((a) => a.baselineVariance === undefined)).toBe(true);
+  });
 
   it.todo(
     "XER-20: update-existing import actions respect delete-unreferenced settings for activities, activity relationships, and activity resource assignments",
