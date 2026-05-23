@@ -749,7 +749,7 @@ export function CpmGrid({
                       markerHeight="6"
                       orient="auto-start-reverse"
                     >
-                      <path d="M0,0 L10,5 L0,10 z" fill="#3554a5" />
+                      <path d="M0,0 L10,5 L0,10 z" fill="#2a3e5f" />
                     </marker>
                     <marker
                       id="cpm-arrow-soft"
@@ -805,8 +805,8 @@ export function CpmGrid({
                       ? "#7a5cc4"
                       : d.isDriving
                       ? bothCrit
-                        ? "#b42318"
-                        : "#3554a5"
+                        ? "#9c2418"
+                        : "#2a3e5f"
                       : "#9c8b6e";
                     const marker = onChain
                       ? "url(#cpm-arrow-chain)"
