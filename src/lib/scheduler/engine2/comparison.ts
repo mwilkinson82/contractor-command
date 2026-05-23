@@ -46,7 +46,14 @@ export type ComparisonDifferenceCategory =
   | "constraint_behavior_difference"
   | "progress_behavior_difference"
   | "missing_legacy_field"
-  | "legacy_missing_engine2_field";
+  | "legacy_missing_engine2_field"
+  // Phase 2.6 — additional structured buckets.
+  | "leveling_behavior_difference"
+  | "baseline_behavior_difference"
+  | "precision_rounding_difference"
+  | "known_unsupported_behavior"
+  | "missing_engine2_field";
+
 
 export type ComparisonClassification =
   | "expected-bridge-limitation"
