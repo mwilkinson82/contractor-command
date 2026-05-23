@@ -9,4 +9,5 @@ export * from "./types";
 export * from "./work-clock";
 export * from "./feature-flag";
 export * from "./cpm";
+export * from "./assignments";
 
