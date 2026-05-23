@@ -58,7 +58,7 @@ import { MS_PER_DAY, MS_PER_MIN, type WorkClock } from "./work-clock";
 import { rollupActivityAssignments, validateAssignments } from "./assignments";
 import { levelResources } from "./leveling";
 
-export const ENGINE2_VERSION = "0.11.0-phase2.2";
+export const ENGINE2_VERSION = "0.12.0-phase2.3";
 
 
 export interface CpmInput {

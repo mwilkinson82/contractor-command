@@ -687,9 +687,97 @@ describe("P6 acceptance — Leveling", () => {
     expect(bCpm.earlyStart).toBe(MON_2025_01_06);
   });
 
-  it.todo(
-    "LVL-14: preserve-scheduled-early-and-late-dates mode materially constrains how far leveling may move activities",
-  );
+  it("LVL-14: preserve-scheduled-early-and-late-dates mode materially constrains how far leveling may move activities", () => {
+    // Setup chosen so B has *some* float but not enough to absorb the conflict:
+    //   A (5d, prio 1) → C (3d) gives the project an 8-day critical chain.
+    //     A.LF = day 5, A.LS = 0  → A has zero float.
+    //   B (5d, prio 2) has no successors → LF = projectFinish = day 8, LS = day 3.
+    //     B has 3 workdays of float.
+    //   Both A and B fully load resource R (cap 8, demand 8 each).
+    //
+    // Without preserve: B can be delayed 5 workdays → fully resolved.
+    // With preserve   : B may only be delayed 3 workdays (its float); the
+    //                   conflict on the remaining overlap days is unresolved.
+    const A = lvlActivity("A", 5, 1);
+    const B = lvlActivity("B", 5, 2);
+    const C = lvlActivity("C", 3);
+    const rels = [link("A-C", "A", "C")];
+    const resources = [{ id: "R", name: "Crew", type: "labor" as const, maxUnitsPerDay: 8 }];
+    const assignments = [lvlAsn("a1", "A", "R", 40), lvlAsn("a2", "B", "R", 40)];
+
+    const baseInput = {
+      dataDate: MON_2025_01_06,
+      projectStart: MON_2025_01_06,
+      projectCalendarId: "cal-mf",
+      calendars: new Map([["cal-mf", lvlCal]]),
+      activities: [A, B, C],
+      relationships: rels,
+      resources,
+      assignments,
+    };
+
+    // ---- Without preserve-dates: B delayed the full 5 days. ----
+    const unrestricted = calculateCpm({
+      ...baseInput,
+      leveling: { enabled: true },
+    });
+    const uLv = unrestricted.leveling!;
+    const uB = uLv.entries.find((e) => e.activityId === "B")!;
+    expect(uB.delayMinutes).toBe(5 * DAY_MIN);
+    expect(uLv.overallocationsAfter).toEqual([]);
+    expect(uB.preserveDatesOutcome).toBe("n/a");
+
+    // ---- With preserve-dates: leveler must respect B's late-start window. ----
+    const preserved = calculateCpm({
+      ...baseInput,
+      leveling: {
+        enabled: true,
+        preserveScheduledEarlyAndLateDates: true,
+      },
+    });
+    const pLv = preserved.leveling!;
+    const pB = pLv.entries.find((e) => e.activityId === "B")!;
+
+    // B's CPM late-start gives it 3 workdays of float; preserve caps the
+    // delay at exactly that. Strictly less than the unrestricted 5 days.
+    expect(pB.delayMinutes).toBeLessThan(uB.delayMinutes);
+    expect(pB.delayMinutes).toBeLessThanOrEqual(3 * DAY_MIN);
+    expect(pB.leveledStart).toBeLessThanOrEqual(pB.cpmLateStart);
+    expect(pB.preserveDatesOutcome).toBe("limited");
+    expect(pB.resourcesCausingConflict).toContain("R");
+
+    // CPM dates on the result are NOT mutated by leveling.
+    const bCpm = preserved.activities.find((a) => a.id === "B")!;
+    expect(bCpm.earlyStart).toBe(MON_2025_01_06);
+
+    // Residual overallocation surfaced after preserve-dates leveling.
+    expect(pLv.overallocationsAfter.length).toBeGreaterThan(0);
+    expect(pLv.overallocationsAfter[0].resourceId).toBe("R");
+
+    // Options echo reflects the enabled rule.
+    expect(pLv.options.preserveScheduledEarlyAndLateDates).toBe(true);
+
+    // Required Phase 2.3 diagnostics surface on the leveling warnings.
+    const codes = pLv.warnings.map((w) => w.code);
+    expect(codes).toContain("leveling_preserve_dates_applied");
+    expect(codes).toContain("leveling_move_limited_by_late_date");
+    expect(codes).toContain("leveling_overallocation_unresolved");
+    // The deferred warning from Phase 1.6 is gone.
+    expect(codes).not.toContain("leveling_preserve_dates_deferred");
+
+    // Repeatable: identical inputs yield identical leveled dates.
+    const preserved2 = calculateCpm({
+      ...baseInput,
+      leveling: {
+        enabled: true,
+        preserveScheduledEarlyAndLateDates: true,
+      },
+    });
+    const pB2 = preserved2.leveling!.entries.find((e) => e.activityId === "B")!;
+    expect(pB2.leveledStart).toBe(pB.leveledStart);
+    expect(pB2.leveledFinish).toBe(pB.leveledFinish);
+  });
+
 
   it("LVL-15: selected-resource leveling does not move activities solely because of non-selected resources", () => {
     // A and B both overload R2 (cap=1, demand=1 each, same window). R1 is fine.

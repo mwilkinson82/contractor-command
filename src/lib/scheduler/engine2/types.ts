@@ -417,12 +417,17 @@ export interface LevelingOptions {
    */
   selectedResourceIds?: string[];
   /**
-   * If true, an activity is never delayed past its CPM `lateStart` (i.e.
-   * the leveler refuses to consume float beyond zero). Phase 1.6: DEFERRED —
-   * the leveler logs a `leveling_preserve_dates_deferred` warning and
-   * proceeds as if `false`. See ARCHITECTURE.md §16.
+   * If true, leveling will not delay an activity past its CPM `lateStart`
+   * (i.e. the leveler may consume float but not push beyond zero float).
+   * Phase 2.3: ENFORCED. Activities that cannot be resolved without
+   * exceeding their late-start window are left at their late-start (or
+   * CPM early-start if they had no float) and the resulting
+   * overallocation is reported via `overallocationsAfter` and per-day
+   * `leveling_overallocation_unresolved` diagnostics. See
+   * ARCHITECTURE.md §23.
    */
   preserveScheduledEarlyAndLateDates?: boolean;
+
   /**
    * Hard cap on how many workdays a single activity may be delayed.
    * Default 365. Prevents runaway loops on infeasible inputs.
@@ -453,16 +458,38 @@ export interface LevelingEntry {
   /** Snapshot of CPM dates before leveling moved the activity. */
   cpmEarlyStart: Instant;
   cpmEarlyFinish: Instant;
+  /** Phase 2.3 — CPM late-start / late-finish window snapshot. */
+  cpmLateStart: Instant;
+  cpmLateFinish: Instant;
   /** Post-leveling dates. */
   leveledStart: Instant;
   leveledFinish: Instant;
+  /**
+   * Phase 2.3 — the last start/finish the leveler attempted before
+   * either succeeding or being capped by the preserve-dates rule.
+   * Equal to leveledStart/Finish on success.
+   */
+  attemptedLeveledStart: Instant;
+  attemptedLeveledFinish: Instant;
   /** Working-minute delay under the activity calendar. >= 0. */
   delayMinutes: number;
   /** Resources whose capacity drove the move (empty if the activity didn't move). */
   resourcesCausingConflict: string[];
   /** Human-readable reason: priority comparison and trigger. */
   priorityReason: string;
+  /**
+   * Phase 2.3 — preserve-scheduled-dates rule outcome for this activity.
+   *  - "blocked"  : preserve rule prevented any move; activity has
+   *                 unresolved overallocation at its CPM early-start.
+   *  - "limited"  : leveler moved the activity but stopped at late-start
+   *                 before fully resolving the conflict.
+   *  - "satisfied": preserve rule was enabled and the move fit within
+   *                 the window without trimming.
+   *  - "n/a"      : preserve rule was not enabled.
+   */
+  preserveDatesOutcome: "blocked" | "limited" | "satisfied" | "n/a";
 }
+
 
 export interface LevelingAnalysis {
   /** Echo of the options the run was executed with. */
