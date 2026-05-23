@@ -488,16 +488,26 @@ function buildPriorityReason(
   a: EngineActivity,
   causing: string[],
   delayMinutes: number,
+  preserveOutcome: "blocked" | "limited" | "satisfied" | "n/a",
 ): string {
   const prio =
     a.levelingPriority === undefined
       ? "no priority (lowest)"
       : `priority=${a.levelingPriority}`;
+  const suffix =
+    preserveOutcome === "blocked"
+      ? " — preserve-dates BLOCKED the move (unresolved overallocation)"
+      : preserveOutcome === "limited"
+        ? " — preserve-dates LIMITED the move at late-start (unresolved overallocation)"
+        : preserveOutcome === "satisfied"
+          ? " — preserve-dates satisfied within window"
+          : "";
   if (delayMinutes === 0) {
-    return `Placed at CPM early start (${prio}); no resource conflict.`;
+    return `Placed at CPM early start (${prio}); ${causing.length > 0 ? `conflict on: ${causing.join(", ")}` : "no resource conflict"}.${suffix}`;
   }
-  return `Delayed ${delayMinutes}m (${prio}) to resolve capacity on: ${causing.join(", ")}.`;
+  return `Delayed ${delayMinutes}m (${prio}) to resolve capacity on: ${causing.join(", ")}.${suffix}`;
 }
+
 
 function buildOverallocations(args: {
   consideredIds: string[];
