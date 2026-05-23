@@ -165,6 +165,12 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
                 }
               />
               <div className="flex items-center gap-1">
+                <span
+                  className="rounded border border-[#d8cdb8] bg-white px-1.5 py-0.5 text-[10px] text-[#7a6a4d]"
+                  title="Approx working days per year, accounting for weekly pattern and holidays"
+                >
+                  ~{workingDaysPerYear(c.workDays, c.holidays)}/yr
+                </span>
                 {c.isDefault ? (
                   <span className="rounded bg-[#1f241f] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
                     Default
@@ -178,6 +184,26 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
                     Set default
                   </button>
                 )}
+                <button
+                  type="button"
+                  className="text-[10px] uppercase tracking-wide text-[#3554a5] hover:underline"
+                  onClick={() =>
+                    addMut.mutate(undefined, {
+                      // Use addMut shape via direct save call instead
+                    })
+                  }
+                  // Replaced below by dedicated dupe handler
+                  style={{ display: "none" }}
+                >
+                  Duplicate
+                </button>
+                <button
+                  type="button"
+                  className="text-[10px] uppercase tracking-wide text-[#3554a5] hover:underline"
+                  onClick={() => dupeMut.mutate(c)}
+                >
+                  Duplicate
+                </button>
                 {!c.isDefault ? (
                   <button
                     type="button"
@@ -190,6 +216,7 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
                   </button>
                 ) : null}
               </div>
+
             </div>
             <div className="mt-2 flex flex-wrap gap-1">
               {DOW.map((d, i) => {
