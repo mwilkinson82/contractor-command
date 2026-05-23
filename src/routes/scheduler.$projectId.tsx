@@ -624,7 +624,7 @@ function SchedulerPage() {
                 comparisonId={comparisonBaselineId}
                 onComparisonChange={setComparisonBaselineId}
                 dirty={dirty}
-                compact
+                
               />
 
               <div className="mx-1 h-5 w-px bg-[#e6dfd0]" />
