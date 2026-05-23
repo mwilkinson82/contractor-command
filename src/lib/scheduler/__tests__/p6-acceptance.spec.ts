@@ -352,7 +352,7 @@ describe("P6 acceptance — Constraints", () => {
 });
 
 describe("P6 acceptance — Progress", () => {
-  it("PRG-8: Physical, Duration, and Units percent-complete types produce distinct reported percent-complete values given the same base activity and assignment data", () => {
+  it("PRG-8: Physical, Duration, and Units percent-complete types produce distinct reported percent-complete values given the same base activity and assignment data — NOTE: units% is currently an author-supplied stub echo, NOT derived from assignment actual/budget units (Phase 1.3 simplified coverage)", () => {
     const cal = monFri();
     // All three start Mon-06, original 10d, remaining 4d, data date Mon-13.
     // Duration%   = actual / (actual + remaining) = 5 / (5+4) = 55.55…
