@@ -125,6 +125,46 @@ function SchedulerPage() {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [groupBy, setGroupBy] = useState<"wbs" | "critical" | "none">("wbs");
   const [calendarFilter, setCalendarFilter] = useState<string>("");
+  const [resourceFilter, setResourceFilter] = useState<string>("");
+  const [codeFilter, setCodeFilter] = useState<string>(""); // "typeId:valueId"
+
+  const loadStructureFn = useServerFn(loadStructure);
+  const { data: structure } = useQuery({
+    queryKey: ["structure", selectedId],
+    queryFn: () => loadStructureFn({ data: { scheduleId: selectedId } }),
+    enabled: !!selectedId,
+  });
+
+  const codesByTask = useMemo(() => {
+    const m = new Map<
+      string,
+      { typeName: string; typeId: string; valueId: string; code: string; color: string | null }[]
+    >();
+    if (!structure) return m;
+    const valueIndex = new Map<
+      string,
+      { code: string; color: string | null; typeName: string; typeId: string }
+    >();
+    for (const t of structure.codeTypes) {
+      for (const v of t.values) {
+        valueIndex.set(v.id, { code: v.code, color: v.color, typeName: t.name, typeId: t.id });
+      }
+    }
+    for (const a of structure.assignments) {
+      const v = valueIndex.get(a.valueId);
+      if (!v) continue;
+      const arr = m.get(a.taskId) ?? [];
+      arr.push({
+        typeName: v.typeName,
+        typeId: v.typeId,
+        valueId: a.valueId,
+        code: v.code,
+        color: v.color,
+      });
+      m.set(a.taskId, arr);
+    }
+    return m;
+  }, [structure]);
 
 
   const [comparisonBaselineId, setComparisonBaselineId] = useState<string | null>(null);
