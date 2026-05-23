@@ -1940,3 +1940,79 @@ The comparison path is verified to:
 4. Add an admin-gated internal debug route that runs the harness
    against the active project and shows the formatted report — still
    invisible to normal users.
+
+## §27 — Phase 2.7: internal debug viewer
+
+Phase 2.7 adds an internal-only Engine2 comparison report viewer. It is
+observability, not behavior. The legacy engine remains authoritative,
+engine2 is still opt-in, and the production UI is unchanged for normal
+users.
+
+### Surface
+
+- `src/lib/scheduler/engine2/debug-viewer.ts`
+  - `shouldShowEngine2DebugViewer({comparisonEnabled, devMode, explicitlyDisabled?})`
+    — the single source of truth for visibility. Returns `true` ONLY
+    when both flags are on (and no explicit override hides it).
+  - `resolveDebugViewerVisibility()` — reads
+    `isEngine2ComparisonEnabled()` and `import.meta.env.DEV` at runtime
+    so the React drawer does not have to wire flags manually.
+  - `buildComparisonViewModel(report)` — pure projection of a
+    `ComparisonReport` into a render-ready view-model (header stats,
+    classification & category summaries, ranked + full difference
+    rows with severity, diagnostics, pre-formatted report). Same input
+    → same output.
+  - `viewModelToJsonBlob(vm)` — JSON export for download/copy.
+- `src/components/scheduler/Engine2DebugDrawer.tsx`
+  - React drawer using the existing `Sheet` primitive. Returns `null`
+    when `resolveDebugViewerVisibility()` is false, so a production
+    build with default flags renders nothing — no trigger button, no
+    DOM, no overlay. Trigger is a small fixed pill in the bottom-right
+    corner; clearly not a normal product control.
+  - Copy-to-clipboard, JSON download, and console log export paths.
+
+### Guardrails
+
+- The drawer never imports the scheduler engine directly. It receives a
+  `ComparisonReport` prop produced by
+  `calculateScheduleWithEngine2Comparison`, so the legacy path remains
+  authoritative even if the drawer is mounted.
+- The view-model is built from the report only — it never mutates the
+  schedule or the report.
+- `engine2Error` flows from the report to a dedicated visible field;
+  bridge / engine2 failures never block the main scheduler view.
+- Default-off in production: `isEngine2ComparisonEnabled()` is `false`
+  and `import.meta.env.DEV` is `false`, so the drawer is a no-op.
+
+### Tests
+
+`src/lib/scheduler/__tests__/engine2-debug-viewer.spec.ts` covers:
+
+- Visibility matrix (both off / only comparison / only dev / both on /
+  explicit-disable override).
+- Deterministic view-model fields (verdict, counts, classification &
+  category summaries, top + all difference rows).
+- Engine2 errors surface on the view-model and in the formatted report
+  without breaking it.
+- `calculateScheduleWithEngine2Comparison` returns the same legacy
+  output with the comparison off vs. forced on; schedule input is
+  never mutated.
+
+### Regression posture
+
+- Tests: 147 scheduler tests green (144 prior + 3 new suites in the
+  debug-viewer spec).
+- Legacy engine untouched.
+- `getSchedulerEngine()` defaults to `"legacy"`.
+- `isEngine2ComparisonEnabled()` defaults to `false`.
+- `isEngine2ExceptionClockEnabled()` defaults to `false`.
+- Drawer is invisible in production builds.
+
+### Known limitations (Phase 2.7)
+
+- The drawer is wired into `SchedulerRoughView` only when a caller
+  passes a report prop. The default scheduler view does NOT yet run
+  the comparison harness on every render — Phase 2.8 will add an
+  opt-in dev hook that runs `calculateScheduleWithEngine2Comparison`
+  for the active project and pipes the report into this drawer.
+- No P6 parity claim. Engine2 remains observational.
