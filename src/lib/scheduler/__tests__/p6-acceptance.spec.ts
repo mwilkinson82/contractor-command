@@ -758,7 +758,112 @@ describe("P6 acceptance — Interoperability / XER", () => {
     expect(result.activities.every((a) => a.baselineVariance === undefined)).toBe(true);
   });
 
-  it.todo(
-    "XER-20: update-existing import actions respect delete-unreferenced settings for activities, activity relationships, and activity resource assignments",
-  );
+  it("XER-20: update-existing import actions respect delete-unreferenced settings for activities, activity relationships, and activity resource assignments", async () => {
+    const { applyImportAction, importXerForEngine2 } = await import("../engine2");
+
+    function xer(opts: {
+      tasks: Array<{ id: string; code: string; durHr?: number }>;
+      preds?: Array<{ from: string; to: string }>;
+      assignments?: Array<{ id: string; taskId: string }>;
+    }): string {
+      const L: string[] = ["ERMHDR\t6.2"];
+      L.push("%T\tPROJECT");
+      L.push("%F\tproj_id\tproj_short_name\tplan_start_date\tlast_recalc_date");
+      L.push("%R\tP1\tP1\t2025-01-06 08:00\t2025-01-06 08:00");
+      L.push("%T\tCALENDAR");
+      L.push("%F\tclndr_id\tclndr_name\tday_hr_cnt\tclndr_data");
+      L.push("%R\tCAL1\t5d\t8\t");
+      L.push("%T\tRSRC");
+      L.push("%F\trsrc_id\trsrc_name\trsrc_type\tclndr_id");
+      L.push("%R\tR1\tCrew\tRT_Labor\tCAL1");
+      L.push("%T\tTASK");
+      L.push(
+        "%F\ttask_id\tproj_id\ttask_code\ttask_name\tclndr_id\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt",
+      );
+      for (const t of opts.tasks) {
+        L.push(
+          `%R\t${t.id}\tP1\t${t.code}\t${t.code}\tCAL1\t${t.durHr ?? 8}\t${t.durHr ?? 8}`,
+        );
+      }
+      if (opts.preds && opts.preds.length) {
+        L.push("%T\tTASKPRED");
+        L.push("%F\ttask_id\tproj_id\tpred_task_id\tpred_proj_id\tpred_type\tlag_hr_cnt");
+        for (const p of opts.preds)
+          L.push(`%R\t${p.to}\tP1\t${p.from}\tP1\tPR_FS\t0`);
+      }
+      if (opts.assignments && opts.assignments.length) {
+        L.push("%T\tTASKRSRC");
+        L.push(
+          "%F\ttaskrsrc_id\ttask_id\trsrc_id\ttarget_qty\tact_reg_qty\tremain_qty\ttarget_cost\tact_reg_cost\tremain_cost",
+        );
+        for (const a of opts.assignments)
+          L.push(`%R\t${a.id}\t${a.taskId}\tR1\t8\t0\t8\t0\t0\t0`);
+      }
+      L.push("%E");
+      return L.join("\n");
+    }
+
+    // Seed: A→B→C with two assignments.
+    const seed = applyImportAction({
+      incoming: importXerForEngine2(
+        xer({
+          tasks: [
+            { id: "1", code: "A" },
+            { id: "2", code: "B" },
+            { id: "3", code: "C" },
+          ],
+          preds: [
+            { from: "1", to: "2" },
+            { from: "2", to: "3" },
+          ],
+          assignments: [
+            { id: "TA1", taskId: "1" },
+            { id: "TA2", taskId: "2" },
+          ],
+        }),
+      ),
+      options: { action: "create-new-project", targetProjectId: "P1" },
+    }).state;
+    expect(seed.activities.map((a) => a.id).sort()).toEqual(["A", "B", "C"]);
+    expect(seed.relationships).toHaveLength(2);
+    expect(seed.assignments).toHaveLength(2);
+
+    // Update with delete-unreferenced OFF: B/C and their links preserved.
+    const incoming = importXerForEngine2(
+      xer({ tasks: [{ id: "1", code: "A", durHr: 24 }] }),
+    );
+    const preserved = applyImportAction({
+      existing: seed,
+      incoming,
+      options: { action: "update-existing-project", targetProjectId: "P1" },
+    });
+    expect(preserved.ok).toBe(true);
+    expect(preserved.state.activities.map((a) => a.id).sort()).toEqual(["A", "B", "C"]);
+    expect(preserved.state.relationships).toHaveLength(2);
+    expect(preserved.state.assignments).toHaveLength(2);
+
+    // Update with delete-unreferenced ON for all three supported categories.
+    const cleaned = applyImportAction({
+      existing: seed,
+      incoming,
+      options: {
+        action: "update-existing-project",
+        targetProjectId: "P1",
+        deleteUnreferenced: {
+          activities: true,
+          relationships: true,
+          assignments: true,
+        },
+      },
+    });
+    expect(cleaned.ok).toBe(true);
+    expect(cleaned.state.activities.map((a) => a.id)).toEqual(["A"]);
+    expect(cleaned.state.relationships).toHaveLength(0);
+    expect(cleaned.state.assignments).toHaveLength(0);
+    // A's duration was updated, not just preserved.
+    expect(cleaned.state.activities[0].originalDuration.minutes).toBe(24 * 60);
+    // Plan reports the deletions.
+    expect(cleaned.plan.summary.delete).toBeGreaterThanOrEqual(4);
+  });
 });
+
