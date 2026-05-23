@@ -1125,6 +1125,47 @@ function SchedulerPage() {
                                         }
                                       />
                                     </td>
+                                    <td className="px-2 py-1.5 text-[11px] text-[#3d3527]">
+                                      <InlineText
+                                        value={t.resourceName ?? ""}
+                                        onCommit={(next) =>
+                                          updateTask(idx, {
+                                            resourceName: next.trim() ? next.trim() : undefined,
+                                          })
+                                        }
+                                        className="text-[11px] text-[#3d3527]"
+                                        placeholder="—"
+                                      />
+                                    </td>
+                                    <td className="px-2 py-1.5">
+                                      {(() => {
+                                        const codes = codesByTask.get(t.id) ?? [];
+                                        if (codes.length === 0)
+                                          return (
+                                            <span className="text-[10px] text-[#c7b89d]">—</span>
+                                          );
+                                        return (
+                                          <div className="flex flex-wrap gap-1">
+                                            {codes.map((c) => (
+                                              <span
+                                                key={`${c.typeId}:${c.valueId}`}
+                                                className="inline-flex items-center gap-1 rounded-sm border border-[#e6dfd0] bg-[#faf8f3] px-1.5 py-0.5 text-[10px] text-[#3d3527]"
+                                                title={`${c.typeName}: ${c.code}`}
+                                              >
+                                                {c.color ? (
+                                                  <span
+                                                    className="inline-block h-2 w-2 rounded-sm border border-black/10"
+                                                    style={{ background: c.color }}
+                                                  />
+                                                ) : null}
+                                                {c.code}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        );
+                                      })()}
+                                    </td>
+
                                     <td className="px-1 py-1.5 text-right">
                                       <button
                                         type="button"
