@@ -91,6 +91,111 @@ export interface EngineActivity {
    * `physicalPercentComplete` / `unitsPercentComplete` instead.
    */
   percentComplete?: number;
+
+  /**
+   * Phase 1.5 — convenience denormalization listing assignment ids attached
+   * to this activity. Full assignment records live on `CpmInput.assignments`
+   * keyed by `activityId`; either form is accepted by the engine.
+   */
+  assignmentIds?: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Phase 1.5 — resource / role / assignment foundation
+// ---------------------------------------------------------------------------
+
+export type ResourceType = "labor" | "nonlabor" | "material";
+
+/** Hierarchical identity (root → self). */
+export type HierarchicalPath = string[];
+
+export interface Role {
+  id: string;
+  name: string;
+  path?: HierarchicalPath;
+}
+
+export interface Resource {
+  id: string;
+  name: string;
+  type: ResourceType;
+  /**
+   * Calendar this resource works against. Phase 1.5: validated but does NOT
+   * drive activity dates yet — activity calendar still governs CPM. See
+   * ARCHITECTURE.md §15.
+   */
+  calendarId?: string;
+  path?: HierarchicalPath;
+  defaultRoleId?: string;
+}
+
+/** Placeholder — rate book not yet consumed by the engine. */
+export type RateSource = "resource" | "role" | "override";
+export type RateType =
+  | "price-per-unit"
+  | "price-per-unit-2"
+  | "price-per-unit-3"
+  | "price-per-unit-4"
+  | "price-per-unit-5";
+
+/** Assignment-level units curve id placeholder; spread is deferred. */
+export type AssignmentCurveId = string;
+
+/** Manual future-period override marker (no recalc behavior in 1.5). */
+export interface ManualFuturePeriodMarker {
+  present: boolean;
+  source?: "xer" | "user" | "engine";
+}
+
+export interface ResourceAssignment {
+  id: string;
+  activityId: string;
+  resourceId: string;
+  roleId?: string;
+
+  budgetedUnits: number;
+  actualUnits: number;
+  remainingUnits: number;
+
+  /** Units per working time-unit of the assignment calendar (e.g. units/hr). */
+  unitsPerTime?: number;
+
+  budgetedCost?: number;
+  actualCost?: number;
+  remainingCost?: number;
+
+  rateSource?: RateSource;
+  rateType?: RateType;
+
+  curveId?: AssignmentCurveId;
+  manualFuturePeriod?: ManualFuturePeriodMarker;
+}
+
+export interface ExpenseAssignment {
+  id: string;
+  activityId: string;
+  name: string;
+  budgetedCost: number;
+  actualCost: number;
+  remainingCost: number;
+  /** P6 accrual: start | prorated | end. Stored only in 1.5. */
+  accrualType?: "start" | "prorated" | "end";
+}
+
+/** Per-activity rollup of assignment math (Phase 1.5). */
+export interface ActivityAssignmentSummary {
+  activityId: string;
+  assignmentCount: number;
+  budgetedUnits: number;
+  actualUnits: number;
+  remainingUnits: number;
+  atCompletionUnits: number;
+  /** 0..100. NaN when atCompletionUnits <= 0 — engine coerces to 0 for reporting. */
+  unitsPercentComplete: number;
+  budgetedCost: number;
+  actualCost: number;
+  remainingCost: number;
+  atCompletionCost: number;
 }
 
 /** Deterministically derived from actualStart / actualFinish. */
