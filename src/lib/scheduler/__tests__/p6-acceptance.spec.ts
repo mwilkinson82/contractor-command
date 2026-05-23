@@ -5,9 +5,34 @@
  * `.lovable/scheduler-p6-gap-analysis.md` (anchor: §"Acceptance tests" of the
  * Primavera P6-Class Scheduling Engine Specification).
  *
- * They are intentionally `.todo()` stubs. As the Phase 1–6 work lands, each
- * test gets fleshed out and flipped to `it(...)`. This file is the gate that
- * prevents the engine from drifting away from spec parity.
+ * Current status (post Phase 3.3 honesty audit — see ARCHITECTURE.md §34):
+ *   - All 20 tests are ACTIVE `it(...)` cases — none are `.todo()` stubs.
+ *   - 18 tests validate real engine2 behavior on the clean, eligible
+ *     fixtures they construct.
+ *   - 2 tests are explicitly SIMPLIFIED / scaffold coverage and say so in
+ *     their `it(...)` titles:
+ *       • PRG-8  — units% is an author-supplied stub echo, NOT derived
+ *                  from assignment actual/budget units.
+ *       • LVL-16 — exercises the leveling diagnostic surface only;
+ *                  sub-day leveling and successor reflow are NOT
+ *                  implemented.
+ *
+ * IMPORTANT — what passing this suite does NOT mean:
+ *   - Engine2 is NOT authoritative in production. Legacy `calculateSchedule`
+ *     still owns every production schedule result.
+ *   - Schedule eligibility (see `engine2/schedule-eligibility.ts`) still
+ *     gates engine2 away from non-trivial schedules: exception clocks,
+ *     in-progress activities, resource calendars, leveling, and XER
+ *     imports remain blockers, by design.
+ *   - Resource-calendar lag basis, real units% derivation, sub-day
+ *     leveling, and successor reflow on level moves remain unimplemented.
+ *   - Driving-relationship correctness is only spot-checked via the
+ *     comparison fixtures in `engine2-comparison-fixtures.spec.ts`.
+ *
+ * In short: this suite proves engine2 is consistent with P6 on the narrow
+ * slice it claims to support. It is NOT proof of full P6 parity. New gaps
+ * should be added as `.todo()` cases here when discovered, and promoted to
+ * `it(...)` only when the engine actually implements the behavior.
  *
  * Naming convention: `<SECTION>-<N>` matches the spec's numbering so it is
  * obvious which acceptance criterion a failure maps to.
