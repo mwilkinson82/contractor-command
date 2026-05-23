@@ -526,7 +526,9 @@ export function CpmGrid({
               const isMilestone = t.duration === 0;
               const x = t.earlyStart * dayPx;
               const w = Math.max(t.duration * dayPx, 2);
-              const fill = t.isCritical ? "#b42318" : "#3554a5";
+              const isNearCritical =
+                !t.isCritical && nearCriticalFloat > 0 && t.totalFloat > 0 && t.totalFloat <= nearCriticalFloat;
+              const fill = t.isCritical ? "#b42318" : isNearCritical ? "#d97706" : "#3554a5";
               const baselineT = baselineMap.get(t.id);
               const slipped = baselineT ? t.earlyFinish - baselineT.earlyFinish : 0;
 
