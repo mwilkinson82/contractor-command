@@ -95,6 +95,7 @@ export function CpmGrid({
     startX: number;
     deltaDays: number;
   } | null>(null);
+  const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // Group tasks by WBS, ordered by ES
@@ -527,7 +528,31 @@ export function CpmGrid({
               const slipped = baselineT ? t.earlyFinish - baselineT.earlyFinish : 0;
 
               return (
-                <g key={t.id} onClick={() => onSelect(t.id)} className="cursor-pointer">
+                <g
+                  key={t.id}
+                  onClick={() => onSelect(t.id)}
+                  onMouseEnter={(e) => {
+                    const c = scrollRef.current?.getBoundingClientRect();
+                    if (!c) return;
+                    setHover({
+                      id: t.id,
+                      x: e.clientX - c.left + (scrollRef.current?.scrollLeft ?? 0),
+                      y: e.clientY - c.top + (scrollRef.current?.scrollTop ?? 0),
+                    });
+                  }}
+                  onMouseMove={(e) => {
+                    if (!hover || hover.id !== t.id) return;
+                    const c = scrollRef.current?.getBoundingClientRect();
+                    if (!c) return;
+                    setHover({
+                      id: t.id,
+                      x: e.clientX - c.left + (scrollRef.current?.scrollLeft ?? 0),
+                      y: e.clientY - c.top + (scrollRef.current?.scrollTop ?? 0),
+                    });
+                  }}
+                  onMouseLeave={() => setHover((h) => (h?.id === t.id ? null : h))}
+                  className="cursor-pointer"
+                >
                   {/* row background */}
                   <rect
                     x={0}
