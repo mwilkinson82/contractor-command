@@ -46,6 +46,7 @@ import type {
   GoverningCause,
   Instant,
   LagCalendarBasis,
+  LevelingOptions,
   RelationshipType,
   Resource,
   ResourceAssignment,
@@ -53,8 +54,9 @@ import type {
 } from "./types";
 import { MS_PER_DAY, MS_PER_MIN, type WorkClock } from "./work-clock";
 import { rollupActivityAssignments, validateAssignments } from "./assignments";
+import { levelResources } from "./leveling";
 
-export const ENGINE2_VERSION = "0.5.0-phase1.5";
+export const ENGINE2_VERSION = "0.6.0-phase1.6";
 
 export interface CpmInput {
   /** Data date / status date as an absolute UTC instant. */
@@ -87,6 +89,9 @@ export interface CpmInput {
   roles?: Role[];
   assignments?: ResourceAssignment[];
   expenseAssignments?: ExpenseAssignment[];
+
+  /** Phase 1.6 — optional resource leveling pass run on top of CPM dates. */
+  leveling?: LevelingOptions;
 }
 
 interface WorkState {
@@ -817,7 +822,7 @@ export function calculateCpm(input: CpmInput): EngineResult {
     },
   };
 
-  return {
+  const baseResult: EngineResult = {
     dataDate: input.dataDate,
     activities: activityResults,
     relationships: relResults,
@@ -831,6 +836,21 @@ export function calculateCpm(input: CpmInput): EngineResult {
       optionsHash: `tol:${tolerance};fp:${fpCount}:${fpBasis}`,
     },
   };
+
+  // ---- Phase 1.6 — optional leveling pass ----
+  if (input.leveling?.enabled) {
+    baseResult.leveling = levelResources({
+      options: input.leveling,
+      cpm: baseResult,
+      activities,
+      calendars: input.calendars,
+      resources: input.resources ?? [],
+      assignments: input.assignments ?? [],
+      dataDate: input.dataDate,
+    });
+  }
+
+  return baseResult;
 }
 
 // ---------------------------------------------------------------------------
