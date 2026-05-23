@@ -2273,3 +2273,123 @@ non-mutation, and that the selector neither flips flags nor logs.
   passes in. Persisted/server-side evidence is still out of scope.
 - No UI selector is wired into the debug drawer yet — only the
   visibility helper and the underlying selector API ship in this phase.
+
+## §31. Phase 3.1 — Engine Selector Safety Audit
+
+Phase 3.1 hardens the Phase 3.0 selector with a per-schedule eligibility
+check that runs **before** the boring-bar gate. The boring-bar (§29)
+judges the *evidence log* across many runs; eligibility judges *this
+schedule's shape*, because some Schedule features are known to be
+unsupported (or only partially supported) by engine2's current bridge.
+
+### Boring-bar gate (recap)
+
+`engine2-internal` requires ALL seven readiness criteria from §29:
+
+1. Zero engine2 thrown errors across the evidence log.
+2. Zero bridge errors across the evidence log.
+3. Every recurring difference category has a documented origin.
+4. No `investigate` verdicts on the demo schedule (`commercial-fit-out`).
+5. Burn-down has no `investigate`-classified categories.
+6. Commercial Fit-Out report is clean or `expected-differences` — never
+   errored, never `investigate`.
+7. Exception-aware clock differences are classified (no `investigate`).
+
+`forcePastReadinessGate: true` bypasses the boring-bar for tests and
+internal tooling — it does **not** bypass eligibility.
+
+### Schedule eligibility gate (new)
+
+`evaluateScheduleEligibility(schedule)` (in
+`src/lib/scheduler/engine2/schedule-eligibility.ts`) inspects the
+Schedule and returns blockers + warnings. Any blocker forces
+`engine2-internal` → `comparison`, with the reason recorded in
+`provenance.fallbackReason` and the list captured in
+`provenance.eligibilityBlockers`.
+
+| Feature | Severity | Why |
+|---|---|---|
+| zero tasks | blocker | nothing to compute |
+| `percentComplete` in (0,100) | blocker | engine2 expects actualStart/Finish; the bridge does not project percent-complete into actuals yet |
+| `percentComplete === 100` (without bridged actuals) | blocker | same reason — completed activities need bridged actuals |
+| task `calendarId` not equal to default calendar id | blocker | per-activity calendar math is partial-only in engine2 |
+| more than one `NamedCalendar` defined | blocker | importers may route through non-default calendars implicitly |
+| `workDays !== 31` AND holidays present | warning | irregular weeks are fragile but engine2 can still calculate |
+| `resourceName` or `resourceUnitsPerDay` present | warning | engine2 levels and legacy does not; surfaces as expected differences only |
+
+The audit list also records explicit PASSING checks for features the
+current Schedule shape cannot express (unsupported constraint types
+beyond SNET, unsupported percent-complete types, unsupported duration
+types, leveling requirements, external/interproject relationships,
+baseline comparison, unsupported XER semantics). These remain
+importer-owned: when an XER import detects them upstream, it must
+inject equivalent blockers via the bridge in a later phase.
+
+### Provenance contract (expanded)
+
+`EngineSelectionProvenance` now carries every field required by the
+audit:
+
+- `requestedMode` / `effectiveMode`
+- `engineUsed` (`legacy` | `engine2`)
+- `legacyEngineVersion`, `engine2Version` (= `ENGINE2_VERSION`)
+- `fallbackUsed` + `fallbackReason`
+- `comparisonVerdict`, `diagnosticsCount`
+- `readinessReady`, `readinessBlockers` (boring-bar gate)
+- `scheduleEligible`, `eligibilityBlockers`, `eligibilityWarnings` (new)
+- `gateDecision` — single-string summary, e.g.
+  `req=engine2-internal eff=comparison readiness=pass eligibility=fail`
+- `warnings` — non-fatal warnings the selector wants to surface
+- `legacyAuthoritative` — always `true` in Phase 3.0/3.1
+- `selectedAt` — ISO timestamp
+
+`formatProvenance(p)` renders boring-bar blockers, eligibility blockers,
+and eligibility warnings as separate sections.
+
+### Failure-behavior guarantees
+
+- If engine2 throws, the selector catches the error, sets
+  `fallbackUsed = true`, `engineUsed = "legacy"`, and records the
+  message on `provenance.fallbackReason`.
+- The public `result` field is the legacy `ScheduleResult` in every mode
+  and in every failure path. No partial engine2 output can leak into
+  authoritative state.
+- The selector never mutates the schedule, the legacy result, the
+  comparison report, or any feature flag.
+
+### Tests
+
+- `engine2-selector-safety.spec.ts` (22 tests) — eligibility evaluator,
+  per-feature blockers (in-progress, completed, per-activity calendars,
+  multiple calendars, empty schedules), resource-loaded warning,
+  `forcePastReadinessGate` does NOT bypass eligibility, provenance
+  contract, `gateDecision` encoding, and failure-behavior guarantees.
+- `engine2-selector.spec.ts` (19 tests) — updated to reflect that the
+  Commercial Fit-Out sample (which carries progress + resources) now
+  downgrades to `comparison` via the eligibility gate even when the
+  boring-bar is force-bypassed.
+
+### Status
+
+- Engine2 version bumped to `0.13.0-phase3.1`.
+- 225 tests green (202 baseline + 23 selector-safety).
+- Legacy engine untouched. Default mode still `legacy-only`.
+- No P6 parity claim.
+- No public UI changes.
+- The boring-bar is NOT broadened in this phase; instead a narrower
+  per-schedule safety check was added on top of it.
+
+### Known limitations (Phase 3.1)
+
+- Eligibility runs only over the in-memory `Schedule` shape. Features
+  that arrive via XER import metadata (true unsupported constraints,
+  external relationships, baselines, percent-complete types, duration
+  types, leveling requirements) are surfaced as explicit
+  importer-owned PASSING checks; the importer is responsible for
+  injecting equivalent blockers when it detects them.
+- The completed-with-actuals check is conservative — once the bridge
+  projects percent-complete into actualStart/actualFinish, this check
+  must be loosened in step with the bridge change.
+- `legacyAuthoritative` is always `true` today because the selector
+  never returns engine2 output as the public `result`. The field is
+  in the provenance shape so future phases can flip it deliberately.

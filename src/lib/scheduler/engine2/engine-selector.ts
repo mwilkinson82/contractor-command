@@ -47,6 +47,10 @@ import {
   type PromotionReadiness,
 } from "./burndown";
 import type { EvidenceLog } from "./shadow";
+import {
+  evaluateScheduleEligibility,
+  type ScheduleEligibility,
+} from "./schedule-eligibility";
 
 // ---------------------------------------------------------------------------
 // Mode + flag resolution
@@ -152,8 +156,18 @@ export interface EngineSelectionProvenance {
   /** Promotion-readiness snapshot used by this selection. */
   readinessReady: boolean;
   readinessBlockers: string[];
+  /** Phase 3.1 — per-schedule eligibility result. */
+  scheduleEligible: boolean;
+  eligibilityBlockers: string[];
+  eligibilityWarnings: string[];
+  /** Single-string summary of every gate decision (boring-bar + eligibility). */
+  gateDecision: string;
   /** engine2 diagnostics count when a comparison was run; otherwise 0. */
   diagnosticsCount: number;
+  /** Non-fatal warnings the selector wants to surface to the dev drawer. */
+  warnings: string[];
+  /** True when the authoritative `result` came from legacy (always true today). */
+  legacyAuthoritative: boolean;
   /** ISO timestamp of the selection (for evidence trails). */
   selectedAt: string;
 }
@@ -250,6 +264,7 @@ export function runScheduleWithSelectedEngine(
   const readiness = evaluatePromotionReadiness(
     options.evidenceLog ?? { createdAt: "", entries: [] },
   );
+  const eligibility = evaluateScheduleEligibility(schedule);
 
   const resolution = resolveEngineMode({
     requestedMode,
@@ -257,11 +272,32 @@ export function runScheduleWithSelectedEngine(
     forcePastReadinessGate: options.forcePastReadinessGate,
   });
 
+  // Phase 3.1 safety audit: eligibility blockers force engine2-internal
+  // back to comparison even if the boring-bar passes or is force-bypassed.
+  // This is a per-schedule check that protects against engine2 being
+  // selected for inputs it cannot safely calculate.
+  let effectiveMode = resolution.effectiveMode;
+  let downgraded = resolution.downgraded;
+  let downgradeReason = resolution.reason;
+  if (effectiveMode === "engine2-internal" && !eligibility.eligible) {
+    effectiveMode = "comparison";
+    downgraded = true;
+    downgradeReason = `schedule ineligible: ${eligibility.blockers.join("; ")}`;
+  }
+
   // Always compute the legacy result first — it's the safety net.
   const legacyResult = safeLegacy(schedule, options);
 
+  const gateDecision = formatGateDecision({
+    requestedMode,
+    effectiveMode,
+    readinessReady: readiness.ready,
+    scheduleEligible: eligibility.eligible,
+    forcedPastReadiness: !!options.forcePastReadinessGate,
+  });
+
   // Mode = legacy-only → no engine2 work.
-  if (resolution.effectiveMode === "legacy-only") {
+  if (effectiveMode === "legacy-only") {
     return {
       result: legacyResult,
       provenance: makeProvenance({
@@ -269,8 +305,11 @@ export function runScheduleWithSelectedEngine(
         effectiveMode: "legacy-only",
         engineUsed: "legacy",
         fallbackUsed: false,
-        fallbackReason: resolution.reason,
+        fallbackReason: downgradeReason,
         readiness,
+        eligibility,
+        gateDecision,
+        warnings: eligibility.warnings,
         selectedAt: now,
       }),
     };
@@ -295,7 +334,7 @@ export function runScheduleWithSelectedEngine(
   // engine2-internal: engine2 was the *selected* authority. Legacy result
   // remains the public payload (schedule state safety). If engine2 errored
   // OR the comparison could not be produced, we record the fallback.
-  if (resolution.effectiveMode === "engine2-internal") {
+  if (effectiveMode === "engine2-internal") {
     const fallback = !!engine2Error || !comparison;
     return {
       result: legacyResult,
@@ -310,6 +349,9 @@ export function runScheduleWithSelectedEngine(
         comparisonVerdict: comparison?.verdict,
         diagnosticsCount: comparison?.engine2DiagnosticsCount ?? 0,
         readiness,
+        eligibility,
+        gateDecision,
+        warnings: eligibility.warnings,
         selectedAt: now,
       }),
     };
@@ -324,15 +366,35 @@ export function runScheduleWithSelectedEngine(
       requestedMode,
       effectiveMode: "comparison",
       engineUsed: "legacy",
-      fallbackUsed: resolution.downgraded,
-      fallbackReason: resolution.downgraded ? resolution.reason : undefined,
+      fallbackUsed: downgraded,
+      fallbackReason: downgraded ? downgradeReason : undefined,
       comparisonVerdict: comparison?.verdict,
       diagnosticsCount: comparison?.engine2DiagnosticsCount ?? 0,
       readiness,
+      eligibility,
+      gateDecision,
+      warnings: eligibility.warnings,
       selectedAt: now,
     }),
   };
 }
+
+function formatGateDecision(input: {
+  requestedMode: EngineMode;
+  effectiveMode: EngineMode;
+  readinessReady: boolean;
+  scheduleEligible: boolean;
+  forcedPastReadiness: boolean;
+}): string {
+  const parts = [
+    `req=${input.requestedMode}`,
+    `eff=${input.effectiveMode}`,
+    `readiness=${input.readinessReady ? "pass" : "fail"}${input.forcedPastReadiness ? "(forced)" : ""}`,
+    `eligibility=${input.scheduleEligible ? "pass" : "fail"}`,
+  ];
+  return parts.join(" ");
+}
+
 
 function safeLegacy(schedule: Schedule, opts: SchedulerOptions): ScheduleResult {
   // Legacy must never be allowed to bring down the selector. If it ever
@@ -351,6 +413,9 @@ function makeProvenance(input: {
   comparisonVerdict?: ComparisonVerdict;
   diagnosticsCount?: number;
   readiness: PromotionReadiness;
+  eligibility: ScheduleEligibility;
+  gateDecision: string;
+  warnings: string[];
   selectedAt: string;
 }): EngineSelectionProvenance {
   return {
@@ -364,7 +429,14 @@ function makeProvenance(input: {
     comparisonVerdict: input.comparisonVerdict,
     readinessReady: input.readiness.ready,
     readinessBlockers: [...input.readiness.blockers],
+    scheduleEligible: input.eligibility.eligible,
+    eligibilityBlockers: [...input.eligibility.blockers],
+    eligibilityWarnings: [...input.eligibility.warnings],
+    gateDecision: input.gateDecision,
     diagnosticsCount: input.diagnosticsCount ?? 0,
+    warnings: [...input.warnings],
+    // Phase 3.1 — legacy still produces the public `result` in every mode.
+    legacyAuthoritative: true,
     selectedAt: input.selectedAt,
   };
 }
@@ -376,13 +448,23 @@ export function formatProvenance(p: EngineSelectionProvenance): string {
     "=".repeat(40),
     `requested=${p.requestedMode} effective=${p.effectiveMode} engineUsed=${p.engineUsed}`,
     `legacy=${p.legacyEngineVersion} engine2=${p.engine2Version}`,
+    `legacyAuthoritative=${p.legacyAuthoritative}`,
+    `gate: ${p.gateDecision}`,
     `fallback=${p.fallbackUsed}${p.fallbackReason ? ` (${p.fallbackReason})` : ""}`,
     `verdict=${p.comparisonVerdict ?? "—"} diagnostics=${p.diagnosticsCount}`,
-    `readinessReady=${p.readinessReady}`,
+    `readinessReady=${p.readinessReady} scheduleEligible=${p.scheduleEligible}`,
   ];
   if (p.readinessBlockers.length > 0) {
-    lines.push("blockers:");
+    lines.push("readiness blockers:");
     for (const b of p.readinessBlockers) lines.push(`  - ${b}`);
+  }
+  if (p.eligibilityBlockers.length > 0) {
+    lines.push("eligibility blockers:");
+    for (const b of p.eligibilityBlockers) lines.push(`  - ${b}`);
+  }
+  if (p.eligibilityWarnings.length > 0) {
+    lines.push("eligibility warnings:");
+    for (const w of p.eligibilityWarnings) lines.push(`  - ${w}`);
   }
   lines.push(`selectedAt=${p.selectedAt}`);
   return lines.join("\n");

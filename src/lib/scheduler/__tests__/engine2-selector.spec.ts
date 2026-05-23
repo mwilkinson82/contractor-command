@@ -43,6 +43,25 @@ function scheduleFromSample(): Schedule {
   };
 }
 
+/** A schedule with no progress, no resources, no per-activity calendars
+ *  — used by tests that need engine2 eligibility to pass. */
+function cleanSchedule(): Schedule {
+  return {
+    name: "clean-eligible",
+    projectStartDate: "2026-01-05",
+    calendar: { workDays: 31, holidays: [] },
+    tasks: [
+      { id: "T1", name: "Start", duration: 0 },
+      { id: "T2", name: "Mid", duration: 5 },
+      { id: "T3", name: "End", duration: 0 },
+    ],
+    dependencies: [
+      { from: "T1", to: "T2", type: "FS", lag: 0 },
+      { from: "T2", to: "T3", type: "FS", lag: 0 },
+    ],
+  };
+}
+
 function entry(p: Partial<EvidenceLogEntry>): EvidenceLogEntry {
   return {
     scheduleId: "commercial-fit-out",
@@ -199,8 +218,27 @@ describe("engine-selector — execution & provenance (Phase 3.0)", () => {
     expect(out.comparison).toBeDefined();
   });
 
-  it("engine2-internal runs as engine2 when readiness passes", () => {
+  it("engine2-internal is downgraded by eligibility on CFO sample (in-progress + resources)", () => {
     const schedule = scheduleFromSample();
+    const out = runScheduleWithSelectedEngine(schedule, {
+      mode: "engine2-internal",
+      evidenceLog: passingLog(),
+      forcePastReadinessGate: true,
+      clock: fixedClock,
+    });
+    // Boring-bar passes (or is forced), but eligibility blocks because CFO
+    // carries in-progress activities and per-activity resources.
+    expect(out.provenance.requestedMode).toBe("engine2-internal");
+    expect(out.provenance.effectiveMode).toBe("comparison");
+    expect(out.provenance.engineUsed).toBe("legacy");
+    expect(out.provenance.fallbackUsed).toBe(true);
+    expect(out.provenance.scheduleEligible).toBe(false);
+    expect(out.provenance.eligibilityBlockers.length).toBeGreaterThan(0);
+    expect(out.provenance.fallbackReason).toContain("schedule ineligible");
+  });
+
+  it("engine2-internal runs as engine2 when readiness AND eligibility pass", () => {
+    const schedule = cleanSchedule();
     const out = runScheduleWithSelectedEngine(schedule, {
       mode: "engine2-internal",
       evidenceLog: passingLog(),
@@ -210,16 +248,14 @@ describe("engine-selector — execution & provenance (Phase 3.0)", () => {
     expect(out.provenance.engineUsed).toBe("engine2");
     expect(out.provenance.fallbackUsed).toBe(false);
     expect(out.provenance.readinessReady).toBe(true);
+    expect(out.provenance.scheduleEligible).toBe(true);
     expect(out.comparison).toBeDefined();
     expect(out.provenance.comparisonVerdict).toBeDefined();
   });
 
   it("engine2 errors fall back to legacy without corrupting the result", () => {
-    const schedule = scheduleFromSample();
+    const schedule = cleanSchedule();
     const legacy = calculateSchedule(schedule);
-    // Intentionally break engine2 by stripping projectStartDate AFTER the
-    // legacy result is captured. The selector should still return a stable
-    // legacy result and surface engine2Error in provenance.
     const broken: Schedule = { ...schedule, projectStartDate: "" };
     const out = runScheduleWithSelectedEngine(broken, {
       mode: "engine2-internal",
@@ -227,12 +263,9 @@ describe("engine-selector — execution & provenance (Phase 3.0)", () => {
       forcePastReadinessGate: true,
       clock: fixedClock,
     });
-    // Legacy still produced a sane shape (or threw — selector returns legacy);
-    // critical: provenance records fallback.
     expect(out.provenance.fallbackUsed).toBe(true);
     expect(out.provenance.engineUsed).toBe("legacy");
     expect(out.provenance.fallbackReason).toBeTruthy();
-    // The unbroken schedule's legacy output is unchanged by this run.
     const after = calculateSchedule(schedule);
     expect(after.projectFinishDate).toBe(legacy.projectFinishDate);
   });
@@ -290,7 +323,13 @@ describe("engine-selector — execution & provenance (Phase 3.0)", () => {
       comparisonVerdict: "expected-differences",
       readinessReady: false,
       readinessBlockers: ["CFO dirty"],
+      scheduleEligible: true,
+      eligibilityBlockers: [],
+      eligibilityWarnings: [],
+      gateDecision: "req=engine2-internal eff=comparison readiness=fail eligibility=pass",
       diagnosticsCount: 3,
+      warnings: [],
+      legacyAuthoritative: true,
       selectedAt: fixedClock.now(),
     };
     const a = formatProvenance(p);
@@ -300,6 +339,7 @@ describe("engine-selector — execution & provenance (Phase 3.0)", () => {
     expect(a).toContain("effective=comparison");
     expect(a).toContain("CFO dirty");
     expect(a).toContain(ENGINE2_VERSION);
+    expect(a).toContain("legacyAuthoritative=true");
   });
 });
 
