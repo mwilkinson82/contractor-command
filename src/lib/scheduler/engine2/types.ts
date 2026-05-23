@@ -396,4 +396,89 @@ export interface EngineResult {
   runRecord: EngineRunRecord;
   /** @deprecated use `runRecord`. Retained for back-compat through Phase 1.x. */
   runMeta: { startedAt: number; durationMs: number; optionsHash: string };
+  /**
+   * Phase 1.6 — deterministic resource leveling analysis. Present only when
+   * `CpmInput.leveling.enabled === true`. CPM dates on `activities` are NOT
+   * mutated; leveled dates live exclusively here.
+   */
+  leveling?: LevelingAnalysis;
+}
+
+// ---------------------------------------------------------------------------
+// Phase 1.6 — resource leveling foundation
+// ---------------------------------------------------------------------------
+
+export interface LevelingOptions {
+  enabled: boolean;
+  /**
+   * If set, only these resources are considered for leveling. Other
+   * overallocations are reported as informational but never cause moves.
+   * Default: every resource with a finite `maxUnitsPerDay`.
+   */
+  selectedResourceIds?: string[];
+  /**
+   * If true, an activity is never delayed past its CPM `lateStart` (i.e.
+   * the leveler refuses to consume float beyond zero). Phase 1.6: DEFERRED —
+   * the leveler logs a `leveling_preserve_dates_deferred` warning and
+   * proceeds as if `false`. See ARCHITECTURE.md §16.
+   */
+  preserveScheduledEarlyAndLateDates?: boolean;
+  /**
+   * Hard cap on how many workdays a single activity may be delayed.
+   * Default 365. Prevents runaway loops on infeasible inputs.
+   */
+  maxDelayWorkdays?: number;
+}
+
+export interface ResourceDayDemand {
+  /** UTC day-start instant (00:00). */
+  dayStart: Instant;
+  /** Sum of demand on this resource on this day across all active activities. */
+  totalUnits: number;
+  /** `totalUnits - capacity`. Positive = over. */
+  overUnits: number;
+  /** Activities contributing demand on this day. */
+  activityIds: string[];
+}
+
+export interface ResourceOverallocation {
+  resourceId: string;
+  /** `maxUnitsPerDay` snapshot at run time. */
+  capacityPerDay: number;
+  days: ResourceDayDemand[];
+}
+
+export interface LevelingEntry {
+  activityId: string;
+  /** Snapshot of CPM dates before leveling moved the activity. */
+  cpmEarlyStart: Instant;
+  cpmEarlyFinish: Instant;
+  /** Post-leveling dates. */
+  leveledStart: Instant;
+  leveledFinish: Instant;
+  /** Working-minute delay under the activity calendar. >= 0. */
+  delayMinutes: number;
+  /** Resources whose capacity drove the move (empty if the activity didn't move). */
+  resourcesCausingConflict: string[];
+  /** Human-readable reason: priority comparison and trigger. */
+  priorityReason: string;
+}
+
+export interface LevelingAnalysis {
+  /** Echo of the options the run was executed with. */
+  options: Required<Pick<LevelingOptions, "enabled" | "preserveScheduledEarlyAndLateDates" | "maxDelayWorkdays">> & {
+    selectedResourceIds: string[];
+  };
+  /** Resources actually considered (after defaulting). */
+  consideredResourceIds: string[];
+  overallocationsBefore: ResourceOverallocation[];
+  overallocationsAfter: ResourceOverallocation[];
+  entries: LevelingEntry[];
+  /**
+   * Structured warnings explaining simplifications / deferred behavior.
+   * Codes include `leveling_whole_day_only`,
+   * `leveling_preserve_dates_deferred`, `leveling_successors_not_reflowed`,
+   * `leveling_no_capacity_defined`, `leveling_max_delay_reached`.
+   */
+  warnings: EngineDiagnostic[];
 }
