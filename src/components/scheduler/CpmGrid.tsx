@@ -391,8 +391,8 @@ export function CpmGrid({
                       className={`px-1 text-right tabular-nums ${
                         t.isCritical
                           ? "font-semibold text-[#b42318]"
-                          : t.totalFloat <= 5
-                            ? "text-[#9b7400]"
+                          : nearCriticalFloat > 0 && t.totalFloat > 0 && t.totalFloat <= nearCriticalFloat
+                            ? "font-medium text-[#d97706]"
                             : "text-[#5c574e]"
                       }`}
                     >
