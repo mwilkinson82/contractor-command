@@ -248,3 +248,70 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
     </section>
   );
 }
+
+function HolidaysEditor({
+  holidays,
+  onChange,
+}: {
+  holidays: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [date, setDate] = useState("");
+  const sorted = [...holidays].sort();
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        className="text-[10px] uppercase tracking-wide text-[#3554a5] hover:underline"
+        onClick={() => setOpen((v) => !v)}
+      >
+        {open ? "Hide" : "Edit"} holidays ({holidays.length})
+      </button>
+      {open ? (
+        <div className="mt-1 space-y-1 rounded border border-dashed border-[#d8cdb8] bg-white p-2">
+          <div className="flex gap-1">
+            <Input
+              type="date"
+              className="h-7 text-xs"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!date || holidays.includes(date)}
+              onClick={() => {
+                onChange([...holidays, date]);
+                setDate("");
+              }}
+            >
+              Add
+            </Button>
+          </div>
+          {sorted.length ? (
+            <div className="flex flex-wrap gap-1">
+              {sorted.map((h) => (
+                <span
+                  key={h}
+                  className="inline-flex items-center gap-1 rounded bg-[#eee6d7] px-1.5 py-0.5 text-[10px] text-[#3d3527]"
+                >
+                  {h}
+                  <button
+                    type="button"
+                    className="text-[#b42318] hover:underline"
+                    onClick={() => onChange(holidays.filter((x) => x !== h))}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[10px] text-[#7a6a4d]">No holidays yet.</p>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
