@@ -189,13 +189,20 @@ function SchedulerPage() {
         name: draft.name,
         projectStartDate: draft.projectStartDate,
         calendar: { workDays: draft.workDays, holidays: draft.holidays },
+        calendars: calendars.map((c) => ({
+          id: c.id,
+          name: c.name,
+          isDefault: c.isDefault,
+          workDays: c.workDays,
+          holidays: c.holidays,
+        })),
         tasks: draft.tasks,
         dependencies: draft.dependencies,
       });
     } catch (e) {
       return { error: (e as Error).message } as const;
     }
-  }, [draft, selectedId]);
+  }, [draft, selectedId, calendars]);
 
   const computed = result && "tasks" in result ? result : null;
   const computeError = result && "error" in result ? result.error : null;
