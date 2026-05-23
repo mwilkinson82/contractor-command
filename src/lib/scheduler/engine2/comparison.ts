@@ -719,6 +719,17 @@ export function formatComparisonReport(report: ComparisonReport): string {
   for (const [k, v] of Object.entries(report.countsByCategory)) {
     if (v > 0) lines.push(`    ${k}: ${v}`);
   }
+  if (report.topDifferences.length > 0) {
+    lines.push(`  top differences:`);
+    for (const d of report.topDifferences) {
+      const legacyStr = d.legacy === undefined ? "" : ` legacy=${JSON.stringify(d.legacy)}`;
+      const engine2Str = d.engine2 === undefined ? "" : ` engine2=${JSON.stringify(d.engine2)}`;
+      lines.push(`    - [${d.classification}] ${d.category} ${d.id}${legacyStr}${engine2Str}`);
+      if (d.likelyCause) lines.push(`        cause: ${d.likelyCause}`);
+      if (d.recommendedAction) lines.push(`        action: ${d.recommendedAction}`);
+    }
+  }
+
   if (report.knownLimitations.length > 0) {
     lines.push(`  known limitations:`);
     for (const l of report.knownLimitations) lines.push(`    - ${l}`);
