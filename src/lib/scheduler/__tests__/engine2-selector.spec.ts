@@ -290,7 +290,13 @@ describe("engine-selector — execution & provenance (Phase 3.0)", () => {
       comparisonVerdict: "expected-differences",
       readinessReady: false,
       readinessBlockers: ["CFO dirty"],
+      scheduleEligible: true,
+      eligibilityBlockers: [],
+      eligibilityWarnings: [],
+      gateDecision: "req=engine2-internal eff=comparison readiness=fail eligibility=pass",
       diagnosticsCount: 3,
+      warnings: [],
+      legacyAuthoritative: true,
       selectedAt: fixedClock.now(),
     };
     const a = formatProvenance(p);
@@ -300,6 +306,7 @@ describe("engine-selector — execution & provenance (Phase 3.0)", () => {
     expect(a).toContain("effective=comparison");
     expect(a).toContain("CFO dirty");
     expect(a).toContain(ENGINE2_VERSION);
+    expect(a).toContain("legacyAuthoritative=true");
   });
 });
 
