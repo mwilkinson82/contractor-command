@@ -570,7 +570,7 @@ function SchedulerPage() {
   return (
     <div className="scheduler-print-root flex h-screen flex-col bg-[#faf8f3] text-[#1f241f]">
       {/* ============ TOP HEADER ============ */}
-      <header className="flex h-14 shrink-0 items-center gap-4 border-b border-[#e6dfd0] bg-white/80 px-4 backdrop-blur">
+      <header className="flex h-12 shrink-0 items-center gap-4 border-b border-[#e6dfd0] bg-white/80 px-4 backdrop-blur">
         <Link
           to="/scheduler"
           className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#5c574e] hover:text-[#1f241f]"
