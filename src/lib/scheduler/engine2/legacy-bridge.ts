@@ -105,7 +105,9 @@ export interface BridgeResult {
  */
 export function bridgeLegacyScheduleToEngine2(
   schedule: Schedule,
+  options: LegacyBridgeOptions = {},
 ): BridgeResult {
+  const useExceptions = !!options.useExceptionAwareCalendars;
   const notes: string[] = [];
   const projectStartIso = schedule.projectStartDate;
   if (!projectStartIso) {
@@ -123,26 +125,26 @@ export function bridgeLegacyScheduleToEngine2(
   const defaultLegacy = schedule.calendar ?? { workDays: 31, holidays: [] };
   calendars.set(
     DEFAULT_CALENDAR_ID,
-    createWholeDayWorkClock({
-      id: DEFAULT_CALENDAR_ID,
-      name: "Project Default (bridged)",
-      workDays: convertWorkDaysMask(defaultLegacy.workDays),
-      holidays: defaultLegacy.holidays,
-      hoursPerDay: HOURS_PER_DAY,
-    }),
+    buildCalendarClock(
+      DEFAULT_CALENDAR_ID,
+      "Project Default (bridged)",
+      convertWorkDaysMask(defaultLegacy.workDays),
+      defaultLegacy.holidays,
+      useExceptions,
+    ),
   );
 
   for (const named of schedule.calendars ?? []) {
     if (calendars.has(named.id)) continue;
     calendars.set(
       named.id,
-      createWholeDayWorkClock({
-        id: named.id,
-        name: named.name,
-        workDays: convertWorkDaysMask(named.workDays),
-        holidays: named.holidays,
-        hoursPerDay: HOURS_PER_DAY,
-      }),
+      buildCalendarClock(
+        named.id,
+        named.name,
+        convertWorkDaysMask(named.workDays),
+        named.holidays,
+        useExceptions,
+      ),
     );
   }
 
