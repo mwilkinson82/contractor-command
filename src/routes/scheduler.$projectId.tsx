@@ -1149,7 +1149,7 @@ function SchedulerPage() {
                     ) : null}
                   </div>
 
-                  <div className="max-h-[280px] overflow-auto px-4 py-3 text-sm">
+                  <div className="max-h-[200px] overflow-auto px-4 py-2 text-sm">
                     {!selectedTaskCalc || selectedTaskIdx < 0 ? (
                       <div className="py-6 text-center text-xs text-[#9c8b6e]">
                         Select an activity to inspect details, relationships, resources, codes,
