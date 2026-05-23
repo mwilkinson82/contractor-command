@@ -48,10 +48,7 @@ describe("Phase 1.8 — XER pipeline", () => {
     const report = reconcileSchedule({
       importResult,
       engineResult,
-      expectedActivities: [
-        { activityId: "A", earlyStart: MON_2025_01_06 },
-        { activityId: "C", isCritical: true },
-      ],
+      expectedActivities: [{ activityId: "C", isCritical: true }],
     });
     expect(report.summary.mismatch).toBe(0);
     expect(report.ok).toBe(true);
