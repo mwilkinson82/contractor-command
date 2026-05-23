@@ -299,6 +299,71 @@ export function calculateCpm(input: CpmInput): EngineResult {
     const cal = getCal(a.calendarId);
     const st = state.get(a.id)!;
 
+    // ---- Phase 2.2 — out-of-sequence detection (runs for both
+    // in-progress and completed activities). Diagnostics are emitted
+    // regardless of the selected rule so violations are never hidden. ----
+    const oosViolatingPredDeps: EngineRelationship[] = [];
+    if (st.completed || st.inProgress) {
+      for (const dep of predsOf.get(a.id) ?? []) {
+        const pred = actMap.get(dep.from)!;
+        const predDone = pred.actualFinish !== undefined;
+        const predStarted = pred.actualStart !== undefined;
+        // Which pred-side milestone must have occurred before the
+        // satisfied succ-side milestone, per relationship type?
+        let predOkay = true;
+        let succMilestoneOccurred = false;
+        switch (dep.type) {
+          case "FS":
+            succMilestoneOccurred = a.actualStart !== undefined;
+            predOkay = predDone && pred.actualFinish! <= (a.actualStart ?? Infinity);
+            break;
+          case "SS":
+            succMilestoneOccurred = a.actualStart !== undefined;
+            predOkay = predStarted && pred.actualStart! <= (a.actualStart ?? Infinity);
+            break;
+          case "FF":
+            succMilestoneOccurred = a.actualFinish !== undefined;
+            predOkay = predDone && pred.actualFinish! <= (a.actualFinish ?? Infinity);
+            break;
+          case "SF":
+            succMilestoneOccurred = a.actualFinish !== undefined;
+            predOkay = predStarted && pred.actualStart! <= (a.actualFinish ?? Infinity);
+            break;
+        }
+        if (!succMilestoneOccurred) continue;
+        if (predOkay) continue;
+
+        oosViolatingPredDeps.push(dep);
+        diagnostics.push({
+          severity: "warn",
+          code: "out_of_sequence_progress_detected",
+          message: `Activity "${a.id}" actuals violate ${dep.type} link from "${pred.id}" (rule: ${effectiveRule})`,
+          activityId: a.id,
+        });
+        diagnostics.push({
+          severity: "warn",
+          code: "relationship_logic_violated_by_actuals",
+          message: `Relationship "${dep.id}" (${dep.type} ${pred.id}→${a.id}) violated by recorded actuals`,
+          activityId: a.id,
+        });
+        if (st.completed) {
+          diagnostics.push({
+            severity: "warn",
+            code: "predecessor_incomplete_successor_completed",
+            message: `Predecessor "${pred.id}" not satisfied but successor "${a.id}" is already completed`,
+            activityId: a.id,
+          });
+        } else {
+          diagnostics.push({
+            severity: "warn",
+            code: "predecessor_incomplete_successor_started",
+            message: `Predecessor "${pred.id}" not satisfied but successor "${a.id}" has already started`,
+            activityId: a.id,
+          });
+        }
+      }
+    }
+
     // Completed activities: pin to actuals.
     if (st.completed) {
       st.earlyStart = a.actualStart ?? a.actualFinish!;
@@ -316,18 +381,60 @@ export function calculateCpm(input: CpmInput): EngineResult {
     // In-progress: ES is the actual start; EF projects from data date.
     if (st.inProgress) {
       const dur = Math.max(0, a.remainingDuration.minutes | 0);
-      const projectionStart = cal.nextWorkInstant(input.dataDate);
+      let projectionStart = cal.nextWorkInstant(input.dataDate);
+      let cause: GoverningCause = "data-date";
+      let drivingPredId: string | undefined;
+
+      // Phase 2.2 — apply selected rule to OOS predecessors.
+      if (oosViolatingPredDeps.length > 0) {
+        if (effectiveRule === "retained-logic") {
+          for (const dep of oosViolatingPredDeps) {
+            const pred = actMap.get(dep.from)!;
+            const predState = state.get(pred.id)!;
+            const required = requiredSuccStart(
+              dep,
+              pred,
+              a,
+              predState,
+              getCal,
+              input.projectCalendarId,
+            );
+            if (required > projectionStart) {
+              projectionStart = required;
+              cause = "logic";
+              drivingPredId = dep.id;
+            }
+          }
+          diagnostics.push({
+            severity: "info",
+            code: "retained_logic_applied",
+            message: `Activity "${a.id}" remaining work held by predecessor logic under retained-logic rule`,
+            activityId: a.id,
+          });
+        } else {
+          // progress-override
+          diagnostics.push({
+            severity: "info",
+            code: "progress_override_applied",
+            message: `Activity "${a.id}" remaining work projected from data date under progress-override rule (broken predecessor logic ignored)`,
+            activityId: a.id,
+          });
+        }
+      }
+
       st.earlyStart = a.actualStart!;
       st.earlyFinish = dur === 0 ? projectionStart : cal.addWork(projectionStart, dur);
-      st.governingCause = "data-date";
+      st.governingCause = cause;
+      st.drivingPredecessorId = drivingPredId;
       st.notes.push({
         severity: "info",
         code: "in-progress",
-        message: `Activity "${a.id}" projects remaining ${dur}m from data date`,
+        message: `Activity "${a.id}" projects remaining ${dur}m from ${cause === "logic" ? "predecessor logic" : "data date"}`,
         activityId: a.id,
       });
       continue;
     }
+
 
     // Not started: project start, data date, logic, then constraints.
     const dataDateSnapped = cal.nextWorkInstant(input.dataDate);
