@@ -324,16 +324,16 @@ export function CpmGrid({
                   return (
                     <tr
                       key={`g-${row.key}`}
-                      className="cursor-pointer bg-[#ede5d2] font-semibold text-[#3d3527] hover:bg-[#e6dcc4]"
+                      className="cursor-pointer bg-[#f5efe0] font-medium text-[#3d3527] hover:bg-[#efe7d2]"
                       style={{ height: GROUP_H }}
                       onClick={() => onToggleGroup?.(row.key)}
                     >
-                      <td colSpan={9} className="border-b border-[#d8cdb8] border-t border-t-[#d8cdb8] px-2">
-                        <span className="mr-1.5 inline-block w-3 text-center text-[#7a6a4d]">
+                      <td colSpan={9} className="border-b border-[#e8dfc8] px-2">
+                        <span className="mr-1.5 inline-block w-3 text-center text-[10px] text-[#9c8b6e]">
                           {row.collapsed ? "▸" : "▾"}
                         </span>
-                        <span className="text-[10px] uppercase tracking-[0.08em]">{row.key}</span>
-                        <span className="ml-2 text-[10px] font-normal text-[#9c8b6e]">
+                        <span className="text-[10px] uppercase tracking-[0.1em] text-[#5c574e]">{row.key}</span>
+                        <span className="ml-2 text-[10px] font-normal text-[#a8997a]">
                           · {row.taskCount}
                         </span>
                       </td>
