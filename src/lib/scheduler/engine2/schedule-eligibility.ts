@@ -19,6 +19,11 @@
  */
 
 import type { Schedule } from "../types";
+import {
+  getCapabilityMetadata,
+  projectCapabilityEligibility,
+  type CapabilityFlagId,
+} from "./capability-metadata";
 
 export type EligibilityCheckId =
   | "no-tasks"
@@ -225,24 +230,63 @@ export function evaluateScheduleEligibility(
         : `${resourced.length} resource-loaded activit(y/ies)`,
   });
 
-  // 8–14. Features the current `Schedule` shape cannot express are
-  // recorded as PASSING explicit checks so the audit surface is visible.
-  // Bridge/import code should add corresponding blockers when these are
-  // detected upstream (e.g. in xer-import).
-  for (const id of [
-    "leveling-required",
-    "unsupported-constraints",
-    "external-relationships",
-    "baseline-required",
-    "unsupported-percent-type",
-    "unsupported-duration-type",
-    "unsupported-xer-semantics",
-  ] as const) {
+  // 8–14. Importer-owned feature checks (Phase 3.2).
+  //
+  // Replace the prior stubbed PASSING checks with real verdicts derived
+  // from `schedule.engine2Capabilities`. Schedules without metadata fall
+  // back to `defaultCapabilityMetadata()` (every flag PASS) so in-app
+  // authored schedules behave exactly as before.
+  //
+  // Mapping: capability flag id → eligibility check id.
+  const CAPABILITY_TO_CHECK: Record<CapabilityFlagId, EligibilityCheckId> = {
+    "external-relationships": "external-relationships",
+    "interproject-relationships": "external-relationships",
+    "unsupported-constraints": "unsupported-constraints",
+    "unsupported-percent-type": "unsupported-percent-type",
+    "unsupported-duration-type": "unsupported-duration-type",
+    "resource-loaded-imported": "leveling-required",
+    "leveling-required": "leveling-required",
+    "unknown-xer-semantics": "unsupported-xer-semantics",
+    "baseline-assumed": "baseline-required",
+    "calendar-shifts": "unsupported-xer-semantics",
+  };
+
+  const findings = projectCapabilityEligibility(getCapabilityMetadata(schedule));
+  // Group by mapped eligibility check id so multiple capability flags can
+  // contribute to the same audit row deterministically.
+  const grouped = new Map<EligibilityCheckId, typeof findings>();
+  for (const f of findings) {
+    const checkId = CAPABILITY_TO_CHECK[f.flagId];
+    const arr = grouped.get(checkId) ?? [];
+    arr.push(f);
+    grouped.set(checkId, arr);
+  }
+  for (const [checkId, group] of grouped) {
+    // Conservative merge: any block → fail-blocker, else any unknown →
+    // fail-blocker (unknown is treated as blocker per Phase 3.2 policy),
+    // else pass.
+    const verdict = group.some((g) => g.verdict === "block")
+      ? "block"
+      : group.some((g) => g.verdict === "unknown")
+        ? "unknown"
+        : "pass";
+    const pass = verdict === "pass";
+    const detailParts = group
+      .filter((g) => g.detail)
+      .map((g) => `${g.flagId}:${g.verdict} ${g.detail ?? ""}`.trim());
     push(out, {
-      id,
-      description: `${id} — not expressible in current Schedule shape; importer-owned.`,
-      pass: true,
+      id: checkId,
+      description:
+        verdict === "unknown"
+          ? `${checkId} — UNKNOWN per importer; conservatively blocking.`
+          : `${checkId} — importer-owned verdict.`,
+      pass,
       severity: "blocker",
+      detail: pass
+        ? undefined
+        : detailParts.length > 0
+          ? detailParts.join(" | ")
+          : verdict,
     });
   }
 
