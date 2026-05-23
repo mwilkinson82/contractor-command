@@ -2606,3 +2606,87 @@ Definitions:
 - Two `it(...)` descriptions edited to remove overstatement (PRG-8, LVL-16).
   No tests deleted, no tests reverted to `.todo()`.
 - Legacy `calculateSchedule` remains the authoritative production engine.
+
+---
+
+## §35 — Phase 3.4: Internal dry-run comparison entrypoint
+
+### Purpose
+Phase 3.4 wires engine2 into a single, internal-only **dry-run** entrypoint
+(`runScheduleDryRunComparison` in `src/lib/scheduler/engine2/dry-run.ts`).
+It lets engineering compare legacy vs engine2 on real schedules without
+ever letting engine2 output influence persisted state or what end users see.
+
+This is **comparison infrastructure**, not engine2 rollout. Engine2 has to
+earn trust against real schedules first; the dry-run gives us a structured
+record of how close it is.
+
+### Why legacy remains authoritative
+- The `result` field returned by `runScheduleDryRunComparison` is **always**
+  the legacy `ScheduleResult` produced by `calculateSchedule`. Engine2
+  output is exposed only through `comparison` + `dryRun` and is explicitly
+  non-authoritative.
+- Production scheduler code paths (workbench, persistence, fragnets, CSV
+  export, save/reload) continue to call `calculateSchedule` directly. None
+  of them go through the dry-run wrapper.
+- Even in `engine2-internal` selector mode the public payload stays on the
+  legacy shape (§30); the dry-run wrapper preserves that invariant.
+
+### Selector / eligibility behavior
+- Internally calls `runScheduleWithSelectedEngine` in `comparison` mode so
+  the existing selector safety (§30, §31) applies.
+- If the schedule is **ineligible** (`evaluateScheduleEligibility` returns
+  blockers — in-progress activities, completed-without-actuals, per-activity
+  calendars, exception clocks, unsupported XER semantics, etc.), engine2
+  is **not invoked**. The dry-run returns a `skipped` summary with the
+  blockers attached.
+- If engine2 throws during the bridge or CPM pass, the legacy result is
+  still returned and the error is recorded on `dryRun.engine2Error` and
+  `provenance.fallbackReason`. No partial engine2 output leaks.
+- Eligibility is **not** broadened by Phase 3.4.
+
+### Comparison metrics captured
+For eligible schedules `dryRun: DryRunSummary` records:
+- `engine2Ran` / `skippedReason`
+- `verdict` (clean / expected-differences / investigate)
+- `matchingCount` and `differingCount` (activities matching on all four
+  dates vs. activities with any date delta)
+- `maxDateDeltaDays` across ES/EF/LS/LF
+- `maxFloatDeltaDays` across total and free float
+- `projectFinish.{legacy, engine2, deltaDays}`
+- `mismatchIds` bucketed by `earlyDates`, `lateDates`, `totalFloat`,
+  `freeFloat`, `criticalFlag`, `drivingLink`, `missingInEngine2`,
+  `missingInLegacy`
+- `engine2DiagnosticsCount` and `engine2Error`
+- `eligibilityBlockers` and `eligibilityWarnings`
+
+Full per-difference detail (categories, classifications, likely cause,
+recommended action) remains available on `comparison` (§24-26).
+
+### Diagnostics / logging
+- `formatDryRunSummary(provenance, summary)` produces a deterministic 4-6
+  line block intended for the dev console / PR descriptions.
+- The wrapper logs that block only when `options.log === true` or
+  `import.meta.env.DEV` is true. Production users never see it.
+- Tests inject `logSink` to assert logging discipline; `log: false`
+  guarantees no console output.
+
+### How this prepares for future engine2 rollout
+The dry-run is the substrate the next phases will use to:
+1. Run engine2 against a corpus of real customer schedules in CI and gather
+   verdict / delta distributions.
+2. Tighten or widen `evaluateScheduleEligibility` based on observed
+   discrepancies — without ever shipping engine2 results to users.
+3. Promote engine2 to `engine2-internal` mode for opt-in engineering use
+   once boring-bar (§30) thresholds are met against real corpora.
+4. Eventually consider engine2 authoritative for a narrow eligible band of
+   schedules — gated by another explicit phase, not by Phase 3.4.
+
+### Scope guarantees (Phase 3.4)
+- No scheduler UI changes.
+- No production wiring; nothing in user-facing routes calls the dry-run.
+- Engine2 is **not** made default or authoritative.
+- Eligibility is **not** broadened.
+- XER import behavior is unchanged.
+- No new resource / leveling / progress capability.
+- Legacy `calculateSchedule` remains the authoritative production engine.

@@ -1,5 +1,4 @@
 import { createStart, createMiddleware } from "@tanstack/react-start";
-import { createCsrfMiddleware } from "@tanstack/start-client-core";
 
 import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
@@ -66,20 +65,8 @@ const csrfOriginGuard = createMiddleware().server(async ({ next, request }) => {
   return next();
 });
 
-/**
- * TanStack's official CSRF middleware. We already enforce a stricter
- * same-origin check via `csrfOriginGuard` (covers ALL state-changing
- * requests, not just server functions), but registering the official
- * middleware silences TanStack's dev-time "server functions are not
- * protected by the CSRF middleware" warning and provides an additional
- * Sec-Fetch-Site / Origin check on serverFn calls. Both run; defense in depth.
- */
-const tanstackCsrfMiddleware = createCsrfMiddleware({
-  filter: (ctx) => ctx.handlerType === "serverFn",
-});
-
 export const startInstance = createStart(() => ({
-  requestMiddleware: [errorMiddleware, csrfOriginGuard, tanstackCsrfMiddleware],
+  requestMiddleware: [errorMiddleware, csrfOriginGuard],
   functionMiddleware: [attachSupabaseAuth],
 }));
 
