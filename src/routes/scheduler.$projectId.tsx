@@ -39,6 +39,7 @@ import { DcmaPanel } from "@/components/scheduler/DcmaPanel";
 import { StructurePanel } from "@/components/scheduler/StructurePanel";
 import { WbsSelect } from "@/components/scheduler/WbsSelect";
 import { ActivityCodeChips } from "@/components/scheduler/ActivityCodeChips";
+import { loadStructure } from "@/lib/scheduler/structure.functions";
 import { listCalendars } from "@/lib/scheduler/calendars.functions";
 
 import { FragnetPanel } from "@/components/scheduler/FragnetPanel";
@@ -124,6 +125,46 @@ function SchedulerPage() {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [groupBy, setGroupBy] = useState<"wbs" | "critical" | "none">("wbs");
   const [calendarFilter, setCalendarFilter] = useState<string>("");
+  const [resourceFilter, setResourceFilter] = useState<string>("");
+  const [codeFilter, setCodeFilter] = useState<string>(""); // "typeId:valueId"
+
+  const loadStructureFn = useServerFn(loadStructure);
+  const { data: structure } = useQuery({
+    queryKey: ["structure", selectedId],
+    queryFn: () => loadStructureFn({ data: { scheduleId: selectedId } }),
+    enabled: !!selectedId,
+  });
+
+  const codesByTask = useMemo(() => {
+    const m = new Map<
+      string,
+      { typeName: string; typeId: string; valueId: string; code: string; color: string | null }[]
+    >();
+    if (!structure) return m;
+    const valueIndex = new Map<
+      string,
+      { code: string; color: string | null; typeName: string; typeId: string }
+    >();
+    for (const t of structure.codeTypes) {
+      for (const v of t.values) {
+        valueIndex.set(v.id, { code: v.code, color: v.color, typeName: t.name, typeId: t.id });
+      }
+    }
+    for (const a of structure.assignments) {
+      const v = valueIndex.get(a.valueId);
+      if (!v) continue;
+      const arr = m.get(a.taskId) ?? [];
+      arr.push({
+        typeName: v.typeName,
+        typeId: v.typeId,
+        valueId: a.valueId,
+        code: v.code,
+        color: v.color,
+      });
+      m.set(a.taskId, arr);
+    }
+    return m;
+  }, [structure]);
 
 
   const [comparisonBaselineId, setComparisonBaselineId] = useState<string | null>(null);
@@ -630,6 +671,55 @@ function SchedulerPage() {
               </select>
             ) : null}
 
+            {(() => {
+              const resources = Array.from(
+                new Set(
+                  (draft?.tasks ?? [])
+                    .map((t) => t.resourceName?.trim())
+                    .filter((r): r is string => !!r),
+                ),
+              ).sort();
+              if (resources.length === 0) return null;
+              return (
+                <select
+                  value={resourceFilter}
+                  onChange={(e) => setResourceFilter(e.target.value)}
+                  className="h-7 rounded-md border border-[#e6dfd0] bg-white px-2 text-xs text-[#3d3527] hover:bg-[#faf8f3]"
+                  title="Filter by resource"
+                >
+                  <option value="">◇ Resource (All)</option>
+                  <option value="__none">Unassigned</option>
+                  {resources.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              );
+            })()}
+
+            {structure && structure.codeTypes.length > 0 ? (
+              <select
+                value={codeFilter}
+                onChange={(e) => setCodeFilter(e.target.value)}
+                className="h-7 rounded-md border border-[#e6dfd0] bg-white px-2 text-xs text-[#3d3527] hover:bg-[#faf8f3]"
+                title="Filter by activity code"
+              >
+                <option value="">◊ Code (All)</option>
+                {structure.codeTypes.map((t) => (
+                  <optgroup key={t.id} label={t.name}>
+                    {t.values.map((v) => (
+                      <option key={v.id} value={`${t.id}:${v.id}`}>
+                        {t.name}: {v.code}
+                        {v.description ? ` · ${v.description}` : ""}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            ) : null}
+
+
             <div className="flex items-center rounded-md border border-[#e6dfd0] bg-white">
               {(["wbs", "critical", "none"] as const).map((g, i) => (
                 <button
@@ -836,7 +926,7 @@ function SchedulerPage() {
                   </div>
 
                   {/* LEFT: activity table */}
-                  <div className="scheduler-print-left flex w-[520px] shrink-0 flex-col overflow-hidden border-r border-[#e6dfd0] bg-white">
+                  <div className="scheduler-print-left flex w-[680px] shrink-0 flex-col overflow-hidden border-r border-[#e6dfd0] bg-white">
                     <div className="flex shrink-0 items-center justify-between border-b border-[#eee7d8] bg-[#faf8f3] px-3 py-1.5">
                       <span className="text-[10px] font-semibold uppercase tracking-wide text-[#7a6a4d]">
                         Activities · {totalActivities}
@@ -856,6 +946,8 @@ function SchedulerPage() {
                             <th className="px-2 py-2 text-right font-semibold">Start</th>
                             <th className="px-2 py-2 text-right font-semibold">Finish</th>
                             <th className="px-2 py-2 text-right font-semibold">%</th>
+                            <th className="px-2 py-2 text-left font-semibold">Resource</th>
+                            <th className="px-2 py-2 text-left font-semibold">Codes</th>
                             <th className="px-2 py-2"></th>
                           </tr>
                         </thead>
@@ -867,11 +959,27 @@ function SchedulerPage() {
                               if (calendarFilter === "__default") return !t.calendarId;
                               return t.calendarId === calendarFilter;
                             };
+                            const matchesResource = (t: Task) => {
+                              if (!resourceFilter) return true;
+                              const r = t.resourceName?.trim() ?? "";
+                              if (resourceFilter === "__none") return r === "";
+                              return r === resourceFilter;
+                            };
+                            const matchesCode = (t: Task) => {
+                              if (!codeFilter) return true;
+                              const [typeId, valueId] = codeFilter.split(":");
+                              const codes = codesByTask.get(t.id) ?? [];
+                              return codes.some(
+                                (c) => c.typeId === typeId && c.valueId === valueId,
+                              );
+                            };
                             const visible = (t: Task) => {
                               if (!matchesSearch(t) || !matchesCal(t)) return false;
+                              if (!matchesResource(t) || !matchesCode(t)) return false;
                               if (!showCompleted && (t.percentComplete ?? 0) >= 100) return false;
                               return true;
                             };
+
                             draft.tasks.forEach((t, idx) => {
                               if (!visible(t)) return;
                               const key = t.wbs?.trim() || UNASSIGNED_WBS;
@@ -916,7 +1024,7 @@ function SchedulerPage() {
                                   key={`g-${key}`}
                                   className="border-t border-[#eee7d8] bg-[#faf8f3]"
                                 >
-                                  <td colSpan={7} className="px-2 py-1.5">
+                                  <td colSpan={9} className="px-2 py-1.5">
                                     <button
                                       type="button"
                                       onClick={() => toggleGroup(key)}
@@ -1017,6 +1125,47 @@ function SchedulerPage() {
                                         }
                                       />
                                     </td>
+                                    <td className="px-2 py-1.5 text-[11px] text-[#3d3527]">
+                                      <InlineText
+                                        value={t.resourceName ?? ""}
+                                        onCommit={(next) =>
+                                          updateTask(idx, {
+                                            resourceName: next.trim() ? next.trim() : undefined,
+                                          })
+                                        }
+                                        className="text-[11px] text-[#3d3527]"
+                                        placeholder="—"
+                                      />
+                                    </td>
+                                    <td className="px-2 py-1.5">
+                                      {(() => {
+                                        const codes = codesByTask.get(t.id) ?? [];
+                                        if (codes.length === 0)
+                                          return (
+                                            <span className="text-[10px] text-[#c7b89d]">—</span>
+                                          );
+                                        return (
+                                          <div className="flex flex-wrap gap-1">
+                                            {codes.map((c) => (
+                                              <span
+                                                key={`${c.typeId}:${c.valueId}`}
+                                                className="inline-flex items-center gap-1 rounded-sm border border-[#e6dfd0] bg-[#faf8f3] px-1.5 py-0.5 text-[10px] text-[#3d3527]"
+                                                title={`${c.typeName}: ${c.code}`}
+                                              >
+                                                {c.color ? (
+                                                  <span
+                                                    className="inline-block h-2 w-2 rounded-sm border border-black/10"
+                                                    style={{ background: c.color }}
+                                                  />
+                                                ) : null}
+                                                {c.code}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        );
+                                      })()}
+                                    </td>
+
                                     <td className="px-1 py-1.5 text-right">
                                       <button
                                         type="button"
@@ -1037,7 +1186,7 @@ function SchedulerPage() {
                             if (rows.length === 0) {
                               rows.push(
                                 <tr key="empty">
-                                  <td colSpan={7} className="px-3 py-10 text-center text-[#9c8b6e]">
+                                  <td colSpan={9} className="px-3 py-10 text-center text-[#9c8b6e]">
                                     No activities match. Click "Add" to create one.
                                   </td>
                                 </tr>,
