@@ -289,3 +289,91 @@ persistence.
 3. Flip `CPM-1`, `CPM-2`, `CPM-3`, `CAL-4` from `.todo()` to `it()`
    as the new passes satisfy them.
 
+---
+
+## 11. Phase 1.1 status (landed)
+
+Phase 1.1 lands the first working **CPM calculation in engine2** on top of
+the Phase 1.0 WorkClock foundation. The legacy engine in
+`src/lib/scheduler/engine.ts` remains the sole engine wired to the UI and
+persistence; the feature flag still defaults to `"legacy"` in production.
+
+### What Phase 1.1 implements
+
+- `engine2/cpm.ts` — `calculateCpm(input: CpmInput): EngineResult`:
+  - Topological sort with cycle detection.
+  - Forward pass: per-activity `earlyStart` / `earlyFinish` using
+    `WorkClock.addWork`, with successor-start snapping via
+    `nextWorkInstant` under the successor's calendar.
+  - Backward pass: per-activity `lateStart` / `lateFinish` from project
+    finish, working back through each relationship.
+  - FS, SS, FF, SF relationships with per-link lag in working minutes
+    and four `lagCalendarBasis` modes (`predecessor`, `successor`,
+    `project`, `24h`).
+  - Per-activity calendar assignment (any `WorkClock` keyed by id).
+  - SNET constraint clamping on the forward pass.
+  - Total float and free float in working minutes of the activity's own
+    calendar.
+  - Critical marking via `totalFloatMinutes <= criticalFloatToleranceMinutes`
+    (default tolerance = 0).
+  - Per-relationship driving / slack reporting and `criticalPath`
+    ordering.
+  - Warning diagnostics for relationships referencing unknown activity
+    ids.
+- `engine2/work-clock.ts` — symmetry fix in the backward branch of
+  `addWork` so that `addWork(addWork(t, +n), -n) === t` for
+  working-aligned `t`, including across day-end boundaries (e.g.
+  Fri 08:00). Forward and `diffWork` behaviour are unchanged.
+- `engine2/index.ts` — re-exports `calculateCpm` and its types.
+
+### Acceptance tests now active (it, not it.todo)
+
+- **CPM-1** — simple FS chain on a single calendar: positions, total
+  float, late/early equivalence, and critical-path order.
+- **CPM-2** — two parallel paths of unequal duration: longer-path
+  activities critical, shorter-path activity carries 2-workday total
+  float.
+- **CPM-3** — free-float (Oracle definition): `B.freeFloat = 3
+  workdays` on the diamond fixture where C drives D.
+- **CAL-4** — two activities of identical nominal duration on different
+  calendars: Y finishes 3 calendar days later than X (one workday slip
+  across a weekend) because of Y's Tuesday holiday.
+
+The remaining 16 of the 20 P6 acceptance tests stay `.todo()`.
+
+### Known limitations of engine2 after Phase 1.1
+
+- **Calendars**: only whole-day workdays + whole-day holidays + fixed
+  hours-per-day window anchored at UTC 00:00. No shifts, no partial-day
+  exceptions, no per-resource calendars.
+- **Constraints**: only `snet` is enforced on the forward pass. The
+  other constraint types are accepted in the data model but ignored by
+  the calculation (no diagnostic yet).
+- **Progress / actuals**: `actualStart`, `actualFinish`, `dataDate`,
+  and `percentComplete` are stored on `EngineActivity` but not consumed
+  by the forward pass — Phase 1.1 schedules everything from
+  `projectStart`.
+- **Free float in mixed-calendar links**: link slack is measured in the
+  successor's calendar minutes. Correct for single-calendar projects
+  (which CPM-3 covers) and a defensible default for mixed-calendar
+  links; a future pass may refine per `lagCalendarBasis`.
+- **FF / SF boundary snapping**: when the required successor finish
+  falls on a non-working instant of the successor's calendar, the
+  required finish is snapped *up* before back-walking by duration.
+  Conservative (never violates the link) but may overschedule by a
+  partial day at boundaries.
+- **Dual-engine assertion harness**: deferred to Phase 1.2.
+- **No `Schedule → EngineActivity[]` adapter yet** — engine2 is not yet
+  callable from the existing scheduler page.
+
+### Phase 1.2 entry criteria
+
+1. `Schedule → CpmInput` adapter converting the legacy `Schedule` /
+   `Task` / `Dependency` / `NamedCalendar` shapes into engine2 inputs.
+2. Dual-engine harness gated by the existing feature flag: run both
+   engines on the demo schedule in dev/test and assert parity on
+   ES/EF/LS/LF/total-float/critical.
+3. Activate additional acceptance tests as they become satisfiable
+   (`CAL-5`, `CON-6`, …).
+
+
