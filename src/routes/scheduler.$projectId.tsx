@@ -92,6 +92,8 @@ function SchedulerPage() {
   const [dayPx, setDayPx] = useState(22);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [groupBy, setGroupBy] = useState<"wbs" | "critical" | "none">("wbs");
+  const [calendarFilter, setCalendarFilter] = useState<string>("");
+
 
   const [comparisonBaselineId, setComparisonBaselineId] = useState<string | null>(null);
 
