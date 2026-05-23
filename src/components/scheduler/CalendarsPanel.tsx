@@ -23,6 +23,48 @@ function toggleBit(mask: number, bit: number): number {
   return mask ^ (1 << bit);
 }
 
+function pad(n: number) {
+  return n.toString().padStart(2, "0");
+}
+function iso(y: number, m: number, d: number) {
+  return `${y}-${pad(m)}-${pad(d)}`;
+}
+/** Nth weekday of a month, dow: 0=Sun..6=Sat. n=1..5; negative counts from end. */
+function nthWeekday(year: number, month: number, dow: number, n: number): string {
+  if (n > 0) {
+    const first = new Date(year, month - 1, 1).getDay();
+    const offset = (dow - first + 7) % 7;
+    return iso(year, month, 1 + offset + (n - 1) * 7);
+  }
+  const lastDay = new Date(year, month, 0).getDate();
+  const last = new Date(year, month - 1, lastDay).getDay();
+  const offset = (last - dow + 7) % 7;
+  return iso(year, month, lastDay - offset - (-n - 1) * 7);
+}
+/** Observed shift: Sat→Fri, Sun→Mon. */
+function observed(dateIso: string): string {
+  const [y, m, d] = dateIso.split("-").map(Number);
+  const dow = new Date(y, m - 1, d).getDay();
+  if (dow === 6) return iso(y, m, d - 1);
+  if (dow === 0) return iso(y, m, d + 1);
+  return dateIso;
+}
+function usFederalHolidays(year: number): string[] {
+  return [
+    observed(iso(year, 1, 1)), // New Year's
+    nthWeekday(year, 1, 1, 3), // MLK Day (3rd Mon Jan)
+    nthWeekday(year, 2, 1, 3), // Presidents' Day (3rd Mon Feb)
+    nthWeekday(year, 5, 1, -1), // Memorial Day (last Mon May)
+    observed(iso(year, 6, 19)), // Juneteenth
+    observed(iso(year, 7, 4)), // Independence Day
+    nthWeekday(year, 9, 1, 1), // Labor Day (1st Mon Sep)
+    nthWeekday(year, 10, 1, 2), // Columbus Day (2nd Mon Oct)
+    observed(iso(year, 11, 11)), // Veterans Day
+    nthWeekday(year, 11, 4, 4), // Thanksgiving (4th Thu Nov)
+    observed(iso(year, 12, 25)), // Christmas
+  ];
+}
+
 export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
   const qc = useQueryClient();
   const listFn = useServerFn(listCalendars);
@@ -258,7 +300,14 @@ function HolidaysEditor({
 }) {
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState("");
+  const [year, setYear] = useState(new Date().getFullYear());
   const sorted = [...holidays].sort();
+
+  const mergeDates = (extras: string[]) => {
+    const set = new Set([...holidays, ...extras]);
+    onChange([...set]);
+  };
+
   return (
     <div className="mt-2">
       <button
@@ -289,6 +338,34 @@ function HolidaysEditor({
               Add
             </Button>
           </div>
+          <div className="flex flex-wrap items-center gap-1 border-t border-dashed border-[#e8ddc4] pt-1">
+            <span className="text-[10px] uppercase tracking-wide text-[#7a6a4d]">Quick add:</span>
+            <Input
+              type="number"
+              className="h-6 w-[70px] text-xs"
+              value={year}
+              onChange={(e) => setYear(parseInt(e.target.value) || new Date().getFullYear())}
+            />
+            <button
+              type="button"
+              className="rounded border border-[#d8cdb8] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[#3d3527] hover:bg-[#eee6d7]"
+              onClick={() => mergeDates(usFederalHolidays(year))}
+            >
+              US federal {year}
+            </button>
+            {holidays.length ? (
+              <button
+                type="button"
+                className="ml-auto text-[10px] uppercase tracking-wide text-[#b42318] hover:underline"
+                onClick={() => {
+                  if (confirm("Clear all holidays?")) onChange([]);
+                }}
+              >
+                Clear all
+              </button>
+            ) : null}
+          </div>
+
           {sorted.length ? (
             <div className="flex flex-wrap gap-1">
               {sorted.map((h) => (
