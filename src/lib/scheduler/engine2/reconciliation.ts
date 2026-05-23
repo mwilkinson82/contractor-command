@@ -99,6 +99,10 @@ const DEFAULT_ACCEPTABLE_CODES = new Set<string>([
   "external_relationship_ignored_by_option",
   "interproject_relationship_mapped",
   "calendar_synthesized",
+  // Phase 2.1 — calendar exception subsystem
+  "calendar_exception_applied",
+  "calendar_exception_conflict",
+  "calendar_shift_preserved_only",
 ]);
 
 const UNSUPPORTED_PRESERVED_CODES = new Set<string>([
