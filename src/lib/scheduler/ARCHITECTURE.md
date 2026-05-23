@@ -366,14 +366,89 @@ The remaining 16 of the 20 P6 acceptance tests stay `.todo()`.
 - **No `Schedule → EngineActivity[]` adapter yet** — engine2 is not yet
   callable from the existing scheduler page.
 
-### Phase 1.2 entry criteria
+### Phase 1.2 entry criteria (superseded — see §12 below)
 
-1. `Schedule → CpmInput` adapter converting the legacy `Schedule` /
-   `Task` / `Dependency` / `NamedCalendar` shapes into engine2 inputs.
-2. Dual-engine harness gated by the existing feature flag: run both
-   engines on the demo schedule in dev/test and assert parity on
-   ES/EF/LS/LF/total-float/critical.
-3. Activate additional acceptance tests as they become satisfiable
-   (`CAL-5`, `CON-6`, …).
+1. ~~`Schedule → CpmInput` adapter~~ — deferred again, see §12.
+2. ~~Dual-engine harness~~ — deferred again, see §12.
+3. Activate additional acceptance tests as they become satisfiable.
+
+---
+
+## 12. Phase 1.2 status (landed)
+
+Phase 1.2 expands engine2 from baseline CPM math toward real construction
+schedule state handling. The user explicitly rescoped the originally-proposed
+adapter and dual-engine harness out of this pass in favor of engine-internal
+foundations (constraints, data date, actuals, diagnostics). The legacy
+engine remains the sole engine wired to the UI; the feature flag still
+defaults to `"legacy"`.
+
+### What Phase 1.2 implements
+
+- **Constraints** in `engine2/cpm.ts`:
+  - `snet` — forward pass clamp on ES (already in 1.1, now with diagnostic).
+  - `fnet` — forward pass clamp by back-solving from required EF.
+  - `mso` — mandatory start pins ES (forward) and LS (backward).
+  - `mfo` — mandatory finish pins EF (forward) and LF (backward).
+  - `snlt` — backward pass clamp on LS (via LF = LS + duration).
+  - `fnlt` — backward pass clamp on LF.
+  - `alap` — pins early dates to late dates on the activity itself
+    after the backward pass.
+- **Data date behavior**:
+  - Not-started activities cannot schedule before `input.dataDate` (snapped
+    into their own calendar's working time).
+  - In-progress activities (have `actualStart`, no `actualFinish`):
+    `earlyStart = actualStart`; `earlyFinish = dataDate + remainingDuration`
+    in the activity's calendar; `governingCause = "data-date"`.
+  - Completed activities (have `actualFinish`): `earlyStart = actualStart`,
+    `earlyFinish = actualFinish`, `lateStart/lateFinish` mirror them;
+    `governingCause = "actual"`.
+- **Diagnostics**: per-activity `EngineDiagnostic` entries emitted for each
+  constraint that bound a date, plus `in-progress` and `actual-finish`
+  notes. The driving predecessor (`drivingPredecessorId`) is already
+  populated from 1.1.
+- **Acceptance tests now active** (in addition to the 1.1 four):
+  - **CON-6** — FNLT pulls late finish earlier, surfaces a diagnostic, and
+    produces negative total float when there is insufficient slack.
+  - **CON-7** — SNET-driven activity has `governingCause === "snet"` and an
+    `info` diagnostic tagged with the activity id.
+  - **PRG-9** — in-progress activity (actual start + remaining duration)
+    projects EF from the data date; ES is preserved at the actual start.
+
+The remaining 13 of the 20 P6 acceptance tests stay `.todo()`.
+
+### Known limitations of engine2 after Phase 1.2
+
+- **Percent complete**: only "Duration" mode is honored by the calculation
+  (via `remainingDuration`). `Physical` and `Units` are accepted on the
+  model but not interpreted. PRG-8 stays `.todo()`.
+- **ALAP propagation**: ALAP pins the activity itself to its late dates,
+  but does not re-run the forward pass for downstream successors. Adequate
+  for terminal/near-terminal ALAP activities; a future pass should add a
+  fixpoint iteration.
+- **Out-of-sequence progress**: PRG-10 (retained logic / progress override
+  / actual dates rule) is not implemented. The current behavior is
+  effectively "retained logic" for in-progress activities, but only one
+  rule, with no selector.
+- **Expected-finish constraint**: accepted on the model, not honored.
+- **Negative-float critical marking**: critical is still defined as
+  `totalFloat <= tolerance` with default tolerance 0; constrained schedules
+  can produce negative-float chains. This matches P6 behavior.
+- **Adapter and dual-engine harness**: still deferred. Engine2 remains
+  test-only; the production UI runs entirely on the legacy engine.
+- **Activity / duration / percent-complete type fields**: stored on
+  `EngineActivity`, used for shape only — no type-specific scheduling
+  behavior beyond what Duration% implies through `remainingDuration`.
+
+### Phase 1.3 entry criteria (next pass)
+
+1. `Schedule → CpmInput` adapter and dual-engine harness (the deferred
+   1.2 items).
+2. ALAP successor re-flow.
+3. Out-of-sequence progress rule selector (retained logic / progress
+   override / actual dates) and PRG-10 activation.
+4. Begin Physical / Units percent-complete behavior or document why
+   Duration% is the only mode the engine will calculate against.
+
 
 
