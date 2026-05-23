@@ -630,21 +630,56 @@ function SchedulerPage() {
                                 className="border-t border-[#d8cdb8] bg-[#eee6d7]"
                               >
                                 <td colSpan={9} className="px-2 py-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleGroup(key)}
-                                    className="flex w-full items-center gap-2 text-left text-xs font-semibold uppercase tracking-wide text-[#1f241f]"
-                                  >
-                                    <span className="w-3">{collapsed ? "▸" : "▾"}</span>
-                                    <span>{key}</span>
-                                    <span className="text-[10px] font-normal text-[#7a6a4d]">
-                                      {items.length} act · span {groupDur}d
-                                      {groupCritical ? " · critical" : ""}
-                                    </span>
-                                  </button>
+                                  <div className="flex w-full items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleGroup(key)}
+                                      className="flex flex-1 items-center gap-2 text-left text-xs font-semibold uppercase tracking-wide text-[#1f241f]"
+                                    >
+                                      <span className="w-3">{collapsed ? "▸" : "▾"}</span>
+                                      <span>{key}</span>
+                                      <span className="text-[10px] font-normal text-[#7a6a4d]">
+                                        {items.length} act · span {groupDur}d
+                                        {groupCritical ? " · critical" : ""}
+                                      </span>
+                                    </button>
+                                    {calendars.length > 0 ? (
+                                      <select
+                                        className="h-6 rounded border border-[#d8cdb8] bg-white px-1 text-[10px] uppercase tracking-wide text-[#3d3527]"
+                                        value=""
+                                        title="Assign calendar to all activities in this group"
+                                        onChange={(e) => {
+                                          const v = e.target.value;
+                                          if (!v) return;
+                                          const nextId = v === "__default" ? undefined : v;
+                                          setDraft((d) => {
+                                            if (!d) return d;
+                                            const tasks = d.tasks.map((tt) =>
+                                              groupTaskIds.has(tt.id)
+                                                ? { ...tt, calendarId: nextId }
+                                                : tt,
+                                            );
+                                            return { ...d, tasks };
+                                          });
+                                          e.target.value = "";
+                                        }}
+                                      >
+                                        <option value="">Assign calendar…</option>
+                                        <option value="__default">Project default</option>
+                                        {calendars
+                                          .filter((c) => !c.isDefault)
+                                          .map((c) => (
+                                            <option key={c.id} value={c.id}>
+                                              {c.name}
+                                            </option>
+                                          ))}
+                                      </select>
+                                    ) : null}
+                                  </div>
                                 </td>
                               </tr>,
                             );
+
                             if (collapsed) continue;
                             for (const { idx, t } of items) {
                               const calc = computed?.tasks.find((x) => x.id === t.id);
