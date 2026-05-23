@@ -482,21 +482,144 @@ describe("P6 acceptance — Float paths", () => {
 });
 
 describe("P6 acceptance — Leveling", () => {
-  it.todo(
-    "LVL-13: resource overallocations are detectable before leveling and resolved according to selected leveling priorities after leveling",
-  );
+  // Phase 1.6 leveling fixture helpers (whole-day, units-based, narrow).
+  const lvlCal = monFri("cal-mf");
+
+  function lvlActivity(
+    id: string,
+    durDays: number,
+    levelingPriority?: number,
+  ): EngineActivity {
+    const a = activity(id, durDays);
+    if (levelingPriority !== undefined) a.levelingPriority = levelingPriority;
+    return a;
+  }
+
+  function lvlAsn(
+    id: string,
+    activityId: string,
+    resourceId: string,
+    units: number,
+  ) {
+    return {
+      id,
+      activityId,
+      resourceId,
+      budgetedUnits: units,
+      actualUnits: 0,
+      remainingUnits: units,
+    };
+  }
+
+  it("LVL-13: resource overallocations are detectable before leveling and resolved after leveling per priority", () => {
+    // Two 5-day activities both fully load resource R (cap=8 units/day, demand=8 each).
+    // A has higher priority (1), B has lower (2). After leveling, B is delayed to start
+    // when A finishes; no remaining overallocation on R.
+    const A = lvlActivity("A", 5, 1);
+    const B = lvlActivity("B", 5, 2);
+    const result = calculateCpm({
+      dataDate: MON_2025_01_06,
+      projectStart: MON_2025_01_06,
+      projectCalendarId: "cal-mf",
+      calendars: new Map([["cal-mf", lvlCal]]),
+      activities: [A, B],
+      relationships: [],
+      resources: [{ id: "R", name: "Crew", type: "labor", maxUnitsPerDay: 8 }],
+      assignments: [lvlAsn("a1", "A", "R", 40), lvlAsn("a2", "B", "R", 40)],
+      leveling: { enabled: true },
+    });
+
+    expect(result.leveling).toBeDefined();
+    const lv = result.leveling!;
+    // BEFORE: both activities run on the same workdays at 8 units/day each → 16 > 8.
+    expect(lv.overallocationsBefore.length).toBe(1);
+    expect(lv.overallocationsBefore[0].resourceId).toBe("R");
+    expect(lv.overallocationsBefore[0].days.length).toBeGreaterThan(0);
+    // AFTER: no overallocation remains on R.
+    expect(lv.overallocationsAfter).toEqual([]);
+    // B was moved, A was not.
+    const moved = lv.entries.filter((e) => e.delayMinutes > 0);
+    expect(moved.length).toBe(1);
+    expect(moved[0].activityId).toBe("B");
+    expect(moved[0].resourcesCausingConflict).toEqual(["R"]);
+    // Delay = 5 workdays (A's duration).
+    expect(moved[0].delayMinutes).toBe(5 * DAY_MIN);
+    // CPM dates on result.activities are NOT mutated.
+    const bCpm = result.activities.find((a) => a.id === "B")!;
+    expect(bCpm.earlyStart).toBe(MON_2025_01_06);
+  });
 
   it.todo(
     "LVL-14: preserve-scheduled-early-and-late-dates mode materially constrains how far leveling may move activities",
   );
 
-  it.todo(
-    "LVL-15: selected-resource leveling does not move activities solely because of non-selected resources",
-  );
+  it("LVL-15: selected-resource leveling does not move activities solely because of non-selected resources", () => {
+    // A and B both overload R2 (cap=1, demand=1 each, same window). R1 is fine.
+    // Leveling selects ONLY R1 → no moves should occur.
+    const A = lvlActivity("A", 5, 1);
+    const B = lvlActivity("B", 5, 2);
+    const result = calculateCpm({
+      dataDate: MON_2025_01_06,
+      projectStart: MON_2025_01_06,
+      projectCalendarId: "cal-mf",
+      calendars: new Map([["cal-mf", lvlCal]]),
+      activities: [A, B],
+      relationships: [],
+      resources: [
+        { id: "R1", name: "OK", type: "labor", maxUnitsPerDay: 100 },
+        { id: "R2", name: "Tight", type: "labor", maxUnitsPerDay: 1 },
+      ],
+      assignments: [
+        // Both A and B touch R1 lightly (no conflict) and R2 heavily (conflict).
+        lvlAsn("a1", "A", "R1", 10),
+        lvlAsn("a2", "B", "R1", 10),
+        lvlAsn("a3", "A", "R2", 5),
+        lvlAsn("a4", "B", "R2", 5),
+      ],
+      leveling: { enabled: true, selectedResourceIds: ["R1"] },
+    });
 
-  it.todo(
-    "LVL-16: leveling emits a log explaining moved activities, governing priorities, and post-level cost recalculation when enabled",
-  );
+    const lv = result.leveling!;
+    expect(lv.consideredResourceIds).toEqual(["R1"]);
+    // No considered-resource overallocation → no moves.
+    const moved = lv.entries.filter((e) => e.delayMinutes > 0);
+    expect(moved.length).toBe(0);
+    // R2 overallocations are NOT reported here because R2 isn't considered.
+    expect(lv.overallocationsBefore.find((o) => o.resourceId === "R2")).toBeUndefined();
+  });
+
+  it("LVL-16: leveling emits an entry-level log with original CPM dates, leveled dates, delay, causing resource, and priority reason", () => {
+    const A = lvlActivity("A", 3, 1);
+    const B = lvlActivity("B", 3, 5);
+    const result = calculateCpm({
+      dataDate: MON_2025_01_06,
+      projectStart: MON_2025_01_06,
+      projectCalendarId: "cal-mf",
+      calendars: new Map([["cal-mf", lvlCal]]),
+      activities: [A, B],
+      relationships: [],
+      resources: [{ id: "R", name: "Crew", type: "labor", maxUnitsPerDay: 8 }],
+      assignments: [lvlAsn("a1", "A", "R", 24), lvlAsn("a2", "B", "R", 24)],
+      leveling: { enabled: true },
+    });
+
+    const lv = result.leveling!;
+    const bEntry = lv.entries.find((e) => e.activityId === "B");
+    expect(bEntry).toBeDefined();
+    expect(bEntry!.cpmEarlyStart).toBe(MON_2025_01_06);
+    expect(bEntry!.cpmEarlyFinish).toBeGreaterThan(MON_2025_01_06);
+    expect(bEntry!.leveledStart).toBeGreaterThan(bEntry!.cpmEarlyStart);
+    expect(bEntry!.delayMinutes).toBeGreaterThan(0);
+    expect(bEntry!.resourcesCausingConflict).toContain("R");
+    expect(bEntry!.priorityReason).toMatch(/priority=5/);
+    // Options echoed.
+    expect(lv.options.enabled).toBe(true);
+    expect(lv.options.maxDelayWorkdays).toBe(365);
+    // Phase 1.6 honest-limitations warnings are present.
+    const codes = lv.warnings.map((w) => w.code);
+    expect(codes).toContain("leveling_whole_day_only");
+    expect(codes).toContain("leveling_successors_not_reflowed");
+  });
 });
 
 describe("P6 acceptance — Interoperability / XER", () => {
