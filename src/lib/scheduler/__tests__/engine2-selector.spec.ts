@@ -233,13 +233,43 @@ describe("engine-selector — execution & provenance (Phase 3.0)", () => {
     expect(out.provenance.comparisonVerdict).toBeDefined();
   });
 
+  it("engine2-internal runs as engine2 when readiness AND eligibility pass", () => {
+    const schedule = cleanSchedule();
+    const out = runScheduleWithSelectedEngine(schedule, {
+      mode: "engine2-internal",
+      evidenceLog: passingLog(),
+      clock: fixedClock,
+    });
+    expect(out.provenance.effectiveMode).toBe("engine2-internal");
+    expect(out.provenance.engineUsed).toBe("engine2");
+    expect(out.provenance.fallbackUsed).toBe(false);
+    expect(out.provenance.readinessReady).toBe(true);
+    expect(out.provenance.scheduleEligible).toBe(true);
+    expect(out.comparison).toBeDefined();
+    expect(out.provenance.comparisonVerdict).toBeDefined();
+  });
+
   it("engine2 errors fall back to legacy without corrupting the result", () => {
-    const schedule = scheduleFromSample();
+    const schedule = cleanSchedule();
     const legacy = calculateSchedule(schedule);
     // Intentionally break engine2 by stripping projectStartDate AFTER the
     // legacy result is captured. The selector should still return a stable
     // legacy result and surface engine2Error in provenance.
     const broken: Schedule = { ...schedule, projectStartDate: "" };
+    const out = runScheduleWithSelectedEngine(broken, {
+      mode: "engine2-internal",
+      evidenceLog: passingLog(),
+      forcePastReadinessGate: true,
+      clock: fixedClock,
+    });
+    // Critical: provenance records fallback, legacy result remains stable.
+    expect(out.provenance.fallbackUsed).toBe(true);
+    expect(out.provenance.engineUsed).toBe("legacy");
+    expect(out.provenance.fallbackReason).toBeTruthy();
+    // The unbroken schedule's legacy output is unchanged by this run.
+    const after = calculateSchedule(schedule);
+    expect(after.projectFinishDate).toBe(legacy.projectFinishDate);
+  });
     const out = runScheduleWithSelectedEngine(broken, {
       mode: "engine2-internal",
       evidenceLog: passingLog(),
