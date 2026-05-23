@@ -215,9 +215,11 @@ describe("P6 acceptance — Calendars (engine2)", () => {
     const xEF = byId.get("X")!.earlyFinish;
     const yEF = byId.get("Y")!.earlyFinish;
 
-    // Same project start, same nominal duration (5 workdays) — Y finishes
-    // exactly one calendar day later because of its Tue holiday.
-    expect(yEF - xEF).toBe(86_400_000);
+    // Same project start, same nominal duration (5 workdays). X finishes
+    // Fri-10; Y skips the Tue holiday and finishes Mon-13 — a one-workday
+    // slip that spans 3 calendar days because it crosses a weekend.
+    expect(yEF - xEF).toBe(3 * 86_400_000);
+
     expect(calNoHoliday.diffWork(MON_2025_01_06, xEF)).toBe(5 * DAY_MIN);
     expect(calWithHoliday.diffWork(MON_2025_01_06, yEF)).toBe(5 * DAY_MIN);
   });
