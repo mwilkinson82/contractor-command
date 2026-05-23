@@ -674,7 +674,7 @@ function SchedulerPage() {
       </header>
 
       {/* ============ TAB BAR ============ */}
-      <nav className="flex h-10 shrink-0 items-end gap-0 border-b border-[#e6dfd0] bg-white/60 px-4">
+      <nav className="flex h-9 shrink-0 items-end gap-0 border-b border-[#e6dfd0] bg-white/60 px-4">
         {(
           [
             ["schedule", "Schedule"],
