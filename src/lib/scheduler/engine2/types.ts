@@ -98,6 +98,13 @@ export interface EngineActivity {
    * keyed by `activityId`; either form is accepted by the engine.
    */
   assignmentIds?: string[];
+
+  /**
+   * Phase 1.6 — leveling priority. Lower number = higher priority (P6
+   * convention). Activities with no priority set are treated as lowest
+   * priority and may be delayed first. Ignored when leveling is disabled.
+   */
+  levelingPriority?: number;
 }
 
 // ---------------------------------------------------------------------------
