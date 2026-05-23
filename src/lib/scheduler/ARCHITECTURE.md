@@ -2179,3 +2179,97 @@ shadow log does not change legacy `calculateSchedule` output.
   evidence log does not yet carry an explicit error origin field.
 - Promotion readiness reads only the in-memory log it's given; there is
   still no persisted shadow-run history.
+
+---
+
+## §30. Phase 3.0 — Internal Engine2 selectable mode
+
+Phase 3.0 introduces an internal-only engine selector that lets dev/internal
+callers pick between three modes, protected by the boring-bar from §29 and
+always falling back to legacy when anything goes wrong.
+
+### Modes
+
+- **`legacy-only`** — the default. Only `calculateSchedule` runs. This is
+  what every normal user gets in production. No engine2 work happens.
+- **`comparison`** — legacy is authoritative; engine2 runs alongside via
+  `compareEnginesOnSchedule` so a `ComparisonReport` is produced for
+  internal observability.
+- **`engine2-internal`** — engine2 is the *selected* engine for the
+  internal caller. The legacy result is still returned as the public
+  `result` payload (schedule shape stability), but provenance records
+  `engineUsed === "engine2"` and the comparison report is attached.
+
+### Promotion-readiness gate
+
+`engine2-internal` is gated by `evaluatePromotionReadiness` (§29). If
+the boring-bar fails, `resolveEngineMode` downgrades the request to
+`comparison` and records the blockers as `fallbackReason`. Tests and
+internal tooling may pass `forcePastReadinessGate: true` to bypass the
+gate; normal callers cannot.
+
+### Provenance
+
+Every selection emits `EngineSelectionProvenance` carrying:
+
+- `requestedMode` / `effectiveMode`
+- `engineUsed` (`legacy` | `engine2`)
+- `legacyEngineVersion` / `engine2Version` (= `ENGINE2_VERSION`)
+- `fallbackUsed` + `fallbackReason`
+- `comparisonVerdict`, `diagnosticsCount`
+- `readinessReady`, `readinessBlockers`
+- `selectedAt`
+
+`formatProvenance(p)` renders a deterministic text block for PRs and the
+debug drawer.
+
+### Safety guarantees
+
+- Legacy `ScheduleResult` is returned in **every** mode — Phase 3.0 does
+  not (yet) project engine2 output back into the legacy shape.
+- Engine2 throwing flips `fallbackUsed = true` and `engineUsed = "legacy"`
+  with the error string on `fallbackReason`.
+- The selector module never mutates the schedule, the legacy result, the
+  comparison report, or any feature flag.
+- Selector UI (`isInternalEngineSelectorUiEnabled`) requires BOTH a
+  dev/internal flag AND `import.meta.env.DEV`. Normal users in
+  production cannot see or invoke it.
+
+### Flags
+
+- `VITE_SCHEDULER_ENGINE_MODE` / `SCHEDULER_ENGINE_MODE` (`legacy-only` |
+  `comparison` | `engine2-internal`). Defaults to `legacy-only`.
+- `VITE_SCHEDULER_ENGINE_SELECTOR_UI` / `SCHEDULER_ENGINE_SELECTOR_UI`
+  for the debug-drawer extension. Off by default.
+- `VITE_SCHEDULER_ENGINE2_COMPARE` (from §24) still works for
+  back-compat: when set without an explicit `ENGINE_MODE`, mode resolves
+  to `comparison`.
+
+### Tests
+
+`src/lib/scheduler/__tests__/engine2-selector.spec.ts` (18 tests) covers:
+default mode, selector-UI visibility matrix, readiness-gate downgrade,
+force-past gate, legacy-only / comparison / engine2-internal execution,
+engine2 error → legacy fallback, provenance fields, schedule
+non-mutation, and that the selector neither flips flags nor logs.
+
+### Status
+
+- Engine2 version bumped to `0.13.0-phase3.0`.
+- 202 tests green (184 baseline + 18 selector).
+- Legacy engine untouched. Default mode `legacy-only`. No P6 parity claim.
+- Engine2 is selectable internally; it is **not** the public default and
+  is **not** authoritative for the public `ScheduleResult`.
+
+### Known limitations (Phase 3.0)
+
+- `engine2-internal` mode still returns the legacy `ScheduleResult` as
+  the public payload. Projecting an engine2 `EngineResult` back into the
+  legacy schedule shape (so internal consumers can see engine2's dates
+  on tasks) is deferred to a later phase; doing it earlier risks
+  corrupting the schedule state surface that the rest of the app
+  depends on.
+- The readiness gate operates on whatever `EvidenceLog` the caller
+  passes in. Persisted/server-side evidence is still out of scope.
+- No UI selector is wired into the debug drawer yet — only the
+  visibility helper and the underlying selector API ship in this phase.
