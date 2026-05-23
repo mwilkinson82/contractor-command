@@ -915,13 +915,13 @@ function SchedulerPage() {
                   </div>
                 ) : null}
 
-                {/* Project meta strip */}
-                <div className="flex shrink-0 flex-wrap items-center gap-x-6 gap-y-1 border-b border-[#eee7d8] bg-white/60 px-4 py-2 text-xs">
-                  <label className="flex items-center gap-1.5">
-                    <span className="uppercase tracking-wide text-[#7a6a4d]">Start</span>
+                {/* Project meta strip — compact single-line pill row */}
+                <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[#eee7d8] bg-white/70 px-4 py-1.5 text-[11px] text-[#5c574e]">
+                  <label className="inline-flex items-center gap-1.5">
+                    <span className="text-[10px] uppercase tracking-wide text-[#9c8b6e]">Start</span>
                     <input
                       type="date"
-                      className="h-7 rounded border border-[#e6dfd0] bg-white px-1.5 text-xs"
+                      className="h-6 rounded border border-[#e6dfd0] bg-white px-1.5 text-[11px] tabular-nums"
                       value={draft.projectStartDate ?? ""}
                       onChange={(e) => {
                         setDraft({ ...draft, projectStartDate: e.target.value || undefined });
@@ -929,11 +929,11 @@ function SchedulerPage() {
                       }}
                     />
                   </label>
-                  <label className="flex items-center gap-1.5">
-                    <span className="uppercase tracking-wide text-[#7a6a4d]">Data date</span>
+                  <label className="inline-flex items-center gap-1.5">
+                    <span className="text-[10px] uppercase tracking-wide text-[#9c8b6e]">Data date</span>
                     <input
                       type="date"
-                      className="h-7 rounded border border-[#e6dfd0] bg-white px-1.5 text-xs"
+                      className="h-6 rounded border border-[#e6dfd0] bg-white px-1.5 text-[11px] tabular-nums"
                       value={draft.dataDate ?? ""}
                       onChange={(e) => {
                         setDraft({ ...draft, dataDate: e.target.value || undefined });
@@ -942,15 +942,15 @@ function SchedulerPage() {
                     />
                   </label>
                   {computed?.projectFinishDate ? (
-                    <span className="text-[#5c574e]">
-                      <span className="uppercase tracking-wide text-[#7a6a4d]">Finish</span>{" "}
-                      <span className="font-medium">{computed.projectFinishDate}</span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="text-[10px] uppercase tracking-wide text-[#9c8b6e]">Finish</span>
+                      <span className="font-medium text-[#1f241f] tabular-nums">{computed.projectFinishDate}</span>
                     </span>
                   ) : null}
                   {computed ? (
-                    <span className="text-[#5c574e]">
-                      <span className="uppercase tracking-wide text-[#7a6a4d]">Duration</span>{" "}
-                      <span className="font-medium">{computed.projectDuration}d</span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="text-[10px] uppercase tracking-wide text-[#9c8b6e]">Duration</span>
+                      <span className="font-medium text-[#1f241f] tabular-nums">{computed.projectDuration}d</span>
                     </span>
                   ) : null}
                   <button
@@ -975,9 +975,9 @@ function SchedulerPage() {
                         `Reset ${r.summary.inProgress} in-progress · ${r.summary.completed} done · ${r.summary.notStarted} not started`,
                       );
                     }}
-                    className="ml-auto rounded-md border border-[#e6dfd0] bg-white px-2 py-1 text-[11px] text-[#3d3527] hover:bg-[#faf8f3] disabled:opacity-40"
+                    className="ml-auto rounded border border-[#e6dfd0] bg-white px-2 py-0.5 text-[10px] uppercase tracking-wide text-[#3d3527] hover:bg-[#faf8f3] disabled:opacity-40"
                   >
-                    Reschedule from data date
+                    Reschedule
                   </button>
                 </div>
 
