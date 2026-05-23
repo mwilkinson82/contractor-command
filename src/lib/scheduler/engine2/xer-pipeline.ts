@@ -36,6 +36,20 @@ export interface XerPipelineOptions {
   floatPathCount?: number;
   /** Pass-through extras. */
   criticalFloatToleranceMinutes?: number;
+  /**
+   * Phase 1.9 — "Ignore relationships to and from other projects during
+   * scheduling".
+   *  - true  → external (missing-project) relationships are preserved as
+   *    metadata; calculation proceeds. An
+   *    `external_relationship_ignored_by_option` info diagnostic is
+   *    emitted per external relationship.
+   *  - false → calculation still proceeds, but any external relationship
+   *    triggers an `external_relationship_requires_imported_project`
+   *    error-severity diagnostic so reconciliation can flag the gap.
+   *
+   * Default: false.
+   */
+  ignoreExternalRelationships?: boolean;
 }
 
 export interface XerPipelineResult {
@@ -44,6 +58,10 @@ export interface XerPipelineResult {
   synthesizedCalendarIds: string[];
   /** Forwarded import diagnostics + any synthesis diagnostics. */
   diagnostics: EngineDiagnostic[];
+  /** Phase 1.9 — true when the pipeline ran with ignoreExternalRelationships. */
+  externalRelationshipsIgnored: boolean;
+  /** Phase 1.9 — count of preserved external relationships at pipeline time. */
+  externalRelationshipsPreservedCount: number;
 }
 
 /** WorkClock day bitmask: bit 0=Sun..bit 6=Sat. Matches XerCalendarRaw.workDays index. */
