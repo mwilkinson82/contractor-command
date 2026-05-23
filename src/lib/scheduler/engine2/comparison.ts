@@ -69,7 +69,12 @@ export interface ComparisonDifference {
   legacy?: string | number | boolean | null;
   engine2?: string | number | boolean | null;
   note?: string;
+  /** Phase 2.6 — short reason explaining why the two engines diverged. */
+  likelyCause?: string;
+  /** Phase 2.6 — concrete next step a developer can take. */
+  recommendedAction?: string;
 }
+
 
 export interface ComparisonReport {
   scheduleName: string;
