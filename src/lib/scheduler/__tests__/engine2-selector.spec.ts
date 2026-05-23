@@ -43,6 +43,25 @@ function scheduleFromSample(): Schedule {
   };
 }
 
+/** A schedule with no progress, no resources, no per-activity calendars
+ *  — used by tests that need engine2 eligibility to pass. */
+function cleanSchedule(): Schedule {
+  return {
+    name: "clean-eligible",
+    projectStartDate: "2026-01-05",
+    calendar: { workDays: 31, holidays: [] },
+    tasks: [
+      { id: "T1", name: "Start", duration: 0 },
+      { id: "T2", name: "Mid", duration: 5 },
+      { id: "T3", name: "End", duration: 0 },
+    ],
+    dependencies: [
+      { from: "T1", to: "T2", type: "FS", lag: 0 },
+      { from: "T2", to: "T3", type: "FS", lag: 0 },
+    ],
+  };
+}
+
 function entry(p: Partial<EvidenceLogEntry>): EvidenceLogEntry {
   return {
     scheduleId: "commercial-fit-out",
