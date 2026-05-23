@@ -285,20 +285,34 @@ function SchedulerPage() {
   const computed = result && "tasks" in result ? result : null;
   const computeError = result && "error" in result ? result.error : null;
 
-  // Auto-fit zoom: pick a dayPx that fits the project horizontally on first load
-  // for this schedule. User changes (setDayPxUser) opt out.
-  useEffect(() => {
-    if (zoomUserSet) return;
+  // Auto-fit zoom: pick a dayPx that fits the project horizontally on first
+  // load for this schedule. User changes (setDayPxUser) opt out. Re-runs on
+  // container resize so the schedule stays readable when the window changes.
+  const fitToContainer = React.useCallback(() => {
     if (!computed || computed.projectDuration < 1) return;
     const container = rightScrollRef.current;
     if (!container) return;
-    const available = container.clientWidth - 668 /* sticky table width */ - 16;
+    const available = container.clientWidth - CPM_STICKY_TABLE_WIDTH - 16;
     if (available <= 0) return;
     const ideal = Math.floor(available / computed.projectDuration);
     const clamped = Math.max(4, Math.min(36, ideal));
-    if (clamped !== dayPx) setDayPx(clamped);
+    setDayPx(clamped);
+    container.scrollLeft = 0;
+  }, [computed]);
+  useEffect(() => {
+    if (zoomUserSet) return;
+    fitToContainer();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [computed?.projectDuration, zoomUserSet]);
+  useEffect(() => {
+    if (zoomUserSet) return;
+    const container = rightScrollRef.current;
+    if (!container || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => fitToContainer());
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [zoomUserSet, fitToContainer]);
+
 
   const baselineQuery = useQuery({
     queryKey: ["baseline", comparisonBaselineId],
