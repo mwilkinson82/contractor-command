@@ -833,7 +833,26 @@ function SchedulerPage() {
                               </button>
                             ))}
                           </div>
+                          {calendars.length > 0 ? (
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] uppercase tracking-wide">Calendar</span>
+                              <select
+                                className="h-6 rounded border border-[#d8cdb8] bg-white px-1 text-[10px] text-[#3d3527]"
+                                value={calendarFilter}
+                                onChange={(e) => setCalendarFilter(e.target.value)}
+                              >
+                                <option value="">All</option>
+                                <option value="__default">Project default only</option>
+                                {calendars.map((c) => (
+                                  <option key={c.id} value={c.id}>
+                                    {c.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          ) : null}
                           <div className="flex items-center gap-1">
+
                             <span className="text-[10px] uppercase tracking-wide">Zoom</span>
                             {ZOOM_LEVELS.map((z) => (
                               <button
