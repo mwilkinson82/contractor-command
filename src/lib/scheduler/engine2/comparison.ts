@@ -163,10 +163,15 @@ function defaultClassificationFor(
     case "constraint_behavior_difference":
     case "missing_legacy_field":
     case "legacy_missing_engine2_field":
+    case "baseline_behavior_difference":
+    case "missing_engine2_field":
+    case "known_unsupported_behavior":
       return "expected-bridge-limitation";
     case "total_float":
     case "free_float":
     case "progress_behavior_difference":
+    case "leveling_behavior_difference":
+    case "precision_rounding_difference":
     case "engine2_only_diagnostic":
       return "known-engine-limitation";
     case "early_start_date":
@@ -182,6 +187,129 @@ function defaultClassificationFor(
   }
 }
 
+/**
+ * Phase 2.6 — derive a likely cause + recommended next action for a
+ * difference category so every report row is actionable. Callers may
+ * override per-difference; this is the default fallback.
+ */
+function defaultActionableContext(category: ComparisonDifferenceCategory): {
+  likelyCause: string;
+  recommendedAction: string;
+} {
+  switch (category) {
+    case "early_start_date":
+    case "early_finish_date":
+    case "late_start_date":
+    case "late_finish_date":
+      return {
+        likelyCause:
+          "Date math differs (working-minute vs calendar-day basis, or progress not bridged as actuals).",
+        recommendedAction:
+          "Confirm whether the activity carries percent-complete; if so, expected until actuals are bridged. Otherwise inspect lag/calendar basis for this activity.",
+      };
+    case "total_float":
+    case "free_float":
+      return {
+        likelyCause:
+          "Float unit basis differs (legacy=calendar days, engine2=working minutes).",
+        recommendedAction:
+          "Treat as unit-basis difference. No action required until both engines emit a common float unit.",
+      };
+    case "critical_flag":
+      return {
+        likelyCause: "Downstream of date/float deltas on this activity or its successors.",
+        recommendedAction: "Resolve upstream date/float deltas first; flag will follow.",
+      };
+    case "driving_link":
+      return {
+        likelyCause:
+          "Driving-link slack computed in working minutes (engine2) vs default-calendar days (legacy).",
+        recommendedAction:
+          "Expected until driving-link math shares a unit basis. Re-check after calendar parity lands.",
+      };
+    case "missing_in_engine2":
+    case "missing_in_legacy":
+      return {
+        likelyCause: "One engine produced an entity the other did not — possible bridge bug.",
+        recommendedAction:
+          "Inspect the bridge mapping for this id; engine2 should mirror legacy structure 1:1.",
+      };
+    case "calendar_model_difference":
+      return {
+        likelyCause:
+          "Engine2 emitted a calendar-related diagnostic the legacy engine cannot model.",
+        recommendedAction:
+          "Expected. Track the diagnostic code; only action if it appears with date deltas.",
+      };
+    case "lag_basis_difference":
+      return {
+        likelyCause: "Lag is interpreted as project-calendar working days; engine basis differs.",
+        recommendedAction:
+          "Expected bridge limitation. No action until lag-on-successor-calendar parity lands.",
+      };
+    case "constraint_behavior_difference":
+      return {
+        likelyCause: "Engine2 supports more constraint types than legacy can express.",
+        recommendedAction:
+          "Expected when activity uses non-SNET constraints. Verify SNET mapping is intact.",
+      };
+    case "progress_behavior_difference":
+      return {
+        likelyCause:
+          "Legacy stores percent-complete only; engine2 expects actualStart/actualFinish.",
+        recommendedAction:
+          "Expected. Will close once Phase 2.x bridges percent-complete to actuals.",
+      };
+    case "leveling_behavior_difference":
+      return {
+        likelyCause: "Legacy engine does not perform resource leveling; engine2 does.",
+        recommendedAction:
+          "Expected. Compare engine2 leveling output only against engine2; do not expect parity.",
+      };
+    case "baseline_behavior_difference":
+      return {
+        likelyCause: "Legacy engine does not consume baselines for math; engine2 reports them.",
+        recommendedAction: "Expected. Baseline math comparison is out of scope for the bridge.",
+      };
+    case "precision_rounding_difference":
+      return {
+        likelyCause: "Rounding difference between calendar-day and working-minute math.",
+        recommendedAction:
+          "Acceptable for now. Revisit if rounding ever flips a critical flag.",
+      };
+    case "missing_legacy_field":
+      return {
+        likelyCause: "Engine2 carries a field that has no legacy equivalent.",
+        recommendedAction:
+          "Informational. Surface in dev report only; no action required.",
+      };
+    case "legacy_missing_engine2_field":
+    case "missing_engine2_field":
+      return {
+        likelyCause: "Field exists on one engine's output but not the other.",
+        recommendedAction:
+          "Document and accept until bridge surface is expanded.",
+      };
+    case "known_unsupported_behavior":
+      return {
+        likelyCause: "Behavior the bridge knowingly does not cross-emit.",
+        recommendedAction: "No action — tracked as a known unsupported behavior.",
+      };
+    case "known_limitation":
+      return {
+        likelyCause: "Difference is a documented bridge/engine limitation.",
+        recommendedAction: "No action — already documented in ARCHITECTURE.md.",
+      };
+    case "engine2_only_diagnostic":
+    default:
+      return {
+        likelyCause: "Engine2 surfaced a diagnostic the legacy engine cannot produce.",
+        recommendedAction:
+          "Review the diagnostic message; if it correlates with date deltas, escalate.",
+      };
+  }
+}
+
 function pushDiff(
   diffs: ComparisonDifference[],
   counts: Record<ComparisonDifferenceCategory, number>,
@@ -191,7 +319,13 @@ function pushDiff(
 ) {
   const classification =
     partial.classification ?? defaultClassificationFor(partial.category);
-  const d: ComparisonDifference = { ...partial, classification };
+  const ctx = defaultActionableContext(partial.category);
+  const d: ComparisonDifference = {
+    ...partial,
+    classification,
+    likelyCause: partial.likelyCause ?? ctx.likelyCause,
+    recommendedAction: partial.recommendedAction ?? ctx.recommendedAction,
+  };
   diffs.push(d);
   counts[d.category]++;
   classCounts[d.classification]++;
@@ -213,7 +347,7 @@ export interface CompareEnginesOptions {
  * Map an engine2 diagnostic code to a tighter category bucket when possible.
  */
 function categorizeEngine2Diagnostic(code: string): ComparisonDifferenceCategory {
-  if (code.startsWith("calendar_") || code.includes("_calendar_")) {
+  if (code.startsWith("calendar_") || code.includes("_calendar_") || code.includes("work_clock")) {
     return "calendar_model_difference";
   }
   if (code.startsWith("lag_") || code.includes("_lag_")) return "lag_basis_difference";
@@ -226,8 +360,18 @@ function categorizeEngine2Diagnostic(code: string): ComparisonDifferenceCategory
   ) {
     return "progress_behavior_difference";
   }
+  if (code.startsWith("leveling_") || code.includes("_leveling_") || code.includes("overallocation")) {
+    return "leveling_behavior_difference";
+  }
+  if (code.startsWith("baseline_") || code.includes("_baseline_")) {
+    return "baseline_behavior_difference";
+  }
+  if (code.includes("rounding") || code.includes("precision")) {
+    return "precision_rounding_difference";
+  }
   return "engine2_only_diagnostic";
 }
+
 
 function deriveVerdict(
   classCounts: Record<ComparisonClassification, number>,
