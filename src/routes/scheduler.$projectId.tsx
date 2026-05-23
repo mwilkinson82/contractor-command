@@ -39,6 +39,7 @@ import { DcmaPanel } from "@/components/scheduler/DcmaPanel";
 import { StructurePanel } from "@/components/scheduler/StructurePanel";
 import { WbsSelect } from "@/components/scheduler/WbsSelect";
 import { ActivityCodeChips } from "@/components/scheduler/ActivityCodeChips";
+import { loadStructure } from "@/lib/scheduler/structure.functions";
 import { listCalendars } from "@/lib/scheduler/calendars.functions";
 
 import { FragnetPanel } from "@/components/scheduler/FragnetPanel";
