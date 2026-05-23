@@ -2465,3 +2465,76 @@ UI changes; no broadening of selection.
   dev-only; none of them mutate authoritative schedule output.
 - No P6 parity claim. Engine2 is not wired into the user-visible
   schedule route, and this pass does not change that.
+
+## §33 — Phase 3.2: Importer-Owned Capability Metadata
+
+### Purpose
+
+Capability metadata replaces the previous stubbed PASSING eligibility
+checks with real PASS / BLOCK / UNKNOWN verdicts derived from what the
+XER importer actually observed. The engine2 selector consults this
+metadata before promoting a schedule into engine2, so unsupported
+P6 features force a clean fallback to legacy instead of silently
+producing a wrong answer.
+
+### How XER import derives metadata
+
+`src/lib/scheduler/engine2/capability-metadata.ts` inspects importer
+diagnostics and emits a verdict per tracked feature:
+
+- `external-relationships` — predecessors/successors pointing at
+  activities outside the imported project.
+- `unsupported-constraints` — P6 constraint types engine2 cannot yet
+  honor (e.g. expected finish, mandatory dates beyond SNET/FNLT).
+- `resource-loaded-imported` — XER contained resource assignments or
+  resource-driven durations.
+- `unknown-xer-semantics` — importer encountered fields/rows it could
+  parse structurally but not interpret semantically.
+
+The aggregated payload is persisted on the `Schedule` object as the
+additive `engine2Capabilities` field (JSON-serializable so it crosses
+TanStack server-function boundaries unchanged).
+
+### PASS / BLOCK / UNKNOWN behavior
+
+- **PASS** — feature absent or fully supported. Does not block
+  engine2.
+- **BLOCK** — feature present and known-unsupported. Selector returns
+  legacy; provenance records the blocking feature.
+- **UNKNOWN** — importer saw something it could not classify.
+  Conservatively treated as BLOCK by the selector.
+
+### Why UNKNOWN blocks engine2 promotion
+
+The boring-bar requires that engine2 only run on schedules it can
+provably calculate correctly. UNKNOWN means we have no evidence either
+way, which is not the same as evidence of safety. Promoting on UNKNOWN
+would mean shipping silent wrong answers the first time a new XER
+dialect appears in the wild. Falling back to legacy is the only
+defensible default until the unknown is classified into PASS or BLOCK.
+
+### Why in-app schedules default to PASS
+
+Schedules authored inside the app go through our own builder, which
+only emits relationships, constraints, and calendar semantics engine2
+already supports. There is no importer surface to disagree with, so
+the absence of `engine2Capabilities` is treated as PASS across all
+tracked features. If we later add an in-app feature engine2 does not
+support, the corresponding capability will be flipped to BLOCK at the
+source rather than relying on importer diagnostics.
+
+### Scope guarantees
+
+- **Additive only.** No DB schema migration. `engine2Capabilities` is
+  attached in memory on the `Schedule` object and serialized as part
+  of existing scheduler payloads.
+- **Legacy remains authoritative.** Production routes
+  (`src/routes/scheduler*`) continue to call `calculateSchedule`
+  directly. Engine2 is not wired into the user-visible schedule
+  route in this phase.
+- **Feature flags unchanged.** Engine2 remains internal/flagged; the
+  boring-bar and legacy fallback are unchanged.
+- **Tests.** 244 scheduler tests pass, including the new 19-test
+  `engine2-capability-metadata.spec.ts` covering derivation and
+  negative selector behavior (imported unsupported features force
+  legacy fallback).
