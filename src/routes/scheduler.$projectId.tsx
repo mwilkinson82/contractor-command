@@ -897,6 +897,17 @@ function SchedulerPage() {
                                         placeholder="Untitled activity"
                                       />
                                     </td>
+                                    <td className="px-2 py-1.5 text-right text-[11px] text-[#3d3527]">
+                                      <InlineNumber
+                                        value={t.duration}
+                                        min={0}
+                                        step={1}
+                                        suffix="d"
+                                        onCommit={(next) =>
+                                          updateTask(idx, { duration: next })
+                                        }
+                                      />
+                                    </td>
                                     <td className="px-2 py-1.5 text-right text-[11px] text-[#5c574e]">
                                       {formatShort(calc?.earlyStartDate)}
                                     </td>
