@@ -125,6 +125,21 @@ export function calculateCpm(input: CpmInput): EngineResult {
   const diagnostics: EngineDiagnostic[] = [];
   const tolerance = input.criticalFloatToleranceMinutes ?? 0;
 
+  // Phase 2.2 — out-of-sequence progress rule.
+  const requestedRule: OutOfSequenceProgressRule =
+    input.progress?.outOfSequenceRule ?? "retained-logic";
+  let effectiveRule: Exclude<OutOfSequenceProgressRule, "actual-dates"> =
+    requestedRule === "actual-dates" ? "retained-logic" : requestedRule;
+  if (requestedRule === "actual-dates") {
+    diagnostics.push({
+      severity: "warn",
+      code: "out_of_sequence_rule_deferred",
+      message:
+        'Progress rule "actual-dates" is not yet implemented; falling back to "retained-logic".',
+    });
+  }
+
+
   const getCal = (id: string): WorkClock => {
     const c = input.calendars.get(id);
     if (!c) throw new Error(`engine2: unknown calendar "${id}"`);
