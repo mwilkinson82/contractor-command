@@ -122,6 +122,7 @@ function SchedulerPage() {
     };
   }, []);
   const [dayPx, setDayPx] = useState(22);
+  const [nearCriticalFloat, setNearCriticalFloat] = useState(5);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [groupBy, setGroupBy] = useState<"wbs" | "critical" | "none">("wbs");
   const [calendarFilter, setCalendarFilter] = useState<string>("");
