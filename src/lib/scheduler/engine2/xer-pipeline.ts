@@ -147,5 +147,30 @@ export function xerToCpmInput(
     floatPathCount: options.floatPathCount,
   };
 
-  return { cpmInput, synthesizedCalendarIds, diagnostics };
+  // Phase 1.9 — external/interproject relationship policy.
+  const ignoreExternal = options.ignoreExternalRelationships === true;
+  const externalCount = r.externalRelationships.length;
+  for (const ext of r.externalRelationships) {
+    if (ignoreExternal) {
+      diagnostics.push({
+        severity: "info",
+        code: "external_relationship_ignored_by_option",
+        message: `External relationship ${ext.predProjectId ?? "?"}/${ext.predTaskXerId} → ${ext.succProjectId ?? "?"}/${ext.succTaskXerId} ignored per ignoreExternalRelationships=true; identity preserved as metadata.`,
+      });
+    } else {
+      diagnostics.push({
+        severity: "error",
+        code: "external_relationship_requires_imported_project",
+        message: `External relationship ${ext.predProjectId ?? "?"}/${ext.predTaskXerId} → ${ext.succProjectId ?? "?"}/${ext.succTaskXerId} cannot be honored: referenced project/activity is not in this XER and ignoreExternalRelationships is not enabled.`,
+      });
+    }
+  }
+
+  return {
+    cpmInput,
+    synthesizedCalendarIds,
+    diagnostics,
+    externalRelationshipsIgnored: ignoreExternal,
+    externalRelationshipsPreservedCount: externalCount,
+  };
 }
