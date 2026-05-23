@@ -225,4 +225,67 @@ This doc only fixes the *internal time representation*, because every later deci
 
 ## 9. Ratification
 
-Please confirm or amend §1 ("absolute working-time instant model") before Phase 1 begins. Once ratified, the next pass (Phase 1.0) implements the `WorkClock` interface and the dual-engine assertion harness — no user-visible change.
+Status: **ratified**. Phase 1.0 has landed.
+
+---
+
+## 10. Phase 1.0 status (landed)
+
+Phase 1.0 is a **foundation-only** pass. It introduces the engine2 module
+under `src/lib/scheduler/engine2/` and a feature flag, with **zero
+behavior change** in production. The legacy offset-based engine in
+`src/lib/scheduler/engine.ts` remains the only engine wired to UI and
+persistence.
+
+### What Phase 1.0 implements
+
+- `engine2/types.ts` — canonical engine model (Duration, EngineActivity,
+  EngineRelationship, Constraint, EngineResult, GoverningCause). Pure
+  types; no runtime code.
+- `engine2/work-clock.ts` — `WorkClock` interface +
+  `createWholeDayWorkClock` implementation supporting:
+  - whole-day workdays via 7-bit bitmask
+  - whole-day holiday list (UTC ISO YYYY-MM-DD)
+  - fixed hours-per-day window starting at UTC 00:00
+  - `isWorking`, `nextWorkInstant`, `prevWorkInstant`,
+    `addWork` (forward & backward), `diffWork` (signed)
+- `engine2/feature-flag.ts` — `getSchedulerEngine()` returning `"legacy"`
+  by default; opt-in to `"engine2"` via `VITE_SCHEDULER_ENGINE` /
+  `SCHEDULER_ENGINE` env.
+- `src/lib/scheduler/__tests__/work-clock.spec.ts` — focused unit tests
+  for the WorkClock primitives (weekends, holidays, day rollover, signed
+  diffs, backward addition).
+
+### What Phase 1.0 does NOT implement
+
+- No engine2 forward/backward CPM pass yet.
+- No `Schedule → EngineActivity[]` adapter yet.
+- No dual-engine assertion harness yet.
+- No shifts, no partial-day exceptions, no resource calendars.
+- No new constraint handling beyond type definitions.
+- The 20 P6 acceptance tests remain `.todo()` — they are NOT satisfied
+  by Phase 1.0 and MUST NOT be flipped to `it()` until the engine2 CPM
+  passes land in Phase 1.1+.
+
+### Implementation notes / deviations from §4
+
+- All working-time math is in whole **minutes** with bounded loops
+  (`~50 years` upper bound) to guarantee termination on pathological
+  calendars. `addWork` rejects non-integer minute counts at runtime.
+- The whole-day work window is anchored at UTC 00:00 (not a configurable
+  shift-start) because Phase 1.0 explicitly excludes shifts. The
+  `prevWorkInstant` boundary uses `dayStart + window - 1min` so the
+  returned instant remains inside the working window.
+- `hoursPerWeek/Month/Year` on the whole-day clock are derived as
+  `hoursPerDay * {5, 20, 250}`. The shift-aware clock in Phase 1.1 will
+  compute these from actual working time.
+
+### Next pass (Phase 1.1) entry criteria
+
+1. Wire engine2's forward/backward CPM pass against `WorkClock`.
+2. Add the dual-engine assertion harness: on every recalc of the
+   existing demo schedule, run both engines and assert identical
+   ES/EF/LS/LF/float/critical output.
+3. Flip `CPM-1`, `CPM-2`, `CPM-3`, `CAL-4` from `.todo()` to `it()`
+   as the new passes satisfy them.
+
