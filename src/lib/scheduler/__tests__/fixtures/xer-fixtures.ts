@@ -189,3 +189,53 @@ export const FIXTURE_NONSTANDARD_HPD = build(
     "1\tA\tA\tCAL1\t40\t40",
   ),
 );
+
+/**
+ * 11. Phase 1.9 — multi-project XER. Two projects (P1, P2) included in
+ * the same file. P1.A → P2.B is an interproject FS relationship; both
+ * projects are present so it must be wired into the engine graph.
+ */
+export const FIXTURE_MULTI_PROJECT_INTERPROJECT = build(
+  block(
+    "PROJECT",
+    "proj_id\tproj_short_name\tproj_name\tplan_start_date\tlast_recalc_date",
+    "P1\tP1\tProject One\t2025-01-06 08:00\t2025-01-06 08:00",
+    "P2\tP2\tProject Two\t2025-01-06 08:00\t2025-01-06 08:00",
+  ),
+  CAL_STD,
+  block(
+    "TASK",
+    "task_id\tproj_id\ttask_code\ttask_name\tclndr_id\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt",
+    "1\tP1\tP1A\tP1 Activity A\tCAL1\t40\t40",
+    "2\tP2\tP2B\tP2 Activity B\tCAL1\t24\t24",
+  ),
+  block(
+    "TASKPRED",
+    "task_id\tproj_id\tpred_task_id\tpred_proj_id\tpred_type\tlag_hr_cnt",
+    "2\tP2\t1\tP1\tPR_FS\t0",
+  ),
+);
+
+/**
+ * 12. Phase 1.9 — single project that references a predecessor in an
+ * EXTERNAL project (P_EXT) that is NOT included in this XER. Used to
+ * exercise the ignore-external-relationships option + diagnostics.
+ */
+export const FIXTURE_MISSING_EXTERNAL_PROJECT = build(
+  block(
+    "PROJECT",
+    "proj_id\tproj_short_name\tproj_name\tplan_start_date\tlast_recalc_date",
+    "P1\tP1\tProject One\t2025-01-06 08:00\t2025-01-06 08:00",
+  ),
+  CAL_STD,
+  block(
+    "TASK",
+    "task_id\tproj_id\ttask_code\ttask_name\tclndr_id\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt",
+    "1\tP1\tA\tA\tCAL1\t40\t40",
+  ),
+  block(
+    "TASKPRED",
+    "task_id\tproj_id\tpred_task_id\tpred_proj_id\tpred_type\tlag_hr_cnt",
+    "1\tP1\t9999\tP_EXT\tPR_FS\t0",
+  ),
+);
