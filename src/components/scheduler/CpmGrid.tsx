@@ -95,6 +95,7 @@ export function CpmGrid({
     startX: number;
     deltaDays: number;
   } | null>(null);
+  const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // Group tasks by WBS, ordered by ES
@@ -527,7 +528,31 @@ export function CpmGrid({
               const slipped = baselineT ? t.earlyFinish - baselineT.earlyFinish : 0;
 
               return (
-                <g key={t.id} onClick={() => onSelect(t.id)} className="cursor-pointer">
+                <g
+                  key={t.id}
+                  onClick={() => onSelect(t.id)}
+                  onMouseEnter={(e) => {
+                    const c = scrollRef.current?.getBoundingClientRect();
+                    if (!c) return;
+                    setHover({
+                      id: t.id,
+                      x: e.clientX - c.left + (scrollRef.current?.scrollLeft ?? 0),
+                      y: e.clientY - c.top + (scrollRef.current?.scrollTop ?? 0),
+                    });
+                  }}
+                  onMouseMove={(e) => {
+                    if (!hover || hover.id !== t.id) return;
+                    const c = scrollRef.current?.getBoundingClientRect();
+                    if (!c) return;
+                    setHover({
+                      id: t.id,
+                      x: e.clientX - c.left + (scrollRef.current?.scrollLeft ?? 0),
+                      y: e.clientY - c.top + (scrollRef.current?.scrollTop ?? 0),
+                    });
+                  }}
+                  onMouseLeave={() => setHover((h) => (h?.id === t.id ? null : h))}
+                  className="cursor-pointer"
+                >
                   {/* row background */}
                   <rect
                     x={0}
@@ -878,6 +903,141 @@ export function CpmGrid({
           ) : null}
         </div>
       </div>
+
+      {/* ============ Activity hover card ============ */}
+      {hover ? (() => {
+        const t = result.tasks.find((x) => x.id === hover.id);
+        if (!t) return null;
+        const baselineT = baselineMap.get(t.id);
+        const slip = baselineT ? t.earlyFinish - baselineT.earlyFinish : 0;
+        const pct = Math.max(0, Math.min(100, t.percentComplete ?? 0));
+        const remaining = Math.max(0, Math.ceil(t.duration * (1 - pct / 100)));
+        const isMs = t.duration === 0;
+        const flipLeft = scrollRef.current
+          ? hover.x - (scrollRef.current.scrollLeft ?? 0) >
+            (scrollRef.current.clientWidth ?? 9999) * 0.6
+          : false;
+        return (
+          <div
+            className="pointer-events-none absolute z-40 w-64 rounded-md border border-[#1f241f]/15 bg-white p-3 text-[11px] shadow-[0_8px_24px_rgba(31,36,31,0.12)]"
+            style={{
+              left: flipLeft ? hover.x - 268 : hover.x + 12,
+              top: hover.y + 12,
+            }}
+          >
+            <div className="flex items-center gap-1.5">
+              <span
+                className={`inline-block h-2 w-2 rounded-full ${
+                  pct >= 100
+                    ? "bg-[#2f7a3e]"
+                    : t.isCritical
+                      ? "bg-[#b42318]"
+                      : pct > 0
+                        ? "bg-[#5b8bd6]"
+                        : "bg-[#c7b89d]"
+                }`}
+              />
+              <span className="font-mono text-[10px] text-[#5c574e]">{t.id}</span>
+              {isMs ? (
+                <span className="rounded bg-[#eee6d7] px-1 text-[9px] font-semibold uppercase tracking-wide text-[#5c574e]">
+                  Milestone
+                </span>
+              ) : null}
+              {t.isCritical ? (
+                <span className="rounded bg-[#fbe9e6] px-1 text-[9px] font-semibold uppercase tracking-wide text-[#b42318]">
+                  Critical
+                </span>
+              ) : null}
+            </div>
+            <div className="mt-0.5 truncate text-[13px] font-semibold text-[#1f241f]">
+              {t.name}
+            </div>
+            {t.wbs ? (
+              <div className="text-[10px] text-[#9c8b6e]">{t.wbs}</div>
+            ) : null}
+
+            <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
+              <HC label="Start" value={formatDate(t.earlyStartDate)} />
+              <HC label="Finish" value={formatDate(t.earlyFinishDate)} />
+              <HC label="Duration" value={`${t.duration}d`} />
+              <HC label="Remaining" value={pct >= 100 ? "—" : `${remaining}d`} />
+              <HC
+                label="Total float"
+                value={`${t.totalFloat}d`}
+                tone={t.totalFloat < 0 ? "bad" : t.totalFloat === 0 ? "warn" : undefined}
+              />
+              <HC
+                label="% Complete"
+                value={`${pct}%`}
+                tone={pct >= 100 ? "good" : undefined}
+              />
+            </div>
+
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded bg-[#f3eede]">
+              <div
+                className={`h-full ${
+                  pct >= 100
+                    ? "bg-[#2f7a3e]"
+                    : t.isCritical
+                      ? "bg-[#b42318]"
+                      : "bg-[#5b8bd6]"
+                }`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+
+            {t.resourceName ? (
+              <div className="mt-2 flex items-center justify-between text-[10px] text-[#5c574e]">
+                <span>
+                  <span className="text-[#9c8b6e]">Resource</span>{" "}
+                  <span className="font-medium text-[#1f241f]">{t.resourceName}</span>
+                </span>
+                {t.resourceUnitsPerDay ? (
+                  <span className="font-mono">{t.resourceUnitsPerDay}/d</span>
+                ) : null}
+              </div>
+            ) : null}
+
+            {baselineT && slip !== 0 ? (
+              <div
+                className={`mt-2 rounded px-1.5 py-1 text-[10px] font-medium ${
+                  slip > 0 ? "bg-[#fbe9e6] text-[#b42318]" : "bg-[#e9f3ec] text-[#2f7a3e]"
+                }`}
+              >
+                {slip > 0 ? "Slipping " : "Ahead "}
+                {Math.abs(slip)}d vs baseline
+              </div>
+            ) : null}
+          </div>
+        );
+      })() : null}
+    </div>
+  );
+}
+
+function HC({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "good" | "bad" | "warn";
+}) {
+  const toneClass =
+    tone === "good"
+      ? "text-[#2f7a3e]"
+      : tone === "bad"
+        ? "text-[#b42318]"
+        : tone === "warn"
+          ? "text-[#a35d10]"
+          : "text-[#1f241f]";
+  return (
+    <div>
+      <div className="text-[9px] font-semibold uppercase tracking-wider text-[#9c8b6e]">
+        {label}
+      </div>
+      <div className={`text-[12px] font-semibold tabular-nums ${toneClass}`}>{value}</div>
     </div>
   );
 }
