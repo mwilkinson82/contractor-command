@@ -1,7 +1,6 @@
 import type {
   Dependency,
   DependencyType,
-  NamedCalendar,
   ProjectCalendar,
   Schedule,
   ScheduledDependency,
