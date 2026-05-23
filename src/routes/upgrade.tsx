@@ -26,7 +26,14 @@ import { AosAddonsModal, AosAddonsTriggerLink } from "@/components/portal/aos-ad
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/upgrade")({
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): {
+    tier?: string;
+    return_to?: string;
+    upsell?: string;
+    circle?: string;
+  } => ({
     tier: typeof search.tier === "string" ? search.tier : undefined,
     return_to: typeof search.return_to === "string" ? search.return_to : undefined,
     upsell: typeof search.upsell === "string" ? search.upsell : undefined,
