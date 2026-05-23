@@ -178,6 +178,53 @@ export interface XerCalendarRaw {
   raw: XerRow;
 }
 
+/** Phase 1.9 — preserved per-project header. */
+export interface XerProject {
+  /** XER `proj_id`. May be synthesized when PROJECT omits it. */
+  id: string;
+  shortName: string;
+  name: string;
+  planStartDate?: string;
+  dataDate?: Instant;
+  raw: XerRow;
+}
+
+/**
+ * Phase 1.9 — relationship between activities in two DIFFERENT projects
+ * where both projects are present in this XER. Wired into engine2's
+ * graph normally; this record exists for reporting/reconciliation.
+ */
+export interface InterprojectRelationshipRecord {
+  relationshipId: string;
+  predProjectId: string;
+  succProjectId: string;
+  predActivityId: string;
+  succActivityId: string;
+  predTaskXerId: string;
+  succTaskXerId: string;
+  type: RelationshipType;
+  lagMinutes: number;
+  raw: XerRow;
+}
+
+/**
+ * Phase 1.9 — relationship to/from an activity (or whole project) NOT
+ * present in this XER. Identity preserved raw; NOT added to the engine
+ * graph. External dates must be supplied elsewhere to schedule it.
+ */
+export interface ExternalRelationshipRecord {
+  predProjectId?: string;
+  succProjectId?: string;
+  predTaskXerId: string;
+  succTaskXerId: string;
+  type: RelationshipType;
+  lagMinutes: number;
+  predProjectMissing: boolean;
+  succProjectMissing: boolean;
+  activityMissing: boolean;
+  raw: XerRow;
+}
+
 export interface XerRawPreservation {
   projects: XerRow[];
   calendars: XerRow[];
@@ -192,17 +239,28 @@ export interface XerRawPreservation {
 }
 
 export interface XerEngine2ImportResult {
+  /** Backwards-compatible single-project header (first PROJECT row). */
   projectName: string;
   projectStartDate?: string;
-  /** P6 data date (last_recalc_date) when present in PROJECT row. */
+  /** P6 data date (last_recalc_date) when present in first PROJECT row. */
   dataDate?: Instant;
+
+  /** Phase 1.9 — every PROJECT row imported. */
+  projects: XerProject[];
 
   calendars: XerCalendarRaw[];
   /** Calendar id → activity calendar mapping used for engine2 activities. */
   defaultCalendarId: string;
 
   activities: EngineActivity[];
+  /** Phase 1.9 — internal activityId → projectId. */
+  activityProjectIds: Record<string, string>;
   relationships: EngineRelationship[];
+  /** Phase 1.9 — cross-project relationships where BOTH projects are present. */
+  interprojectRelationships: InterprojectRelationshipRecord[];
+  /** Phase 1.9 — relationships referencing tasks/projects NOT in this XER. */
+  externalRelationships: ExternalRelationshipRecord[];
+
   resources: Resource[];
   roles: Role[];
   assignments: ResourceAssignment[];
@@ -211,8 +269,10 @@ export interface XerEngine2ImportResult {
   raw: XerRawPreservation;
 
   stats: {
+    projectsParsed: number;
     tasksParsed: number;
     relationshipsParsed: number;
+    interprojectRelationshipsCount: number;
     calendarsParsed: number;
     resourcesParsed: number;
     rolesParsed: number;
@@ -220,6 +280,7 @@ export interface XerEngine2ImportResult {
     constraintsMapped: number;
     constraintsUnsupported: number;
     externalRelationshipsPreservedRaw: number;
+    externalProjectsMissingCount: number;
   };
 }
 
