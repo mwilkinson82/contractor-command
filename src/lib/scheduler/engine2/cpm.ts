@@ -24,6 +24,7 @@
  */
 
 import type {
+  ActivityAssignmentSummary,
   ActivityStatus,
   BaselineActivity,
   BaselineVariance,
@@ -36,6 +37,7 @@ import type {
   EngineRelationshipResult,
   EngineResult,
   EngineRunRecord,
+  ExpenseAssignment,
   FloatPath,
   FloatPathAnalysis,
   FloatPathBasis,
@@ -45,10 +47,14 @@ import type {
   Instant,
   LagCalendarBasis,
   RelationshipType,
+  Resource,
+  ResourceAssignment,
+  Role,
 } from "./types";
 import { MS_PER_DAY, MS_PER_MIN, type WorkClock } from "./work-clock";
+import { rollupActivityAssignments, validateAssignments } from "./assignments";
 
-export const ENGINE2_VERSION = "0.4.0-phase1.4";
+export const ENGINE2_VERSION = "0.5.0-phase1.5";
 
 export interface CpmInput {
   /** Data date / status date as an absolute UTC instant. */
@@ -57,7 +63,7 @@ export interface CpmInput {
   projectStart: Instant;
   /** Calendar id used when a relationship's lagCalendarBasis is "project". */
   projectCalendarId: string;
-  /** All calendars referenced by activities and links, keyed by id. */
+  /** All calendars referenced by activities, links, and resources. */
   calendars: Map<string, WorkClock>;
   activities: EngineActivity[];
   relationships: EngineRelationship[];
@@ -75,6 +81,12 @@ export interface CpmInput {
 
   /** Phase 1.4 — prior engine result for changed-activity counting. */
   priorResult?: EngineResult;
+
+  /** Phase 1.5 — resource/role/assignment foundation (all optional). */
+  resources?: Resource[];
+  roles?: Role[];
+  assignments?: ResourceAssignment[];
+  expenseAssignments?: ExpenseAssignment[];
 }
 
 interface WorkState {
@@ -136,6 +148,37 @@ export function calculateCpm(input: CpmInput): EngineResult {
   const order = topoSort(activities, validRels);
   const predsOf = groupBy(validRels, (r) => r.to);
   const succsOf = groupBy(validRels, (r) => r.from);
+
+  // ---- Phase 1.5 — resources + assignments ----
+  const resourceMap = new Map<string, Resource>(
+    (input.resources ?? []).map((r) => [r.id, r]),
+  );
+  const assignmentsByActivity = new Map<string, ResourceAssignment[]>();
+  for (const asn of input.assignments ?? []) {
+    if (!actMap.has(asn.activityId)) {
+      diagnostics.push({
+        severity: "warn",
+        code: "assignment_unknown_activity",
+        message: `Assignment "${asn.id}" references unknown activity "${asn.activityId}"`,
+      });
+      continue;
+    }
+    const list = assignmentsByActivity.get(asn.activityId) ?? [];
+    list.push(asn);
+    assignmentsByActivity.set(asn.activityId, list);
+  }
+  const assignmentSummaries = new Map<string, ActivityAssignmentSummary>();
+  for (const [actId, list] of assignmentsByActivity) {
+    const sum = rollupActivityAssignments(actId, list);
+    if (sum) assignmentSummaries.set(actId, sum);
+  }
+  for (const d of validateAssignments({
+    assignments: input.assignments ?? [],
+    resources: resourceMap,
+    calendars: input.calendars as Map<string, unknown>,
+  })) {
+    diagnostics.push(d);
+  }
 
   const state = new Map<string, WorkState>();
   for (const a of activities) {
@@ -644,13 +687,27 @@ export function calculateCpm(input: CpmInput): EngineResult {
       );
     }
 
+    const assignmentSummary = assignmentSummaries.get(a.id);
+
     let reportedPercentComplete: number;
     switch (a.percentCompleteType) {
       case "physical":
         reportedPercentComplete = clampPct(a.physicalPercentComplete ?? 0);
         break;
       case "units":
-        reportedPercentComplete = clampPct(a.unitsPercentComplete ?? 0);
+        if (assignmentSummary) {
+          // Phase 1.5: derive from assignment units when available.
+          reportedPercentComplete = clampPct(assignmentSummary.unitsPercentComplete);
+        } else {
+          // No assignments: report verbatim authored value and emit diagnostic.
+          reportedPercentComplete = clampPct(a.unitsPercentComplete ?? 0);
+          diagnostics.push({
+            severity: "info",
+            code: "units_percent_without_assignments",
+            message: `Activity "${a.id}" uses Units % but has no resource assignments; reported value is the authored fallback`,
+            activityId: a.id,
+          });
+        }
         break;
       case "duration":
       default:
@@ -682,6 +739,7 @@ export function calculateCpm(input: CpmInput): EngineResult {
       atCompletionDurationMinutes,
       durationPercentComplete,
       reportedPercentComplete,
+      assignmentSummary,
     };
   });
 
