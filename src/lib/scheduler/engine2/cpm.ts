@@ -687,13 +687,27 @@ export function calculateCpm(input: CpmInput): EngineResult {
       );
     }
 
+    const assignmentSummary = assignmentSummaries.get(a.id);
+
     let reportedPercentComplete: number;
     switch (a.percentCompleteType) {
       case "physical":
         reportedPercentComplete = clampPct(a.physicalPercentComplete ?? 0);
         break;
       case "units":
-        reportedPercentComplete = clampPct(a.unitsPercentComplete ?? 0);
+        if (assignmentSummary) {
+          // Phase 1.5: derive from assignment units when available.
+          reportedPercentComplete = clampPct(assignmentSummary.unitsPercentComplete);
+        } else {
+          // No assignments: report verbatim authored value and emit diagnostic.
+          reportedPercentComplete = clampPct(a.unitsPercentComplete ?? 0);
+          diagnostics.push({
+            severity: "info",
+            code: "units_percent_without_assignments",
+            message: `Activity "${a.id}" uses Units % but has no resource assignments; reported value is the authored fallback`,
+            activityId: a.id,
+          });
+        }
         break;
       case "duration":
       default:
