@@ -32,7 +32,7 @@
  * See ARCHITECTURE.md §33.
  */
 
-import type { Schedule } from "../types";
+import type { Schedule, ScheduleEngine2CapabilitiesPayload } from "../types";
 import type { EngineDiagnostic } from "./types";
 import type { XerEngine2ImportResult } from "./xer-import";
 
@@ -63,11 +63,16 @@ export interface CapabilityFlag {
 
 export type CapabilitySource = "xer" | "manual" | "default";
 
-export interface ScheduleCapabilityMetadata {
+/**
+ * Internally we use a richer, narrowed type. Externally on the
+ * `Schedule` we persist the wider `ScheduleEngine2CapabilitiesPayload`
+ * (string flag ids) to keep `types.ts` free of engine2 imports. The two
+ * shapes are structurally compatible.
+ */
+export interface ScheduleCapabilityMetadata
+  extends ScheduleEngine2CapabilitiesPayload {
   version: typeof CAPABILITY_METADATA_VERSION;
   source: CapabilitySource;
-  /** ISO timestamp the metadata was produced (importer clock). */
-  derivedAt?: string;
   flags: CapabilityFlag[];
 }
 
