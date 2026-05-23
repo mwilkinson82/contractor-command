@@ -1480,3 +1480,183 @@ Phase 1–2.3 scope.
 2. Successor re-flow after leveling moves.
 3. ALAP propagation through successors.
 4. Route XER `clndr_data` exceptions into `createExceptionWorkClock`.
+
+---
+
+## 24. Phase 2.4 — Internal engine2 integration & side-by-side comparison
+
+### Goal
+
+First **safe** integration pass. Make engine2 runnable inside the production
+scheduler module behind an internal flag, and prove on real data that it
+can run beside the legacy engine without destabilizing the product.
+
+This pass is NOT a switch-over:
+
+- Legacy `calculateSchedule` is the authoritative output everywhere.
+- Engine2 is opt-in via an explicit env flag.
+- Default user-facing behavior is unchanged.
+
+### Internal entry point
+
+`src/lib/scheduler/compare.ts` exports
+`calculateScheduleWithEngine2Comparison(schedule, options)`:
+
+- When the comparison flag is **off** (default), behaves exactly like
+  `calculateSchedule` and returns `{ result }`.
+- When the flag is **on**, runs both engines and returns
+  `{ result, engine2Comparison }`. Legacy `result` is the same value
+  `calculateSchedule` would have returned.
+- If engine2 throws for any reason, the legacy result is still returned
+  and the error is attached as `engine2Error`. Comparison must never
+  destabilize the legacy path.
+
+This module is intentionally NOT re-exported from
+`src/lib/scheduler/index.ts`. Callers that want comparison must import
+`@/lib/scheduler/compare` explicitly.
+
+### Feature flag
+
+`isEngine2ComparisonEnabled()` (in `engine2/feature-flag.ts`) resolves:
+
+1. `import.meta.env.VITE_SCHEDULER_ENGINE2_COMPARE`
+2. `process.env.SCHEDULER_ENGINE2_COMPARE`
+3. Default: **off**.
+
+The existing `getSchedulerEngine()` flag (legacy / engine2) is unchanged
+and still defaults to legacy.
+
+### Legacy → engine2 bridge
+
+`engine2/legacy-bridge.ts` exports `bridgeLegacyScheduleToEngine2(schedule)`.
+
+Conversion rules:
+
+- `projectStartDate` (ISO) → `projectStart` (UTC midnight Instant).
+- `dataDate` (ISO, optional) → `dataDate` Instant. Falls back to project
+  start when absent.
+- Legacy `workDays` bitmask (bit0=Mon … bit6=Sun) → engine2 bitmask
+  (bit0=Sun … bit6=Sat) via `convertWorkDaysMask`.
+- Durations: legacy working days × 8h × 60 minutes. Whole-day calendar.
+- Lags: legacy working days × 8h × 60 minutes,
+  `lagCalendarBasis = "project"`.
+- Constraints: only `startNoEarlierThan` is mapped (→ `snet`).
+- Per-activity calendars are preserved by id; the whole-day shape is
+  re-used. Exception calendars are NOT synthesized in this bridge.
+- Resources, assignments, baselines, actuals are NOT bridged.
+
+The bridge emits `conversionNotes` that flow into the comparison report's
+`knownLimitations`.
+
+### Comparison harness
+
+`engine2/comparison.ts` exports `compareEnginesOnSchedule(schedule, opts)`.
+
+It compares per activity:
+
+- early/late start and finish (as ISO date strings)
+- total float, free float
+- critical flag
+- driving link `isDriving`
+
+Plus run-level signals:
+
+- activity / relationship counts on each side
+- engine2 diagnostics count
+- a `runRecord` with per-engine elapsed time
+
+Differences are bucketed into `ComparisonDifferenceCategory`:
+
+`early_start_date | early_finish_date | late_start_date | late_finish_date |
+ total_float | free_float | critical_flag | driving_link |
+ missing_in_engine2 | missing_in_legacy | known_limitation |
+ engine2_only_diagnostic`
+
+`countsByCategory` rolls those up for at-a-glance triage. When
+`treatFloatAsLimitation: true`, float deltas are routed to
+`known_limitation` instead of `total_float` / `free_float` because the
+legacy engine reports float in **calendar days** while engine2 reports it
+in **working minutes** — the basis mismatch is structural, not a bug.
+
+`formatComparisonReport(report)` returns a single-string dev-console
+summary suitable for test logs / internal debug panels.
+
+### Demo schedule validation
+
+The harness is exercised against the Commercial Fit-Out sample
+(`commercialFitOutSample()`) in
+`__tests__/engine2-comparison.spec.ts`. The test asserts:
+
+- both engines produce a result for every activity (no
+  `missing_in_engine2` / `missing_in_legacy` for an honestly bridged
+  schedule)
+- the report carries at least one known limitation
+- the pretty-printer includes the engine2 version string
+- running the harness twice produces a legacy result byte-for-byte equal
+  to a direct `calculateSchedule` call
+
+Date / float / critical-flag deltas are **expected** and surface in the
+report. They are categorized so a reviewer can see *why* engine2 differs
+on this dataset (calendar-day vs working-minute float, no actuals
+modeling, no successor re-flow, etc.) before any production cut-over.
+
+### XER pipeline routing plan
+
+Full XER round-trip into the production scheduler is **not** wired in
+this phase. The plan to reach it incrementally:
+
+1. **XER → engine2 import** (already exists, Phase 1.7–2.0): parsed XER
+   feeds `xerToEngineInputs` and `applyXerImportAction`.
+2. **Exception-aware WorkClock routing** (Phase 2.2 candidate, not done):
+   route parsed `clndr_data` shifts/exceptions into
+   `createExceptionWorkClock` instead of the whole-day fallback.
+3. **engine2 calculation** (Phase 1.1+ done): `calculateCpm` runs against
+   the routed input.
+4. **Reconciliation** (Phase 1.8–1.9 done): structured diagnostics
+   classify preserved / unsupported / divergent semantics.
+5. **UI surface** (NOT done): present the reconciliation report in the
+   importer drawer and let the user choose to commit engine2 output
+   instead of the legacy mapped output.
+
+For Phase 2.4, the only safe internal-only path added is the comparison
+harness above; no new XER UI is wired.
+
+### Regression posture
+
+- All 100 scheduler tests green (95 prior + 5 new for the bridge,
+  harness, and feature flag).
+- Legacy UI behavior unchanged by default.
+- `getSchedulerEngine()` still defaults to `"legacy"`.
+- `isEngine2ComparisonEnabled()` defaults to `false`.
+- Build/typecheck pass.
+
+### Known limitations (Phase 2.4)
+
+- **Bridge is whole-day only.** Exception calendars, multi-shift
+  windows, and per-resource calendars are NOT synthesized.
+- **No actuals bridged.** Legacy `percentComplete` is preserved as a
+  metadata field but does not produce `actualStart` / `actualFinish`,
+  so engine2 sees every legacy activity as "not started".
+- **Float unit basis differs.** Legacy float is calendar days; engine2
+  float is working minutes. The harness explicitly buckets this as a
+  limitation under `treatFloatAsLimitation`.
+- **Driving-link slack differs.** Legacy slack uses the project-default
+  calendar; engine2 uses the successor's calendar. Both are valid;
+  results may diverge on activities with non-default calendars.
+- **No UI yet.** The comparison report is dev/test-only output.
+- **No engine2 production path.** Flipping `getSchedulerEngine()` to
+  `"engine2"` still does not change rendered UI; the UI consumes
+  `ScheduleResult` from the legacy engine.
+
+### Phase 2.5 candidates
+
+1. Wire the comparison report into an internal-only debug panel so PMs
+   can see engine2 deltas on real schedules without reading test logs.
+2. Bridge legacy `percentComplete` to engine2 actuals using a
+   linear-time-elapsed approximation (clearly tagged as approximate).
+3. Route XER `clndr_data` exceptions into `createExceptionWorkClock` and
+   reconnect the XER import pipeline to the bridge so a single
+   end-to-end test can run XER → engine2 → comparison.
+4. Begin matching float units between engines (project-wide decision:
+   keep legacy or migrate to working-minute basis).
+
