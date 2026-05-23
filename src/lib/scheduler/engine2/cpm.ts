@@ -471,6 +471,60 @@ export function calculateCpm(input: CpmInput): EngineResult {
     // Flush per-activity diagnostic notes into the global diagnostics list.
     for (const n of st.notes) diagnostics.push(n);
 
+    // ---- Progress / duration derivation (Phase 1.3) ----
+    const status: import("./types").ActivityStatus = st.completed
+      ? "completed"
+      : st.inProgress
+        ? "in-progress"
+        : "not-started";
+
+    let actualDurationMinutes: number;
+    let remainingDurationMinutes: number;
+    if (st.completed) {
+      actualDurationMinutes =
+        a.actualStart !== undefined
+          ? Math.max(0, cal.diffWork(a.actualStart, a.actualFinish!))
+          : 0;
+      remainingDurationMinutes = 0;
+    } else if (st.inProgress) {
+      const upTo = Math.min(input.dataDate, Date.now() + 1e15); // safe upper bound
+      actualDurationMinutes = Math.max(
+        0,
+        cal.diffWork(a.actualStart!, upTo),
+      );
+      remainingDurationMinutes = Math.max(0, a.remainingDuration.minutes | 0);
+    } else {
+      actualDurationMinutes = 0;
+      remainingDurationMinutes = Math.max(0, a.remainingDuration.minutes | 0);
+    }
+    const atCompletionDurationMinutes =
+      actualDurationMinutes + remainingDurationMinutes;
+
+    let durationPercentComplete: number;
+    if (st.completed) {
+      durationPercentComplete = 100;
+    } else if (atCompletionDurationMinutes <= 0) {
+      durationPercentComplete = st.inProgress ? 100 : 0;
+    } else {
+      durationPercentComplete = clampPct(
+        (actualDurationMinutes / atCompletionDurationMinutes) * 100,
+      );
+    }
+
+    let reportedPercentComplete: number;
+    switch (a.percentCompleteType) {
+      case "physical":
+        reportedPercentComplete = clampPct(a.physicalPercentComplete ?? 0);
+        break;
+      case "units":
+        reportedPercentComplete = clampPct(a.unitsPercentComplete ?? 0);
+        break;
+      case "duration":
+      default:
+        reportedPercentComplete = durationPercentComplete;
+        break;
+    }
+
     return {
       id: a.id,
       earlyStart: st.earlyStart,
@@ -482,6 +536,12 @@ export function calculateCpm(input: CpmInput): EngineResult {
       isCritical: totalFloat <= tolerance,
       governingCause: st.governingCause,
       drivingPredecessorId: st.drivingPredecessorId,
+      status,
+      actualDurationMinutes,
+      remainingDurationMinutes,
+      atCompletionDurationMinutes,
+      durationPercentComplete,
+      reportedPercentComplete,
     };
   });
 
