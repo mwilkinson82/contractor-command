@@ -606,12 +606,19 @@ function SchedulerPage() {
                         {(() => {
                           // Group draft.tasks by WBS, preserving original indices
                           const groupMap = new Map<string, { idx: number; t: Task }[]>();
+                          const matchesCal = (t: Task) => {
+                            if (!calendarFilter) return true;
+                            if (calendarFilter === "__default") return !t.calendarId;
+                            return t.calendarId === calendarFilter;
+                          };
                           draft.tasks.forEach((t, idx) => {
+                            if (!matchesCal(t)) return;
                             const key = t.wbs?.trim() || UNASSIGNED_WBS;
                             const arr = groupMap.get(key) ?? [];
                             arr.push({ idx, t });
                             groupMap.set(key, arr);
                           });
+
                           const groups = Array.from(groupMap.entries()).sort((a, b) =>
                             a[0].localeCompare(b[0]),
                           );
