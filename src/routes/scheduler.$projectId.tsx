@@ -33,6 +33,8 @@ import { CalendarPanel } from "@/components/scheduler/CalendarPanel";
 import { CalendarsPanel } from "@/components/scheduler/CalendarsPanel";
 import { ReportsPanel } from "@/components/scheduler/ReportsPanel";
 import { ResourcesPanel } from "@/components/scheduler/ResourcesPanel";
+import { ScheduleKpiBar } from "@/components/scheduler/ScheduleKpiBar";
+import { DashboardsPanel } from "@/components/scheduler/DashboardsPanel";
 import { StructurePanel } from "@/components/scheduler/StructurePanel";
 import { WbsSelect } from "@/components/scheduler/WbsSelect";
 import { ActivityCodeChips } from "@/components/scheduler/ActivityCodeChips";
@@ -729,6 +731,15 @@ function SchedulerPage() {
                   </button>
                 </div>
 
+                {/* KPI strip */}
+                {computed ? (
+                  <ScheduleKpiBar
+                    result={computed}
+                    tasks={draft.tasks}
+                    dataDate={draft.dataDate}
+                  />
+                ) : null}
+
                 {/* Split: activity table + Gantt */}
                 <div className="flex flex-1 min-h-0 overflow-hidden">
                   {/* LEFT: activity table */}
@@ -1110,12 +1121,19 @@ function SchedulerPage() {
                   addDep={addDep}
                 />
               </div>
-            ) : (
-              <div className="flex flex-1 items-center justify-center text-sm text-[#9c8b6e]">
-                {activeTab === "dashboards"
-                  ? "Dashboards coming soon — SPI/CPI, resource histograms, lookahead."
-                  : ""}
+            ) : activeTab === "dashboards" ? (
+              <div className="flex-1 overflow-auto">
+                {computed ? (
+                  <DashboardsPanel
+                    result={computed}
+                    tasks={draft.tasks}
+                    onTaskChange={updateTask}
+                    dataDate={draft.dataDate}
+                  />
+                ) : null}
               </div>
+            ) : (
+              <div className="flex flex-1 items-center justify-center text-sm text-[#9c8b6e]" />
             )}
           </div>
 
