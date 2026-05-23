@@ -1078,19 +1078,20 @@ function SchedulerPage() {
                     </div>
                     {/* Legend — slim inline strip */}
                     <div className="flex shrink-0 items-center justify-center gap-4 border-t border-[#eee7d8] bg-[#faf8f3] px-4 py-1 text-[10px] text-[#5c574e]">
-                      <LegendDot color="#3d8a5c" label="Completed" />
-                      <LegendDot color="#5b8bd6" label="In Progress" />
-                      <LegendDot color="#9b87d3" label="Planned" />
-                      <LegendDot color="#cfd9e8" label="Lookahead" />
-                      <LegendDot color="#b42318" label="Critical" />
+                      <LegendDot color="#2a3e5f" label="Planned" />
+                      <LegendDot color="#9c2418" label="Critical" />
                       {nearCriticalFloat > 0 ? (
                         <LegendDot
-                          color="#d97706"
+                          color="#c2750a"
                           label={`Near-critical (≤${nearCriticalFloat}d)`}
                         />
                       ) : null}
+                      <LegendDot color="#9c8b6e" label="Float / baseline" />
                       <span className="inline-flex items-center gap-1">
-                        <span className="inline-block h-2 w-2 rotate-45 bg-[#1f241f]" /> Milestone
+                        <span className="inline-block h-2 w-2 rotate-45 bg-[#7a5cc4]" /> Milestone
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="inline-block h-3 w-0.5 bg-[#2f7a3e]" /> Data date
                       </span>
                     </div>
                   </div>
