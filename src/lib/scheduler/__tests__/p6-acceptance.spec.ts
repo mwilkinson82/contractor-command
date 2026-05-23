@@ -352,7 +352,7 @@ describe("P6 acceptance — Constraints", () => {
 });
 
 describe("P6 acceptance — Progress", () => {
-  it("PRG-8: Physical, Duration, and Units percent-complete types produce distinct reported percent-complete values given the same base activity and assignment data", () => {
+  it("PRG-8: Physical, Duration, and Units percent-complete types produce distinct reported percent-complete values given the same base activity and assignment data — NOTE: units% is currently an author-supplied stub echo, NOT derived from assignment actual/budget units (Phase 1.3 simplified coverage)", () => {
     const cal = monFri();
     // All three start Mon-06, original 10d, remaining 4d, data date Mon-13.
     // Duration%   = actual / (actual + remaining) = 5 / (5+4) = 55.55…
@@ -814,7 +814,7 @@ describe("P6 acceptance — Leveling", () => {
     expect(lv.overallocationsBefore.find((o) => o.resourceId === "R2")).toBeUndefined();
   });
 
-  it("LVL-16: leveling emits an entry-level log with original CPM dates, leveled dates, delay, causing resource, and priority reason", () => {
+  it("LVL-16: leveling emits an entry-level log with original CPM dates, leveled dates, delay, causing resource, and priority reason — AND surfaces honest-limitation warnings (whole-day-only leveling, successors not reflowed). Test validates the diagnostic surface, NOT sub-day leveling or successor reflow.", () => {
     const A = lvlActivity("A", 3, 1);
     const B = lvlActivity("B", 3, 5);
     const result = calculateCpm({
