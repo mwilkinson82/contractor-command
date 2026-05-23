@@ -819,3 +819,117 @@ scheduled early/late dates is deferred, not silently faked).
    as SNET constraints, or integrated iteration).
 3. LVL-14: implement preserve-scheduled-early-and-late-dates.
 4. PRG-10: out-of-sequence progress rule selector.
+
+---
+
+## 17. Phase 1.7 — XER hardening (engine2)
+
+Status: **complete**. Engine version marker: `ENGINE2_XER_IMPORT_VERSION = "0.7.0-phase1.7"`.
+
+This pass adds a higher-fidelity XER importer for engine2 alongside the
+legacy `src/lib/scheduler/xer.ts` (which still powers the production UI
+`XerImportButton` and the legacy engine). The legacy importer is
+**untouched**; the new importer lives at `src/lib/scheduler/engine2/xer-import.ts`
+and is opt-in.
+
+### Public surface
+
+- `importXerForEngine2(text, options?) → XerEngine2ImportResult`
+- `parseXerTables(text) → Map<TableName, Row[]>` (generic block parser
+  exposed for future reconciliation / export work)
+- `XerCalendarRaw`, `XerRawPreservation`, `XerEngine2ImportResult`,
+  `XerEngine2ImportOptions` types
+
+### What is now preserved / mapped
+
+- **Project header** — `proj_short_name` / `proj_name`,
+  `plan_start_date`, and `last_recalc_date` → `dataDate` (Instant).
+- **Calendars** — `CALENDAR.clndr_id/name/type/day_hr_cnt`. Work-day
+  flags and explicit holiday dates are extracted from `clndr_data` where
+  the canonical P6 pattern matches; everything else is preserved on
+  `XerCalendarRaw.raw`.
+- **Activities (TASK)** — calendar reference, `task_type`,
+  `duration_type`, `complete_pct_type`, original/remaining duration in
+  working minutes, `act_start_date`, `act_end_date`,
+  `phys_complete_pct`, and up to two constraints (`cstr_type[2]` /
+  `cstr_date[2]`).
+- **Constraints** — `CS_MSO/MSOA/MSOB → snet/snlt`, `CS_MEOA/MEOB → fnet/fnlt`,
+  `CS_MANDSTART/MANDFIN → mso/mfo`, `CS_ALAP → alap`. Anything else is
+  reported via `unsupported_constraint_type` and counted in
+  `stats.constraintsUnsupported`.
+- **Activity / duration / percent-complete types** — mapped into engine2
+  enums; unrecognized values fall back to safe defaults and emit
+  `unsupported_activity_type_behavior` /
+  `unsupported_duration_type_behavior` /
+  `unsupported_percent_complete_type_behavior` diagnostics.
+- **Resources (RSRC), roles (ROLES), assignments (TASKRSRC)** —
+  imported as first-class `Resource` / `Role` / `ResourceAssignment`
+  records, including budgeted/actual/remaining units and cost where
+  parseable.
+- **External relationships** — `TASKPRED` rows whose
+  `pred_task_id` / `task_id` reference activities outside this XER are
+  preserved on `raw.taskpred` and reported via
+  `external_relationship_preserved_raw` rather than silently dropped.
+- **Raw preservation** — every interpreted table's rows are echoed onto
+  `result.raw.*`, and the names of any other tables encountered are
+  collected on `raw.otherTableNames` for downstream reconciliation /
+  export work.
+
+### Diagnostics introduced
+
+`unsupported_calendar_shift`, `unsupported_calendar_hours_per_day`,
+`unsupported_constraint_type`, `unsupported_activity_type_behavior`,
+`unsupported_duration_type_behavior`,
+`unsupported_percent_complete_type_behavior`,
+`missing_calendar_reference`, `missing_resource_reference`,
+`external_relationship_preserved_raw`, `baseline_not_in_xer`.
+
+`baseline_not_in_xer` is always emitted — engine2 never fabricates a
+baseline from XER content.
+
+### Tests now active
+
+Focused parser/importer coverage in
+`src/lib/scheduler/__tests__/xer-import.spec.ts` (10 tests): project
+header + calendar identity, supported-constraint mapping, unsupported-
+constraint diagnostics, actuals mapping, activity/duration/percent-complete
+type mapping, resources/roles/assignments, external-relationship
+preservation, baseline diagnostic, raw-row preservation, and generic
+`parseXerTables` access.
+
+### P6 acceptance status (unchanged headline counts)
+
+XER-17, XER-18, XER-19, XER-20 remain `.todo()`. Phase 1.7 does NOT
+claim multi-project relationship execution, ignore-external-relationships
+scheduling behavior, or any Update / Replace / Add-Into import-action
+semantics. The foundation (raw preservation + diagnostics) is now in
+place so those tests can be honestly promoted in a later pass.
+
+Active acceptance total: **13 of 20** (unchanged from Phase 1.6).
+Overall scheduler test count: **48 passing, 7 todo** across 4 files.
+
+### Known limitations after Phase 1.7 (intentional)
+
+- **Calendar shifts / hours-per-day variation** parsed but not executed
+  by `WorkClock`. Whole-day work-day flags + holidays only.
+- **Constraint mapping is conservative.** `CS_MSO` ("Start On") is
+  routed to `snet` rather than a separate "start-on" type; the raw
+  `cstr_type` is preserved on the underlying TASK row.
+- **Duration-type behavior is not differentiated yet.** The enum is
+  stored, but engine2 still treats every activity as fixed-duration.
+- **Percent-complete-type does not yet drive resource-unit derivation
+  for `units`.** Phase 1.5's structural stub still applies.
+- **No XER export, no Update/Replace/Add-Into import strategies.**
+- **No automatic leveling from XER import.** Resources/assignments are
+  stored; leveling is opt-in via `CpmInput.leveling.enabled`.
+- **UI untouched.** `XerImportButton` still calls the legacy
+  `importXer`. Feature flag still defaults to `"legacy"`.
+
+### Phase 1.8 entry criteria
+
+1. `XerEngine2ImportResult → CpmInput` adapter + dual-engine parity
+   harness on real XER fixtures.
+2. Promote XER-19 (no fabricated baselines) to an active acceptance test.
+3. XER-17: multi-project relationship execution when both projects are
+   present in the import.
+4. XER-18: ignore-external-relationships scheduling option.
