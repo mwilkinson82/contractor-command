@@ -15,12 +15,13 @@ function safeRedirect(value: unknown): string {
 
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Sign in — ALP Contractor Circle" }] }),
-  validateSearch: (search: Record<string, unknown>) => ({
-    redirect: safeRedirect(search.redirect),
+  validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
+    redirect:
+      typeof search.redirect === "string" ? safeRedirect(search.redirect) : undefined,
   }),
   beforeLoad: async ({ search }) => {
     const { data } = await supabase.auth.getSession();
-    if (data.session) throw redirect({ to: search.redirect });
+    if (data.session) throw redirect({ to: search.redirect ?? "/" });
   },
   component: LoginPage,
 });
