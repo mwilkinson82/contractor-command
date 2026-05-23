@@ -1020,3 +1020,71 @@ diagnostic-code coverage).
    ignore-external option are implemented.
 3. Start surfacing `ReconciliationReport` in a developer-only diagnostic
    view (still behind the legacy flag).
+
+---
+
+## §19 — Phase 1.9: interproject & external relationship semantics
+
+Status: **shipped** at `ENGINE2_XER_IMPORT_VERSION = "0.9.0-phase1.9"`.
+Legacy engine untouched. Feature flag remains defaulted to legacy. UI
+unchanged.
+
+### Scope delivered
+
+1. **Multi-project XER parsing.** `XerEngine2ImportResult.projects: XerProject[]`
+   now lists every PROJECT row. Each TASK row's `proj_id` is preserved
+   and surfaced via `activityProjectIds`.
+2. **Interproject relationships (both projects present).** Wired into
+   engine2's graph normally AND captured in
+   `interprojectRelationships: InterprojectRelationshipRecord[]` with
+   `predProjectId / succProjectId / predActivityId / succActivityId /
+   predTaskXerId / succTaskXerId / type / lagMinutes / raw`. Diagnostic
+   `interproject_relationship_mapped` emitted per link.
+3. **External relationships (referenced project/activity absent).**
+   Preserved with full identity in
+   `externalRelationships: ExternalRelationshipRecord[]`. Diagnostics:
+   `external_relationship_preserved_raw` (back-compat),
+   `external_relationship_preserved` (with project identity),
+   `external_project_missing` (per missing project, warn).
+4. **`ignoreExternalRelationships` pipeline option.**
+   - `true`  → per-external `external_relationship_ignored_by_option`
+     (info); calculation proceeds; reconciliation classifies as
+     `acceptable-known-limitation`.
+   - `false` (default) → per-external
+     `external_relationship_requires_imported_project` (error);
+     calculation still proceeds (engine graph never contained the
+     link); reconciliation classifies as `mismatch`.
+   - Pipeline result exposes `externalRelationshipsIgnored` and
+     `externalRelationshipsPreservedCount`.
+5. **Reconciliation update.** New codes classified:
+   acceptable: `external_relationship_preserved`,
+   `external_relationship_ignored_by_option`,
+   `interproject_relationship_mapped`. Unsupported-preserved-only:
+   `external_project_missing`, `interproject_relationship_unresolved`.
+   Mismatch: `external_relationship_requires_imported_project`.
+   `ReconciliationInput.externalRelationshipsIgnored` drives the
+   `relationships:external` summary entry.
+6. **Acceptance tests promoted.** XER-17 and XER-18 now active. XER-20
+   remains `todo` (update / replace / add-into import workflows are out
+   of scope for this pass).
+
+### Honest limitations (still deferred)
+
+- External relationships are **never executed** by engine2 — even with
+  `ignoreExternalRelationships: true`, the option only declares the
+  gap acceptable; it does not derive external activity dates.
+- No support yet for external activity date injection from a
+  companion project file.
+- Interproject calendar reconciliation is not performed; each activity
+  still uses the calendar named on its own TASK row.
+- Update / Replace / Add-Into import strategies remain unimplemented.
+- XER export still out of scope.
+
+### Phase 1.10 entry criteria
+
+1. External activity date injection (so `ignoreExternalRelationships`
+   has a way to consume real predecessor finish dates).
+2. XER-20: Update / Replace / Add-Into import workflows with
+   delete-unreferenced toggles.
+3. Begin surfacing multi-project structure + reconciliation report in
+   a developer-only diagnostic view (still behind the legacy flag).
