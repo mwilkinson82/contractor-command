@@ -442,10 +442,88 @@ describe("P6 acceptance — Progress", () => {
     ).toBe(true);
   });
 
-  it.todo(
-    "PRG-10: out-of-sequence updates follow the selected progress rule (retained logic / progress override / actual dates) and produce repeatable outcomes",
-  );
+  it("PRG-10: out-of-sequence updates follow the selected progress rule (retained-logic vs progress-override) and produce repeatable outcomes", () => {
+    const cal = monFri();
+    // Setup: A (10d) FS→ B (5d). Data date = Mon-20.
+    // A is in progress: actualStart Mon-06, remaining 6d → projected EF
+    //   from data date Mon-20 + 6d = Mon-27 EOD (position).
+    // B is OOS in progress: actualStart Mon-13 (before A finished),
+    //   remaining 3d.
+    const A = activity("A", 10);
+    A.actualStart = MON_2025_01_06;
+    A.remainingDuration = { minutes: 6 * DAY_MIN, authoringCalendarId: "cal-mf" };
+
+    const B = activity("B", 5);
+    B.actualStart = Date.UTC(2025, 0, 13);
+    B.remainingDuration = { minutes: 3 * DAY_MIN, authoringCalendarId: "cal-mf" };
+
+    const rels = [link("A-B", "A", "B")];
+    const dataDate = Date.UTC(2025, 0, 20);
+
+    const baseInput = {
+      dataDate,
+      projectStart: MON_2025_01_06,
+      projectCalendarId: "cal-mf",
+      calendars: new Map([["cal-mf", cal]]),
+      activities: [A, B],
+      relationships: rels,
+    };
+
+    // ---- Retained-logic rule (default) ----
+    const retained = calculateCpm(baseInput);
+    const Br = retained.activities.find((x) => x.id === "B")!;
+    const Ar = retained.activities.find((x) => x.id === "A")!;
+    // ES is preserved as the actual start regardless of rule.
+    expect(Br.earlyStart).toBe(B.actualStart);
+    // Under retained-logic, B's remaining 3d cannot begin before A's
+    // projected EF. So B.EF = A.EF + 3 working days.
+    expect(cal.diffWork(Ar.earlyFinish, Br.earlyFinish)).toBe(3 * DAY_MIN);
+
+    // Diagnostics: violation surfaced and rule applied.
+    const codes = new Set(retained.diagnostics.map((d) => d.code));
+    expect(codes.has("out_of_sequence_progress_detected")).toBe(true);
+    expect(codes.has("relationship_logic_violated_by_actuals")).toBe(true);
+    expect(codes.has("predecessor_incomplete_successor_started")).toBe(true);
+    expect(codes.has("retained_logic_applied")).toBe(true);
+    expect(codes.has("progress_override_applied")).toBe(false);
+
+    // Repeatable: a second identical run yields identical dates.
+    const retained2 = calculateCpm(baseInput);
+    const Br2 = retained2.activities.find((x) => x.id === "B")!;
+    expect(Br2.earlyFinish).toBe(Br.earlyFinish);
+
+    // ---- Progress-override rule ----
+    const overridden = calculateCpm({
+      ...baseInput,
+      progress: { outOfSequenceRule: "progress-override" },
+    });
+    const Bo = overridden.activities.find((x) => x.id === "B")!;
+    // Under progress-override, B's 3d remaining projects from data date,
+    // ignoring the broken FS link.
+    expect(Bo.earlyStart).toBe(B.actualStart);
+    expect(cal.diffWork(dataDate, Bo.earlyFinish)).toBe(3 * DAY_MIN);
+
+    const ocodes = new Set(overridden.diagnostics.map((d) => d.code));
+    expect(ocodes.has("out_of_sequence_progress_detected")).toBe(true);
+    expect(ocodes.has("progress_override_applied")).toBe(true);
+    expect(ocodes.has("retained_logic_applied")).toBe(false);
+
+    // The two rules produce different outcomes — proves the selector matters.
+    expect(Bo.earlyFinish).not.toBe(Br.earlyFinish);
+
+    // ---- Deferred "actual-dates" rule emits warning + falls back ----
+    const deferred = calculateCpm({
+      ...baseInput,
+      progress: { outOfSequenceRule: "actual-dates" },
+    });
+    expect(
+      deferred.diagnostics.some((d) => d.code === "out_of_sequence_rule_deferred"),
+    ).toBe(true);
+    const Bd = deferred.activities.find((x) => x.id === "B")!;
+    expect(Bd.earlyFinish).toBe(Br.earlyFinish); // fell back to retained-logic
+  });
 });
+
 
 describe("P6 acceptance — Float paths", () => {
   it("PTH-11: multiple float-path analysis ranks paths by total float, path 1 = critical chain", () => {

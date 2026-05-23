@@ -482,3 +482,33 @@ export interface LevelingAnalysis {
    */
   warnings: EngineDiagnostic[];
 }
+
+// ---------------------------------------------------------------------------
+// Phase 2.2 — out-of-sequence progress handling
+// ---------------------------------------------------------------------------
+
+/**
+ * Rule applied when actuals violate relationship logic (out-of-sequence).
+ *
+ *  - "retained-logic"    : remaining work of the successor still must
+ *                          respect predecessor logic (i.e. cannot finish
+ *                          before pred CPM finish).
+ *  - "progress-override" : the broken relationship is ignored for the
+ *                          remaining work; successor projects from the
+ *                          data date without waiting on the predecessor.
+ *  - "actual-dates"      : DEFERRED. P6 also exposes an "Actual Dates"
+ *                          mode that re-derives logic from observed
+ *                          actuals. Not implemented in Phase 2.2 — the
+ *                          engine emits `out_of_sequence_rule_deferred`
+ *                          and falls back to "retained-logic".
+ */
+export type OutOfSequenceProgressRule =
+  | "retained-logic"
+  | "progress-override"
+  | "actual-dates";
+
+export interface ProgressOptions {
+  /** Default: "retained-logic". */
+  outOfSequenceRule?: OutOfSequenceProgressRule;
+}
+
