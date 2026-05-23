@@ -659,12 +659,23 @@ function SchedulerPage() {
                                     />
                                   </td>
                                   <td className="px-2 py-1">
-                                    <Input
-                                      className="h-8"
-                                      value={t.name}
-                                      onChange={(e) => updateTask(idx, { name: e.target.value })}
-                                    />
+                                    <div className="flex items-center gap-1">
+                                      <Input
+                                        className="h-8 flex-1"
+                                        value={t.name}
+                                        onChange={(e) => updateTask(idx, { name: e.target.value })}
+                                      />
+                                      {t.calendarId ? (
+                                        <span
+                                          title={`Calendar: ${calendars.find((c) => c.id === t.calendarId)?.name ?? "unknown"}`}
+                                          className="shrink-0 rounded bg-[#eee6d7] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[#3d3527]"
+                                        >
+                                          {calendars.find((c) => c.id === t.calendarId)?.name ?? "?"}
+                                        </span>
+                                      ) : null}
+                                    </div>
                                   </td>
+
                                   <td className="px-2 py-1">
                                     <WbsSelect
                                       scheduleId={selectedId}
