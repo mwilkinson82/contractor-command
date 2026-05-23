@@ -144,6 +144,27 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const dupeMut = useMutation({
+    mutationFn: (c: { name: string; workDays: number; holidays: string[] }) =>
+      saveFn({
+        data: {
+          scheduleId,
+          name: `${c.name} copy`,
+          workDays: c.workDays,
+          holidays: c.holidays,
+        },
+      }),
+    onSuccess: () => refresh(),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+      refresh();
+      onDefaultChanged?.();
+      toast.success("Project default calendar updated");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const cals = data?.calendars ?? [];
 
   return (
