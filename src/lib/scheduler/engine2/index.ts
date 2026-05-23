@@ -21,6 +21,7 @@ export * from "./comparison";
 export * from "./debug-viewer";
 export * from "./shadow";
 export * from "./burndown";
+export * from "./engine-selector";
 
 
 
