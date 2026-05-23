@@ -122,6 +122,7 @@ function SchedulerPage() {
     };
   }, []);
   const [dayPx, setDayPx] = useState(22);
+  const [nearCriticalFloat, setNearCriticalFloat] = useState(5);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [groupBy, setGroupBy] = useState<"wbs" | "critical" | "none">("wbs");
   const [calendarFilter, setCalendarFilter] = useState<string>("");
@@ -750,6 +751,27 @@ function SchedulerPage() {
               {showCompleted ? "All activities" : "Remaining only"}
             </button>
 
+            <label
+              className="flex items-center gap-1.5 rounded-md border border-[#e6dfd0] bg-white px-2 py-0.5 text-[11px] text-[#5c574e]"
+              title="Activities with total float at or below this many working days are highlighted as near-critical."
+            >
+              <span className="inline-block h-2 w-2 rounded-sm bg-[#d97706]" />
+              <span className="uppercase tracking-wide text-[10px] text-[#7a6a4d]">Near-crit ≤</span>
+              <input
+                type="number"
+                min={0}
+                max={99}
+                step={1}
+                value={nearCriticalFloat}
+                onChange={(e) =>
+                  setNearCriticalFloat(Math.max(0, Math.min(99, Number(e.target.value) || 0)))
+                }
+                className="h-5 w-10 rounded border border-[#e6dfd0] bg-white px-1 text-right text-[11px] tabular-nums"
+              />
+              <span className="text-[10px] text-[#9c8b6e]">d</span>
+            </label>
+
+
             <button
               type="button"
               onClick={() => {
@@ -1058,14 +1080,22 @@ function SchedulerPage() {
                                 const calc = computed?.tasks.find((x) => x.id === t.id);
                                 const critical = calc?.isCritical;
                                 const pct = t.percentComplete ?? 0;
+                                const tf = calc?.totalFloat ?? 0;
+                                const nearCrit =
+                                  !critical &&
+                                  nearCriticalFloat > 0 &&
+                                  tf > 0 &&
+                                  tf <= nearCriticalFloat;
                                 const statusColor =
                                   pct >= 100
                                     ? "bg-[#3d8a5c]"
                                     : critical
                                       ? "bg-[#b42318]"
-                                      : pct > 0
-                                        ? "bg-[#5b8bd6]"
-                                        : "bg-[#c7b89d]";
+                                      : nearCrit
+                                        ? "bg-[#d97706]"
+                                        : pct > 0
+                                          ? "bg-[#5b8bd6]"
+                                          : "bg-[#c7b89d]";
                                 const isSel = selectedTaskId === t.id;
                                 return rows.push(
                                   <tr
@@ -1215,6 +1245,7 @@ function SchedulerPage() {
                           calendar={{ workDays: draft.workDays, holidays: draft.holidays }}
                           annotations={draft.annotations}
                           groupBy={groupBy}
+                          nearCriticalFloat={nearCriticalFloat}
                           onTaskReschedule={rescheduleTask}
                         />
                       ) : null}
@@ -1226,6 +1257,12 @@ function SchedulerPage() {
                       <LegendDot color="#9b87d3" label="Planned" />
                       <LegendDot color="#cfd9e8" label="Lookahead" />
                       <LegendDot color="#b42318" label="Critical" />
+                      {nearCriticalFloat > 0 ? (
+                        <LegendDot
+                          color="#d97706"
+                          label={`Near-critical (≤${nearCriticalFloat}d)`}
+                        />
+                      ) : null}
                       <span className="inline-flex items-center gap-1">
                         <span className="inline-block h-2 w-2 rotate-45 bg-[#1f241f]" /> Milestone
                       </span>

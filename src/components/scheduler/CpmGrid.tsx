@@ -20,6 +20,8 @@ interface Props {
   calendar?: ProjectCalendar;
   annotations?: Annotation[];
   groupBy?: GroupByMode;
+  /** Tasks with totalFloat in (0, nearCriticalFloat] render in amber. 0 disables. */
+  nearCriticalFloat?: number;
   onTaskReschedule?: (
     taskId: string,
     patch: { startShiftDays?: number; duration?: number },
@@ -84,6 +86,7 @@ export function CpmGrid({
   calendar,
   annotations,
   groupBy = "wbs",
+  nearCriticalFloat = 0,
   onTaskReschedule,
 }: Props) {
 
@@ -388,8 +391,8 @@ export function CpmGrid({
                       className={`px-1 text-right tabular-nums ${
                         t.isCritical
                           ? "font-semibold text-[#b42318]"
-                          : t.totalFloat <= 5
-                            ? "text-[#9b7400]"
+                          : nearCriticalFloat > 0 && t.totalFloat > 0 && t.totalFloat <= nearCriticalFloat
+                            ? "font-medium text-[#d97706]"
                             : "text-[#5c574e]"
                       }`}
                     >
@@ -523,7 +526,9 @@ export function CpmGrid({
               const isMilestone = t.duration === 0;
               const x = t.earlyStart * dayPx;
               const w = Math.max(t.duration * dayPx, 2);
-              const fill = t.isCritical ? "#b42318" : "#3554a5";
+              const isNearCritical =
+                !t.isCritical && nearCriticalFloat > 0 && t.totalFloat > 0 && t.totalFloat <= nearCriticalFloat;
+              const fill = t.isCritical ? "#b42318" : isNearCritical ? "#d97706" : "#3554a5";
               const baselineT = baselineMap.get(t.id);
               const slipped = baselineT ? t.earlyFinish - baselineT.earlyFinish : 0;
 
