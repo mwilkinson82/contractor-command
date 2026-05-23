@@ -131,8 +131,14 @@ function emptyCounts(): Record<ComparisonDifferenceCategory, number> {
     progress_behavior_difference: 0,
     missing_legacy_field: 0,
     legacy_missing_engine2_field: 0,
+    leveling_behavior_difference: 0,
+    baseline_behavior_difference: 0,
+    precision_rounding_difference: 0,
+    known_unsupported_behavior: 0,
+    missing_engine2_field: 0,
   };
 }
+
 
 function emptyClassCounts(): Record<ComparisonClassification, number> {
   return {
