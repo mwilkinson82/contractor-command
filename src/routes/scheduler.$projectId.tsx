@@ -771,9 +771,46 @@ function SchedulerPage() {
                 ) : null}
 
                 {/* Split: activity table + Gantt */}
-                <div className="flex flex-1 min-h-0 overflow-hidden">
+                <div className="scheduler-print-split flex flex-1 min-h-0 overflow-hidden">
+                  {/* Print-only title block (P6-style) */}
+                  <div className="print-only mb-3 border-b-2 border-[#1f241f] pb-2">
+                    <div className="flex items-end justify-between">
+                      <div>
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#5c574e]">
+                          CPM Schedule
+                        </div>
+                        <div className="text-xl font-semibold text-[#1f241f]">
+                          {draft.name || "Untitled schedule"}
+                        </div>
+                      </div>
+                      <div className="text-right text-[10px] text-[#3d3527]">
+                        <div>
+                          <span className="font-semibold uppercase tracking-wide">Start </span>
+                          {draft.projectStartDate || "—"}
+                        </div>
+                        <div>
+                          <span className="font-semibold uppercase tracking-wide">Finish </span>
+                          {computed?.projectFinishDate || "—"}
+                        </div>
+                        <div>
+                          <span className="font-semibold uppercase tracking-wide">Data date </span>
+                          {draft.dataDate || "—"}
+                        </div>
+                        <div>
+                          <span className="font-semibold uppercase tracking-wide">Duration </span>
+                          {computed?.projectDuration ?? 0}d ·{" "}
+                          <span className="font-semibold uppercase tracking-wide">Activities </span>
+                          {draft.tasks.length}
+                        </div>
+                        <div className="mt-1 text-[#7a6a4d]">
+                          Printed {new Date().toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* LEFT: activity table */}
-                  <div className="flex w-[520px] shrink-0 flex-col overflow-hidden border-r border-[#e6dfd0] bg-white">
+                  <div className="scheduler-print-left flex w-[520px] shrink-0 flex-col overflow-hidden border-r border-[#e6dfd0] bg-white">
                     <div className="flex shrink-0 items-center justify-between border-b border-[#eee7d8] bg-[#faf8f3] px-3 py-1.5">
                       <span className="text-[10px] font-semibold uppercase tracking-wide text-[#7a6a4d]">
                         Activities · {totalActivities}
