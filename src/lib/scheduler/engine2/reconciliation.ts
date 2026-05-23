@@ -244,13 +244,45 @@ export function reconcileSchedule(input: ReconciliationInput): ReconciliationRep
     });
   }
 
-  // 4. External-relationship preservation count
-  if (input.importResult.stats.externalRelationshipsPreservedRaw > 0) {
+  // 4. External-relationship summary — Phase 1.9 classification.
+  //   - explicit ignore (option true)  → acceptable-known-limitation
+  //   - explicit honor  (option false) → mismatch
+  //   - unspecified (back-compat)      → unsupported-preserved-only
+  const extCount = input.importResult.stats.externalRelationshipsPreservedRaw;
+  if (extCount > 0) {
+    const ignored = input.externalRelationshipsIgnored;
+    if (ignored === true) {
+      entries.push({
+        kind: "acceptable-known-limitation",
+        subject: "relationships:external",
+        message: `${extCount} external relationship(s) preserved as metadata; honored per ignoreExternalRelationships option.`,
+        justifyingCodes: ["external_relationship_ignored_by_option"],
+      });
+    } else if (ignored === false) {
+      entries.push({
+        kind: "mismatch",
+        subject: "relationships:external",
+        message: `${extCount} external relationship(s) cannot be honored: missing project(s) not in this XER and ignoreExternalRelationships is not enabled.`,
+        justifyingCodes: ["external_relationship_requires_imported_project"],
+      });
+    } else {
+      entries.push({
+        kind: "unsupported-preserved-only",
+        subject: "relationships:external",
+        message: `${extCount} external relationship(s) preserved as raw XER rows; engine2 does not execute them in this pass.`,
+        justifyingCodes: ["external_relationship_preserved_raw"],
+      });
+    }
+  }
+
+  // 5. Interproject relationships honored — explicit "match" entry so the
+  // report shows positive coverage when multi-project XERs link cleanly.
+  if (input.importResult.stats.interprojectRelationshipsCount > 0) {
     entries.push({
-      kind: "unsupported-preserved-only",
-      subject: "relationships:external",
-      message: `${input.importResult.stats.externalRelationshipsPreservedRaw} external relationship(s) preserved as raw XER rows; engine2 does not execute them in this pass.`,
-      justifyingCodes: ["external_relationship_preserved_raw"],
+      kind: "match",
+      subject: "relationships:interproject",
+      message: `${input.importResult.stats.interprojectRelationshipsCount} interproject relationship(s) wired into engine2 graph (both projects present).`,
+      justifyingCodes: ["interproject_relationship_mapped"],
     });
   }
 
