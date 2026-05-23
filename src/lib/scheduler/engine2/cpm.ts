@@ -473,7 +473,7 @@ export function calculateCpm(input: CpmInput): EngineResult {
     for (const n of st.notes) diagnostics.push(n);
 
     // ---- Progress / duration derivation (Phase 1.3) ----
-    const status: import("./types").ActivityStatus = st.completed
+    const status: ActivityStatus = st.completed
       ? "completed"
       : st.inProgress
         ? "in-progress"
