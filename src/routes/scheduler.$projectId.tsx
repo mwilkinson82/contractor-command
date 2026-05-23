@@ -719,10 +719,18 @@ function SchedulerPage() {
               <button className="rounded bg-white px-3 py-1 text-xs font-medium shadow-sm">
                 Gantt
               </button>
-              <button className="px-3 py-1 text-xs text-[#7a6a4d] hover:text-[#3d3527]">
+              <button
+                disabled
+                title="Board view — coming soon"
+                className="px-3 py-1 text-xs text-[#c7b89d] cursor-not-allowed"
+              >
                 Board
               </button>
-              <button className="px-3 py-1 text-xs text-[#7a6a4d] hover:text-[#3d3527]">
+              <button
+                disabled
+                title="List view — coming soon"
+                className="px-3 py-1 text-xs text-[#c7b89d] cursor-not-allowed"
+              >
                 List
               </button>
             </div>
