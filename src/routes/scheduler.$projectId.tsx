@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -94,6 +94,32 @@ function SchedulerPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [dirty, setDirty] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const leftScrollRef = useRef<HTMLDivElement | null>(null);
+  const rightScrollRef = useRef<HTMLDivElement | null>(null);
+  const syncingRef = useRef<"left" | "right" | null>(null);
+  useEffect(() => {
+    const left = leftScrollRef.current;
+    const right = rightScrollRef.current;
+    if (!left || !right) return;
+    const onLeft = () => {
+      if (syncingRef.current === "right") return;
+      syncingRef.current = "left";
+      right.scrollTop = left.scrollTop;
+      requestAnimationFrame(() => { syncingRef.current = null; });
+    };
+    const onRight = () => {
+      if (syncingRef.current === "left") return;
+      syncingRef.current = "right";
+      left.scrollTop = right.scrollTop;
+      requestAnimationFrame(() => { syncingRef.current = null; });
+    };
+    left.addEventListener("scroll", onLeft, { passive: true });
+    right.addEventListener("scroll", onRight, { passive: true });
+    return () => {
+      left.removeEventListener("scroll", onLeft);
+      right.removeEventListener("scroll", onRight);
+    };
+  }, []);
   const [dayPx, setDayPx] = useState(22);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [groupBy, setGroupBy] = useState<"wbs" | "critical" | "none">("wbs");
@@ -819,7 +845,8 @@ function SchedulerPage() {
                         <Plus className="mr-1 h-3 w-3" /> Add
                       </Button>
                     </div>
-                    <div className="flex-1 overflow-auto">
+                    <div ref={leftScrollRef} className="flex-1 overflow-auto">
+
                       <table className="w-full text-xs">
                         <thead className="sticky top-0 z-10 bg-[#faf8f3] text-[10px] uppercase tracking-wide text-[#7a6a4d] shadow-sm">
                           <tr>
@@ -1025,7 +1052,7 @@ function SchedulerPage() {
 
                   {/* RIGHT: Gantt */}
                   <div className="scheduler-print-right flex flex-1 min-w-0 flex-col bg-white">
-                    <div className="flex-1 overflow-auto" data-gantt-container>
+                    <div ref={rightScrollRef} className="flex-1 overflow-auto" data-gantt-container>
                       {computed ? (
                         <CpmGrid
                           result={computed}
