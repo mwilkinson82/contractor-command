@@ -487,10 +487,9 @@ export function calculateCpm(input: CpmInput): EngineResult {
           : 0;
       remainingDurationMinutes = 0;
     } else if (st.inProgress) {
-      const upTo = Math.min(input.dataDate, Date.now() + 1e15); // safe upper bound
       actualDurationMinutes = Math.max(
         0,
-        cal.diffWork(a.actualStart!, upTo),
+        cal.diffWork(a.actualStart!, input.dataDate),
       );
       remainingDurationMinutes = Math.max(0, a.remainingDuration.minutes | 0);
     } else {
