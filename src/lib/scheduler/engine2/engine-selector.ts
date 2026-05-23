@@ -264,6 +264,7 @@ export function runScheduleWithSelectedEngine(
   const readiness = evaluatePromotionReadiness(
     options.evidenceLog ?? { createdAt: "", entries: [] },
   );
+  const eligibility = evaluateScheduleEligibility(schedule);
 
   const resolution = resolveEngineMode({
     requestedMode,
@@ -271,11 +272,32 @@ export function runScheduleWithSelectedEngine(
     forcePastReadinessGate: options.forcePastReadinessGate,
   });
 
+  // Phase 3.1 safety audit: eligibility blockers force engine2-internal
+  // back to comparison even if the boring-bar passes or is force-bypassed.
+  // This is a per-schedule check that protects against engine2 being
+  // selected for inputs it cannot safely calculate.
+  let effectiveMode = resolution.effectiveMode;
+  let downgraded = resolution.downgraded;
+  let downgradeReason = resolution.reason;
+  if (effectiveMode === "engine2-internal" && !eligibility.eligible) {
+    effectiveMode = "comparison";
+    downgraded = true;
+    downgradeReason = `schedule ineligible: ${eligibility.blockers.join("; ")}`;
+  }
+
   // Always compute the legacy result first — it's the safety net.
   const legacyResult = safeLegacy(schedule, options);
 
+  const gateDecision = formatGateDecision({
+    requestedMode,
+    effectiveMode,
+    readinessReady: readiness.ready,
+    scheduleEligible: eligibility.eligible,
+    forcedPastReadiness: !!options.forcePastReadinessGate,
+  });
+
   // Mode = legacy-only → no engine2 work.
-  if (resolution.effectiveMode === "legacy-only") {
+  if (effectiveMode === "legacy-only") {
     return {
       result: legacyResult,
       provenance: makeProvenance({
@@ -283,8 +305,11 @@ export function runScheduleWithSelectedEngine(
         effectiveMode: "legacy-only",
         engineUsed: "legacy",
         fallbackUsed: false,
-        fallbackReason: resolution.reason,
+        fallbackReason: downgradeReason,
         readiness,
+        eligibility,
+        gateDecision,
+        warnings: eligibility.warnings,
         selectedAt: now,
       }),
     };
@@ -309,7 +334,7 @@ export function runScheduleWithSelectedEngine(
   // engine2-internal: engine2 was the *selected* authority. Legacy result
   // remains the public payload (schedule state safety). If engine2 errored
   // OR the comparison could not be produced, we record the fallback.
-  if (resolution.effectiveMode === "engine2-internal") {
+  if (effectiveMode === "engine2-internal") {
     const fallback = !!engine2Error || !comparison;
     return {
       result: legacyResult,
@@ -324,6 +349,9 @@ export function runScheduleWithSelectedEngine(
         comparisonVerdict: comparison?.verdict,
         diagnosticsCount: comparison?.engine2DiagnosticsCount ?? 0,
         readiness,
+        eligibility,
+        gateDecision,
+        warnings: eligibility.warnings,
         selectedAt: now,
       }),
     };
@@ -338,15 +366,35 @@ export function runScheduleWithSelectedEngine(
       requestedMode,
       effectiveMode: "comparison",
       engineUsed: "legacy",
-      fallbackUsed: resolution.downgraded,
-      fallbackReason: resolution.downgraded ? resolution.reason : undefined,
+      fallbackUsed: downgraded,
+      fallbackReason: downgraded ? downgradeReason : undefined,
       comparisonVerdict: comparison?.verdict,
       diagnosticsCount: comparison?.engine2DiagnosticsCount ?? 0,
       readiness,
+      eligibility,
+      gateDecision,
+      warnings: eligibility.warnings,
       selectedAt: now,
     }),
   };
 }
+
+function formatGateDecision(input: {
+  requestedMode: EngineMode;
+  effectiveMode: EngineMode;
+  readinessReady: boolean;
+  scheduleEligible: boolean;
+  forcedPastReadiness: boolean;
+}): string {
+  const parts = [
+    `req=${input.requestedMode}`,
+    `eff=${input.effectiveMode}`,
+    `readiness=${input.readinessReady ? "pass" : "fail"}${input.forcedPastReadiness ? "(forced)" : ""}`,
+    `eligibility=${input.scheduleEligible ? "pass" : "fail"}`,
+  ];
+  return parts.join(" ");
+}
+
 
 function safeLegacy(schedule: Schedule, opts: SchedulerOptions): ScheduleResult {
   // Legacy must never be allowed to bring down the selector. If it ever
