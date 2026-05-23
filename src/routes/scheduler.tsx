@@ -51,10 +51,10 @@ const STATUS_DOT: Record<Project["status"], string> = {
 function ProjectsHome() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
 
-  if (pathname !== "/scheduler") {
-    return <Outlet />;
-  }
+  return pathname === "/scheduler" ? <ProjectsIndex /> : <Outlet />;
+}
 
+function ProjectsIndex() {
   const qc = useQueryClient();
   const listFn = useServerFn(listProjects);
   const createFn = useServerFn(createProject);
