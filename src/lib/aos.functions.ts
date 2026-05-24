@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { createHmac } from "crypto";
+import { createHmac, createHash } from "crypto";
 
 export type AosMeasurable = {
   id: string;
@@ -552,4 +552,135 @@ export const linkExistingAosAccount = createServerFn({ method: "POST" })
       aos_email: data.aosEmail,
       company_name: snapshot.linked ? snapshot.company_name : null,
     };
+  });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SOP hand-off: mint a short-lived signed token that carries a full SopDocument
+// payload to AOS. AOS verifies the HMAC, shows a confirm screen
+// (workspace + category + owner pre-filled), and writes the SOP into the
+// chosen workspace's Knowledge Hub. See docs/aos-sop-handoff-spec.md for the
+// receiving-side contract.
+//
+// Token shape (URL): /hub/import?payload=<base64url-json>&sig=<hex>&ts=&nonce=
+// Signing string:    `${email}|${ts}|${nonce}|${version_hash}`
+//   - version_hash = sha256(canonical SopDocument JSON) (also lives in payload)
+//   - AOS recomputes version_hash from payload; if it doesn't match, reject.
+// TTL: 5 minutes (AOS-enforced).
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+
+type SopHandoffPayload = {
+  v: 1;
+  aos_email: string;
+  ts: number;
+  nonce: string;
+  source: "circle";
+  source_key: string;       // stable per-SOP id (slug of title) — enables "new version" detection
+  version_hash: string;     // sha256 of canonical SOP JSON
+  sop: unknown;             // full SopDocument
+  defaults: {
+    category?: string | null;   // pre-fill in AOS Knowledge Hub
+    owner?: string | null;
+  };
+};
+
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || "sop";
+}
+
+function canonicalJson(value: unknown): string {
+  // Stable stringify (sorted keys) so version_hash is deterministic across runs.
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const keys = Object.keys(obj).sort();
+    return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalJson(obj[k])}`).join(",")}}`;
+  }
+  return JSON.stringify(value ?? null);
+}
+
+function base64url(buf: Buffer | string): string {
+  const b = typeof buf === "string" ? Buffer.from(buf, "utf8") : buf;
+  return b.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+export type AosSopHandoff =
+  | { ok: true; url: string; aos_email: string; source_key: string; version_hash: string }
+  | { ok: false; error: string };
+
+export const mintAosSopImportToken = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { sop: Record<string, unknown>; defaults?: { category?: string; owner?: string } }) => {
+    if (!input?.sop || typeof input.sop !== "object") {
+      throw new Error("Missing SOP payload.");
+    }
+    const title = (input.sop as { title?: unknown }).title;
+    if (typeof title !== "string" || !title.trim()) {
+      throw new Error("SOP must have a title.");
+    }
+    if (title.length > 200) throw new Error("SOP title is too long.");
+    return {
+      sop: input.sop,
+      defaults: {
+        category: input.defaults?.category?.toString().slice(0, 80) ?? null,
+        owner: input.defaults?.owner?.toString().slice(0, 120) ?? null,
+      },
+    };
+  })
+  .handler(async ({ data, context }): Promise<AosSopHandoff> => {
+    const baseUrl = process.env.AOS_BASE_URL;
+    const secret = process.env.AOS_SHARED_SECRET;
+    if (!baseUrl || !secret) {
+      return { ok: false, error: "AOS link not configured on Circle." };
+    }
+
+    const claimEmail = (context.claims as { email?: string } | null)?.email ?? null;
+    if (!claimEmail) return { ok: false, error: "No email on your account." };
+
+    const { supabase, userId } = context;
+    const { data: link } = await supabase
+      .from("aos_links")
+      .select("aos_email")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    const aosEmail = (link?.aos_email ?? claimEmail).toLowerCase().trim();
+    const ts = Math.floor(Date.now() / 1000);
+    const nonce =
+      Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
+
+    const sopTitle = (data.sop as { title: string }).title;
+    const sourceKey = `circle-sop-${slugify(sopTitle)}`;
+    const versionHash = createHash("sha256").update(canonicalJson(data.sop)).digest("hex");
+
+    const payload: SopHandoffPayload = {
+      v: 1,
+      aos_email: aosEmail,
+      ts,
+      nonce,
+      source: "circle",
+      source_key: sourceKey,
+      version_hash: versionHash,
+      sop: data.sop,
+      defaults: data.defaults,
+    };
+
+    const payloadB64 = base64url(JSON.stringify(payload));
+    const signingString = `${aosEmail}|${ts}|${nonce}|${versionHash}`;
+    const sig = createHmac("sha256", secret.trim()).update(signingString).digest("hex");
+
+    const url =
+      `${baseUrl.replace(/\/$/, "")}/hub/import` +
+      `?payload=${payloadB64}` +
+      `&sig=${sig}` +
+      `&ts=${ts}` +
+      `&nonce=${encodeURIComponent(nonce)}` +
+      `&from=circle`;
+
+    return { ok: true, url, aos_email: aosEmail, source_key: sourceKey, version_hash: versionHash };
   });

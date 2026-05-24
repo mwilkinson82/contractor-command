@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { sendTransactionalEmail } from "@/lib/email/send";
 import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { mintAosSopImportToken } from "@/lib/aos.functions";
 import { vault } from "@/lib/vault";
 import type { SopDocument, SopStep } from "@/lib/tools/sop-draft";
 import type jsPDF from "jspdf";
@@ -42,6 +44,36 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
   const [doc, setDoc] = useState<SopDocument | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
   const triedDraft = useRef(false);
+
+  // AOS Knowledge Hub hand-off
+  const mintAosImport = useServerFn(mintAosSopImportToken);
+  const [aosSending, setAosSending] = useState(false);
+  const [aosSentAt, setAosSentAt] = useState<number | null>(null);
+  const [aosError, setAosError] = useState<string | null>(null);
+
+  async function sendToAos() {
+    if (!doc) return;
+    setAosSending(true);
+    setAosError(null);
+    try {
+      const res = await mintAosImport({
+        data: {
+          sop: doc as unknown as Record<string, unknown>,
+          defaults: { category: doc.department, owner: doc.owner },
+        },
+      });
+      if (!res.ok) {
+        setAosError(res.error);
+        return;
+      }
+      window.open(res.url, "_blank", "noopener,noreferrer");
+      setAosSentAt(Date.now());
+    } catch (e) {
+      setAosError(e instanceof Error ? e.message : "Hand-off failed.");
+    } finally {
+      setAosSending(false);
+    }
+  }
 
   useEffect(() => {
     if (triedDraft.current) return;
@@ -410,6 +442,16 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
             </button>
             <button
               type="button"
+              onClick={sendToAos}
+              disabled={aosSending}
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-[13px] font-medium text-foreground hover:bg-muted disabled:opacity-60"
+              title="Open AOS Knowledge Hub to import this SOP"
+            >
+              <Send className="h-3.5 w-3.5" />
+              {aosSending ? "Opening AOS…" : aosSentAt ? "Sent to AOS ✓" : "Send to AOS Knowledge Hub"}
+            </button>
+            <button
+              type="button"
               onClick={() => { triedDraft.current = false; void draft(); }}
               className="ml-auto inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-[12px] text-foreground/70 hover:bg-muted"
               title="Re-draft from scratch with AI (discards your edits)"
@@ -417,6 +459,13 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
               <Sparkles className="h-3.5 w-3.5" /> Re-draft
             </button>
           </div>
+
+          {aosError && (
+            <div className="mt-3 rounded-md border border-signal/40 bg-signal/10 p-3 text-[12px] text-signal">
+              {aosError}
+            </div>
+          )}
+
 
           {emailOpen && (
             <div ref={emailPanelRef} className="mt-3 rounded-md border border-border bg-background/60 p-4">
