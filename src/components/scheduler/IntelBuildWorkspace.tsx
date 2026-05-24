@@ -11,8 +11,18 @@
  *   - src/lib/scheduler/intel-build.ts (data shapes the eventual AI fills)
  */
 
-import { useState } from "react";
-import { BUILD_GUARDRAILS } from "@/lib/scheduler/intel-build";
+import { useMemo, useState } from "react";
+import {
+  BUILD_GUARDRAILS,
+  isChangeSetCommittable,
+  type DraftSchedule,
+  type ProposedChangeSet,
+} from "@/lib/scheduler/intel-build";
+import {
+  buildDemoDraftSchedule,
+  buildPreviewChangeSet,
+  countChangeSet,
+} from "@/lib/scheduler/intel-build-demo";
 import { INTEL_ADVISORY_NOTE } from "@/lib/scheduler/intel-context";
 
 export interface IntelBuildWorkspaceProps {
@@ -46,6 +56,15 @@ export function IntelBuildWorkspace({
 }: IntelBuildWorkspaceProps) {
   const [source, setSource] = useState<SourceKind>("manual_prompt");
   const [input, setInput] = useState("");
+  const [demoDraft, setDemoDraft] = useState<DraftSchedule | null>(null);
+  const previewChangeSet = useMemo<ProposedChangeSet | null>(
+    () => (demoDraft ? buildPreviewChangeSet(demoDraft) : null),
+    [demoDraft],
+  );
+  const changeCounts = useMemo(
+    () => (previewChangeSet ? countChangeSet(previewChangeSet) : null),
+    [previewChangeSet],
+  );
 
   return (
     <div
@@ -127,17 +146,18 @@ export function IntelBuildWorkspace({
             <div className="flex gap-1">
               <button
                 type="button"
-                disabled
-                className="cursor-not-allowed rounded border border-[#ece8db] bg-white px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-[#8a8980]"
-                title="Coming soon"
+                onClick={() => setDemoDraft(buildDemoDraftSchedule())}
+                className="rounded border border-[#1f241f] bg-white px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-[#1f241f] hover:bg-[#1f241f] hover:text-[#f7e9b8]"
+                title="Internal demo only — not AI output"
+                data-testid="intel-build-load-demo"
               >
-                Create Draft — soon
+                {demoDraft ? "Reload Demo Draft" : "Load Demo Draft"}
               </button>
               <button
                 type="button"
                 disabled
                 className="cursor-not-allowed rounded bg-[#1f241f]/40 px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-[#f7e9b8]"
-                title="Coming soon"
+                title="Approval flow not wired"
               >
                 Add to Schedule — soon
               </button>
@@ -150,19 +170,29 @@ export function IntelBuildWorkspace({
           className="flex min-h-0 flex-col gap-3"
           data-testid="intel-build-preview"
         >
-          <DraftSlot title="Proposed WBS" hint="Sections roll-up will appear here." />
-          <DraftSlot
-            title="Proposed Activities"
-            hint="Activities with durations and crew/resource hints will appear here."
-          />
-          <DraftSlot
-            title="Proposed Logic"
-            hint="Predecessor → successor relationships and lags will appear here."
-          />
-          <DraftSlot
-            title="Assumptions & Open Questions"
-            hint="The assistant will list every assumption it made and every question it needs you to answer."
-          />
+          {demoDraft ? (
+            <DemoDraftPreview
+              draft={demoDraft}
+              changeSet={previewChangeSet!}
+              counts={changeCounts!}
+            />
+          ) : (
+            <>
+              <DraftSlot title="Proposed WBS" hint="Sections roll-up will appear here." />
+              <DraftSlot
+                title="Proposed Activities"
+                hint="Activities with durations and crew/resource hints will appear here."
+              />
+              <DraftSlot
+                title="Proposed Logic"
+                hint="Predecessor → successor relationships and lags will appear here."
+              />
+              <DraftSlot
+                title="Assumptions & Open Questions"
+                hint="The assistant will list every assumption it made and every question it needs you to answer."
+              />
+            </>
+          )}
           <ApprovalChecklist />
         </section>
       </div>
@@ -193,6 +223,183 @@ function DraftSlot({ title, hint }: { title: string; hint: string }) {
       <div className="mt-1 text-[11px] leading-relaxed text-[#8a8980]">
         Empty — {hint}
       </div>
+    </div>
+  );
+}
+
+function DemoDraftPreview({
+  draft,
+  changeSet,
+  counts,
+}: {
+  draft: DraftSchedule;
+  changeSet: ProposedChangeSet;
+  counts: { addActivity: number; addRelationship: number; addMilestone: number; total: number };
+}) {
+  const committable = isChangeSetCommittable(changeSet);
+  const wbsById = new Map(draft.wbs.map((w) => [w.id, w]));
+  const actById = new Map(draft.activities.map((a) => [a.id, a]));
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[10.5px] text-amber-900">
+        DEMO DRAFT — internal scaffold data, not produced by an AI model. Not
+        committed. Assumptions must be reviewed. Changes require approval.
+      </div>
+
+      <Panel title={`Proposed WBS (${draft.wbs.length})`}>
+        <ul className="space-y-0.5">
+          {draft.wbs.map((w) => (
+            <li key={w.id} className="text-[11px] text-[#3a3a35]">
+              <span className="font-mono text-[#675d4b]">{w.code ?? "—"}</span>{" "}
+              {w.name}
+            </li>
+          ))}
+        </ul>
+      </Panel>
+
+      <Panel title={`Proposed Activities (${draft.activities.length})`}>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-[11px]">
+            <thead>
+              <tr className="text-left text-[10px] uppercase tracking-wider text-[#8a8980]">
+                <th className="py-1 pr-2 font-semibold">Name</th>
+                <th className="py-1 pr-2 font-semibold">WBS</th>
+                <th className="py-1 pr-2 font-semibold">Dur</th>
+                <th className="py-1 pr-2 font-semibold">Type</th>
+                <th className="py-1 font-semibold">Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {draft.activities.map((a) => (
+                <tr key={a.id} className="border-t border-[#ece8db]">
+                  <td className="py-1 pr-2">{a.name}</td>
+                  <td className="py-1 pr-2 font-mono text-[#675d4b]">
+                    {a.wbsId ? wbsById.get(a.wbsId)?.code ?? "—" : "—"}
+                  </td>
+                  <td className="py-1 pr-2">{a.durationDays ?? "—"}d</td>
+                  <td className="py-1 pr-2">{a.isMilestone ? "Milestone" : "Task"}</td>
+                  <td className="py-1 text-[#8a8980]">
+                    {a.assumed ? "assumed" : ""}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+
+      <Panel title={`Proposed Logic (${draft.relationships.length})`}>
+        <ul className="space-y-0.5">
+          {draft.relationships.map((r) => (
+            <li key={r.id} className="text-[11px] text-[#3a3a35]">
+              <span className="text-[#675d4b]">
+                {actById.get(r.predecessorId)?.name ?? r.predecessorId}
+              </span>{" "}
+              → {" "}
+              <span className="text-[#675d4b]">
+                {actById.get(r.successorId)?.name ?? r.successorId}
+              </span>{" "}
+              <span className="font-mono text-[10px] text-[#8a8980]">
+                {r.type}
+                {typeof r.lag === "number" ? ` +${r.lag}d` : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </Panel>
+
+      <Panel title={`Milestones (${draft.milestones.length})`}>
+        <ul className="space-y-0.5">
+          {draft.milestones.map((m) => (
+            <li key={m.id} className="text-[11px] text-[#3a3a35]">
+              ◆ {m.name}
+            </li>
+          ))}
+        </ul>
+      </Panel>
+
+      <Panel title={`Assumptions (${draft.assumptions.length})`}>
+        <ul className="space-y-0.5">
+          {draft.assumptions.map((a) => (
+            <li key={a.id} className="text-[11px] text-[#3a3a35]">
+              • {a.label}
+              {a.detail ? (
+                <span className="text-[#8a8980]"> — {a.detail}</span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      </Panel>
+
+      <Panel title={`Open Questions (${draft.questions.length})`}>
+        <ul className="space-y-0.5">
+          {draft.questions.map((q) => (
+            <li key={q.id} className="text-[11px] text-[#3a3a35]">
+              ? {q.question}
+            </li>
+          ))}
+        </ul>
+      </Panel>
+
+      {draft.warnings.length > 0 ? (
+        <Panel title={`Warnings (${draft.warnings.length})`}>
+          <ul className="space-y-0.5">
+            {draft.warnings.map((w) => (
+              <li key={w.id} className="text-[11px] text-[#3a3a35]">
+                <span className="font-mono text-[10px] uppercase text-[#8a8980]">
+                  [{w.severity}]
+                </span>{" "}
+                {w.message}
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      ) : null}
+
+      <Panel title="Proposed Change Set Preview">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Stat label="Add activity" value={counts.addActivity} />
+          <Stat label="Add relationship" value={counts.addRelationship} />
+          <Stat label="Add milestone" value={counts.addMilestone} />
+          <Stat label="Total changes" value={counts.total} />
+        </div>
+        <div
+          className={
+            "mt-2 inline-block rounded border px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wider " +
+            (committable
+              ? "border-emerald-600 bg-emerald-50 text-emerald-800"
+              : "border-[#ddd6c4] bg-white text-[#8a8980]")
+          }
+          data-testid="intel-build-committable"
+        >
+          Committable: {committable ? "yes" : "no"}
+        </div>
+        <p className="mt-1 text-[10.5px] text-[#8a8980]">
+          Commit is not implemented. This preview is advisory only.
+        </p>
+      </Panel>
+    </div>
+  );
+}
+
+function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded border border-[#ece8db] bg-white/80 p-3">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#675d4b]">
+        {title}
+      </div>
+      <div className="mt-2">{children}</div>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded border border-[#ece8db] bg-[#fdfcf7] px-2 py-1">
+      <div className="text-[9.5px] uppercase tracking-wider text-[#8a8980]">
+        {label}
+      </div>
+      <div className="text-[14px] font-semibold text-[#1f241f]">{value}</div>
     </div>
   );
 }
