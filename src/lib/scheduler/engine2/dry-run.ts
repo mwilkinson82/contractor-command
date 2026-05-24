@@ -288,6 +288,7 @@ function buildSummary(
   legacy: ScheduleResult,
   report: ComparisonReport,
   ctx: {
+    schedule: Schedule;
     eligibilityBlockers: string[];
     eligibilityWarnings: string[];
     engine2Error?: string;
@@ -303,21 +304,83 @@ function buildSummary(
   const missingE2 = new Set<string>();
   const missingLg = new Set<string>();
 
+  // Phase 3.8 — convention vs true-mismatch tracking.
+  const conventionEarlyFinish = new Set<string>();
+  const conventionLateFinish = new Set<string>();
+  const trueEarlyStart = new Set<string>();
+  const trueEarlyFinish = new Set<string>();
+  const trueLateStart = new Set<string>();
+  const trueLateFinish = new Set<string>();
+
   let maxDateDelta = 0;
   let maxFloatDelta = 0;
+  let maxNormalizedDateDelta = 0;
 
   for (const d of report.differences as ComparisonDifference[]) {
     switch (d.category) {
-      case "early_start_date":
-      case "early_finish_date": {
+      case "early_start_date": {
         earlyDateIds.add(d.id);
-        maxDateDelta = Math.max(maxDateDelta, dateDeltaDays(d.legacy, d.engine2));
+        const raw = dateDeltaDays(d.legacy, d.engine2);
+        maxDateDelta = Math.max(maxDateDelta, raw);
+        // Starts are not subject to the finish-rendering convention.
+        trueEarlyStart.add(d.id);
+        maxNormalizedDateDelta = Math.max(maxNormalizedDateDelta, raw);
         break;
       }
-      case "late_start_date":
+      case "early_finish_date": {
+        earlyDateIds.add(d.id);
+        const raw = dateDeltaDays(d.legacy, d.engine2);
+        maxDateDelta = Math.max(maxDateDelta, raw);
+        const verdict = classifyFinishDateMismatch(
+          typeof d.legacy === "string" ? d.legacy : null,
+          typeof d.engine2 === "string" ? d.engine2 : null,
+          ctx.schedule,
+        );
+        if (verdict === "convention-only") {
+          conventionEarlyFinish.add(d.id);
+        } else if (verdict === "true-mismatch") {
+          trueEarlyFinish.add(d.id);
+          const normalized = normalizeEngine2FinishIso(
+            typeof d.engine2 === "string" ? d.engine2 : null,
+            ctx.schedule,
+          );
+          maxNormalizedDateDelta = Math.max(
+            maxNormalizedDateDelta,
+            dateDeltaDays(typeof d.legacy === "string" ? d.legacy : null, normalized),
+          );
+        }
+        break;
+      }
+      case "late_start_date": {
+        lateDateIds.add(d.id);
+        const raw = dateDeltaDays(d.legacy, d.engine2);
+        maxDateDelta = Math.max(maxDateDelta, raw);
+        trueLateStart.add(d.id);
+        maxNormalizedDateDelta = Math.max(maxNormalizedDateDelta, raw);
+        break;
+      }
       case "late_finish_date": {
         lateDateIds.add(d.id);
-        maxDateDelta = Math.max(maxDateDelta, dateDeltaDays(d.legacy, d.engine2));
+        const raw = dateDeltaDays(d.legacy, d.engine2);
+        maxDateDelta = Math.max(maxDateDelta, raw);
+        const verdict = classifyFinishDateMismatch(
+          typeof d.legacy === "string" ? d.legacy : null,
+          typeof d.engine2 === "string" ? d.engine2 : null,
+          ctx.schedule,
+        );
+        if (verdict === "convention-only") {
+          conventionLateFinish.add(d.id);
+        } else if (verdict === "true-mismatch") {
+          trueLateFinish.add(d.id);
+          const normalized = normalizeEngine2FinishIso(
+            typeof d.engine2 === "string" ? d.engine2 : null,
+            ctx.schedule,
+          );
+          maxNormalizedDateDelta = Math.max(
+            maxNormalizedDateDelta,
+            dateDeltaDays(typeof d.legacy === "string" ? d.legacy : null, normalized),
+          );
+        }
         break;
       }
       case "total_float":
@@ -370,10 +433,33 @@ function buildSummary(
     report.activityCount.legacy - activitiesWithAnyDateDiff.size,
   );
 
+  // Phase 3.8 — an activity is convention-adjusted differing iff it has at
+  // least one date diff that survives normalization (i.e. a true mismatch
+  // in any of ES / EF / LS / LF). Activities whose only date diffs are
+  // convention-only finish renderings collapse into the matching bucket.
+  const trueActivityIds = new Set<string>([
+    ...trueEarlyStart,
+    ...trueEarlyFinish,
+    ...trueLateStart,
+    ...trueLateFinish,
+  ]);
+  const conventionAdjustedDifferingCount = trueActivityIds.size;
+  const conventionAdjustedMatchingCount = Math.max(
+    0,
+    report.activityCount.legacy - conventionAdjustedDifferingCount,
+  );
+
   const legacyFinish = legacy.projectFinishDate ?? null;
   let engine2Finish = deriveEngine2ProjectFinishIso(report);
   if (engine2Finish === null) engine2Finish = legacyFinish;
   const finishDelta = dateDeltaDays(legacyFinish, engine2Finish);
+
+  const engine2FinishNormalized = normalizeEngine2FinishIso(engine2Finish, ctx.schedule);
+  const finishNormalizedDelta = dateDeltaDays(legacyFinish, engine2FinishNormalized);
+  const projectFinishNormalizedMatch =
+    typeof legacyFinish === "string" &&
+    typeof engine2FinishNormalized === "string" &&
+    legacyFinish === engine2FinishNormalized;
 
   return {
     engine2Ran: true,
@@ -387,7 +473,25 @@ function buildSummary(
       engine2: engine2Finish,
       deltaDays: finishDelta,
     },
+    normalizedProjectFinish: {
+      engine2Normalized: engine2FinishNormalized,
+      deltaDays: finishNormalizedDelta,
+      match: projectFinishNormalizedMatch,
+    },
+    maxNormalizedDateDeltaDays: maxNormalizedDateDelta,
+    conventionAdjustedMatchingCount,
+    conventionAdjustedDifferingCount,
     mismatchIds,
+    conventionMismatchIds: {
+      earlyFinish: [...conventionEarlyFinish].sort(),
+      lateFinish: [...conventionLateFinish].sort(),
+    },
+    trueDateMismatchIds: {
+      earlyStart: [...trueEarlyStart].sort(),
+      earlyFinish: [...trueEarlyFinish].sort(),
+      lateStart: [...trueLateStart].sort(),
+      lateFinish: [...trueLateFinish].sort(),
+    },
     engine2DiagnosticsCount: report.engine2DiagnosticsCount,
     engine2Error: ctx.engine2Error,
     eligibilityBlockers: ctx.eligibilityBlockers,
