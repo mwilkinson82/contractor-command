@@ -767,7 +767,7 @@ export function CpmGrid({
                       markerHeight="6"
                       orient="auto-start-reverse"
                     >
-                      <path d="M0,0 L10,5 L0,10 z" fill="#9c8b6e" />
+                      <path d="M0,0 L10,5 L0,10 z" fill="#a8a59b" />
                     </marker>
                     <marker
                       id="cpm-arrow-chain"
@@ -814,7 +814,7 @@ export function CpmGrid({
                       ? bothCrit
                         ? "#9c2418"
                         : "#2a3e5f"
-                      : "#9c8b6e";
+                      : "#a8a59b";
                     const marker = onChain
                       ? "url(#cpm-arrow-chain)"
                       : d.isDriving
@@ -966,7 +966,7 @@ export function CpmGrid({
               {t.name}
             </div>
             {t.wbs ? (
-              <div className="text-[10px] text-[#9c8b6e]">{t.wbs}</div>
+              <div className="text-[10px] text-[#a8a59b]">{t.wbs}</div>
             ) : null}
 
             <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
@@ -1002,7 +1002,7 @@ export function CpmGrid({
             {t.resourceName ? (
               <div className="mt-2 flex items-center justify-between text-[10px] text-[#5c574e]">
                 <span>
-                  <span className="text-[#9c8b6e]">Resource</span>{" "}
+                  <span className="text-[#a8a59b]">Resource</span>{" "}
                   <span className="font-medium text-[#1f241f]">{t.resourceName}</span>
                 </span>
                 {t.resourceUnitsPerDay ? (
@@ -1047,7 +1047,7 @@ function HC({
           : "text-[#1f241f]";
   return (
     <div>
-      <div className="text-[9px] font-semibold uppercase tracking-wider text-[#9c8b6e]">
+      <div className="text-[9px] font-semibold uppercase tracking-wider text-[#a8a59b]">
         {label}
       </div>
       <div className={`text-[12px] font-semibold tabular-nums ${toneClass}`}>{value}</div>
