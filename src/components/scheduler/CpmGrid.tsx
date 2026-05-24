@@ -328,16 +328,16 @@ export function CpmGrid({
                   return (
                     <tr
                       key={`g-${row.key}`}
-                      className="cursor-pointer bg-[#f5efe0] font-medium text-[#3d3527] hover:bg-[#efe7d2]"
+                      className="cursor-pointer bg-[#eeede7] font-medium text-[#2d2d28] hover:bg-[#e6e5dd]"
                       style={{ height: GROUP_H }}
                       onClick={() => onToggleGroup?.(row.key)}
                     >
-                      <td colSpan={9} className="border-b border-[#e8dfc8] px-2">
-                        <span className="mr-1.5 inline-block w-3 text-center text-[10px] text-[#9c8b6e]">
+                      <td colSpan={9} className="border-b border-[#dad7cd] px-2">
+                        <span className="mr-1.5 inline-block w-3 text-center text-[10px] text-[#7a7972]">
                           {row.collapsed ? "▸" : "▾"}
                         </span>
-                        <span className="text-[10px] uppercase tracking-[0.1em] text-[#5c574e]">{row.key}</span>
-                        <span className="ml-2 text-[10px] font-normal text-[#a8997a]">
+                        <span className="text-[10px] uppercase tracking-[0.1em] text-[#4a4944]">{row.key}</span>
+                        <span className="ml-2 text-[10px] font-normal text-[#8a8980]">
                           · {row.taskCount}
                         </span>
                       </td>
@@ -354,16 +354,16 @@ export function CpmGrid({
                   <tr
                     key={t.id}
                     onClick={() => onSelect(t.id)}
-                    className={`cursor-pointer border-b border-[#f0e9d8] ${
-                      isSelected ? "bg-[#fff7e0]" : i % 2 ? "bg-[#fbf9f3]" : "bg-white"
-                    } hover:bg-[#fff8e6]`}
+                    className={`cursor-pointer border-b border-[#ecebe5] ${
+                      isSelected ? "bg-[#eef3f8]" : i % 2 ? "bg-[#fafaf7]" : "bg-white"
+                    } hover:bg-[#f5f7fa]`}
                     style={{ height: ROW_H }}
                   >
-                    <td className="border-r border-[#f0e9d8] px-2 font-mono text-[10px] text-[#776e5e]">
+                    <td className="border-r border-[#ecebe5] px-2 font-mono text-[10px] text-[#6b6a63]">
                       {t.id}
                     </td>
                     <td
-                      className={`truncate border-r border-[#f0e9d8] px-2 pl-3 text-[#1f241f] ${
+                      className={`truncate border-r border-[#ecebe5] px-2 pl-3 text-[#1f241f] ${
                         t.isCritical ? "font-semibold" : ""
                       }`}
                       style={{ maxWidth: 240 }}
@@ -372,22 +372,22 @@ export function CpmGrid({
                       {isMilestone ? <span className="mr-1 text-[#7a5cc4]">◆</span> : null}
                       {t.name}
                     </td>
-                    <td className="border-r border-[#f0e9d8] px-1 text-right tabular-nums text-[#1f241f]">
+                    <td className="border-r border-[#ecebe5] px-1 text-right tabular-nums text-[#1f241f]">
                       {t.duration}
                     </td>
-                    <td className="border-r border-[#f0e9d8] px-1 text-right tabular-nums text-[#9c8b6e]">
+                    <td className="border-r border-[#ecebe5] px-1 text-right tabular-nums text-[#8a8980]">
                       {actual || ""}
                     </td>
-                    <td className="border-r border-[#f0e9d8] px-1 text-right tabular-nums text-[#1f241f]">
+                    <td className="border-r border-[#ecebe5] px-1 text-right tabular-nums text-[#1f241f]">
                       {remaining}
                     </td>
-                    <td className="border-r border-[#f0e9d8] px-1 text-right tabular-nums text-[#5c574e]">
+                    <td className="border-r border-[#ecebe5] px-1 text-right tabular-nums text-[#4a4944]">
                       {pct > 0 ? `${pct}%` : ""}
                     </td>
-                    <td className="border-r border-[#f0e9d8] px-2 text-[10px] tabular-nums text-[#5c574e]">
+                    <td className="border-r border-[#ecebe5] px-2 text-[10px] tabular-nums text-[#4a4944]">
                       {formatDate(t.earlyStartDate)}
                     </td>
-                    <td className="border-r border-[#f0e9d8] px-2 text-[10px] tabular-nums text-[#5c574e]">
+                    <td className="border-r border-[#ecebe5] px-2 text-[10px] tabular-nums text-[#4a4944]">
                       {formatDate(t.earlyFinishDate)}
                     </td>
                     <td
@@ -396,7 +396,7 @@ export function CpmGrid({
                           ? "font-semibold text-[#b42318]"
                           : nearCriticalFloat > 0 && t.totalFloat > 0 && t.totalFloat <= nearCriticalFloat
                             ? "font-medium text-[#c2750a]"
-                            : "text-[#776e5e]"
+                            : "text-[#6b6a63]"
                       }`}
                     >
                       {t.totalFloat}
@@ -407,6 +407,7 @@ export function CpmGrid({
             </tbody>
           </table>
         </div>
+
 
         {/* ============ RIGHT: calendar gantt ============ */}
         <div className="relative" style={{ width: timelineWidth }}>
