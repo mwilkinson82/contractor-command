@@ -793,7 +793,21 @@ function SchedulerPage() {
           >
             ⚙ Configure
           </button>
+          <button
+            type="button"
+            onClick={() => setFocusMode((v) => !v)}
+            className={`rounded-md border px-2.5 py-1.5 text-xs font-medium ${
+              focusMode
+                ? "border-[#1f241f] bg-[#1f241f] text-white"
+                : "border-[#e3e0d8] bg-white text-[#2d2d28] hover:bg-[#faf8f3]"
+            }`}
+            title={focusMode ? "Exit focus mode" : "Focus mode (hide portal chrome)"}
+            aria-pressed={focusMode}
+          >
+            {focusMode ? "◳ Exit Focus" : "◱ Focus"}
+          </button>
           <Button
+
             size="sm"
             onClick={() => saveMut.mutate()}
             disabled={!dirty || saveMut.isPending}
