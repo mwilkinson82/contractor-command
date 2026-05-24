@@ -146,17 +146,18 @@ export function IntelBuildWorkspace({
             <div className="flex gap-1">
               <button
                 type="button"
-                disabled
-                className="cursor-not-allowed rounded border border-[#ece8db] bg-white px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-[#8a8980]"
-                title="Coming soon"
+                onClick={() => setDemoDraft(buildDemoDraftSchedule())}
+                className="rounded border border-[#1f241f] bg-white px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-[#1f241f] hover:bg-[#1f241f] hover:text-[#f7e9b8]"
+                title="Internal demo only — not AI output"
+                data-testid="intel-build-load-demo"
               >
-                Create Draft — soon
+                {demoDraft ? "Reload Demo Draft" : "Load Demo Draft"}
               </button>
               <button
                 type="button"
                 disabled
                 className="cursor-not-allowed rounded bg-[#1f241f]/40 px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-[#f7e9b8]"
-                title="Coming soon"
+                title="Approval flow not wired"
               >
                 Add to Schedule — soon
               </button>
@@ -169,19 +170,29 @@ export function IntelBuildWorkspace({
           className="flex min-h-0 flex-col gap-3"
           data-testid="intel-build-preview"
         >
-          <DraftSlot title="Proposed WBS" hint="Sections roll-up will appear here." />
-          <DraftSlot
-            title="Proposed Activities"
-            hint="Activities with durations and crew/resource hints will appear here."
-          />
-          <DraftSlot
-            title="Proposed Logic"
-            hint="Predecessor → successor relationships and lags will appear here."
-          />
-          <DraftSlot
-            title="Assumptions & Open Questions"
-            hint="The assistant will list every assumption it made and every question it needs you to answer."
-          />
+          {demoDraft ? (
+            <DemoDraftPreview
+              draft={demoDraft}
+              changeSet={previewChangeSet!}
+              counts={changeCounts!}
+            />
+          ) : (
+            <>
+              <DraftSlot title="Proposed WBS" hint="Sections roll-up will appear here." />
+              <DraftSlot
+                title="Proposed Activities"
+                hint="Activities with durations and crew/resource hints will appear here."
+              />
+              <DraftSlot
+                title="Proposed Logic"
+                hint="Predecessor → successor relationships and lags will appear here."
+              />
+              <DraftSlot
+                title="Assumptions & Open Questions"
+                hint="The assistant will list every assumption it made and every question it needs you to answer."
+              />
+            </>
+          )}
           <ApprovalChecklist />
         </section>
       </div>
