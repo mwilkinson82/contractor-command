@@ -78,19 +78,22 @@ describe("preview change set", () => {
 });
 
 describe("no mutation surface", () => {
-  it("intel-build-demo module exports no commit/apply/write functions", async () => {
+  // Guard names like `isChangeSetCommittable` are allowed; we forbid
+  // exported mutation verbs (commit/apply/write/save/persist/mutate)
+  // that would actually act on a live schedule.
+  const MUTATION_VERB = /^(commit|apply|write|save|persist|mutate)/i;
+
+  it("intel-build-demo module exports no mutation verbs", async () => {
     const mod = await import("../intel-build-demo");
-    const names = Object.keys(mod);
-    for (const n of names) {
-      expect(n).not.toMatch(/commit|apply|write|save|persist|mutate/i);
+    for (const n of Object.keys(mod)) {
+      expect(n).not.toMatch(MUTATION_VERB);
     }
   });
 
-  it("intel-build module exports no commit/apply/write functions", async () => {
+  it("intel-build module exports no mutation verbs", async () => {
     const mod = await import("../intel-build");
-    const names = Object.keys(mod);
-    for (const n of names) {
-      expect(n).not.toMatch(/commit|apply|write|save|persist|mutate/i);
+    for (const n of Object.keys(mod)) {
+      expect(n).not.toMatch(MUTATION_VERB);
     }
   });
 });
