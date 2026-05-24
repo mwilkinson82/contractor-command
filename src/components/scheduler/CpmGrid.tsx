@@ -617,7 +617,7 @@ export function CpmGrid({
                         height={rowH - 7}
                         rx={0}
                         fill={fill}
-                        stroke={isSelected ? "#1f241f" : t.isCritical ? "#7a1c12" : "rgba(0,0,0,0.18)"}
+                        stroke={isSelected ? "#1f241f" : t.isCritical ? "#8a1d12" : "rgba(0,0,0,0.18)"}
                         strokeWidth={isSelected ? 1.5 : 0.5}
                         style={{ cursor: onTaskReschedule ? "grab" : "pointer" }}
                         onPointerDown={(e) => beginDrag(e, t.id, "move")}
