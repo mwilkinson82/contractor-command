@@ -1250,31 +1250,13 @@ function SchedulerPage() {
                           ✕
                         </button>
                       </header>
-                      <div className="flex-1 overflow-auto p-4 text-[12px] leading-relaxed text-[#4a4944]">
-                        {SHOW_INTEL_DRAWER ? (
-                          <div className="text-[#1f241f]">Intelligence panel (wired)</div>
-                        ) : (
-                          <div className="space-y-3">
-                            <div className="rounded border border-dashed border-[#dad7cd] bg-white/60 p-3">
-                              <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8a8980]">
-                                Coming soon
-                              </div>
-                              <div className="mt-1 text-[#1f241f]">
-                                Schedule reviewer, logic warnings, critical-path
-                                narration, and AI-assisted CPM build will live
-                                here. No live behavior is wired yet.
-                              </div>
-                            </div>
-                            <ul className="space-y-1 text-[11px] text-[#6b6a63]">
-                              <li>· Schedule comments &amp; recommendations</li>
-                              <li>· Logic warnings &amp; open-end review</li>
-                              <li>· Critical-path explanations</li>
-                              <li>· Build CPM from SOV / activity list</li>
-                              <li>· Chat-assisted refinement</li>
-                            </ul>
-                          </div>
-                        )}
-                      </div>
+                      <IntelDrawerContent
+                        draft={draft}
+                        computed={computed}
+                        selectedTask={selectedTaskCalc}
+                        nearCriticalFloat={nearCriticalFloat}
+                        dataQuality={dataQuality}
+                      />
                     </aside>
                   ) : null}
                 </div>
@@ -2646,5 +2628,325 @@ function DependenciesEditor({
         </tbody>
       </table>
     </section>
+  );
+}
+
+// ============================================================================
+// Schedule Intelligence Drawer — deterministic, read-only review panel.
+// No engine work, no AI. Pure derivations from current schedule data.
+// ============================================================================
+function IntelDrawerContent({
+  draft,
+  computed,
+  selectedTask,
+  nearCriticalFloat,
+  dataQuality,
+}: {
+  draft: import("@/lib/scheduler/types").Schedule | null;
+  computed: import("@/lib/scheduler/types").ScheduleResult | null;
+  selectedTask: import("@/lib/scheduler/types").ScheduledTask | null;
+  nearCriticalFloat: number;
+  dataQuality: string;
+}) {
+  if (!draft || !computed) {
+    return (
+      <div className="flex-1 overflow-auto p-4 text-[12px] text-[#6b6a63]">
+        Load a schedule to see schedule intelligence.
+      </div>
+    );
+  }
+
+  const tasks = computed.tasks;
+  const deps = computed.dependencies;
+  const dataDate = draft.dataDate;
+
+  const total = tasks.length;
+  const critical = tasks.filter((t) => t.isCritical);
+  const nearCritical = tasks.filter(
+    (t) => !t.isCritical && t.totalFloat <= nearCriticalFloat && t.totalFloat > 0,
+  );
+  const inProgress = tasks.filter((t) => {
+    const p = t.percentComplete ?? 0;
+    return p > 0 && p < 100;
+  });
+  const completed = tasks.filter((t) => (t.percentComplete ?? 0) >= 100);
+  const zeroFloat = tasks.filter((t) => t.totalFloat <= 0);
+  const zeroDuration = tasks.filter((t) => t.duration === 0 && (t.percentComplete ?? 0) < 100);
+
+  const hasPred = new Set(deps.map((d) => d.to));
+  const hasSucc = new Set(deps.map((d) => d.from));
+  const missingPred = tasks.filter((t, i) => !hasPred.has(t.id) && i > 0);
+  const missingSucc = tasks.filter((t) => !hasSucc.has(t.id) && (t.percentComplete ?? 0) < 100);
+  const missingDates = tasks.filter((t) => !t.earlyStartDate || !t.earlyFinishDate);
+  const behindDataDate =
+    dataDate && tasks.length > 0
+      ? tasks.filter(
+          (t) =>
+            (t.percentComplete ?? 0) < 100 &&
+            t.earlyStartDate &&
+            t.earlyStartDate < dataDate,
+        )
+      : [];
+
+  const criticalRatio = total > 0 ? critical.length / total : 0;
+  const heavyCritical = criticalRatio > 0.4;
+
+  const predCount = selectedTask
+    ? deps.filter((d) => d.to === selectedTask.id).length
+    : 0;
+  const succCount = selectedTask
+    ? deps.filter((d) => d.from === selectedTask.id).length
+    : 0;
+  const selPct = selectedTask?.percentComplete ?? 0;
+  const selStatus =
+    selPct >= 100 ? "Complete" : selPct > 0 ? `In progress (${selPct}%)` : "Not started";
+  const selRecommendation = selectedTask
+    ? selectedTask.isCritical
+      ? "On the critical path. Delay here pushes the project finish."
+      : selectedTask.totalFloat <= nearCriticalFloat
+        ? `Near-critical with ${selectedTask.totalFloat}d total float. Watch closely — small slips can drive it critical.`
+        : `Has ${selectedTask.totalFloat}d total float. Not currently controlling the finish date.`
+    : "";
+
+  return (
+    <div className="flex-1 overflow-auto text-[12px] leading-relaxed text-[#3a3a35]">
+      {selectedTask ? (
+        <IntelSection title="Selected activity">
+          <div className="space-y-1.5">
+            <div className="font-mono text-[11px] text-[#1f241f]">
+              {selectedTask.id} · <span className="font-sans">{selectedTask.name}</span>
+            </div>
+            <IntelRow label="Status" value={selStatus} />
+            <IntelRow
+              label="Total float"
+              value={`${selectedTask.totalFloat}d`}
+              tone={
+                selectedTask.totalFloat <= 0
+                  ? "danger"
+                  : selectedTask.totalFloat <= nearCriticalFloat
+                    ? "warn"
+                    : "ok"
+              }
+            />
+            <IntelRow label="Free float" value={`${selectedTask.freeFloat}d`} />
+            <IntelRow label="Predecessors" value={String(predCount)} />
+            <IntelRow label="Successors" value={String(succCount)} />
+            <IntelRow
+              label="On critical path"
+              value={selectedTask.isCritical ? "Yes" : "No"}
+              tone={selectedTask.isCritical ? "danger" : undefined}
+            />
+            <div className="mt-2 rounded border border-[#e3e0d8] bg-[#fdfcf7] p-2 text-[11px] text-[#4a4944]">
+              {selRecommendation}
+            </div>
+          </div>
+        </IntelSection>
+      ) : null}
+
+      <IntelSection title="Schedule overview">
+        <IntelRow label="Project finish" value={computed.projectFinishDate ?? "—"} />
+        <IntelRow label="Data date" value={dataDate ?? "—"} />
+        <IntelRow label="Total activities" value={String(total)} />
+        <IntelRow
+          label="Critical"
+          value={String(critical.length)}
+          tone={critical.length > 0 ? "danger" : undefined}
+        />
+        <IntelRow
+          label={`Near-critical (≤${nearCriticalFloat}d)`}
+          value={String(nearCritical.length)}
+          tone={nearCritical.length > 0 ? "warn" : undefined}
+        />
+        <IntelRow label="In progress" value={String(inProgress.length)} />
+        <IntelRow label="Completed" value={String(completed.length)} />
+        <IntelRow
+          label="Schedule quality"
+          value={dataQuality}
+          tone={
+            dataQuality === "Errors"
+              ? "danger"
+              : dataQuality === "Warnings"
+                ? "warn"
+                : dataQuality === "Good"
+                  ? "ok"
+                  : undefined
+          }
+        />
+      </IntelSection>
+
+      <IntelSection title="Critical path">
+        <IntelRow label="Critical activities" value={String(critical.length)} />
+        <IntelRow label="Zero-float activities" value={String(zeroFloat.length)} />
+        <IntelRow label="Finish date" value={computed.projectFinishDate ?? "—"} />
+        {heavyCritical ? (
+          <div className="mt-1 rounded border border-[#e2c89a] bg-[#fbf3df] p-2 text-[11px] text-[#6b5320]">
+            Review: more than 40% of activities are critical. This usually means
+            logic is too tightly constrained or durations are aggressive.
+          </div>
+        ) : null}
+        {critical.length > 0 ? (
+          <ul className="mt-2 max-h-32 space-y-0.5 overflow-auto font-mono text-[10.5px] text-[#4a4944]">
+            {critical.slice(0, 12).map((t) => (
+              <li key={t.id} className="truncate">
+                {t.id} · <span className="font-sans">{t.name}</span>
+              </li>
+            ))}
+            {critical.length > 12 ? (
+              <li className="text-[#8a8980]">…and {critical.length - 12} more</li>
+            ) : null}
+          </ul>
+        ) : (
+          <div className="text-[11px] text-[#8a8980]">No critical activities detected.</div>
+        )}
+      </IntelSection>
+
+      <IntelSection title={`Near-critical (≤${nearCriticalFloat}d)`}>
+        {nearCritical.length === 0 ? (
+          <div className="text-[11px] text-[#8a8980]">No near-critical activities.</div>
+        ) : (
+          <ul className="max-h-40 space-y-1 overflow-auto">
+            {nearCritical.slice(0, 20).map((t) => (
+              <li
+                key={t.id}
+                className="rounded border border-[#ece8db] bg-white/60 p-1.5 text-[11px]"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-[10.5px] text-[#1f241f]">{t.id}</span>
+                  <span className="text-[10px] text-[#8a6a20]">TF {t.totalFloat}d</span>
+                </div>
+                <div className="truncate text-[#3a3a35]">{t.name}</div>
+                <div className="flex items-center justify-between text-[10px] text-[#776e5e]">
+                  <span className="truncate">{t.wbs ?? "—"}</span>
+                  <span>{t.earlyFinishDate ?? ""}</span>
+                </div>
+              </li>
+            ))}
+            {nearCritical.length > 20 ? (
+              <li className="text-[10px] text-[#8a8980]">
+                …and {nearCritical.length - 20} more
+              </li>
+            ) : null}
+          </ul>
+        )}
+      </IntelSection>
+
+      <IntelSection title="Logic review">
+        <IntelReviewRow
+          label="Missing predecessors"
+          count={missingPred.length}
+          hint="Activities (other than the first) without a predecessor. Review whether they should be tied to upstream work."
+          sample={missingPred.slice(0, 5).map((t) => t.id)}
+        />
+        <IntelReviewRow
+          label="Missing successors"
+          count={missingSucc.length}
+          hint="Open-ended activities. Check whether they should drive downstream work."
+          sample={missingSucc.slice(0, 5).map((t) => t.id)}
+        />
+        <IntelReviewRow
+          label="Missing dates"
+          count={missingDates.length}
+          hint="Activities without computed start/finish dates. Review schedule inputs."
+          sample={missingDates.slice(0, 5).map((t) => t.id)}
+        />
+        <IntelReviewRow
+          label="Zero-duration (non-milestone)"
+          count={zeroDuration.length}
+          hint="Potential issue: zero-duration activities not marked as milestones."
+          sample={zeroDuration.slice(0, 5).map((t) => t.id)}
+        />
+        {dataDate ? (
+          <IntelReviewRow
+            label="Behind data date"
+            count={behindDataDate.length}
+            hint="Unfinished activities with early-start before the data date. Review progress and status."
+            sample={behindDataDate.slice(0, 5).map((t) => t.id)}
+          />
+        ) : null}
+      </IntelSection>
+
+      <div className="px-3 pb-4 pt-1 text-[10px] uppercase tracking-wider text-[#a8a496]">
+        Deterministic review · derived from current schedule
+      </div>
+    </div>
+  );
+}
+
+function IntelSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="border-b border-[#ece8db] px-3 py-3">
+      <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#675d4b]">
+        {title}
+      </h3>
+      <div className="space-y-1">{children}</div>
+    </section>
+  );
+}
+
+function IntelRow({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "ok" | "warn" | "danger";
+}) {
+  const toneClass =
+    tone === "danger"
+      ? "text-[#a83232]"
+      : tone === "warn"
+        ? "text-[#8a6a20]"
+        : tone === "ok"
+          ? "text-[#2f7a3e]"
+          : "text-[#1f241f]";
+  return (
+    <div className="flex items-center justify-between gap-3 text-[11.5px]">
+      <span className="text-[#6b6a63]">{label}</span>
+      <span className={`font-medium tabular-nums ${toneClass}`}>{value}</span>
+    </div>
+  );
+}
+
+function IntelReviewRow({
+  label,
+  count,
+  hint,
+  sample,
+}: {
+  label: string;
+  count: number;
+  hint: string;
+  sample: string[];
+}) {
+  const tone = count === 0 ? "ok" : count > 5 ? "warn" : undefined;
+  return (
+    <div className="rounded border border-[#ece8db] bg-white/50 p-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] text-[#3a3a35]">{label}</span>
+        <span
+          className={`text-[11px] font-medium tabular-nums ${
+            tone === "warn"
+              ? "text-[#8a6a20]"
+              : tone === "ok"
+                ? "text-[#2f7a3e]"
+                : "text-[#1f241f]"
+          }`}
+        >
+          {count}
+        </span>
+      </div>
+      {count > 0 ? (
+        <>
+          <div className="mt-1 text-[10.5px] text-[#776e5e]">{hint}</div>
+          {sample.length > 0 ? (
+            <div className="mt-1 truncate font-mono text-[10px] text-[#4a4944]">
+              {sample.join(", ")}
+              {count > sample.length ? ` …+${count - sample.length}` : ""}
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </div>
   );
 }
