@@ -511,20 +511,21 @@ export function CpmGrid({
                 const w = Math.max((row.maxEF - row.minES) * dayPx, 2);
                 return (
                   <g key={`g-${row.key}`}>
-                    <rect x={0} y={y} width={timelineWidth} height={rowH} fill="#f5efe0" />
-                    <line x1={0} x2={timelineWidth} y1={y + rowH} y2={y + rowH} stroke="#e8dfc8" strokeWidth={1} />
+                    <rect x={0} y={y} width={timelineWidth} height={rowH} fill="#eeede7" />
+                    <line x1={0} x2={timelineWidth} y1={y + rowH} y2={y + rowH} stroke="#dad7cd" strokeWidth={1} />
                     {/* slim summary span — quiet, no heavy brackets */}
                     <rect
                       x={x}
                       y={y + rowH / 2 - 1}
                       width={w}
                       height={2}
-                      fill={row.anyCritical ? "#9c2418" : "#5c574e"}
-                      opacity={0.55}
+                      fill={row.anyCritical ? "#9c2418" : "#4a4944"}
+                      opacity={0.6}
                     />
                   </g>
                 );
               }
+
 
               const t = row.task;
               const isSelected = selectedId === t.id;
