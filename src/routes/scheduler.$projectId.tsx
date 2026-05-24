@@ -722,9 +722,16 @@ function SchedulerPage() {
           </div>
         </div>
       ) : loadQuery.isLoading || !draft ? (
-        <div className="flex flex-1 items-center justify-center text-sm text-[#746b5c]">
-          Loading schedule…
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-[#6b6a63]">
+          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em]">
+            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[#3d8a5c]" />
+            Loading schedule
+          </div>
+          <div className="h-1 w-48 overflow-hidden rounded-full bg-[#ecebe5]">
+            <div className="h-full w-1/3 animate-pulse rounded-full bg-[#1f241f]" />
+          </div>
         </div>
+
       ) : (
         <>
           {/* ============ TOOLBAR ============ */}
