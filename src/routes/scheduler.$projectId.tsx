@@ -1335,6 +1335,14 @@ function SchedulerPage() {
                         <InspectorTitleRow
                           t={selectedTaskCalc}
                           name={draft.tasks[selectedTaskIdx]?.name ?? ""}
+                          wbs={draft.tasks[selectedTaskIdx]?.wbs}
+                          calendarName={
+                            draft.tasks[selectedTaskIdx]?.calendarId
+                              ? calendars.find(
+                                  (c) => c.id === draft.tasks[selectedTaskIdx]?.calendarId,
+                                )?.name
+                              : calendars.find((c) => c.isDefault)?.name
+                          }
                           percentComplete={draft.tasks[selectedTaskIdx]?.percentComplete}
                           nearCriticalFloat={nearCriticalFloat}
                           predCount={
@@ -1429,6 +1437,7 @@ function SchedulerPage() {
                         t={selectedTaskCalc}
                         draftTask={draft.tasks[selectedTaskIdx]}
                         calendars={calendars}
+                        dataDate={draft.dataDate}
                         predCount={
                           draft.dependencies.filter((d) => d.to === selectedTaskCalc.id).length
                         }
@@ -1450,12 +1459,31 @@ function SchedulerPage() {
                       />
                     ) : inspectorTab === "resources" ? (
                       <div className="text-xs text-[#4a4944]">
-                        <ResourcesPanel
-                          result={computed!}
-                          tasks={draft.tasks}
-                          onTaskChange={updateTask}
-                          
-                        />
+                        {draft.tasks[selectedTaskIdx]?.resourceName ||
+                        draft.tasks[selectedTaskIdx]?.budgetCost ? (
+                          <ResourcesPanel
+                            result={computed!}
+                            tasks={draft.tasks}
+                            onTaskChange={updateTask}
+                          />
+                        ) : (
+                          <div className="rounded-md border border-dashed border-[#dad7cd] bg-[#faf8f3] p-3">
+                            <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8a8980]">
+                              No resources assigned
+                            </div>
+                            <p className="mt-1 text-[11px] text-[#6b6a63]">
+                              Add a resource label and budget to track cost and
+                              crew loading. Resource leveling is not part of
+                              this engine yet — these values populate dashboards
+                              and EVM only.
+                            </p>
+                            <ResourcesPanel
+                              result={computed!}
+                              tasks={draft.tasks}
+                              onTaskChange={updateTask}
+                            />
+                          </div>
+                        )}
                       </div>
                     ) : inspectorTab === "codes" ? (
                       <ActivityCodeChips scheduleId={selectedId} taskId={selectedTaskCalc.id} />
@@ -1492,6 +1520,13 @@ function SchedulerPage() {
                         <p className="text-[10px] text-[#6b6a63]">
                           Duration walks in this calendar. Lag stays in project-default days.
                         </p>
+                        {calendars.length <= 1 ? (
+                          <p className="text-[10px] text-[#8a8980]">
+                            Only the project default calendar exists. Create
+                            named calendars in the Structure panel to assign
+                            crew or shift-specific schedules.
+                          </p>
+                        ) : null}
                       </div>
                     ) : inspectorTab === "notebook" ? (
                       <div className="space-y-2">
@@ -1502,7 +1537,12 @@ function SchedulerPage() {
                           onChange={(e) =>
                             updateTask(selectedTaskIdx, { description: e.target.value })
                           }
+                          placeholder="Notes, assumptions, scope, hand-off context…"
                         />
+                        <p className="text-[10px] text-[#8a8980]">
+                          Notebook entries stay with the activity and surface on
+                          hover throughout the workbench.
+                        </p>
                       </div>
                     ) : null}
                       </div>
@@ -1746,6 +1786,8 @@ function statusFromPct(pct: number | undefined): {
 function InspectorTitleRow({
   t,
   name,
+  wbs,
+  calendarName,
   percentComplete,
   nearCriticalFloat,
   predCount,
@@ -1754,6 +1796,8 @@ function InspectorTitleRow({
 }: {
   t: import("@/lib/scheduler/types").ScheduledTask;
   name: string;
+  wbs?: string;
+  calendarName?: string;
   percentComplete: number | undefined;
   nearCriticalFloat: number;
   predCount: number;
@@ -1777,6 +1821,22 @@ function InspectorTitleRow({
       <span className="truncate text-[13px] font-semibold tracking-tight text-[#1f241f]">
         {name || "(unnamed activity)"}
       </span>
+      {wbs ? (
+        <span
+          className="hidden shrink-0 rounded-sm border border-[#e3e0d8] bg-white px-1.5 py-0.5 font-mono text-[10px] text-[#6b6a63] md:inline-block"
+          title="WBS"
+        >
+          {wbs}
+        </span>
+      ) : null}
+      {calendarName ? (
+        <span
+          className="hidden shrink-0 truncate text-[10px] text-[#8a8980] md:inline-block"
+          title="Calendar"
+        >
+          📅 {calendarName}
+        </span>
+      ) : null}
       <div className="ml-auto flex shrink-0 items-center gap-2 text-[10px] tabular-nums">
         <span className={`uppercase tracking-wide ${status.text}`}>
           {status.label}
@@ -1789,6 +1849,13 @@ function InspectorTitleRow({
           {predCount} pred · {succCount} succ
         </span>
         <span className="text-[#dad7cd]">·</span>
+        <span
+          className="uppercase tracking-wide text-[#6b6a63]"
+          title="Free float"
+        >
+          FF {t.freeFloat}d
+        </span>
+        <span className="text-[#dad7cd]">·</span>
         {isCritical ? (
           <span className="inline-flex items-center gap-1 rounded-sm bg-[#fbe9e7] px-1.5 py-0.5 font-semibold uppercase tracking-wide text-[#b42318]">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#b42318]" />
@@ -1797,12 +1864,12 @@ function InspectorTitleRow({
         ) : isNearCrit ? (
           <span className="inline-flex items-center gap-1 rounded-sm bg-[#fdf3e3] px-1.5 py-0.5 font-semibold uppercase tracking-wide text-[#c2750a]">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#c2750a]" />
-            Near-crit · {t.totalFloat}d
+            Near-crit · TF {t.totalFloat}d
           </span>
         ) : (
           <span className="inline-flex items-center gap-1 rounded-sm bg-[#eef2f7] px-1.5 py-0.5 uppercase tracking-wide text-[#2a3e5f]">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#2a3e5f]" />
-            {t.totalFloat}d float
+            TF {t.totalFloat}d
           </span>
         )}
         <button
@@ -2012,6 +2079,7 @@ function InspectorDetails({
   t,
   draftTask,
   calendars,
+  dataDate,
   predCount,
   succCount,
   codes,
@@ -2020,6 +2088,7 @@ function InspectorDetails({
   t: import("@/lib/scheduler/types").ScheduledTask;
   draftTask: Task;
   calendars: { id: string; name: string; isDefault: boolean }[];
+  dataDate?: string;
   predCount: number;
   succCount: number;
   codes: { typeName: string; code: string; color: string | null }[];
@@ -2028,6 +2097,29 @@ function InspectorDetails({
   const calName = draftTask.calendarId
     ? calendars.find((c) => c.id === draftTask.calendarId)?.name ?? "Unknown"
     : calendars.find((c) => c.isDefault)?.name ?? "Project default";
+
+  // Data-date driven progress context (read-only — no engine change).
+  let progressState: "future" | "inprogress" | "complete" | "behind" | null = null;
+  if (dataDate && t.earlyStartDate && t.earlyFinishDate) {
+    const pc = draftTask.percentComplete ?? 0;
+    if (dataDate < t.earlyStartDate) progressState = "future";
+    else if (pc >= 100) progressState = "complete";
+    else if (dataDate > t.earlyFinishDate && pc < 100) progressState = "behind";
+    else progressState = "inprogress";
+  }
+  const progressLabel: Record<NonNullable<typeof progressState>, string> = {
+    future: "Not started",
+    inprogress: "In progress",
+    complete: "Complete",
+    behind: "Behind data date",
+  };
+  const progressTone: Record<NonNullable<typeof progressState>, string> = {
+    future: "bg-[#eef2f7] text-[#2a3e5f]",
+    inprogress: "bg-[#fdf3e3] text-[#c2750a]",
+    complete: "bg-[#e5f1ea] text-[#3d8a5c]",
+    behind: "bg-[#fbe9e7] text-[#b42318]",
+  };
+
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_360px]">
       <div className="space-y-3">
@@ -2129,33 +2221,53 @@ function InspectorDetails({
       <div className="rounded-md border border-[#e3e0d8] bg-[#faf8f3] p-3">
         <div className="flex items-center justify-between">
           <div className="text-[10px] font-semibold uppercase tracking-wide text-[#6b6a63]">
-            Schedule dates
+            Date intelligence
           </div>
-          <div className="text-[10px] tabular-nums text-[#6b6a63]">
-            {draftTask.duration ?? 0}d
+          <div className="flex items-center gap-1.5 text-[10px] tabular-nums text-[#6b6a63]">
+            <span>{draftTask.duration ?? 0}d</span>
+            {progressState ? (
+              <span
+                className={`rounded-sm px-1.5 py-0.5 font-semibold uppercase tracking-wide ${progressTone[progressState]}`}
+              >
+                {progressLabel[progressState]}
+              </span>
+            ) : null}
           </div>
         </div>
+        {dataDate ? (
+          <div className="mt-1 text-[10px] text-[#8a8980]">
+            Data date <span className="tabular-nums text-[#4a4944]">{dataDate}</span>
+          </div>
+        ) : null}
         <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px] text-[#2d2d28]">
-          <dt className="text-[#6b6a63]">Early start</dt>
-          <dd className="text-right font-medium tabular-nums">
+          <dt className="text-[#6b6a63]">Start (early)</dt>
+          <dd className="text-right font-semibold tabular-nums text-[#1f241f]">
             {t.earlyStartDate ?? `d${t.earlyStart}`}
           </dd>
-          <dt className="text-[#6b6a63]">Early finish</dt>
-          <dd className="text-right font-medium tabular-nums">
+          <dt className="text-[#6b6a63]">Finish (early)</dt>
+          <dd className="text-right font-semibold tabular-nums text-[#1f241f]">
             {t.earlyFinishDate ?? `d${t.earlyFinish}`}
           </dd>
           <dt className="text-[#6b6a63]">Late start</dt>
-          <dd className="text-right font-medium tabular-nums">
+          <dd className="text-right font-medium tabular-nums text-[#4a4944]">
             {t.lateStartDate ?? `d${t.lateStart}`}
           </dd>
           <dt className="text-[#6b6a63]">Late finish</dt>
-          <dd className="text-right font-medium tabular-nums">
+          <dd className="text-right font-medium tabular-nums text-[#4a4944]">
             {t.lateFinishDate ?? `d${t.lateFinish}`}
           </dd>
+          {draftTask.startNoEarlierThan ? (
+            <>
+              <dt className="text-[#6b6a63]">Start NET</dt>
+              <dd className="text-right font-medium tabular-nums text-[#4a4944]">
+                {draftTask.startNoEarlierThan}
+              </dd>
+            </>
+          ) : null}
           <dt className="col-span-2 mt-1 border-t border-[#ecebe5] pt-1" />
           <dt className="text-[#6b6a63]">Total float</dt>
           <dd
-            className={`text-right font-semibold tabular-nums ${t.totalFloat <= 0 ? "text-[#b42318]" : "text-[#3d8a5c]"}`}
+            className={`text-right font-semibold tabular-nums ${t.totalFloat <= 0 ? "text-[#b42318]" : t.totalFloat <= 3 ? "text-[#c2750a]" : "text-[#3d8a5c]"}`}
           >
             {t.totalFloat}d
           </dd>
