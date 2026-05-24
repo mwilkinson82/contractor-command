@@ -604,6 +604,10 @@ export function CpmGrid({
                         fill={fill}
                         fontFamily="ui-sans-serif, system-ui"
                         fontWeight={600}
+                        stroke="#faf8f3"
+                        strokeWidth={3}
+                        paintOrder="stroke"
+                        strokeLinejoin="round"
                       >
                         {t.name.length > 30 ? t.name.slice(0, 29) + "…" : t.name}
                       </text>
