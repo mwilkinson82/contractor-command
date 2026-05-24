@@ -1459,12 +1459,31 @@ function SchedulerPage() {
                       />
                     ) : inspectorTab === "resources" ? (
                       <div className="text-xs text-[#4a4944]">
-                        <ResourcesPanel
-                          result={computed!}
-                          tasks={draft.tasks}
-                          onTaskChange={updateTask}
-                          
-                        />
+                        {draft.tasks[selectedTaskIdx]?.resourceName ||
+                        draft.tasks[selectedTaskIdx]?.budgetCost ? (
+                          <ResourcesPanel
+                            result={computed!}
+                            tasks={draft.tasks}
+                            onTaskChange={updateTask}
+                          />
+                        ) : (
+                          <div className="rounded-md border border-dashed border-[#dad7cd] bg-[#faf8f3] p-3">
+                            <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8a8980]">
+                              No resources assigned
+                            </div>
+                            <p className="mt-1 text-[11px] text-[#6b6a63]">
+                              Add a resource label and budget to track cost and
+                              crew loading. Resource leveling is not part of
+                              this engine yet — these values populate dashboards
+                              and EVM only.
+                            </p>
+                            <ResourcesPanel
+                              result={computed!}
+                              tasks={draft.tasks}
+                              onTaskChange={updateTask}
+                            />
+                          </div>
+                        )}
                       </div>
                     ) : inspectorTab === "codes" ? (
                       <ActivityCodeChips scheduleId={selectedId} taskId={selectedTaskCalc.id} />
@@ -1501,6 +1520,13 @@ function SchedulerPage() {
                         <p className="text-[10px] text-[#6b6a63]">
                           Duration walks in this calendar. Lag stays in project-default days.
                         </p>
+                        {calendars.length <= 1 ? (
+                          <p className="text-[10px] text-[#8a8980]">
+                            Only the project default calendar exists. Create
+                            named calendars in the Structure panel to assign
+                            crew or shift-specific schedules.
+                          </p>
+                        ) : null}
                       </div>
                     ) : inspectorTab === "notebook" ? (
                       <div className="space-y-2">
@@ -1511,7 +1537,12 @@ function SchedulerPage() {
                           onChange={(e) =>
                             updateTask(selectedTaskIdx, { description: e.target.value })
                           }
+                          placeholder="Notes, assumptions, scope, hand-off context…"
                         />
+                        <p className="text-[10px] text-[#8a8980]">
+                          Notebook entries stay with the activity and surface on
+                          hover throughout the workbench.
+                        </p>
                       </div>
                     ) : null}
                       </div>
