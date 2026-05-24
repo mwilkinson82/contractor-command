@@ -1122,44 +1122,58 @@ function SchedulerPage() {
 
                 {/* ============ ACTIVITY INSPECTOR ============ */}
                 <div className="shrink-0 border-t border-[#e3e0d8] bg-white">
-                  <div className="flex items-end gap-0 border-b border-[#ecebe5] px-4">
-                    {(
-                      [
-                        ["details", "Activity Details"],
-                        ["relationships", "Relationships"],
-                        ["resources", "Resources"],
-                        ["codes", "Codes"],
-                        ["calendar", "Calendar"],
-                        ["notebook", "Notebook"],
-                      ] as const
-                    ).map(([key, label]) => (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => setInspectorTab(key)}
-                        className={`relative px-3 py-2 text-xs font-medium ${
-                          inspectorTab === key
-                            ? "text-[#1f241f]"
-                            : "text-[#6b6a63] hover:text-[#2d2d28]"
-                        }`}
-                      >
-                        {label}
-                        {inspectorTab === key ? (
-                          <span className="absolute inset-x-2 -bottom-px h-0.5 bg-[#b42318]" />
-                        ) : null}
-                      </button>
-                    ))}
+                  <div className="flex items-center gap-3 border-b border-[#ecebe5] px-4">
+                    <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">
+                      {selectedTaskCalc ? "Activity" : "Schedule"}
+                    </span>
+                    <div className="h-4 w-px bg-[#ecebe5]" />
+                    <div className="flex items-end gap-0">
+                      {(
+                        [
+                          ["details", "Details"],
+                          ["relationships", "Relationships"],
+                          ["resources", "Resources"],
+                          ["codes", "Codes"],
+                          ["calendar", "Calendar"],
+                          ["notebook", "Notebook"],
+                        ] as const
+                      ).map(([key, label]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setInspectorTab(key)}
+                          className={`relative px-3 py-2 text-xs font-medium ${
+                            inspectorTab === key
+                              ? "text-[#1f241f]"
+                              : "text-[#6b6a63] hover:text-[#2d2d28]"
+                          }`}
+                        >
+                          {label}
+                          {inspectorTab === key ? (
+                            <span className="absolute inset-x-2 -bottom-px h-0.5 bg-[#1f241f]" />
+                          ) : null}
+                        </button>
+                      ))}
+                    </div>
                     {selectedTaskCalc ? (
-                      <span className="ml-auto pb-2 text-[10px] uppercase tracking-wide text-[#6b6a63]">
-                        {selectedTaskCalc.id} ·{" "}
+                      <span className="ml-auto inline-flex items-center gap-2 pb-2 text-[10px] tabular-nums text-[#6b6a63]">
+                        <span className="font-mono">{selectedTaskCalc.id}</span>
+                        <span className="text-[#dad7cd]">·</span>
                         {selectedTaskCalc.isCritical ? (
-                          <span className="font-semibold text-[#b42318]">CRITICAL</span>
+                          <span className="inline-flex items-center gap-1 font-semibold uppercase tracking-wide text-[#b42318]">
+                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#b42318]" />
+                            Critical
+                          </span>
                         ) : (
-                          "Normal"
+                          <span className="inline-flex items-center gap-1 uppercase tracking-wide">
+                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#2a3e5f]" />
+                            {selectedTaskCalc.totalFloat}d float
+                          </span>
                         )}
                       </span>
                     ) : null}
                   </div>
+
 
                   <div className={`${selectedTaskCalc ? "max-h-[200px]" : "max-h-[120px]"} overflow-auto px-4 py-2 text-sm`}>
                     {!selectedTaskCalc || selectedTaskIdx < 0 ? (
