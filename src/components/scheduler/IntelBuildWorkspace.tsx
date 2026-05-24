@@ -11,8 +11,18 @@
  *   - src/lib/scheduler/intel-build.ts (data shapes the eventual AI fills)
  */
 
-import { useState } from "react";
-import { BUILD_GUARDRAILS } from "@/lib/scheduler/intel-build";
+import { useMemo, useState } from "react";
+import {
+  BUILD_GUARDRAILS,
+  isChangeSetCommittable,
+  type DraftSchedule,
+  type ProposedChangeSet,
+} from "@/lib/scheduler/intel-build";
+import {
+  buildDemoDraftSchedule,
+  buildPreviewChangeSet,
+  countChangeSet,
+} from "@/lib/scheduler/intel-build-demo";
 import { INTEL_ADVISORY_NOTE } from "@/lib/scheduler/intel-context";
 
 export interface IntelBuildWorkspaceProps {
