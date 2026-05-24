@@ -27,13 +27,12 @@ const bridge = bridgeLegacyScheduleToEngine2(s);
 const e2 = calculateCpm(bridge.input);
 
 console.log("LEGACY finish:", legacy.projectFinishDate);
-console.log("ENGINE2 finish:", instantToIsoDate(e2.projectFinish));
-console.log("\nid | legES legEF | e2ES e2EF | dES dEF");
+console.log("ENGINE2 finish raw:", e2.projectFinish, "iso:", new Date(e2.projectFinish).toISOString());
+console.log("\nLEGACY tasks:");
 for (const lt of legacy.tasks) {
-  const er = e2.activities.find(a => a.id === lt.id)!;
-  const e2ES = instantToIsoDate(er.earlyStart);
-  const e2EF = instantToIsoDate(er.earlyFinish);
-  const dES = (Date.parse(e2ES+"T00:00:00Z") - Date.parse(lt.earlyStartDate!+"T00:00:00Z"))/86400000;
-  const dEF = (Date.parse(e2EF+"T00:00:00Z") - Date.parse(lt.earlyFinishDate!+"T00:00:00Z"))/86400000;
-  console.log(`${lt.id} | ${lt.earlyStartDate} ${lt.earlyFinishDate} | ${e2ES} ${e2EF} | ${dES}d ${dEF}d`);
+  console.log(`  ${lt.id}: ES=${lt.earlyStartDate} EF=${lt.earlyFinishDate} TF=${lt.totalFloat} crit=${lt.isCritical}`);
+}
+console.log("\nENGINE2 activities:");
+for (const a of e2.activities) {
+  console.log(`  ${a.id}: ES=${new Date(a.earlyStart).toISOString()} EF=${new Date(a.earlyFinish).toISOString()} TF(min)=${a.totalFloatMinutes} crit=${a.isCritical}`);
 }
