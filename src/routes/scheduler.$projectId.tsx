@@ -67,6 +67,15 @@ const ZOOM_LEVELS: { label: string; dayPx: number }[] = [
 
 export const Route = createFileRoute("/scheduler/$projectId")({
   head: () => ({ meta: [{ title: "Scheduler - AOS" }] }),
+  beforeLoad: async ({ location }) => {
+    // Scheduler server fns require an authenticated Supabase session. Gate
+    // here so unauthenticated visitors are redirected to /login instead of
+    // hitting "Unauthorized: No authorization header provided".
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) {
+      throw redirect({ to: "/login", search: { redirect: location.href } });
+    }
+  },
   component: SchedulerPage,
 });
 
