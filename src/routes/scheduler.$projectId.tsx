@@ -1257,7 +1257,6 @@ function SchedulerPage() {
                         nearCriticalFloat={nearCriticalFloat}
                         dataQuality={dataQuality}
                       />
-                      {SHOW_INTEL_DRAWER ? null : null}
                     </aside>
                   ) : null}
                 </div>
