@@ -131,6 +131,24 @@ export function summarizePersistedDryRun(
       deltaDays: dryRun.projectFinish.deltaDays,
       match: dryRun.projectFinish.deltaDays === 0,
     },
+    normalizedProjectFinish: {
+      engine2Normalized: dryRun.normalizedProjectFinish.engine2Normalized,
+      deltaDays: dryRun.normalizedProjectFinish.deltaDays,
+      match: dryRun.normalizedProjectFinish.match,
+    },
+    conventionAdjustedMatchingCount: dryRun.conventionAdjustedMatchingCount,
+    conventionAdjustedDifferingCount: dryRun.conventionAdjustedDifferingCount,
+    maxNormalizedDateDeltaDays: dryRun.maxNormalizedDateDeltaDays,
+    conventionMismatchIds: {
+      earlyFinish: [...dryRun.conventionMismatchIds.earlyFinish],
+      lateFinish: [...dryRun.conventionMismatchIds.lateFinish],
+    },
+    trueDateMismatchIds: {
+      earlyStart: [...dryRun.trueDateMismatchIds.earlyStart],
+      earlyFinish: [...dryRun.trueDateMismatchIds.earlyFinish],
+      lateStart: [...dryRun.trueDateMismatchIds.lateStart],
+      lateFinish: [...dryRun.trueDateMismatchIds.lateFinish],
+    },
     provenance: {
       effectiveMode: provenance.effectiveMode,
       legacyAuthoritative: true,
