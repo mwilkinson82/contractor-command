@@ -568,7 +568,7 @@ export const linkExistingAosAccount = createServerFn({ method: "POST" })
 // TTL: 5 minutes (AOS-enforced).
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { createHash } from "crypto";
+
 
 type SopHandoffPayload = {
   v: 1;
