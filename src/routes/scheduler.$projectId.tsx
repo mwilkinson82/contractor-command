@@ -123,11 +123,13 @@ function SchedulerPage() {
   const [inspectorHeight, setInspectorHeight] = useState<number>(260);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
   const [inspectorExpanded, setInspectorExpanded] = useState(false);
-  // Future Schedule Intelligence drawer (right-side slide-out). Closed by
-  // default; the panel itself is hidden behind an internal flag until the
-  // assistant behavior is real.
+  // Schedule Intelligence drawer — adjustable width (compact/standard/wide)
+  // and free drag-resize. Closed by default.
   const [intelDrawerOpen, setIntelDrawerOpen] = useState(false);
+  const [intelDrawerWidth, setIntelDrawerWidth] = useState<number>(380);
   const SHOW_INTEL_DRAWER = false; // internal flag: do not expose fake AI
+  // Focus mode hides the portal top-strip + sidebar so the grid is the hero.
+  const [focusMode, setFocusMode] = useState(false);
 
   // Hydrate from localStorage on mount / project change.
   useEffect(() => {
@@ -140,11 +142,15 @@ function SchedulerPage() {
         inspectorHeight: number;
         inspectorCollapsed: boolean;
         inspectorExpanded: boolean;
+        intelDrawerWidth: number;
+        focusMode: boolean;
       }>;
       if (typeof v.nameColWidth === "number") setNameColWidth(v.nameColWidth);
       if (typeof v.inspectorHeight === "number") setInspectorHeight(v.inspectorHeight);
       if (typeof v.inspectorCollapsed === "boolean") setInspectorCollapsed(v.inspectorCollapsed);
       if (typeof v.inspectorExpanded === "boolean") setInspectorExpanded(v.inspectorExpanded);
+      if (typeof v.intelDrawerWidth === "number") setIntelDrawerWidth(v.intelDrawerWidth);
+      if (typeof v.focusMode === "boolean") setFocusMode(v.focusMode);
     } catch {
       /* ignore corrupted layout */
     }
@@ -162,12 +168,33 @@ function SchedulerPage() {
           inspectorHeight,
           inspectorCollapsed,
           inspectorExpanded,
+          intelDrawerWidth,
+          focusMode,
         }),
       );
     } catch {
       /* ignore quota errors */
     }
-  }, [layoutStorageKey, nameColWidth, inspectorHeight, inspectorCollapsed, inspectorExpanded]);
+  }, [
+    layoutStorageKey,
+    nameColWidth,
+    inspectorHeight,
+    inspectorCollapsed,
+    inspectorExpanded,
+    intelDrawerWidth,
+    focusMode,
+  ]);
+
+  // Apply focus mode by toggling a body class so global CSS hides the
+  // portal-level top-strip + sidebar. Always clean up on unmount.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.body.classList.toggle("scheduler-focus-mode", focusMode);
+    return () => {
+      document.body.classList.remove("scheduler-focus-mode");
+    };
+  }, [focusMode]);
+
 
   // Resizer drag helpers — global pointer listeners avoid losing the drag
   // when the cursor leaves the handle.
@@ -194,6 +221,22 @@ function SchedulerPage() {
     const onMove = (ev: PointerEvent) => {
       const next = Math.max(120, Math.min(560, startH - (ev.clientY - startY)));
       setInspectorHeight(next);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+  const startDrawerResize = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = intelDrawerWidth;
+    const onMove = (ev: PointerEvent) => {
+      // dragging left widens the drawer
+      const next = Math.max(260, Math.min(720, startW - (ev.clientX - startX)));
+      setIntelDrawerWidth(next);
     };
     const onUp = () => {
       window.removeEventListener("pointermove", onMove);
@@ -750,7 +793,21 @@ function SchedulerPage() {
           >
             ⚙ Configure
           </button>
+          <button
+            type="button"
+            onClick={() => setFocusMode((v) => !v)}
+            className={`rounded-md border px-2.5 py-1.5 text-xs font-medium ${
+              focusMode
+                ? "border-[#1f241f] bg-[#1f241f] text-white"
+                : "border-[#e3e0d8] bg-white text-[#2d2d28] hover:bg-[#faf8f3]"
+            }`}
+            title={focusMode ? "Exit focus mode" : "Focus mode (hide portal chrome)"}
+            aria-pressed={focusMode}
+          >
+            {focusMode ? "◳ Exit Focus" : "◱ Focus"}
+          </button>
           <Button
+
             size="sm"
             onClick={() => saveMut.mutate()}
             disabled={!dirty || saveMut.isPending}
@@ -1234,21 +1291,60 @@ function SchedulerPage() {
                       workbench is shaped for the real behavior to slot in. */}
                   {intelDrawerOpen ? (
                     <aside
-                      className="flex w-[360px] shrink-0 flex-col border-l border-[#e3e0d8] bg-[#faf8f3] print:hidden"
+                      className="relative flex shrink-0 flex-col border-l border-[#e3e0d8] bg-[#faf8f3] print:hidden"
+                      style={{ width: intelDrawerWidth }}
                       aria-label="Schedule intelligence"
                     >
-                      <header className="flex h-9 shrink-0 items-center justify-between border-b border-[#e3e0d8] bg-white px-3">
+                      {/* Left-edge drag handle to free-resize the drawer width. */}
+                      <div
+                        role="separator"
+                        aria-orientation="vertical"
+                        aria-label="Resize intelligence drawer"
+                        onPointerDown={startDrawerResize}
+                        className="group absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize"
+                        title="Drag to resize"
+                      >
+                        <div className="absolute inset-y-0 left-1 w-px bg-[#e3e0d8] group-hover:bg-[#1f241f]" />
+                      </div>
+                      <header className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-[#e3e0d8] bg-white px-3">
                         <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#4a4944]">
                           Schedule Intelligence
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => setIntelDrawerOpen(false)}
-                          className="text-[#6b6a63] hover:text-[#1f241f]"
-                          aria-label="Close intelligence drawer"
-                        >
-                          ✕
-                        </button>
+                        <div className="flex items-center gap-1">
+                          {(
+                            [
+                              ["C", 300, "Compact"],
+                              ["S", 380, "Standard"],
+                              ["W", 520, "Wide"],
+                            ] as const
+                          ).map(([k, w, title]) => {
+                            const active = Math.abs(intelDrawerWidth - w) < 8;
+                            return (
+                              <button
+                                key={k}
+                                type="button"
+                                onClick={() => setIntelDrawerWidth(w)}
+                                className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                                  active
+                                    ? "bg-[#1f241f] text-white"
+                                    : "text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
+                                }`}
+                                title={title}
+                                aria-label={title}
+                              >
+                                {k}
+                              </button>
+                            );
+                          })}
+                          <button
+                            type="button"
+                            onClick={() => setIntelDrawerOpen(false)}
+                            className="ml-1 rounded p-1 text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
+                            aria-label="Close intelligence drawer"
+                          >
+                            ✕
+                          </button>
+                        </div>
                       </header>
                       <IntelDrawerContent
                         draft={draft}
@@ -1259,6 +1355,7 @@ function SchedulerPage() {
                       />
                     </aside>
                   ) : null}
+
                 </div>
 
 
