@@ -1250,31 +1250,14 @@ function SchedulerPage() {
                           ✕
                         </button>
                       </header>
-                      <div className="flex-1 overflow-auto p-4 text-[12px] leading-relaxed text-[#4a4944]">
-                        {SHOW_INTEL_DRAWER ? (
-                          <div className="text-[#1f241f]">Intelligence panel (wired)</div>
-                        ) : (
-                          <div className="space-y-3">
-                            <div className="rounded border border-dashed border-[#dad7cd] bg-white/60 p-3">
-                              <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8a8980]">
-                                Coming soon
-                              </div>
-                              <div className="mt-1 text-[#1f241f]">
-                                Schedule reviewer, logic warnings, critical-path
-                                narration, and AI-assisted CPM build will live
-                                here. No live behavior is wired yet.
-                              </div>
-                            </div>
-                            <ul className="space-y-1 text-[11px] text-[#6b6a63]">
-                              <li>· Schedule comments &amp; recommendations</li>
-                              <li>· Logic warnings &amp; open-end review</li>
-                              <li>· Critical-path explanations</li>
-                              <li>· Build CPM from SOV / activity list</li>
-                              <li>· Chat-assisted refinement</li>
-                            </ul>
-                          </div>
-                        )}
-                      </div>
+                      <IntelDrawerContent
+                        draft={draft}
+                        computed={computed}
+                        selectedTask={selectedTaskCalc}
+                        nearCriticalFloat={nearCriticalFloat}
+                        dataQuality={dataQuality}
+                      />
+                      {SHOW_INTEL_DRAWER ? null : null}
                     </aside>
                   ) : null}
                 </div>
