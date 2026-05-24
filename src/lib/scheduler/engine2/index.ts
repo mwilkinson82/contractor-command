@@ -27,8 +27,6 @@ export * from "./capability-metadata";
 export * from "./dry-run";
 export * from "./finish-convention";
 export * from "./dry-run-report";
-export { summarizePersistedDryRun } from "./persisted-dry-run";
-export type { PersistedDryRunReport } from "./persisted-dry-run";
 
 
 
