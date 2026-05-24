@@ -2828,3 +2828,121 @@ boring-bar (§29) get to decide on a wider rollout.
 - No new resource / leveling / baseline / progress capability.
 - Engine2 output is never persisted; schedule state is never mutated.
 - Legacy `calculateSchedule` remains the authoritative production engine.
+
+## §38 — Phase 3.7: Persisted FS-chain mismatch is a render-convention difference, not a CPM math divergence
+
+### What surfaced
+
+The Phase 3.6c live persisted smoke (`scripts/phase-3-6c-smoke.ts`) seeded
+the simplest possible real saved schedule that passes eligibility — a 5-task
+Finish-to-Start chain on a standard Mon–Fri calendar, no holidays, no
+progress, no resources, no per-activity calendars — and ran the
+admin-gated `summarizePersistedDryRun` helper against it.
+
+Engine2 ran. Legacy remained authoritative. The dry-run report flagged
+divergence:
+
+  - project finish: legacy `2026-06-30` vs engine2 `2026-06-29`
+  - maxDateDelta: **3 calendar days** (driven by activity C, which spans
+    a Fri → Mon weekend)
+  - every activity's early FINISH differed; early STARTS matched exactly
+  - total float and free float **matched** across the whole chain
+
+### Root cause: finish-date rendering convention, not CPM math
+
+Both engines compute the same underlying schedule. The divergence is in
+how each engine *renders* the finish-of-work moment:
+
+  - **Legacy**: `earlyFinishDate` is the **next working-day boundary**
+    after the last worked day. This is an "exclusive end" convention —
+    "work is done by the morning of day X".
+  - **engine2**: `earlyFinish` is the **last worked instant** itself,
+    08:00Z on the last worked day under the current 8h/day bridge.
+    This is an "inclusive end" / "last-work-moment" convention.
+
+The two conventions differ by exactly **+1 working day**, expressed in
+calendar days. Crossing a weekend (Friday → Monday) expands that +1
+working-day gap to +3 calendar days, which is why activity C — the only
+task in the chain whose last worked day is a Friday — exhibits a 3-day
+delta while every other task shows 1.
+
+Working-day-denominated quantities (total float, free float, criticality
+test) **cancel** the convention and match exactly. That is the signature
+of a render-convention difference, not a CPM math bug.
+
+### Regression sentinel
+
+The exact persisted shape that exposed this is now locked down as a fixture
+(`PERSISTED_FS_CHAIN_3_6C_FIXTURE` in
+`src/lib/scheduler/__tests__/fixtures/dry-run-fixtures.ts`) and a regression
+spec
+(`src/lib/scheduler/__tests__/engine2-persisted-fs-chain-3-6c-regression.spec.ts`)
+that asserts the diagnosed sentinel values explicitly:
+
+  - early STARTS match across all 5 activities
+  - every divergence is in the `early_finish_date` bucket
+  - legacy project finish = `2026-06-30`
+  - engine2 project finish = `2026-06-29`
+  - `maxDateDeltaDays` = 3
+  - `maxFloatDeltaDays` = 0
+  - `differingCount` = 5, `matchingCount` = 0
+  - legacy is authoritative, dry-run does not mutate schedule state
+
+If a future change either fixes the convention or introduces a new
+divergence, this spec fails loudly and forces a re-diagnosis. Do not
+loosen the assertions; update them only alongside an explicit
+re-diagnosis logged here.
+
+### Status
+
+  - **Engine2 math is NOT considered divergent on this fixture.** ES, total
+    float and free float all match. The single observed difference is a
+    rendering convention on `earlyFinish`.
+  - **Legacy remains authoritative.** Engine2 is still internal-comparison
+    only; nothing in production reads engine2 output.
+  - **Eligibility is unchanged.** Failure messages were cleaned up (see
+    below) but the set of blockers / warnings is the same.
+
+### Eligibility message cleanup
+
+Phase 3.6c also exposed that the eligibility audit was pushing the
+*requirement* text into the blockers list — e.g. an empty schedule reported
+"Schedule has at least one task." instead of "Schedule has no tasks."
+`EligibilityCheck` now carries an optional `failureMessage` and the
+internal `push()` helper prefers it over `description` for blockers /
+warnings. Locked down by
+`src/lib/scheduler/__tests__/engine2-eligibility-messages.spec.ts`.
+
+### Future decision (deliberately NOT made in this pass)
+
+Reconciling the finish-rendering convention is a future-phase decision.
+Two clean options:
+
+  1. **Normalize engine2 comparison output to legacy's exclusive
+     finish-boundary convention.** Cheapest path; comparison reports
+     and any future engine2 ScheduleResult shim render finishes as the
+     next working-day boundary so UI / persistence stays byte-identical
+     to legacy.
+  2. **Preserve engine2's instant model internally and add a rendering
+     adapter for legacy/UI comparison.** Slightly more work, but keeps
+     engine2 truthful about "when work actually ends" for future
+     hour-resolution features (shift schedules, intraday calendars,
+     real exception clocks) and only adapts at the boundary.
+
+Either path is acceptable. Whichever is chosen MUST keep:
+  - legacy `calculateSchedule` byte-identical for the production code path
+  - working-day-denominated quantities unchanged on both engines
+  - the regression sentinel updated, not loosened
+
+This pass deliberately does NOT pick one. The goal here was to prove and
+document that the observed divergence is render-convention only, so that
+future comparison work does not misinterpret it as a CPM math failure.
+
+### Scope guarantees (Phase 3.7)
+- No scheduler UI changes.
+- No production wiring of engine2.
+- Engine2 is **not** made authoritative or default.
+- Eligibility is **not** broadened (only failure-message text clarified).
+- XER import behavior is unchanged.
+- No new resource / leveling / baseline / progress capability.
+- Legacy `calculateSchedule` remains the authoritative production engine.
