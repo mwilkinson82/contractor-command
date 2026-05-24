@@ -1122,6 +1122,22 @@ function SchedulerPage() {
 
                 {/* ============ ACTIVITY INSPECTOR ============ */}
                 <div className="shrink-0 border-t border-[#e3e0d8] bg-white">
+                  {selectedTaskCalc && selectedTaskIdx >= 0 ? (
+                    <InspectorTitleRow
+                      t={selectedTaskCalc}
+                      name={draft.tasks[selectedTaskIdx]?.name ?? ""}
+                      percentComplete={draft.tasks[selectedTaskIdx]?.percentComplete}
+                      nearCriticalFloat={nearCriticalFloat}
+                      predCount={
+                        draft.dependencies.filter((d) => d.to === selectedTaskCalc.id).length
+                      }
+                      succCount={
+                        draft.dependencies.filter((d) => d.from === selectedTaskCalc.id).length
+                      }
+                      onClear={() => setSelectedTaskId(null)}
+                    />
+                  ) : null}
+
                   <div className="flex items-center gap-3 border-b border-[#ecebe5] px-4">
                     <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">
                       {selectedTaskCalc ? "Activity" : "Schedule"}
@@ -1155,37 +1171,29 @@ function SchedulerPage() {
                         </button>
                       ))}
                     </div>
-                    {selectedTaskCalc ? (
-                      <span className="ml-auto inline-flex items-center gap-2 pb-2 text-[10px] tabular-nums text-[#6b6a63]">
-                        <span className="font-mono">{selectedTaskCalc.id}</span>
-                        <span className="text-[#dad7cd]">·</span>
-                        {selectedTaskCalc.isCritical ? (
-                          <span className="inline-flex items-center gap-1 font-semibold uppercase tracking-wide text-[#b42318]">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#b42318]" />
-                            Critical
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 uppercase tracking-wide">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#2a3e5f]" />
-                            {selectedTaskCalc.totalFloat}d float
-                          </span>
-                        )}
-                      </span>
-                    ) : null}
                   </div>
 
 
-                  <div className={`${selectedTaskCalc ? "max-h-[200px]" : "max-h-[120px]"} overflow-auto px-4 py-2 text-sm`}>
+                  <div className={`${selectedTaskCalc ? "max-h-[240px]" : "max-h-[140px]"} overflow-auto px-4 py-3 text-sm`}>
                     {!selectedTaskCalc || selectedTaskIdx < 0 ? (
                       <ScheduleContextSummary
                         draft={draft}
                         computed={computed}
+                        nearCriticalFloat={nearCriticalFloat}
                         onSelect={setSelectedTaskId}
                       />
                     ) : inspectorTab === "details" ? (
                       <InspectorDetails
                         t={selectedTaskCalc}
                         draftTask={draft.tasks[selectedTaskIdx]}
+                        calendars={calendars}
+                        predCount={
+                          draft.dependencies.filter((d) => d.to === selectedTaskCalc.id).length
+                        }
+                        succCount={
+                          draft.dependencies.filter((d) => d.from === selectedTaskCalc.id).length
+                        }
+                        codes={codesByTask.get(selectedTaskCalc.id) ?? []}
                         onChange={(patch) => updateTask(selectedTaskIdx, patch)}
                       />
                     ) : inspectorTab === "relationships" ? (
