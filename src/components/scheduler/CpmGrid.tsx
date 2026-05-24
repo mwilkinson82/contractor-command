@@ -534,7 +534,7 @@ export function CpmGrid({
               const w = Math.max(t.duration * dayPx, 2);
               const isNearCritical =
                 !t.isCritical && nearCriticalFloat > 0 && t.totalFloat > 0 && t.totalFloat <= nearCriticalFloat;
-              const fill = t.isCritical ? "#9c2418" : isNearCritical ? "#c2750a" : "#2a3e5f";
+              const fill = t.isCritical ? "#b42318" : isNearCritical ? "#c2750a" : "#2a3e5f";
               const baselineT = baselineMap.get(t.id);
               const slipped = baselineT ? t.earlyFinish - baselineT.earlyFinish : 0;
 
