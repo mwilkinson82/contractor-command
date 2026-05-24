@@ -1122,6 +1122,22 @@ function SchedulerPage() {
 
                 {/* ============ ACTIVITY INSPECTOR ============ */}
                 <div className="shrink-0 border-t border-[#e3e0d8] bg-white">
+                  {selectedTaskCalc && selectedTaskIdx >= 0 ? (
+                    <InspectorTitleRow
+                      t={selectedTaskCalc}
+                      name={draft.tasks[selectedTaskIdx]?.name ?? ""}
+                      percentComplete={draft.tasks[selectedTaskIdx]?.percentComplete}
+                      nearCriticalFloat={nearCriticalFloat}
+                      predCount={
+                        draft.dependencies.filter((d) => d.to === selectedTaskCalc.id).length
+                      }
+                      succCount={
+                        draft.dependencies.filter((d) => d.from === selectedTaskCalc.id).length
+                      }
+                      onClear={() => setSelectedTaskId(null)}
+                    />
+                  ) : null}
+
                   <div className="flex items-center gap-3 border-b border-[#ecebe5] px-4">
                     <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">
                       {selectedTaskCalc ? "Activity" : "Schedule"}
@@ -1155,37 +1171,29 @@ function SchedulerPage() {
                         </button>
                       ))}
                     </div>
-                    {selectedTaskCalc ? (
-                      <span className="ml-auto inline-flex items-center gap-2 pb-2 text-[10px] tabular-nums text-[#6b6a63]">
-                        <span className="font-mono">{selectedTaskCalc.id}</span>
-                        <span className="text-[#dad7cd]">·</span>
-                        {selectedTaskCalc.isCritical ? (
-                          <span className="inline-flex items-center gap-1 font-semibold uppercase tracking-wide text-[#b42318]">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#b42318]" />
-                            Critical
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 uppercase tracking-wide">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#2a3e5f]" />
-                            {selectedTaskCalc.totalFloat}d float
-                          </span>
-                        )}
-                      </span>
-                    ) : null}
                   </div>
 
 
-                  <div className={`${selectedTaskCalc ? "max-h-[200px]" : "max-h-[120px]"} overflow-auto px-4 py-2 text-sm`}>
+                  <div className={`${selectedTaskCalc ? "max-h-[240px]" : "max-h-[140px]"} overflow-auto px-4 py-3 text-sm`}>
                     {!selectedTaskCalc || selectedTaskIdx < 0 ? (
                       <ScheduleContextSummary
                         draft={draft}
                         computed={computed}
+                        nearCriticalFloat={nearCriticalFloat}
                         onSelect={setSelectedTaskId}
                       />
                     ) : inspectorTab === "details" ? (
                       <InspectorDetails
                         t={selectedTaskCalc}
                         draftTask={draft.tasks[selectedTaskIdx]}
+                        calendars={calendars}
+                        predCount={
+                          draft.dependencies.filter((d) => d.to === selectedTaskCalc.id).length
+                        }
+                        succCount={
+                          draft.dependencies.filter((d) => d.from === selectedTaskCalc.id).length
+                        }
+                        codes={codesByTask.get(selectedTaskCalc.id) ?? []}
                         onChange={(patch) => updateTask(selectedTaskIdx, patch)}
                       />
                     ) : inspectorTab === "relationships" ? (
@@ -1477,13 +1485,103 @@ function LegendDot({ color, label }: { color: string; label: string }) {
   );
 }
 
+function statusFromPct(pct: number | undefined): {
+  label: string;
+  dot: string;
+  text: string;
+} {
+  const p = pct ?? 0;
+  if (p >= 100)
+    return { label: "Complete", dot: "bg-[#3d8a5c]", text: "text-[#3d8a5c]" };
+  if (p > 0)
+    return { label: "In progress", dot: "bg-[#2a3e5f]", text: "text-[#2a3e5f]" };
+  return { label: "Not started", dot: "bg-[#a8a59b]", text: "text-[#6b6a63]" };
+}
+
+function InspectorTitleRow({
+  t,
+  name,
+  percentComplete,
+  nearCriticalFloat,
+  predCount,
+  succCount,
+  onClear,
+}: {
+  t: import("@/lib/scheduler/types").ScheduledTask;
+  name: string;
+  percentComplete: number | undefined;
+  nearCriticalFloat: number;
+  predCount: number;
+  succCount: number;
+  onClear: () => void;
+}) {
+  const status = statusFromPct(percentComplete);
+  const isCritical = t.isCritical;
+  const isNearCrit =
+    !isCritical && t.totalFloat > 0 && t.totalFloat <= nearCriticalFloat;
+  return (
+    <div className="flex items-center gap-3 border-b border-[#ecebe5] bg-[#faf8f3] px-4 py-2">
+      <span
+        className={`inline-block h-2 w-2 rounded-full ${status.dot}`}
+        title={status.label}
+      />
+      <span className="font-mono text-[11px] tabular-nums text-[#6b6a63]">
+        {t.id}
+      </span>
+      <span className="text-[#dad7cd]">·</span>
+      <span className="truncate text-[13px] font-semibold tracking-tight text-[#1f241f]">
+        {name || "(unnamed activity)"}
+      </span>
+      <div className="ml-auto flex shrink-0 items-center gap-2 text-[10px] tabular-nums">
+        <span className={`uppercase tracking-wide ${status.text}`}>
+          {status.label}
+          {percentComplete != null && percentComplete > 0 && percentComplete < 100
+            ? ` · ${Math.round(percentComplete)}%`
+            : ""}
+        </span>
+        <span className="text-[#dad7cd]">·</span>
+        <span className="uppercase tracking-wide text-[#6b6a63]">
+          {predCount} pred · {succCount} succ
+        </span>
+        <span className="text-[#dad7cd]">·</span>
+        {isCritical ? (
+          <span className="inline-flex items-center gap-1 rounded-sm bg-[#fbe9e7] px-1.5 py-0.5 font-semibold uppercase tracking-wide text-[#b42318]">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#b42318]" />
+            Critical · 0d
+          </span>
+        ) : isNearCrit ? (
+          <span className="inline-flex items-center gap-1 rounded-sm bg-[#fdf3e3] px-1.5 py-0.5 font-semibold uppercase tracking-wide text-[#c2750a]">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#c2750a]" />
+            Near-crit · {t.totalFloat}d
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-sm bg-[#eef2f7] px-1.5 py-0.5 uppercase tracking-wide text-[#2a3e5f]">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#2a3e5f]" />
+            {t.totalFloat}d float
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={onClear}
+          className="ml-1 rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[#6b6a63] hover:bg-white hover:text-[#1f241f]"
+          title="Clear selection"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ScheduleContextSummary({
   draft,
   computed,
+  nearCriticalFloat,
   onSelect,
 }: {
   draft: Draft;
-  computed: { tasks: { id: string; name: string; isCritical: boolean; totalFloat: number; earlyFinish: number; earlyFinishDate?: string }[]; projectFinishDate?: string; projectDuration: number } | null;
+  computed: import("@/lib/scheduler/types").ScheduleResult | null;
+  nearCriticalFloat: number;
   onSelect: (id: string) => void;
 }) {
   if (!computed) {
@@ -1495,72 +1593,133 @@ function ScheduleContextSummary({
   }
   const critical = computed.tasks.filter((t) => t.isCritical);
   const nearCrit = computed.tasks
-    .filter((t) => !t.isCritical && t.totalFloat > 0 && t.totalFloat <= 5)
-    .sort((a, b) => a.totalFloat - b.totalFloat)
-    .slice(0, 4);
-  const drivingFinish = computed.tasks.reduce<typeof computed.tasks[number] | null>(
-    (a, b) => (!a || b.earlyFinish > a.earlyFinish ? b : a),
-    null,
-  );
+    .filter(
+      (t) => !t.isCritical && t.totalFloat > 0 && t.totalFloat <= nearCriticalFloat,
+    )
+    .sort((a, b) => a.totalFloat - b.totalFloat);
+  const drivingFinish = computed.tasks.reduce<
+    typeof computed.tasks[number] | null
+  >((a, b) => (!a || b.earlyFinish > a.earlyFinish ? b : a), null);
   return (
     <div className="grid grid-cols-12 gap-4 text-[11px]">
-      <div className="col-span-3">
+      <SummaryMetric
+        className="col-span-2"
+        label="Project finish"
+        value={computed.projectFinishDate ?? "—"}
+        sub={`${computed.projectDuration}d duration`}
+      />
+      <SummaryMetric
+        className="col-span-2"
+        label="Data date"
+        value={draft.dataDate ?? "—"}
+        sub={draft.projectStartDate ? `Start ${draft.projectStartDate}` : "No start set"}
+      />
+      <SummaryMetric
+        className="col-span-2"
+        label="Activities"
+        value={String(computed.tasks.length)}
+        sub={`${draft.dependencies.length} links`}
+      />
+      <SummaryMetric
+        className="col-span-2"
+        label="Critical"
+        value={String(critical.length)}
+        sub={
+          computed.tasks.length
+            ? `${Math.round((critical.length / computed.tasks.length) * 100)}% of plan`
+            : "—"
+        }
+        tone="critical"
+      />
+      <SummaryMetric
+        className="col-span-2"
+        label={`Near-critical (≤${nearCriticalFloat}d)`}
+        value={String(nearCrit.length)}
+        sub={
+          nearCrit.length
+            ? `min float ${nearCrit[0]!.totalFloat}d`
+            : "buffer healthy"
+        }
+        tone={nearCrit.length ? "warn" : undefined}
+      />
+      <div className="col-span-2">
         <div className="text-[9px] font-semibold uppercase tracking-wider text-[#8a8980]">
-          Project finish
-        </div>
-        <div className="mt-0.5 text-[14px] font-semibold tabular-nums text-[#1f241f]">
-          {computed.projectFinishDate ?? "—"}
-        </div>
-        <div className="text-[10px] text-[#6b6a63]">
-          {computed.projectDuration}d duration · DD {draft.dataDate ?? "—"}
-        </div>
-      </div>
-      <div className="col-span-3">
-        <div className="text-[9px] font-semibold uppercase tracking-wider text-[#8a8980]">
-          Critical path
-        </div>
-        <div className="mt-0.5 text-[14px] font-semibold tabular-nums text-[#b42318]">
-          {critical.length} <span className="text-[10px] font-normal text-[#6b6a63]">activities</span>
+          Driving path
         </div>
         {drivingFinish ? (
           <button
             type="button"
             onClick={() => onSelect(drivingFinish.id)}
-            className="mt-0.5 truncate text-left text-[10px] text-[#4a4944] hover:text-[#1f241f] hover:underline"
+            className="mt-0.5 block w-full truncate text-left text-[12px] font-semibold tabular-nums text-[#1f241f] hover:underline"
             title={drivingFinish.name}
           >
-            Driving → {drivingFinish.name}
+            {drivingFinish.name}
           </button>
-        ) : null}
-      </div>
-      <div className="col-span-6">
-        <div className="text-[9px] font-semibold uppercase tracking-wider text-[#8a8980]">
-          Near-critical (≤5d float)
-        </div>
-        {nearCrit.length === 0 ? (
-          <div className="mt-1 text-[10px] text-[#8a8980]">None — buffer is healthy.</div>
         ) : (
-          <ul className="mt-1 space-y-0.5">
-            {nearCrit.map((t) => (
+          <div className="mt-0.5 text-[12px] text-[#6b6a63]">—</div>
+        )}
+        <div className="text-[10px] text-[#6b6a63]">
+          finishes {drivingFinish?.earlyFinishDate ?? "—"}
+        </div>
+      </div>
+
+      {nearCrit.length > 0 ? (
+        <div className="col-span-12 border-t border-[#ecebe5] pt-2">
+          <div className="text-[9px] font-semibold uppercase tracking-wider text-[#8a8980]">
+            Near-critical activities
+          </div>
+          <ul className="mt-1 grid grid-cols-2 gap-x-4 gap-y-0.5 md:grid-cols-3">
+            {nearCrit.slice(0, 6).map((t) => (
               <li key={t.id}>
                 <button
                   type="button"
                   onClick={() => onSelect(t.id)}
-                  className="flex w-full items-center gap-2 text-left hover:bg-[#faf8f3] rounded px-1 py-0.5"
+                  className="flex w-full items-center gap-2 rounded px-1 py-0.5 text-left hover:bg-[#faf8f3]"
                 >
                   <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#c2750a]" />
                   <span className="font-mono text-[10px] text-[#6b6a63]">{t.id}</span>
                   <span className="flex-1 truncate text-[#1f241f]">{t.name}</span>
-                  <span className="tabular-nums text-[10px] text-[#c2750a]">{t.totalFloat}d</span>
+                  <span className="tabular-nums text-[10px] text-[#c2750a]">
+                    {t.totalFloat}d
+                  </span>
                 </button>
               </li>
             ))}
           </ul>
-        )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SummaryMetric({
+  className,
+  label,
+  value,
+  sub,
+  tone,
+}: {
+  className?: string;
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: "critical" | "warn";
+}) {
+  const valueColor =
+    tone === "critical"
+      ? "text-[#b42318]"
+      : tone === "warn"
+        ? "text-[#c2750a]"
+        : "text-[#1f241f]";
+  return (
+    <div className={className}>
+      <div className="text-[9px] font-semibold uppercase tracking-wider text-[#8a8980]">
+        {label}
       </div>
-      <div className="col-span-12 text-[10px] text-[#8a8980]">
-        Click any activity in the table or Gantt to inspect details, relationships, resources, codes, and notes.
+      <div className={`mt-0.5 text-[14px] font-semibold tabular-nums ${valueColor}`}>
+        {value}
       </div>
+      {sub ? <div className="text-[10px] text-[#6b6a63]">{sub}</div> : null}
     </div>
   );
 }
@@ -1568,14 +1727,25 @@ function ScheduleContextSummary({
 function InspectorDetails({
   t,
   draftTask,
+  calendars,
+  predCount,
+  succCount,
+  codes,
   onChange,
 }: {
   t: import("@/lib/scheduler/types").ScheduledTask;
   draftTask: Task;
+  calendars: { id: string; name: string; isDefault: boolean }[];
+  predCount: number;
+  succCount: number;
+  codes: { typeName: string; code: string; color: string | null }[];
   onChange: (patch: Partial<Task>) => void;
 }) {
+  const calName = draftTask.calendarId
+    ? calendars.find((c) => c.id === draftTask.calendarId)?.name ?? "Unknown"
+    : calendars.find((c) => c.isDefault)?.name ?? "Project default";
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_320px]">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_360px]">
       <div className="space-y-3">
         <div>
           <Label className="text-[10px] uppercase tracking-wide text-[#6b6a63]">
@@ -1631,28 +1801,82 @@ function InspectorDetails({
             />
           </div>
         </div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-md border border-[#ecebe5] bg-[#faf8f3] p-2 text-[11px]">
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] uppercase tracking-wide text-[#8a8980]">Calendar</span>
+            <span className="truncate text-[#1f241f]">{calName}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] uppercase tracking-wide text-[#8a8980]">Links</span>
+            <span className="text-[#1f241f]">
+              {predCount} pred · {succCount} succ
+            </span>
+          </div>
+          {codes.length > 0 ? (
+            <div className="col-span-2 flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-[9px] uppercase tracking-wide text-[#8a8980]">Codes</span>
+              {codes.slice(0, 6).map((c, i) => (
+                <span
+                  key={`${c.typeName}-${i}`}
+                  className="inline-flex items-center gap-1 rounded-sm border border-[#e3e0d8] bg-white px-1.5 py-0.5 text-[10px] text-[#2d2d28]"
+                  title={c.typeName}
+                >
+                  {c.color ? (
+                    <span
+                      className="inline-block h-1.5 w-1.5 rounded-full"
+                      style={{ background: c.color }}
+                    />
+                  ) : null}
+                  {c.code}
+                </span>
+              ))}
+              {codes.length > 6 ? (
+                <span className="text-[10px] text-[#6b6a63]">+{codes.length - 6}</span>
+              ) : null}
+            </div>
+          ) : null}
+          {draftTask.description ? (
+            <div className="col-span-2 truncate text-[10px] text-[#6b6a63]" title={draftTask.description}>
+              📝 {draftTask.description}
+            </div>
+          ) : null}
+        </div>
       </div>
       <div className="rounded-md border border-[#e3e0d8] bg-[#faf8f3] p-3">
-        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#6b6a63]">
-          CPM stats
+        <div className="flex items-center justify-between">
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-[#6b6a63]">
+            Schedule dates
+          </div>
+          <div className="text-[10px] tabular-nums text-[#6b6a63]">
+            {draftTask.duration ?? 0}d
+          </div>
         </div>
-        <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-[#2d2d28]">
+        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px] text-[#2d2d28]">
           <dt className="text-[#6b6a63]">Early start</dt>
-          <dd className="text-right font-medium">d{t.earlyStart}</dd>
+          <dd className="text-right font-medium tabular-nums">
+            {t.earlyStartDate ?? `d${t.earlyStart}`}
+          </dd>
           <dt className="text-[#6b6a63]">Early finish</dt>
-          <dd className="text-right font-medium">d{t.earlyFinish}</dd>
+          <dd className="text-right font-medium tabular-nums">
+            {t.earlyFinishDate ?? `d${t.earlyFinish}`}
+          </dd>
           <dt className="text-[#6b6a63]">Late start</dt>
-          <dd className="text-right font-medium">d{t.lateStart}</dd>
+          <dd className="text-right font-medium tabular-nums">
+            {t.lateStartDate ?? `d${t.lateStart}`}
+          </dd>
           <dt className="text-[#6b6a63]">Late finish</dt>
-          <dd className="text-right font-medium">d{t.lateFinish}</dd>
+          <dd className="text-right font-medium tabular-nums">
+            {t.lateFinishDate ?? `d${t.lateFinish}`}
+          </dd>
+          <dt className="col-span-2 mt-1 border-t border-[#ecebe5] pt-1" />
           <dt className="text-[#6b6a63]">Total float</dt>
           <dd
-            className={`text-right font-semibold ${t.totalFloat <= 0 ? "text-[#b42318]" : "text-[#3d8a5c]"}`}
+            className={`text-right font-semibold tabular-nums ${t.totalFloat <= 0 ? "text-[#b42318]" : "text-[#3d8a5c]"}`}
           >
             {t.totalFloat}d
           </dd>
           <dt className="text-[#6b6a63]">Free float</dt>
-          <dd className="text-right font-medium">{t.freeFloat}d</dd>
+          <dd className="text-right font-medium tabular-nums">{t.freeFloat}d</dd>
         </dl>
       </div>
     </div>
