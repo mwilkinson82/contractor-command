@@ -3004,10 +3004,23 @@ function IntelDrawerContent({
                 <div className="mt-1 pl-6 text-[10.5px] text-[#4a4944]">{p.detail}</div>
               </li>
             ))}
+            {mode === "compact" && priorities.length > 1 ? (
+              <li className="pl-1 text-[10px] text-[#8a8980]">
+                …{priorities.length - 1} more in Standard view
+              </li>
+            ) : null}
           </ol>
         )}
       </IntelSection>
 
+      {mode === "compact" ? (
+        <div className="px-3 pb-4 pt-2 text-[10px] uppercase tracking-wider text-[#a8a496]">
+          Compact view · widen drawer for full review
+        </div>
+      ) : null}
+
+      {mode !== "compact" ? (
+      <>
       {/* ---- 3. CRITICAL PATH ---- */}
       <IntelSection title="Critical Path">
         <IntelRow label="Critical activities" value={String(critical.length)} />
