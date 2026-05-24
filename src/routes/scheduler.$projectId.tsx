@@ -1431,10 +1431,25 @@ function SchedulerPage() {
                           })}
                         />
                       ) : (
-                        <IntelBuildPanel />
+                        <IntelBuildWorkspace
+                          expanded={false}
+                          onToggleExpanded={() => setIntelBuildExpanded(true)}
+                        />
                       )}
 
                     </aside>
+                  ) : null}
+
+                  {intelBuildExpanded ? (
+                    <div
+                      className="fixed inset-0 z-50 flex flex-col bg-[#fdfcf7]"
+                      data-testid="intel-build-overlay"
+                    >
+                      <IntelBuildWorkspace
+                        expanded
+                        onToggleExpanded={() => setIntelBuildExpanded(false)}
+                      />
+                    </div>
                   ) : null}
 
                 </div>
