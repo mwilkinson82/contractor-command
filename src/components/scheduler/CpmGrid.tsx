@@ -267,14 +267,14 @@ export function CpmGrid({
   return (
     <div
       ref={scrollRef}
-      className="h-full w-full overflow-auto border-t border-[#d8cdb8] bg-white"
+      className="h-full w-full overflow-auto border-t border-[#e3e0d8] bg-white"
     >
       <div className="flex min-w-max">
         {/* ============ LEFT: activity table ============ */}
-        <div className="sticky left-0 z-20 shrink-0 border-r border-[#d8cdb8] bg-white shadow-[2px_0_0_rgba(0,0,0,0.03)]">
-          {/* Column header — quiet ink on cream to match the gantt header */}
+        <div className="sticky left-0 z-20 shrink-0 border-r border-[#e3e0d8] bg-white shadow-[1px_0_0_rgba(31,36,31,0.04)]">
+          {/* Column header — cool slate-ivory, technical */}
           <div
-            className="sticky top-0 z-30 border-b border-[#d8cdb8] bg-[#f3ecdb] text-[10px] font-semibold uppercase tracking-wider text-[#3d3527]"
+            className="sticky top-0 z-30 border-b border-[#e3e0d8] bg-[#f3f2ed] text-[10px] font-semibold uppercase tracking-wider text-[#3d3d38]"
             style={{ height: HEADER_H }}
           >
             <table className="w-full border-collapse">
@@ -304,6 +304,7 @@ export function CpmGrid({
               </thead>
             </table>
           </div>
+
 
           {/* Rows */}
           <table
