@@ -3219,9 +3219,23 @@ function IntelDrawerContent({
         </IntelSection>
       ) : null}
 
+      {mode === "wide" ? (
+        <section className="border-t border-dashed border-[#dad7cd] bg-white/60 px-3 py-3">
+          <h3 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#675d4b]">
+            Builder workspace
+          </h3>
+          <div className="mt-1 text-[11px] text-[#6b6a63]">
+            Reserved for AI / chat-assisted schedule building. No live behavior
+            wired yet — use Standard for the current deterministic review.
+          </div>
+        </section>
+      ) : null}
+
       <div className="px-3 pb-4 pt-2 text-[10px] uppercase tracking-wider text-[#a8a496]">
-        Deterministic review · derived from current schedule
+        {mode === "wide" ? "Standard review + reserved builder space" : "Deterministic review · derived from current schedule"}
       </div>
+      </>
+      ) : null}
     </div>
   );
 }
