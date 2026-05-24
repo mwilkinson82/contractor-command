@@ -534,7 +534,7 @@ export function CpmGrid({
               const w = Math.max(t.duration * dayPx, 2);
               const isNearCritical =
                 !t.isCritical && nearCriticalFloat > 0 && t.totalFloat > 0 && t.totalFloat <= nearCriticalFloat;
-              const fill = t.isCritical ? "#9c2418" : isNearCritical ? "#c2750a" : "#2a3e5f";
+              const fill = t.isCritical ? "#b42318" : isNearCritical ? "#c2750a" : "#2a3e5f";
               const baselineT = baselineMap.get(t.id);
               const slipped = baselineT ? t.earlyFinish - baselineT.earlyFinish : 0;
 
@@ -604,6 +604,10 @@ export function CpmGrid({
                         fill={fill}
                         fontFamily="ui-sans-serif, system-ui"
                         fontWeight={600}
+                        stroke="#faf8f3"
+                        strokeWidth={3}
+                        paintOrder="stroke"
+                        strokeLinejoin="round"
                       >
                         {t.name.length > 30 ? t.name.slice(0, 29) + "…" : t.name}
                       </text>
@@ -617,7 +621,7 @@ export function CpmGrid({
                         height={rowH - 7}
                         rx={0}
                         fill={fill}
-                        stroke={isSelected ? "#1f241f" : t.isCritical ? "#7a1c12" : "rgba(0,0,0,0.18)"}
+                        stroke={isSelected ? "#1f241f" : t.isCritical ? "#8a1d12" : "rgba(0,0,0,0.18)"}
                         strokeWidth={isSelected ? 1.5 : 0.5}
                         style={{ cursor: onTaskReschedule ? "grab" : "pointer" }}
                         onPointerDown={(e) => beginDrag(e, t.id, "move")}
@@ -667,6 +671,10 @@ export function CpmGrid({
                           fontSize={9}
                           fill="#4a4944"
                           fontFamily="ui-sans-serif, system-ui"
+                          stroke="#faf8f3"
+                          strokeWidth={3}
+                          paintOrder="stroke"
+                          strokeLinejoin="round"
                         >
                           {t.id}
                           {baselineT && slipped !== 0 ? (
@@ -746,6 +754,7 @@ export function CpmGrid({
                       orient="auto-start-reverse"
                     >
                       <path d="M0,0 L10,5 L0,10 z" fill="#b42318" />
+
                     </marker>
                     <marker
                       id="cpm-arrow-drv"
@@ -812,7 +821,7 @@ export function CpmGrid({
                       ? "#7a5cc4"
                       : d.isDriving
                       ? bothCrit
-                        ? "#9c2418"
+                        ? "#b42318"
                         : "#2a3e5f"
                       : "#a8a59b";
                     const marker = onChain
@@ -822,8 +831,8 @@ export function CpmGrid({
                         ? "url(#cpm-arrow-crit)"
                         : "url(#cpm-arrow-drv)"
                       : "url(#cpm-arrow-soft)";
-                    const opacity = onChain ? 1 : d.isDriving ? (bothCrit ? 0.75 : 0.55) : 0.22;
-                    const sw = onChain ? 1.4 : d.isDriving ? 0.9 : 0.7;
+                    const opacity = onChain ? 1 : d.isDriving ? (bothCrit ? 0.55 : 0.4) : 0.14;
+                    const sw = onChain ? 1.4 : d.isDriving ? (bothCrit ? 0.9 : 0.75) : 0.55;
                     return (
                       <path
                         key={`dep-${d.id ?? di}`}
@@ -896,6 +905,10 @@ export function CpmGrid({
                         fill={color}
                         fontWeight={600}
                         fontFamily="ui-sans-serif, system-ui"
+                        stroke="#faf8f3"
+                        strokeWidth={3}
+                        paintOrder="stroke"
+                        strokeLinejoin="round"
                       >
                         {a.label.length > 24 ? a.label.slice(0, 23) + "…" : a.label}
                       </text>
