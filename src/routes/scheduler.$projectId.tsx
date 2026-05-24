@@ -1327,60 +1327,108 @@ function SchedulerPage() {
                       >
                         <div className="absolute inset-y-0 left-1 w-px bg-[#e3e0d8] group-hover:bg-[#1f241f]" />
                       </div>
-                      <header className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-[#e3e0d8] bg-white px-3">
-                        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#4a4944]">
-                          Schedule Intelligence
-                        </span>
-                        <div className="flex items-center gap-1">
+                      <header className="flex shrink-0 flex-col gap-1 border-b border-[#e3e0d8] bg-white px-3 py-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#4a4944]">
+                            Schedule Intelligence
+                          </span>
+                          <div className="flex items-center gap-1">
+                            {(
+                              [
+                                ["C", 300, "Compact"],
+                                ["S", 380, "Standard"],
+                                ["W", 520, "Wide"],
+                              ] as const
+                            ).map(([k, w, title]) => {
+                              const active = Math.abs(intelDrawerWidth - w) < 8;
+                              return (
+                                <button
+                                  key={k}
+                                  type="button"
+                                  onClick={() => setIntelDrawerWidth(w)}
+                                  className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                                    active
+                                      ? "bg-[#1f241f] text-white"
+                                      : "text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
+                                  }`}
+                                  title={title}
+                                  aria-label={title}
+                                >
+                                  {k}
+                                </button>
+                              );
+                            })}
+                            <button
+                              type="button"
+                              onClick={() => setIntelDrawerOpen(false)}
+                              className="ml-1 rounded p-1 text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
+                              aria-label="Close intelligence drawer"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                        <div
+                          role="tablist"
+                          aria-label="Intelligence mode"
+                          className="flex items-center gap-0.5"
+                          data-testid="intel-mode-tabs"
+                        >
                           {(
                             [
-                              ["C", 300, "Compact"],
-                              ["S", 380, "Standard"],
-                              ["W", 520, "Wide"],
+                              ["review", "Review"],
+                              ["chat", "Chat"],
+                              ["build", "Build"],
                             ] as const
-                          ).map(([k, w, title]) => {
-                            const active = Math.abs(intelDrawerWidth - w) < 8;
+                          ).map(([key, label]) => {
+                            const active = intelDrawerMode === key;
                             return (
                               <button
-                                key={k}
+                                key={key}
                                 type="button"
-                                onClick={() => setIntelDrawerWidth(w)}
-                                className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                                role="tab"
+                                aria-selected={active}
+                                onClick={() => setIntelDrawerMode(key)}
+                                data-testid={`intel-mode-${key}`}
+                                className={`rounded px-2 py-0.5 text-[10.5px] font-medium tracking-wide ${
                                   active
-                                    ? "bg-[#1f241f] text-white"
+                                    ? "bg-[#1f241f] text-[#f7e9b8]"
                                     : "text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
                                 }`}
-                                title={title}
-                                aria-label={title}
                               >
-                                {k}
+                                {label}
                               </button>
                             );
                           })}
-                          <button
-                            type="button"
-                            onClick={() => setIntelDrawerOpen(false)}
-                            className="ml-1 rounded p-1 text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
-                            aria-label="Close intelligence drawer"
-                          >
-                            ✕
-                          </button>
                         </div>
                       </header>
-                      <IntelDrawerContent
-                        draft={draft}
-                        computed={computed}
-                        selectedTask={selectedTaskCalc}
-                        nearCriticalFloat={nearCriticalFloat}
-                        dataQuality={dataQuality}
-                        mode={
-                          intelDrawerWidth <= 320
-                            ? "compact"
-                            : intelDrawerWidth >= 480
-                              ? "wide"
-                              : "standard"
-                        }
-                      />
+                      {intelDrawerMode === "review" ? (
+                        <IntelDrawerContent
+                          draft={draft}
+                          computed={computed}
+                          selectedTask={selectedTaskCalc}
+                          nearCriticalFloat={nearCriticalFloat}
+                          dataQuality={dataQuality}
+                          mode={
+                            intelDrawerWidth <= 320
+                              ? "compact"
+                              : intelDrawerWidth >= 480
+                                ? "wide"
+                                : "standard"
+                          }
+                        />
+                      ) : intelDrawerMode === "chat" ? (
+                        <IntelChatPanel
+                          context={buildIntelScheduleContext({
+                            draft,
+                            computed,
+                            selectedTask: selectedTaskCalc,
+                            nearCriticalFloor: nearCriticalFloat,
+                          })}
+                        />
+                      ) : (
+                        <IntelBuildPanel />
+                      )}
 
                     </aside>
                   ) : null}
