@@ -442,6 +442,16 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
             </button>
             <button
               type="button"
+              onClick={sendToAos}
+              disabled={aosSending}
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-[13px] font-medium text-foreground hover:bg-muted disabled:opacity-60"
+              title="Open AOS Knowledge Hub to import this SOP"
+            >
+              <Send className="h-3.5 w-3.5" />
+              {aosSending ? "Opening AOS…" : aosSentAt ? "Sent to AOS ✓" : "Send to AOS Knowledge Hub"}
+            </button>
+            <button
+              type="button"
               onClick={() => { triedDraft.current = false; void draft(); }}
               className="ml-auto inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-[12px] text-foreground/70 hover:bg-muted"
               title="Re-draft from scratch with AI (discards your edits)"
