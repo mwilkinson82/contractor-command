@@ -579,10 +579,10 @@ export function CpmGrid({
                   {baselineT ? (
                     <rect
                       x={baselineT.earlyStart * dayPx}
-                      y={y + rowH - 5}
+                      y={y + rowH - 4}
                       width={Math.max(baselineT.duration * dayPx, 2)}
-                      height={3}
-                      fill="#9c8b6e"
+                      height={2}
+                      fill="#a8a59b"
                       opacity={0.9}
                     />
                   ) : null}
@@ -590,15 +590,15 @@ export function CpmGrid({
                   {isMilestone ? (
                     <>
                       <polygon
-                        points={`${x},${y + rowH / 2 - 6} ${x + 6},${y + rowH / 2} ${x},${
-                          y + rowH / 2 + 6
-                        } ${x - 6},${y + rowH / 2}`}
+                        points={`${x},${y + rowH / 2 - 5} ${x + 5},${y + rowH / 2} ${x},${
+                          y + rowH / 2 + 5
+                        } ${x - 5},${y + rowH / 2}`}
                         fill={fill}
                         style={{ cursor: onTaskReschedule ? "grab" : "pointer" }}
                         onPointerDown={(e) => beginDrag(e, t.id, "move")}
                       />
                       <text
-                        x={x + 10}
+                        x={x + 9}
                         y={y + rowH / 2 + 3}
                         fontSize={9}
                         fill={fill}
@@ -612,13 +612,13 @@ export function CpmGrid({
                     <>
                       <rect
                         x={x}
-                        y={y + 4}
+                        y={y + 3}
                         width={w}
-                        height={rowH - 9}
-                        rx={1}
+                        height={rowH - 7}
+                        rx={0}
                         fill={fill}
-                        stroke={isSelected ? "#1f241f" : "transparent"}
-                        strokeWidth={1.5}
+                        stroke={isSelected ? "#1f241f" : t.isCritical ? "#7a1c12" : "rgba(0,0,0,0.18)"}
+                        strokeWidth={isSelected ? 1.5 : 0.5}
                         style={{ cursor: onTaskReschedule ? "grab" : "pointer" }}
                         onPointerDown={(e) => beginDrag(e, t.id, "move")}
                       />
@@ -626,12 +626,12 @@ export function CpmGrid({
                       {t.percentComplete && t.percentComplete > 0 ? (
                         <rect
                           x={x}
-                          y={y + 4}
+                          y={y + 3}
                           width={Math.max((w * (t.percentComplete ?? 0)) / 100, 1)}
-                          height={rowH - 9}
-                          rx={1}
+                          height={rowH - 7}
+                          rx={0}
                           fill="#1f241f"
-                          opacity={0.6}
+                          opacity={0.55}
                           pointerEvents="none"
                         />
                       ) : null}
@@ -639,9 +639,9 @@ export function CpmGrid({
                       {onTaskReschedule ? (
                         <rect
                           x={x + w - 4}
-                          y={y + 4}
+                          y={y + 3}
                           width={6}
-                          height={rowH - 9}
+                          height={rowH - 7}
                           fill="transparent"
                           style={{ cursor: "ew-resize" }}
                           onPointerDown={(e) => beginDrag(e, t.id, "resize")}
@@ -654,8 +654,8 @@ export function CpmGrid({
                           y={y + rowH / 2 - 1}
                           width={t.totalFloat * dayPx}
                           height={2}
-                          fill="#9c8b6e"
-                          opacity={0.65}
+                          fill="#a8a59b"
+                          opacity={0.6}
                           pointerEvents="none"
                         />
                       ) : null}
@@ -665,7 +665,7 @@ export function CpmGrid({
                           x={x + w + (t.totalFloat * dayPx || 0) + 4}
                           y={y + rowH / 2 + 3}
                           fontSize={9}
-                          fill="#5c574e"
+                          fill="#4a4944"
                           fontFamily="ui-sans-serif, system-ui"
                         >
                           {t.id}
@@ -678,6 +678,7 @@ export function CpmGrid({
                       ) : null}
                     </>
                   )}
+
 
                   {/* drag ghost */}
                   {drag && drag.id === t.id && drag.deltaDays !== 0 ? (
