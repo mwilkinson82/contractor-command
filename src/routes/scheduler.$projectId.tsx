@@ -195,6 +195,17 @@ function SchedulerPage() {
     };
   }, [focusMode]);
 
+  // In focus mode, default the inspector to collapsed when nothing is
+  // selected and to standard (non-collapsed) when an activity is selected.
+  // Users can still manually resize / collapse / expand after that.
+  const hasSelection = !!selectedTaskId;
+  useEffect(() => {
+    if (!focusMode) return;
+    setInspectorCollapsed(!hasSelection);
+    if (hasSelection) setInspectorExpanded(false);
+  }, [focusMode, hasSelection]);
+
+
 
   // Resizer drag helpers — global pointer listeners avoid losing the drag
   // when the cursor leaves the handle.
@@ -883,9 +894,16 @@ function SchedulerPage() {
       ) : (
         <>
           {/* ============ TOOLBAR ============ */}
-          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[#e3e0d8] bg-white px-4 py-1">
+          <div
+            data-scheduler-toolbar
+            className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[#e3e0d8] bg-white px-4 py-1"
+          >
             {/* View modes (only Gantt is wired) */}
-            <div className="flex items-center rounded-md border border-[#e3e0d8] bg-[#faf8f3] p-0.5">
+            <div
+              data-scheduler-viewmode
+              className="flex items-center rounded-md border border-[#e3e0d8] bg-[#faf8f3] p-0.5"
+            >
+
               <button className="rounded bg-white px-3 py-1 text-xs font-medium shadow-sm">
                 Gantt
               </button>
@@ -1352,7 +1370,15 @@ function SchedulerPage() {
                         selectedTask={selectedTaskCalc}
                         nearCriticalFloat={nearCriticalFloat}
                         dataQuality={dataQuality}
+                        mode={
+                          intelDrawerWidth <= 320
+                            ? "compact"
+                            : intelDrawerWidth >= 480
+                              ? "wide"
+                              : "standard"
+                        }
                       />
+
                     </aside>
                   ) : null}
 
@@ -2738,12 +2764,14 @@ function IntelDrawerContent({
   selectedTask,
   nearCriticalFloat,
   dataQuality,
+  mode = "standard",
 }: {
   draft: import("@/lib/scheduler/types").Schedule | null;
   computed: import("@/lib/scheduler/types").ScheduleResult | null;
   selectedTask: import("@/lib/scheduler/types").ScheduledTask | null;
   nearCriticalFloat: number;
   dataQuality: string;
+  mode?: "compact" | "standard" | "wide";
 }) {
   if (!draft || !computed) {
     return (
@@ -2957,7 +2985,7 @@ function IntelDrawerContent({
           </div>
         ) : (
           <ol className="space-y-1.5">
-            {priorities.map((p, i) => (
+            {(mode === "compact" ? priorities.slice(0, 1) : priorities).map((p, i) => (
               <li
                 key={p.id}
                 className="rounded border border-[#ece8db] bg-white/70 p-2"
@@ -2976,10 +3004,23 @@ function IntelDrawerContent({
                 <div className="mt-1 pl-6 text-[10.5px] text-[#4a4944]">{p.detail}</div>
               </li>
             ))}
+            {mode === "compact" && priorities.length > 1 ? (
+              <li className="pl-1 text-[10px] text-[#8a8980]">
+                …{priorities.length - 1} more in Standard view
+              </li>
+            ) : null}
           </ol>
         )}
       </IntelSection>
 
+      {mode === "compact" ? (
+        <div className="px-3 pb-4 pt-2 text-[10px] uppercase tracking-wider text-[#a8a496]">
+          Compact view · widen drawer for full review
+        </div>
+      ) : null}
+
+      {mode !== "compact" ? (
+      <>
       {/* ---- 3. CRITICAL PATH ---- */}
       <IntelSection title="Critical Path">
         <IntelRow label="Critical activities" value={String(critical.length)} />
@@ -3178,9 +3219,23 @@ function IntelDrawerContent({
         </IntelSection>
       ) : null}
 
+      {mode === "wide" ? (
+        <section className="border-t border-dashed border-[#dad7cd] bg-white/60 px-3 py-3">
+          <h3 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#675d4b]">
+            Builder workspace
+          </h3>
+          <div className="mt-1 text-[11px] text-[#6b6a63]">
+            Reserved for AI / chat-assisted schedule building. No live behavior
+            wired yet — use Standard for the current deterministic review.
+          </div>
+        </section>
+      ) : null}
+
       <div className="px-3 pb-4 pt-2 text-[10px] uppercase tracking-wider text-[#a8a496]">
-        Deterministic review · derived from current schedule
+        {mode === "wide" ? "Standard review + reserved builder space" : "Deterministic review · derived from current schedule"}
       </div>
+      </>
+      ) : null}
     </div>
   );
 }
