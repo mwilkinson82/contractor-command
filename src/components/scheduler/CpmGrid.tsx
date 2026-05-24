@@ -570,9 +570,10 @@ export function CpmGrid({
                     y={y}
                     width={timelineWidth}
                     height={rowH}
-                    fill={isSelected ? "#fff7e0" : i % 2 ? "#fbf9f3" : "white"}
+                    fill={isSelected ? "#eef3f8" : i % 2 ? "#fafaf7" : "white"}
                   />
-                  <line x1={0} x2={timelineWidth} y1={y + rowH} y2={y + rowH} stroke="#f0e9d8" />
+                  <line x1={0} x2={timelineWidth} y1={y + rowH} y2={y + rowH} stroke="#ecebe5" />
+
 
                   {/* baseline ghost */}
                   {baselineT ? (
