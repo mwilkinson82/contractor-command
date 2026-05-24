@@ -116,6 +116,94 @@ function SchedulerPage() {
   const [resourceFilter, setResourceFilter] = useState<string>("");
   const [codeFilter, setCodeFilter] = useState<string>(""); // "typeId:valueId"
 
+  // ---------- adjustable workbench layout ----------
+  // Persisted per-project so user's preferred panel sizes survive reload.
+  const layoutStorageKey = `aos:scheduler:workbench:${selectedId}`;
+  const [nameColWidth, setNameColWidth] = useState<number>(240);
+  const [inspectorHeight, setInspectorHeight] = useState<number>(260);
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
+  const [inspectorExpanded, setInspectorExpanded] = useState(false);
+  // Future Schedule Intelligence drawer (right-side slide-out). Closed by
+  // default; the panel itself is hidden behind an internal flag until the
+  // assistant behavior is real.
+  const [intelDrawerOpen, setIntelDrawerOpen] = useState(false);
+  const SHOW_INTEL_DRAWER = false; // internal flag: do not expose fake AI
+
+  // Hydrate from localStorage on mount / project change.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(layoutStorageKey);
+      if (!raw) return;
+      const v = JSON.parse(raw) as Partial<{
+        nameColWidth: number;
+        inspectorHeight: number;
+        inspectorCollapsed: boolean;
+        inspectorExpanded: boolean;
+      }>;
+      if (typeof v.nameColWidth === "number") setNameColWidth(v.nameColWidth);
+      if (typeof v.inspectorHeight === "number") setInspectorHeight(v.inspectorHeight);
+      if (typeof v.inspectorCollapsed === "boolean") setInspectorCollapsed(v.inspectorCollapsed);
+      if (typeof v.inspectorExpanded === "boolean") setInspectorExpanded(v.inspectorExpanded);
+    } catch {
+      /* ignore corrupted layout */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
+  // Persist layout changes.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        layoutStorageKey,
+        JSON.stringify({
+          nameColWidth,
+          inspectorHeight,
+          inspectorCollapsed,
+          inspectorExpanded,
+        }),
+      );
+    } catch {
+      /* ignore quota errors */
+    }
+  }, [layoutStorageKey, nameColWidth, inspectorHeight, inspectorCollapsed, inspectorExpanded]);
+
+  // Resizer drag helpers — global pointer listeners avoid losing the drag
+  // when the cursor leaves the handle.
+  const startColResize = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = nameColWidth;
+    const onMove = (ev: PointerEvent) => {
+      const next = Math.max(140, Math.min(560, startW + (ev.clientX - startX)));
+      setNameColWidth(next);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+  const startInspectorResize = (e: React.PointerEvent) => {
+    if (inspectorCollapsed || inspectorExpanded) return;
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = inspectorHeight;
+    const onMove = (ev: PointerEvent) => {
+      const next = Math.max(120, Math.min(560, startH - (ev.clientY - startY)));
+      setInspectorHeight(next);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+
   const loadStructureFn = useServerFn(loadStructure);
   const { data: structure } = useQuery({
     queryKey: ["structure", selectedId],
