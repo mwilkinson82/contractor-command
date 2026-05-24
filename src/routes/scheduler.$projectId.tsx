@@ -3020,7 +3020,7 @@ function IntelDrawerContent({
       ) : null}
 
       {mode !== "compact" ? (
-      <React.Fragment>
+        <div className="contents">
 
 
       {/* ---- 3. CRITICAL PATH ---- */}
@@ -3236,7 +3236,7 @@ function IntelDrawerContent({
       <div className="px-3 pb-4 pt-2 text-[10px] uppercase tracking-wider text-[#a8a496]">
         {mode === "wide" ? "Standard review + reserved builder space" : "Deterministic review · derived from current schedule"}
       </div>
-      </React.Fragment>
+        </div>
       ) : null}
 
 
