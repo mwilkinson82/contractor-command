@@ -77,7 +77,7 @@ export function ScheduleKpiBar({ result, tasks, dataDate }: Props) {
   }, [result, tasks, dataDate]);
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-1 border-b border-[#e6dfd0] bg-white px-4 py-1 text-[11px] text-[#5c574e]">
+    <div className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-1 border-b border-[#e3e0d8] bg-white px-4 py-1 text-[11px] text-[#4a4944]">
       <Pill label="Activities" value={kpis.total.toString()} sub={`${kpis.notStarted} ns`} />
       <Pill label="Critical" value={kpis.critical.toString()} sub={`+${kpis.nearCrit} nc`} dot="#b42318" />
       <Pill label="In progress" value={kpis.inProg.toString()} sub={`${kpis.completed} done`} dot="#5b8bd6" />
@@ -114,9 +114,9 @@ function Pill({
   return (
     <span className="inline-flex items-center gap-1.5">
       {dot ? <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: dot }} /> : null}
-      <span className="text-[9px] font-semibold uppercase tracking-wider text-[#7a6a4d]">{label}</span>
+      <span className="text-[9px] font-semibold uppercase tracking-wider text-[#6b6a63]">{label}</span>
       <span className={`font-semibold tabular-nums ${toneClass}`}>{value}</span>
-      {sub ? <span className="text-[10px] text-[#9c8b6e]">{sub}</span> : null}
+      {sub ? <span className="text-[10px] text-[#8a8980]">{sub}</span> : null}
     </span>
   );
 }

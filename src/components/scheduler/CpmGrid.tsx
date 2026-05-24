@@ -29,9 +29,9 @@ interface Props {
 }
 
 
-const ROW_H = 22;
-const GROUP_H = 20;
-const HEADER_H = 38; // year band + month band
+const ROW_H = 19;
+const GROUP_H = 17;
+const HEADER_H = 30; // year band + month band
 const UNASSIGNED = "Unassigned";
 /** Sticky activity-table width — sum of <colgroup> col widths below. */
 export const CPM_STICKY_TABLE_WIDTH = 72 + 240 + 36 + 36 + 36 + 44 + 80 + 80 + 44;
@@ -267,14 +267,14 @@ export function CpmGrid({
   return (
     <div
       ref={scrollRef}
-      className="h-full w-full overflow-auto border-t border-[#d8cdb8] bg-white"
+      className="h-full w-full overflow-auto border-t border-[#e3e0d8] bg-white"
     >
       <div className="flex min-w-max">
         {/* ============ LEFT: activity table ============ */}
-        <div className="sticky left-0 z-20 shrink-0 border-r border-[#d8cdb8] bg-white shadow-[2px_0_0_rgba(0,0,0,0.03)]">
-          {/* Column header — quiet ink on cream to match the gantt header */}
+        <div className="sticky left-0 z-20 shrink-0 border-r border-[#e3e0d8] bg-white shadow-[1px_0_0_rgba(31,36,31,0.04)]">
+          {/* Column header — cool slate-ivory, technical */}
           <div
-            className="sticky top-0 z-30 border-b border-[#d8cdb8] bg-[#f3ecdb] text-[10px] font-semibold uppercase tracking-wider text-[#3d3527]"
+            className="sticky top-0 z-30 border-b border-[#e3e0d8] bg-[#f3f2ed] text-[10px] font-semibold uppercase tracking-wider text-[#3d3d38]"
             style={{ height: HEADER_H }}
           >
             <table className="w-full border-collapse">
@@ -305,6 +305,7 @@ export function CpmGrid({
             </table>
           </div>
 
+
           {/* Rows */}
           <table
             className="w-full border-collapse text-[11px] text-[#1f241f]"
@@ -327,16 +328,16 @@ export function CpmGrid({
                   return (
                     <tr
                       key={`g-${row.key}`}
-                      className="cursor-pointer bg-[#f5efe0] font-medium text-[#3d3527] hover:bg-[#efe7d2]"
+                      className="cursor-pointer bg-[#eeede7] font-medium text-[#2d2d28] hover:bg-[#e6e5dd]"
                       style={{ height: GROUP_H }}
                       onClick={() => onToggleGroup?.(row.key)}
                     >
-                      <td colSpan={9} className="border-b border-[#e8dfc8] px-2">
-                        <span className="mr-1.5 inline-block w-3 text-center text-[10px] text-[#9c8b6e]">
+                      <td colSpan={9} className="border-b border-[#dad7cd] px-2">
+                        <span className="mr-1.5 inline-block w-3 text-center text-[10px] text-[#7a7972]">
                           {row.collapsed ? "▸" : "▾"}
                         </span>
-                        <span className="text-[10px] uppercase tracking-[0.1em] text-[#5c574e]">{row.key}</span>
-                        <span className="ml-2 text-[10px] font-normal text-[#a8997a]">
+                        <span className="text-[10px] uppercase tracking-[0.1em] text-[#4a4944]">{row.key}</span>
+                        <span className="ml-2 text-[10px] font-normal text-[#8a8980]">
                           · {row.taskCount}
                         </span>
                       </td>
@@ -353,16 +354,16 @@ export function CpmGrid({
                   <tr
                     key={t.id}
                     onClick={() => onSelect(t.id)}
-                    className={`cursor-pointer border-b border-[#f0e9d8] ${
-                      isSelected ? "bg-[#fff7e0]" : i % 2 ? "bg-[#fbf9f3]" : "bg-white"
-                    } hover:bg-[#fff8e6]`}
+                    className={`cursor-pointer border-b border-[#ecebe5] ${
+                      isSelected ? "bg-[#eef3f8]" : i % 2 ? "bg-[#fafaf7]" : "bg-white"
+                    } hover:bg-[#f5f7fa]`}
                     style={{ height: ROW_H }}
                   >
-                    <td className="border-r border-[#f0e9d8] px-2 font-mono text-[10px] text-[#776e5e]">
+                    <td className="border-r border-[#ecebe5] px-2 font-mono text-[10px] text-[#6b6a63]">
                       {t.id}
                     </td>
                     <td
-                      className={`truncate border-r border-[#f0e9d8] px-2 pl-3 text-[#1f241f] ${
+                      className={`truncate border-r border-[#ecebe5] px-2 pl-3 text-[#1f241f] ${
                         t.isCritical ? "font-semibold" : ""
                       }`}
                       style={{ maxWidth: 240 }}
@@ -371,22 +372,22 @@ export function CpmGrid({
                       {isMilestone ? <span className="mr-1 text-[#7a5cc4]">◆</span> : null}
                       {t.name}
                     </td>
-                    <td className="border-r border-[#f0e9d8] px-1 text-right tabular-nums text-[#1f241f]">
+                    <td className="border-r border-[#ecebe5] px-1 text-right tabular-nums text-[#1f241f]">
                       {t.duration}
                     </td>
-                    <td className="border-r border-[#f0e9d8] px-1 text-right tabular-nums text-[#9c8b6e]">
+                    <td className="border-r border-[#ecebe5] px-1 text-right tabular-nums text-[#8a8980]">
                       {actual || ""}
                     </td>
-                    <td className="border-r border-[#f0e9d8] px-1 text-right tabular-nums text-[#1f241f]">
+                    <td className="border-r border-[#ecebe5] px-1 text-right tabular-nums text-[#1f241f]">
                       {remaining}
                     </td>
-                    <td className="border-r border-[#f0e9d8] px-1 text-right tabular-nums text-[#5c574e]">
+                    <td className="border-r border-[#ecebe5] px-1 text-right tabular-nums text-[#4a4944]">
                       {pct > 0 ? `${pct}%` : ""}
                     </td>
-                    <td className="border-r border-[#f0e9d8] px-2 text-[10px] tabular-nums text-[#5c574e]">
+                    <td className="border-r border-[#ecebe5] px-2 text-[10px] tabular-nums text-[#4a4944]">
                       {formatDate(t.earlyStartDate)}
                     </td>
-                    <td className="border-r border-[#f0e9d8] px-2 text-[10px] tabular-nums text-[#5c574e]">
+                    <td className="border-r border-[#ecebe5] px-2 text-[10px] tabular-nums text-[#4a4944]">
                       {formatDate(t.earlyFinishDate)}
                     </td>
                     <td
@@ -395,7 +396,7 @@ export function CpmGrid({
                           ? "font-semibold text-[#b42318]"
                           : nearCriticalFloat > 0 && t.totalFloat > 0 && t.totalFloat <= nearCriticalFloat
                             ? "font-medium text-[#c2750a]"
-                            : "text-[#776e5e]"
+                            : "text-[#6b6a63]"
                       }`}
                     >
                       {t.totalFloat}
@@ -407,11 +408,12 @@ export function CpmGrid({
           </table>
         </div>
 
+
         {/* ============ RIGHT: calendar gantt ============ */}
         <div className="relative" style={{ width: timelineWidth }}>
           {/* Header bands */}
           <div
-            className="sticky top-0 z-10 border-b border-[#d8cdb8] bg-[#f3ecdb]"
+            className="sticky top-0 z-10 border-b border-[#e3e0d8] bg-[#f3f2ed]"
             style={{ height: HEADER_H }}
           >
             <svg width={timelineWidth} height={HEADER_H} className="block">
@@ -423,17 +425,17 @@ export function CpmGrid({
                     y={0}
                     width={y.w}
                     height={HEADER_H / 2}
-                    fill={i % 2 ? "#e8dfca" : "#ede5d2"}
+                    fill={i % 2 ? "#e9e7df" : "#eeede7"}
                   />
-                  <line x1={y.x} x2={y.x} y1={0} y2={HEADER_H} stroke="#c8bd9f" strokeWidth={1} />
+                  <line x1={y.x} x2={y.x} y1={0} y2={HEADER_H} stroke="#d6d3c9" strokeWidth={1} />
                   {y.w > 24 ? (
                     <text
                       x={y.x + y.w / 2}
-                      y={HEADER_H / 2 - 5}
+                      y={HEADER_H / 2 - 4}
                       textAnchor="middle"
-                      fontSize={11}
+                      fontSize={10}
                       fontWeight={700}
-                      fill="#3a3424"
+                      fill="#2d2d28"
                       fontFamily="ui-sans-serif, system-ui"
                     >
                       {y.year}
@@ -449,23 +451,23 @@ export function CpmGrid({
                     y={HEADER_H / 2}
                     width={m.w}
                     height={HEADER_H / 2}
-                    fill={i % 2 ? "#f7f1e1" : "#f3ecdb"}
+                    fill={i % 2 ? "#f7f6f1" : "#f3f2ed"}
                   />
                   <line
                     x1={m.x}
                     x2={m.x}
                     y1={HEADER_H / 2}
                     y2={HEADER_H}
-                    stroke="#c8bd9f"
+                    stroke="#d6d3c9"
                     strokeWidth={1}
                   />
                   {m.w > 16 ? (
                     <text
                       x={m.x + m.w / 2}
-                      y={HEADER_H - 6}
+                      y={HEADER_H - 5}
                       textAnchor="middle"
                       fontSize={9}
-                      fill="#5c574e"
+                      fill="#4a4944"
                       fontFamily="ui-sans-serif, system-ui"
                     >
                       {m.w > 28 ? m.label : m.label.slice(0, 1)}
@@ -475,6 +477,7 @@ export function CpmGrid({
               ))}
             </svg>
           </div>
+
 
           {/* Body */}
           <svg
@@ -492,10 +495,11 @@ export function CpmGrid({
                 x2={m.x}
                 y1={0}
                 y2={totalH}
-                stroke="#eee6d7"
+                stroke="#eeede7"
                 strokeWidth={1}
               />
             ))}
+
 
             {/* Rows */}
             {rows.map((row, i) => {
@@ -507,20 +511,21 @@ export function CpmGrid({
                 const w = Math.max((row.maxEF - row.minES) * dayPx, 2);
                 return (
                   <g key={`g-${row.key}`}>
-                    <rect x={0} y={y} width={timelineWidth} height={rowH} fill="#f5efe0" />
-                    <line x1={0} x2={timelineWidth} y1={y + rowH} y2={y + rowH} stroke="#e8dfc8" strokeWidth={1} />
+                    <rect x={0} y={y} width={timelineWidth} height={rowH} fill="#eeede7" />
+                    <line x1={0} x2={timelineWidth} y1={y + rowH} y2={y + rowH} stroke="#dad7cd" strokeWidth={1} />
                     {/* slim summary span — quiet, no heavy brackets */}
                     <rect
                       x={x}
                       y={y + rowH / 2 - 1}
                       width={w}
                       height={2}
-                      fill={row.anyCritical ? "#9c2418" : "#5c574e"}
-                      opacity={0.55}
+                      fill={row.anyCritical ? "#9c2418" : "#4a4944"}
+                      opacity={0.6}
                     />
                   </g>
                 );
               }
+
 
               const t = row.task;
               const isSelected = selectedId === t.id;
@@ -565,18 +570,19 @@ export function CpmGrid({
                     y={y}
                     width={timelineWidth}
                     height={rowH}
-                    fill={isSelected ? "#fff7e0" : i % 2 ? "#fbf9f3" : "white"}
+                    fill={isSelected ? "#eef3f8" : i % 2 ? "#fafaf7" : "white"}
                   />
-                  <line x1={0} x2={timelineWidth} y1={y + rowH} y2={y + rowH} stroke="#f0e9d8" />
+                  <line x1={0} x2={timelineWidth} y1={y + rowH} y2={y + rowH} stroke="#ecebe5" />
+
 
                   {/* baseline ghost */}
                   {baselineT ? (
                     <rect
                       x={baselineT.earlyStart * dayPx}
-                      y={y + rowH - 5}
+                      y={y + rowH - 4}
                       width={Math.max(baselineT.duration * dayPx, 2)}
-                      height={3}
-                      fill="#9c8b6e"
+                      height={2}
+                      fill="#a8a59b"
                       opacity={0.9}
                     />
                   ) : null}
@@ -584,15 +590,15 @@ export function CpmGrid({
                   {isMilestone ? (
                     <>
                       <polygon
-                        points={`${x},${y + rowH / 2 - 6} ${x + 6},${y + rowH / 2} ${x},${
-                          y + rowH / 2 + 6
-                        } ${x - 6},${y + rowH / 2}`}
+                        points={`${x},${y + rowH / 2 - 5} ${x + 5},${y + rowH / 2} ${x},${
+                          y + rowH / 2 + 5
+                        } ${x - 5},${y + rowH / 2}`}
                         fill={fill}
                         style={{ cursor: onTaskReschedule ? "grab" : "pointer" }}
                         onPointerDown={(e) => beginDrag(e, t.id, "move")}
                       />
                       <text
-                        x={x + 10}
+                        x={x + 9}
                         y={y + rowH / 2 + 3}
                         fontSize={9}
                         fill={fill}
@@ -606,13 +612,13 @@ export function CpmGrid({
                     <>
                       <rect
                         x={x}
-                        y={y + 4}
+                        y={y + 3}
                         width={w}
-                        height={rowH - 9}
-                        rx={1}
+                        height={rowH - 7}
+                        rx={0}
                         fill={fill}
-                        stroke={isSelected ? "#1f241f" : "transparent"}
-                        strokeWidth={1.5}
+                        stroke={isSelected ? "#1f241f" : t.isCritical ? "#7a1c12" : "rgba(0,0,0,0.18)"}
+                        strokeWidth={isSelected ? 1.5 : 0.5}
                         style={{ cursor: onTaskReschedule ? "grab" : "pointer" }}
                         onPointerDown={(e) => beginDrag(e, t.id, "move")}
                       />
@@ -620,12 +626,12 @@ export function CpmGrid({
                       {t.percentComplete && t.percentComplete > 0 ? (
                         <rect
                           x={x}
-                          y={y + 4}
+                          y={y + 3}
                           width={Math.max((w * (t.percentComplete ?? 0)) / 100, 1)}
-                          height={rowH - 9}
-                          rx={1}
+                          height={rowH - 7}
+                          rx={0}
                           fill="#1f241f"
-                          opacity={0.6}
+                          opacity={0.55}
                           pointerEvents="none"
                         />
                       ) : null}
@@ -633,9 +639,9 @@ export function CpmGrid({
                       {onTaskReschedule ? (
                         <rect
                           x={x + w - 4}
-                          y={y + 4}
+                          y={y + 3}
                           width={6}
-                          height={rowH - 9}
+                          height={rowH - 7}
                           fill="transparent"
                           style={{ cursor: "ew-resize" }}
                           onPointerDown={(e) => beginDrag(e, t.id, "resize")}
@@ -648,8 +654,8 @@ export function CpmGrid({
                           y={y + rowH / 2 - 1}
                           width={t.totalFloat * dayPx}
                           height={2}
-                          fill="#9c8b6e"
-                          opacity={0.65}
+                          fill="#a8a59b"
+                          opacity={0.6}
                           pointerEvents="none"
                         />
                       ) : null}
@@ -659,7 +665,7 @@ export function CpmGrid({
                           x={x + w + (t.totalFloat * dayPx || 0) + 4}
                           y={y + rowH / 2 + 3}
                           fontSize={9}
-                          fill="#5c574e"
+                          fill="#4a4944"
                           fontFamily="ui-sans-serif, system-ui"
                         >
                           {t.id}
@@ -672,6 +678,7 @@ export function CpmGrid({
                       ) : null}
                     </>
                   )}
+
 
                   {/* drag ghost */}
                   {drag && drag.id === t.id && drag.deltaDays !== 0 ? (
@@ -760,7 +767,7 @@ export function CpmGrid({
                       markerHeight="6"
                       orient="auto-start-reverse"
                     >
-                      <path d="M0,0 L10,5 L0,10 z" fill="#9c8b6e" />
+                      <path d="M0,0 L10,5 L0,10 z" fill="#a8a59b" />
                     </marker>
                     <marker
                       id="cpm-arrow-chain"
@@ -807,7 +814,7 @@ export function CpmGrid({
                       ? bothCrit
                         ? "#9c2418"
                         : "#2a3e5f"
-                      : "#9c8b6e";
+                      : "#a8a59b";
                     const marker = onChain
                       ? "url(#cpm-arrow-chain)"
                       : d.isDriving
@@ -959,7 +966,7 @@ export function CpmGrid({
               {t.name}
             </div>
             {t.wbs ? (
-              <div className="text-[10px] text-[#9c8b6e]">{t.wbs}</div>
+              <div className="text-[10px] text-[#a8a59b]">{t.wbs}</div>
             ) : null}
 
             <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
@@ -995,7 +1002,7 @@ export function CpmGrid({
             {t.resourceName ? (
               <div className="mt-2 flex items-center justify-between text-[10px] text-[#5c574e]">
                 <span>
-                  <span className="text-[#9c8b6e]">Resource</span>{" "}
+                  <span className="text-[#a8a59b]">Resource</span>{" "}
                   <span className="font-medium text-[#1f241f]">{t.resourceName}</span>
                 </span>
                 {t.resourceUnitsPerDay ? (
@@ -1040,7 +1047,7 @@ function HC({
           : "text-[#1f241f]";
   return (
     <div>
-      <div className="text-[9px] font-semibold uppercase tracking-wider text-[#9c8b6e]">
+      <div className="text-[9px] font-semibold uppercase tracking-wider text-[#a8a59b]">
         {label}
       </div>
       <div className={`text-[12px] font-semibold tabular-nums ${toneClass}`}>{value}</div>
