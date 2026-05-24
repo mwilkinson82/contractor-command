@@ -70,8 +70,51 @@ export interface DryRunSummary {
     engine2: string | null;
     deltaDays: number;
   };
+  /**
+   * Phase 3.8 — finish-date convention normalization (reporting only).
+   *
+   * Raw engine2 / legacy values above are NEVER overwritten. These fields
+   * surface a convention-adjusted view so engineering can tell a true CPM
+   * divergence apart from the known finish-rendering convention difference
+   * (see ARCHITECTURE.md §38/§39). Engine2 internal date math is unchanged.
+   */
+  normalizedProjectFinish: {
+    /** Engine2 finish ISO normalized to the legacy exclusive-boundary convention. */
+    engine2Normalized: string | null;
+    /** |legacy - engine2Normalized| in whole calendar days. */
+    deltaDays: number;
+    /** True when normalized engine2 finish equals legacy finish. */
+    match: boolean;
+  };
+  /** Max |legacy - engine2Normalized| date delta across ES/EF/LS/LF, post-normalization. */
+  maxNormalizedDateDeltaDays: number;
+  /** Counts of activities matching after convention normalization. */
+  conventionAdjustedMatchingCount: number;
+  /** Counts of activities still differing after convention normalization. */
+  conventionAdjustedDifferingCount: number;
   /** Activity / relationship IDs grouped by which dimension diverged. */
   mismatchIds: DryRunMismatchIds;
+  /**
+   * Phase 3.8 — activity IDs whose ONLY divergence is the finish-date
+   * rendering convention (legacy exclusive-boundary vs engine2 inclusive
+   * last-work-moment). These IDs are also present in `mismatchIds` —
+   * they are NOT subtracted from the raw view.
+   */
+  conventionMismatchIds: {
+    earlyFinish: string[];
+    lateFinish: string[];
+  };
+  /**
+   * Phase 3.8 — activity IDs whose divergence survives normalization.
+   * A true date mismatch indicates the two engines disagree on the
+   * underlying schedule, not just how a finish moment is rendered.
+   */
+  trueDateMismatchIds: {
+    earlyStart: string[];
+    earlyFinish: string[];
+    lateStart: string[];
+    lateFinish: string[];
+  };
   /** Engine2 diagnostics surfaced during the run. */
   engine2DiagnosticsCount: number;
   /** Non-fatal engine2 error (engine2 threw — legacy still returned). */
