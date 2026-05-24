@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Trash2, Plus } from "lucide-react";
-import { CpmGrid, CPM_STICKY_TABLE_WIDTH } from "@/components/scheduler/CpmGrid";
+import { CpmGrid, getCpmStickyTableWidth } from "@/components/scheduler/CpmGrid";
 import { OpenEndsReport } from "@/components/scheduler/OpenEndsReport";
 import { Stat } from "@/components/scheduler/Stat";
 import { BaselinesPanel } from "@/components/scheduler/BaselinesPanel";
@@ -115,6 +115,94 @@ function SchedulerPage() {
   const [calendarFilter, setCalendarFilter] = useState<string>("");
   const [resourceFilter, setResourceFilter] = useState<string>("");
   const [codeFilter, setCodeFilter] = useState<string>(""); // "typeId:valueId"
+
+  // ---------- adjustable workbench layout ----------
+  // Persisted per-project so user's preferred panel sizes survive reload.
+  const layoutStorageKey = `aos:scheduler:workbench:${selectedId}`;
+  const [nameColWidth, setNameColWidth] = useState<number>(240);
+  const [inspectorHeight, setInspectorHeight] = useState<number>(260);
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
+  const [inspectorExpanded, setInspectorExpanded] = useState(false);
+  // Future Schedule Intelligence drawer (right-side slide-out). Closed by
+  // default; the panel itself is hidden behind an internal flag until the
+  // assistant behavior is real.
+  const [intelDrawerOpen, setIntelDrawerOpen] = useState(false);
+  const SHOW_INTEL_DRAWER = false; // internal flag: do not expose fake AI
+
+  // Hydrate from localStorage on mount / project change.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(layoutStorageKey);
+      if (!raw) return;
+      const v = JSON.parse(raw) as Partial<{
+        nameColWidth: number;
+        inspectorHeight: number;
+        inspectorCollapsed: boolean;
+        inspectorExpanded: boolean;
+      }>;
+      if (typeof v.nameColWidth === "number") setNameColWidth(v.nameColWidth);
+      if (typeof v.inspectorHeight === "number") setInspectorHeight(v.inspectorHeight);
+      if (typeof v.inspectorCollapsed === "boolean") setInspectorCollapsed(v.inspectorCollapsed);
+      if (typeof v.inspectorExpanded === "boolean") setInspectorExpanded(v.inspectorExpanded);
+    } catch {
+      /* ignore corrupted layout */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
+  // Persist layout changes.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        layoutStorageKey,
+        JSON.stringify({
+          nameColWidth,
+          inspectorHeight,
+          inspectorCollapsed,
+          inspectorExpanded,
+        }),
+      );
+    } catch {
+      /* ignore quota errors */
+    }
+  }, [layoutStorageKey, nameColWidth, inspectorHeight, inspectorCollapsed, inspectorExpanded]);
+
+  // Resizer drag helpers — global pointer listeners avoid losing the drag
+  // when the cursor leaves the handle.
+  const startColResize = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = nameColWidth;
+    const onMove = (ev: PointerEvent) => {
+      const next = Math.max(140, Math.min(560, startW + (ev.clientX - startX)));
+      setNameColWidth(next);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+  const startInspectorResize = (e: React.PointerEvent) => {
+    if (inspectorCollapsed || inspectorExpanded) return;
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = inspectorHeight;
+    const onMove = (ev: PointerEvent) => {
+      const next = Math.max(120, Math.min(560, startH - (ev.clientY - startY)));
+      setInspectorHeight(next);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
 
   const loadStructureFn = useServerFn(loadStructure);
   const { data: structure } = useQuery({
@@ -296,13 +384,13 @@ function SchedulerPage() {
     if (!computed || computed.projectDuration < 1) return;
     const container = rightScrollRef.current;
     if (!container) return;
-    const available = container.clientWidth - CPM_STICKY_TABLE_WIDTH - 16;
+    const available = container.clientWidth - getCpmStickyTableWidth(nameColWidth) - 16;
     if (available <= 0) return;
     const ideal = Math.floor(available / computed.projectDuration);
     const clamped = Math.max(4, Math.min(36, ideal));
     setDayPx(clamped);
     container.scrollLeft = 0;
-  }, [computed]);
+  }, [computed, nameColWidth]);
   useEffect(() => {
     if (zoomUserSet) return;
     fitToContainer();
@@ -523,6 +611,9 @@ function SchedulerPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [showCompleted, setShowCompleted] = useState(true);
+
+
+
 
   // Derived stats for status bar
   const totalActivities = draft?.tasks.length ?? 0;
@@ -1079,7 +1170,7 @@ function SchedulerPage() {
                   {/* Unified workbench — CpmGrid renders both the sticky
                       activity table (left) and the Gantt timeline (right),
                       row-for-row aligned. */}
-                  <div className="scheduler-print-right flex flex-1 min-w-0 flex-col bg-white">
+                  <div className="scheduler-print-right relative flex flex-1 min-w-0 flex-col bg-white">
                     <div ref={rightScrollRef} className="flex-1 overflow-auto" data-gantt-container>
                       {computed ? (
                         <CpmGrid
@@ -1096,8 +1187,24 @@ function SchedulerPage() {
                           groupBy={groupBy}
                           nearCriticalFloat={nearCriticalFloat}
                           onTaskReschedule={rescheduleTask}
+                          nameColWidth={nameColWidth}
                         />
                       ) : null}
+                    </div>
+                    {/* Vertical resizer — pinned to the right edge of the
+                        sticky activity table. Drag horizontally to widen or
+                        narrow the activity-name column. */}
+                    <div
+                      role="separator"
+                      aria-orientation="vertical"
+                      aria-label="Resize activity table"
+                      onPointerDown={startColResize}
+                      onDoubleClick={() => setNameColWidth(240)}
+                      className="group absolute top-0 bottom-8 z-30 -ml-1 w-2 cursor-col-resize select-none print:hidden"
+                      style={{ left: getCpmStickyTableWidth(nameColWidth) }}
+                      title="Drag to resize · double-click to reset"
+                    >
+                      <div className="mx-auto h-full w-px bg-transparent group-hover:bg-[#c4c1b7] group-active:bg-[#1f241f]" />
                     </div>
                     {/* Legend — slim inline strip */}
                     <div className="flex shrink-0 items-center justify-center gap-4 border-t border-[#ecebe5] bg-[#faf8f3] px-4 py-1 text-[10px] text-[#4a4944]">
@@ -1118,63 +1225,197 @@ function SchedulerPage() {
                       </span>
                     </div>
                   </div>
+
+                  {/* ============ SCHEDULE INTELLIGENCE DRAWER (foundation) ============
+                      Right-side slide-out reserved for the future assistant /
+                      review layer (logic warnings, critical-path narration,
+                      AI-assisted CPM build, chatbot artifacts). Closed by
+                      default; today it is layout-only scaffolding so the
+                      workbench is shaped for the real behavior to slot in. */}
+                  {intelDrawerOpen ? (
+                    <aside
+                      className="flex w-[360px] shrink-0 flex-col border-l border-[#e3e0d8] bg-[#faf8f3] print:hidden"
+                      aria-label="Schedule intelligence"
+                    >
+                      <header className="flex h-9 shrink-0 items-center justify-between border-b border-[#e3e0d8] bg-white px-3">
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#4a4944]">
+                          Schedule Intelligence
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setIntelDrawerOpen(false)}
+                          className="text-[#6b6a63] hover:text-[#1f241f]"
+                          aria-label="Close intelligence drawer"
+                        >
+                          ✕
+                        </button>
+                      </header>
+                      <div className="flex-1 overflow-auto p-4 text-[12px] leading-relaxed text-[#4a4944]">
+                        {SHOW_INTEL_DRAWER ? (
+                          <div className="text-[#1f241f]">Intelligence panel (wired)</div>
+                        ) : (
+                          <div className="space-y-3">
+                            <div className="rounded border border-dashed border-[#dad7cd] bg-white/60 p-3">
+                              <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8a8980]">
+                                Coming soon
+                              </div>
+                              <div className="mt-1 text-[#1f241f]">
+                                Schedule reviewer, logic warnings, critical-path
+                                narration, and AI-assisted CPM build will live
+                                here. No live behavior is wired yet.
+                              </div>
+                            </div>
+                            <ul className="space-y-1 text-[11px] text-[#6b6a63]">
+                              <li>· Schedule comments &amp; recommendations</li>
+                              <li>· Logic warnings &amp; open-end review</li>
+                              <li>· Critical-path explanations</li>
+                              <li>· Build CPM from SOV / activity list</li>
+                              <li>· Chat-assisted refinement</li>
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </aside>
+                  ) : null}
                 </div>
 
-                {/* ============ ACTIVITY INSPECTOR ============ */}
-                <div className="shrink-0 border-t border-[#e3e0d8] bg-white">
-                  {selectedTaskCalc && selectedTaskIdx >= 0 ? (
-                    <InspectorTitleRow
-                      t={selectedTaskCalc}
-                      name={draft.tasks[selectedTaskIdx]?.name ?? ""}
-                      percentComplete={draft.tasks[selectedTaskIdx]?.percentComplete}
-                      nearCriticalFloat={nearCriticalFloat}
-                      predCount={
-                        draft.dependencies.filter((d) => d.to === selectedTaskCalc.id).length
-                      }
-                      succCount={
-                        draft.dependencies.filter((d) => d.from === selectedTaskCalc.id).length
-                      }
-                      onClear={() => setSelectedTaskId(null)}
-                    />
+
+                {/* ============ ACTIVITY INSPECTOR (resizable / collapsible / expanded) ============ */}
+                <div
+                  className="shrink-0 border-t border-[#e3e0d8] bg-white print:hidden"
+                  style={{
+                    height: inspectorCollapsed
+                      ? 30
+                      : inspectorExpanded
+                        ? "60vh"
+                        : inspectorHeight,
+                  }}
+                >
+                  {/* Top resize handle — only active in normal mode. */}
+                  {!inspectorCollapsed && !inspectorExpanded ? (
+                    <div
+                      role="separator"
+                      aria-orientation="horizontal"
+                      aria-label="Resize inspector"
+                      onPointerDown={startInspectorResize}
+                      className="group relative h-1.5 cursor-row-resize select-none"
+                      title="Drag to resize"
+                    >
+                      <div className="absolute inset-x-0 top-0 h-px bg-[#e3e0d8] group-hover:bg-[#1f241f]" />
+                    </div>
                   ) : null}
 
-                  <div className="flex items-center gap-3 border-b border-[#ecebe5] px-4">
-                    <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">
-                      {selectedTaskCalc ? "Activity" : "Schedule"}
-                    </span>
-                    <div className="h-4 w-px bg-[#ecebe5]" />
-                    <div className="flex items-end gap-0">
-                      {(
-                        [
-                          ["details", "Details"],
-                          ["relationships", "Relationships"],
-                          ["resources", "Resources"],
-                          ["codes", "Codes"],
-                          ["calendar", "Calendar"],
-                          ["notebook", "Notebook"],
-                        ] as const
-                      ).map(([key, label]) => (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => setInspectorTab(key)}
-                          className={`relative px-3 py-2 text-xs font-medium ${
-                            inspectorTab === key
-                              ? "text-[#1f241f]"
-                              : "text-[#6b6a63] hover:text-[#2d2d28]"
-                          }`}
-                        >
-                          {label}
-                          {inspectorTab === key ? (
-                            <span className="absolute inset-x-2 -bottom-px h-0.5 bg-[#1f241f]" />
-                          ) : null}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  {/* Inspector chrome: title row (when activity selected) + tabs + window controls. */}
+                  {inspectorCollapsed ? (
+                    <button
+                      type="button"
+                      onClick={() => setInspectorCollapsed(false)}
+                      className="flex h-[30px] w-full items-center gap-3 border-b border-[#ecebe5] px-4 text-left hover:bg-[#faf8f3]"
+                      title="Expand inspector"
+                    >
+                      <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">
+                        {selectedTaskCalc ? "Activity" : "Schedule"} Inspector
+                      </span>
+                      {selectedTaskCalc ? (
+                        <span className="truncate text-[11px] text-[#1f241f]">
+                          {selectedTaskCalc.id} · {draft.tasks[selectedTaskIdx]?.name ?? ""}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-[#6b6a63]">
+                          {computed?.projectFinishDate
+                            ? `Finish ${computed.projectFinishDate}`
+                            : "—"}
+                        </span>
+                      )}
+                      <span className="ml-auto text-[#6b6a63]">▴</span>
+                    </button>
+                  ) : (
+                    <div className="flex h-full flex-col">
+                      {selectedTaskCalc && selectedTaskIdx >= 0 ? (
+                        <InspectorTitleRow
+                          t={selectedTaskCalc}
+                          name={draft.tasks[selectedTaskIdx]?.name ?? ""}
+                          percentComplete={draft.tasks[selectedTaskIdx]?.percentComplete}
+                          nearCriticalFloat={nearCriticalFloat}
+                          predCount={
+                            draft.dependencies.filter((d) => d.to === selectedTaskCalc.id).length
+                          }
+                          succCount={
+                            draft.dependencies.filter((d) => d.from === selectedTaskCalc.id).length
+                          }
+                          onClear={() => setSelectedTaskId(null)}
+                        />
+                      ) : null}
 
+                      <div className="flex items-center gap-3 border-b border-[#ecebe5] px-4">
+                        <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">
+                          {selectedTaskCalc ? "Activity" : "Schedule"}
+                        </span>
+                        <div className="h-4 w-px bg-[#ecebe5]" />
+                        <div className="flex items-end gap-0">
+                          {(
+                            [
+                              ["details", "Details"],
+                              ["relationships", "Relationships"],
+                              ["resources", "Resources"],
+                              ["codes", "Codes"],
+                              ["calendar", "Calendar"],
+                              ["notebook", "Notebook"],
+                            ] as const
+                          ).map(([key, label]) => (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => setInspectorTab(key)}
+                              className={`relative px-3 py-2 text-xs font-medium ${
+                                inspectorTab === key
+                                  ? "text-[#1f241f]"
+                                  : "text-[#6b6a63] hover:text-[#2d2d28]"
+                              }`}
+                            >
+                              {label}
+                              {inspectorTab === key ? (
+                                <span className="absolute inset-x-2 -bottom-px h-0.5 bg-[#1f241f]" />
+                              ) : null}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="ml-auto flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setIntelDrawerOpen((v) => !v)}
+                            className={`rounded px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${
+                              intelDrawerOpen
+                                ? "bg-[#1f241f] text-white"
+                                : "text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
+                            }`}
+                            title="Schedule Intelligence (preview)"
+                          >
+                            ✶ Intel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setInspectorExpanded((v) => !v)}
+                            className="rounded p-1 text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
+                            title={inspectorExpanded ? "Restore" : "Expand inspector"}
+                            aria-label={inspectorExpanded ? "Restore inspector" : "Expand inspector"}
+                          >
+                            {inspectorExpanded ? "⤡" : "⤢"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setInspectorCollapsed(true)}
+                            className="rounded p-1 text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
+                            title="Collapse inspector"
+                            aria-label="Collapse inspector"
+                          >
+                            ▾
+                          </button>
+                        </div>
+                      </div>
 
-                  <div className={`${selectedTaskCalc ? "max-h-[240px]" : "max-h-[140px]"} overflow-auto px-4 py-3 text-sm`}>
+                      <div className="min-h-0 flex-1 overflow-auto px-4 py-3 text-sm">
+
                     {!selectedTaskCalc || selectedTaskIdx < 0 ? (
                       <ScheduleContextSummary
                         draft={draft}
@@ -1264,9 +1505,12 @@ function SchedulerPage() {
                         />
                       </div>
                     ) : null}
-                  </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </>
+
             ) : activeTab === "wbs" ? (
               <div className="flex-1 overflow-auto p-4">
                 <StructurePanel scheduleId={selectedId} />

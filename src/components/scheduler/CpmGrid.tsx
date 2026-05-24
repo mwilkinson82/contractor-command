@@ -26,6 +26,8 @@ interface Props {
     taskId: string,
     patch: { startShiftDays?: number; duration?: number },
   ) => void;
+  /** Activity-name column width (px). Defaults to 240. */
+  nameColWidth?: number;
 }
 
 
@@ -33,8 +35,16 @@ const ROW_H = 19;
 const GROUP_H = 17;
 const HEADER_H = 30; // year band + month band
 const UNASSIGNED = "Unassigned";
-/** Sticky activity-table width — sum of <colgroup> col widths below. */
-export const CPM_STICKY_TABLE_WIDTH = 72 + 240 + 36 + 36 + 36 + 44 + 80 + 80 + 44;
+/** Fixed sticky-table widths (sum of <colgroup> col widths other than the name column). */
+const STICKY_FIXED_WIDTH = 72 + 36 + 36 + 36 + 44 + 80 + 80 + 44;
+const DEFAULT_NAME_COL_WIDTH = 240;
+/** Convenience constant — default sticky table width when nameColWidth is unset. */
+export const CPM_STICKY_TABLE_WIDTH = STICKY_FIXED_WIDTH + DEFAULT_NAME_COL_WIDTH;
+/** Compute total sticky-table width for a given activity-name column width. */
+export function getCpmStickyTableWidth(nameColWidth = DEFAULT_NAME_COL_WIDTH): number {
+  return STICKY_FIXED_WIDTH + nameColWidth;
+}
+
 
 
 // ---- calendar helpers --------------------------------------------------
@@ -91,7 +101,11 @@ export function CpmGrid({
   groupBy = "wbs",
   nearCriticalFloat = 0,
   onTaskReschedule,
+  nameColWidth = DEFAULT_NAME_COL_WIDTH,
 }: Props) {
+
+
+
 
   const cal = useMemo(() => calendar ?? { workDays: 31, holidays: [] }, [calendar]);
   const duration = Math.max(result.projectDuration, 1);
@@ -280,7 +294,8 @@ export function CpmGrid({
             <table className="w-full border-collapse">
               <colgroup>
                 <col style={{ width: 72 }} />
-                <col style={{ width: 240 }} />
+                <col style={{ width: nameColWidth }} />
+
                 <col style={{ width: 36 }} />
                 <col style={{ width: 36 }} />
                 <col style={{ width: 36 }} />
@@ -313,7 +328,7 @@ export function CpmGrid({
           >
             <colgroup>
               <col style={{ width: 72 }} />
-              <col style={{ width: 240 }} />
+              <col style={{ width: nameColWidth }} />
               <col style={{ width: 36 }} />
               <col style={{ width: 36 }} />
               <col style={{ width: 36 }} />
