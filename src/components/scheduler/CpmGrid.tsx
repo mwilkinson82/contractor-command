@@ -671,6 +671,10 @@ export function CpmGrid({
                           fontSize={9}
                           fill="#4a4944"
                           fontFamily="ui-sans-serif, system-ui"
+                          stroke="#faf8f3"
+                          strokeWidth={3}
+                          paintOrder="stroke"
+                          strokeLinejoin="round"
                         >
                           {t.id}
                           {baselineT && slipped !== 0 ? (
