@@ -495,10 +495,11 @@ export function CpmGrid({
                 x2={m.x}
                 y1={0}
                 y2={totalH}
-                stroke="#eee6d7"
+                stroke="#eeede7"
                 strokeWidth={1}
               />
             ))}
+
 
             {/* Rows */}
             {rows.map((row, i) => {
