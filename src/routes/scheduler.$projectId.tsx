@@ -16,7 +16,8 @@ import { calculateSchedule } from "@/lib/scheduler/engine";
 import { rescheduleFromDataDate, addWorkingDaysIso } from "@/lib/scheduler/progress";
 import type { Annotation, Dependency, DependencyType, Schedule, Task } from "@/lib/scheduler/types";
 import { buildIntelScheduleContext } from "@/lib/scheduler/intel-context";
-import { IntelChatPanel, IntelBuildPanel } from "@/components/scheduler/IntelChatPanel";
+import { IntelChatPanel } from "@/components/scheduler/IntelChatPanel";
+import { IntelBuildWorkspace } from "@/components/scheduler/IntelBuildWorkspace";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -132,6 +133,7 @@ function SchedulerPage() {
   const [intelDrawerMode, setIntelDrawerMode] = useState<
     import("@/lib/scheduler/intel-context").IntelDrawerMode
   >("review");
+  const [intelBuildExpanded, setIntelBuildExpanded] = useState(false);
   const SHOW_INTEL_DRAWER = false; // internal flag: do not expose fake AI
   // Focus mode hides the portal top-strip + sidebar so the grid is the hero.
   const [focusMode, setFocusMode] = useState(false);
@@ -1429,10 +1431,25 @@ function SchedulerPage() {
                           })}
                         />
                       ) : (
-                        <IntelBuildPanel />
+                        <IntelBuildWorkspace
+                          expanded={false}
+                          onToggleExpanded={() => setIntelBuildExpanded(true)}
+                        />
                       )}
 
                     </aside>
+                  ) : null}
+
+                  {intelBuildExpanded ? (
+                    <div
+                      className="fixed inset-0 z-50 flex flex-col bg-[#fdfcf7]"
+                      data-testid="intel-build-overlay"
+                    >
+                      <IntelBuildWorkspace
+                        expanded
+                        onToggleExpanded={() => setIntelBuildExpanded(false)}
+                      />
+                    </div>
                   ) : null}
 
                 </div>
