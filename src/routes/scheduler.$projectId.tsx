@@ -1291,21 +1291,60 @@ function SchedulerPage() {
                       workbench is shaped for the real behavior to slot in. */}
                   {intelDrawerOpen ? (
                     <aside
-                      className="flex w-[360px] shrink-0 flex-col border-l border-[#e3e0d8] bg-[#faf8f3] print:hidden"
+                      className="relative flex shrink-0 flex-col border-l border-[#e3e0d8] bg-[#faf8f3] print:hidden"
+                      style={{ width: intelDrawerWidth }}
                       aria-label="Schedule intelligence"
                     >
-                      <header className="flex h-9 shrink-0 items-center justify-between border-b border-[#e3e0d8] bg-white px-3">
+                      {/* Left-edge drag handle to free-resize the drawer width. */}
+                      <div
+                        role="separator"
+                        aria-orientation="vertical"
+                        aria-label="Resize intelligence drawer"
+                        onPointerDown={startDrawerResize}
+                        className="group absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize"
+                        title="Drag to resize"
+                      >
+                        <div className="absolute inset-y-0 left-1 w-px bg-[#e3e0d8] group-hover:bg-[#1f241f]" />
+                      </div>
+                      <header className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-[#e3e0d8] bg-white px-3">
                         <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#4a4944]">
                           Schedule Intelligence
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => setIntelDrawerOpen(false)}
-                          className="text-[#6b6a63] hover:text-[#1f241f]"
-                          aria-label="Close intelligence drawer"
-                        >
-                          ✕
-                        </button>
+                        <div className="flex items-center gap-1">
+                          {(
+                            [
+                              ["C", 300, "Compact"],
+                              ["S", 380, "Standard"],
+                              ["W", 520, "Wide"],
+                            ] as const
+                          ).map(([k, w, title]) => {
+                            const active = Math.abs(intelDrawerWidth - w) < 8;
+                            return (
+                              <button
+                                key={k}
+                                type="button"
+                                onClick={() => setIntelDrawerWidth(w)}
+                                className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                                  active
+                                    ? "bg-[#1f241f] text-white"
+                                    : "text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
+                                }`}
+                                title={title}
+                                aria-label={title}
+                              >
+                                {k}
+                              </button>
+                            );
+                          })}
+                          <button
+                            type="button"
+                            onClick={() => setIntelDrawerOpen(false)}
+                            className="ml-1 rounded p-1 text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
+                            aria-label="Close intelligence drawer"
+                          >
+                            ✕
+                          </button>
+                        </div>
                       </header>
                       <IntelDrawerContent
                         draft={draft}
@@ -1316,6 +1355,7 @@ function SchedulerPage() {
                       />
                     </aside>
                   ) : null}
+
                 </div>
 
 
