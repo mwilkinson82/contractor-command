@@ -883,9 +883,16 @@ function SchedulerPage() {
       ) : (
         <>
           {/* ============ TOOLBAR ============ */}
-          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[#e3e0d8] bg-white px-4 py-1">
+          <div
+            data-scheduler-toolbar
+            className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[#e3e0d8] bg-white px-4 py-1"
+          >
             {/* View modes (only Gantt is wired) */}
-            <div className="flex items-center rounded-md border border-[#e3e0d8] bg-[#faf8f3] p-0.5">
+            <div
+              data-scheduler-viewmode
+              className="flex items-center rounded-md border border-[#e3e0d8] bg-[#faf8f3] p-0.5"
+            >
+
               <button className="rounded bg-white px-3 py-1 text-xs font-medium shadow-sm">
                 Gantt
               </button>
