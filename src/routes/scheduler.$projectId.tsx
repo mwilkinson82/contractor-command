@@ -229,6 +229,22 @@ function SchedulerPage() {
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
   };
+  const startDrawerResize = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = intelDrawerWidth;
+    const onMove = (ev: PointerEvent) => {
+      // dragging left widens the drawer
+      const next = Math.max(260, Math.min(720, startW - (ev.clientX - startX)));
+      setIntelDrawerWidth(next);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
 
 
   const loadStructureFn = useServerFn(loadStructure);
