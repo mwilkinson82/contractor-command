@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { sendTransactionalEmail } from "@/lib/email/send";
 import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { mintAosSopImportToken } from "@/lib/aos.functions";
 import { vault } from "@/lib/vault";
 import type { SopDocument, SopStep } from "@/lib/tools/sop-draft";
 import type jsPDF from "jspdf";
