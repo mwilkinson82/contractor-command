@@ -169,3 +169,61 @@ Engine, persistence, XER, dry-run, and scheduling behavior are **out of scope** 
 - Documentation only.
 - No code behavior changes.
 - File created: `docs/schedule-intelligence-ai-spec.md`.
+
+---
+
+## AI-1 Implementation Note (shipped)
+
+AI-1 is the **UI and context foundation** for the Schedule Intelligence
+assistant. Scope is intentionally narrow:
+
+- **Drawer modes**: the right-side Schedule Intelligence drawer now has
+  three tabs — **Review** (existing deterministic intelligence,
+  unchanged), **Chat** (new shell), and **Build** (placeholder for the
+  future CPM builder).
+- **Chat shell**: message list, input box, send button, disabled/loading
+  state, and the five starter prompts from §10 / §6. The shell renders
+  user messages and a deterministic local acknowledgement; **no AI
+  service is wired**.
+- **Schedule context serializer**: `buildIntelScheduleContext` in
+  `src/lib/scheduler/intel-context.ts` produces a deterministic,
+  read-only snapshot (project name, data date, finish date, activity
+  counts, critical/near-critical breakdown, selected activity, optional
+  findings). This is the future bridge to an AI service.
+- **Guardrail copy**: "Assistant suggestions are advisory. Schedule
+  changes require approval." rendered in the Chat panel and on the Build
+  placeholder.
+
+Out of scope for AI-1 (unchanged from spec):
+
+- No schedule mutations. No commit-to-schedule. No change-set model.
+- No AI model calls and no server function wiring.
+- No generation of schedules (Build mode is a static placeholder).
+- No engine changes. Production still calls legacy `calculateSchedule`.
+  Engine2 remains unwired.
+- No XER, dry-run, or persistence changes.
+
+### Files added / changed
+
+- `src/lib/scheduler/intel-context.ts` *(new)* — mode union + reducer,
+  starter prompt catalog, advisory copy, schedule context serializer.
+- `src/components/scheduler/IntelChatPanel.tsx` *(new)* — chat shell and
+  Build-mode placeholder. UI only.
+- `src/routes/scheduler.$projectId.tsx` *(edited)* — adds Review / Chat /
+  Build tabs inside the existing drawer header and switches content by
+  mode. No engine or persistence calls were touched.
+- `src/lib/scheduler/__tests__/intel-context.spec.ts` *(new)* — covers
+  mode switching, chat shell catalog, serializer determinism, selected
+  activity flow, and the no-mutation invariant.
+- `docs/schedule-intelligence-ai-spec.md` *(this note)*.
+
+### Verification
+
+- `bunx vitest run` — 300/300 passing.
+- `bunx tsc --noEmit --pretty false` — clean.
+- Production scheduling path: `src/routes/scheduler.$projectId.tsx` still
+  imports and calls `calculateSchedule` from `@/lib/scheduler/engine`.
+  Engine2 is not wired into user-facing output.
+- No mutation surface: AI-1 modules export no `commit*`, `save*`,
+  `write*`, `delete*`, `update*`, `mutate*`, or `apply*` functions
+  (asserted by test).
