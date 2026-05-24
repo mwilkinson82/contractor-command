@@ -15,6 +15,8 @@ import {
 import { calculateSchedule } from "@/lib/scheduler/engine";
 import { rescheduleFromDataDate, addWorkingDaysIso } from "@/lib/scheduler/progress";
 import type { Annotation, Dependency, DependencyType, Schedule, Task } from "@/lib/scheduler/types";
+import { buildIntelScheduleContext } from "@/lib/scheduler/intel-context";
+import { IntelChatPanel, IntelBuildPanel } from "@/components/scheduler/IntelChatPanel";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
