@@ -1,5 +1,5 @@
 import { calculateSchedule } from "@/lib/scheduler/engine";
-import { bridgeLegacyScheduleToEngine2, instantToIsoDate } from "@/lib/scheduler/engine2/legacy-bridge";
+import { bridgeLegacyScheduleToEngine2 } from "@/lib/scheduler/engine2/legacy-bridge";
 import { calculateCpm } from "@/lib/scheduler/engine2/cpm";
 import type { Schedule } from "@/lib/scheduler/types";
 
@@ -23,16 +23,16 @@ const s: Schedule = {
 };
 
 const legacy = calculateSchedule(s);
-const bridge = bridgeLegacyScheduleToEngine2(s);
-const e2 = calculateCpm(bridge.input);
+const e2 = calculateCpm(bridgeLegacyScheduleToEngine2(s).input);
+const iso = (ms: number) => new Date(ms).toISOString();
+const ymd = (ms: number) => iso(ms).slice(0, 10);
+const e2Finish = e2.activities.reduce((m, a) => Math.max(m, a.earlyFinish), 0);
 
-console.log("LEGACY finish:", legacy.projectFinishDate);
-console.log("ENGINE2 finish raw:", e2.projectFinish, "iso:", new Date(e2.projectFinish).toISOString());
-console.log("\nLEGACY tasks:");
+console.log("LEGACY finish:", legacy.projectFinishDate, " ENGINE2 finish:", ymd(e2Finish), `(${iso(e2Finish)})`);
+console.log("\nid | legES        legEF        | e2 ES                       e2 EF                       | dES(d) dEF(d)");
 for (const lt of legacy.tasks) {
-  console.log(`  ${lt.id}: ES=${lt.earlyStartDate} EF=${lt.earlyFinishDate} TF=${lt.totalFloat} crit=${lt.isCritical}`);
-}
-console.log("\nENGINE2 activities:");
-for (const a of e2.activities) {
-  console.log(`  ${a.id}: ES=${new Date(a.earlyStart).toISOString()} EF=${new Date(a.earlyFinish).toISOString()} TF(min)=${a.totalFloatMinutes} crit=${a.isCritical}`);
+  const er = e2.activities.find(a => a.id === lt.id)!;
+  const dES = Math.round((Date.parse(ymd(er.earlyStart)+"T00:00:00Z") - Date.parse(lt.earlyStartDate!+"T00:00:00Z"))/86400000);
+  const dEF = Math.round((Date.parse(ymd(er.earlyFinish)+"T00:00:00Z") - Date.parse(lt.earlyFinishDate!+"T00:00:00Z"))/86400000);
+  console.log(`${lt.id}  | ${lt.earlyStartDate}  ${lt.earlyFinishDate}  | ${iso(er.earlyStart)}  ${iso(er.earlyFinish)}  | ${dES}      ${dEF}`);
 }
