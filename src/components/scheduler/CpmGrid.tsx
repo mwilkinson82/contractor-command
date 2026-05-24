@@ -103,7 +103,8 @@ export function CpmGrid({
   onTaskReschedule,
   nameColWidth = DEFAULT_NAME_COL_WIDTH,
 }: Props) {
-  const stickyTableWidth = STICKY_FIXED_WIDTH + nameColWidth;
+
+
 
 
   const cal = useMemo(() => calendar ?? { workDays: 31, holidays: [] }, [calendar]);
