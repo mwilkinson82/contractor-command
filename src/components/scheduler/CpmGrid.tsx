@@ -905,6 +905,10 @@ export function CpmGrid({
                         fill={color}
                         fontWeight={600}
                         fontFamily="ui-sans-serif, system-ui"
+                        stroke="#faf8f3"
+                        strokeWidth={3}
+                        paintOrder="stroke"
+                        strokeLinejoin="round"
                       >
                         {a.label.length > 24 ? a.label.slice(0, 23) + "…" : a.label}
                       </text>
