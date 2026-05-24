@@ -145,6 +145,8 @@ export function evaluateScheduleEligibility(
     id: "in-progress-activities",
     description:
       "No in-progress activities (engine2 has no percent-complete → actuals bridge yet).",
+    failureMessage:
+      "Schedule has in-progress activities — engine2 has no percent-complete → actuals bridge yet.",
     pass: inProgress.length === 0,
     severity: "blocker",
     detail:
@@ -161,6 +163,8 @@ export function evaluateScheduleEligibility(
     id: "completed-with-actuals-not-bridged",
     description:
       "No completed activities without bridged actualStart/actualFinish.",
+    failureMessage:
+      "Schedule has completed activities without bridged actualStart/actualFinish.",
     pass: completed.length === 0,
     severity: "blocker",
     detail:
@@ -183,6 +187,8 @@ export function evaluateScheduleEligibility(
   push(out, {
     id: "per-activity-calendars",
     description: "No tasks reference a non-default calendar.",
+    failureMessage:
+      "Schedule has tasks referencing a non-default calendar (per-activity calendar math is partial in engine2).",
     pass: nonDefaultRefs.length === 0,
     severity: "blocker",
     detail:
@@ -195,6 +201,8 @@ export function evaluateScheduleEligibility(
   push(out, {
     id: "multiple-named-calendars",
     description: "At most one named calendar is defined.",
+    failureMessage:
+      "Schedule defines more than one named calendar (importers may implicitly route through them).",
     pass: calendars.length <= 1,
     severity: "blocker",
     detail:
@@ -213,6 +221,8 @@ export function evaluateScheduleEligibility(
     id: "non-standard-workweek-with-holidays",
     description:
       "Standard Mon–Fri workweek OR no holidays (irregular weeks are fragile).",
+    failureMessage:
+      "Non-standard workweek combined with holidays (calendar parity is fragile on irregular weeks).",
     pass: !(nonStandardWeek && hasHolidays),
     severity: "warning",
     detail:
@@ -231,6 +241,8 @@ export function evaluateScheduleEligibility(
     id: "resource-loaded-activities",
     description:
       "No resource-loaded activities (legacy does not level; engine2 may diverge).",
+    failureMessage:
+      "Schedule has resource-loaded activities (legacy does not level; engine2 may diverge).",
     pass: resourced.length === 0,
     severity: "warning",
     detail:
