@@ -43,12 +43,20 @@ export type EligibilityCheckId =
 
 export interface EligibilityCheck {
   id: EligibilityCheckId;
+  /** Human-readable requirement (what passing looks like). */
   description: string;
   /** True when this schedule passes the check. */
   pass: boolean;
   /** "blocker" = forces engine2 fallback. "warning" = informational only. */
   severity: "blocker" | "warning";
   detail?: string;
+  /**
+   * Phase 3.7 — short sentence describing why the check FAILED. Pushed
+   * into `blockers`/`warnings` instead of the requirement text so the
+   * reason matches the actual failure (e.g. "Schedule has no tasks."
+   * not "Schedule has at least one task.").
+   */
+  failureMessage?: string;
 }
 
 export interface ScheduleEligibility {
