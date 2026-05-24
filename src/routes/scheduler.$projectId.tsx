@@ -132,6 +132,7 @@ function SchedulerPage() {
   const [intelDrawerMode, setIntelDrawerMode] = useState<
     import("@/lib/scheduler/intel-context").IntelDrawerMode
   >("review");
+  const [intelBuildExpanded, setIntelBuildExpanded] = useState(false);
   const SHOW_INTEL_DRAWER = false; // internal flag: do not expose fake AI
   // Focus mode hides the portal top-strip + sidebar so the grid is the hero.
   const [focusMode, setFocusMode] = useState(false);
