@@ -118,7 +118,7 @@ export function evaluateScheduleEligibility(
       detail: "schedule is null/undefined",
     });
     out.eligible = false;
-    out.blockers.push("schedule is null/undefined");
+    out.blockers.push("Schedule is null or undefined.");
     return out;
   }
 
@@ -128,6 +128,7 @@ export function evaluateScheduleEligibility(
   push(out, {
     id: "no-tasks",
     description: "Schedule has at least one task.",
+    failureMessage: "Schedule has no tasks.",
     pass: tasks.length > 0,
     severity: "blocker",
     detail: tasks.length === 0 ? "0 tasks" : undefined,
