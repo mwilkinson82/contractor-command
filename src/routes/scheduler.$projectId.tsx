@@ -1505,9 +1505,12 @@ function SchedulerPage() {
                         />
                       </div>
                     ) : null}
-                  </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </>
+
             ) : activeTab === "wbs" ? (
               <div className="flex-1 overflow-auto p-4">
                 <StructurePanel scheduleId={selectedId} />
