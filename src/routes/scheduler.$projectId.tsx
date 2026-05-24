@@ -2985,7 +2985,7 @@ function IntelDrawerContent({
           </div>
         ) : (
           <ol className="space-y-1.5">
-            {priorities.map((p, i) => (
+            {(mode === "compact" ? priorities.slice(0, 1) : priorities).map((p, i) => (
               <li
                 key={p.id}
                 className="rounded border border-[#ece8db] bg-white/70 p-2"
