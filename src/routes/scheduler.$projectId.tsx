@@ -1437,6 +1437,7 @@ function SchedulerPage() {
                         t={selectedTaskCalc}
                         draftTask={draft.tasks[selectedTaskIdx]}
                         calendars={calendars}
+                        dataDate={draft.dataDate}
                         predCount={
                           draft.dependencies.filter((d) => d.to === selectedTaskCalc.id).length
                         }
