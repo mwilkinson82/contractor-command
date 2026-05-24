@@ -49,7 +49,7 @@ export function EmptyScheduleState({
 
   return (
     <div className="flex h-full w-full items-center justify-center p-8">
-      <div className="w-full max-w-2xl rounded-2xl border border-[#e8dfcc] bg-[#fbf7ee] p-8 shadow-[0_1px_0_rgba(255,255,255,0.7)_inset,0_24px_60px_-30px_rgba(60,40,10,0.25)]">
+      <div className="w-full max-w-2xl rounded-2xl border border-[#e3e0d8] bg-[#fbfaf6] p-8 shadow-[0_1px_0_rgba(255,255,255,0.7)_inset,0_24px_60px_-30px_rgba(60,40,10,0.25)]">
         <div className="mb-6 text-center">
           <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-[#1a1a1a] text-[#f7e9c2]">
             <Sparkles className="h-5 w-5" />
@@ -57,7 +57,7 @@ export function EmptyScheduleState({
           <h2 className="text-xl font-medium tracking-tight text-[#1a1a1a]">
             Start your CPM schedule
           </h2>
-          <p className="mt-1 text-sm text-[#7a6a4d]">
+          <p className="mt-1 text-sm text-[#6b6a63]">
             Build a Primavera-style schedule with WBS, dependencies, critical path, and float.
           </p>
         </div>
@@ -80,23 +80,23 @@ export function EmptyScheduleState({
           <button
             type="button"
             onClick={onAddActivity}
-            className="group flex flex-col items-start gap-2 rounded-xl border border-[#d9cdb1] bg-white p-4 text-left transition hover:border-[#1a1a1a]"
+            className="group flex flex-col items-start gap-2 rounded-xl border border-[#dad7cd] bg-white p-4 text-left transition hover:border-[#1a1a1a]"
           >
             <div className="flex items-center gap-2 text-sm font-medium text-[#1a1a1a]">
               <Plus className="h-4 w-4" />
               Add activity
             </div>
-            <div className="text-xs text-[#7a6a4d]">
+            <div className="text-xs text-[#6b6a63]">
               Start from a blank row and build up by hand.
             </div>
           </button>
 
-          <div className="flex flex-col items-start gap-2 rounded-xl border border-[#d9cdb1] bg-white p-4 transition hover:border-[#1a1a1a]">
+          <div className="flex flex-col items-start gap-2 rounded-xl border border-[#dad7cd] bg-white p-4 transition hover:border-[#1a1a1a]">
             <div className="flex items-center gap-2 text-sm font-medium text-[#1a1a1a]">
               <Upload className="h-4 w-4" />
               Import XER
             </div>
-            <div className="text-xs text-[#7a6a4d]">
+            <div className="text-xs text-[#6b6a63]">
               Bring in an existing Primavera P6 schedule (.xer).
             </div>
             <div className="-mx-1 mt-1">
@@ -107,13 +107,13 @@ export function EmptyScheduleState({
           <button
             type="button"
             onClick={() => setPasteOpen(true)}
-            className="group flex flex-col items-start gap-2 rounded-xl border border-[#d9cdb1] bg-white p-4 text-left transition hover:border-[#1a1a1a]"
+            className="group flex flex-col items-start gap-2 rounded-xl border border-[#dad7cd] bg-white p-4 text-left transition hover:border-[#1a1a1a]"
           >
             <div className="flex items-center gap-2 text-sm font-medium text-[#1a1a1a]">
               <ClipboardPaste className="h-4 w-4" />
               Paste activity list
             </div>
-            <div className="text-xs text-[#7a6a4d]">
+            <div className="text-xs text-[#6b6a63]">
               Paste from Excel — Name, Duration, optional WBS / % / Resource.
             </div>
           </button>
