@@ -491,3 +491,17 @@ body.scheduler-focus-mode header.sticky.top-0 { display: none !important; }
 body.scheduler-focus-mode aside.group\/sidebar,
 body.scheduler-focus-mode aside[class*="group/sidebar"] { display: none !important; }
 body.scheduler-focus-mode .min-h-screen.transition-\[padding\] { padding-left: 0 !important; }
+
+/* Focus-mode chrome compression — applied when the scheduler workbench
+ * toggles focusMode. Targets the scheduler route's outer wrapper
+ * (.scheduler-print-root) so other pages are unaffected.
+ */
+body.scheduler-focus-mode .scheduler-print-root > header:first-of-type {
+  height: 2.25rem; /* h-9 */
+  padding-top: 0;
+  padding-bottom: 0;
+}
+body.scheduler-focus-mode .scheduler-print-root > nav { display: none !important; }
+body.scheduler-focus-mode [data-scheduler-toolbar] { padding-top: 2px; padding-bottom: 2px; row-gap: 4px; }
+body.scheduler-focus-mode [data-scheduler-viewmode] { display: none !important; }
+body.scheduler-focus-mode [data-scheduler-toolbar] .h-7 { height: 1.5rem; }
