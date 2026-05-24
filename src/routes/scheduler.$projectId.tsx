@@ -2764,12 +2764,14 @@ function IntelDrawerContent({
   selectedTask,
   nearCriticalFloat,
   dataQuality,
+  mode = "standard",
 }: {
   draft: import("@/lib/scheduler/types").Schedule | null;
   computed: import("@/lib/scheduler/types").ScheduleResult | null;
   selectedTask: import("@/lib/scheduler/types").ScheduledTask | null;
   nearCriticalFloat: number;
   dataQuality: string;
+  mode?: "compact" | "standard" | "wide";
 }) {
   if (!draft || !computed) {
     return (
