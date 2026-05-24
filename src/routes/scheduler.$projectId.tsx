@@ -3235,8 +3235,9 @@ function IntelDrawerContent({
       <div className="px-3 pb-4 pt-2 text-[10px] uppercase tracking-wider text-[#a8a496]">
         {mode === "wide" ? "Standard review + reserved builder space" : "Deterministic review · derived from current schedule"}
       </div>
-      </>
+      </div>
       ) : null}
+
     </div>
   );
 }
