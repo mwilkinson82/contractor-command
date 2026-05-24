@@ -1170,7 +1170,7 @@ function SchedulerPage() {
                   {/* Unified workbench — CpmGrid renders both the sticky
                       activity table (left) and the Gantt timeline (right),
                       row-for-row aligned. */}
-                  <div className="scheduler-print-right flex flex-1 min-w-0 flex-col bg-white">
+                  <div className="scheduler-print-right relative flex flex-1 min-w-0 flex-col bg-white">
                     <div ref={rightScrollRef} className="flex-1 overflow-auto" data-gantt-container>
                       {computed ? (
                         <CpmGrid
@@ -1187,8 +1187,24 @@ function SchedulerPage() {
                           groupBy={groupBy}
                           nearCriticalFloat={nearCriticalFloat}
                           onTaskReschedule={rescheduleTask}
+                          nameColWidth={nameColWidth}
                         />
                       ) : null}
+                    </div>
+                    {/* Vertical resizer — pinned to the right edge of the
+                        sticky activity table. Drag horizontally to widen or
+                        narrow the activity-name column. */}
+                    <div
+                      role="separator"
+                      aria-orientation="vertical"
+                      aria-label="Resize activity table"
+                      onPointerDown={startColResize}
+                      onDoubleClick={() => setNameColWidth(240)}
+                      className="group absolute top-0 bottom-8 z-30 -ml-1 w-2 cursor-col-resize select-none print:hidden"
+                      style={{ left: getCpmStickyTableWidth(nameColWidth) }}
+                      title="Drag to resize · double-click to reset"
+                    >
+                      <div className="mx-auto h-full w-px bg-transparent group-hover:bg-[#c4c1b7] group-active:bg-[#1f241f]" />
                     </div>
                     {/* Legend — slim inline strip */}
                     <div className="flex shrink-0 items-center justify-center gap-4 border-t border-[#ecebe5] bg-[#faf8f3] px-4 py-1 text-[10px] text-[#4a4944]">
@@ -1209,7 +1225,60 @@ function SchedulerPage() {
                       </span>
                     </div>
                   </div>
+
+                  {/* ============ SCHEDULE INTELLIGENCE DRAWER (foundation) ============
+                      Right-side slide-out reserved for the future assistant /
+                      review layer (logic warnings, critical-path narration,
+                      AI-assisted CPM build, chatbot artifacts). Closed by
+                      default; today it is layout-only scaffolding so the
+                      workbench is shaped for the real behavior to slot in. */}
+                  {intelDrawerOpen ? (
+                    <aside
+                      className="flex w-[360px] shrink-0 flex-col border-l border-[#e3e0d8] bg-[#faf8f3] print:hidden"
+                      aria-label="Schedule intelligence"
+                    >
+                      <header className="flex h-9 shrink-0 items-center justify-between border-b border-[#e3e0d8] bg-white px-3">
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#4a4944]">
+                          Schedule Intelligence
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setIntelDrawerOpen(false)}
+                          className="text-[#6b6a63] hover:text-[#1f241f]"
+                          aria-label="Close intelligence drawer"
+                        >
+                          ✕
+                        </button>
+                      </header>
+                      <div className="flex-1 overflow-auto p-4 text-[12px] leading-relaxed text-[#4a4944]">
+                        {SHOW_INTEL_DRAWER ? (
+                          <div className="text-[#1f241f]">Intelligence panel (wired)</div>
+                        ) : (
+                          <div className="space-y-3">
+                            <div className="rounded border border-dashed border-[#dad7cd] bg-white/60 p-3">
+                              <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8a8980]">
+                                Coming soon
+                              </div>
+                              <div className="mt-1 text-[#1f241f]">
+                                Schedule reviewer, logic warnings, critical-path
+                                narration, and AI-assisted CPM build will live
+                                here. No live behavior is wired yet.
+                              </div>
+                            </div>
+                            <ul className="space-y-1 text-[11px] text-[#6b6a63]">
+                              <li>· Schedule comments &amp; recommendations</li>
+                              <li>· Logic warnings &amp; open-end review</li>
+                              <li>· Critical-path explanations</li>
+                              <li>· Build CPM from SOV / activity list</li>
+                              <li>· Chat-assisted refinement</li>
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </aside>
+                  ) : null}
                 </div>
+
 
                 {/* ============ ACTIVITY INSPECTOR ============ */}
                 <div className="shrink-0 border-t border-[#e3e0d8] bg-white">
