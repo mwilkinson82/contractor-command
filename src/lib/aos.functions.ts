@@ -645,9 +645,18 @@ export const mintAosSopImportToken = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: link } = await supabase
       .from("aos_links")
-      .select("aos_email")
+      .select("aos_email, verified_at")
       .eq("user_id", userId)
       .maybeSingle();
+
+    // Pull the user's effective AOS allowance for the SSO token.
+    const { data: limitsRows } = await supabase.rpc("get_user_aos_limits", {
+      _user_id: userId,
+    });
+    const limitsRow = Array.isArray(limitsRows) ? limitsRows[0] : limitsRows;
+    const tier = (limitsRow?.tier as string | null) ?? null;
+    const workspaceLimit = (limitsRow?.workspace_limit as number | null) ?? 0;
+    const seatLimit = (limitsRow?.seat_limit as number | null) ?? 0;
 
     const aosEmail = (link?.aos_email ?? claimEmail).toLowerCase().trim();
     const ts = Math.floor(Date.now() / 1000);
@@ -671,16 +680,50 @@ export const mintAosSopImportToken = createServerFn({ method: "POST" })
     };
 
     const payloadB64 = base64url(JSON.stringify(payload));
-    const signingString = `${aosEmail}|${ts}|${nonce}|${versionHash}`;
-    const sig = createHmac("sha256", secret.trim()).update(signingString).digest("hex");
+    const importSigningString = `${aosEmail}|${ts}|${nonce}|${versionHash}`;
+    const importSig = createHmac("sha256", secret.trim()).update(importSigningString).digest("hex");
 
-    const url =
-      `${baseUrl.replace(/\/$/, "")}/hub/import` +
+    const base = baseUrl.replace(/\/$/, "");
+    const importUrl =
+      `${base}/hub/import` +
       `?payload=${payloadB64}` +
-      `&sig=${sig}` +
+      `&sig=${importSig}` +
       `&ts=${ts}` +
       `&nonce=${encodeURIComponent(nonce)}` +
       `&from=circle`;
+
+    // Wrap through Circle SSO so AOS establishes a session first, then
+    // redirects to the signed import URL via the `return_to` flow. The
+    // token shape mirrors mintAosSsoToken so AOS reuses the same verifier.
+    const ssoTs = Math.floor(Date.now() / 1000).toString();
+    const ssoNonce =
+      Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
+    const ssoSigningString = `${aosEmail}|${ssoTs}|${ssoNonce}|${tier ?? ""}|${workspaceLimit}|${seatLimit}`;
+    const ssoSig = createHmac("sha256", secret.trim()).update(ssoSigningString).digest("hex");
+    const ssoToken = [
+      encodeURIComponent(aosEmail),
+      ssoTs,
+      ssoNonce,
+      encodeURIComponent(tier ?? ""),
+      String(workspaceLimit),
+      String(seatLimit),
+      ssoSig,
+    ].join(".");
+
+    const url =
+      `${base}/api/public/circle/sso` +
+      `?token=${ssoToken}` +
+      `&return_to=${encodeURIComponent(importUrl)}`;
+
+    await supabase.from("aos_links").upsert(
+      {
+        user_id: userId,
+        aos_email: aosEmail,
+        verified_at: link?.verified_at ?? new Date().toISOString(),
+        last_sync_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" },
+    );
 
     return { ok: true, url, aos_email: aosEmail, source_key: sourceKey, version_hash: versionHash };
   });
