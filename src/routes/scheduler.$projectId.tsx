@@ -195,6 +195,17 @@ function SchedulerPage() {
     };
   }, [focusMode]);
 
+  // In focus mode, default the inspector to collapsed when nothing is
+  // selected and to standard (non-collapsed) when an activity is selected.
+  // Users can still manually resize / collapse / expand after that.
+  const hasSelection = !!selectedTaskId;
+  useEffect(() => {
+    if (!focusMode) return;
+    setInspectorCollapsed(!hasSelection);
+    if (hasSelection) setInspectorExpanded(false);
+  }, [focusMode, hasSelection]);
+
+
 
   // Resizer drag helpers — global pointer listeners avoid losing the drag
   // when the cursor leaves the handle.
