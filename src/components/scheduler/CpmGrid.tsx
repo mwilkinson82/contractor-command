@@ -293,7 +293,8 @@ export function CpmGrid({
             <table className="w-full border-collapse">
               <colgroup>
                 <col style={{ width: 72 }} />
-                <col style={{ width: 240 }} />
+                <col style={{ width: nameColWidth }} />
+
                 <col style={{ width: 36 }} />
                 <col style={{ width: 36 }} />
                 <col style={{ width: 36 }} />
