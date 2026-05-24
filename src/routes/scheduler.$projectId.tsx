@@ -302,7 +302,7 @@ function SchedulerPage() {
     const clamped = Math.max(4, Math.min(36, ideal));
     setDayPx(clamped);
     container.scrollLeft = 0;
-  }, [computed]);
+  }, [computed, nameColWidth]);
   useEffect(() => {
     if (zoomUserSet) return;
     fitToContainer();
