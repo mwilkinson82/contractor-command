@@ -2946,3 +2946,115 @@ future comparison work does not misinterpret it as a CPM math failure.
 - XER import behavior is unchanged.
 - No new resource / leveling / baseline / progress capability.
 - Legacy `calculateSchedule` remains the authoritative production engine.
+
+## §39 — Phase 3.8: Finish-date convention normalization adapter (reporting only)
+
+### Why this exists
+
+§38 proved the engine2-vs-legacy mismatch on the 3.6c persisted FS-chain
+is a finish-date *rendering convention* difference, not a CPM math
+divergence. The dry-run summary surfaced raw values only, which made
+every chain-shaped schedule look like 100% of its activities diverge
+even though the underlying math agrees.
+
+Phase 3.8 adds a reporting-only adapter so dry-run summaries can show
+**both** views side by side:
+
+  - the **raw** legacy and engine2 values (unchanged, never overwritten)
+  - a **convention-normalized** view that maps engine2's inclusive
+    last-work-moment finish onto legacy's exclusive next-working-day
+    boundary, plus per-activity classification of every divergence as
+    *match*, *convention-only*, or *true mismatch*.
+
+### Why engine2 internal date math stays unchanged
+
+The instant model is the truthful representation of "when work actually
+ends" — useful for any future hour-resolution work (shift schedules,
+intraday calendars, real exception clocks). Normalizing inside the CPM
+itself would destroy that information and tie engine2 to a calendar-day
+ceiling forever. Phase 3.8 deliberately keeps the normalization at the
+*report boundary* so engine2 internals remain free to evolve.
+
+### Why legacy remains authoritative
+
+The adapter is consumed only by:
+  - `runScheduleDryRunComparison` (internal-only entry — §35)
+  - `summarizePersistedDryRun` (admin-gated persisted dry-run — §37)
+
+It is NOT consumed by `calculateSchedule`, the engine selector's
+authoritative result path, any production UI, persistence, or
+serialization. Production reads legacy exactly as before.
+
+### What the adapter does
+
+`src/lib/scheduler/engine2/finish-convention.ts` exposes three pure helpers:
+
+  - `nextWorkingDayIso(iso, calendar)` — steps forward to the first
+    working day strictly after `iso`, honoring the schedule's `workDays`
+    bitmask and `holidays`. Mirrors the legacy engine's private
+    `isWorkingDay`.
+  - `normalizeEngine2FinishIso(iso, schedule)` — picks the schedule's
+    project calendar (falling back to the default named calendar if
+    present, then Mon–Fri) and returns the legacy-equivalent
+    exclusive-boundary finish ISO.
+  - `classifyFinishDateMismatch(legacy, engine2, schedule)` — returns
+    `"match"`, `"convention-only"`, or `"true-mismatch"`.
+
+The adapter is read-only and side-effect-free. It never mutates the
+schedule, the legacy result, or the comparison report.
+
+### How dry-run reports distinguish raw from convention-adjusted
+
+`DryRunSummary` (and the `PersistedDryRunReport` projection) now carry
+both the raw and convention-adjusted views:
+
+  - `projectFinish` — raw legacy / engine2 / delta (unchanged from §35).
+  - `normalizedProjectFinish` — `{ engine2Normalized, deltaDays, match }`
+    after mapping engine2's finish onto the legacy boundary.
+  - `mismatchIds` — raw bucket-by-dimension IDs (unchanged from §35).
+  - `conventionMismatchIds` — `{ earlyFinish, lateFinish }` — IDs whose
+    finish-date divergence collapses under normalization.
+  - `trueDateMismatchIds` — `{ earlyStart, earlyFinish, lateStart,
+    lateFinish }` — IDs whose divergence survives normalization. ES and
+    LS never normalize (no convention difference there); a finish-date
+    divergence lands here only when normalization cannot explain it.
+  - `conventionAdjustedMatchingCount` / `conventionAdjustedDifferingCount`
+    — activity counts after convention collapse.
+  - `maxNormalizedDateDeltaDays` — max |legacy − normalized engine2|
+    across all date dimensions, post-normalization.
+
+The raw fields are NEVER overwritten. Engineering can still inspect the
+real engine2 instant values; the normalized fields just add a second
+lens.
+
+### What still counts as a true mismatch
+
+A divergence is reported as a *true* mismatch (and survives the
+normalized view) when:
+
+  - it is an early-start or late-start divergence (starts are not subject
+    to the finish-rendering convention), OR
+  - it is an early-finish or late-finish divergence where normalizing
+    engine2's value to legacy's exclusive boundary still does not equal
+    legacy, OR
+  - it is a float, critical-flag, or driving-link divergence (these
+    categories are not date-renderings and do not normalize).
+
+The Phase 3.7 sentinel for the 3.6c persisted FS-chain still fails
+loudly on the raw view (legacy 2026-06-30 vs engine2 2026-06-29,
+`maxDateDeltaDays = 3`, 5 differing activities). After normalization,
+`conventionAdjustedDifferingCount = 0`, `maxNormalizedDateDeltaDays = 0`,
+and `trueDateMismatchIds` is empty across the board — confirming the
+divergence is convention-only.
+
+### Scope guarantees (Phase 3.8)
+- No scheduler UI changes.
+- No production wiring of engine2.
+- Engine2 is **not** made authoritative or default.
+- Engine2 internal CPM math is unchanged.
+- Legacy output is unchanged.
+- Eligibility is **not** broadened.
+- XER import behavior is unchanged.
+- No new resource / leveling / baseline / progress capability.
+- Schedule state is never mutated; the adapter is reporting-only.
+- Legacy `calculateSchedule` remains the authoritative production engine.

@@ -49,6 +49,30 @@ export interface PersistedDryRunReport {
     deltaDays: number;
     match: boolean;
   };
+  /**
+   * Phase 3.8 — finish-date convention normalization (reporting only).
+   * Engine2 last-work-moment finish is mapped to legacy's exclusive
+   * working-day boundary so engineering can tell a true CPM divergence
+   * apart from the known rendering convention. See ARCHITECTURE.md §39.
+   */
+  normalizedProjectFinish: {
+    engine2Normalized: string | null;
+    deltaDays: number;
+    match: boolean;
+  };
+  conventionAdjustedMatchingCount: number;
+  conventionAdjustedDifferingCount: number;
+  maxNormalizedDateDeltaDays: number;
+  conventionMismatchIds: {
+    earlyFinish: string[];
+    lateFinish: string[];
+  };
+  trueDateMismatchIds: {
+    earlyStart: string[];
+    earlyFinish: string[];
+    lateStart: string[];
+    lateFinish: string[];
+  };
   provenance: {
     effectiveMode: string;
     legacyAuthoritative: true;
@@ -106,6 +130,24 @@ export function summarizePersistedDryRun(
       engine2: dryRun.projectFinish.engine2,
       deltaDays: dryRun.projectFinish.deltaDays,
       match: dryRun.projectFinish.deltaDays === 0,
+    },
+    normalizedProjectFinish: {
+      engine2Normalized: dryRun.normalizedProjectFinish.engine2Normalized,
+      deltaDays: dryRun.normalizedProjectFinish.deltaDays,
+      match: dryRun.normalizedProjectFinish.match,
+    },
+    conventionAdjustedMatchingCount: dryRun.conventionAdjustedMatchingCount,
+    conventionAdjustedDifferingCount: dryRun.conventionAdjustedDifferingCount,
+    maxNormalizedDateDeltaDays: dryRun.maxNormalizedDateDeltaDays,
+    conventionMismatchIds: {
+      earlyFinish: [...dryRun.conventionMismatchIds.earlyFinish],
+      lateFinish: [...dryRun.conventionMismatchIds.lateFinish],
+    },
+    trueDateMismatchIds: {
+      earlyStart: [...dryRun.trueDateMismatchIds.earlyStart],
+      earlyFinish: [...dryRun.trueDateMismatchIds.earlyFinish],
+      lateStart: [...dryRun.trueDateMismatchIds.lateStart],
+      lateFinish: [...dryRun.trueDateMismatchIds.lateFinish],
     },
     provenance: {
       effectiveMode: provenance.effectiveMode,
