@@ -127,6 +127,9 @@ function SchedulerPage() {
   // and free drag-resize. Closed by default.
   const [intelDrawerOpen, setIntelDrawerOpen] = useState(false);
   const [intelDrawerWidth, setIntelDrawerWidth] = useState<number>(380);
+  const [intelDrawerMode, setIntelDrawerMode] = useState<
+    import("@/lib/scheduler/intel-context").IntelDrawerMode
+  >("review");
   const SHOW_INTEL_DRAWER = false; // internal flag: do not expose fake AI
   // Focus mode hides the portal top-strip + sidebar so the grid is the hero.
   const [focusMode, setFocusMode] = useState(false);
