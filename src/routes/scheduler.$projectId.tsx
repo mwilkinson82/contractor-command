@@ -1370,7 +1370,15 @@ function SchedulerPage() {
                         selectedTask={selectedTaskCalc}
                         nearCriticalFloat={nearCriticalFloat}
                         dataQuality={dataQuality}
+                        mode={
+                          intelDrawerWidth <= 320
+                            ? "compact"
+                            : intelDrawerWidth >= 480
+                              ? "wide"
+                              : "standard"
+                        }
                       />
+
                     </aside>
                   ) : null}
 
