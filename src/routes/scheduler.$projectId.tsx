@@ -3020,7 +3020,8 @@ function IntelDrawerContent({
       ) : null}
 
       {mode !== "compact" ? (
-      <div className="contents">
+      <React.Fragment>
+
 
       {/* ---- 3. CRITICAL PATH ---- */}
       <IntelSection title="Critical Path">
