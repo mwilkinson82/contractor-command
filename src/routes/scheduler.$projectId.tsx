@@ -1725,6 +1725,7 @@ function ScheduleContextSummary({
             ))}
           </ul>
         </div>
+      ) : null}
     </div>
   );
 }
