@@ -1725,32 +1725,6 @@ function ScheduleContextSummary({
             ))}
           </ul>
         </div>
-
-      {nearCrit.length > 0 ? (
-        <div className="col-span-12 border-t border-[#ecebe5] pt-2">
-          <div className="text-[9px] font-semibold uppercase tracking-wider text-[#8a8980]">
-            Near-critical activities
-          </div>
-          <ul className="mt-1 grid grid-cols-2 gap-x-4 gap-y-0.5 md:grid-cols-3">
-            {nearCrit.slice(0, 6).map((t) => (
-              <li key={t.id}>
-                <button
-                  type="button"
-                  onClick={() => onSelect(t.id)}
-                  className="flex w-full items-center gap-2 rounded px-1 py-0.5 text-left hover:bg-[#faf8f3]"
-                >
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#c2750a]" />
-                  <span className="font-mono text-[10px] text-[#6b6a63]">{t.id}</span>
-                  <span className="flex-1 truncate text-[#1f241f]">{t.name}</span>
-                  <span className="tabular-nums text-[10px] text-[#c2750a]">
-                    {t.totalFloat}d
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
     </div>
   );
 }
