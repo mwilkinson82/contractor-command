@@ -567,10 +567,10 @@ function SchedulerPage() {
   return (
     <div className="scheduler-print-root flex h-screen flex-col bg-[#faf8f3] text-[#1f241f]">
       {/* ============ TOP HEADER ============ */}
-      <header className="flex h-11 shrink-0 items-center gap-4 border-b border-[#e6dfd0] bg-white/80 px-4 backdrop-blur">
+      <header className="flex h-11 shrink-0 items-center gap-4 border-b border-[#e3e0d8] bg-white/80 px-4 backdrop-blur">
         <Link
           to="/scheduler"
-          className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#5c574e] hover:text-[#1f241f]"
+          className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#4a4944] hover:text-[#1f241f]"
         >
           <span className="grid h-7 w-7 place-items-center rounded bg-[#1f241f] text-[10px] font-bold text-[#f7e9b8]">
             AOS
@@ -578,7 +578,7 @@ function SchedulerPage() {
           <span className="hidden sm:inline">CPM Schedule</span>
         </Link>
 
-        <div className="h-6 w-px bg-[#e6dfd0]" />
+        <div className="h-6 w-px bg-[#e3e0d8]" />
 
         <div className="flex flex-1 items-center gap-2 min-w-0">
           {draft ? (
@@ -588,11 +588,11 @@ function SchedulerPage() {
                 setDraft({ ...draft, name: e.target.value });
                 setDirty(true);
               }}
-              className="min-w-0 flex-1 truncate bg-transparent text-base font-semibold tracking-tight outline-none placeholder:text-[#a39884] focus:bg-[#f7f4ed] focus:rounded focus:px-2"
+              className="min-w-0 flex-1 truncate bg-transparent text-base font-semibold tracking-tight outline-none placeholder:text-[#9a9991] focus:bg-[#f7f4ed] focus:rounded focus:px-2"
               placeholder="Untitled schedule"
             />
           ) : (
-            <span className="text-base font-semibold text-[#a39884]">Loading…</span>
+            <span className="text-base font-semibold text-[#9a9991]">Loading…</span>
           )}
         </div>
 
@@ -603,10 +603,10 @@ function SchedulerPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search activities…"
-              className="h-8 w-64 rounded-md border border-[#e6dfd0] bg-[#faf8f3] pl-8 pr-3 text-xs outline-none focus:border-[#9c8b6e] focus:bg-white"
+              className="h-8 w-64 rounded-md border border-[#e3e0d8] bg-[#faf8f3] pl-8 pr-3 text-xs outline-none focus:border-[#8a8980] focus:bg-white"
             />
             <svg
-              className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#9c8b6e]"
+              className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8a8980]"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -620,7 +620,7 @@ function SchedulerPage() {
 
         <div className="flex items-center gap-2">
           {comparisonBaselineId ? (
-            <span className="hidden lg:inline-flex items-center gap-1 rounded-md bg-[#eee6d7] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#5c574e]">
+            <span className="hidden lg:inline-flex items-center gap-1 rounded-md bg-[#ecebe5] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#4a4944]">
               Baseline on
             </span>
           ) : null}
@@ -628,7 +628,7 @@ function SchedulerPage() {
             type="button"
             onClick={() => exportScheduleCsv(draft, computed)}
             disabled={!draft || !computed}
-            className="rounded-md border border-[#e6dfd0] bg-white px-2.5 py-1.5 text-xs font-medium text-[#3d3527] hover:bg-[#faf8f3] disabled:opacity-50"
+            className="rounded-md border border-[#e3e0d8] bg-white px-2.5 py-1.5 text-xs font-medium text-[#2d2d28] hover:bg-[#faf8f3] disabled:opacity-50"
             title="Export activities as CSV"
           >
             ↓ Export
@@ -646,7 +646,7 @@ function SchedulerPage() {
               setTimeout(() => window.print(), 50);
             }}
             disabled={!draft || !computed}
-            className="rounded-md border border-[#e6dfd0] bg-white px-2.5 py-1.5 text-xs font-medium text-[#3d3527] hover:bg-[#faf8f3] disabled:opacity-50"
+            className="rounded-md border border-[#e3e0d8] bg-white px-2.5 py-1.5 text-xs font-medium text-[#2d2d28] hover:bg-[#faf8f3] disabled:opacity-50"
             title="Print / Save as PDF (P6-style layout)"
           >
             ⎙ Print
@@ -654,7 +654,7 @@ function SchedulerPage() {
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
-            className="rounded-md border border-[#e6dfd0] bg-white px-2.5 py-1.5 text-xs font-medium text-[#3d3527] hover:bg-[#faf8f3]"
+            className="rounded-md border border-[#e3e0d8] bg-white px-2.5 py-1.5 text-xs font-medium text-[#2d2d28] hover:bg-[#faf8f3]"
             title="Calendars, baselines, codes, reports, fragnet, update cycle, annotations"
           >
             ⚙ Configure
@@ -663,7 +663,7 @@ function SchedulerPage() {
             size="sm"
             onClick={() => saveMut.mutate()}
             disabled={!dirty || saveMut.isPending}
-            className="bg-[#1f241f] text-white hover:bg-[#3d3527] disabled:opacity-50"
+            className="bg-[#1f241f] text-white hover:bg-[#2d2d28] disabled:opacity-50"
           >
             {saveMut.isPending ? "Saving…" : dirty ? "Update Schedule" : "Saved"}
           </Button>
@@ -671,7 +671,7 @@ function SchedulerPage() {
       </header>
 
       {/* ============ TAB BAR ============ */}
-      <nav className="flex h-8 shrink-0 items-end gap-0 border-b border-[#e6dfd0] bg-white/60 px-4">
+      <nav className="flex h-8 shrink-0 items-end gap-0 border-b border-[#e3e0d8] bg-white/60 px-4">
         {(
           [
             ["schedule", "Schedule"],
@@ -689,7 +689,7 @@ function SchedulerPage() {
             className={`relative px-3.5 py-1.5 text-[12px] font-medium transition ${
               activeTab === key
                 ? "text-[#1f241f]"
-                : "text-[#7a6a4d] hover:text-[#3d3527]"
+                : "text-[#6b6a63] hover:text-[#2d2d28]"
             }`}
           >
             {label}
@@ -701,13 +701,13 @@ function SchedulerPage() {
         <div className="ml-auto flex items-center gap-3 pb-2">
           <Link
             to="/scheduler-portfolio"
-            className="text-[10px] font-semibold uppercase tracking-wide text-[#7a6a4d] hover:text-[#1f241f]"
+            className="text-[10px] font-semibold uppercase tracking-wide text-[#6b6a63] hover:text-[#1f241f]"
           >
             Portfolio →
           </Link>
           <Link
             to="/scheduler-field"
-            className="text-[10px] font-semibold uppercase tracking-wide text-[#7a6a4d] hover:text-[#1f241f]"
+            className="text-[10px] font-semibold uppercase tracking-wide text-[#6b6a63] hover:text-[#1f241f]"
           >
             Field →
           </Link>
@@ -717,7 +717,7 @@ function SchedulerPage() {
       {/* ============ NOT-LOADED STATES ============ */}
       {!selectedId ? (
         <div className="flex flex-1 items-center justify-center">
-          <div className="rounded-md border border-dashed border-[#d8cdb8] bg-white/60 p-10 text-center text-sm text-[#746b5c]">
+          <div className="rounded-md border border-dashed border-[#dad7cd] bg-white/60 p-10 text-center text-sm text-[#6b6a63]">
             Select a schedule, or create one to start editing.
           </div>
         </div>
@@ -735,35 +735,35 @@ function SchedulerPage() {
       ) : (
         <>
           {/* ============ TOOLBAR ============ */}
-          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[#e6dfd0] bg-white px-4 py-1">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[#e3e0d8] bg-white px-4 py-1">
             {/* View modes (only Gantt is wired) */}
-            <div className="flex items-center rounded-md border border-[#e6dfd0] bg-[#faf8f3] p-0.5">
+            <div className="flex items-center rounded-md border border-[#e3e0d8] bg-[#faf8f3] p-0.5">
               <button className="rounded bg-white px-3 py-1 text-xs font-medium shadow-sm">
                 Gantt
               </button>
               <button
                 disabled
                 title="Board view — coming soon"
-                className="px-3 py-1 text-xs text-[#c7b89d] cursor-not-allowed"
+                className="px-3 py-1 text-xs text-[#bfbeb5] cursor-not-allowed"
               >
                 Board
               </button>
               <button
                 disabled
                 title="List view — coming soon"
-                className="px-3 py-1 text-xs text-[#c7b89d] cursor-not-allowed"
+                className="px-3 py-1 text-xs text-[#bfbeb5] cursor-not-allowed"
               >
                 List
               </button>
             </div>
 
-            <div className="mx-1 h-5 w-px bg-[#e6dfd0]" />
+            <div className="mx-1 h-5 w-px bg-[#e3e0d8]" />
 
             {calendars.length > 0 ? (
               <select
                 value={calendarFilter}
                 onChange={(e) => setCalendarFilter(e.target.value)}
-                className="h-7 rounded-md border border-[#e6dfd0] bg-white px-2 text-xs text-[#3d3527] hover:bg-[#faf8f3]"
+                className="h-7 rounded-md border border-[#e3e0d8] bg-white px-2 text-xs text-[#2d2d28] hover:bg-[#faf8f3]"
                 title="Filter by activity calendar"
               >
                 <option value="">⛬ Calendar (All)</option>
@@ -789,7 +789,7 @@ function SchedulerPage() {
                 <select
                   value={resourceFilter}
                   onChange={(e) => setResourceFilter(e.target.value)}
-                  className="h-7 rounded-md border border-[#e6dfd0] bg-white px-2 text-xs text-[#3d3527] hover:bg-[#faf8f3]"
+                  className="h-7 rounded-md border border-[#e3e0d8] bg-white px-2 text-xs text-[#2d2d28] hover:bg-[#faf8f3]"
                   title="Filter by resource"
                 >
                   <option value="">◇ Resource (All)</option>
@@ -807,7 +807,7 @@ function SchedulerPage() {
               <select
                 value={codeFilter}
                 onChange={(e) => setCodeFilter(e.target.value)}
-                className="h-7 rounded-md border border-[#e6dfd0] bg-white px-2 text-xs text-[#3d3527] hover:bg-[#faf8f3]"
+                className="h-7 rounded-md border border-[#e3e0d8] bg-white px-2 text-xs text-[#2d2d28] hover:bg-[#faf8f3]"
                 title="Filter by activity code"
               >
                 <option value="">◊ Code (All)</option>
@@ -825,18 +825,18 @@ function SchedulerPage() {
             ) : null}
 
 
-            <div className="flex items-center rounded-md border border-[#e6dfd0] bg-white">
+            <div className="flex items-center rounded-md border border-[#e3e0d8] bg-white">
               {(["wbs", "critical", "none"] as const).map((g, i) => (
                 <button
                   key={g}
                   type="button"
                   onClick={() => setGroupBy(g)}
                   className={`px-2.5 py-1 text-xs ${
-                    i > 0 ? "border-l border-[#e6dfd0]" : ""
+                    i > 0 ? "border-l border-[#e3e0d8]" : ""
                   } ${
                     groupBy === g
                       ? "bg-[#1f241f] text-white"
-                      : "text-[#5c574e] hover:bg-[#faf8f3]"
+                      : "text-[#4a4944] hover:bg-[#faf8f3]"
                   }`}
                 >
                   {g === "wbs" ? "Group: WBS" : g === "critical" ? "Critical" : "Flat"}
@@ -847,8 +847,8 @@ function SchedulerPage() {
             <button
               type="button"
               onClick={() => setShowCompleted((v) => !v)}
-              className={`rounded-md border border-[#e6dfd0] px-2.5 py-1 text-xs ${
-                showCompleted ? "bg-white text-[#5c574e]" : "bg-[#1f241f] text-white"
+              className={`rounded-md border border-[#e3e0d8] px-2.5 py-1 text-xs ${
+                showCompleted ? "bg-white text-[#4a4944]" : "bg-[#1f241f] text-white"
               } hover:bg-[#faf8f3]`}
               title="Hide 100% complete activities"
             >
@@ -856,11 +856,11 @@ function SchedulerPage() {
             </button>
 
             <label
-              className="flex items-center gap-1.5 rounded-md border border-[#e6dfd0] bg-white px-2 py-0.5 text-[11px] text-[#5c574e]"
+              className="flex items-center gap-1.5 rounded-md border border-[#e3e0d8] bg-white px-2 py-0.5 text-[11px] text-[#4a4944]"
               title="Activities with total float at or below this many working days are highlighted as near-critical."
             >
               <span className="inline-block h-2 w-2 rounded-sm bg-[#d97706]" />
-              <span className="uppercase tracking-wide text-[10px] text-[#7a6a4d]">Near-crit ≤</span>
+              <span className="uppercase tracking-wide text-[10px] text-[#6b6a63]">Near-crit ≤</span>
               <input
                 type="number"
                 min={0}
@@ -870,9 +870,9 @@ function SchedulerPage() {
                 onChange={(e) =>
                   setNearCriticalFloat(Math.max(0, Math.min(99, Number(e.target.value) || 0)))
                 }
-                className="h-5 w-10 rounded border border-[#e6dfd0] bg-white px-1 text-right text-[11px] tabular-nums"
+                className="h-5 w-10 rounded border border-[#e3e0d8] bg-white px-1 text-right text-[11px] tabular-nums"
               />
-              <span className="text-[10px] text-[#9c8b6e]">d</span>
+              <span className="text-[10px] text-[#8a8980]">d</span>
             </label>
 
 
@@ -901,17 +901,17 @@ function SchedulerPage() {
                 
               />
 
-              <div className="mx-1 h-5 w-px bg-[#e6dfd0]" />
+              <div className="mx-1 h-5 w-px bg-[#e3e0d8]" />
 
               {/* Zoom */}
               <div className="flex items-center gap-1">
-                <span className="text-[10px] uppercase tracking-wide text-[#7a6a4d]">
+                <span className="text-[10px] uppercase tracking-wide text-[#6b6a63]">
                   Zoom
                 </span>
                 <button
                   type="button"
                   onClick={() => { setZoomUserSet(false); fitToContainer(); }}
-                  className="rounded border border-[#e6dfd0] px-1.5 py-0.5 text-[10px] text-[#5c574e] hover:bg-[#faf8f3]"
+                  className="rounded border border-[#e3e0d8] px-1.5 py-0.5 text-[10px] text-[#4a4944] hover:bg-[#faf8f3]"
                   title="Fit project to viewport"
                 >
                   Fit
@@ -925,7 +925,7 @@ function SchedulerPage() {
                     className={`rounded px-1.5 py-0.5 text-[10px] ${
                       dayPx === z.dayPx && zoomUserSet
                         ? "bg-[#1f241f] text-white"
-                        : "border border-[#e6dfd0] text-[#5c574e] hover:bg-[#faf8f3]"
+                        : "border border-[#e3e0d8] text-[#4a4944] hover:bg-[#faf8f3]"
                     }`}
                   >
                     {z.label}
@@ -947,12 +947,12 @@ function SchedulerPage() {
                 ) : null}
 
                 {/* Project meta strip — compact single-line pill row */}
-                <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[#eee7d8] bg-white px-4 py-0.5 text-[11px] text-[#5c574e]">
+                <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[#ecebe5] bg-white px-4 py-0.5 text-[11px] text-[#4a4944]">
                   <label className="inline-flex items-center gap-1.5">
-                    <span className="text-[9px] font-semibold uppercase tracking-wider text-[#9c8b6e]">Start</span>
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-[#8a8980]">Start</span>
                     <input
                       type="date"
-                      className="h-6 rounded border border-[#e6dfd0] bg-white px-1.5 text-[11px] tabular-nums"
+                      className="h-6 rounded border border-[#e3e0d8] bg-white px-1.5 text-[11px] tabular-nums"
                       value={draft.projectStartDate ?? ""}
                       onChange={(e) => {
                         setDraft({ ...draft, projectStartDate: e.target.value || undefined });
@@ -961,10 +961,10 @@ function SchedulerPage() {
                     />
                   </label>
                   <label className="inline-flex items-center gap-1.5">
-                    <span className="text-[9px] font-semibold uppercase tracking-wider text-[#9c8b6e]">Data date</span>
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-[#8a8980]">Data date</span>
                     <input
                       type="date"
-                      className="h-6 rounded border border-[#e6dfd0] bg-white px-1.5 text-[11px] tabular-nums"
+                      className="h-6 rounded border border-[#e3e0d8] bg-white px-1.5 text-[11px] tabular-nums"
                       value={draft.dataDate ?? ""}
                       onChange={(e) => {
                         setDraft({ ...draft, dataDate: e.target.value || undefined });
@@ -1011,7 +1011,7 @@ function SchedulerPage() {
                         `Reset ${r.summary.inProgress} in-progress · ${r.summary.completed} done · ${r.summary.notStarted} not started (rollback baseline saved)`,
                       );
                     }}
-                    className="ml-auto rounded border border-[#e6dfd0] bg-white px-2 py-0.5 text-[10px] uppercase tracking-wide text-[#3d3527] hover:bg-[#faf8f3] disabled:opacity-40"
+                    className="ml-auto rounded border border-[#e3e0d8] bg-white px-2 py-0.5 text-[10px] uppercase tracking-wide text-[#2d2d28] hover:bg-[#faf8f3] disabled:opacity-40"
                   >
                     Reschedule from data date
                   </button>
@@ -1043,14 +1043,14 @@ function SchedulerPage() {
                   <div className="print-only mb-3 border-b-2 border-[#1f241f] pb-2">
                     <div className="flex items-end justify-between">
                       <div>
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#5c574e]">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#4a4944]">
                           CPM Schedule
                         </div>
                         <div className="text-xl font-semibold text-[#1f241f]">
                           {draft.name || "Untitled schedule"}
                         </div>
                       </div>
-                      <div className="text-right text-[10px] text-[#3d3527]">
+                      <div className="text-right text-[10px] text-[#2d2d28]">
                         <div>
                           <span className="font-semibold uppercase tracking-wide">Start </span>
                           {draft.projectStartDate || "—"}
@@ -1069,7 +1069,7 @@ function SchedulerPage() {
                           <span className="font-semibold uppercase tracking-wide">Activities </span>
                           {draft.tasks.length}
                         </div>
-                        <div className="mt-1 text-[#7a6a4d]">
+                        <div className="mt-1 text-[#6b6a63]">
                           Printed {new Date().toLocaleString()}
                         </div>
                       </div>
@@ -1100,7 +1100,7 @@ function SchedulerPage() {
                       ) : null}
                     </div>
                     {/* Legend — slim inline strip */}
-                    <div className="flex shrink-0 items-center justify-center gap-4 border-t border-[#eee7d8] bg-[#faf8f3] px-4 py-1 text-[10px] text-[#5c574e]">
+                    <div className="flex shrink-0 items-center justify-center gap-4 border-t border-[#ecebe5] bg-[#faf8f3] px-4 py-1 text-[10px] text-[#4a4944]">
                       <LegendDot color="#2a3e5f" label="Planned" />
                       <LegendDot color="#9c2418" label="Critical" />
                       {nearCriticalFloat > 0 ? (
@@ -1109,7 +1109,7 @@ function SchedulerPage() {
                           label={`Near-critical (≤${nearCriticalFloat}d)`}
                         />
                       ) : null}
-                      <LegendDot color="#9c8b6e" label="Float / baseline" />
+                      <LegendDot color="#8a8980" label="Float / baseline" />
                       <span className="inline-flex items-center gap-1">
                         <span className="inline-block h-2 w-2 rotate-45 bg-[#7a5cc4]" /> Milestone
                       </span>
@@ -1121,8 +1121,8 @@ function SchedulerPage() {
                 </div>
 
                 {/* ============ ACTIVITY INSPECTOR ============ */}
-                <div className="shrink-0 border-t border-[#e6dfd0] bg-white">
-                  <div className="flex items-end gap-0 border-b border-[#eee7d8] px-4">
+                <div className="shrink-0 border-t border-[#e3e0d8] bg-white">
+                  <div className="flex items-end gap-0 border-b border-[#ecebe5] px-4">
                     {(
                       [
                         ["details", "Activity Details"],
@@ -1140,7 +1140,7 @@ function SchedulerPage() {
                         className={`relative px-3 py-2 text-xs font-medium ${
                           inspectorTab === key
                             ? "text-[#1f241f]"
-                            : "text-[#7a6a4d] hover:text-[#3d3527]"
+                            : "text-[#6b6a63] hover:text-[#2d2d28]"
                         }`}
                       >
                         {label}
@@ -1150,7 +1150,7 @@ function SchedulerPage() {
                       </button>
                     ))}
                     {selectedTaskCalc ? (
-                      <span className="ml-auto pb-2 text-[10px] uppercase tracking-wide text-[#7a6a4d]">
+                      <span className="ml-auto pb-2 text-[10px] uppercase tracking-wide text-[#6b6a63]">
                         {selectedTaskCalc.id} ·{" "}
                         {selectedTaskCalc.isCritical ? (
                           <span className="font-semibold text-[#b42318]">CRITICAL</span>
@@ -1185,7 +1185,7 @@ function SchedulerPage() {
                         setDirty={setDirty}
                       />
                     ) : inspectorTab === "resources" ? (
-                      <div className="text-xs text-[#5c574e]">
+                      <div className="text-xs text-[#4a4944]">
                         <ResourcesPanel
                           result={computed!}
                           tasks={draft.tasks}
@@ -1225,7 +1225,7 @@ function SchedulerPage() {
                               ))}
                           </SelectContent>
                         </Select>
-                        <p className="text-[10px] text-[#776e5e]">
+                        <p className="text-[10px] text-[#6b6a63]">
                           Duration walks in this calendar. Lag stays in project-default days.
                         </p>
                       </div>
@@ -1290,12 +1290,12 @@ function SchedulerPage() {
                 ) : null}
               </div>
             ) : (
-              <div className="flex flex-1 items-center justify-center text-sm text-[#9c8b6e]" />
+              <div className="flex flex-1 items-center justify-center text-sm text-[#8a8980]" />
             )}
           </div>
 
           {/* ============ STATUS BAR ============ */}
-          <footer className="flex h-8 shrink-0 items-center gap-6 border-t border-[#e6dfd0] bg-[#faf8f3] px-4 text-[11px] text-[#5c574e]">
+          <footer className="flex h-8 shrink-0 items-center gap-6 border-t border-[#e3e0d8] bg-[#faf8f3] px-4 text-[11px] text-[#4a4944]">
             <span className="flex items-center gap-1.5">
               <span
                 className={`inline-block h-2 w-2 rounded-full ${
@@ -1305,36 +1305,36 @@ function SchedulerPage() {
                       ? "bg-[#d4842a]"
                       : dataQuality === "Errors"
                         ? "bg-[#b42318]"
-                        : "bg-[#c7b89d]"
+                        : "bg-[#bfbeb5]"
                 }`}
               />
-              <span className="uppercase tracking-wide text-[#7a6a4d]">Data Date</span>{" "}
+              <span className="uppercase tracking-wide text-[#6b6a63]">Data Date</span>{" "}
               <span className="font-medium text-[#1f241f]">{draft.dataDate ?? "—"}</span>
             </span>
             <span>
-              <span className="uppercase tracking-wide text-[#7a6a4d]">Baseline</span>{" "}
+              <span className="uppercase tracking-wide text-[#6b6a63]">Baseline</span>{" "}
               <span className="font-medium text-[#1f241f]">
                 {comparisonBaselineId ? "Comparing" : "—"}
               </span>
             </span>
             <span>
-              <span className="uppercase tracking-wide text-[#7a6a4d]">Activities</span>{" "}
+              <span className="uppercase tracking-wide text-[#6b6a63]">Activities</span>{" "}
               <span className="font-medium text-[#1f241f]">{totalActivities}</span>
             </span>
             <span>
-              <span className="uppercase tracking-wide text-[#7a6a4d]">Critical</span>{" "}
+              <span className="uppercase tracking-wide text-[#6b6a63]">Critical</span>{" "}
               <span className="font-medium text-[#b42318]">{criticalCount}</span>
             </span>
             <span>
-              <span className="uppercase tracking-wide text-[#7a6a4d]">In Progress</span>{" "}
+              <span className="uppercase tracking-wide text-[#6b6a63]">In Progress</span>{" "}
               <span className="font-medium text-[#1f241f]">{inProgressCount}</span>
             </span>
             <span>
-              <span className="uppercase tracking-wide text-[#7a6a4d]">Completed</span>{" "}
+              <span className="uppercase tracking-wide text-[#6b6a63]">Completed</span>{" "}
               <span className="font-medium text-[#3d8a5c]">{completedCount}</span>
             </span>
             <span className="ml-auto">
-              <span className="uppercase tracking-wide text-[#7a6a4d]">Quality</span>{" "}
+              <span className="uppercase tracking-wide text-[#6b6a63]">Quality</span>{" "}
               <span
                 className={`font-medium ${
                   dataQuality === "Good"
@@ -1369,17 +1369,17 @@ function SchedulerPage() {
         >
           <div className="flex-1 bg-black/30 backdrop-blur-sm" />
           <aside
-            className="relative flex h-full w-[420px] flex-col overflow-hidden border-l border-[#e6dfd0] bg-[#faf8f3] shadow-2xl"
+            className="relative flex h-full w-[420px] flex-col overflow-hidden border-l border-[#e3e0d8] bg-[#faf8f3] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <header className="flex shrink-0 items-center justify-between border-b border-[#e6dfd0] bg-white px-4 py-3">
+            <header className="flex shrink-0 items-center justify-between border-b border-[#e3e0d8] bg-white px-4 py-3">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-[#1f241f]">
                 Configure schedule
               </h2>
               <button
                 type="button"
                 onClick={() => setDrawerOpen(false)}
-                className="text-[#7a6a4d] hover:text-[#1f241f]"
+                className="text-[#6b6a63] hover:text-[#1f241f]"
                 aria-label="Close"
               >
                 ✕
@@ -1474,7 +1474,7 @@ function ScheduleContextSummary({
 }) {
   if (!computed) {
     return (
-      <div className="py-4 text-center text-xs text-[#9c8b6e]">
+      <div className="py-4 text-center text-xs text-[#8a8980]">
         Select an activity to inspect.
       </div>
     );
@@ -1491,28 +1491,28 @@ function ScheduleContextSummary({
   return (
     <div className="grid grid-cols-12 gap-4 text-[11px]">
       <div className="col-span-3">
-        <div className="text-[9px] font-semibold uppercase tracking-wider text-[#9c8b6e]">
+        <div className="text-[9px] font-semibold uppercase tracking-wider text-[#8a8980]">
           Project finish
         </div>
         <div className="mt-0.5 text-[14px] font-semibold tabular-nums text-[#1f241f]">
           {computed.projectFinishDate ?? "—"}
         </div>
-        <div className="text-[10px] text-[#7a6a4d]">
+        <div className="text-[10px] text-[#6b6a63]">
           {computed.projectDuration}d duration · DD {draft.dataDate ?? "—"}
         </div>
       </div>
       <div className="col-span-3">
-        <div className="text-[9px] font-semibold uppercase tracking-wider text-[#9c8b6e]">
+        <div className="text-[9px] font-semibold uppercase tracking-wider text-[#8a8980]">
           Critical path
         </div>
         <div className="mt-0.5 text-[14px] font-semibold tabular-nums text-[#b42318]">
-          {critical.length} <span className="text-[10px] font-normal text-[#7a6a4d]">activities</span>
+          {critical.length} <span className="text-[10px] font-normal text-[#6b6a63]">activities</span>
         </div>
         {drivingFinish ? (
           <button
             type="button"
             onClick={() => onSelect(drivingFinish.id)}
-            className="mt-0.5 truncate text-left text-[10px] text-[#5c574e] hover:text-[#1f241f] hover:underline"
+            className="mt-0.5 truncate text-left text-[10px] text-[#4a4944] hover:text-[#1f241f] hover:underline"
             title={drivingFinish.name}
           >
             Driving → {drivingFinish.name}
@@ -1520,11 +1520,11 @@ function ScheduleContextSummary({
         ) : null}
       </div>
       <div className="col-span-6">
-        <div className="text-[9px] font-semibold uppercase tracking-wider text-[#9c8b6e]">
+        <div className="text-[9px] font-semibold uppercase tracking-wider text-[#8a8980]">
           Near-critical (≤5d float)
         </div>
         {nearCrit.length === 0 ? (
-          <div className="mt-1 text-[10px] text-[#9c8b6e]">None — buffer is healthy.</div>
+          <div className="mt-1 text-[10px] text-[#8a8980]">None — buffer is healthy.</div>
         ) : (
           <ul className="mt-1 space-y-0.5">
             {nearCrit.map((t) => (
@@ -1535,7 +1535,7 @@ function ScheduleContextSummary({
                   className="flex w-full items-center gap-2 text-left hover:bg-[#faf8f3] rounded px-1 py-0.5"
                 >
                   <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#c2750a]" />
-                  <span className="font-mono text-[10px] text-[#776e5e]">{t.id}</span>
+                  <span className="font-mono text-[10px] text-[#6b6a63]">{t.id}</span>
                   <span className="flex-1 truncate text-[#1f241f]">{t.name}</span>
                   <span className="tabular-nums text-[10px] text-[#c2750a]">{t.totalFloat}d</span>
                 </button>
@@ -1544,7 +1544,7 @@ function ScheduleContextSummary({
           </ul>
         )}
       </div>
-      <div className="col-span-12 text-[10px] text-[#9c8b6e]">
+      <div className="col-span-12 text-[10px] text-[#8a8980]">
         Click any activity in the table or Gantt to inspect details, relationships, resources, codes, and notes.
       </div>
     </div>
@@ -1564,7 +1564,7 @@ function InspectorDetails({
     <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_320px]">
       <div className="space-y-3">
         <div>
-          <Label className="text-[10px] uppercase tracking-wide text-[#7a6a4d]">
+          <Label className="text-[10px] uppercase tracking-wide text-[#6b6a63]">
             Activity name
           </Label>
           <Input
@@ -1575,7 +1575,7 @@ function InspectorDetails({
         </div>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <div>
-            <Label className="text-[10px] uppercase tracking-wide text-[#7a6a4d]">Duration</Label>
+            <Label className="text-[10px] uppercase tracking-wide text-[#6b6a63]">Duration</Label>
             <Input
               type="number"
               min={0}
@@ -1585,7 +1585,7 @@ function InspectorDetails({
             />
           </div>
           <div>
-            <Label className="text-[10px] uppercase tracking-wide text-[#7a6a4d]">% Complete</Label>
+            <Label className="text-[10px] uppercase tracking-wide text-[#6b6a63]">% Complete</Label>
             <Input
               type="number"
               min={0}
@@ -1600,7 +1600,7 @@ function InspectorDetails({
             />
           </div>
           <div>
-            <Label className="text-[10px] uppercase tracking-wide text-[#7a6a4d]">Start NET</Label>
+            <Label className="text-[10px] uppercase tracking-wide text-[#6b6a63]">Start NET</Label>
             <Input
               type="date"
               className="h-8 text-xs"
@@ -1609,7 +1609,7 @@ function InspectorDetails({
             />
           </div>
           <div>
-            <Label className="text-[10px] uppercase tracking-wide text-[#7a6a4d]">WBS</Label>
+            <Label className="text-[10px] uppercase tracking-wide text-[#6b6a63]">WBS</Label>
             <Input
               className="h-8 text-sm"
               value={draftTask.wbs ?? ""}
@@ -1618,26 +1618,26 @@ function InspectorDetails({
           </div>
         </div>
       </div>
-      <div className="rounded-md border border-[#e6dfd0] bg-[#faf8f3] p-3">
-        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#7a6a4d]">
+      <div className="rounded-md border border-[#e3e0d8] bg-[#faf8f3] p-3">
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#6b6a63]">
           CPM stats
         </div>
-        <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-[#3d3527]">
-          <dt className="text-[#7a6a4d]">Early start</dt>
+        <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-[#2d2d28]">
+          <dt className="text-[#6b6a63]">Early start</dt>
           <dd className="text-right font-medium">d{t.earlyStart}</dd>
-          <dt className="text-[#7a6a4d]">Early finish</dt>
+          <dt className="text-[#6b6a63]">Early finish</dt>
           <dd className="text-right font-medium">d{t.earlyFinish}</dd>
-          <dt className="text-[#7a6a4d]">Late start</dt>
+          <dt className="text-[#6b6a63]">Late start</dt>
           <dd className="text-right font-medium">d{t.lateStart}</dd>
-          <dt className="text-[#7a6a4d]">Late finish</dt>
+          <dt className="text-[#6b6a63]">Late finish</dt>
           <dd className="text-right font-medium">d{t.lateFinish}</dd>
-          <dt className="text-[#7a6a4d]">Total float</dt>
+          <dt className="text-[#6b6a63]">Total float</dt>
           <dd
             className={`text-right font-semibold ${t.totalFloat <= 0 ? "text-[#b42318]" : "text-[#3d8a5c]"}`}
           >
             {t.totalFloat}d
           </dd>
-          <dt className="text-[#7a6a4d]">Free float</dt>
+          <dt className="text-[#6b6a63]">Free float</dt>
           <dd className="text-right font-medium">{t.freeFloat}d</dd>
         </dl>
       </div>
@@ -1861,7 +1861,7 @@ function InspectorRelationships({
       ) : null}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
-          <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-[#7a6a4d]">
+          <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-[#6b6a63]">
             <span>Predecessors · {predRows.length}</span>
             <button
               type="button"
@@ -1872,13 +1872,13 @@ function InspectorRelationships({
             </button>
           </div>
           {predRows.length === 0 ? (
-            <div className="text-xs text-[#9c8b6e]">No predecessors</div>
+            <div className="text-xs text-[#8a8980]">No predecessors</div>
           ) : (
             predRows.map((r) => renderRow(r, "pred"))
           )}
         </div>
         <div>
-          <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-[#7a6a4d]">
+          <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-[#6b6a63]">
             <span>Successors · {succRows.length}</span>
             <button
               type="button"
@@ -1889,13 +1889,13 @@ function InspectorRelationships({
             </button>
           </div>
           {succRows.length === 0 ? (
-            <div className="text-xs text-[#9c8b6e]">No successors</div>
+            <div className="text-xs text-[#8a8980]">No successors</div>
           ) : (
             succRows.map((r) => renderRow(r, "succ"))
           )}
         </div>
       </div>
-      <div className="text-[10px] text-[#7a6a4d]">
+      <div className="text-[10px] text-[#6b6a63]">
         FS = Finish-to-Start · SS = Start-to-Start · FF = Finish-to-Finish · SF = Start-to-Finish ·
         Lag in working days (negative = lead) · ★ = driving relationship
       </div>
@@ -1916,9 +1916,9 @@ function DependenciesEditor({
   addDep: () => void;
 }) {
   return (
-    <section className="overflow-hidden rounded-md border border-[#e6dfd0] bg-white">
-      <div className="flex items-center justify-between border-b border-[#eee7d8] px-3 py-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-[#7a6a4d]">
+    <section className="overflow-hidden rounded-md border border-[#e3e0d8] bg-white">
+      <div className="flex items-center justify-between border-b border-[#ecebe5] px-3 py-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-[#6b6a63]">
           All dependencies · {draft.dependencies.length}
         </h3>
         <Button size="sm" variant="outline" onClick={addDep}>
@@ -1926,7 +1926,7 @@ function DependenciesEditor({
         </Button>
       </div>
       <table className="w-full text-sm">
-        <thead className="bg-[#faf8f3] text-[10px] uppercase tracking-wide text-[#7a6a4d]">
+        <thead className="bg-[#faf8f3] text-[10px] uppercase tracking-wide text-[#6b6a63]">
           <tr>
             <th className="px-2 py-2 text-left">From</th>
             <th className="px-2 py-2 text-left">To</th>
@@ -1937,7 +1937,7 @@ function DependenciesEditor({
         </thead>
         <tbody>
           {draft.dependencies.map((d, idx) => (
-            <tr key={idx} className="border-t border-[#f3eede]">
+            <tr key={idx} className="border-t border-[#eeede7]">
               <td className="px-2 py-1">
                 <Select value={d.from} onValueChange={(v) => updateDep(idx, { from: v })}>
                   <SelectTrigger className="h-8 w-32 text-xs">
@@ -2004,7 +2004,7 @@ function DependenciesEditor({
           ))}
           {draft.dependencies.length === 0 ? (
             <tr>
-              <td colSpan={5} className="px-3 py-6 text-center text-[#9c8b6e]">
+              <td colSpan={5} className="px-3 py-6 text-center text-[#8a8980]">
                 No dependencies yet. Click "Add dependency".
               </td>
             </tr>
