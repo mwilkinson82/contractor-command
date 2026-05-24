@@ -17,11 +17,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import type { Schedule } from "../types";
+import type { Schedule } from "./types";
 import {
   summarizePersistedDryRun,
   type PersistedDryRunReport,
-} from "../engine2/persisted-dry-run";
+} from "./engine2/persisted-dry-run";
 
 export const runPersistedScheduleDryRun = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
