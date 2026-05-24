@@ -75,6 +75,8 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
     }
   }
 
+  useEffect(() => {
+    if (triedDraft.current) return;
     triedDraft.current = true;
     void draft();
     // eslint-disable-next-line react-hooks/exhaustive-deps
