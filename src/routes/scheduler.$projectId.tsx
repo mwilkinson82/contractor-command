@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
+import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -66,6 +67,15 @@ const ZOOM_LEVELS: { label: string; dayPx: number }[] = [
 
 export const Route = createFileRoute("/scheduler/$projectId")({
   head: () => ({ meta: [{ title: "Scheduler - AOS" }] }),
+  beforeLoad: async ({ location }) => {
+    // Scheduler server fns require an authenticated Supabase session. Gate
+    // here so unauthenticated visitors are redirected to /login instead of
+    // hitting "Unauthorized: No authorization header provided".
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) {
+      throw redirect({ to: "/login", search: { redirect: location.href } });
+    }
+  },
   component: SchedulerPage,
 });
 
