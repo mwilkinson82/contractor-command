@@ -1578,11 +1578,13 @@ function ScheduleContextSummary({
   draft,
   computed,
   nearCriticalFloat,
+  baselineActive,
   onSelect,
 }: {
   draft: Draft;
   computed: import("@/lib/scheduler/types").ScheduleResult | null;
   nearCriticalFloat: number;
+  baselineActive: boolean;
   onSelect: (id: string) => void;
 }) {
   if (!computed) {
@@ -1601,29 +1603,51 @@ function ScheduleContextSummary({
   const drivingFinish = computed.tasks.reduce<
     typeof computed.tasks[number] | null
   >((a, b) => (!a || b.earlyFinish > a.earlyFinish ? b : a), null);
+
+  // Quality / open-ends — pure read of existing draft data.
+  const hasPred = new Set<string>();
+  const hasSucc = new Set<string>();
+  for (const d of draft.dependencies) {
+    if (d.from) hasSucc.add(d.from);
+    if (d.to) hasPred.add(d.to);
+  }
+  const startMilestones = computed.tasks.filter(
+    (t) => !hasPred.has(t.id) && t.duration > 0,
+  );
+  const endMilestones = computed.tasks.filter(
+    (t) => !hasSucc.has(t.id) && t.duration > 0,
+  );
+  const openEnds = startMilestones.length + endMilestones.length;
+  const qualityTone: "critical" | "warn" | undefined =
+    openEnds === 0 ? undefined : openEnds <= 2 ? "warn" : "critical";
+  const qualityLabel =
+    openEnds === 0
+      ? "no open ends"
+      : `${startMilestones.length} start · ${endMilestones.length} end`;
+
   return (
-    <div className="grid grid-cols-12 gap-4 text-[11px]">
+    <div className="grid grid-cols-12 gap-x-4 gap-y-3 text-[11px]">
       <SummaryMetric
         className="col-span-2"
         label="Project finish"
         value={computed.projectFinishDate ?? "—"}
-        sub={`${computed.projectDuration}d duration`}
+        sub={`${computed.projectDuration}d · start ${draft.projectStartDate ?? "—"}`}
       />
       <SummaryMetric
-        className="col-span-2"
+        className="col-span-1"
         label="Data date"
-        value={draft.dataDate ?? "—"}
-        sub={draft.projectStartDate ? `Start ${draft.projectStartDate}` : "No start set"}
+        value={draft.dataDate ? draft.dataDate.slice(5) : "—"}
+        sub={draft.dataDate ? draft.dataDate.slice(0, 4) : "not set"}
       />
       <SummaryMetric
-        className="col-span-2"
+        className="col-span-1"
         label="Activities"
         value={String(computed.tasks.length)}
         sub={`${draft.dependencies.length} links`}
       />
       <SummaryMetric
         className="col-span-2"
-        label="Critical"
+        label="Critical path"
         value={String(critical.length)}
         sub={
           computed.tasks.length
@@ -1643,6 +1667,19 @@ function ScheduleContextSummary({
         }
         tone={nearCrit.length ? "warn" : undefined}
       />
+      <SummaryMetric
+        className="col-span-1"
+        label="Baseline"
+        value={baselineActive ? "On" : "—"}
+        sub={baselineActive ? "Δ shown" : "none active"}
+      />
+      <SummaryMetric
+        className="col-span-1"
+        label="Quality"
+        value={openEnds === 0 ? "OK" : String(openEnds)}
+        sub={qualityLabel}
+        tone={qualityTone}
+      />
       <div className="col-span-2">
         <div className="text-[9px] font-semibold uppercase tracking-wider text-[#8a8980]">
           Driving path
@@ -1660,9 +1697,34 @@ function ScheduleContextSummary({
           <div className="mt-0.5 text-[12px] text-[#6b6a63]">—</div>
         )}
         <div className="text-[10px] text-[#6b6a63]">
-          finishes {drivingFinish?.earlyFinishDate ?? "—"}
+          → {drivingFinish?.earlyFinishDate ?? "—"}
         </div>
       </div>
+
+      {nearCrit.length > 0 ? (
+        <div className="col-span-12 border-t border-[#ecebe5] pt-2">
+          <div className="text-[9px] font-semibold uppercase tracking-wider text-[#8a8980]">
+            Near-critical activities
+          </div>
+          <ul className="mt-1 grid grid-cols-2 gap-x-4 gap-y-0.5 md:grid-cols-3">
+            {nearCrit.slice(0, 6).map((t) => (
+              <li key={t.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelect(t.id)}
+                  className="flex w-full items-center gap-2 rounded px-1 py-0.5 text-left hover:bg-[#faf8f3]"
+                >
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#c2750a]" />
+                  <span className="font-mono text-[10px] text-[#6b6a63]">{t.id}</span>
+                  <span className="flex-1 truncate text-[#1f241f]">{t.name}</span>
+                  <span className="tabular-nums text-[10px] text-[#c2750a]">
+                    {t.totalFloat}d
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
 
       {nearCrit.length > 0 ? (
         <div className="col-span-12 border-t border-[#ecebe5] pt-2">
