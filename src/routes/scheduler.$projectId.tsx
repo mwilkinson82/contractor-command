@@ -1335,6 +1335,14 @@ function SchedulerPage() {
                         <InspectorTitleRow
                           t={selectedTaskCalc}
                           name={draft.tasks[selectedTaskIdx]?.name ?? ""}
+                          wbs={draft.tasks[selectedTaskIdx]?.wbs}
+                          calendarName={
+                            draft.tasks[selectedTaskIdx]?.calendarId
+                              ? calendars.find(
+                                  (c) => c.id === draft.tasks[selectedTaskIdx]?.calendarId,
+                                )?.name
+                              : calendars.find((c) => c.isDefault)?.name
+                          }
                           percentComplete={draft.tasks[selectedTaskIdx]?.percentComplete}
                           nearCriticalFloat={nearCriticalFloat}
                           predCount={
