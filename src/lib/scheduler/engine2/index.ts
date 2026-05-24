@@ -25,6 +25,7 @@ export * from "./engine-selector";
 export * from "./schedule-eligibility";
 export * from "./capability-metadata";
 export * from "./dry-run";
+export * from "./finish-convention";
 
 
 
