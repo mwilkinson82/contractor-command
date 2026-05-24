@@ -296,7 +296,7 @@ function SchedulerPage() {
     if (!computed || computed.projectDuration < 1) return;
     const container = rightScrollRef.current;
     if (!container) return;
-    const available = container.clientWidth - CPM_STICKY_TABLE_WIDTH - 16;
+    const available = container.clientWidth - getCpmStickyTableWidth(nameColWidth) - 16;
     if (available <= 0) return;
     const ideal = Math.floor(available / computed.projectDuration);
     const clamped = Math.max(4, Math.min(36, ideal));
