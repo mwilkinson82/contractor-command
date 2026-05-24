@@ -1180,6 +1180,7 @@ function SchedulerPage() {
                         draft={draft}
                         computed={computed}
                         nearCriticalFloat={nearCriticalFloat}
+                        baselineActive={!!comparisonBaselineId}
                         onSelect={setSelectedTaskId}
                       />
                     ) : inspectorTab === "details" ? (
