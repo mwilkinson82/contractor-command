@@ -194,7 +194,22 @@ export function runScheduleDryRunComparison(
         engine2: null,
         deltaDays: 0,
       },
+      normalizedProjectFinish: {
+        engine2Normalized: null,
+        deltaDays: 0,
+        match: true,
+      },
+      maxNormalizedDateDeltaDays: 0,
+      conventionAdjustedMatchingCount: 0,
+      conventionAdjustedDifferingCount: 0,
       mismatchIds: emptyMismatchIds(),
+      conventionMismatchIds: { earlyFinish: [], lateFinish: [] },
+      trueDateMismatchIds: {
+        earlyStart: [],
+        earlyFinish: [],
+        lateStart: [],
+        lateFinish: [],
+      },
       engine2DiagnosticsCount: selected.provenance.diagnosticsCount,
       engine2Error: selected.engine2Error,
       eligibilityBlockers,
@@ -211,6 +226,7 @@ export function runScheduleDryRunComparison(
 
   const report = selected.comparison;
   const summary = buildSummary(selected.result, report, {
+    schedule,
     eligibilityBlockers,
     eligibilityWarnings,
     engine2Error: selected.engine2Error,
