@@ -1280,61 +1280,142 @@ function SchedulerPage() {
                 </div>
 
 
-                {/* ============ ACTIVITY INSPECTOR ============ */}
-                <div className="shrink-0 border-t border-[#e3e0d8] bg-white">
-                  {selectedTaskCalc && selectedTaskIdx >= 0 ? (
-                    <InspectorTitleRow
-                      t={selectedTaskCalc}
-                      name={draft.tasks[selectedTaskIdx]?.name ?? ""}
-                      percentComplete={draft.tasks[selectedTaskIdx]?.percentComplete}
-                      nearCriticalFloat={nearCriticalFloat}
-                      predCount={
-                        draft.dependencies.filter((d) => d.to === selectedTaskCalc.id).length
-                      }
-                      succCount={
-                        draft.dependencies.filter((d) => d.from === selectedTaskCalc.id).length
-                      }
-                      onClear={() => setSelectedTaskId(null)}
-                    />
+                {/* ============ ACTIVITY INSPECTOR (resizable / collapsible / expanded) ============ */}
+                <div
+                  className="shrink-0 border-t border-[#e3e0d8] bg-white print:hidden"
+                  style={{
+                    height: inspectorCollapsed
+                      ? 30
+                      : inspectorExpanded
+                        ? "60vh"
+                        : inspectorHeight,
+                  }}
+                >
+                  {/* Top resize handle — only active in normal mode. */}
+                  {!inspectorCollapsed && !inspectorExpanded ? (
+                    <div
+                      role="separator"
+                      aria-orientation="horizontal"
+                      aria-label="Resize inspector"
+                      onPointerDown={startInspectorResize}
+                      className="group relative h-1.5 cursor-row-resize select-none"
+                      title="Drag to resize"
+                    >
+                      <div className="absolute inset-x-0 top-0 h-px bg-[#e3e0d8] group-hover:bg-[#1f241f]" />
+                    </div>
                   ) : null}
 
-                  <div className="flex items-center gap-3 border-b border-[#ecebe5] px-4">
-                    <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">
-                      {selectedTaskCalc ? "Activity" : "Schedule"}
-                    </span>
-                    <div className="h-4 w-px bg-[#ecebe5]" />
-                    <div className="flex items-end gap-0">
-                      {(
-                        [
-                          ["details", "Details"],
-                          ["relationships", "Relationships"],
-                          ["resources", "Resources"],
-                          ["codes", "Codes"],
-                          ["calendar", "Calendar"],
-                          ["notebook", "Notebook"],
-                        ] as const
-                      ).map(([key, label]) => (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => setInspectorTab(key)}
-                          className={`relative px-3 py-2 text-xs font-medium ${
-                            inspectorTab === key
-                              ? "text-[#1f241f]"
-                              : "text-[#6b6a63] hover:text-[#2d2d28]"
-                          }`}
-                        >
-                          {label}
-                          {inspectorTab === key ? (
-                            <span className="absolute inset-x-2 -bottom-px h-0.5 bg-[#1f241f]" />
-                          ) : null}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  {/* Inspector chrome: title row (when activity selected) + tabs + window controls. */}
+                  {inspectorCollapsed ? (
+                    <button
+                      type="button"
+                      onClick={() => setInspectorCollapsed(false)}
+                      className="flex h-[30px] w-full items-center gap-3 border-b border-[#ecebe5] px-4 text-left hover:bg-[#faf8f3]"
+                      title="Expand inspector"
+                    >
+                      <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">
+                        {selectedTaskCalc ? "Activity" : "Schedule"} Inspector
+                      </span>
+                      {selectedTaskCalc ? (
+                        <span className="truncate text-[11px] text-[#1f241f]">
+                          {selectedTaskCalc.id} · {draft.tasks[selectedTaskIdx]?.name ?? ""}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-[#6b6a63]">
+                          {computed?.projectFinishDate
+                            ? `Finish ${computed.projectFinishDate}`
+                            : "—"}
+                        </span>
+                      )}
+                      <span className="ml-auto text-[#6b6a63]">▴</span>
+                    </button>
+                  ) : (
+                    <div className="flex h-full flex-col">
+                      {selectedTaskCalc && selectedTaskIdx >= 0 ? (
+                        <InspectorTitleRow
+                          t={selectedTaskCalc}
+                          name={draft.tasks[selectedTaskIdx]?.name ?? ""}
+                          percentComplete={draft.tasks[selectedTaskIdx]?.percentComplete}
+                          nearCriticalFloat={nearCriticalFloat}
+                          predCount={
+                            draft.dependencies.filter((d) => d.to === selectedTaskCalc.id).length
+                          }
+                          succCount={
+                            draft.dependencies.filter((d) => d.from === selectedTaskCalc.id).length
+                          }
+                          onClear={() => setSelectedTaskId(null)}
+                        />
+                      ) : null}
 
+                      <div className="flex items-center gap-3 border-b border-[#ecebe5] px-4">
+                        <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">
+                          {selectedTaskCalc ? "Activity" : "Schedule"}
+                        </span>
+                        <div className="h-4 w-px bg-[#ecebe5]" />
+                        <div className="flex items-end gap-0">
+                          {(
+                            [
+                              ["details", "Details"],
+                              ["relationships", "Relationships"],
+                              ["resources", "Resources"],
+                              ["codes", "Codes"],
+                              ["calendar", "Calendar"],
+                              ["notebook", "Notebook"],
+                            ] as const
+                          ).map(([key, label]) => (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => setInspectorTab(key)}
+                              className={`relative px-3 py-2 text-xs font-medium ${
+                                inspectorTab === key
+                                  ? "text-[#1f241f]"
+                                  : "text-[#6b6a63] hover:text-[#2d2d28]"
+                              }`}
+                            >
+                              {label}
+                              {inspectorTab === key ? (
+                                <span className="absolute inset-x-2 -bottom-px h-0.5 bg-[#1f241f]" />
+                              ) : null}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="ml-auto flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setIntelDrawerOpen((v) => !v)}
+                            className={`rounded px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${
+                              intelDrawerOpen
+                                ? "bg-[#1f241f] text-white"
+                                : "text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
+                            }`}
+                            title="Schedule Intelligence (preview)"
+                          >
+                            ✶ Intel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setInspectorExpanded((v) => !v)}
+                            className="rounded p-1 text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
+                            title={inspectorExpanded ? "Restore" : "Expand inspector"}
+                            aria-label={inspectorExpanded ? "Restore inspector" : "Expand inspector"}
+                          >
+                            {inspectorExpanded ? "⤡" : "⤢"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setInspectorCollapsed(true)}
+                            className="rounded p-1 text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
+                            title="Collapse inspector"
+                            aria-label="Collapse inspector"
+                          >
+                            ▾
+                          </button>
+                        </div>
+                      </div>
 
-                  <div className={`${selectedTaskCalc ? "max-h-[240px]" : "max-h-[140px]"} overflow-auto px-4 py-3 text-sm`}>
+                      <div className="min-h-0 flex-1 overflow-auto px-4 py-3 text-sm">
+
                     {!selectedTaskCalc || selectedTaskIdx < 0 ? (
                       <ScheduleContextSummary
                         draft={draft}
