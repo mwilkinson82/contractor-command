@@ -1600,9 +1600,11 @@ function ScheduleContextSummary({
       (t) => !t.isCritical && t.totalFloat > 0 && t.totalFloat <= nearCriticalFloat,
     )
     .sort((a, b) => a.totalFloat - b.totalFloat);
-  const drivingFinish = computed.tasks.reduce<
-    typeof computed.tasks[number] | null
-  >((a, b) => (!a || b.earlyFinish > a.earlyFinish ? b : a), null);
+  type DrivingTask = (typeof computed.tasks)[number];
+  const drivingFinish = computed.tasks.reduce<DrivingTask | null>(
+    (a, b) => (!a || b.earlyFinish > a.earlyFinish ? b : a),
+    null,
+  );
 
   // Quality / open-ends — pure read of existing draft data.
   const hasPred = new Set<string>();
