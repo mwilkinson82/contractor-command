@@ -318,8 +318,9 @@ export function evaluateScheduleEligibility(
 function push(out: ScheduleEligibility, c: EligibilityCheck): void {
   out.checks.push(c);
   if (c.pass) return;
-  if (c.severity === "blocker") out.blockers.push(c.description);
-  else out.warnings.push(c.description);
+  const msg = c.failureMessage ?? c.description;
+  if (c.severity === "blocker") out.blockers.push(msg);
+  else out.warnings.push(msg);
 }
 
 /** Deterministic text projection for debug drawers / PRs. */
