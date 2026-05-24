@@ -481,3 +481,13 @@
 
 /* Hidden in normal view; print CSS reveals it */
 .print-only { display: none; }
+
+/* ============================================================================
+ * Scheduler focus mode — when active, the scheduler workbench hides the
+ * portal-level top strip and sidebar so the CPM grid becomes the hero.
+ * The body class is toggled by src/routes/scheduler.$projectId.tsx.
+ * ============================================================================ */
+body.scheduler-focus-mode header.sticky.top-0 { display: none !important; }
+body.scheduler-focus-mode aside.group\/sidebar,
+body.scheduler-focus-mode aside[class*="group/sidebar"] { display: none !important; }
+body.scheduler-focus-mode .min-h-screen.transition-\[padding\] { padding-left: 0 !important; }
