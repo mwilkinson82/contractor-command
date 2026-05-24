@@ -1754,6 +1754,8 @@ function statusFromPct(pct: number | undefined): {
 function InspectorTitleRow({
   t,
   name,
+  wbs,
+  calendarName,
   percentComplete,
   nearCriticalFloat,
   predCount,
@@ -1762,6 +1764,8 @@ function InspectorTitleRow({
 }: {
   t: import("@/lib/scheduler/types").ScheduledTask;
   name: string;
+  wbs?: string;
+  calendarName?: string;
   percentComplete: number | undefined;
   nearCriticalFloat: number;
   predCount: number;
@@ -1785,6 +1789,22 @@ function InspectorTitleRow({
       <span className="truncate text-[13px] font-semibold tracking-tight text-[#1f241f]">
         {name || "(unnamed activity)"}
       </span>
+      {wbs ? (
+        <span
+          className="hidden shrink-0 rounded-sm border border-[#e3e0d8] bg-white px-1.5 py-0.5 font-mono text-[10px] text-[#6b6a63] md:inline-block"
+          title="WBS"
+        >
+          {wbs}
+        </span>
+      ) : null}
+      {calendarName ? (
+        <span
+          className="hidden shrink-0 truncate text-[10px] text-[#8a8980] md:inline-block"
+          title="Calendar"
+        >
+          📅 {calendarName}
+        </span>
+      ) : null}
       <div className="ml-auto flex shrink-0 items-center gap-2 text-[10px] tabular-nums">
         <span className={`uppercase tracking-wide ${status.text}`}>
           {status.label}
@@ -1797,6 +1817,13 @@ function InspectorTitleRow({
           {predCount} pred · {succCount} succ
         </span>
         <span className="text-[#dad7cd]">·</span>
+        <span
+          className="uppercase tracking-wide text-[#6b6a63]"
+          title="Free float"
+        >
+          FF {t.freeFloat}d
+        </span>
+        <span className="text-[#dad7cd]">·</span>
         {isCritical ? (
           <span className="inline-flex items-center gap-1 rounded-sm bg-[#fbe9e7] px-1.5 py-0.5 font-semibold uppercase tracking-wide text-[#b42318]">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#b42318]" />
@@ -1805,12 +1832,12 @@ function InspectorTitleRow({
         ) : isNearCrit ? (
           <span className="inline-flex items-center gap-1 rounded-sm bg-[#fdf3e3] px-1.5 py-0.5 font-semibold uppercase tracking-wide text-[#c2750a]">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#c2750a]" />
-            Near-crit · {t.totalFloat}d
+            Near-crit · TF {t.totalFloat}d
           </span>
         ) : (
           <span className="inline-flex items-center gap-1 rounded-sm bg-[#eef2f7] px-1.5 py-0.5 uppercase tracking-wide text-[#2a3e5f]">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#2a3e5f]" />
-            {t.totalFloat}d float
+            TF {t.totalFloat}d
           </span>
         )}
         <button
