@@ -123,11 +123,13 @@ function SchedulerPage() {
   const [inspectorHeight, setInspectorHeight] = useState<number>(260);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
   const [inspectorExpanded, setInspectorExpanded] = useState(false);
-  // Future Schedule Intelligence drawer (right-side slide-out). Closed by
-  // default; the panel itself is hidden behind an internal flag until the
-  // assistant behavior is real.
+  // Schedule Intelligence drawer — adjustable width (compact/standard/wide)
+  // and free drag-resize. Closed by default.
   const [intelDrawerOpen, setIntelDrawerOpen] = useState(false);
+  const [intelDrawerWidth, setIntelDrawerWidth] = useState<number>(380);
   const SHOW_INTEL_DRAWER = false; // internal flag: do not expose fake AI
+  // Focus mode hides the portal top-strip + sidebar so the grid is the hero.
+  const [focusMode, setFocusMode] = useState(false);
 
   // Hydrate from localStorage on mount / project change.
   useEffect(() => {
@@ -140,11 +142,15 @@ function SchedulerPage() {
         inspectorHeight: number;
         inspectorCollapsed: boolean;
         inspectorExpanded: boolean;
+        intelDrawerWidth: number;
+        focusMode: boolean;
       }>;
       if (typeof v.nameColWidth === "number") setNameColWidth(v.nameColWidth);
       if (typeof v.inspectorHeight === "number") setInspectorHeight(v.inspectorHeight);
       if (typeof v.inspectorCollapsed === "boolean") setInspectorCollapsed(v.inspectorCollapsed);
       if (typeof v.inspectorExpanded === "boolean") setInspectorExpanded(v.inspectorExpanded);
+      if (typeof v.intelDrawerWidth === "number") setIntelDrawerWidth(v.intelDrawerWidth);
+      if (typeof v.focusMode === "boolean") setFocusMode(v.focusMode);
     } catch {
       /* ignore corrupted layout */
     }
@@ -162,12 +168,33 @@ function SchedulerPage() {
           inspectorHeight,
           inspectorCollapsed,
           inspectorExpanded,
+          intelDrawerWidth,
+          focusMode,
         }),
       );
     } catch {
       /* ignore quota errors */
     }
-  }, [layoutStorageKey, nameColWidth, inspectorHeight, inspectorCollapsed, inspectorExpanded]);
+  }, [
+    layoutStorageKey,
+    nameColWidth,
+    inspectorHeight,
+    inspectorCollapsed,
+    inspectorExpanded,
+    intelDrawerWidth,
+    focusMode,
+  ]);
+
+  // Apply focus mode by toggling a body class so global CSS hides the
+  // portal-level top-strip + sidebar. Always clean up on unmount.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.body.classList.toggle("scheduler-focus-mode", focusMode);
+    return () => {
+      document.body.classList.remove("scheduler-focus-mode");
+    };
+  }, [focusMode]);
+
 
   // Resizer drag helpers — global pointer listeners avoid losing the drag
   // when the cursor leaves the handle.
