@@ -2691,6 +2691,15 @@ function IntelDrawerContent({
   const criticalRatio = total > 0 ? critical.length / total : 0;
   const heavyCritical = criticalRatio > 0.4;
   const nearRatio = total > 0 ? nearCritical.length / total : 0;
+  const selPct = selectedTask?.percentComplete ?? 0;
+  const selStatus = selectedTask
+    ? selPct >= 100
+      ? "Complete"
+      : selPct > 0
+        ? `In progress (${selPct}%)`
+        : "Not started"
+    : "";
+
 
   // ---- Schedule Read (deterministic posture summary) ----
   const criticalLoad: "Low" | "Moderate" | "High" =
