@@ -413,7 +413,7 @@ export function CpmGrid({
         <div className="relative" style={{ width: timelineWidth }}>
           {/* Header bands */}
           <div
-            className="sticky top-0 z-10 border-b border-[#d8cdb8] bg-[#f3ecdb]"
+            className="sticky top-0 z-10 border-b border-[#e3e0d8] bg-[#f3f2ed]"
             style={{ height: HEADER_H }}
           >
             <svg width={timelineWidth} height={HEADER_H} className="block">
@@ -425,17 +425,17 @@ export function CpmGrid({
                     y={0}
                     width={y.w}
                     height={HEADER_H / 2}
-                    fill={i % 2 ? "#e8dfca" : "#ede5d2"}
+                    fill={i % 2 ? "#e9e7df" : "#eeede7"}
                   />
-                  <line x1={y.x} x2={y.x} y1={0} y2={HEADER_H} stroke="#c8bd9f" strokeWidth={1} />
+                  <line x1={y.x} x2={y.x} y1={0} y2={HEADER_H} stroke="#d6d3c9" strokeWidth={1} />
                   {y.w > 24 ? (
                     <text
                       x={y.x + y.w / 2}
-                      y={HEADER_H / 2 - 5}
+                      y={HEADER_H / 2 - 4}
                       textAnchor="middle"
-                      fontSize={11}
+                      fontSize={10}
                       fontWeight={700}
-                      fill="#3a3424"
+                      fill="#2d2d28"
                       fontFamily="ui-sans-serif, system-ui"
                     >
                       {y.year}
@@ -451,23 +451,23 @@ export function CpmGrid({
                     y={HEADER_H / 2}
                     width={m.w}
                     height={HEADER_H / 2}
-                    fill={i % 2 ? "#f7f1e1" : "#f3ecdb"}
+                    fill={i % 2 ? "#f7f6f1" : "#f3f2ed"}
                   />
                   <line
                     x1={m.x}
                     x2={m.x}
                     y1={HEADER_H / 2}
                     y2={HEADER_H}
-                    stroke="#c8bd9f"
+                    stroke="#d6d3c9"
                     strokeWidth={1}
                   />
                   {m.w > 16 ? (
                     <text
                       x={m.x + m.w / 2}
-                      y={HEADER_H - 6}
+                      y={HEADER_H - 5}
                       textAnchor="middle"
                       fontSize={9}
-                      fill="#5c574e"
+                      fill="#4a4944"
                       fontFamily="ui-sans-serif, system-ui"
                     >
                       {m.w > 28 ? m.label : m.label.slice(0, 1)}
@@ -477,6 +477,7 @@ export function CpmGrid({
               ))}
             </svg>
           </div>
+
 
           {/* Body */}
           <svg
