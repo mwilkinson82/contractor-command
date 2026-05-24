@@ -110,7 +110,9 @@ describe("Phase 3.8 — 3.6c persisted FS-chain: convention-adjusted view", () =
       "D",
       "E",
     ]);
-    expect(report.conventionMismatchIds.lateFinish).toEqual([]);
+    // Late-finish divergence is also convention-only (the project tail
+    // activity inherits the same +1 working-day boundary offset).
+    expect(report.conventionMismatchIds.lateFinish).toEqual(["E"]);
 
     // No true date mismatch remains after normalization.
     expect(report.trueDateMismatchIds.earlyStart).toEqual([]);
