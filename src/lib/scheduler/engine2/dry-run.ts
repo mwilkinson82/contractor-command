@@ -31,6 +31,10 @@ import {
   type EngineSelectionProvenance,
   type SelectedScheduleResult,
 } from "./engine-selector";
+import {
+  classifyFinishDateMismatch,
+  normalizeEngine2FinishIso,
+} from "./finish-convention";
 
 const MS_PER_DAY = 86_400_000;
 
