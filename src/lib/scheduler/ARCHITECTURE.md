@@ -3058,3 +3058,76 @@ divergence is convention-only.
 - No new resource / leveling / baseline / progress capability.
 - Schedule state is never mutated; the adapter is reporting-only.
 - Legacy `calculateSchedule` remains the authoritative production engine.
+
+## §40 — Phase 3.9: dry-run report export
+
+Phase 3.9 adds a pure formatter that turns a `PersistedDryRunReport`
+(Phase 3.6) into two reviewable shapes:
+
+  - `buildDryRunReportJson(report, { runTimestamp? })` → JSON-safe
+    structured payload (`DryRunReportJson`, `reportVersion: "phase-3.9"`).
+  - `formatDryRunReportMarkdown(report, { runTimestamp? })` → Markdown
+    document with explicit raw vs normalized sections.
+
+Both live in `src/lib/scheduler/engine2/dry-run-report.ts`. The module is
+pure — it does not load schedules, hit the DB, or read environment.
+Production routes never import it.
+
+### Why this exists
+Engineering needs a consistent way to look at engine2 reconciliation
+runs against real saved schedules without misreading the output. The
+Phase 3.6c fixture proved that raw mismatch counts can be misleading
+when the only divergence is the finish-rendering convention (§38/§39).
+A free-form console dump made it too easy to confuse a convention-only
+delta with a true CPM divergence.
+
+### How to read a report
+- The **Raw** section is unmodified engine2 vs legacy. Raw mismatches
+  are never hidden. A non-zero `differingCount` or `maxDateDeltaDays`
+  here is expected on any schedule whose chain straddles non-working
+  time (legacy exclusive boundary vs engine2 inclusive last-work-moment).
+- The **Normalized** section maps engine2's finish to legacy's
+  exclusive boundary for reporting only — engine2 internal math is
+  unchanged. `conventionAdjustedDifferingCount` and
+  `maxNormalizedDateDeltaDays` describe what survives normalization.
+- `conventionMismatchIds.{earlyFinish, lateFinish}` lists activities
+  whose only divergence is the rendering convention. These IDs ARE
+  still present in the raw differing-id set — they are not subtracted.
+- `trueDateMismatchIds.{earlyStart, earlyFinish, lateStart, lateFinish}`
+  is the set of activities whose divergence survives normalization.
+  These are the only date mismatches that count against engine2 for
+  rollout consideration.
+
+### Why legacy remains authoritative
+A normalized match means the two engines agree on the underlying CPM
+result modulo a documented rendering convention. It does NOT mean
+engine2 is production-ready:
+  - Eligibility is still narrow (no progress, no resources, no
+    constraints, no per-activity calendars, all-PASS capabilities).
+  - Only date / float / critical / driving-link categories are
+    reconciled today; resource leveling, baselines, and advanced
+    progress are out of scope.
+  - The corpus of real persisted schedules exercised so far is small.
+
+Engine2 may only be considered for candidate-authoritative rollout
+once `trueDateMismatchIds` is consistently empty across a broad
+corpus of eligible real schedules AND eligibility is intentionally
+broadened to cover production scenarios. Neither has happened.
+
+### Optional script
+`scripts/phase-3-9-report.ts` prints a Markdown report for the 3.6c
+regression fixture without touching the database. For real saved
+schedules, callers load the schedule through the existing admin-only
+persisted dry-run helper and pipe the result through the formatter.
+
+### Scope guarantees (Phase 3.9)
+- No scheduler UI changes.
+- No production wiring of engine2; legacy `calculateSchedule` remains
+  the sole authoritative engine in production.
+- Engine2 is **not** made authoritative or default.
+- Engine2 internal CPM math is unchanged.
+- Eligibility is **not** broadened.
+- XER import behavior is unchanged.
+- No new resource / leveling / baseline / progress capability.
+- Schedule state is never mutated; the formatter is reporting-only.
+- Raw mismatches are never hidden; normalized view is additive.
