@@ -820,7 +820,7 @@ export function CpmGrid({
                       ? "#7a5cc4"
                       : d.isDriving
                       ? bothCrit
-                        ? "#9c2418"
+                        ? "#b42318"
                         : "#2a3e5f"
                       : "#a8a59b";
                     const marker = onChain
@@ -830,8 +830,8 @@ export function CpmGrid({
                         ? "url(#cpm-arrow-crit)"
                         : "url(#cpm-arrow-drv)"
                       : "url(#cpm-arrow-soft)";
-                    const opacity = onChain ? 1 : d.isDriving ? (bothCrit ? 0.75 : 0.55) : 0.22;
-                    const sw = onChain ? 1.4 : d.isDriving ? 0.9 : 0.7;
+                    const opacity = onChain ? 1 : d.isDriving ? (bothCrit ? 0.55 : 0.4) : 0.14;
+                    const sw = onChain ? 1.4 : d.isDriving ? (bothCrit ? 0.9 : 0.75) : 0.55;
                     return (
                       <path
                         key={`dep-${d.id ?? di}`}
