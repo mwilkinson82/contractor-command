@@ -217,6 +217,7 @@ export const DRY_RUN_FIXTURES: ReadonlyArray<DryRunFixture> = [
     description: "FS relationship with a positive working-day lag.",
     make: () => clone(FS_LAG_FIXTURE),
   },
+  PERSISTED_FS_CHAIN_3_6C_FIXTURE,
 ];
 
 /**
