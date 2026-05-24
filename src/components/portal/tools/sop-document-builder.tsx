@@ -460,6 +460,13 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
             </button>
           </div>
 
+          {aosError && (
+            <div className="mt-3 rounded-md border border-signal/40 bg-signal/10 p-3 text-[12px] text-signal">
+              {aosError}
+            </div>
+          )}
+
+
           {emailOpen && (
             <div ref={emailPanelRef} className="mt-3 rounded-md border border-border bg-background/60 p-4">
               <div className="flex items-center justify-between">
