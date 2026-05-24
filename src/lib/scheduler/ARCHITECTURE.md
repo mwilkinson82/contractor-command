@@ -2744,3 +2744,87 @@ The reconciliation corpus becomes the first quantitative signal we can point to 
 - XER import behavior is unchanged.
 - No new resource / leveling / baseline / progress capability.
 - Legacy `calculateSchedule` remains the authoritative production engine.
+
+---
+
+## 37. Phase 3.6 — persisted schedule dry-run (internal only)
+
+Phase 3.6 extends the Phase 3.4 dry-run wrapper and the Phase 3.5 fixture
+reconciliation suite to real saved schedules. The deliverable is a single
+admin-gated server function — `runPersistedScheduleDryRun` in
+`src/lib/scheduler/persisted-dry-run.functions.ts` — plus a pure helper
+`summarizePersistedDryRun` in `src/lib/scheduler/engine2/persisted-dry-run.ts`.
+
+### Purpose
+Allow engineering to point engine2 at any saved, eligible schedule and
+record how it would have computed vs the legacy engine, without exposing
+that comparison to normal users and without ever overwriting the
+displayed schedule.
+
+### How it differs from fixture reconciliation (§36)
+- Source of truth is `schedules` / `schedule_tasks` / `schedule_dependencies`
+  / `schedule_calendars` rows, not a hard-coded JS fixture.
+- The report carries `scheduleId` and `projectName` so the operator can
+  trace a run back to a specific saved project.
+- The server function is admin-gated (`user_roles.role = 'admin'`). The
+  helper is pure and reusable from internal scripts / tests.
+
+### What the report contains
+`PersistedDryRunReport`:
+- `scheduleId`, `projectName`
+- `engine2Ran`, `skippedReason`
+- `eligibilityBlockers`, `eligibilityWarnings`
+- `matchingCount`, `differingCount`
+- `maxDateDeltaDays`, `maxFloatDeltaDays`
+- `differingIds` (sorted union of ES/EF/LS/LF/TF/FF/critical/driving/missing mismatch IDs)
+- `projectFinish` = `{ legacy, engine2, deltaDays, match }`
+- `provenance` = `{ effectiveMode, legacyAuthoritative: true, engineUsed, gateDecision, scheduleEligible }`
+- `engine2DiagnosticsCount`, `engine2Error`
+
+### Why it stays internal-only
+- Engine2 has not earned candidate-authoritative status (§29/§30). The
+  Phase 3.5 fixture corpus is the only multi-shape parity signal so far.
+- Real saved schedules can include shapes engine2 does not yet model
+  cleanly (resources, leveling, advanced progress, calendars-per-task,
+  XER-imported metadata). The eligibility audit gates engine2 off on
+  those; surfacing the skip reason is the entire point.
+- Even when engine2 runs and matches, exposing a "second engine's
+  numbers" to users would imply rollout. It hasn't happened.
+
+### Why production routes remain legacy
+`runPersistedScheduleDryRun` does NOT touch the routes that render
+schedules. `scheduler.tsx`, `scheduler.$projectId.tsx`,
+`scheduler-portfolio.tsx`, `scheduler-field.tsx`, and
+`scheduler-preview.tsx` all continue to read the legacy
+`calculateSchedule` output directly. No persisted artifact carries
+engine2 output.
+
+### Evidence required before engine2 can become candidate-authoritative
+1. The Phase 3.5 fixture corpus expanded to cover every supported
+   eligible shape, with `differingCount = 0` and `projectFinish.match`
+   on every fixture for N consecutive CI runs.
+2. A statistically meaningful sample of admin-run persisted dry-runs
+   across real saved schedules with `differingCount = 0` and matching
+   `projectFinish`, including schedules whose calendars exercise
+   exception-aware bridging.
+3. Capability metadata (§32) cleared from UNKNOWN/BLOCK on every
+   feature the candidate schedules touch.
+4. Engine2 diagnostics quiet (no `engine2Error`, no UNKNOWN
+   diagnostics) across that sample.
+5. A documented rollback story: production routes still able to drop
+   back to `calculateSchedule` with a single flag flip.
+
+Only after all five conditions hold does engine2 graduate to
+`engine2-internal` opt-in for engineers, and only after that does the
+boring-bar (§29) get to decide on a wider rollout.
+
+### Scope guarantees (Phase 3.6)
+- No scheduler UI changes.
+- No production wiring; only the admin-gated server function calls the
+  helper, and no UI consumes that server function.
+- Engine2 is **not** made default or authoritative.
+- Eligibility is **not** broadened.
+- XER import behavior is unchanged.
+- No new resource / leveling / baseline / progress capability.
+- Engine2 output is never persisted; schedule state is never mutated.
+- Legacy `calculateSchedule` remains the authoritative production engine.
