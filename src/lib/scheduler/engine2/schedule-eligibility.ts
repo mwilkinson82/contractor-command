@@ -43,12 +43,20 @@ export type EligibilityCheckId =
 
 export interface EligibilityCheck {
   id: EligibilityCheckId;
+  /** Human-readable requirement (what passing looks like). */
   description: string;
   /** True when this schedule passes the check. */
   pass: boolean;
   /** "blocker" = forces engine2 fallback. "warning" = informational only. */
   severity: "blocker" | "warning";
   detail?: string;
+  /**
+   * Phase 3.7 — short sentence describing why the check FAILED. Pushed
+   * into `blockers`/`warnings` instead of the requirement text so the
+   * reason matches the actual failure (e.g. "Schedule has no tasks."
+   * not "Schedule has at least one task.").
+   */
+  failureMessage?: string;
 }
 
 export interface ScheduleEligibility {
@@ -110,7 +118,7 @@ export function evaluateScheduleEligibility(
       detail: "schedule is null/undefined",
     });
     out.eligible = false;
-    out.blockers.push("schedule is null/undefined");
+    out.blockers.push("Schedule is null or undefined.");
     return out;
   }
 
@@ -120,6 +128,7 @@ export function evaluateScheduleEligibility(
   push(out, {
     id: "no-tasks",
     description: "Schedule has at least one task.",
+    failureMessage: "Schedule has no tasks.",
     pass: tasks.length > 0,
     severity: "blocker",
     detail: tasks.length === 0 ? "0 tasks" : undefined,
@@ -136,6 +145,8 @@ export function evaluateScheduleEligibility(
     id: "in-progress-activities",
     description:
       "No in-progress activities (engine2 has no percent-complete → actuals bridge yet).",
+    failureMessage:
+      "Schedule has in-progress activities — engine2 has no percent-complete → actuals bridge yet.",
     pass: inProgress.length === 0,
     severity: "blocker",
     detail:
@@ -152,6 +163,8 @@ export function evaluateScheduleEligibility(
     id: "completed-with-actuals-not-bridged",
     description:
       "No completed activities without bridged actualStart/actualFinish.",
+    failureMessage:
+      "Schedule has completed activities without bridged actualStart/actualFinish.",
     pass: completed.length === 0,
     severity: "blocker",
     detail:
@@ -174,6 +187,8 @@ export function evaluateScheduleEligibility(
   push(out, {
     id: "per-activity-calendars",
     description: "No tasks reference a non-default calendar.",
+    failureMessage:
+      "Schedule has tasks referencing a non-default calendar (per-activity calendar math is partial in engine2).",
     pass: nonDefaultRefs.length === 0,
     severity: "blocker",
     detail:
@@ -186,6 +201,8 @@ export function evaluateScheduleEligibility(
   push(out, {
     id: "multiple-named-calendars",
     description: "At most one named calendar is defined.",
+    failureMessage:
+      "Schedule defines more than one named calendar (importers may implicitly route through them).",
     pass: calendars.length <= 1,
     severity: "blocker",
     detail:
@@ -204,6 +221,8 @@ export function evaluateScheduleEligibility(
     id: "non-standard-workweek-with-holidays",
     description:
       "Standard Mon–Fri workweek OR no holidays (irregular weeks are fragile).",
+    failureMessage:
+      "Non-standard workweek combined with holidays (calendar parity is fragile on irregular weeks).",
     pass: !(nonStandardWeek && hasHolidays),
     severity: "warning",
     detail:
@@ -222,6 +241,8 @@ export function evaluateScheduleEligibility(
     id: "resource-loaded-activities",
     description:
       "No resource-loaded activities (legacy does not level; engine2 may diverge).",
+    failureMessage:
+      "Schedule has resource-loaded activities (legacy does not level; engine2 may diverge).",
     pass: resourced.length === 0,
     severity: "warning",
     detail:
@@ -297,8 +318,9 @@ export function evaluateScheduleEligibility(
 function push(out: ScheduleEligibility, c: EligibilityCheck): void {
   out.checks.push(c);
   if (c.pass) return;
-  if (c.severity === "blocker") out.blockers.push(c.description);
-  else out.warnings.push(c.description);
+  const msg = c.failureMessage ?? c.description;
+  if (c.severity === "blocker") out.blockers.push(msg);
+  else out.warnings.push(msg);
 }
 
 /** Deterministic text projection for debug drawers / PRs. */

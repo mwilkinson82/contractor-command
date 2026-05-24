@@ -137,6 +137,50 @@ const FS_LAG_FIXTURE: Schedule = {
   ],
 };
 
+/**
+ * Phase 3.7 — exact recreation of the persisted "eligible FS chain" smoke
+ * schedule from Phase 3.6c. This is the simplest real saved schedule that
+ * exposed engine2 vs legacy date-rendering divergence in live dry-run.
+ *
+ * Captured behavior (regression sentinel):
+ *   legacy projectFinishDate = 2026-06-30
+ *   engine2 projectFinish    = 2026-06-29 (last work moment, inclusive)
+ *   max date delta           = 3 calendar days (C: Fri 06-19 vs Mon 06-22)
+ *   max float delta          = 0 (float matches; rendering only)
+ *   early starts             = match exactly across all 5 activities
+ *   early finishes           = legacy is 1 calendar day later per task
+ *
+ * Root cause: legacy renders earlyFinish as the NEXT working-day boundary
+ * after the last worked day ("exclusive end" convention); engine2 renders
+ * the last work moment itself ("inclusive end"). Both engines compute the
+ * same underlying schedule. See ARCHITECTURE.md §38.
+ */
+const PERSISTED_FS_CHAIN_3_6C: Schedule = {
+  name: "persisted-fs-chain-3.6c",
+  projectStartDate: "2026-06-01", // Monday
+  calendar: { workDays: 31, holidays: [] },
+  tasks: [
+    { id: "A", name: "Site prep", duration: 3 },
+    { id: "B", name: "Foundations", duration: 5 },
+    { id: "C", name: "Framing", duration: 7 },
+    { id: "D", name: "Roofing", duration: 4 },
+    { id: "E", name: "Closeout", duration: 2 },
+  ],
+  dependencies: [
+    { from: "A", to: "B", type: "FS", lag: 0 },
+    { from: "B", to: "C", type: "FS", lag: 0 },
+    { from: "C", to: "D", type: "FS", lag: 0 },
+    { from: "D", to: "E", type: "FS", lag: 0 },
+  ],
+};
+
+export const PERSISTED_FS_CHAIN_3_6C_FIXTURE: DryRunFixture = {
+  name: PERSISTED_FS_CHAIN_3_6C.name,
+  description:
+    "Phase 3.6c live persisted smoke schedule: 5-task FS chain, Mon–Fri, no holidays.",
+  make: () => clone(PERSISTED_FS_CHAIN_3_6C),
+};
+
 // ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
@@ -173,6 +217,7 @@ export const DRY_RUN_FIXTURES: ReadonlyArray<DryRunFixture> = [
     description: "FS relationship with a positive working-day lag.",
     make: () => clone(FS_LAG_FIXTURE),
   },
+  PERSISTED_FS_CHAIN_3_6C_FIXTURE,
 ];
 
 /**
