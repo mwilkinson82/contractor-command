@@ -45,8 +45,36 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
   const [savedId, setSavedId] = useState<string | null>(null);
   const triedDraft = useRef(false);
 
-  useEffect(() => {
-    if (triedDraft.current) return;
+  // AOS Knowledge Hub hand-off
+  const mintAosImport = useServerFn(mintAosSopImportToken);
+  const [aosSending, setAosSending] = useState(false);
+  const [aosSentAt, setAosSentAt] = useState<number | null>(null);
+  const [aosError, setAosError] = useState<string | null>(null);
+
+  async function sendToAos() {
+    if (!doc) return;
+    setAosSending(true);
+    setAosError(null);
+    try {
+      const res = await mintAosImport({
+        data: {
+          sop: doc as unknown as Record<string, unknown>,
+          defaults: { category: doc.department, owner: doc.owner },
+        },
+      });
+      if (!res.ok) {
+        setAosError(res.error);
+        return;
+      }
+      window.open(res.url, "_blank", "noopener,noreferrer");
+      setAosSentAt(Date.now());
+    } catch (e) {
+      setAosError(e instanceof Error ? e.message : "Hand-off failed.");
+    } finally {
+      setAosSending(false);
+    }
+  }
+
     triedDraft.current = true;
     void draft();
     // eslint-disable-next-line react-hooks/exhaustive-deps
