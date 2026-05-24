@@ -2690,98 +2690,208 @@ function IntelDrawerContent({
 
   const criticalRatio = total > 0 ? critical.length / total : 0;
   const heavyCritical = criticalRatio > 0.4;
-
-  const predCount = selectedTask
-    ? deps.filter((d) => d.to === selectedTask.id).length
-    : 0;
-  const succCount = selectedTask
-    ? deps.filter((d) => d.from === selectedTask.id).length
-    : 0;
+  const nearRatio = total > 0 ? nearCritical.length / total : 0;
   const selPct = selectedTask?.percentComplete ?? 0;
-  const selStatus =
-    selPct >= 100 ? "Complete" : selPct > 0 ? `In progress (${selPct}%)` : "Not started";
+  const selStatus = selectedTask
+    ? selPct >= 100
+      ? "Complete"
+      : selPct > 0
+        ? `In progress (${selPct}%)`
+        : "Not started"
+    : "";
+
+
+  // ---- Schedule Read (deterministic posture summary) ----
+  const criticalLoad: "Low" | "Moderate" | "High" =
+    criticalRatio > 0.4 ? "High" : criticalRatio > 0.2 ? "Moderate" : "Low";
+  const nearExposure: "Low" | "Moderate" | "High" =
+    nearRatio > 0.25 ? "High" : nearRatio > 0.1 ? "Moderate" : "Low";
+  const logicIssueCount =
+    missingPred.length +
+    missingSucc.length +
+    missingDates.length +
+    zeroDuration.length;
+  const logicStatus: "Clean" | "Needs review" =
+    logicIssueCount === 0 ? "Clean" : "Needs review";
+  const riskScore =
+    (criticalLoad === "High" ? 2 : criticalLoad === "Moderate" ? 1 : 0) +
+    (nearExposure === "High" ? 2 : nearExposure === "Moderate" ? 1 : 0) +
+    (logicStatus === "Needs review" ? 1 : 0) +
+    (behindDataDate.length > 0 ? 1 : 0);
+  const posture: "Stable" | "Tight" | "Risky" =
+    riskScore >= 4 ? "Risky" : riskScore >= 2 ? "Tight" : "Stable";
+
+  // ---- Review First (prioritized deterministic issues) ----
+  type Priority = {
+    id: string;
+    label: string;
+    detail: string;
+    severity: "high" | "med" | "low";
+    count: number;
+  };
+  const priorities: Priority[] = [];
+  if (heavyCritical) {
+    priorities.push({
+      id: "crit-concentration",
+      label: "Critical path concentration",
+      detail: `${critical.length} of ${total} activities are critical (${Math.round(criticalRatio * 100)}%). Logic may be over-constrained or durations aggressive.`,
+      severity: "high",
+      count: critical.length,
+    });
+  }
+  if (behindDataDate.length > 0) {
+    priorities.push({
+      id: "behind-dd",
+      label: "Behind data date",
+      detail: `${behindDataDate.length} unfinished ${behindDataDate.length === 1 ? "activity has" : "activities have"} early-start before the data date. Review progress.`,
+      severity: "high",
+      count: behindDataDate.length,
+    });
+  }
+  if (missingSucc.length > 0) {
+    priorities.push({
+      id: "missing-succ",
+      label: "Missing successors",
+      detail: `${missingSucc.length} open-ended ${missingSucc.length === 1 ? "activity" : "activities"}. Confirm downstream logic is intentional.`,
+      severity: missingSucc.length > 5 ? "high" : "med",
+      count: missingSucc.length,
+    });
+  }
+  if (nearCritical.length > 0) {
+    priorities.push({
+      id: "near-crit",
+      label: `Near-critical exposure (≤${nearCriticalFloat}d)`,
+      detail: `${nearCritical.length} ${nearCritical.length === 1 ? "activity" : "activities"} could become critical with small slips.`,
+      severity: nearExposure === "High" ? "high" : "med",
+      count: nearCritical.length,
+    });
+  }
+  if (missingPred.length > 0) {
+    priorities.push({
+      id: "missing-pred",
+      label: "Missing predecessors",
+      detail: `${missingPred.length} ${missingPred.length === 1 ? "activity" : "activities"} (excluding the first) without a predecessor. Review upstream ties.`,
+      severity: "med",
+      count: missingPred.length,
+    });
+  }
+  if (zeroDuration.length > 0) {
+    priorities.push({
+      id: "zero-dur",
+      label: "Zero-duration (non-milestone)",
+      detail: `${zeroDuration.length} ${zeroDuration.length === 1 ? "activity" : "activities"} with zero duration. Mark as milestones or assign a duration.`,
+      severity: "low",
+      count: zeroDuration.length,
+    });
+  }
+
+  // ---- Selected activity intelligence (drivers & driven) ----
+  const selDrivenBy = selectedTask
+    ? deps
+        .filter((d) => d.to === selectedTask.id)
+        .map((d) => ({ id: d.from, driving: d.isDriving }))
+    : [];
+  const selDrives = selectedTask
+    ? deps
+        .filter((d) => d.from === selectedTask.id)
+        .map((d) => ({ id: d.to, driving: d.isDriving }))
+    : [];
+  const drivingPreds = selDrivenBy.filter((x) => x.driving);
+  const drivenSuccs = selDrives.filter((x) => x.driving);
+  const taskName = (id: string) => tasks.find((x) => x.id === id)?.name ?? "";
+
+  const selWhyMatters = selectedTask
+    ? selectedTask.isCritical
+      ? "Sits on the critical path. Any slip here pushes the project finish by an equal amount, assuming downstream logic is unchanged."
+      : selectedTask.totalFloat <= nearCriticalFloat
+        ? `Near-critical with ${selectedTask.totalFloat}d of total float. Could become critical with a small slip.`
+        : `Not currently controlling finish. Changes up to ${selectedTask.totalFloat} working days should not affect project finish, assuming downstream logic remains unchanged.`
+    : "";
   const selRecommendation = selectedTask
     ? selectedTask.isCritical
-      ? "On the critical path. Delay here pushes the project finish."
+      ? "Protect this activity. Track progress closely and resolve constraints first."
       : selectedTask.totalFloat <= nearCriticalFloat
-        ? `Near-critical with ${selectedTask.totalFloat}d total float. Watch closely — small slips can drive it critical.`
-        : `Has ${selectedTask.totalFloat}d total float. Not currently controlling the finish date.`
+        ? "Monitor closely. Reassess after the next update — float can erode quickly."
+        : selPct >= 100
+          ? "Complete. No action required from a critical-path standpoint."
+          : "Lower priority for critical-path attention. Keep planned, but it is not driving finish today."
     : "";
 
   return (
     <div className="flex-1 overflow-auto text-[12px] leading-relaxed text-[#3a3a35]">
-      {selectedTask ? (
-        <IntelSection title="Selected activity">
-          <div className="space-y-1.5">
-            <div className="font-mono text-[11px] text-[#1f241f]">
-              {selectedTask.id} · <span className="font-sans">{selectedTask.name}</span>
-            </div>
-            <IntelRow label="Status" value={selStatus} />
-            <IntelRow
-              label="Total float"
-              value={`${selectedTask.totalFloat}d`}
-              tone={
-                selectedTask.totalFloat <= 0
-                  ? "danger"
-                  : selectedTask.totalFloat <= nearCriticalFloat
-                    ? "warn"
-                    : "ok"
-              }
-            />
-            <IntelRow label="Free float" value={`${selectedTask.freeFloat}d`} />
-            <IntelRow label="Predecessors" value={String(predCount)} />
-            <IntelRow label="Successors" value={String(succCount)} />
-            <IntelRow
-              label="On critical path"
-              value={selectedTask.isCritical ? "Yes" : "No"}
-              tone={selectedTask.isCritical ? "danger" : undefined}
-            />
-            <div className="mt-2 rounded border border-[#e3e0d8] bg-[#fdfcf7] p-2 text-[11px] text-[#4a4944]">
-              {selRecommendation}
-            </div>
-          </div>
-        </IntelSection>
-      ) : null}
+      {/* ---- 1. SCHEDULE READ ---- */}
+      <section className="border-b border-[#ece8db] bg-[#fdfcf7] px-3 py-3">
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#675d4b]">
+            Schedule Read
+          </h3>
+          <PostureBadge value={posture} />
+        </div>
+        <div className="space-y-1">
+          <IntelRow label="Project finish" value={computed.projectFinishDate ?? "—"} />
+          <IntelRow label="Data date" value={dataDate ?? "—"} />
+          <IntelRow
+            label="Critical load"
+            value={criticalLoad}
+            tone={
+              criticalLoad === "High" ? "danger" : criticalLoad === "Moderate" ? "warn" : "ok"
+            }
+          />
+          <IntelRow
+            label="Near-critical exposure"
+            value={nearExposure}
+            tone={
+              nearExposure === "High" ? "danger" : nearExposure === "Moderate" ? "warn" : "ok"
+            }
+          />
+          <IntelRow
+            label="Logic review"
+            value={logicStatus}
+            tone={logicStatus === "Clean" ? "ok" : "warn"}
+          />
+        </div>
+      </section>
 
-      <IntelSection title="Schedule overview">
-        <IntelRow label="Project finish" value={computed.projectFinishDate ?? "—"} />
-        <IntelRow label="Data date" value={dataDate ?? "—"} />
-        <IntelRow label="Total activities" value={String(total)} />
-        <IntelRow
-          label="Critical"
-          value={String(critical.length)}
-          tone={critical.length > 0 ? "danger" : undefined}
-        />
-        <IntelRow
-          label={`Near-critical (≤${nearCriticalFloat}d)`}
-          value={String(nearCritical.length)}
-          tone={nearCritical.length > 0 ? "warn" : undefined}
-        />
-        <IntelRow label="In progress" value={String(inProgress.length)} />
-        <IntelRow label="Completed" value={String(completed.length)} />
-        <IntelRow
-          label="Schedule quality"
-          value={dataQuality}
-          tone={
-            dataQuality === "Errors"
-              ? "danger"
-              : dataQuality === "Warnings"
-                ? "warn"
-                : dataQuality === "Good"
-                  ? "ok"
-                  : undefined
-          }
-        />
+      {/* ---- 2. REVIEW FIRST ---- */}
+      <IntelSection title="Review First">
+        {priorities.length === 0 ? (
+          <div className="rounded border border-[#cfe4d2] bg-[#f1f7f0] p-2 text-[11px] text-[#2f5a3a]">
+            No prioritized issues detected from current schedule data.
+          </div>
+        ) : (
+          <ol className="space-y-1.5">
+            {priorities.map((p, i) => (
+              <li
+                key={p.id}
+                className="rounded border border-[#ece8db] bg-white/70 p-2"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="grid h-4 w-4 place-items-center rounded-full bg-[#1f241f] text-[9px] font-bold text-[#f7e9b8]">
+                      {i + 1}
+                    </span>
+                    <span className="text-[11.5px] font-medium text-[#1f241f]">
+                      {p.label}
+                    </span>
+                  </div>
+                  <SeverityChip severity={p.severity} />
+                </div>
+                <div className="mt-1 pl-6 text-[10.5px] text-[#4a4944]">{p.detail}</div>
+              </li>
+            ))}
+          </ol>
+        )}
       </IntelSection>
 
-      <IntelSection title="Critical path">
+      {/* ---- 3. CRITICAL PATH ---- */}
+      <IntelSection title="Critical Path">
         <IntelRow label="Critical activities" value={String(critical.length)} />
         <IntelRow label="Zero-float activities" value={String(zeroFloat.length)} />
         <IntelRow label="Finish date" value={computed.projectFinishDate ?? "—"} />
         {heavyCritical ? (
           <div className="mt-1 rounded border border-[#e2c89a] bg-[#fbf3df] p-2 text-[11px] text-[#6b5320]">
-            Review: more than 40% of activities are critical. This usually means
-            logic is too tightly constrained or durations are aggressive.
+            Review: more than 40% of activities are critical. Logic may be too
+            tightly constrained or durations aggressive.
           </div>
         ) : null}
         {critical.length > 0 ? (
@@ -2800,7 +2910,8 @@ function IntelDrawerContent({
         )}
       </IntelSection>
 
-      <IntelSection title={`Near-critical (≤${nearCriticalFloat}d)`}>
+      {/* ---- 4. NEAR-CRITICAL ---- */}
+      <IntelSection title={`Near-Critical (≤${nearCriticalFloat}d)`}>
         {nearCritical.length === 0 ? (
           <div className="text-[11px] text-[#8a8980]">No near-critical activities.</div>
         ) : (
@@ -2830,7 +2941,8 @@ function IntelDrawerContent({
         )}
       </IntelSection>
 
-      <IntelSection title="Logic review">
+      {/* ---- 5. LOGIC REVIEW ---- */}
+      <IntelSection title="Logic Review">
         <IntelReviewRow
           label="Missing predecessors"
           count={missingPred.length}
@@ -2865,10 +2977,167 @@ function IntelDrawerContent({
         ) : null}
       </IntelSection>
 
-      <div className="px-3 pb-4 pt-1 text-[10px] uppercase tracking-wider text-[#a8a496]">
+      {/* ---- 6. SELECTED ACTIVITY (if active) ---- */}
+      {selectedTask ? (
+        <IntelSection title="Selected Activity">
+          <div className="space-y-2">
+            <div className="font-mono text-[11px] text-[#1f241f]">
+              {selectedTask.id} · <span className="font-sans">{selectedTask.name}</span>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              <MiniChip
+                tone={
+                  selectedTask.isCritical
+                    ? "danger"
+                    : selectedTask.totalFloat <= nearCriticalFloat
+                      ? "warn"
+                      : "ok"
+                }
+              >
+                {selectedTask.isCritical
+                  ? "Critical"
+                  : selectedTask.totalFloat <= nearCriticalFloat
+                    ? "Near-critical"
+                    : "Non-critical"}
+              </MiniChip>
+              <MiniChip tone="neutral">{selStatus}</MiniChip>
+              <MiniChip tone="neutral">TF {selectedTask.totalFloat}d</MiniChip>
+              <MiniChip tone="neutral">FF {selectedTask.freeFloat}d</MiniChip>
+            </div>
+
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8a8980]">
+                Why this matters
+              </div>
+              <div className="mt-1 text-[11px] text-[#3a3a35]">{selWhyMatters}</div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8a8980]">
+                  Driven by
+                </div>
+                {selDrivenBy.length === 0 ? (
+                  <div className="mt-0.5 text-[10.5px] text-[#8a8980]">No predecessors</div>
+                ) : (
+                  <ul className="mt-0.5 max-h-20 space-y-0.5 overflow-auto text-[10.5px]">
+                    {selDrivenBy.slice(0, 6).map((d) => (
+                      <li key={d.id} className="truncate">
+                        <span
+                          className={`font-mono ${d.driving ? "text-[#a83232]" : "text-[#4a4944]"}`}
+                        >
+                          {d.id}
+                        </span>{" "}
+                        <span className="text-[#776e5e]">{taskName(d.id)}</span>
+                      </li>
+                    ))}
+                    {selDrivenBy.length > 6 ? (
+                      <li className="text-[#8a8980]">…+{selDrivenBy.length - 6}</li>
+                    ) : null}
+                  </ul>
+                )}
+                {drivingPreds.length > 0 ? (
+                  <div className="mt-0.5 text-[10px] text-[#a83232]">
+                    {drivingPreds.length} driving
+                  </div>
+                ) : null}
+              </div>
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8a8980]">
+                  Drives
+                </div>
+                {selDrives.length === 0 ? (
+                  <div className="mt-0.5 text-[10.5px] text-[#8a8980]">No successors</div>
+                ) : (
+                  <ul className="mt-0.5 max-h-20 space-y-0.5 overflow-auto text-[10.5px]">
+                    {selDrives.slice(0, 6).map((d) => (
+                      <li key={d.id} className="truncate">
+                        <span
+                          className={`font-mono ${d.driving ? "text-[#a83232]" : "text-[#4a4944]"}`}
+                        >
+                          {d.id}
+                        </span>{" "}
+                        <span className="text-[#776e5e]">{taskName(d.id)}</span>
+                      </li>
+                    ))}
+                    {selDrives.length > 6 ? (
+                      <li className="text-[#8a8980]">…+{selDrives.length - 6}</li>
+                    ) : null}
+                  </ul>
+                )}
+                {drivenSuccs.length > 0 ? (
+                  <div className="mt-0.5 text-[10px] text-[#a83232]">
+                    {drivenSuccs.length} driving
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="rounded border border-[#e3e0d8] bg-[#fdfcf7] p-2 text-[11px] text-[#4a4944]">
+              <span className="font-semibold text-[#1f241f]">Recommendation. </span>
+              {selRecommendation}
+            </div>
+          </div>
+        </IntelSection>
+      ) : null}
+
+      <div className="px-3 pb-4 pt-2 text-[10px] uppercase tracking-wider text-[#a8a496]">
         Deterministic review · derived from current schedule
       </div>
     </div>
+  );
+}
+
+function PostureBadge({ value }: { value: "Stable" | "Tight" | "Risky" }) {
+  const cls =
+    value === "Risky"
+      ? "border-[#e2b8b8] bg-[#fbecec] text-[#a83232]"
+      : value === "Tight"
+        ? "border-[#e2c89a] bg-[#fbf3df] text-[#6b5320]"
+        : "border-[#cfe4d2] bg-[#f1f7f0] text-[#2f5a3a]";
+  return (
+    <span
+      className={`rounded border px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider ${cls}`}
+    >
+      {value}
+    </span>
+  );
+}
+
+function SeverityChip({ severity }: { severity: "high" | "med" | "low" }) {
+  const cls =
+    severity === "high"
+      ? "border-[#e2b8b8] bg-[#fbecec] text-[#a83232]"
+      : severity === "med"
+        ? "border-[#e2c89a] bg-[#fbf3df] text-[#6b5320]"
+        : "border-[#d8d5c8] bg-[#f3f1e8] text-[#6b6a63]";
+  const label = severity === "high" ? "High" : severity === "med" ? "Med" : "Low";
+  return (
+    <span
+      className={`rounded border px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider ${cls}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+function MiniChip({
+  tone,
+  children,
+}: {
+  tone: "ok" | "warn" | "danger" | "neutral";
+  children: React.ReactNode;
+}) {
+  const cls =
+    tone === "danger"
+      ? "border-[#e2b8b8] bg-[#fbecec] text-[#a83232]"
+      : tone === "warn"
+        ? "border-[#e2c89a] bg-[#fbf3df] text-[#6b5320]"
+        : tone === "ok"
+          ? "border-[#cfe4d2] bg-[#f1f7f0] text-[#2f5a3a]"
+          : "border-[#e3e0d8] bg-white text-[#4a4944]";
+  return (
+    <span className={`rounded border px-1.5 py-0.5 text-[10px] ${cls}`}>{children}</span>
   );
 }
 
