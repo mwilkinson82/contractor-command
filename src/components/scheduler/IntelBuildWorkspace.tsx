@@ -56,6 +56,15 @@ export function IntelBuildWorkspace({
 }: IntelBuildWorkspaceProps) {
   const [source, setSource] = useState<SourceKind>("manual_prompt");
   const [input, setInput] = useState("");
+  const [demoDraft, setDemoDraft] = useState<DraftSchedule | null>(null);
+  const previewChangeSet = useMemo<ProposedChangeSet | null>(
+    () => (demoDraft ? buildPreviewChangeSet(demoDraft) : null),
+    [demoDraft],
+  );
+  const changeCounts = useMemo(
+    () => (previewChangeSet ? countChangeSet(previewChangeSet) : null),
+    [previewChangeSet],
+  );
 
   return (
     <div
