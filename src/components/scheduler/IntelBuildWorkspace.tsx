@@ -238,6 +238,21 @@ export function IntelBuildWorkspace({
               >
                 Load Demo Draft
               </button>
+              {IS_DEV ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSource("activity_list");
+                    setInput(SAMPLE_ACTIVITY_LIST);
+                    setGenerateError(null);
+                  }}
+                  className="rounded border border-dashed border-[#1f241f] bg-white px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-[#1f241f] hover:bg-[#1f241f] hover:text-[#f7e9b8]"
+                  title="Dev only — populates the activity-list textarea with a sample input for AI-4 smoke testing"
+                  data-testid="intel-build-load-sample"
+                >
+                  Use Sample Activity List
+                </button>
+              ) : null}
               <button
                 type="button"
                 disabled
