@@ -1580,18 +1580,8 @@ function SchedulerPage() {
                           ))}
                         </div>
                         <div className="ml-auto flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => setIntelDrawerOpen((v) => !v)}
-                            className={`rounded px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${
-                              intelDrawerOpen
-                                ? "bg-[#1f241f] text-white"
-                                : "text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
-                            }`}
-                            title="Schedule Intelligence (preview)"
-                          >
-                            ✶ Intel
-                          </button>
+                          <IntelTrigger />
+
                           <button
                             type="button"
                             onClick={() => setInspectorExpanded((v) => !v)}
