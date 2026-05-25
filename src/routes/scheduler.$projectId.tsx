@@ -1802,6 +1802,16 @@ function SchedulerPage() {
         )}
       />
     </IntelDockGate>
+    <RightInspectorGate>
+      <ActivityInspectorPanel
+        draft={draft}
+        computed={computed}
+        calendars={calendars}
+        selectedTaskId={selectedTaskId}
+        onSelect={setSelectedTaskId}
+        nearCriticalFloat={nearCriticalFloat}
+      />
+    </RightInspectorGate>
     <ProductModeOverlay />
     </SchedulerShell>
   );
