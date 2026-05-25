@@ -219,7 +219,7 @@ function validateBacklogMatchesIntent(
   }
 }
 
-async function generateWithTimeout<T>(task: (signal: AbortSignal) => Promise<T>, ms = 14000) {
+async function generateWithTimeout<T>(task: (signal: AbortSignal) => Promise<T>, ms = 25000) {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | null = null;
   const timeout = new Promise<never>((_, reject) => {
