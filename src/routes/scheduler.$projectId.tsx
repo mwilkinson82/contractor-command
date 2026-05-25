@@ -1770,32 +1770,32 @@ function SchedulerPage() {
         </div>
       ) : null}
     </div>
-    <IntelDock
-      reviewCount={computed?.diagnostics.length ?? 0}
-      renderReview={({ wide }) => (
-        <IntelDrawerContent
-          draft={draft}
-          computed={computed}
-          selectedTask={selectedTaskCalc}
-          nearCriticalFloat={nearCriticalFloat}
-          dataQuality={dataQuality}
-          mode={wide ? "wide" : "standard"}
-        />
-      )}
-      renderChat={() => (
-        <IntelChatPanel
-          context={buildIntelScheduleContext({
-            draft,
-            computed,
-            selectedTask: selectedTaskCalc,
-            nearCriticalFloor: nearCriticalFloat,
-          })}
-        />
-      )}
-      renderBuild={({ isFull, toggleFull }) => (
-        <IntelBuildWorkspace expanded={isFull} onToggleExpanded={toggleFull} />
-      )}
-    />
+    <IntelDockGate>
+      <IntelDock
+        reviewCount={computed?.diagnostics.length ?? 0}
+        renderReview={({ wide }) => (
+          <IntelDrawerContent
+            draft={draft}
+            computed={computed}
+            selectedTask={selectedTaskCalc}
+            nearCriticalFloat={nearCriticalFloat}
+            dataQuality={dataQuality}
+            mode={wide ? "wide" : "standard"}
+          />
+        )}
+        renderChat={() => (
+          <IntelChatPanel
+            context={buildIntelScheduleContext({
+              draft,
+              computed,
+              selectedTask: selectedTaskCalc,
+              nearCriticalFloor: nearCriticalFloat,
+            })}
+          />
+        )}
+      />
+    </IntelDockGate>
+    <ProductModeOverlay />
     </SchedulerShell>
   );
 }
