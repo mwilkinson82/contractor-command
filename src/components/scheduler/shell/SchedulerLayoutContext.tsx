@@ -136,6 +136,9 @@ export function SchedulerLayoutProvider({
       goFull: () => setState((s) => ({ ...s, intelMode: "full" })),
       goDrawer: () => setState((s) => ({ ...s, intelMode: "drawer" })),
       collapseToStrip: () => setState((s) => ({ ...s, intelMode: "strip" })),
+      openBuildFull: () =>
+        setState((s) => ({ ...s, intelMode: "full", intelTab: "build" })),
+
     }),
     [state],
   );
