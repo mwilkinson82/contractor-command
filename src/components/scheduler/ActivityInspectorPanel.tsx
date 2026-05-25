@@ -291,7 +291,7 @@ function SelectedActivityCommandCenter({
         </div>
 
         <RelTable
-          title="What blocks this"
+          title="Predecessors"
           deps={predDeps}
           otherKey="from"
           draft={draft}
@@ -299,7 +299,7 @@ function SelectedActivityCommandCenter({
           emptyLabel="No predecessors — open start"
         />
         <RelTable
-          title="What this blocks"
+          title="Successors"
           deps={succDeps}
           otherKey="to"
           draft={draft}
