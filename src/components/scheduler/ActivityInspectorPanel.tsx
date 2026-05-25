@@ -576,8 +576,8 @@ function CountStat({
         <span className="font-mono text-[16px] font-semibold tabular-nums leading-none text-[#1f241f]">
           {count}
         </span>
-        <span className="text-[10px] text-[#c2750a]" title="Driving relationships">
-          ★ {driving}
+        <span className="text-[10px] font-semibold text-[#c2750a]" title="Driving relationships (control activity's float)">
+          {driving} driving
         </span>
       </div>
     </div>
