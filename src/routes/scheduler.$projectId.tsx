@@ -60,6 +60,11 @@ import { AnnotationsPanel } from "@/components/scheduler/AnnotationsPanel";
 import { UpdateCyclePanel } from "@/components/scheduler/UpdateCyclePanel";
 import { InlineText, InlineNumber } from "@/components/scheduler/InlineEdit";
 import { EmptyScheduleState } from "@/components/scheduler/EmptyScheduleState";
+import {
+  ActivityInspectorPanel,
+  ACTIVITY_INSPECTOR_FULL_WIDTH,
+  ACTIVITY_INSPECTOR_RAIL_WIDTH,
+} from "@/components/scheduler/ActivityInspectorPanel";
 import type { SamplePayload } from "@/lib/scheduler/sample";
 import { exportScheduleCsv } from "@/lib/scheduler/csv-export";
 import { Textarea } from "@/components/ui/textarea";
@@ -712,7 +717,10 @@ function SchedulerPage() {
   // ---------- render ----------
   return (
     <SchedulerShell projectId={selectedId}>
-    <div className="scheduler-print-root flex h-screen flex-col bg-[#faf8f3] text-[#1f241f]">
+    <div
+      className="scheduler-print-root flex h-screen flex-col bg-[#faf8f3] text-[#1f241f]"
+      style={{ paddingRight: "var(--scheduler-right-pad, 0px)" }}
+    >
       {/* ============ TOP HEADER ============ */}
       <header className="flex h-11 shrink-0 items-center gap-4 border-b border-[#e3e0d8] bg-white/80 px-4 backdrop-blur">
         <Link
@@ -1797,6 +1805,16 @@ function SchedulerPage() {
         )}
       />
     </IntelDockGate>
+    <RightInspectorGate>
+      <ActivityInspectorPanel
+        draft={draft}
+        computed={computed}
+        calendars={calendars}
+        selectedTaskId={selectedTaskId}
+        onSelect={setSelectedTaskId}
+        nearCriticalFloat={nearCriticalFloat}
+      />
+    </RightInspectorGate>
     <ProductModeOverlay />
     </SchedulerShell>
   );
@@ -3516,4 +3534,31 @@ function PublishModeShell() {
       </section>
     </div>
   );
+}
+
+/**
+ * PA-2 — Render the right-column ActivityInspectorPanel only in Schedule
+ * mode. Also sets `--scheduler-right-pad` on the scheduler root via the
+ * documentElement so the main work surface gets pushed left by the
+ * appropriate amount and the fixed panel never covers schedule content.
+ */
+function RightInspectorGate({ children }: { children: React.ReactNode }) {
+  const { productMode, inspectorOpen } = useSchedulerLayout();
+  React.useEffect(() => {
+    const pad =
+      productMode === "schedule"
+        ? inspectorOpen
+          ? ACTIVITY_INSPECTOR_FULL_WIDTH
+          : ACTIVITY_INSPECTOR_RAIL_WIDTH
+        : 0;
+    document.documentElement.style.setProperty(
+      "--scheduler-right-pad",
+      `${pad}px`,
+    );
+    return () => {
+      document.documentElement.style.removeProperty("--scheduler-right-pad");
+    };
+  }, [productMode, inspectorOpen]);
+  if (productMode !== "schedule") return null;
+  return <>{children}</>;
 }
