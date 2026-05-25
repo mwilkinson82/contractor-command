@@ -52,6 +52,29 @@ const SOURCE_OPTIONS: ReadonlyArray<{ id: SourceKind; label: string }> = [
   { id: "uploaded_document", label: "Upload (soon)" },
 ];
 
+/**
+ * Dev-only smoke sample for AI-4. Used by the "Use sample activity list"
+ * helper so live testing doesn't depend on browser automation injecting
+ * text into a React-controlled textarea. Never rendered in production.
+ */
+const SAMPLE_ACTIVITY_LIST = [
+  "Mobilize",
+  "Clearing and grading",
+  "Set trailer",
+  "Temporary power",
+  "Site utilities",
+  "Foundations",
+  "Framing",
+  "Rough MEP",
+  "Inspections",
+  "Drywall",
+  "Finishes",
+  "Punchlist",
+  "Closeout",
+].join("\n");
+
+const IS_DEV = import.meta.env.DEV;
+
 export function IntelBuildWorkspace({
   expanded,
   onToggleExpanded,
@@ -215,6 +238,21 @@ export function IntelBuildWorkspace({
               >
                 Load Demo Draft
               </button>
+              {IS_DEV ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSource("activity_list");
+                    setInput(SAMPLE_ACTIVITY_LIST);
+                    setGenerateError(null);
+                  }}
+                  className="rounded border border-dashed border-[#1f241f] bg-white px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-[#1f241f] hover:bg-[#1f241f] hover:text-[#f7e9b8]"
+                  title="Dev only — populates the activity-list textarea with a sample input for AI-4 smoke testing"
+                  data-testid="intel-build-load-sample"
+                >
+                  Use Sample Activity List
+                </button>
+              ) : null}
               <button
                 type="button"
                 disabled
