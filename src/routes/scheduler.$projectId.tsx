@@ -19,6 +19,11 @@ import type { Annotation, Dependency, DependencyType, Schedule, Task } from "@/l
 import { buildIntelScheduleContext } from "@/lib/scheduler/intel-context";
 import { IntelChatPanel } from "@/components/scheduler/IntelChatPanel";
 import { IntelBuildWorkspace } from "@/components/scheduler/IntelBuildWorkspace";
+import {
+  SchedulerShell,
+  IntelDock,
+  IntelTrigger,
+} from "@/components/scheduler/shell";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
