@@ -1,9 +1,10 @@
 /**
- * SchedulerLayoutContext — UI-2.0
+ * SchedulerLayoutContext — UI-2.0 / PA-1
  *
  * Owns the new scheduler shell layout state:
- *   - intelMode: 'strip' | 'drawer' | 'full'
- *   - intelTab:  'review' | 'chat'   | 'build'
+ *   - productMode: 'build' | 'schedule' | 'publish'   (PA-1: top-level mode)
+ *   - intelMode: 'strip' | 'drawer' | 'full'          (Schedule mode only)
+ *   - intelTab:  'review' | 'chat'                    (PA-1: build is now a mode, not a tab)
  *   - inspectorOpen / inspectorPinned (scaffolded for UI-2.2)
  *   - dockHeight (drawer height in px)
  *
@@ -15,10 +16,12 @@
 
 import * as React from "react";
 
+export type ProductMode = "build" | "schedule" | "publish";
 export type IntelMode = "strip" | "drawer" | "full";
-export type IntelTab = "review" | "chat" | "build";
+export type IntelTab = "review" | "chat";
 
 export interface SchedulerLayoutState {
+  productMode: ProductMode;
   intelMode: IntelMode;
   intelTab: IntelTab;
   inspectorOpen: boolean;
@@ -27,6 +30,7 @@ export interface SchedulerLayoutState {
 }
 
 export interface SchedulerLayoutContextValue extends SchedulerLayoutState {
+  setProductMode: (m: ProductMode) => void;
   setIntelMode: (m: IntelMode) => void;
   setIntelTab: (t: IntelTab) => void;
   setInspectorOpen: (b: boolean) => void;
@@ -37,12 +41,15 @@ export interface SchedulerLayoutContextValue extends SchedulerLayoutState {
   goFull: () => void;
   goDrawer: () => void;
   collapseToStrip: () => void;
-  /** UI-2.1: open Build full-screen (flagship workspace entry). */
+  /** PA-1: enter Build mode (top-level flagship workspace). */
   openBuildFull: () => void;
+  /** PA-1: leave Build mode and return to Schedule. */
+  exitBuildMode: () => void;
 }
 
 
 const DEFAULTS: SchedulerLayoutState = {
+  productMode: "schedule",
   intelMode: "strip",
   intelTab: "review",
   inspectorOpen: true,
@@ -86,14 +93,21 @@ export function SchedulerLayoutProvider({
     try {
       const raw = window.localStorage.getItem(storageKey);
       if (!raw) return;
-      const v = JSON.parse(raw) as Partial<SchedulerLayoutState>;
+      const v = JSON.parse(raw) as Partial<SchedulerLayoutState> & {
+        intelTab?: string;
+      };
       setState((prev) => ({
         ...prev,
+        ...(v.productMode === "build" ||
+        v.productMode === "schedule" ||
+        v.productMode === "publish"
+          ? { productMode: v.productMode }
+          : {}),
         ...(v.intelMode === "strip" || v.intelMode === "drawer" || v.intelMode === "full"
           ? { intelMode: v.intelMode }
           : {}),
-        ...(v.intelTab === "review" || v.intelTab === "chat" || v.intelTab === "build"
-          ? { intelTab: v.intelTab }
+        ...(v.intelTab === "review" || v.intelTab === "chat"
+          ? { intelTab: v.intelTab as IntelTab }
           : {}),
         ...(typeof v.inspectorOpen === "boolean" ? { inspectorOpen: v.inspectorOpen } : {}),
         ...(typeof v.inspectorPinned === "boolean" ? { inspectorPinned: v.inspectorPinned } : {}),
@@ -120,6 +134,7 @@ export function SchedulerLayoutProvider({
   const value = React.useMemo<SchedulerLayoutContextValue>(
     () => ({
       ...state,
+      setProductMode: (m) => setState((s) => ({ ...s, productMode: m })),
       setIntelMode: (m) => setState((s) => ({ ...s, intelMode: m })),
       setIntelTab: (t) => setState((s) => ({ ...s, intelTab: t })),
       setInspectorOpen: (b) => setState((s) => ({ ...s, inspectorOpen: b })),
@@ -136,9 +151,8 @@ export function SchedulerLayoutProvider({
       goFull: () => setState((s) => ({ ...s, intelMode: "full" })),
       goDrawer: () => setState((s) => ({ ...s, intelMode: "drawer" })),
       collapseToStrip: () => setState((s) => ({ ...s, intelMode: "strip" })),
-      openBuildFull: () =>
-        setState((s) => ({ ...s, intelMode: "full", intelTab: "build" })),
-
+      openBuildFull: () => setState((s) => ({ ...s, productMode: "build" })),
+      exitBuildMode: () => setState((s) => ({ ...s, productMode: "schedule" })),
     }),
     [state],
   );
