@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "users read own pending claims" ON public.pending_claims;
