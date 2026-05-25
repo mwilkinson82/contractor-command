@@ -46,6 +46,7 @@ export function IntelDock({
   renderChat,
   renderBuild,
   reviewSummary,
+  reviewCount,
 }: IntelDockProps) {
   const {
     intelMode,
