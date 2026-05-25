@@ -128,7 +128,7 @@ export function IntelDock({
   );
 
   return (
-    <>
+    <div data-scheduler-intel-dock>
       {/* Inline spacer so fixed dock doesn't cover bottom of page content. */}
       {!isFull ? (
         <div
@@ -267,9 +267,10 @@ export function IntelDock({
           <div className="min-h-0 flex-1 overflow-auto">{renderActive()}</div>
         </div>
       ) : null}
-    </>
+    </div>
   );
 }
+
 
 /**
  * Tiny button host that lives wherever the old "✶ Intel" trigger lived in
