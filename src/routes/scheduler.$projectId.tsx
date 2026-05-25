@@ -60,6 +60,11 @@ import { AnnotationsPanel } from "@/components/scheduler/AnnotationsPanel";
 import { UpdateCyclePanel } from "@/components/scheduler/UpdateCyclePanel";
 import { InlineText, InlineNumber } from "@/components/scheduler/InlineEdit";
 import { EmptyScheduleState } from "@/components/scheduler/EmptyScheduleState";
+import {
+  ActivityInspectorPanel,
+  ACTIVITY_INSPECTOR_FULL_WIDTH,
+  ACTIVITY_INSPECTOR_RAIL_WIDTH,
+} from "@/components/scheduler/ActivityInspectorPanel";
 import type { SamplePayload } from "@/lib/scheduler/sample";
 import { exportScheduleCsv } from "@/lib/scheduler/csv-export";
 import { Textarea } from "@/components/ui/textarea";
