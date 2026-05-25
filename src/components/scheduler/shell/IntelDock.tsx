@@ -55,7 +55,10 @@ export function IntelDock({
     goFull,
     goDrawer,
     collapseToStrip,
+    openBuildFull,
+    openDrawerTab,
   } = useSchedulerLayout();
+
 
   const isDrawer = intelMode === "drawer";
   const isFull = intelMode === "full";
