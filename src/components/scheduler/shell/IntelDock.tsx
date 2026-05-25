@@ -1,15 +1,14 @@
 /**
- * IntelDock — UI-2.0
+ * IntelDock — PA-1
  *
  * Bottom-anchored Schedule Intelligence dock with three escalating states:
  *   - strip  (always visible, 44px)
  *   - drawer (bottom drawer, resizable)
  *   - full   (full-screen sheet)
  *
- * Content rendering for Review / Chat / Build is delegated to the host via
- * render props so the dock has zero coupling to schedule data. UI-2.1 will
- * redesign the Build content itself; this pass only re-homes the existing
- * Review / Chat / Build panels into the new state machine.
+ * PA-1: Build is no longer a dock tab — it is a top-level product mode.
+ * The dock now exposes only Review and Chat. Hosts should hide the dock
+ * entirely when productMode !== 'schedule'.
  *
  * The dock does NOT change scheduler behavior, persistence, XER, dry-run,
  * AI generation, or the "Add to Schedule" guardrail (still disabled).
@@ -23,7 +22,11 @@ const STRIP_HEIGHT = 44;
 const TAB_LABELS: Record<IntelTab, string> = {
   review: "Review",
   chat: "Chat",
-  build: "Build",
+};
+
+const TAB_CAPTIONS: Record<IntelTab, string> = {
+  review: "Findings",
+  chat: "Ask about this schedule",
 };
 
 export interface IntelBuildHandle {
@@ -34,7 +37,6 @@ export interface IntelBuildHandle {
 export interface IntelDockProps {
   renderReview: (sizing: { compact: boolean; wide: boolean }) => React.ReactNode;
   renderChat: () => React.ReactNode;
-  renderBuild: (handle: IntelBuildHandle) => React.ReactNode;
   /** Optional one-line summary shown in the strip when there is room. */
   reviewSummary?: string;
   /** Count of review findings (warnings/errors). Shown as a badge on the Review tab. */
@@ -44,7 +46,6 @@ export interface IntelDockProps {
 export function IntelDock({
   renderReview,
   renderChat,
-  renderBuild,
   reviewSummary,
   reviewCount,
 }: IntelDockProps) {
@@ -58,7 +59,6 @@ export function IntelDock({
     goFull,
     goDrawer,
     collapseToStrip,
-    openBuildFull,
     openDrawerTab,
   } = useSchedulerLayout();
 
@@ -87,45 +87,24 @@ export function IntelDock({
     [isDrawer, dockHeight, setDockHeight],
   );
 
-  const buildHandle: IntelBuildHandle = React.useMemo(
-    () => ({
-      isFull,
-      toggleFull: () => (isFull ? goDrawer() : goFull()),
-    }),
-    [isFull, goDrawer, goFull],
-  );
-
   const renderActive = () => {
     if (intelTab === "review") {
       return renderReview({ compact: !isFull && !isDrawer, wide: isFull });
     }
-    if (intelTab === "chat") return renderChat();
-    return renderBuild(buildHandle);
+    return renderChat();
   };
 
   /**
    * Tab click handler.
-   * - Build always escalates to full-screen when clicked from strip/drawer
-   *   (UI-2.1: Build is the flagship workspace, not a drawer afterthought).
    * - Review/Chat from the strip open the drawer.
    * - When already in drawer or full, just switch tab.
    */
   const handleTabClick = (k: IntelTab) => {
-    if (k === "build" && intelMode !== "full") {
-      openBuildFull();
-      return;
-    }
     if (intelMode === "strip") {
       openDrawerTab(k);
       return;
     }
     setIntelTab(k);
-  };
-
-  const TAB_CAPTIONS: Record<IntelTab, string> = {
-    review: "Findings",
-    chat: "Ask about this schedule",
-    build: "Draft CPM",
   };
 
   const tabBar = (
@@ -135,19 +114,14 @@ export function IntelDock({
       className="flex items-center gap-1"
       data-testid="intel-mode-tabs"
     >
-      {(["review", "chat", "build"] as IntelTab[]).map((k) => {
+      {(["review", "chat"] as IntelTab[]).map((k) => {
         const active = intelTab === k;
-        const isBuild = k === "build";
         const showCount = k === "review" && typeof reviewCount === "number" && reviewCount > 0;
         const base =
           "group inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-[10.5px] font-medium tracking-wide transition-colors";
         const cls = active
-          ? isBuild
-            ? "bg-gradient-to-r from-[#c9a84c] to-[#a89968] text-[#1f241f] shadow-[inset_0_0_0_1px_rgba(31,36,31,0.15)]"
-            : "bg-[#1f241f] text-[#f7e9b8]"
-          : isBuild
-            ? "border border-[#d8cdb8] bg-[#f7e9b8]/40 text-[#1f241f] hover:bg-[#f7e9b8]/70"
-            : "text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]";
+          ? "bg-[#1f241f] text-[#f7e9b8]"
+          : "text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]";
         return (
           <button
             key={k}
@@ -171,14 +145,6 @@ export function IntelDock({
                 data-testid="intel-mode-review-count"
               >
                 {reviewCount}
-              </span>
-            ) : null}
-            {isBuild && !active ? (
-              <span
-                aria-hidden
-                className="hidden text-[9.5px] font-normal uppercase tracking-wider text-[#675d4b] sm:inline"
-              >
-                · {TAB_CAPTIONS.build}
               </span>
             ) : null}
           </button>
