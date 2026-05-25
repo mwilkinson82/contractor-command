@@ -290,7 +290,7 @@ function DraftSlot({ title, hint }: { title: string; hint: string }) {
   );
 }
 
-function DemoDraftPreview({
+function DraftPreview({
   draft,
   changeSet,
   counts,
@@ -300,14 +300,30 @@ function DemoDraftPreview({
   counts: { addActivity: number; addRelationship: number; addMilestone: number; total: number };
 }) {
   const committable = isChangeSetCommittable(changeSet);
+  const isDemo = draft.id.startsWith("demo-");
+  const sourceLabel: Record<DraftSchedule["source"], string> = {
+    manual_prompt: "Manual prompt",
+    activity_list: "Activity list (AI-generated)",
+    schedule_of_values: "Schedule of values",
+    estimate: "Estimate",
+    uploaded_document: "Uploaded document",
+  };
   const wbsById = new Map(draft.wbs.map((w) => [w.id, w]));
   const actById = new Map(draft.activities.map((a) => [a.id, a]));
   return (
     <div className="flex flex-col gap-3">
-      <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[10.5px] text-amber-900">
-        DEMO DRAFT — internal scaffold data, not produced by an AI model. Not
-        committed. Assumptions must be reviewed. Changes require approval.
-      </div>
+      {isDemo ? (
+        <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[10.5px] text-amber-900">
+          DEMO DRAFT — internal scaffold data, not produced by an AI model. Not
+          committed. Assumptions must be reviewed. Changes require approval.
+        </div>
+      ) : (
+        <div className="rounded border border-[#d8cdb8] bg-[#fdfcf7] px-3 py-2 text-[10.5px] text-[#4a4944]">
+          AI DRAFT · source: {sourceLabel[draft.source]} · status: {draft.status}.
+          Advisory only — review every assumption and approve the change set
+          before any schedule write.
+        </div>
+      )}
 
       <Panel title={`Proposed WBS (${draft.wbs.length})`}>
         <ul className="space-y-0.5">
