@@ -158,14 +158,12 @@ function SchedulerPage() {
         inspectorHeight: number;
         inspectorCollapsed: boolean;
         inspectorExpanded: boolean;
-        intelDrawerWidth: number;
         focusMode: boolean;
       }>;
       if (typeof v.nameColWidth === "number") setNameColWidth(v.nameColWidth);
       if (typeof v.inspectorHeight === "number") setInspectorHeight(v.inspectorHeight);
       if (typeof v.inspectorCollapsed === "boolean") setInspectorCollapsed(v.inspectorCollapsed);
       if (typeof v.inspectorExpanded === "boolean") setInspectorExpanded(v.inspectorExpanded);
-      if (typeof v.intelDrawerWidth === "number") setIntelDrawerWidth(v.intelDrawerWidth);
       if (typeof v.focusMode === "boolean") setFocusMode(v.focusMode);
     } catch {
       /* ignore corrupted layout */
@@ -184,7 +182,6 @@ function SchedulerPage() {
           inspectorHeight,
           inspectorCollapsed,
           inspectorExpanded,
-          intelDrawerWidth,
           focusMode,
         }),
       );
@@ -197,9 +194,9 @@ function SchedulerPage() {
     inspectorHeight,
     inspectorCollapsed,
     inspectorExpanded,
-    intelDrawerWidth,
     focusMode,
   ]);
+
 
   // Apply focus mode by toggling a body class so global CSS hides the
   // portal-level top-strip + sidebar. Always clean up on unmount.
