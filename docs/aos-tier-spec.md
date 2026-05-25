@@ -288,3 +288,43 @@ async function syncTierFromCircle(email: string) {
 ### Email-mismatch coverage
 
 The Circle-side resolver also matches against `aos_links.aos_email`. So if a member's Circle email is `marshall@example.com` but they linked their AOS account under `marshall+aos@example.com` via `/aos/link`, calling tier-lookup with **either** email resolves to their Circle tier.
+
+---
+
+## Known AOS-side bug: workspace creation skips the Circle allowlist
+
+Symptom: a Circle/admin user (e.g. Justin Orellana) sees "unlimited" everywhere in AOS — entitlement context, seat invite — but clicking **Add workspace** blocks them with "workspace limit reached" at `workspaceLimit=1`.
+
+Root cause (in the AOS repo, not Circle):
+
+- `entitlement-context.tsx` and `api/invitations.send.ts` both call `isCircleAllowlistedEmail()` and short-circuit to unlimited before consulting any cached cap.
+- `src/lib/workspace-actions.ts → assertCanCreateWorkspace` does **not**. It goes straight to AOS's cached cap (populated from the portal's `get_user_aos_limits` RPC, which can be stale) and blocks.
+
+Circle is returning `-1 / -1` correctly via both `get_user_aos_limits` (RPC, signed-in user) and `/api/public/aos/tier-lookup` (HMAC, by email). The fix is on the AOS side.
+
+### Fix #1 — immediate 1-line patch (unblocks allowlisted users now)
+
+At the top of `assertCanCreateWorkspace` in `src/lib/workspace-actions.ts`, mirror what the other two enforcement points already do:
+
+```ts
+export async function assertCanCreateWorkspace(userId: string, email: string) {
+  // Match entitlement-context + invitations.send: allowlist bypasses all caps.
+  if (isCircleAllowlistedEmail(email)) return;
+
+  // ...existing cap check against cached workspaceLimit...
+}
+```
+
+### Fix #2 — real fix (removes the need for the allowlist)
+
+Both `workspace-actions.ts` and the portal-lookup path in `entitlement-context.tsx` should stop trusting whatever cap they have cached from a stale source and instead **re-sync via the signed endpoint on every cap check** (or at minimum on every sign-in + session refresh):
+
+```
+POST https://app.alpcontractorcircle.com/api/public/aos/tier-lookup
+```
+
+Headers + body + HMAC convention are documented above in **Pull-based tier sync**. The response always returns the authoritative `{ tier, workspaceLimit, seatLimit }` from Circle — `-1` means unlimited and MUST be treated as unlimited (`limit !== -1 && count >= limit`).
+
+After wiring the sync, **backfill** `user_plans` (or wherever AOS caches caps) by calling tier-lookup for every existing user once, so already-signed-in members get refreshed without waiting for their next sign-in. The Circle side already exposes everything needed; no further portal changes required.
+
+Once Fix #2 ships, the `isCircleAllowlistedEmail` shortcuts in entitlement-context and invitations.send can be removed — the signed endpoint is the source of truth.
