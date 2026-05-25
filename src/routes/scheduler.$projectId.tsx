@@ -725,6 +725,8 @@ function SchedulerPage() {
           <span className="hidden sm:inline">CPM Schedule</span>
         </Link>
 
+        <ProductModeSwitcher />
+
         <div className="h-6 w-px bg-[#e3e0d8]" />
 
         <div className="flex flex-1 items-center gap-2 min-w-0">
@@ -1770,32 +1772,32 @@ function SchedulerPage() {
         </div>
       ) : null}
     </div>
-    <IntelDock
-      reviewCount={computed?.diagnostics.length ?? 0}
-      renderReview={({ wide }) => (
-        <IntelDrawerContent
-          draft={draft}
-          computed={computed}
-          selectedTask={selectedTaskCalc}
-          nearCriticalFloat={nearCriticalFloat}
-          dataQuality={dataQuality}
-          mode={wide ? "wide" : "standard"}
-        />
-      )}
-      renderChat={() => (
-        <IntelChatPanel
-          context={buildIntelScheduleContext({
-            draft,
-            computed,
-            selectedTask: selectedTaskCalc,
-            nearCriticalFloor: nearCriticalFloat,
-          })}
-        />
-      )}
-      renderBuild={({ isFull, toggleFull }) => (
-        <IntelBuildWorkspace expanded={isFull} onToggleExpanded={toggleFull} />
-      )}
-    />
+    <IntelDockGate>
+      <IntelDock
+        reviewCount={computed?.diagnostics.length ?? 0}
+        renderReview={({ wide }) => (
+          <IntelDrawerContent
+            draft={draft}
+            computed={computed}
+            selectedTask={selectedTaskCalc}
+            nearCriticalFloat={nearCriticalFloat}
+            dataQuality={dataQuality}
+            mode={wide ? "wide" : "standard"}
+          />
+        )}
+        renderChat={() => (
+          <IntelChatPanel
+            context={buildIntelScheduleContext({
+              draft,
+              computed,
+              selectedTask: selectedTaskCalc,
+              nearCriticalFloor: nearCriticalFloat,
+            })}
+          />
+        )}
+      />
+    </IntelDockGate>
+    <ProductModeOverlay />
     </SchedulerShell>
   );
 }
@@ -3329,4 +3331,189 @@ function IntelReviewRow({
 function EmptyScheduleSlot(props: React.ComponentProps<typeof EmptyScheduleState>) {
   const { openBuildFull } = useSchedulerLayout();
   return <EmptyScheduleState {...props} onBuildWithAi={openBuildFull} />;
+}
+
+// =====================================================================
+// PA-1 — Top-level product mode (Build | Schedule | Publish)
+// =====================================================================
+
+const PRODUCT_MODES = [
+  { key: "build", label: "Build", caption: "Draft a CPM from scope" },
+  { key: "schedule", label: "Schedule", caption: "CPM workhorse" },
+  { key: "publish", label: "Publish", caption: "Reports & print" },
+] as const;
+
+function ProductModeSwitcher() {
+  const { productMode, setProductMode } = useSchedulerLayout();
+  return (
+    <div
+      role="tablist"
+      aria-label="Scheduler mode"
+      data-testid="product-mode-switcher"
+      className="ml-2 hidden items-center gap-0.5 rounded-md border border-[#e3e0d8] bg-[#faf8f3] p-0.5 md:inline-flex"
+    >
+      {PRODUCT_MODES.map((m) => {
+        const active = productMode === m.key;
+        return (
+          <button
+            key={m.key}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => setProductMode(m.key)}
+            title={m.caption}
+            data-testid={`product-mode-${m.key}`}
+            className={
+              "rounded px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors " +
+              (active
+                ? m.key === "build"
+                  ? "bg-gradient-to-r from-[#c9a84c] to-[#a89968] text-[#1f241f] shadow-[inset_0_0_0_1px_rgba(31,36,31,0.15)]"
+                  : "bg-[#1f241f] text-[#f7e9b8]"
+                : "text-[#6b6a63] hover:bg-white hover:text-[#1f241f]")
+            }
+          >
+            {m.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Render the IntelDock only in Schedule mode. */
+function IntelDockGate({ children }: { children: React.ReactNode }) {
+  const { productMode } = useSchedulerLayout();
+  if (productMode !== "schedule") return null;
+  return <>{children}</>;
+}
+
+/** Full-screen overlay for Build and Publish modes. */
+function ProductModeOverlay() {
+  const { productMode, setProductMode } = useSchedulerLayout();
+  if (productMode === "schedule") return null;
+  return (
+    <div
+      className="fixed inset-0 z-40 flex flex-col bg-[#faf8f3] print:hidden"
+      data-testid={`product-mode-overlay-${productMode}`}
+    >
+      <header className="flex h-11 shrink-0 items-center gap-4 border-b border-[#e3e0d8] bg-white/90 px-4 backdrop-blur">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#4a4944]">
+          {productMode === "build" ? "Build Mode" : "Publish Mode"}
+        </span>
+        <ProductModeSwitcher />
+        <button
+          type="button"
+          onClick={() => setProductMode("schedule")}
+          className="ml-auto rounded border border-[#e3e0d8] bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#1f241f] hover:bg-[#faf8f3]"
+          data-testid="product-mode-exit"
+        >
+          ← Back to Schedule
+        </button>
+      </header>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {productMode === "build" ? (
+          <IntelBuildWorkspace
+            expanded
+            onToggleExpanded={() => setProductMode("schedule")}
+          />
+        ) : (
+          <PublishModeShell />
+        )}
+      </div>
+    </div>
+  );
+}
+
+const PUBLISH_REPORTS = [
+  {
+    key: "gantt-pdf",
+    title: "Printable Gantt PDF",
+    desc: "Full schedule or filtered slice with banner pages, legend, and signature block.",
+  },
+  {
+    key: "owner-report",
+    title: "Owner-facing schedule report",
+    desc: "Branded Gantt with KPI summary and narrative copy for owner submissions.",
+  },
+  {
+    key: "trailer-wall",
+    title: "Trailer-wall schedule",
+    desc: "Large-format landscape print, high-contrast, minimal chrome.",
+  },
+  {
+    key: "lookahead",
+    title: "Lookahead report",
+    desc: "2-week, 3-week, or 6-week rolling windows from data date.",
+  },
+  {
+    key: "critical-path",
+    title: "Critical path report",
+    desc: "Critical activities only, ladder layout with driving narrative.",
+  },
+  {
+    key: "delay-narrative",
+    title: "Delay / narrative report",
+    desc: "Built from delay events, change-order flags, and AI-drafted narrative.",
+  },
+] as const;
+
+function PublishModeShell() {
+  return (
+    <div
+      className="grid min-h-0 flex-1 gap-4 overflow-hidden p-4 lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]"
+      data-testid="publish-mode-shell"
+    >
+      <aside className="flex min-h-0 flex-col overflow-hidden rounded border border-[#ece8db] bg-white">
+        <div className="shrink-0 border-b border-[#ece8db] bg-[#faf8f3] px-3 py-2">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#675d4b]">
+            Report templates
+          </div>
+        </div>
+        <ul className="min-h-0 flex-1 overflow-auto p-2">
+          {PUBLISH_REPORTS.map((r) => (
+            <li key={r.key}>
+              <button
+                type="button"
+                disabled
+                data-testid={`publish-report-${r.key}`}
+                className="w-full cursor-not-allowed rounded border border-transparent px-2.5 py-2 text-left opacity-80 hover:border-[#ece8db] hover:bg-[#faf8f3]"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[12.5px] font-semibold tracking-tight text-[#1f241f]">
+                    {r.title}
+                  </span>
+                  <span className="rounded bg-[#ecebe5] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#675d4b]">
+                    Soon
+                  </span>
+                </div>
+                <div className="mt-1 text-[11px] leading-snug text-[#6b6a63]">{r.desc}</div>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </aside>
+      <section className="flex min-h-0 flex-col overflow-hidden rounded border border-[#ece8db] bg-white">
+        <div className="shrink-0 border-b border-[#ece8db] bg-[#faf8f3] px-3 py-2">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#675d4b]">
+            Preview
+          </div>
+        </div>
+        <div className="flex min-h-0 flex-1 items-center justify-center p-8">
+          <div className="max-w-md rounded border border-[#ece8db] bg-[#faf8f3] p-6 text-center">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#675d4b]">
+              Publish
+            </div>
+            <h2 className="mt-1 text-lg font-semibold tracking-tight text-[#1f241f]">
+              Reporting & print preview
+            </h2>
+            <p className="mt-2 text-[12.5px] leading-relaxed text-[#6b6a63]">
+              Pick a template on the left. PDF rendering, owner narrative drafts,
+              and trailer-wall layouts arrive in a later phase. For now this is a
+              placeholder shell — no reports are generated yet.
+            </p>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
 }
