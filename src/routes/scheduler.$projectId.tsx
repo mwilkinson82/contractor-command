@@ -24,6 +24,7 @@ import {
   IntelDock,
   IntelTrigger,
   useSchedulerLayout,
+  useSchedulerLayoutSafe,
 } from "@/components/scheduler/shell";
 
 
@@ -224,6 +225,19 @@ function SchedulerPage() {
     setInspectorCollapsed(!hasSelection);
     if (hasSelection) setInspectorExpanded(false);
   }, [focusMode, hasSelection]);
+
+  // PA-2b: when the right-side ActivityInspectorPanel is open AND an
+  // activity is selected, demote the legacy bottom inspector to its compact
+  // strip so the right panel is the primary command center (no duplicate
+  // full detail in two places). User can still click the strip to re-expand
+  // for editing surfaces (Relationships, Resources, Codes, Notebook).
+  const _rightInspectorOpen = useSchedulerLayoutSafe()?.inspectorOpen ?? false;
+  useEffect(() => {
+    if (_rightInspectorOpen && hasSelection) {
+      setInspectorCollapsed(true);
+      setInspectorExpanded(false);
+    }
+  }, [_rightInspectorOpen, hasSelection, selectedTaskId]);
 
 
 

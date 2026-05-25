@@ -296,3 +296,18 @@ Guardrails across every phase: no engine/engine2 changes, no persistence changes
 - Mobile / `scheduler-field`.
 - Real annotation/change-order data layer (designed here, built later).
 - Actual PDF rendering for Publish reports (shell + placeholders only this round).
+
+---
+
+## PA-2b note — WBS deferral
+
+The right-side ActivityInspectorPanel surfaces `wbs` as a string on the
+selected activity, but does NOT attempt to render the WBS tree, parent
+chain, or "siblings under same WBS node" view. Real WBS work requires:
+
+- demo / seeded WBS hierarchy data on sample + imported schedules
+- a real tree workspace (left-side outliner, drag/drop, roll-ups)
+- WBS-scoped filtering across Gantt / Table / Reports
+
+That all lands in **PA-5: WBS Workspace** and is intentionally out of
+scope for PA-2 / PA-2b.
