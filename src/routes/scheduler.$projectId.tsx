@@ -23,7 +23,9 @@ import {
   SchedulerShell,
   IntelDock,
   IntelTrigger,
+  useSchedulerLayout,
 } from "@/components/scheduler/shell";
+
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
