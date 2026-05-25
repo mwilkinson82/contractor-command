@@ -88,6 +88,35 @@ async function generateWithTimeout<T>(task: (signal: AbortSignal) => Promise<T>,
   }
 }
 
+async function tryGenerateAcrossModels(
+  task: (modelId: string, signal: AbortSignal) => Promise<z.infer<typeof DocSchema>>,
+) {
+  const attempts: { modelId: string; timeoutMs: number }[] = [
+    { modelId: "google/gemini-2.5-pro", timeoutMs: 16000 },
+    { modelId: "google/gemini-2.5-flash", timeoutMs: 14000 },
+    { modelId: "openai/gpt-5-mini", timeoutMs: 14000 },
+  ];
+
+  let lastError: unknown;
+  for (const attempt of attempts) {
+    try {
+      return await generateWithTimeout(
+        (signal) => task(attempt.modelId, signal),
+        attempt.timeoutMs,
+      );
+    } catch (error) {
+      lastError = error;
+      const msg = error instanceof Error ? error.message : String(error ?? "Failed.");
+      if (msg.includes("429") || msg.includes("402")) throw error;
+      console.warn(`[sop-draft] model ${attempt.modelId} failed`, error);
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("All SOP draft model attempts failed.");
+}
+
 function fallbackDoc(body: Required<Pick<Body, "sopName" | "purpose" | "trigger" | "owner" | "department">>): SopDocument {
   const { sopName, purpose, trigger, owner, department } = body;
   const steps: SopStep[] = [
@@ -217,16 +246,7 @@ export const Route = createFileRoute("/api/sop-draft")({
         };
 
         try {
-          let raw: z.infer<typeof DocSchema>;
-          try {
-            raw = await generateWithTimeout((signal) => tryGenerate("google/gemini-2.5-pro", signal));
-          } catch (primaryErr) {
-            const msg = primaryErr instanceof Error ? primaryErr.message : "Failed.";
-            if (msg.includes("429")) return new Response("Rate limit. Try again in a moment.", { status: 429 });
-            if (msg.includes("402")) return new Response("AI credits exhausted. Add credits in Settings → Workspace → Usage.", { status: 402 });
-            console.warn("[sop-draft] model failed, using deterministic SOP draft", primaryErr);
-            return Response.json(fallbackDoc(required));
-          }
+          const raw = await tryGenerateAcrossModels(tryGenerate);
 
           return Response.json(normalize(raw, required));
         } catch (err) {
@@ -236,8 +256,7 @@ export const Route = createFileRoute("/api/sop-draft")({
             return new Response("AI credits exhausted. Add credits in Settings → Workspace → Usage.", { status: 402 });
           }
           console.error("[sop-draft] failed", err);
-          // Last-resort: still give the user a usable draft instead of a hard error.
-          return Response.json(fallbackDoc(required));
+          return new Response("The SOP draft model returned an unreadable result. Please try again.", { status: 502 });
         }
       },
     },
