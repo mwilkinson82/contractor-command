@@ -219,7 +219,7 @@ function validateBacklogMatchesIntent(
   }
 }
 
-async function generateWithTimeout<T>(task: (signal: AbortSignal) => Promise<T>, ms = 14000) {
+async function generateWithTimeout<T>(task: (signal: AbortSignal) => Promise<T>, ms = 25000) {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | null = null;
   const timeout = new Promise<never>((_, reject) => {
@@ -374,19 +374,37 @@ export const Route = createFileRoute("/api/sop-backlog")({
         };
 
         try {
-          let object: z.infer<typeof ResultSchema>;
-          try {
-            object = await generateWithTimeout((signal) => tryGenerate("google/gemini-2.5-pro", signal));
-            validateBacklogMatchesIntent(object, body);
-          } catch (primaryErr) {
-            const msg = primaryErr instanceof Error ? primaryErr.message : "Failed.";
-            if (msg.includes("429")) return new Response("Rate limit. Try again in a moment.", { status: 429 });
-            if (msg.includes("402")) return new Response("AI credits exhausted. Add credits in Settings → Workspace → Usage.", { status: 402 });
-            if ((body.context ?? "").trim()) {
-              console.error("[sop-backlog] model failed with context-specific request", primaryErr);
-              return new Response("The SOP stack generator returned a generic plan instead of using your context. Please try again.", { status: 502 });
+          const modelChain = [
+            "google/gemini-3-flash-preview",
+            "google/gemini-2.5-flash",
+            "google/gemini-2.5-pro",
+          ];
+          let object: z.infer<typeof ResultSchema> | null = null;
+          let lastErr: unknown = null;
+          for (const modelId of modelChain) {
+            try {
+              const candidate = await generateWithTimeout(
+                (signal) => tryGenerate(modelId, signal),
+                modelId.includes("pro") ? 28000 : 18000,
+              );
+              validateBacklogMatchesIntent(candidate, body);
+              object = candidate;
+              break;
+            } catch (modelErr) {
+              const msg = modelErr instanceof Error ? modelErr.message : String(modelErr);
+              if (msg.includes("429")) return new Response("Rate limit. Try again in a moment.", { status: 429 });
+              if (msg.includes("402")) return new Response("AI credits exhausted. Add credits in Settings → Workspace → Usage.", { status: 402 });
+              console.warn(`[sop-backlog] ${modelId} failed, trying next`, msg);
+              lastErr = modelErr;
             }
-            console.warn("[sop-backlog] model failed, using deterministic SOP stack", primaryErr);
+          }
+
+          if (!object) {
+            if ((body.context ?? "").trim()) {
+              console.error("[sop-backlog] all models failed with context-specific request", lastErr);
+              return new Response("The SOP stack generator is having trouble right now. Please try again in a moment.", { status: 502 });
+            }
+            console.warn("[sop-backlog] all models failed, using deterministic SOP stack", lastErr);
             const fallback = fallbackResult(effectiveDept, seatHeadcount, body.context);
             return Response.json({ department: effectiveDept, ...fallback, backlog: fallback.backlog.slice(0, 12) });
           }
