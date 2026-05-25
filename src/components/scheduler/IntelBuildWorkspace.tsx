@@ -12,6 +12,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import {
   BUILD_GUARDRAILS,
   isChangeSetCommittable,
@@ -23,6 +24,7 @@ import {
   buildPreviewChangeSet,
   countChangeSet,
 } from "@/lib/scheduler/intel-build-demo";
+import { generateDraftFromActivityList } from "@/lib/scheduler/intel-build-draft.functions";
 import { INTEL_ADVISORY_NOTE } from "@/lib/scheduler/intel-context";
 
 export interface IntelBuildWorkspaceProps {
@@ -45,26 +47,51 @@ type SourceKind =
 const SOURCE_OPTIONS: ReadonlyArray<{ id: SourceKind; label: string }> = [
   { id: "manual_prompt", label: "Describe the job" },
   { id: "activity_list", label: "Paste activity list" },
-  { id: "schedule_of_values", label: "Paste SOV" },
-  { id: "estimate", label: "Paste estimate" },
-  { id: "uploaded_document", label: "Upload (coming soon)" },
+  { id: "schedule_of_values", label: "Paste SOV (soon)" },
+  { id: "estimate", label: "Paste estimate (soon)" },
+  { id: "uploaded_document", label: "Upload (soon)" },
 ];
 
 export function IntelBuildWorkspace({
   expanded,
   onToggleExpanded,
 }: IntelBuildWorkspaceProps) {
-  const [source, setSource] = useState<SourceKind>("manual_prompt");
+  const [source, setSource] = useState<SourceKind>("activity_list");
   const [input, setInput] = useState("");
-  const [demoDraft, setDemoDraft] = useState<DraftSchedule | null>(null);
+  const [draft, setDraft] = useState<DraftSchedule | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const generateFn = useServerFn(generateDraftFromActivityList);
+
   const previewChangeSet = useMemo<ProposedChangeSet | null>(
-    () => (demoDraft ? buildPreviewChangeSet(demoDraft) : null),
-    [demoDraft],
+    () => (draft ? buildPreviewChangeSet(draft) : null),
+    [draft],
   );
   const changeCounts = useMemo(
     () => (previewChangeSet ? countChangeSet(previewChangeSet) : null),
     [previewChangeSet],
   );
+
+  const canGenerateFromActivityList =
+    source === "activity_list" && input.trim().length >= 3 && !generating;
+
+  async function handleGenerate() {
+    setGenerateError(null);
+    setGenerating(true);
+    try {
+      const result = await generateFn({ data: { inputText: input } });
+      if (result.ok) {
+        setDraft(result.draft);
+      } else {
+        setGenerateError(result.error);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to generate draft.";
+      setGenerateError(msg);
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   return (
     <div
@@ -112,7 +139,10 @@ export function IntelBuildWorkspace({
           <div className="mt-2 flex flex-wrap gap-1">
             {SOURCE_OPTIONS.map((opt) => {
               const active = opt.id === source;
-              const disabled = opt.id === "uploaded_document";
+              const disabled =
+                opt.id === "uploaded_document" ||
+                opt.id === "schedule_of_values" ||
+                opt.id === "estimate";
               return (
                 <button
                   key={opt.id}
@@ -139,25 +169,58 @@ export function IntelBuildWorkspace({
             className="mt-2 min-h-[140px] w-full resize-y rounded border border-[#ece8db] bg-[#fdfcf7] p-2 text-[12px] text-[#1f241f] outline-none focus:border-[#1f241f]"
             data-testid="intel-build-textarea"
           />
+          {generateError ? (
+            <div
+              className="mt-2 rounded border border-rose-300 bg-rose-50 px-2 py-1.5 text-[10.5px] text-rose-900"
+              data-testid="intel-build-error"
+              role="alert"
+            >
+              {generateError} Your input is preserved — adjust and try again.
+            </div>
+          ) : null}
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
             <p className="text-[10.5px] text-[#8a8980]">
               Nothing here writes to your live schedule.
             </p>
-            <div className="flex gap-1">
+            <div className="flex flex-wrap gap-1">
               <button
                 type="button"
-                onClick={() => setDemoDraft(buildDemoDraftSchedule())}
+                onClick={handleGenerate}
+                disabled={!canGenerateFromActivityList}
+                className={
+                  "rounded border px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider " +
+                  (canGenerateFromActivityList
+                    ? "border-[#1f241f] bg-[#f7e9b8] text-[#1f241f] hover:bg-[#1f241f] hover:text-[#f7e9b8]"
+                    : "cursor-not-allowed border-[#ddd6c4] bg-white/60 text-[#a8a89e]")
+                }
+                title={
+                  source === "activity_list"
+                    ? "Send the pasted activity list to the AI for a draft CPM"
+                    : "Activity-list draft is available when 'Paste activity list' is selected"
+                }
+                data-testid="intel-build-generate"
+              >
+                {generating
+                  ? "Generating…"
+                  : source === "activity_list"
+                    ? "Generate Draft"
+                    : "Generate Draft — soon"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDraft(buildDemoDraftSchedule())}
                 className="rounded border border-[#1f241f] bg-white px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-[#1f241f] hover:bg-[#1f241f] hover:text-[#f7e9b8]"
                 title="Internal demo only — not AI output"
                 data-testid="intel-build-load-demo"
               >
-                {demoDraft ? "Reload Demo Draft" : "Load Demo Draft"}
+                Load Demo Draft
               </button>
               <button
                 type="button"
                 disabled
                 className="cursor-not-allowed rounded bg-[#1f241f]/40 px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-[#f7e9b8]"
-                title="Approval flow not wired"
+                title="Approval flow not wired — drafts are advisory only"
+                data-testid="intel-build-add-to-schedule"
               >
                 Add to Schedule — soon
               </button>
@@ -170,9 +233,9 @@ export function IntelBuildWorkspace({
           className="flex min-h-0 flex-col gap-3"
           data-testid="intel-build-preview"
         >
-          {demoDraft ? (
-            <DemoDraftPreview
-              draft={demoDraft}
+          {draft ? (
+            <DraftPreview
+              draft={draft}
               changeSet={previewChangeSet!}
               counts={changeCounts!}
             />
@@ -227,7 +290,7 @@ function DraftSlot({ title, hint }: { title: string; hint: string }) {
   );
 }
 
-function DemoDraftPreview({
+function DraftPreview({
   draft,
   changeSet,
   counts,
@@ -237,14 +300,30 @@ function DemoDraftPreview({
   counts: { addActivity: number; addRelationship: number; addMilestone: number; total: number };
 }) {
   const committable = isChangeSetCommittable(changeSet);
+  const isDemo = draft.id.startsWith("demo-");
+  const sourceLabel: Record<DraftSchedule["source"], string> = {
+    manual_prompt: "Manual prompt",
+    activity_list: "Activity list (AI-generated)",
+    schedule_of_values: "Schedule of values",
+    estimate: "Estimate",
+    uploaded_document: "Uploaded document",
+  };
   const wbsById = new Map(draft.wbs.map((w) => [w.id, w]));
   const actById = new Map(draft.activities.map((a) => [a.id, a]));
   return (
     <div className="flex flex-col gap-3">
-      <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[10.5px] text-amber-900">
-        DEMO DRAFT — internal scaffold data, not produced by an AI model. Not
-        committed. Assumptions must be reviewed. Changes require approval.
-      </div>
+      {isDemo ? (
+        <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[10.5px] text-amber-900">
+          DEMO DRAFT — internal scaffold data, not produced by an AI model. Not
+          committed. Assumptions must be reviewed. Changes require approval.
+        </div>
+      ) : (
+        <div className="rounded border border-[#d8cdb8] bg-[#fdfcf7] px-3 py-2 text-[10.5px] text-[#4a4944]">
+          AI DRAFT · source: {sourceLabel[draft.source]} · status: {draft.status}.
+          Advisory only — review every assumption and approve the change set
+          before any schedule write.
+        </div>
+      )}
 
       <Panel title={`Proposed WBS (${draft.wbs.length})`}>
         <ul className="space-y-0.5">

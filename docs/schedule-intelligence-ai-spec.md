@@ -227,3 +227,82 @@ Out of scope for AI-1 (unchanged from spec):
 - No mutation surface: AI-1 modules export no `commit*`, `save*`,
   `write*`, `delete*`, `update*`, `mutate*`, or `apply*` functions
   (asserted by test).
+
+---
+
+## AI-4 Implementation Note (shipped)
+
+AI-4 is the first real AI-assisted scheduling workflow in Build Mode.
+Scope is strictly draft-only — no mutations, no commit path, no engine2.
+
+- **Activity-list source**: Build Mode now defaults to "Paste activity
+  list". User pastes free text; clicking **Generate Draft** sends it to
+  the AI gateway and renders the returned `DraftSchedule` in the existing
+  Build workspace preview.
+- **Server boundary**: `src/lib/scheduler/intel-build-draft.functions.ts`
+  defines `generateDraftFromActivityList` (TanStack `createServerFn`
+  guarded by `requireSupabaseAuth`). It calls Lovable AI Gateway with a
+  model fallback chain (`gemini-3-flash-preview` → `2.5-flash` → `2.5-pro`,
+  each with its own timeout) and never exposes `LOVABLE_API_KEY`.
+- **Structured output**: the AI returns a forgiving intermediate shape
+  validated by `AiDraftPayloadSchema` (Zod). The pure assembler in
+  `src/lib/scheduler/intel-build-validate.ts` mints deterministic ids,
+  resolves predecessors by activity name, drops unresolved references,
+  falls back to a linear FS chain when no `dependsOn` is provided, and
+  pins `source = "activity_list"` and `status = "draft"`. The result
+  goes through `validateDraftSchedule` (strict Zod + cross-field
+  integrity: WBS, predecessors/successors, no self-loops) before being
+  returned to the UI. Invalid AI output yields a typed error envelope
+  (`{ ok: false, error, code }`); the user's input is preserved and the
+  Build workspace shows an inline error instead of a half-rendered draft.
+- **Assumption discipline**: every generated draft carries a system-level
+  assumption ("Durations are planning assumptions, not committed dates")
+  and a system-level warning ("AI-generated logic must be reviewed by a
+  scheduler or contractor before approval"), in addition to whatever the
+  model proposed.
+- **UI guardrails**: the new `DraftPreview` shows an "AI DRAFT" banner
+  (or "DEMO DRAFT" for the demo fixture), full WBS/activities/logic/
+  milestones/assumptions/questions/warnings, and the `ProposedChangeSet`
+  preview. The change set status stays `"draft"`, so
+  `isChangeSetCommittable` returns `false` and the **Add to Schedule**
+  button remains hardcoded `disabled`. Guardrail copy and the advisory
+  note continue to render in the footer.
+
+### Out of scope (unchanged from spec)
+
+- No schedule mutations. No commit-to-schedule. No persistence of drafts.
+- No engine2 wiring. Production routes still import
+  `calculateSchedule` from `@/lib/scheduler/engine`.
+- No XER / dry-run / persistence changes.
+- No SOV / estimate / upload sources (UI shows them as "soon").
+
+### Files added / changed
+
+- `src/lib/scheduler/intel-build-validate.ts` *(new)* — `DraftScheduleSchema`,
+  `AiDraftPayloadSchema`, `assembleDraftFromActivityList`,
+  `validateDraftSchedule`, `draftIsNotLiveSchedule`.
+- `src/lib/scheduler/intel-build-draft.functions.ts` *(new)* —
+  `generateDraftFromActivityList` server fn (auth-gated, model fallback,
+  typed error envelope).
+- `src/components/scheduler/IntelBuildWorkspace.tsx` *(edited)* — wires
+  the activity-list source, **Generate Draft** button, inline error
+  surface, and renames `DemoDraftPreview` → `DraftPreview` (banner is
+  conditional on demo vs. AI source).
+- `src/lib/scheduler/__tests__/intel-build-draft.spec.ts` *(new)* —
+  16 tests covering schema validation, sanitization, source/status
+  pinning, fallback FS chain, dropped-dep handling, integrity checks
+  (missing predecessors, self-loops), committable gate, no-mutation
+  surface, and a guard that production routes still import
+  `calculateSchedule`.
+
+### Verification
+
+- `bunx vitest run` — **331/331 passing** (315 prior + 16 new).
+- Build/typecheck run automatically by the harness.
+- "Add to Schedule" still hardcoded `disabled` (`data-testid="intel-build-add-to-schedule"`).
+- No mutation verbs (`commit*`, `apply*`, `write*`, `save*`, `persist*`,
+  `mutate*`) exported from `intel-build-validate` or
+  `intel-build-draft.functions` — asserted by test.
+- Production routes still call legacy `calculateSchedule` — asserted by
+  test that reads `src/routes/scheduler.tsx` and
+  `src/routes/scheduler.$projectId.tsx`.
