@@ -37,6 +37,8 @@ export interface IntelDockProps {
   renderBuild: (handle: IntelBuildHandle) => React.ReactNode;
   /** Optional one-line summary shown in the strip when there is room. */
   reviewSummary?: string;
+  /** Count of review findings (warnings/errors). Shown as a badge on the Review tab. */
+  reviewCount?: number;
 }
 
 export function IntelDock({
