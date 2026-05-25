@@ -1,190 +1,298 @@
+# Scheduler Product Architecture Reset
 
-# Scheduler UI 2.0 — Architecture Plan
+Baseline is not a P6 clone with an AI side panel. It is a **construction CPM command center** that can build, inspect, explain, annotate, analyze, and publish schedules. This plan reorganizes the product around that thesis. No engine, engine2, persistence, XER, dry-run, or AI mutation changes. "Add to Schedule" stays disabled.
 
-Pure UI reorganization. No engine, engine2, persistence, XER, dry-run, scheduling, or AI behavior changes. Production still calls `calculateSchedule`. Add to Schedule stays disabled. Drafts stay advisory.
+---
 
-## Where we are today
+## 1. Primary navigation — Modes, not panels
 
-The scheduler route is a single 3,457-line file (`src/routes/scheduler.$projectId.tsx`) with a left grid + right resizable Intelligence drawer (380px default). The drawer crams Review / Chat / Build into one 320–520px column, plus a separate full-screen expand mode for Build. The grid is `CpmGrid` (1,084 lines). The command/toolbar lives inline. Inspector state exists but has no dedicated home — selection details bleed into the grid row.
+Top strip carries a 3-mode switcher. Mode is the highest-level UI state; everything else (inspector, dock, panels) is scoped to the active mode.
 
-Symptoms this plan addresses:
-- Build Mode reads as a drawer sub-tab, not a workspace pillar.
-- Intelligence Review, Chat, Build all share one cramped column; mode switching feels modal.
-- Toolbar is a flat strip of ~20 controls with no grouping.
-- Inspector content is scattered across the row, panels, and the drawer.
-- Color usage doesn't enforce critical / near-critical / complete semantics.
+| Mode | Purpose | Default surface |
+|---|---|---|
+| **Build** | Draft a schedule from scope / SOV / list / dictation | Full-screen three-column workspace |
+| **Schedule** | Institutional CPM workhorse (table + Gantt + WBS) | Work surface + Inspector + Intel dock |
+| **Publish** | Print preview, reports, owner narrative, trailer-wall output | Full-screen preview + format rail |
 
-## Target zone model
+Build and Publish are **first-class modes**, not drawer tabs. Intelligence is no longer a "mode" — it is an ambient layer that surfaces inside Schedule mode (via the dock) and inside Build mode (via the Review column).
+
+Secondary mode-scoped switcher (View) lives inside Schedule mode only: Table / Gantt / Network / Split.
+
+---
+
+## 2. Screen architecture
 
 ```text
-┌─────────────────────────────────────────────────────────────────────┐
-│  TOP STRIP   project · status · KPIs · primary mode switcher        │
-├──────────────┬──────────────────────────────────┬───────────────────┤
-│              │                                  │                   │
-│  LEFT RAIL   │        WORK SURFACE              │  INSPECTOR        │
-│  (icon nav)  │   Gantt / Table / Network        │  (selected acty)  │
-│              │                                  │                   │
-│              ├──────────────────────────────────┤  collapsible to   │
-│              │   COMMAND BAR (grouped)          │  56px icon rail   │
-├──────────────┴──────────────────────────────────┴───────────────────┤
-│  INTELLIGENCE DOCK — compact strip · expand → drawer · expand → full│
-└─────────────────────────────────────────────────────────────────────┘
+TOP STRIP   project · status · KPIs · [Build | Schedule | Publish]
+┌───────────────────────────────────────────────────────────────────┐
+│  LEFT RAIL  │   WORK SURFACE (mode-specific)   │  INSPECTOR / CTX │
+│  (48 icon)  │                                  │  (320, collapse) │
+├─────────────┴──────────────────────────────────┴──────────────────┤
+│  COMMAND BAR (clustered: Setup · View · Analyze · Output)         │
+├───────────────────────────────────────────────────────────────────┤
+│  INTELLIGENCE DOCK — Strip ↔ Drawer ↔ Full (Schedule mode only)   │
+└───────────────────────────────────────────────────────────────────┘
 ```
 
-Zone classification:
+### Surface-routing rules
 
-| Zone | Role | Default | Collapsed |
+| Surface | Build | Schedule | Publish |
 |---|---|---|---|
-| Work surface (Gantt/Table) | **Primary** | Fills viewport | — |
-| Intelligence Dock | **Primary pillar** | Bottom strip 56px | Strip ↔ Drawer ↔ Full-screen |
-| Inspector | **Secondary, persistent** | Right column 320px | 56px icon rail |
-| Command bar | **Secondary** | Above work surface | Single-row, overflow menu |
-| Left rail | **Tertiary nav** | 48px icon rail | — |
-| Top strip | **Chrome** | 44px | — |
-| Build Mode | Mode of Intelligence | Drawer or full-screen | — |
-| Chat | Mode of Intelligence | Drawer | — |
-
-Key shift: Intelligence stops being a right-side utility drawer and becomes a **bottom-anchored dock** with three escalation states (Strip → Drawer → Full-screen). This is what lets Build Mode feel flagship.
+| Top strip | yes | yes | yes |
+| Left rail | yes (collapsed) | yes | yes (collapsed) |
+| Work surface | Build 3-col | Table / Gantt | Preview canvas |
+| Inspector | Source context | Activity command center | Report config |
+| Command bar | Build cluster only | full clusters | Format / Export |
+| Intel dock | hidden (Review is in-mode) | Strip / Drawer / Full | hidden |
 
 ---
 
-## UI-2.0 — Layout architecture refinement
+## 3. BUILD MODE — flagship workspace
 
-Goal: introduce the zone model above without breaking any existing wiring.
-
-- Extract the route shell into 3 components inside `src/components/scheduler/shell/`: `SchedulerShell`, `WorkSurface`, `IntelDock`. Route file becomes a composition + state owner only.
-- Add a `SchedulerLayoutContext` that owns: `intelMode` (`strip | drawer | full`), `intelTab` (`review | chat | build`), `inspectorOpen`, `inspectorPinned`, `drawerWidth`. Persist to the same localStorage key already in use.
-- Replace the right-side drawer with a **bottom Intelligence Dock** with three states:
-  - **Strip** (default, 56px): horizontal status — Review summary chip, Chat unread, Build draft state, "Expand" affordance. Always visible.
-  - **Drawer** (40vh, resizable 28–60vh): full Intelligence content, three tabs.
-  - **Full-screen Sheet**: Build Mode and "Wide Review" only.
-- Inspector moves to a persistent right column (was implicit). Collapses to 56px icon rail; pinning survives reload.
-- All existing panels (Structure, Calendars, Resources, Baselines, DCMA, Reports, Update Cycle, Annotations, Fragnets, Dashboards) keep their components and wiring; they get re-homed into Inspector / Intelligence / Command-bar overflow per the IA below.
-
-No behavior changes. Selection, calculation, save, XER import paths untouched.
-
----
-
-## UI-2.1 — Build Mode as flagship workspace
-
-Goal: Build Mode reads as "Describe the job. Baseline builds the CPM." — not a third tab in a side drawer.
-
-Promotion:
-- Build Mode opens **full-screen by default** when entered from the Intel Dock or from an empty-schedule state. Drawer-mode Build remains available for quick edits.
-- The empty-schedule state (`EmptyScheduleState.tsx`) gains a primary CTA "Build with AI" that opens Build full-screen.
-
-Build Mode IA (three-column when full-screen, single-column when in drawer):
+Always full-screen. Three columns at ≥1280px, stacked at <1024px. No drawer-mode for Build going forward — Build is its own mode, not a tab.
 
 ```text
-┌────────────────────┬─────────────────────────────┬──────────────────┐
-│  SOURCE INPUT      │  DRAFT WORKSPACE            │  REVIEW & APPROVE│
-│                    │                             │                  │
-│ • source picker    │  ▸ Draft WBS                │ • Assumptions    │
-│ • textarea / upload│  ▸ Draft Activities         │ • Open questions │
-│ • Use sample (dev) │  ▸ Draft Logic              │ • Warnings       │
-│ • Generate Draft   │  ▸ Milestones               │ • Change-set     │
-│ • Load demo        │  ▸ Proposed Change Set      │   preview        │
-│                    │                             │ • Approval check │
-│ guardrails footer  │  per-section "Regenerate"   │ • Add to Schedule│
-│                    │  (future, disabled)         │   (disabled)     │
-└────────────────────┴─────────────────────────────┴──────────────────┘
+┌─────────────────┬──────────────────────────┬──────────────────────┐
+│ 1. SOURCE       │ 2. DRAFT WORKSPACE       │ 3. REVIEW & APPROVE  │
+│                 │                          │                      │
+│ • Source picker │ Step rail:               │ • Assumptions        │
+│   - Scope text  │   ▸ WBS                  │ • Open questions     │
+│   - Activity    │   ▸ Activities + dur     │ • Warnings           │
+│     list        │   ▸ Logic + lag          │ • Proposed change    │
+│   - SOV         │   ▸ Milestones           │   set diff           │
+│   - Estimate    │   ▸ Change set           │ • Approval checklist │
+│   - Dictation   │                          │ • Add to Schedule    │
+│ • Generate Draft│ each section: card,      │   (disabled, anchored│
+│ • Load demo     │ count chip, regenerate   │   bottom)            │
+│ • Guardrails    │ (future, disabled)       │                      │
+└─────────────────┴──────────────────────────┴──────────────────────┘
 ```
 
-- Each draft section becomes its own card with its own header (count + status chip) so users can scan WBS → Activities → Logic linearly.
-- "Assumptions / Questions / Warnings" promoted from a 3-of-many panel into the dedicated **Review column** — this is where the user actually decides whether to trust the draft.
-- Approval checklist moves next to "Add to Schedule" so the gating reads as one unit.
-- Commit pathway placeholder: a single, disabled "Add to Schedule" button anchored at the bottom of the Review column. No new code path, no mutation surface; just the visual anchor for the future commit flow.
-- Build "Expand" toggle stays. Collapsing Build returns to the Intelligence drawer with the same draft state preserved.
+Step flow is **non-blocking**: user can jump between sections, but the Review column tracks per-step status (drafted / reviewed / accepted). Approval checklist is the gate for the eventual commit flow.
+
+Tagline anchored top of column 2: *"Describe the job. Baseline drafts the CPM."*
 
 ---
 
-## UI-2.2 — Inspector as command center
+## 4. SCHEDULE MODE — institutional CPM workhorse
 
-Goal: when a task is selected, the right column tells the whole story of that activity.
+The trusted surface. Primavera-serious, Apple-usable.
 
-Layout (top-to-bottom, sections collapsible, last-state remembered):
+Work surface: split table + Gantt (resizable), with view toggle (Table-only / Gantt-only / Split / Network). WBS tree lives as a collapsible left pane of the work surface (not the left rail, which is global nav).
 
-1. **Identity & status** — ID, name (inline-editable), WBS, type (task / milestone / LOE), status chip (Critical / Near-critical / On-track / Complete), tags.
-2. **Date intelligence** — ES/EF/LS/LF, Total Float, Free Float, calendar; baseline delta if a baseline is set; constraints.
-3. **Logic & impact** — Predecessors and successors with type/lag, driving flag, "What blocks this?" / "What does this block?" expandable lists, one-click "Jump to" link per related activity.
-4. **Resources & codes** — assignments, crew, activity codes (`ActivityCodeChips`), calendar override.
-5. **Notes & annotations** — `AnnotationsPanel` filtered to the selected activity.
-6. **Impact preview** (read-only) — small mini-Gantt showing this activity + immediate predecessors/successors so logic is *visible*, not just listed.
+Command bar clusters (single row, overflow into More):
 
-Inspector reuses existing panel components — they get re-parented, not rewritten. When no activity is selected, the column shows a portfolio summary (KPIs + open ends + critical-path count).
+- **Setup** — XER Import, Calendars, WBS, Resources, Baselines
+- **View** — View mode, Filters, Group-by, Zoom, Critical-only, Near-critical threshold
+- **Analyze** — DCMA, Open Ends, Fragnets, Compare vs. Baseline → opens Intel dock
+- **Output** — Update Cycle, Save, Export CSV/XER, Go to Publish mode
+
+Intel dock states (Schedule mode only):
+- **Strip 56px** — review summary chip, chat unread, "expand"
+- **Drawer 28–60vh** — Review / Chat tabs (Build tab removed; Build is a mode)
+- **Full sheet** — Wide Review only
 
 ---
 
-## UI-2.3 — Command bar simplification
+## 5. ACTIVITY INSPECTOR — command center
 
-Today's flat toolbar becomes four named clusters in a single row, with overflow into a "More" menu. Each cluster gets a thin label above its buttons in the expanded state, hidden in compact.
+Persistent right column in Schedule mode. 320px default, collapses to 56px icon rail, pinning survives reload. When nothing is selected, shows portfolio summary (KPIs, open ends, critical-path count).
 
-| Cluster | Contents |
-|---|---|
-| **Setup** | XER Import, Calendars, Structure (WBS), Resources, Baselines |
-| **View** | View mode (Gantt / Table / Network), Filters, Group-by, Zoom, Show critical only |
-| **Analyze** | DCMA, Open Ends, Fragnets, Dashboards, Compare vs. baseline |
-| **Output** | Update Cycle, Reports, Export CSV/XER, Save |
+Sections, top-to-bottom, each collapsible with remembered state:
+
+1. **Identity & status** — ID, name (inline edit), WBS path, type (task / milestone / LOE / hammock), status chip (Critical / Near-critical / On-track / Complete / Behind data date), tags, delay flag, change-order flag.
+2. **Date intelligence** — ES/EF/LS/LF, TF, FF, calendar, constraints, baseline delta if a baseline is set, data-date delta.
+3. **Logic & impact** — see §6 below. The heart of the inspector.
+4. **Resources & codes** — assignments, crew, activity codes, calendar override.
+5. **Annotations & flags** — notes, delay events, change-order markers (see §8). Filtered to selected activity.
+6. **Impact preview** — read-only mini-Gantt: this activity + immediate preds/succs, driving relationships emphasized.
+
+Inspector re-parents existing panel components — no rewrites.
+
+---
+
+## 6. Relationships UX (inside Inspector → Logic & impact)
+
+Must handle 1 or 50 relationships equally well.
+
+```text
+LOGIC & IMPACT
+─────────────────────────────────────
+[ Predecessors (12) ] [ Successors (8) ]   ← tab pair, counts visible
+─────────────────────────────────────
+🔎 search relationships…
+─────────────────────────────────────
+▼ DRIVING (3)
+  ▸ A-1020  Foundation pour          FS  +2d   ← row: id, name, type, lag
+  ▸ A-1031  Rebar inspect            FS   0d
+  ▸ A-1042  Form strip               FS  -1d
+▼ NON-DRIVING (9)
+  ▸ …
+─────────────────────────────────────
+[ What blocks this? ] [ What does this block? ]   ← expand chains
+[ Open mini-network ]                              ← optional logic view
+```
+
+Each row: relationship type chip, lag, driving star, jump-to-activity. Group headers collapsible. Mini-network is an opt-in popover focused on the selected activity ± 2 hops; reuses existing network rendering code.
+
+---
+
+## 7. SCHEDULE INTELLIGENCE — analysis layer
+
+Lives in the Intel dock (Schedule mode) and threads into Build mode's Review column. Not a settings panel.
+
+Capabilities surfaced:
+
+- Critical path narration ("X drives the finish via Y → Z")
+- Near-critical exposure ranked by TF threshold
+- Open-ended logic warnings (DCMA-style)
+- Delay risk per chain
+- Behind-data-date review
+- Change-order flag rollup
+- Annotation summary
+- "What should I review first?" prioritized queue
+- "What does this delay affect?" impact tracer (anchored to selected activity / flagged event)
+- "What should go in the owner narrative?" — drafts narrative copy from flags + diffs
+
+Connects to: annotations, change-order flags, baseline diffs, update cycle history, Publish mode narrative output.
+
+Intel dock content stays advisory. No mutations.
+
+---
+
+## 8. Annotations / Delay / Change-order flags — design only
+
+Architecture (no implementation this pass):
+
+**Data model (future):**
+- `activity_annotation` — note text, author, scope (activity / WBS / project), created_at.
+- `delay_event` — activity_id, cause (owner / weather / subcontractor / RFI / other), start, duration, narrative, linked_change_order_id?
+- `change_order_flag` — activity_id, CO number, status (potential / submitted / approved), cost/time impact.
+
+**UX surfaces:**
+- Inspector → Annotations & flags section (read + add).
+- Right-click on Gantt bar → "Add note / Flag delay / Flag change order".
+- Intel dock → rollup ("3 activities flagged delayed, 1 affects critical path").
+- Build mode → annotations carry forward as assumptions on regenerated drafts.
+
+**AI bridge (future):**
+- Given flagged activity, AI explains affected successors, possible CP impact, drafts narrative language for owner submissions, and authors schedule-update commentary. Output goes to Publish mode reports.
+
+This pass: reserve inspector section, reserve right-click menu items (disabled), reserve dock rollup chip (hidden until data exists).
+
+---
+
+## 9. PUBLISH MODE — print preview & reports
+
+Full-screen mode. Left rail = report picker; main canvas = paginated preview; right column = format/config.
+
+Report templates (designed, not all built yet):
+
+- **Printable Gantt PDF** — full schedule or filtered slice, banner pages
+- **Owner-facing schedule report** — Gantt + narrative + KPIs, branded
+- **Trailer-wall schedule** — large-format landscape, high-contrast, minimal chrome
+- **Lookahead report** — 2-week / 3-week / 6-week windows
+- **Critical path report** — CP only, ladder + narrative
+- **Delay / narrative report** — built from delay events + AI narrative
+- **Annotations / change-flag report** — log of flags with status
+
+Must read as something a PM can submit to an owner or post in a trailer. Typography, margins, header/footer, page numbering, legend, signature block all part of the spec.
+
+This pass: design only. Replace the empty "Print Preview" with the mode shell + report picker; templates stay as placeholders that say "coming soon" with a real preview thumbnail.
+
+---
+
+## 10. WBS Tree — own workspace
+
+Inside Schedule mode, WBS gets:
+
+- A collapsible left pane on the work surface (tree view, always available)
+- A full-screen "WBS workspace" via Setup cluster button for serious restructuring
+
+Tree capabilities (UI only this pass; demo data wired so the tree can be evaluated):
+
+- Visible hierarchy with indent guides
+- Parent/child drag-and-drop
+- Move activities between WBS nodes (drag from table → tree)
+- Collapse/expand, expand-all, collapse-all
+- Reorder siblings
+- Inline edit WBS code + name
+- "Insert child / Insert sibling" actions
+- Activity counts per node, rollup duration/dates
+
+Demo data: ship a fixture WBS so the tree renders meaningfully without a real project loaded.
+
+---
+
+## 11. Gantt hover popover & interaction fixes
+
+Layering: popover must render at the top of the stacking context (portal to body, z-index above inspector, dock, and command bar). Never clipped by panel borders.
+
+Popover contents:
+- Activity ID + name
+- WBS path
+- Start / Finish / Duration
+- TF / FF
+- Status chip (critical / near-critical / on-track / complete)
+- Pred / Succ counts
+- "Open in inspector" button
+
+Bar interactions:
+- Click → select + scroll Inspector to Identity
+- Double-click → select + expand Logic & impact
+- Right-click → Add note · Flag delay · Flag change order · Show predecessors · Show successors · Filter to this path · Send to Intelligence
+
+---
+
+## 12. Visual system — strict
+
+Tokens (`src/styles.css`, applied via classes only — never inline):
+
+| Token | Use | Notes |
+|---|---|---|
+| `--status-critical` red | Critical path, blocking errors | Only these two uses |
+| `--status-review` amber | Near-critical, AI assumptions, draft warnings | |
+| `--status-ok` muted green | Complete, validated, on-track | |
+| `--status-neutral` graphite | Default schedule data, non-driving arrows | |
+| `--shell-ivory` | Page chrome, top strip, Inspector chrome | ALP shell |
+| `--surface-cool` | Gantt/Table canvas | Cooler than shell so work area reads as focus |
+| `--accent-build` brass/gold | Build mode primary, Intel "expand" affordance | Reserved — never used as a generic accent |
 
 Rules:
-- Setup and Output cluster buttons open as **modals or full-screen sheets** (they're configuration work, not in-context).
-- View cluster buttons are **inline toggles**.
-- Analyze cluster opens in the **Intelligence Drawer** (Review tab) — this is the bridge that makes Intelligence feel central.
-- Engine2 debug stays in a dev-only overflow under "More" — unchanged.
+- No generic SaaS palettes (no indigo/violet/teal CTAs).
+- No pill-heavy form look. Inputs are flush, bordered, monospaced for numerics.
+- No dashed placeholder boxes. Empty states use solid ivory cards with status chips and concise hint text.
+- Typography: existing display/body stack. Section labels uppercase tracking-wide `text-[10px]`. Numeric columns `tabular-nums`.
+- Spacing scale: 4 / 8 / 12 / 16 / 24. Inspector + Intel cards: 12px internal pad. Work surface: 8px gutters. Top strip 44px, Intel strip 56px, Command bar 40px.
+- Driving arrows 1.5× weight; non-driving 0.75× and lower contrast.
 
 ---
 
-## UI-2.4 — Gantt + interaction polish
+## 13. Implementation sequence
 
-Scope-limited, no engine changes:
-- Bar hover popover: name, ID, ES–EF, TF, status chip, calendar; one-line predecessors / successors with click-to-jump.
-- Click bar → selects + scrolls Inspector to top section. Double-click → opens Inspector "Logic & impact" expanded.
-- Right-click on a bar → context menu: Add note, Show predecessors, Show successors, Filter to this path, Send to Intelligence (Review with this activity pre-selected).
-- Critical bars use a single saturated red; near-critical (TF ≤ user threshold, default 5d) uses amber; complete uses muted green; everything else uses graphite. Driving-relationship arrows are 1.5× weight; non-driving are 0.75× and lower contrast.
-- Today line, baseline ghost bars (when a baseline is loaded), and milestone diamonds get consistent z-order and tooltip styling.
-- Network diagram (currently in `SchedulerRoughView`) is *not* in scope here — it's the rough preview, not the live workbench.
+Each phase is self-contained, behavior-parity tested against existing 331 tests, with a real-project smoke afterward.
 
----
+| Phase | Scope | Risk |
+|---|---|---|
+| **PA-1** | Top-strip Mode switcher (Build / Schedule / Publish); route Build mode to dedicated full-screen route; remove Build from Intel dock tabs | Low — pure routing/layout |
+| **PA-2** | Gantt hover popover portal + z-index fix + content upgrade | Low — isolated component |
+| **PA-3** | Inspector re-home into shell as persistent right column; section structure + collapsible state | Medium — touches selection wiring |
+| **PA-4** | Inspector Logic & impact relationships UX (search, group, driving-first, jump-to) | Medium |
+| **PA-5** | WBS tree pane in Schedule mode + demo fixture | Medium |
+| **PA-6** | Publish mode shell + report picker + placeholder templates | Low — new route |
+| **PA-7** | Command bar clusters (Setup / View / Analyze / Output) | Low |
+| **PA-8** | Visual system pass: token audit, remove SaaS palette leaks, kill dashed placeholders, restrict semantic colors | Low |
+| **PA-9** | Annotations / delay / change-order architecture reserved surfaces (disabled UI, no data layer) | Low |
+| **PA-10** | Intelligence dock content upgrade (prioritized queue, impact tracer, narrative drafter) — UI only, calls existing AI surfaces | Medium |
 
-## Visual hierarchy rules (apply across 2.0–2.4)
-
-Surfaces:
-- **Ivory shell** `oklch(0.97 0.01 85)` — page chrome, top strip, Intel Dock strip, Inspector chrome.
-- **Cool work surface** `oklch(0.985 0.005 240)` — Gantt/Table canvas. Cooler than the shell so the work area reads as the focus.
-- **Paper card** white with `oklch(0.93 0.01 85)` 1px border — all content cards (Build sections, Inspector sections, Intelligence panels).
-
-Semantic color (encoded as tokens in `src/styles.css`, applied via classes — never inline):
-- `--status-critical` red — critical path, blocking errors. **Only** these two uses.
-- `--status-review` amber — near-critical, AI assumptions, draft warnings, "needs review".
-- `--status-ok` muted green — complete, validated, on-track.
-- `--status-neutral` graphite — default schedule data, non-driving relationships.
-- `--accent-build` brass/gold (already in use as `#f7e9b8`/`#1f241f` pair) — reserved for Build Mode primary actions and the Intelligence Dock "expand" affordance, so the AI pillar reads as a distinct material.
-
-Spacing: 4 / 8 / 12 / 16 / 24 scale. Inspector and Intel cards use 12px internal padding; work surface uses 8px gutters. Top strip 44px, Intel strip 56px, Command bar 40px.
-
-Typography: keep existing display/body stack. Section labels uppercase tracking-wide `text-[10px]`. Numeric columns tabular-nums.
+Guardrails across every phase: no engine/engine2 changes, no persistence changes, no XER/dry-run changes, no AI mutation behavior changes, "Add to Schedule" stays disabled, all existing tests stay green.
 
 ---
 
-## Sequencing & guardrails
+## Out of scope (deliberately deferred)
 
-Implementation order (each a self-contained pass):
-1. UI-2.0 shell extraction + Intel Dock state machine (no visual rewrite yet; just the new container).
-2. UI-2.1 Build Mode flagship layout.
-3. UI-2.2 Inspector re-home.
-4. UI-2.3 Command bar clusters.
-5. UI-2.4 Gantt interaction polish.
-
-Across every pass:
-- No changes to `engine`, `engine2`, persistence functions, XER pipeline, dry-run, or AI server functions.
-- "Add to Schedule" stays disabled and has no `onClick`.
-- All 331 existing tests must stay green; add UI tests only for new shell state.
-- Behavior parity check after each pass: open a real project, run the smoke (Generate Draft → preview renders, save schedule, export CSV) and confirm no regression.
-
-## Out of scope (deliberately)
-
-- New AI capabilities (AI-5 SOV→Draft, AI-6 commit/approval) — resume after UI-2.x lands.
-- Engine2 wiring or shadow comparison surfacing.
-- Mobile / `scheduler-field` view — separate track.
-- Network diagram rework on the live workbench.
-
+- AI-5 (SOV→Draft), AI-6 (commit/approval) — resume after PA-1..PA-4.
+- Engine2 wiring, shadow comparison surfacing.
+- Mobile / `scheduler-field`.
+- Real annotation/change-order data layer (designed here, built later).
+- Actual PDF rendering for Publish reports (shell + placeholders only this round).
