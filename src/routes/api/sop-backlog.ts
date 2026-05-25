@@ -230,10 +230,12 @@ export const Route = createFileRoute("/api/sop-backlog")({
         const stage = body.stage ?? "scaling";
         const seatHeadcount = Math.max(1, Math.min(50, body.seatHeadcount ?? 1));
 
-        const shouldUseDeterministicPlan =
-          dept === "Project Management" ||
-          /project manager|project management|\bpm\b|bandwidth|scope|narrow|choke/i.test(body.context ?? "");
-        if (shouldUseDeterministicPlan) {
+        // Only fall back to the canned deterministic plan when the owner
+        // gave us no specific context to reason about. As soon as they
+        // describe an actual chokepoint, the AI must handle it so the
+        // backlog reflects their words — not a generic seat template.
+        const hasContext = (body.context ?? "").trim().length > 0;
+        if (!hasContext && dept === "Project Management") {
           const fallback = fallbackResult(dept, seatHeadcount, body.context);
           return Response.json({ department: dept, ...fallback, backlog: fallback.backlog.slice(0, 12) });
         }
