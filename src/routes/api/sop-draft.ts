@@ -90,6 +90,7 @@ async function generateWithTimeout<T>(task: (signal: AbortSignal) => Promise<T>,
 
 async function tryGenerateAcrossModels(
   task: (modelId: string, signal: AbortSignal) => Promise<z.infer<typeof DocSchema>>,
+  validate: (draft: z.infer<typeof DocSchema>) => void,
 ) {
   const attempts: { modelId: string; timeoutMs: number }[] = [
     { modelId: "google/gemini-2.5-pro", timeoutMs: 16000 },
@@ -100,10 +101,12 @@ async function tryGenerateAcrossModels(
   let lastError: unknown;
   for (const attempt of attempts) {
     try {
-      return await generateWithTimeout(
+      const draft = await generateWithTimeout(
         (signal) => task(attempt.modelId, signal),
         attempt.timeoutMs,
       );
+      validate(draft);
+      return draft;
     } catch (error) {
       lastError = error;
       const msg = error instanceof Error ? error.message : String(error ?? "Failed.");
@@ -115,6 +118,66 @@ async function tryGenerateAcrossModels(
   throw lastError instanceof Error
     ? lastError
     : new Error("All SOP draft model attempts failed.");
+}
+
+const CONTEXT_STOP_WORDS = new Set([
+  "about", "accuracy", "actually", "after", "again", "also", "because", "before", "being",
+  "create", "does", "else", "elsewhere", "from", "have", "immediately", "into", "just",
+  "late", "longer", "make", "need", "needs", "other", "parking", "process", "project",
+  "receive", "review", "site", "something", "start", "starts", "that", "their", "there",
+  "they", "this", "when", "where", "whether", "which", "real",
+]);
+
+function extractSignalWords(input?: string) {
+  return [...new Set(
+    (input ?? "")
+      .toLowerCase()
+      .match(/[a-z][a-z-]{3,}/g)?.filter((word) => !CONTEXT_STOP_WORDS.has(word)) ?? [],
+  )].slice(0, 12);
+}
+
+function validateDraftMatchesIntent(
+  raw: z.infer<typeof DocSchema>,
+  body: Body,
+) {
+  const stepTexts = (raw.steps ?? [])
+    .map((step) => `${step.action ?? ""} ${step.detail ?? ""}`.trim())
+    .filter(Boolean);
+
+  if (stepTexts.length < 6) {
+    throw new Error("Draft returned too few concrete steps.");
+  }
+
+  const combined = [
+    raw.title,
+    raw.purpose,
+    raw.scope,
+    raw.trigger,
+    ...(raw.inputs ?? []),
+    ...stepTexts,
+    ...(raw.outputs ?? []),
+    raw.definitionOfDone,
+    ...(raw.kpis ?? []),
+    ...(raw.exceptions ?? []),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  const signalWords = extractSignalWords(body.context);
+  if (signalWords.length > 0) {
+    const matchedSignals = signalWords.filter((word) => combined.includes(word));
+    if (matchedSignals.length === 0) {
+      throw new Error("Draft ignored the user context.");
+    }
+  }
+
+  const genericStepCount = stepTexts.filter((text) =>
+    /locate the current|confirm the trigger condition|pull required inputs|verify scope, authority|execute the core action|document decisions, exceptions|hand off to the next owner|update the seat scorecard/i.test(text),
+  ).length;
+  if (genericStepCount >= 3) {
+    throw new Error("Draft fell back to generic seat boilerplate.");
+  }
 }
 
 function fallbackDoc(body: Required<Pick<Body, "sopName" | "purpose" | "trigger" | "owner" | "department">>): SopDocument {
@@ -246,7 +309,10 @@ export const Route = createFileRoute("/api/sop-draft")({
         };
 
         try {
-          const raw = await tryGenerateAcrossModels(tryGenerate);
+          const raw = await tryGenerateAcrossModels(
+            tryGenerate,
+            (draft) => validateDraftMatchesIntent(draft, body),
+          );
 
           return Response.json(normalize(raw, required));
         } catch (err) {
