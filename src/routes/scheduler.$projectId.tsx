@@ -1938,6 +1938,32 @@ function SchedulerPage() {
         </div>
       ) : null}
     </div>
+    <IntelDock
+      renderReview={({ wide }) => (
+        <IntelDrawerContent
+          draft={draft}
+          computed={computed}
+          selectedTask={selectedTaskCalc}
+          nearCriticalFloat={nearCriticalFloat}
+          dataQuality={dataQuality}
+          mode={wide ? "wide" : "standard"}
+        />
+      )}
+      renderChat={() => (
+        <IntelChatPanel
+          context={buildIntelScheduleContext({
+            draft,
+            computed,
+            selectedTask: selectedTaskCalc,
+            nearCriticalFloor: nearCriticalFloat,
+          })}
+        />
+      )}
+      renderBuild={({ isFull, toggleFull }) => (
+        <IntelBuildWorkspace expanded={isFull} onToggleExpanded={toggleFull} />
+      )}
+    />
+    </SchedulerShell>
   );
 }
 
