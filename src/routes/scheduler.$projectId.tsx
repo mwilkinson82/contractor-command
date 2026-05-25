@@ -725,6 +725,8 @@ function SchedulerPage() {
           <span className="hidden sm:inline">CPM Schedule</span>
         </Link>
 
+        <ProductModeSwitcher />
+
         <div className="h-6 w-px bg-[#e3e0d8]" />
 
         <div className="flex flex-1 items-center gap-2 min-w-0">
