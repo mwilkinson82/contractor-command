@@ -3535,3 +3535,30 @@ function PublishModeShell() {
     </div>
   );
 }
+
+/**
+ * PA-2 — Render the right-column ActivityInspectorPanel only in Schedule
+ * mode. Also sets `--scheduler-right-pad` on the scheduler root via the
+ * documentElement so the main work surface gets pushed left by the
+ * appropriate amount and the fixed panel never covers schedule content.
+ */
+function RightInspectorGate({ children }: { children: React.ReactNode }) {
+  const { productMode, inspectorOpen } = useSchedulerLayout();
+  React.useEffect(() => {
+    const pad =
+      productMode === "schedule"
+        ? inspectorOpen
+          ? ACTIVITY_INSPECTOR_FULL_WIDTH
+          : ACTIVITY_INSPECTOR_RAIL_WIDTH
+        : 0;
+    document.documentElement.style.setProperty(
+      "--scheduler-right-pad",
+      `${pad}px`,
+    );
+    return () => {
+      document.documentElement.style.removeProperty("--scheduler-right-pad");
+    };
+  }, [productMode, inspectorOpen]);
+  if (productMode !== "schedule") return null;
+  return <>{children}</>;
+}
