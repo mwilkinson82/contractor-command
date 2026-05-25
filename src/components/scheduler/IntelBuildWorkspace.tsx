@@ -139,7 +139,10 @@ export function IntelBuildWorkspace({
           <div className="mt-2 flex flex-wrap gap-1">
             {SOURCE_OPTIONS.map((opt) => {
               const active = opt.id === source;
-              const disabled = opt.id === "uploaded_document";
+              const disabled =
+                opt.id === "uploaded_document" ||
+                opt.id === "schedule_of_values" ||
+                opt.id === "estimate";
               return (
                 <button
                   key={opt.id}
@@ -166,25 +169,58 @@ export function IntelBuildWorkspace({
             className="mt-2 min-h-[140px] w-full resize-y rounded border border-[#ece8db] bg-[#fdfcf7] p-2 text-[12px] text-[#1f241f] outline-none focus:border-[#1f241f]"
             data-testid="intel-build-textarea"
           />
+          {generateError ? (
+            <div
+              className="mt-2 rounded border border-rose-300 bg-rose-50 px-2 py-1.5 text-[10.5px] text-rose-900"
+              data-testid="intel-build-error"
+              role="alert"
+            >
+              {generateError} Your input is preserved — adjust and try again.
+            </div>
+          ) : null}
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
             <p className="text-[10.5px] text-[#8a8980]">
               Nothing here writes to your live schedule.
             </p>
-            <div className="flex gap-1">
+            <div className="flex flex-wrap gap-1">
               <button
                 type="button"
-                onClick={() => setDemoDraft(buildDemoDraftSchedule())}
+                onClick={handleGenerate}
+                disabled={!canGenerateFromActivityList}
+                className={
+                  "rounded border px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider " +
+                  (canGenerateFromActivityList
+                    ? "border-[#1f241f] bg-[#f7e9b8] text-[#1f241f] hover:bg-[#1f241f] hover:text-[#f7e9b8]"
+                    : "cursor-not-allowed border-[#ddd6c4] bg-white/60 text-[#a8a89e]")
+                }
+                title={
+                  source === "activity_list"
+                    ? "Send the pasted activity list to the AI for a draft CPM"
+                    : "Activity-list draft is available when 'Paste activity list' is selected"
+                }
+                data-testid="intel-build-generate"
+              >
+                {generating
+                  ? "Generating…"
+                  : source === "activity_list"
+                    ? "Generate Draft"
+                    : "Generate Draft — soon"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDraft(buildDemoDraftSchedule())}
                 className="rounded border border-[#1f241f] bg-white px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-[#1f241f] hover:bg-[#1f241f] hover:text-[#f7e9b8]"
                 title="Internal demo only — not AI output"
                 data-testid="intel-build-load-demo"
               >
-                {demoDraft ? "Reload Demo Draft" : "Load Demo Draft"}
+                Load Demo Draft
               </button>
               <button
                 type="button"
                 disabled
                 className="cursor-not-allowed rounded bg-[#1f241f]/40 px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-[#f7e9b8]"
-                title="Approval flow not wired"
+                title="Approval flow not wired — drafts are advisory only"
+                data-testid="intel-build-add-to-schedule"
               >
                 Add to Schedule — soon
               </button>
@@ -197,9 +233,9 @@ export function IntelBuildWorkspace({
           className="flex min-h-0 flex-col gap-3"
           data-testid="intel-build-preview"
         >
-          {demoDraft ? (
-            <DemoDraftPreview
-              draft={demoDraft}
+          {draft ? (
+            <DraftPreview
+              draft={draft}
               changeSet={previewChangeSet!}
               counts={changeCounts!}
             />
