@@ -19,6 +19,11 @@ import type { Annotation, Dependency, DependencyType, Schedule, Task } from "@/l
 import { buildIntelScheduleContext } from "@/lib/scheduler/intel-context";
 import { IntelChatPanel } from "@/components/scheduler/IntelChatPanel";
 import { IntelBuildWorkspace } from "@/components/scheduler/IntelBuildWorkspace";
+import {
+  SchedulerShell,
+  IntelDock,
+  IntelTrigger,
+} from "@/components/scheduler/shell";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -727,6 +732,7 @@ function SchedulerPage() {
 
   // ---------- render ----------
   return (
+    <SchedulerShell projectId={selectedId}>
     <div className="scheduler-print-root flex h-screen flex-col bg-[#faf8f3] text-[#1f241f]">
       {/* ============ TOP HEADER ============ */}
       <header className="flex h-11 shrink-0 items-center gap-4 border-b border-[#e3e0d8] bg-white/80 px-4 backdrop-blur">
@@ -1574,18 +1580,8 @@ function SchedulerPage() {
                           ))}
                         </div>
                         <div className="ml-auto flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => setIntelDrawerOpen((v) => !v)}
-                            className={`rounded px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${
-                              intelDrawerOpen
-                                ? "bg-[#1f241f] text-white"
-                                : "text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
-                            }`}
-                            title="Schedule Intelligence (preview)"
-                          >
-                            ✶ Intel
-                          </button>
+                          <IntelTrigger />
+
                           <button
                             type="button"
                             onClick={() => setInspectorExpanded((v) => !v)}
@@ -1932,6 +1928,32 @@ function SchedulerPage() {
         </div>
       ) : null}
     </div>
+    <IntelDock
+      renderReview={({ wide }) => (
+        <IntelDrawerContent
+          draft={draft}
+          computed={computed}
+          selectedTask={selectedTaskCalc}
+          nearCriticalFloat={nearCriticalFloat}
+          dataQuality={dataQuality}
+          mode={wide ? "wide" : "standard"}
+        />
+      )}
+      renderChat={() => (
+        <IntelChatPanel
+          context={buildIntelScheduleContext({
+            draft,
+            computed,
+            selectedTask: selectedTaskCalc,
+            nearCriticalFloor: nearCriticalFloat,
+          })}
+        />
+      )}
+      renderBuild={({ isFull, toggleFull }) => (
+        <IntelBuildWorkspace expanded={isFull} onToggleExpanded={toggleFull} />
+      )}
+    />
+    </SchedulerShell>
   );
 }
 
