@@ -28,6 +28,8 @@ export const SOP_DRAFT_SYSTEM_PROMPT = `You are Marshall, drafting a real, runna
 Rules:
 - Steps are imperative and concrete. "Open the Pre-Con folder in SharePoint, copy the Bid Recap PDF into /02_Handoff, verify the scope-of-work tab on row 12 matches the contract Exhibit A." NOT "Review documents."
 - 6 to 14 steps. Each step has a clear single action. Use "detail" for examples, edge cases, or thresholds — not for filler.
+- If the owner context names a specific workflow, failure mode, document, fine, violation, dispute, payment step, or hand-off, keep the SOP anchored to that exact workflow. Do NOT generalize it into a generic seat-management SOP.
+- Reuse the concrete nouns and decision points from the owner context in the title, trigger, procedure, exceptions, outputs, and KPIs when they are central to the workflow.
 - Inputs and outputs are tangible artifacts (forms, files, sign-offs), not vibes.
 - Definition of Done is testable in under 30 seconds by an outsider.
 - KPIs are 2-4 measurable signals, each formatted as "Metric → Target" (e.g. "Cycle time → < 48h", "Rework events per 10 completions → < 1", "Margin recovered per project → > $4k"). Always include a concrete target — no bare metrics.
@@ -54,7 +56,9 @@ export function buildSopDraftPrompt(args: {
     args.parentPlay
       ? `Parent optimization play: ${args.parentPlay.name}\nMechanism: ${args.parentPlay.mechanism}`
       : "",
-    args.context?.trim() ? `Owner context:\n${args.context.trim()}` : "",
+    args.context?.trim()
+      ? `Owner context:\n${args.context.trim()}\n\nImportant: the SOP must stay about this exact workflow. Reuse the concrete nouns, decisions, and failure modes from the context. Do not return a generic seat template.`
+      : "",
     "",
     "Draft the full SOP document.",
   ]

@@ -114,6 +114,55 @@ function extractJsonObject(raw: string) {
   return JSON.parse(cleaned.slice(start, end + 1));
 }
 
+const CONTEXT_STOP_WORDS = new Set([
+  "about", "after", "again", "also", "because", "before", "being", "company", "context",
+  "create", "department", "does", "else", "from", "have", "into", "just", "make", "more",
+  "need", "needs", "other", "process", "project", "seat", "something", "that", "their",
+  "them", "then", "there", "they", "this", "when", "where", "which", "with", "workflow",
+]);
+
+function extractSignalWords(input?: string) {
+  return [...new Set(
+    (input ?? "")
+      .toLowerCase()
+      .match(/[a-z][a-z-]{3,}/g)?.filter((word) => !CONTEXT_STOP_WORDS.has(word)) ?? [],
+  )].slice(0, 12);
+}
+
+function validateBacklogMatchesIntent(
+  object: z.infer<typeof ResultSchema>,
+  body: Body,
+) {
+  const combined = [
+    object.constraintReframe,
+    object.headline,
+    object.buildOrderRationale,
+    ...object.plays.flatMap((play) => [play.name, play.diagnosis, play.mechanism, play.expectedLift, play.risks]),
+    ...object.backlog.flatMap((item) => [item.name, item.purpose, item.trigger, item.owner, item.why, ...(item.dependsOn ?? [])]),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  const signalWords = extractSignalWords(body.context);
+  if (signalWords.length > 0) {
+    const matchedSignals = signalWords.filter((word) => combined.includes(word));
+    if (matchedSignals.length === 0) {
+      throw new Error("Backlog ignored the user context.");
+    }
+  }
+
+  const genericBacklogCount = object.backlog.filter((item) =>
+    /seat scope|scope & authority|intake gate|work queue review|standard of done|exception escalation|scorecard update/i.test(
+      [item.name, item.purpose, item.why].filter(Boolean).join(" "),
+    ),
+  ).length;
+
+  if ((body.context ?? "").trim() && genericBacklogCount >= 4) {
+    throw new Error("Backlog fell back to generic seat boilerplate.");
+  }
+}
+
 async function generateWithTimeout<T>(task: (signal: AbortSignal) => Promise<T>, ms = 14000) {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -267,10 +316,15 @@ export const Route = createFileRoute("/api/sop-backlog")({
           let object: z.infer<typeof ResultSchema>;
           try {
             object = await generateWithTimeout((signal) => tryGenerate("google/gemini-2.5-pro", signal));
+            validateBacklogMatchesIntent(object, body);
           } catch (primaryErr) {
             const msg = primaryErr instanceof Error ? primaryErr.message : "Failed.";
             if (msg.includes("429")) return new Response("Rate limit. Try again in a moment.", { status: 429 });
             if (msg.includes("402")) return new Response("AI credits exhausted. Add credits in Settings → Workspace → Usage.", { status: 402 });
+            if ((body.context ?? "").trim()) {
+              console.error("[sop-backlog] model failed with context-specific request", primaryErr);
+              return new Response("The SOP stack generator returned a generic plan instead of using your context. Please try again.", { status: 502 });
+            }
             console.warn("[sop-backlog] model failed, using deterministic SOP stack", primaryErr);
             const fallback = fallbackResult(dept, seatHeadcount, body.context);
             return Response.json({ department: dept, ...fallback, backlog: fallback.backlog.slice(0, 12) });
