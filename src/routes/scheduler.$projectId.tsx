@@ -732,6 +732,7 @@ function SchedulerPage() {
 
   // ---------- render ----------
   return (
+    <SchedulerShell projectId={selectedId}>
     <div className="scheduler-print-root flex h-screen flex-col bg-[#faf8f3] text-[#1f241f]">
       {/* ============ TOP HEADER ============ */}
       <header className="flex h-11 shrink-0 items-center gap-4 border-b border-[#e3e0d8] bg-white/80 px-4 backdrop-blur">
