@@ -76,6 +76,27 @@ export function AppSidebarProvider({ children }: { children: ReactNode }) {
     setMobileOpen(false);
   }, [pathname]);
 
+  // Publish the desktop sidebar width as a global CSS var so that
+  // viewport-fixed overlays (scheduler dock, drawers, full-screen modes)
+  // can leave room for the left rail and never overlap its content.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const w = collapsed ? "60px" : "216px";
+    document.documentElement.style.setProperty("--app-sidebar-w", w);
+    // On mobile the rail is off-canvas; overlays should use 0.
+    const mq = window.matchMedia("(max-width: 767px)");
+    const apply = () => {
+      document.documentElement.style.setProperty(
+        "--app-sidebar-w",
+        mq.matches ? "0px" : w,
+      );
+    };
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, [collapsed]);
+
+
   function toggle() {
     setCollapsed((c) => {
       const n = !c;
