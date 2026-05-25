@@ -169,11 +169,12 @@ export function IntelDock({
       {/* Drawer */}
       {isDrawer ? (
         <aside
-          className="fixed inset-x-0 z-30 flex flex-col border-t border-[#e3e0d8] bg-[#faf8f3] print:hidden"
-          style={{ bottom: STRIP_HEIGHT, height: dockHeight }}
+          className="fixed right-0 z-30 flex flex-col border-t border-[#e3e0d8] bg-[#faf8f3] print:hidden"
+          style={{ bottom: STRIP_HEIGHT, height: dockHeight, left: "var(--app-sidebar-w, 0px)" }}
           aria-label="Schedule intelligence drawer"
           data-testid="intel-dock-drawer"
         >
+
           <div
             role="separator"
             aria-orientation="horizontal"
@@ -218,11 +219,12 @@ export function IntelDock({
       {/* Strip — always visible unless full-screen. */}
       {!isFull ? (
         <div
-          className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 border-t border-[#e3e0d8] bg-white/95 px-3 backdrop-blur print:hidden"
-          style={{ height: STRIP_HEIGHT }}
+          className="fixed right-0 bottom-0 z-30 flex items-center gap-3 border-t border-[#e3e0d8] bg-white/95 px-3 backdrop-blur print:hidden"
+          style={{ height: STRIP_HEIGHT, left: "var(--app-sidebar-w, 0px)" }}
           data-testid="intel-dock-strip"
           aria-label="Schedule intelligence dock"
         >
+
           <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#4a4944]">
             ✶ Schedule Intelligence
           </span>
@@ -262,9 +264,11 @@ export function IntelDock({
       {/* Full-screen sheet */}
       {isFull ? (
         <div
-          className="fixed inset-0 z-50 flex flex-col bg-[#fdfcf7] print:hidden"
+          className="fixed inset-y-0 right-0 z-50 flex flex-col bg-[#fdfcf7] print:hidden"
+          style={{ left: "var(--app-sidebar-w, 0px)" }}
           data-testid="intel-dock-full"
         >
+
           <header className="flex shrink-0 items-center justify-between gap-2 border-b border-[#e3e0d8] bg-white px-3 py-1.5">
             <div className="flex items-center gap-3">
               <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#4a4944]">
