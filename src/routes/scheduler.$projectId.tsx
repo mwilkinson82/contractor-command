@@ -24,6 +24,7 @@ import {
   IntelDock,
   IntelTrigger,
   useSchedulerLayout,
+  useSchedulerLayoutSafe,
 } from "@/components/scheduler/shell";
 
 
