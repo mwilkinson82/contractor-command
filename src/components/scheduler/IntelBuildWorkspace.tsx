@@ -12,6 +12,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import {
   BUILD_GUARDRAILS,
   isChangeSetCommittable,
@@ -23,6 +24,7 @@ import {
   buildPreviewChangeSet,
   countChangeSet,
 } from "@/lib/scheduler/intel-build-demo";
+import { generateDraftFromActivityList } from "@/lib/scheduler/intel-build-draft.functions";
 import { INTEL_ADVISORY_NOTE } from "@/lib/scheduler/intel-context";
 
 export interface IntelBuildWorkspaceProps {
@@ -45,26 +47,51 @@ type SourceKind =
 const SOURCE_OPTIONS: ReadonlyArray<{ id: SourceKind; label: string }> = [
   { id: "manual_prompt", label: "Describe the job" },
   { id: "activity_list", label: "Paste activity list" },
-  { id: "schedule_of_values", label: "Paste SOV" },
-  { id: "estimate", label: "Paste estimate" },
-  { id: "uploaded_document", label: "Upload (coming soon)" },
+  { id: "schedule_of_values", label: "Paste SOV (soon)" },
+  { id: "estimate", label: "Paste estimate (soon)" },
+  { id: "uploaded_document", label: "Upload (soon)" },
 ];
 
 export function IntelBuildWorkspace({
   expanded,
   onToggleExpanded,
 }: IntelBuildWorkspaceProps) {
-  const [source, setSource] = useState<SourceKind>("manual_prompt");
+  const [source, setSource] = useState<SourceKind>("activity_list");
   const [input, setInput] = useState("");
-  const [demoDraft, setDemoDraft] = useState<DraftSchedule | null>(null);
+  const [draft, setDraft] = useState<DraftSchedule | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const generateFn = useServerFn(generateDraftFromActivityList);
+
   const previewChangeSet = useMemo<ProposedChangeSet | null>(
-    () => (demoDraft ? buildPreviewChangeSet(demoDraft) : null),
-    [demoDraft],
+    () => (draft ? buildPreviewChangeSet(draft) : null),
+    [draft],
   );
   const changeCounts = useMemo(
     () => (previewChangeSet ? countChangeSet(previewChangeSet) : null),
     [previewChangeSet],
   );
+
+  const canGenerateFromActivityList =
+    source === "activity_list" && input.trim().length >= 3 && !generating;
+
+  async function handleGenerate() {
+    setGenerateError(null);
+    setGenerating(true);
+    try {
+      const result = await generateFn({ data: { inputText: input } });
+      if (result.ok) {
+        setDraft(result.draft);
+      } else {
+        setGenerateError(result.error);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to generate draft.";
+      setGenerateError(msg);
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   return (
     <div
