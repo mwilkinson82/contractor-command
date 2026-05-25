@@ -122,15 +122,32 @@ export function IntelDock({
     setIntelTab(k);
   };
 
+  const TAB_CAPTIONS: Record<IntelTab, string> = {
+    review: "Findings",
+    chat: "Ask about this schedule",
+    build: "Draft CPM",
+  };
+
   const tabBar = (
     <div
       role="tablist"
       aria-label="Intelligence mode"
-      className="flex items-center gap-0.5"
+      className="flex items-center gap-1"
       data-testid="intel-mode-tabs"
     >
       {(["review", "chat", "build"] as IntelTab[]).map((k) => {
         const active = intelTab === k;
+        const isBuild = k === "build";
+        const showCount = k === "review" && typeof reviewCount === "number" && reviewCount > 0;
+        const base =
+          "group inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-[10.5px] font-medium tracking-wide transition-colors";
+        const cls = active
+          ? isBuild
+            ? "bg-gradient-to-r from-[#c9a84c] to-[#a89968] text-[#1f241f] shadow-[inset_0_0_0_1px_rgba(31,36,31,0.15)]"
+            : "bg-[#1f241f] text-[#f7e9b8]"
+          : isBuild
+            ? "border border-[#d8cdb8] bg-[#f7e9b8]/40 text-[#1f241f] hover:bg-[#f7e9b8]/70"
+            : "text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]";
         return (
           <button
             key={k}
@@ -139,13 +156,31 @@ export function IntelDock({
             aria-selected={active}
             onClick={() => handleTabClick(k)}
             data-testid={`intel-mode-${k}`}
-            className={`rounded px-2 py-0.5 text-[10.5px] font-medium tracking-wide ${
-              active
-                ? "bg-[#1f241f] text-[#f7e9b8]"
-                : "text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
-            }`}
+            title={TAB_CAPTIONS[k]}
+            className={`${base} ${cls}`}
           >
-            {TAB_LABELS[k]}
+            <span>{TAB_LABELS[k]}</span>
+            {showCount ? (
+              <span
+                className={
+                  "rounded-full px-1 text-[9px] font-semibold tabular-nums " +
+                  (active
+                    ? "bg-[#f7e9b8]/30 text-[#f7e9b8]"
+                    : "bg-amber-100 text-amber-900")
+                }
+                data-testid="intel-mode-review-count"
+              >
+                {reviewCount}
+              </span>
+            ) : null}
+            {isBuild && !active ? (
+              <span
+                aria-hidden
+                className="hidden text-[9.5px] font-normal uppercase tracking-wider text-[#675d4b] sm:inline"
+              >
+                · {TAB_CAPTIONS.build}
+              </span>
+            ) : null}
           </button>
         );
       })}
