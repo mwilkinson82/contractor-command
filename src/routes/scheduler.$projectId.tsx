@@ -3512,7 +3512,7 @@ function PublishModeShell() {
                 type="button"
                 disabled
                 data-testid={`publish-report-${r.key}`}
-                className="w-full cursor-not-allowed rounded border border-transparent px-2.5 py-2 text-left opacity-80 hover:border-[#ece8db] hover:bg-[#faf8f3]"
+                className="w-full cursor-not-allowed rounded border border-transparent px-2.5 py-2 text-left opacity-90 hover:border-[#ece8db] hover:bg-[#faf8f3]"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[12.5px] font-semibold tracking-tight text-[#1f241f]">
@@ -3529,30 +3529,128 @@ function PublishModeShell() {
         </ul>
       </aside>
       <section className="flex min-h-0 flex-col overflow-hidden rounded border border-[#ece8db] bg-white">
-        <div className="shrink-0 border-b border-[#ece8db] bg-[#faf8f3] px-3 py-2">
+        <div className="flex shrink-0 items-center justify-between border-b border-[#ece8db] bg-[#faf8f3] px-3 py-2">
           <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#675d4b]">
-            Preview
+            Preview gallery
+          </div>
+          <div className="text-[10px] font-medium uppercase tracking-wider text-[#a8a190]">
+            Rendering arrives in a later phase
           </div>
         </div>
-        <div className="flex min-h-0 flex-1 items-center justify-center p-8">
-          <div className="max-w-md rounded border border-[#ece8db] bg-[#faf8f3] p-6 text-center">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#675d4b]">
-              Publish
-            </div>
-            <h2 className="mt-1 text-lg font-semibold tracking-tight text-[#1f241f]">
-              Reporting & print preview
-            </h2>
-            <p className="mt-2 text-[12.5px] leading-relaxed text-[#6b6a63]">
-              Pick a template on the left. PDF rendering, owner narrative drafts,
-              and trailer-wall layouts arrive in a later phase. For now this is a
-              placeholder shell — no reports are generated yet.
-            </p>
+        <div className="min-h-0 flex-1 overflow-auto bg-[#f4f1e8] p-6">
+          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            {PUBLISH_REPORTS.map((r) => (
+              <ReportThumbnail key={r.key} reportKey={r.key} title={r.title} />
+            ))}
           </div>
         </div>
       </section>
     </div>
   );
 }
+
+/**
+ * High-end placeholder thumbnail for a publish report template.
+ * Pure CSS — no PDF/render pipeline. Style varies subtly per report key.
+ */
+function ReportThumbnail({
+  reportKey,
+  title,
+}: {
+  reportKey: string;
+  title: string;
+}) {
+  // Faux gantt bars — different layout per report style.
+  const bars = (() => {
+    switch (reportKey) {
+      case "trailer-wall":
+        return [70, 90, 60, 85, 75, 95, 80];
+      case "lookahead":
+        return [40, 55, 50, 60];
+      case "critical-path":
+        return [88, 92, 78, 95, 84];
+      case "delay-narrative":
+        return [55, 70, 45, 60];
+      default:
+        return [70, 50, 85, 60, 75, 45, 80];
+    }
+  })();
+  const isCritical = reportKey === "critical-path" || reportKey === "delay-narrative";
+  const accent = reportKey === "owner-report"
+    ? "#c9a84c"
+    : isCritical
+      ? "#b42318"
+      : "#1f241f";
+
+  return (
+    <figure className="group flex flex-col overflow-hidden rounded-sm border border-[#dcd6c4] bg-white shadow-[0_1px_0_rgba(0,0,0,0.04),0_8px_20px_-12px_rgba(31,36,31,0.18)] transition hover:shadow-[0_2px_0_rgba(0,0,0,0.06),0_14px_28px_-12px_rgba(31,36,31,0.28)]">
+      {/* Paper page */}
+      <div className="relative aspect-[11/8.5] w-full overflow-hidden bg-white">
+        {/* Page header band */}
+        <div
+          className="flex items-center justify-between px-3 py-2 text-[8px] font-semibold uppercase tracking-[0.22em]"
+          style={{ background: accent, color: accent === "#c9a84c" ? "#1f241f" : "#f7e9b8" }}
+        >
+          <span className="truncate">{title}</span>
+          <span className="opacity-70">AOS</span>
+        </div>
+        {/* Faux WBS column + gantt rows */}
+        <div className="absolute inset-x-0 bottom-0 top-7 grid grid-cols-[28%_minmax(0,1fr)]">
+          <div className="border-r border-[#ece8db] bg-[#faf8f3] px-2 py-2 space-y-1.5">
+            {bars.map((_, i) => (
+              <div key={i} className="h-1.5 w-[85%] rounded-sm bg-[#d8d2bf]" />
+            ))}
+          </div>
+          <div className="relative px-2 py-2">
+            {/* date tick header */}
+            <div className="mb-1.5 flex gap-1 opacity-60">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="h-1 flex-1 rounded-sm bg-[#e3ddc9]" />
+              ))}
+            </div>
+            <div className="space-y-1.5">
+              {bars.map((w, i) => (
+                <div key={i} className="relative h-1.5 w-full">
+                  <div
+                    className="absolute h-1.5 rounded-sm"
+                    style={{
+                      left: `${(i * 4) % 35}%`,
+                      width: `${w}%`,
+                      background:
+                        isCritical && i % 2 === 0
+                          ? "#b42318"
+                          : i === bars.length - 1
+                            ? "#3c7a4a"
+                            : accent === "#c9a84c"
+                              ? "#c9a84c"
+                              : "#1f241f",
+                      opacity: 0.85,
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        {/* watermark */}
+        <div className="pointer-events-none absolute inset-0 grid place-items-center">
+          <span className="rotate-[-12deg] text-[10px] font-bold uppercase tracking-[0.4em] text-[#1f241f]/[0.06]">
+            Preview
+          </span>
+        </div>
+      </div>
+      <figcaption className="flex items-center justify-between gap-2 border-t border-[#ece8db] bg-[#faf8f3] px-3 py-2">
+        <span className="truncate text-[11.5px] font-semibold tracking-tight text-[#1f241f]">
+          {title}
+        </span>
+        <span className="rounded bg-[#ecebe5] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#675d4b]">
+          Soon
+        </span>
+      </figcaption>
+    </figure>
+  );
+}
+
 
 /**
  * PA-2 — Render the right-column ActivityInspectorPanel only in Schedule
