@@ -1718,10 +1718,12 @@ function SchedulerPage() {
       {/* ============ CONFIGURE DRAWER ============ */}
       {drawerOpen ? (
         <div
-          className="fixed inset-0 z-50 flex"
+          className="fixed inset-y-0 right-0 z-50 flex"
+          style={{ left: "var(--app-sidebar-w, 0px)" }}
           onClick={() => setDrawerOpen(false)}
         >
           <div className="flex-1 bg-black/30 backdrop-blur-sm" />
+
           <aside
             className="relative flex h-full w-[420px] flex-col overflow-hidden border-l border-[#e3e0d8] bg-[#faf8f3] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
@@ -3425,9 +3427,11 @@ function ProductModeOverlay() {
   if (productMode === "schedule") return null;
   return (
     <div
-      className="fixed inset-0 z-40 flex flex-col bg-[#faf8f3] print:hidden"
+      className="fixed inset-y-0 right-0 z-40 flex flex-col bg-[#faf8f3] print:hidden"
+      style={{ left: "var(--app-sidebar-w, 0px)" }}
       data-testid={`product-mode-overlay-${productMode}`}
     >
+
       <header className="flex h-11 shrink-0 items-center gap-4 border-b border-[#e3e0d8] bg-white/90 px-4 backdrop-blur">
         <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#4a4944]">
           {productMode === "build" ? "Build Mode" : "Publish Mode"}
