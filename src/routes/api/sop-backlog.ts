@@ -158,7 +158,7 @@ function deriveContextAnchors(context?: string) {
   const lower = (context ?? "").toLowerCase();
   if (!lower.trim()) return [];
 
-  const anchors = [
+  const anchorPatterns: Array<[RegExp, string]> = [
     [/(parking|permit)\s+(fine|violation)s?/i, "parking or permit fine / violation intake"],
     [/(review).*(accuracy|efficacy)|(accuracy|efficacy).*(review)/i, "review the notice for accuracy / efficacy before action"],
     [/(disput|appeal|contest)/i, "decide whether the notice should be disputed"],
@@ -166,7 +166,9 @@ function deriveContextAnchors(context?: string) {
     [/project manager/i, "project manager owns the first review and decision"],
     [/violation/i, "violation review workflow"],
     [/fine/i, "fine handling workflow"],
-  ]
+  ];
+
+  const anchors = anchorPatterns
     .filter(([pattern]) => pattern.test(lower))
     .map(([, label]) => label as string);
 
