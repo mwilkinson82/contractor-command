@@ -121,12 +121,58 @@ const CONTEXT_STOP_WORDS = new Set([
   "them", "then", "there", "they", "this", "when", "where", "which", "with", "workflow",
 ]);
 
+const DEPARTMENT_KEYWORDS: Record<SopDepartment, string[]> = {
+  Estimating: ["estimate", "estimating", "bid", "bids", "takeoff", "pricing", "proposal"],
+  "Project Management": ["project manager", "project management", "pm", "violation", "violations", "fine", "fines", "dispute", "disputed", "payment", "permit", "parking"],
+  "Field Operations": ["superintendent", "field", "crew", "site walk", "install", "foreman", "production"],
+  "Pre-Construction": ["pre-con", "preconstruction", "submittal", "buyout", "schedule", "procurement"],
+  Safety: ["safety", "incident", "osha", "toolbox", "ppe", "hazard"],
+  "Admin & Finance": ["invoice", "billing", "collections", "payables", "receivables", "payroll"],
+  "Business Development": ["lead", "pipeline", "sales", "proposal", "follow-up", "opportunity"],
+};
+
 function extractSignalWords(input?: string) {
   return [...new Set(
     (input ?? "")
       .toLowerCase()
       .match(/[a-z][a-z-]{3,}/g)?.filter((word) => !CONTEXT_STOP_WORDS.has(word)) ?? [],
   )].slice(0, 12);
+}
+
+function detectDepartmentFromContext(context?: string): SopDepartment | null {
+  const lower = (context ?? "").toLowerCase();
+  if (!lower.trim()) return null;
+
+  let best: { dept: SopDepartment; score: number } | null = null;
+  for (const dept of SOP_DEPARTMENTS) {
+    const score = DEPARTMENT_KEYWORDS[dept].reduce((sum, keyword) => sum + (lower.includes(keyword) ? 1 : 0), 0);
+    if (score > 0 && (!best || score > best.score)) {
+      best = { dept, score };
+    }
+  }
+
+  return best?.score ? best.dept : null;
+}
+
+function deriveContextAnchors(context?: string) {
+  const lower = (context ?? "").toLowerCase();
+  if (!lower.trim()) return [];
+
+  const anchorPatterns: Array<[RegExp, string]> = [
+    [/(parking|permit)\s+(fine|violation)s?/i, "parking or permit fine / violation intake"],
+    [/(review).*(accuracy|efficacy)|(accuracy|efficacy).*(review)/i, "review the notice for accuracy / efficacy before action"],
+    [/(disput|appeal|contest)/i, "decide whether the notice should be disputed"],
+    [/(pay|payment|processing).*(late fee)|(late fee).*(pay|payment|processing)/i, "route valid notices into payment processing fast enough to avoid late fees"],
+    [/project manager/i, "project manager owns the first review and decision"],
+    [/violation/i, "violation review workflow"],
+    [/fine/i, "fine handling workflow"],
+  ];
+
+  const anchors = anchorPatterns
+    .filter(([pattern]) => pattern.test(lower))
+    .map(([, label]) => label as string);
+
+  return [...new Set([...anchors, ...extractSignalWords(context)])].slice(0, 8);
 }
 
 function validateBacklogMatchesIntent(
@@ -147,8 +193,18 @@ function validateBacklogMatchesIntent(
   const signalWords = extractSignalWords(body.context);
   if (signalWords.length > 0) {
     const matchedSignals = signalWords.filter((word) => combined.includes(word));
-    if (matchedSignals.length === 0) {
+    const matchRatio = matchedSignals.length / signalWords.length;
+    if (matchedSignals.length === 0 || matchRatio < 0.25) {
       throw new Error("Backlog ignored the user context.");
+    }
+  }
+
+  const contextLower = (body.context ?? "").toLowerCase();
+  if (contextLower.includes("violation") || contextLower.includes("fine")) {
+    const requiredConcepts = ["violation", "fine", "disput", "payment", "late fee"];
+    const conceptMatches = requiredConcepts.filter((term) => combined.includes(term));
+    if (conceptMatches.length < 2) {
+      throw new Error("Backlog missed the core violation-handling workflow.");
     }
   }
 
@@ -278,15 +334,18 @@ export const Route = createFileRoute("/api/sop-backlog")({
         }
         const stage = body.stage ?? "scaling";
         const seatHeadcount = Math.max(1, Math.min(50, body.seatHeadcount ?? 1));
+        const inferredDepartment = detectDepartmentFromContext(body.context);
+        const effectiveDept = inferredDepartment ?? dept;
+        const contextAnchors = deriveContextAnchors(body.context);
 
         // Only fall back to the canned deterministic plan when the owner
         // gave us no specific context to reason about. As soon as they
         // describe an actual chokepoint, the AI must handle it so the
         // backlog reflects their words — not a generic seat template.
         const hasContext = (body.context ?? "").trim().length > 0;
-        if (!hasContext && dept === "Project Management") {
-          const fallback = fallbackResult(dept, seatHeadcount, body.context);
-          return Response.json({ department: dept, ...fallback, backlog: fallback.backlog.slice(0, 12) });
+        if (!hasContext && effectiveDept === "Project Management") {
+          const fallback = fallbackResult(effectiveDept, seatHeadcount, body.context);
+          return Response.json({ department: effectiveDept, ...fallback, backlog: fallback.backlog.slice(0, 12) });
         }
 
         const key = process.env.LOVABLE_API_KEY;
@@ -295,10 +354,12 @@ export const Route = createFileRoute("/api/sop-backlog")({
         const gateway = createLovableAiGatewayProvider(key);
 
         const userPrompt = `${buildSopBacklogUserPrompt({
-          department: dept,
+          selectedDepartment: dept,
+          department: effectiveDept,
           stage,
           seatHeadcount,
           context: body.context,
+          contextAnchors,
         })}\n\nReturn your answer as a single JSON object matching the schema.`;
 
         const jsonShape = `Required JSON shape: {"constraintReframe":"string","plays":[{"id":"P1","name":"string","diagnosis":"string","mechanism":"string","expectedLift":"string","risks":"string"}],"topPlayId":"P1","headline":"string","buildOrderRationale":"string","backlog":[{"rank":1,"playId":"P1","name":"string","purpose":"string","trigger":"string","owner":"string","dependsOn":[],"effort":"M","why":"string"}]}`;
@@ -326,17 +387,17 @@ export const Route = createFileRoute("/api/sop-backlog")({
               return new Response("The SOP stack generator returned a generic plan instead of using your context. Please try again.", { status: 502 });
             }
             console.warn("[sop-backlog] model failed, using deterministic SOP stack", primaryErr);
-            const fallback = fallbackResult(dept, seatHeadcount, body.context);
-            return Response.json({ department: dept, ...fallback, backlog: fallback.backlog.slice(0, 12) });
+            const fallback = fallbackResult(effectiveDept, seatHeadcount, body.context);
+            return Response.json({ department: effectiveDept, ...fallback, backlog: fallback.backlog.slice(0, 12) });
           }
 
-          const normalized = normalizeResult(object, dept, seatHeadcount, body.context);
+          const normalized = normalizeResult(object, effectiveDept, seatHeadcount, body.context);
           const sorted = normalized.backlog;
           const topSop = sorted[0];
           if (!topSop) return new Response("Empty backlog returned. Try again.", { status: 502 });
 
           return Response.json({
-            department: dept,
+            department: effectiveDept,
             constraintReframe: normalized.constraintReframe,
             plays: normalized.plays,
             topPlayId: normalized.topPlayId,

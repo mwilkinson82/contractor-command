@@ -109,16 +109,27 @@ This is AOS (Marshall's augmented EOS). Speak in AOS / Accountability Chart lang
 Return only specific, construction-grounded content. No "improve communication" filler.`;
 
 export function buildSopBacklogUserPrompt(args: {
+  selectedDepartment?: SopDepartment;
   department: SopDepartment;
   stage: CompanyStage;
   seatHeadcount: number;
   context?: string;
+  contextAnchors?: string[];
 }): string {
   return [
-    `Department / seat: ${args.department}`,
+    args.selectedDepartment ? `Selected department: ${args.selectedDepartment}` : "",
+    `Department / seat to build for: ${args.department}`,
     `Company stage: ${args.stage}`,
     `Headcount in this seat: ${args.seatHeadcount}`,
     args.context?.trim() ? `Owner's stated chokepoint:\n${args.context.trim()}` : "No additional context provided — infer the most common constraint at this stage for this seat.",
+    args.contextAnchors?.length
+      ? `Non-negotiable workflow anchors that must materially appear in the diagnosis, plays, and SOP backlog:\n- ${args.contextAnchors.join("\n- ")}`
+      : "",
+    args.context?.trim()
+      ? args.selectedDepartment && args.selectedDepartment !== args.department
+        ? `Important: the written context clearly belongs to ${args.department}. Build the backlog for ${args.department}, not the originally selected ${args.selectedDepartment}.`
+        : `Important: keep the backlog tied to the exact workflow named in the context. Do not generalize into a generic ${args.department} seat template.`
+      : "",
     "",
     "Diagnose, propose plays, then build the SOP backlog for the top play.",
   ]
