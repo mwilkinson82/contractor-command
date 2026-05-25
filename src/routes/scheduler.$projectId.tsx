@@ -3319,3 +3319,13 @@ function IntelReviewRow({
     </div>
   );
 }
+
+/**
+ * UI-2.1 — small adapter so EmptyScheduleState can trigger
+ * "Build with AI" via SchedulerLayoutContext. Defined inside the route
+ * file because the context only exists under <SchedulerShell />.
+ */
+function EmptyScheduleSlot(props: React.ComponentProps<typeof EmptyScheduleState>) {
+  const { openBuildFull } = useSchedulerLayout();
+  return <EmptyScheduleState {...props} onBuildWithAi={openBuildFull} />;
+}
