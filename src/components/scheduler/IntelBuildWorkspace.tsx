@@ -52,6 +52,29 @@ const SOURCE_OPTIONS: ReadonlyArray<{ id: SourceKind; label: string }> = [
   { id: "uploaded_document", label: "Upload (soon)" },
 ];
 
+/**
+ * Dev-only smoke sample for AI-4. Used by the "Use sample activity list"
+ * helper so live testing doesn't depend on browser automation injecting
+ * text into a React-controlled textarea. Never rendered in production.
+ */
+const SAMPLE_ACTIVITY_LIST = [
+  "Mobilize",
+  "Clearing and grading",
+  "Set trailer",
+  "Temporary power",
+  "Site utilities",
+  "Foundations",
+  "Framing",
+  "Rough MEP",
+  "Inspections",
+  "Drywall",
+  "Finishes",
+  "Punchlist",
+  "Closeout",
+].join("\n");
+
+const IS_DEV = import.meta.env.DEV;
+
 export function IntelBuildWorkspace({
   expanded,
   onToggleExpanded,
