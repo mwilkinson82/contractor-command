@@ -3446,7 +3446,7 @@ function ProductModeOverlay() {
           ← Back to Schedule
         </button>
       </header>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
         {productMode === "build" ? (
           <IntelBuildWorkspace
             expanded

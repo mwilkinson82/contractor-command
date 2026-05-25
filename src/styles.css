@@ -483,10 +483,26 @@
 .print-only { display: none; }
 
 /* ============================================================================
+ * Global sidebar-width token. JS in AppSidebarProvider re-publishes the live
+ * width (60/216/0 on resize), but having a sensible default here prevents
+ * viewport-fixed overlays (scheduler IntelDock, ProductModeOverlay,
+ * ActivityInspectorPanel) from briefly covering the left rail on first
+ * paint before JS hydrates.
+ * ============================================================================ */
+:root { --app-sidebar-w: 216px; }
+@media (max-width: 767px) { :root { --app-sidebar-w: 0px; } }
+
+/* ============================================================================
  * Scheduler focus mode — when active, the scheduler workbench hides the
  * portal-level top strip and sidebar so the CPM grid becomes the hero.
  * The body class is toggled by src/routes/scheduler.$projectId.tsx.
+ *
+ * IMPORTANT: also zero out --app-sidebar-w so any viewport-fixed overlay
+ * (Build/Publish mode, IntelDock strip/drawer/full, ActivityInspector)
+ * reclaims the area the sidebar used to occupy instead of leaving a blank
+ * 216px gutter on the left.
  * ============================================================================ */
+body.scheduler-focus-mode { --app-sidebar-w: 0px !important; }
 body.scheduler-focus-mode header.sticky.top-0 { display: none !important; }
 body.scheduler-focus-mode aside.group\/sidebar,
 body.scheduler-focus-mode aside[class*="group/sidebar"] { display: none !important; }
