@@ -141,17 +141,11 @@ function SchedulerPage() {
   const [inspectorHeight, setInspectorHeight] = useState<number>(260);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
   const [inspectorExpanded, setInspectorExpanded] = useState(false);
-  // Schedule Intelligence drawer — adjustable width (compact/standard/wide)
-  // and free drag-resize. Closed by default.
-  const [intelDrawerOpen, setIntelDrawerOpen] = useState(false);
-  const [intelDrawerWidth, setIntelDrawerWidth] = useState<number>(380);
-  const [intelDrawerMode, setIntelDrawerMode] = useState<
-    import("@/lib/scheduler/intel-context").IntelDrawerMode
-  >("review");
-  const [intelBuildExpanded, setIntelBuildExpanded] = useState(false);
-  const SHOW_INTEL_DRAWER = false; // internal flag: do not expose fake AI
+  // UI-2.0 moved Schedule Intelligence into a bottom-anchored dock owned by
+  // SchedulerLayoutContext. The old right-side drawer state is gone.
   // Focus mode hides the portal top-strip + sidebar so the grid is the hero.
   const [focusMode, setFocusMode] = useState(false);
+
 
   // Hydrate from localStorage on mount / project change.
   useEffect(() => {
