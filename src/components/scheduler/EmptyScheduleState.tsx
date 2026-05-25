@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Upload, Sparkles, ClipboardPaste } from "lucide-react";
+import { Plus, Upload, Sparkles, ClipboardPaste, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -28,6 +28,8 @@ interface Props {
     tasks: Task[];
     dependencies: Dependency[];
   }) => void;
+  /** UI-2.1 — primary CTA: opens Schedule Intelligence → Build full-screen. */
+  onBuildWithAi?: () => void;
 }
 
 export function EmptyScheduleState({
@@ -35,6 +37,7 @@ export function EmptyScheduleState({
   onApplySample,
   onApplyPasted,
   onXerImport,
+  onBuildWithAi,
 }: Props) {
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
@@ -58,9 +61,37 @@ export function EmptyScheduleState({
             Start your CPM schedule
           </h2>
           <p className="mt-1 text-sm text-[#6b6a63]">
-            Build a Primavera-style schedule with WBS, dependencies, critical path, and float.
+            Describe the job. Baseline builds the CPM. Or start from a sample, XER, or by hand.
           </p>
         </div>
+
+        {onBuildWithAi ? (
+          <button
+            type="button"
+            onClick={onBuildWithAi}
+            data-testid="empty-schedule-build-with-ai"
+            className="group mb-3 flex w-full items-center justify-between gap-3 rounded-xl border border-[#1a1a1a] bg-gradient-to-br from-[#1a1a1a] to-[#2a2a2a] p-4 text-left text-[#f7e9c2] transition hover:from-[#2a2a2a] hover:to-[#1a1a1a]"
+          >
+            <div className="flex items-center gap-3">
+              <span className="grid h-9 w-9 place-items-center rounded-lg bg-[#f7e9c2] text-[#1a1a1a]">
+                <Wand2 className="h-4 w-4" />
+              </span>
+              <div>
+                <div className="text-sm font-semibold tracking-tight">
+                  Build with AI
+                </div>
+                <div className="text-xs text-[#d9c89a]">
+                  Open the Build workspace — paste scope, an activity list, or an SOV.
+                </div>
+              </div>
+            </div>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#d9c89a] group-hover:text-[#f7e9c2]">
+              Open →
+            </span>
+          </button>
+        ) : null}
+
+
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <button

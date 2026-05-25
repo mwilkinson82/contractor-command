@@ -55,7 +55,10 @@ export function IntelDock({
     goFull,
     goDrawer,
     collapseToStrip,
+    openBuildFull,
+    openDrawerTab,
   } = useSchedulerLayout();
+
 
   const isDrawer = intelMode === "drawer";
   const isFull = intelMode === "full";
@@ -97,6 +100,25 @@ export function IntelDock({
     return renderBuild(buildHandle);
   };
 
+  /**
+   * Tab click handler.
+   * - Build always escalates to full-screen when clicked from strip/drawer
+   *   (UI-2.1: Build is the flagship workspace, not a drawer afterthought).
+   * - Review/Chat from the strip open the drawer.
+   * - When already in drawer or full, just switch tab.
+   */
+  const handleTabClick = (k: IntelTab) => {
+    if (k === "build" && intelMode !== "full") {
+      openBuildFull();
+      return;
+    }
+    if (intelMode === "strip") {
+      openDrawerTab(k);
+      return;
+    }
+    setIntelTab(k);
+  };
+
   const tabBar = (
     <div
       role="tablist"
@@ -112,7 +134,7 @@ export function IntelDock({
             type="button"
             role="tab"
             aria-selected={active}
-            onClick={() => setIntelTab(k)}
+            onClick={() => handleTabClick(k)}
             data-testid={`intel-mode-${k}`}
             className={`rounded px-2 py-0.5 text-[10.5px] font-medium tracking-wide ${
               active
@@ -126,6 +148,7 @@ export function IntelDock({
       })}
     </div>
   );
+
 
   return (
     <div data-scheduler-intel-dock>

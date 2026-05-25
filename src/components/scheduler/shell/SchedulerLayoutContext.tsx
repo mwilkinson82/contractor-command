@@ -37,7 +37,10 @@ export interface SchedulerLayoutContextValue extends SchedulerLayoutState {
   goFull: () => void;
   goDrawer: () => void;
   collapseToStrip: () => void;
+  /** UI-2.1: open Build full-screen (flagship workspace entry). */
+  openBuildFull: () => void;
 }
+
 
 const DEFAULTS: SchedulerLayoutState = {
   intelMode: "strip",
@@ -133,6 +136,9 @@ export function SchedulerLayoutProvider({
       goFull: () => setState((s) => ({ ...s, intelMode: "full" })),
       goDrawer: () => setState((s) => ({ ...s, intelMode: "drawer" })),
       collapseToStrip: () => setState((s) => ({ ...s, intelMode: "strip" })),
+      openBuildFull: () =>
+        setState((s) => ({ ...s, intelMode: "full", intelTab: "build" })),
+
     }),
     [state],
   );

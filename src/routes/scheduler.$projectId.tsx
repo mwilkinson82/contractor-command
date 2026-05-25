@@ -23,7 +23,9 @@ import {
   SchedulerShell,
   IntelDock,
   IntelTrigger,
+  useSchedulerLayout,
 } from "@/components/scheduler/shell";
+
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -141,17 +143,11 @@ function SchedulerPage() {
   const [inspectorHeight, setInspectorHeight] = useState<number>(260);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
   const [inspectorExpanded, setInspectorExpanded] = useState(false);
-  // Schedule Intelligence drawer — adjustable width (compact/standard/wide)
-  // and free drag-resize. Closed by default.
-  const [intelDrawerOpen, setIntelDrawerOpen] = useState(false);
-  const [intelDrawerWidth, setIntelDrawerWidth] = useState<number>(380);
-  const [intelDrawerMode, setIntelDrawerMode] = useState<
-    import("@/lib/scheduler/intel-context").IntelDrawerMode
-  >("review");
-  const [intelBuildExpanded, setIntelBuildExpanded] = useState(false);
-  const SHOW_INTEL_DRAWER = false; // internal flag: do not expose fake AI
+  // UI-2.0 moved Schedule Intelligence into a bottom-anchored dock owned by
+  // SchedulerLayoutContext. The old right-side drawer state is gone.
   // Focus mode hides the portal top-strip + sidebar so the grid is the hero.
   const [focusMode, setFocusMode] = useState(false);
+
 
   // Hydrate from localStorage on mount / project change.
   useEffect(() => {
@@ -164,14 +160,12 @@ function SchedulerPage() {
         inspectorHeight: number;
         inspectorCollapsed: boolean;
         inspectorExpanded: boolean;
-        intelDrawerWidth: number;
         focusMode: boolean;
       }>;
       if (typeof v.nameColWidth === "number") setNameColWidth(v.nameColWidth);
       if (typeof v.inspectorHeight === "number") setInspectorHeight(v.inspectorHeight);
       if (typeof v.inspectorCollapsed === "boolean") setInspectorCollapsed(v.inspectorCollapsed);
       if (typeof v.inspectorExpanded === "boolean") setInspectorExpanded(v.inspectorExpanded);
-      if (typeof v.intelDrawerWidth === "number") setIntelDrawerWidth(v.intelDrawerWidth);
       if (typeof v.focusMode === "boolean") setFocusMode(v.focusMode);
     } catch {
       /* ignore corrupted layout */
@@ -190,7 +184,6 @@ function SchedulerPage() {
           inspectorHeight,
           inspectorCollapsed,
           inspectorExpanded,
-          intelDrawerWidth,
           focusMode,
         }),
       );
@@ -203,9 +196,9 @@ function SchedulerPage() {
     inspectorHeight,
     inspectorCollapsed,
     inspectorExpanded,
-    intelDrawerWidth,
     focusMode,
   ]);
+
 
   // Apply focus mode by toggling a body class so global CSS hides the
   // portal-level top-strip + sidebar. Always clean up on unmount.
@@ -262,22 +255,8 @@ function SchedulerPage() {
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
   };
-  const startDrawerResize = (e: React.PointerEvent) => {
-    e.preventDefault();
-    const startX = e.clientX;
-    const startW = intelDrawerWidth;
-    const onMove = (ev: PointerEvent) => {
-      // dragging left widens the drawer
-      const next = Math.max(260, Math.min(720, startW - (ev.clientX - startX)));
-      setIntelDrawerWidth(next);
-    };
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-  };
+
+
 
 
   const loadStructureFn = useServerFn(loadStructure);
@@ -1220,7 +1199,7 @@ function SchedulerPage() {
                 <div className="scheduler-print-split relative flex flex-1 min-h-0 overflow-hidden">
                   {draft.tasks.length === 0 ? (
                     <div className="absolute inset-0 z-10 overflow-auto bg-[#faf8f3]/95 backdrop-blur-sm print:hidden">
-                      <EmptyScheduleState
+                      <EmptyScheduleSlot
                         onAddActivity={addTask}
                         onApplySample={applySample}
                         onApplyPasted={applyPasted}
@@ -1228,6 +1207,7 @@ function SchedulerPage() {
                       />
                     </div>
                   ) : null}
+
                   {/* Print-only title block (P6-style) */}
                   <div className="print-only mb-3 border-b-2 border-[#1f241f] pb-2">
                     <div className="flex items-end justify-between">
@@ -1324,149 +1304,11 @@ function SchedulerPage() {
                     </div>
                   </div>
 
-                  {/* ============ SCHEDULE INTELLIGENCE DRAWER (foundation) ============
-                      Right-side slide-out reserved for the future assistant /
-                      review layer (logic warnings, critical-path narration,
-                      AI-assisted CPM build, chatbot artifacts). Closed by
-                      default; today it is layout-only scaffolding so the
-                      workbench is shaped for the real behavior to slot in. */}
-                  {intelDrawerOpen ? (
-                    <aside
-                      className="relative flex shrink-0 flex-col border-l border-[#e3e0d8] bg-[#faf8f3] print:hidden"
-                      style={{ width: intelDrawerWidth }}
-                      aria-label="Schedule intelligence"
-                    >
-                      {/* Left-edge drag handle to free-resize the drawer width. */}
-                      <div
-                        role="separator"
-                        aria-orientation="vertical"
-                        aria-label="Resize intelligence drawer"
-                        onPointerDown={startDrawerResize}
-                        className="group absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize"
-                        title="Drag to resize"
-                      >
-                        <div className="absolute inset-y-0 left-1 w-px bg-[#e3e0d8] group-hover:bg-[#1f241f]" />
-                      </div>
-                      <header className="flex shrink-0 flex-col gap-1 border-b border-[#e3e0d8] bg-white px-3 py-1.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#4a4944]">
-                            Schedule Intelligence
-                          </span>
-                          <div className="flex items-center gap-1">
-                            {(
-                              [
-                                ["C", 300, "Compact"],
-                                ["S", 380, "Standard"],
-                                ["W", 520, "Wide"],
-                              ] as const
-                            ).map(([k, w, title]) => {
-                              const active = Math.abs(intelDrawerWidth - w) < 8;
-                              return (
-                                <button
-                                  key={k}
-                                  type="button"
-                                  onClick={() => setIntelDrawerWidth(w)}
-                                  className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
-                                    active
-                                      ? "bg-[#1f241f] text-white"
-                                      : "text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
-                                  }`}
-                                  title={title}
-                                  aria-label={title}
-                                >
-                                  {k}
-                                </button>
-                              );
-                            })}
-                            <button
-                              type="button"
-                              onClick={() => setIntelDrawerOpen(false)}
-                              className="ml-1 rounded p-1 text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
-                              aria-label="Close intelligence drawer"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        </div>
-                        <div
-                          role="tablist"
-                          aria-label="Intelligence mode"
-                          className="flex items-center gap-0.5"
-                          data-testid="intel-mode-tabs"
-                        >
-                          {(
-                            [
-                              ["review", "Review"],
-                              ["chat", "Chat"],
-                              ["build", "Build"],
-                            ] as const
-                          ).map(([key, label]) => {
-                            const active = intelDrawerMode === key;
-                            return (
-                              <button
-                                key={key}
-                                type="button"
-                                role="tab"
-                                aria-selected={active}
-                                onClick={() => setIntelDrawerMode(key)}
-                                data-testid={`intel-mode-${key}`}
-                                className={`rounded px-2 py-0.5 text-[10.5px] font-medium tracking-wide ${
-                                  active
-                                    ? "bg-[#1f241f] text-[#f7e9b8]"
-                                    : "text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
-                                }`}
-                              >
-                                {label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </header>
-                      {intelDrawerMode === "review" ? (
-                        <IntelDrawerContent
-                          draft={draft}
-                          computed={computed}
-                          selectedTask={selectedTaskCalc}
-                          nearCriticalFloat={nearCriticalFloat}
-                          dataQuality={dataQuality}
-                          mode={
-                            intelDrawerWidth <= 320
-                              ? "compact"
-                              : intelDrawerWidth >= 480
-                                ? "wide"
-                                : "standard"
-                          }
-                        />
-                      ) : intelDrawerMode === "chat" ? (
-                        <IntelChatPanel
-                          context={buildIntelScheduleContext({
-                            draft,
-                            computed,
-                            selectedTask: selectedTaskCalc,
-                            nearCriticalFloor: nearCriticalFloat,
-                          })}
-                        />
-                      ) : (
-                        <IntelBuildWorkspace
-                          expanded={false}
-                          onToggleExpanded={() => setIntelBuildExpanded(true)}
-                        />
-                      )}
+                  {/* UI-2.0 moved Schedule Intelligence into the bottom-anchored
+                      <IntelDock /> at the bottom of this route. The old
+                      right-side drawer + Build full-screen overlay branches
+                      were removed in UI-2.1. */}
 
-                    </aside>
-                  ) : null}
-
-                  {intelBuildExpanded ? (
-                    <div
-                      className="fixed inset-0 z-50 flex flex-col bg-[#fdfcf7]"
-                      data-testid="intel-build-overlay"
-                    >
-                      <IntelBuildWorkspace
-                        expanded
-                        onToggleExpanded={() => setIntelBuildExpanded(false)}
-                      />
-                    </div>
-                  ) : null}
 
                 </div>
 
@@ -3476,4 +3318,14 @@ function IntelReviewRow({
       ) : null}
     </div>
   );
+}
+
+/**
+ * UI-2.1 — small adapter so EmptyScheduleState can trigger
+ * "Build with AI" via SchedulerLayoutContext. Defined inside the route
+ * file because the context only exists under <SchedulerShell />.
+ */
+function EmptyScheduleSlot(props: React.ComponentProps<typeof EmptyScheduleState>) {
+  const { openBuildFull } = useSchedulerLayout();
+  return <EmptyScheduleState {...props} onBuildWithAi={openBuildFull} />;
 }
