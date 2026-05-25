@@ -291,7 +291,7 @@ function SelectedActivityCommandCenter({
         </div>
 
         <RelTable
-          title="What blocks this"
+          title="Predecessors"
           deps={predDeps}
           otherKey="from"
           draft={draft}
@@ -299,7 +299,7 @@ function SelectedActivityCommandCenter({
           emptyLabel="No predecessors — open start"
         />
         <RelTable
-          title="What this blocks"
+          title="Successors"
           deps={succDeps}
           otherKey="to"
           draft={draft}
@@ -576,8 +576,8 @@ function CountStat({
         <span className="font-mono text-[16px] font-semibold tabular-nums leading-none text-[#1f241f]">
           {count}
         </span>
-        <span className="text-[10px] text-[#c2750a]" title="Driving relationships">
-          ★ {driving}
+        <span className="text-[10px] font-semibold text-[#c2750a]" title="Driving relationships (control activity's float)">
+          {driving} driving
         </span>
       </div>
     </div>
@@ -599,6 +599,11 @@ function RelTable({
   onSelect: (id: string | null) => void;
   emptyLabel: string;
 }) {
+  // CPM convention: driving relationships first, non-driving second.
+  const driving = deps.filter((d) => d.isDriving);
+  const nonDriving = deps.filter((d) => !d.isDriving);
+  const ordered = [...driving, ...nonDriving];
+
   return (
     <div className="px-3 pb-2 pt-2">
       <div className="mb-1 flex items-baseline justify-between gap-2">
@@ -606,35 +611,46 @@ function RelTable({
           {title}
         </span>
         <span className="font-mono text-[9.5px] tabular-nums text-[#8a8980]">
-          {deps.length}
+          {driving.length > 0
+            ? `${driving.length} driving · ${nonDriving.length} non-driving`
+            : `${deps.length}`}
         </span>
       </div>
       {deps.length === 0 ? (
         <p className="text-[10.5px] italic text-[#8a8980]">{emptyLabel}</p>
       ) : (
         <div className="overflow-hidden rounded border border-[#e3e0d8] bg-white">
-          {/* Column headers */}
+          {/* Column headers — explicit CPM terms */}
           <div className="grid grid-cols-[44px_1fr_28px_36px_18px] items-center gap-1 border-b border-[#ecebe5] bg-[#faf8f3] px-1.5 py-0.5 text-[8.5px] font-semibold uppercase tracking-wider text-[#8a8980]">
-            <span>ID</span>
-            <span>Name</span>
-            <span>Type</span>
-            <span className="text-right">Lag</span>
-            <span title="Driving">★</span>
+            <span title="Activity ID">ID</span>
+            <span title="Activity Name">Name</span>
+            <span title="Relationship Type (FS/SS/FF/SF)">Rel</span>
+            <span className="text-right" title="Lag in working days">Lag</span>
+            <span title="Driving relationship">Drv</span>
           </div>
           <ul className="max-h-44 overflow-auto">
-            {deps.slice(0, 25).map((d, i) => {
+            {ordered.slice(0, 25).map((d, i) => {
               const otherId = d[otherKey];
               const other = draft.tasks.find((t) => t.id === otherId);
+              const isFirstNonDriving =
+                driving.length > 0 && i === driving.length;
               return (
                 <li
                   key={`${otherId}-${i}`}
-                  className="border-b border-[#f4f2ec] last:border-b-0"
+                  className={
+                    "border-b border-[#f4f2ec] last:border-b-0 " +
+                    (isFirstNonDriving ? "border-t border-t-[#e3e0d8]" : "")
+                  }
                 >
                   <button
                     type="button"
                     onClick={() => onSelect(otherId)}
                     className="grid w-full grid-cols-[44px_1fr_28px_36px_18px] items-center gap-1 px-1.5 py-1 text-left text-[10.5px] hover:bg-[#faf8f3]"
-                    title={`Jump to ${otherId}${other ? " · " + other.name : ""}`}
+                    title={`Jump to activity ${otherId}${
+                      other ? " · " + other.name : ""
+                    } — ${d.type}${d.lag ? ` ${d.lag > 0 ? "+" : ""}${d.lag}d` : ""} · ${
+                      d.isDriving ? "Driving" : "Non-driving"
+                    }`}
                   >
                     <span className="truncate font-mono tabular-nums text-[#1f241f]">
                       {otherId}
@@ -642,14 +658,20 @@ function RelTable({
                     <span className="truncate text-[#3a3f3a]">
                       {other?.name ?? "—"}
                     </span>
-                    <span className="font-mono text-[9.5px] tabular-nums text-[#675d4b]">
+                    <span className="font-mono text-[9.5px] font-semibold tabular-nums text-[#675d4b]">
                       {d.type}
                     </span>
                     <span className="text-right font-mono text-[9.5px] tabular-nums text-[#675d4b]">
                       {d.lag ? (d.lag > 0 ? `+${d.lag}` : `${d.lag}`) : "—"}
                     </span>
-                    <span className="text-[10px] text-[#c2750a]">
-                      {d.isDriving ? "★" : ""}
+                    <span
+                      className={
+                        "text-[10px] " +
+                        (d.isDriving ? "font-bold text-[#c2750a]" : "text-[#cfcdc4]")
+                      }
+                      aria-label={d.isDriving ? "Driving" : "Non-driving"}
+                    >
+                      {d.isDriving ? "●" : "○"}
                     </span>
                   </button>
                 </li>
@@ -657,7 +679,7 @@ function RelTable({
             })}
             {deps.length > 25 ? (
               <li className="px-1.5 py-0.5 text-[9.5px] text-[#8a8980]">
-                …+{deps.length - 25} more
+                …+{deps.length - 25} more (jump from the activity table)
               </li>
             ) : null}
           </ul>

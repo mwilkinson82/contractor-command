@@ -804,24 +804,7 @@ function SchedulerPage() {
           >
             ↓ Export
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              document.body.classList.add("printing-schedule");
-              const cleanup = () => {
-                document.body.classList.remove("printing-schedule");
-                window.removeEventListener("afterprint", cleanup);
-              };
-              window.addEventListener("afterprint", cleanup);
-              // Give the layout a tick to apply print styles before opening the dialog
-              setTimeout(() => window.print(), 50);
-            }}
-            disabled={!draft || !computed}
-            className="rounded-md border border-[#e3e0d8] bg-white px-2.5 py-1.5 text-xs font-medium text-[#2d2d28] hover:bg-[#faf8f3] disabled:opacity-50"
-            title="Print / Save as PDF (P6-style layout)"
-          >
-            ⎙ Print
-          </button>
+          <PublishShortcut disabled={!draft || !computed} />
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
@@ -3677,4 +3660,25 @@ function RightInspectorGate({ children }: { children: React.ReactNode }) {
   }, [productMode, inspectorOpen]);
   if (productMode !== "schedule") return null;
   return <>{children}</>;
+}
+
+/**
+ * PublishShortcut — replaces the old top-bar Print button. Routes the user
+ * into Publish mode (the canonical output surface). No native print dialog;
+ * Publish owns export/PDF in a later pass.
+ */
+function PublishShortcut({ disabled }: { disabled?: boolean }) {
+  const { setProductMode } = useSchedulerLayout();
+  return (
+    <button
+      type="button"
+      onClick={() => setProductMode("publish")}
+      disabled={disabled}
+      className="rounded-md border border-[#e3e0d8] bg-white px-2.5 py-1.5 text-xs font-medium text-[#2d2d28] hover:bg-[#faf8f3] disabled:opacity-50"
+      title="Open Publish mode — output, PDF, and report templates"
+      data-testid="top-publish-shortcut"
+    >
+      ↗ Publish
+    </button>
+  );
 }
