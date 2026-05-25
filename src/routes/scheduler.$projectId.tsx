@@ -1771,6 +1771,7 @@ function SchedulerPage() {
       ) : null}
     </div>
     <IntelDock
+      reviewCount={computed?.diagnostics.length ?? 0}
       renderReview={({ wide }) => (
         <IntelDrawerContent
           draft={draft}

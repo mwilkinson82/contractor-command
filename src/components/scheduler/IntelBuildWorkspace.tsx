@@ -172,21 +172,44 @@ export function IntelBuildWorkspace({
       className="flex h-full min-h-0 flex-1 flex-col bg-[#fdfcf7] text-[12px] text-[#3a3a35]"
       data-testid="intel-build-workspace"
     >
-      <header className="shrink-0 border-b border-[#ece8db] bg-white/70 px-4 py-2.5">
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#675d4b]">
-              Build Mode · Flagship workspace
-            </div>
-            <div className="mt-0.5 text-[12px] font-medium text-[#1f241f]">
-              Describe the job. Baseline builds the CPM.
+      <header
+        className={
+          "shrink-0 border-b border-[#ece8db] bg-gradient-to-r from-white via-white to-[#f7e9b8]/30 " +
+          (expanded ? "px-6 py-4" : "px-4 py-2.5")
+        }
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div
+              aria-hidden
+              className="mt-1 h-8 w-[3px] shrink-0 rounded-full bg-gradient-to-b from-[#c9a84c] to-[#a89968]"
+            />
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#a89968]">
+                Build Mode · Flagship workspace
+              </div>
+              <div
+                className={
+                  "mt-0.5 font-semibold text-[#1f241f] " +
+                  (expanded ? "text-[20px] leading-tight" : "text-[13px]")
+                }
+              >
+                Describe the job. Baseline drafts the CPM.
+              </div>
+              {expanded ? (
+                <div className="mt-1 max-w-[68ch] text-[12px] leading-relaxed text-[#6b6a63]">
+                  Create a draft WBS, activities, durations, and logic before
+                  anything is added to the live schedule. Nothing here writes
+                  to the schedule until you review and approve.
+                </div>
+              ) : null}
             </div>
           </div>
           {onToggleExpanded ? (
             <button
               type="button"
               onClick={onToggleExpanded}
-              className="rounded border border-[#ece8db] bg-white px-2 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-[#1f241f] hover:border-[#1f241f]"
+              className="shrink-0 rounded border border-[#ece8db] bg-white px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-[#1f241f] hover:border-[#1f241f]"
               data-testid="intel-build-expand-toggle"
             >
               {expanded ? "Collapse" : "Expand"}
@@ -708,36 +731,40 @@ function DraftSection({
 }) {
   const hasContent = count > 0;
   return (
-    <section
-      className={
-        "rounded border p-3 " +
-        (hasContent
-          ? "border-[#ece8db] bg-white"
-          : "border-dashed border-[#ddd6c4] bg-white/60")
-      }
-    >
+    <section className="rounded border border-[#ece8db] bg-white p-3 shadow-[0_1px_0_rgba(31,36,31,0.02)]">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-baseline gap-2">
           <SectionLabel>{title}</SectionLabel>
           <span
             className={
-              "rounded border px-1.5 py-0.5 text-[9.5px] font-semibold tabular-nums " +
+              "rounded-full border px-1.5 py-0.5 text-[9.5px] font-semibold tabular-nums " +
               (hasContent
-                ? "border-[#d8cdb8] bg-[#f7e9b8]/40 text-[#1f241f]"
-                : "border-[#ddd6c4] bg-white text-[#8a8980]")
+                ? "border-[#d8cdb8] bg-[#f7e9b8]/50 text-[#1f241f]"
+                : "border-[#e3e0d8] bg-[#fdfcf7] text-[#8a8980]")
             }
           >
             {count}
           </span>
         </div>
-        {statusChip}
+        {statusChip ??
+          (hasContent ? null : (
+            <span className="rounded-full border border-[#e3e0d8] bg-[#fdfcf7] px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider text-[#a8a89e]">
+              Awaiting draft
+            </span>
+          ))}
       </div>
       <div className="mt-2">
         {hasContent ? (
           children
         ) : (
-          <div className="text-[11px] leading-relaxed text-[#8a8980]">
-            Empty — {emptyHint}
+          <div className="flex items-start gap-2 rounded border border-[#f0ece1] bg-[#fdfcf7] px-2.5 py-2">
+            <span
+              aria-hidden
+              className="mt-[5px] inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-[#c9b99a]"
+            />
+            <p className="text-[11px] leading-relaxed text-[#8a8980]">
+              {emptyHint}
+            </p>
           </div>
         )}
       </div>
