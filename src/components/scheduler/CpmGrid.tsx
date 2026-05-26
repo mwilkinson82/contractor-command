@@ -677,7 +677,7 @@ export function CpmGrid({
                           y={y + rowH / 2 - 1}
                           width={t.totalFloat * dayPx}
                           height={2}
-                          fill="#a8a59b"
+                          fill="var(--sched-graphite-soft)"
                           opacity={0.6}
                           pointerEvents="none"
                         />
