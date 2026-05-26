@@ -915,210 +915,225 @@ function SchedulerPage() {
           {/* ============ TOOLBAR ============ */}
           <div
             data-scheduler-toolbar
-            className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[#e3e0d8] bg-white px-4 py-1"
+            className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-[#e3e0d8] bg-white px-5 py-1.5"
           >
-            {/* View modes (only Gantt is wired) */}
-            <div
-              data-scheduler-viewmode
-              className="flex items-center rounded-md border border-[#e3e0d8] bg-[#faf8f3] p-0.5"
-            >
-
-              <button className="rounded bg-white px-3 py-1 text-xs font-medium shadow-sm">
-                Gantt
-              </button>
-              <button
-                disabled
-                title="Board view — coming soon"
-                className="px-3 py-1 text-xs text-[#bfbeb5] cursor-not-allowed"
+            {/* ——— VIEW ——— */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">View</span>
+              <div
+                data-scheduler-viewmode
+                className="flex items-center rounded-md border border-[#e3e0d8] bg-[#faf8f3] p-0.5"
               >
-                Board
-              </button>
-              <button
-                disabled
-                title="List view — coming soon"
-                className="px-3 py-1 text-xs text-[#bfbeb5] cursor-not-allowed"
-              >
-                List
-              </button>
+                <button className="rounded bg-white px-2.5 py-0.5 text-[11px] font-medium text-[#1f241f] shadow-sm">
+                  Gantt
+                </button>
+                <button
+                  disabled
+                  title="Board view — coming soon"
+                  className="px-2.5 py-0.5 text-[11px] text-[#bfbeb5] cursor-not-allowed"
+                >
+                  Board
+                </button>
+                <button
+                  disabled
+                  title="List view — coming soon"
+                  className="px-2.5 py-0.5 text-[11px] text-[#bfbeb5] cursor-not-allowed"
+                >
+                  List
+                </button>
+              </div>
             </div>
 
-            <div className="mx-1 h-5 w-px bg-[#e3e0d8]" />
+            <div className="h-5 w-px bg-[#ecebe5]" />
 
-            {calendars.length > 0 ? (
-              <select
-                value={calendarFilter}
-                onChange={(e) => setCalendarFilter(e.target.value)}
-                className="h-7 rounded-md border border-[#e3e0d8] bg-white px-2 text-xs text-[#2d2d28] hover:bg-[#faf8f3]"
-                title="Filter by activity calendar"
-              >
-                <option value="">⛬ Calendar (All)</option>
-                <option value="__default">Project default only</option>
-                {calendars.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            ) : null}
+            {/* ——— FILTER ——— */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">Filter</span>
 
-            {(() => {
-              const resources = Array.from(
-                new Set(
-                  (draft?.tasks ?? [])
-                    .map((t) => t.resourceName?.trim())
-                    .filter((r): r is string => !!r),
-                ),
-              ).sort();
-              if (resources.length === 0) return null;
-              return (
+              {calendars.length > 0 ? (
                 <select
-                  value={resourceFilter}
-                  onChange={(e) => setResourceFilter(e.target.value)}
-                  className="h-7 rounded-md border border-[#e3e0d8] bg-white px-2 text-xs text-[#2d2d28] hover:bg-[#faf8f3]"
-                  title="Filter by resource"
+                  value={calendarFilter}
+                  onChange={(e) => setCalendarFilter(e.target.value)}
+                  className="h-7 rounded-md border border-[#e3e0d8] bg-white px-2 text-[11px] text-[#2d2d28] hover:bg-[#faf8f3]"
+                  title="Filter by activity calendar"
                 >
-                  <option value="">◇ Resource (All)</option>
-                  <option value="__none">Unassigned</option>
-                  {resources.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
+                  <option value="">Calendar · All</option>
+                  <option value="__default">Project default only</option>
+                  {calendars.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
                     </option>
                   ))}
                 </select>
-              );
-            })()}
+              ) : null}
 
-            {structure && structure.codeTypes.length > 0 ? (
-              <select
-                value={codeFilter}
-                onChange={(e) => setCodeFilter(e.target.value)}
-                className="h-7 rounded-md border border-[#e3e0d8] bg-white px-2 text-xs text-[#2d2d28] hover:bg-[#faf8f3]"
-                title="Filter by activity code"
-              >
-                <option value="">◊ Code (All)</option>
-                {structure.codeTypes.map((t) => (
-                  <optgroup key={t.id} label={t.name}>
-                    {t.values.map((v) => (
-                      <option key={v.id} value={`${t.id}:${v.id}`}>
-                        {t.name}: {v.code}
-                        {v.description ? ` · ${v.description}` : ""}
+              {(() => {
+                const resources = Array.from(
+                  new Set(
+                    (draft?.tasks ?? [])
+                      .map((t) => t.resourceName?.trim())
+                      .filter((r): r is string => !!r),
+                  ),
+                ).sort();
+                if (resources.length === 0) return null;
+                return (
+                  <select
+                    value={resourceFilter}
+                    onChange={(e) => setResourceFilter(e.target.value)}
+                    className="h-7 rounded-md border border-[#e3e0d8] bg-white px-2 text-[11px] text-[#2d2d28] hover:bg-[#faf8f3]"
+                    title="Filter by resource"
+                  >
+                    <option value="">Resource · All</option>
+                    <option value="__none">Unassigned</option>
+                    {resources.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
                       </option>
                     ))}
-                  </optgroup>
-                ))}
-              </select>
-            ) : null}
+                  </select>
+                );
+              })()}
 
-
-            <div className="flex items-center rounded-md border border-[#e3e0d8] bg-white">
-              {(["wbs", "critical", "none"] as const).map((g, i) => (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => setGroupBy(g)}
-                  className={`px-2.5 py-1 text-xs ${
-                    i > 0 ? "border-l border-[#e3e0d8]" : ""
-                  } ${
-                    groupBy === g
-                      ? "bg-[#1f241f] text-white"
-                      : "text-[#4a4944] hover:bg-[#faf8f3]"
-                  }`}
+              {structure && structure.codeTypes.length > 0 ? (
+                <select
+                  value={codeFilter}
+                  onChange={(e) => setCodeFilter(e.target.value)}
+                  className="h-7 rounded-md border border-[#e3e0d8] bg-white px-2 text-[11px] text-[#2d2d28] hover:bg-[#faf8f3]"
+                  title="Filter by activity code"
                 >
-                  {g === "wbs" ? "Group: WBS" : g === "critical" ? "Critical" : "Flat"}
-                </button>
-              ))}
+                  <option value="">Code · All</option>
+                  {structure.codeTypes.map((t) => (
+                    <optgroup key={t.id} label={t.name}>
+                      {t.values.map((v) => (
+                        <option key={v.id} value={`${t.id}:${v.id}`}>
+                          {t.name}: {v.code}
+                          {v.description ? ` · ${v.description}` : ""}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              ) : null}
+
+              <div className="flex items-center overflow-hidden rounded-md border border-[#e3e0d8] bg-white">
+                {(["wbs", "critical", "none"] as const).map((g, i) => (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => setGroupBy(g)}
+                    className={`px-2.5 py-1 text-[11px] ${
+                      i > 0 ? "border-l border-[#e3e0d8]" : ""
+                    } ${
+                      groupBy === g
+                        ? "bg-[#1f241f] text-white"
+                        : "text-[#4a4944] hover:bg-[#faf8f3]"
+                    }`}
+                  >
+                    {g === "wbs" ? "WBS" : g === "critical" ? "Critical" : "Flat"}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowCompleted((v) => !v)}
+                className={`rounded-md border border-[#e3e0d8] px-2.5 py-1 text-[11px] ${
+                  showCompleted ? "bg-white text-[#4a4944]" : "bg-[#1f241f] text-white"
+                } hover:bg-[#faf8f3]`}
+                title="Hide 100% complete activities"
+              >
+                {showCompleted ? "All" : "Remaining"}
+              </button>
+
+              <label
+                className="flex items-center gap-1.5 rounded-md border border-[#e3e0d8] bg-white px-2 py-0.5 text-[11px] text-[#4a4944]"
+                title="Activities with total float at or below this many working days are highlighted as near-critical."
+              >
+                <span className="inline-block h-2 w-2 rounded-sm bg-[var(--sched-near-critical,#c08a17)]" />
+                <span className="text-[10px] uppercase tracking-wide text-[#6b6a63]">Near-crit ≤</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={99}
+                  step={1}
+                  value={nearCriticalFloat}
+                  onChange={(e) =>
+                    setNearCriticalFloat(Math.max(0, Math.min(99, Number(e.target.value) || 0)))
+                  }
+                  className="h-5 w-10 rounded border border-[#e3e0d8] bg-white px-1 text-right text-[11px] tabular-nums"
+                />
+                <span className="text-[10px] text-[#8a8980]">d</span>
+              </label>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowCompleted((v) => !v)}
-              className={`rounded-md border border-[#e3e0d8] px-2.5 py-1 text-xs ${
-                showCompleted ? "bg-white text-[#4a4944]" : "bg-[#1f241f] text-white"
-              } hover:bg-[#faf8f3]`}
-              title="Hide 100% complete activities"
-            >
-              {showCompleted ? "All activities" : "Remaining only"}
-            </button>
+            <div className="h-5 w-px bg-[#ecebe5]" />
 
-            <label
-              className="flex items-center gap-1.5 rounded-md border border-[#e3e0d8] bg-white px-2 py-0.5 text-[11px] text-[#4a4944]"
-              title="Activities with total float at or below this many working days are highlighted as near-critical."
-            >
-              <span className="inline-block h-2 w-2 rounded-sm bg-[#d97706]" />
-              <span className="uppercase tracking-wide text-[10px] text-[#6b6a63]">Near-crit ≤</span>
-              <input
-                type="number"
-                min={0}
-                max={99}
-                step={1}
-                value={nearCriticalFloat}
-                onChange={(e) =>
-                  setNearCriticalFloat(Math.max(0, Math.min(99, Number(e.target.value) || 0)))
-                }
-                className="h-5 w-10 rounded border border-[#e3e0d8] bg-white px-1 text-right text-[11px] tabular-nums"
-              />
-              <span className="text-[10px] text-[#8a8980]">d</span>
-            </label>
+            {/* ——— ANALYZE ——— */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">Analyze</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!computed || computed.tasks.length === 0) return;
+                  const finish = computed.tasks.reduce((a, b) =>
+                    b.earlyFinish > a.earlyFinish ? b : a,
+                  );
+                  setSelectedTaskId(finish.id);
+                }}
+                className="rounded-md border border-[#d9c9ee] bg-[#f6f0ff] px-2.5 py-1 text-[11px] font-medium text-[#5c3d8a] hover:bg-[#ede0ff]"
+                title="Highlight the longest driving chain into project finish"
+              >
+                Driving path
+              </button>
+            </div>
 
+            <div className="ml-auto flex items-center gap-3">
+              {/* ——— COMPARE ——— */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">Compare</span>
+                <BaselinesPanel
+                  scheduleId={selectedId}
+                  comparisonId={comparisonBaselineId}
+                  onComparisonChange={setComparisonBaselineId}
+                  dirty={dirty}
+                />
+              </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                if (!computed || computed.tasks.length === 0) return;
-                const finish = computed.tasks.reduce((a, b) =>
-                  b.earlyFinish > a.earlyFinish ? b : a,
-                );
-                setSelectedTaskId(finish.id);
-              }}
-              className="rounded-md border border-[#b89dd9] bg-[#f6f0ff] px-2.5 py-1 text-xs font-medium text-[#5c3d8a] hover:bg-[#ede0ff]"
-              title="Highlight the longest driving chain into project finish"
-            >
-              ★ Driving path
-            </button>
+              <div className="h-5 w-px bg-[#ecebe5]" />
 
-            <div className="ml-auto flex items-center gap-2">
-              {/* Baseline picker */}
-              <BaselinesPanel
-                scheduleId={selectedId}
-                comparisonId={comparisonBaselineId}
-                onComparisonChange={setComparisonBaselineId}
-                dirty={dirty}
-                
-              />
-
-              <div className="mx-1 h-5 w-px bg-[#e3e0d8]" />
-
-              {/* Zoom */}
-              <div className="flex items-center gap-1">
-                <span className="text-[10px] uppercase tracking-wide text-[#6b6a63]">
-                  Zoom
-                </span>
+              {/* ——— ZOOM ——— */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">Zoom</span>
                 <button
                   type="button"
                   onClick={() => { setZoomUserSet(false); fitToContainer(); }}
-                  className="rounded border border-[#e3e0d8] px-1.5 py-0.5 text-[10px] text-[#4a4944] hover:bg-[#faf8f3]"
+                  className="rounded border border-[#e3e0d8] bg-white px-1.5 py-0.5 text-[10px] text-[#4a4944] hover:bg-[#faf8f3]"
                   title="Fit project to viewport"
                 >
                   Fit
                 </button>
-
-                {ZOOM_LEVELS.map((z) => (
-                  <button
-                    key={z.label}
-                    type="button"
-                    onClick={() => setDayPxUser(z.dayPx)}
-                    className={`rounded px-1.5 py-0.5 text-[10px] ${
-                      dayPx === z.dayPx && zoomUserSet
-                        ? "bg-[#1f241f] text-white"
-                        : "border border-[#e3e0d8] text-[#4a4944] hover:bg-[#faf8f3]"
-                    }`}
-                  >
-                    {z.label}
-                  </button>
-                ))}
+                <div className="flex items-center overflow-hidden rounded-md border border-[#e3e0d8] bg-white">
+                  {ZOOM_LEVELS.map((z, i) => (
+                    <button
+                      key={z.label}
+                      type="button"
+                      onClick={() => setDayPxUser(z.dayPx)}
+                      className={`px-2 py-0.5 text-[10px] ${
+                        i > 0 ? "border-l border-[#e3e0d8]" : ""
+                      } ${
+                        dayPx === z.dayPx && zoomUserSet
+                          ? "bg-[#1f241f] text-white"
+                          : "text-[#4a4944] hover:bg-[#faf8f3]"
+                      }`}
+                    >
+                      {z.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
+
 
           {/* ============ MAIN CONTENT ============ */}
           <div className="flex flex-1 min-h-0 flex-col">
