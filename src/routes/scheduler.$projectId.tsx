@@ -1777,6 +1777,7 @@ function SchedulerPage() {
         selectedTaskId={selectedTaskId}
         onSelect={setSelectedTaskId}
         nearCriticalFloat={nearCriticalFloat}
+        topOffset={0}
       />
     </RightInspectorGate>
     <ProductModeOverlay />
