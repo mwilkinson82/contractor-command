@@ -697,7 +697,7 @@ export function CpmGrid({
                         >
                           {t.id}
                           {baselineT && slipped !== 0 ? (
-                            <tspan fill={slipped > 0 ? "#b42318" : "#2f7a3e"}>
+                            <tspan fill={slipped > 0 ? "var(--sched-critical)" : "var(--sched-validated)"}>
                               {` ${slipped > 0 ? "+" : ""}${slipped}d`}
                             </tspan>
                           ) : null}
