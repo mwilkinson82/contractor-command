@@ -151,8 +151,6 @@ function SchedulerPage() {
   const [inspectorExpanded, setInspectorExpanded] = useState(false);
   // UI-2.0 moved Schedule Intelligence into a bottom-anchored dock owned by
   // SchedulerLayoutContext. The old right-side drawer state is gone.
-  // Focus mode hides the portal top-strip + sidebar so the grid is the hero.
-  const [focusMode, setFocusMode] = useState(false);
 
 
   // Hydrate from localStorage on mount / project change.
@@ -166,13 +164,11 @@ function SchedulerPage() {
         inspectorHeight: number;
         inspectorCollapsed: boolean;
         inspectorExpanded: boolean;
-        focusMode: boolean;
       }>;
       if (typeof v.nameColWidth === "number") setNameColWidth(v.nameColWidth);
       if (typeof v.inspectorHeight === "number") setInspectorHeight(v.inspectorHeight);
       if (typeof v.inspectorCollapsed === "boolean") setInspectorCollapsed(v.inspectorCollapsed);
       if (typeof v.inspectorExpanded === "boolean") setInspectorExpanded(v.inspectorExpanded);
-      if (typeof v.focusMode === "boolean") setFocusMode(v.focusMode);
     } catch {
       /* ignore corrupted layout */
     }
@@ -190,7 +186,6 @@ function SchedulerPage() {
           inspectorHeight,
           inspectorCollapsed,
           inspectorExpanded,
-          focusMode,
         }),
       );
     } catch {
@@ -202,19 +197,18 @@ function SchedulerPage() {
     inspectorHeight,
     inspectorCollapsed,
     inspectorExpanded,
-    focusMode,
   ]);
 
 
-  // Apply focus mode by toggling a body class so global CSS hides the
-  // portal-level top-strip + sidebar. Always clean up on unmount.
+  // Legacy focus mode is no longer user-facing. Remove any persisted body
+  // class from prior sessions so the layout cannot drift into an old mode.
   useEffect(() => {
     if (typeof document === "undefined") return;
-    document.body.classList.toggle("scheduler-focus-mode", focusMode);
+    document.body.classList.remove("scheduler-focus-mode");
     return () => {
       document.body.classList.remove("scheduler-focus-mode");
     };
-  }, [focusMode]);
+  }, []);
 
   // Always default the inspector to collapsed when nothing is selected so
   // the table/Gantt is the hero. When the user selects an activity the
