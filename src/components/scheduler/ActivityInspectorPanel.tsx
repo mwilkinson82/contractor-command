@@ -111,15 +111,15 @@ export function ActivityInspectorPanel({
           className={
             "shrink-0 border-b px-3 py-2 " +
             (selectedTask
-              ? "border-[#1f241f] bg-[#1f241f] text-[#f5f0e0]"
-              : "border-[#ecebe5] bg-[#faf8f3] text-[#1f241f]")
+              ? "border-[var(--sched-graphite-strong)] bg-[var(--sched-graphite-strong)] text-[var(--sched-brass-soft)]"
+              : "border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] text-[var(--sched-graphite-strong)]")
           }
         >
           <div className="flex items-center justify-between gap-2">
             <div
               className={
                 "text-[9.5px] font-semibold uppercase tracking-[0.2em] " +
-                (selectedTask ? "text-[#c9a84c]" : "text-[#675d4b]")
+                (selectedTask ? "text-[var(--sched-brass)]" : "text-[var(--sched-graphite)]")
               }
             >
               {selectedTask ? "Activity" : "Schedule"} Inspector
@@ -130,8 +130,8 @@ export function ActivityInspectorPanel({
               className={
                 "shrink-0 rounded p-0.5 " +
                 (selectedTask
-                  ? "text-[#c9a84c] hover:bg-[#2a2f2a]"
-                  : "text-[#6b6a63] hover:bg-white")
+                  ? "text-[var(--sched-brass)] hover:bg-[#2a2f2a]"
+                  : "text-[var(--sched-graphite)] hover:bg-white")
               }
               aria-label="Collapse inspector"
               data-testid="activity-inspector-toggle"
@@ -143,7 +143,7 @@ export function ActivityInspectorPanel({
           {selectedTask && draftTask ? (
             <>
               <div className="mt-1 flex items-baseline gap-2">
-                <span className="font-mono text-[12px] tabular-nums text-[#c9a84c]">
+                <span className="font-mono text-[12px] tabular-nums text-[var(--sched-brass)]">
                   {selectedTask.id}
                 </span>
                 {status ? (
@@ -163,7 +163,7 @@ export function ActivityInspectorPanel({
               >
                 {draftTask.name}
               </div>
-              <div className="mt-1 text-[10px] text-[#9b9075]">
+              <div className="mt-1 text-[10px] text-[var(--sched-graphite-soft)]">
                 {draftTask.wbs ? `WBS ${draftTask.wbs} · ` : ""}
                 {selectedTask.duration}d · {fmtShort(selectedTask.earlyStartDate)} →{" "}
                 {fmtShort(selectedTask.earlyFinishDate)}
@@ -172,11 +172,11 @@ export function ActivityInspectorPanel({
           ) : null}
         </header>
       ) : (
-        <header className="flex shrink-0 items-center justify-center border-b border-[#ecebe5] bg-[#faf8f3] py-1.5">
+        <header className="flex shrink-0 items-center justify-center border-b border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] py-1.5">
           <button
             type="button"
             onClick={() => setInspectorOpen(true)}
-            className="grid h-7 w-7 place-items-center rounded bg-[#1f241f] text-[10px] font-bold tracking-wide text-[#f7e9b8] hover:bg-[#2a2f2a]"
+            className="grid h-7 w-7 place-items-center rounded bg-[var(--sched-graphite-strong)] text-[10px] font-bold tracking-wide text-[var(--sched-brass-soft)] hover:bg-[#2a2f2a]"
             data-testid="activity-inspector-toggle"
             aria-label="Expand inspector"
             title={selectedTask ? `${selectedTask.id}` : "Expand inspector"}
@@ -220,15 +220,15 @@ function truncId(id: string): string {
 function headerChipClass(tone: StatusTone): string {
   switch (tone) {
     case "critical":
-      return "bg-[#b42318] text-white";
+      return "bg-[var(--sched-critical)] text-white";
     case "warn":
-      return "bg-[#d4842a] text-[#241a05]";
+      return "bg-[var(--sched-near-critical)] text-[var(--sched-graphite-strong)]";
     case "ok":
-      return "bg-[#3d8a5c] text-white";
+      return "bg-[var(--sched-validated)] text-white";
     case "info":
       return "bg-[#3b5f8a] text-white";
     default:
-      return "bg-[#3a3f3a] text-[#d8d3c2]";
+      return "bg-[var(--sched-graphite-strong)] text-[var(--sched-graphite-soft)]";
   }
 }
 
@@ -269,15 +269,15 @@ function SelectedActivityCommandCenter({
   return (
     <div className="flex flex-col">
       {/* Quick action strip */}
-      <div className="flex items-center justify-between border-b border-[#ecebe5] bg-[#faf8f3] px-3 py-1">
-        <span className="text-[9.5px] font-semibold uppercase tracking-wider text-[#8a8980]">
+      <div className="flex items-center justify-between border-b border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] px-3 py-1">
+        <span className="text-[9.5px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
           {fmtPct(draftTask.percentComplete)} complete · TF {selectedTask.totalFloat}d · FF{" "}
           {selectedTask.freeFloat}d
         </span>
         <button
           type="button"
           onClick={onClear}
-          className="text-[10px] uppercase tracking-wider text-[#675d4b] hover:text-[#1f241f]"
+          className="text-[10px] uppercase tracking-wider text-[var(--sched-graphite)] hover:text-[var(--sched-graphite-strong)]"
           title="Clear selection"
         >
           Clear
@@ -329,29 +329,29 @@ function SelectedActivityCommandCenter({
       </Section>
 
       <Section title="Date Intelligence" defaultOpen testId="inspector-section-dates">
-        <div className="grid grid-cols-[auto_1fr_1fr] gap-x-3 gap-y-0.5 px-3 py-1.5 font-mono text-[11px] tabular-nums text-[#1f241f]">
-          <span className="text-[9.5px] font-semibold uppercase tracking-wider text-[#8a8980]">
+        <div className="grid grid-cols-[auto_1fr_1fr] gap-x-3 gap-y-0.5 px-3 py-1.5 font-mono text-[11px] tabular-nums text-[var(--sched-graphite-strong)]">
+          <span className="text-[9.5px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
             &nbsp;
           </span>
-          <span className="text-[9.5px] font-semibold uppercase tracking-wider text-[#8a8980]">
+          <span className="text-[9.5px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
             Early
           </span>
-          <span className="text-[9.5px] font-semibold uppercase tracking-wider text-[#8a8980]">
+          <span className="text-[9.5px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
             Late
           </span>
-          <span className="text-[9.5px] font-semibold uppercase tracking-wider text-[#8a8980]">
+          <span className="text-[9.5px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
             Start
           </span>
           <span>{fmtShort(selectedTask.earlyStartDate)}</span>
           <span>{fmtShort(selectedTask.lateStartDate)}</span>
-          <span className="text-[9.5px] font-semibold uppercase tracking-wider text-[#8a8980]">
+          <span className="text-[9.5px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
             Finish
           </span>
           <span>{fmtShort(selectedTask.earlyFinishDate)}</span>
           <span>{fmtShort(selectedTask.lateFinishDate)}</span>
         </div>
         <Row label="Data date" value={fmtShort(draft.dataDate)} mono />
-        <p className="px-3 pb-2 text-[10px] leading-snug text-[#8a8980]">
+        <p className="px-3 pb-2 text-[10px] leading-snug text-[var(--sched-graphite)]">
           Baseline delta appears here once a baseline is selected for comparison.
         </p>
       </Section>
@@ -446,7 +446,7 @@ function NoSelectionSummary({
       <DashRow label="Open ends" value={String(openEnds)} mono tone={openEnds > 0 ? "warn" : undefined} />
       <DashRow label="Diagnostics" value={String(diagnostics)} mono tone={diagnostics > 0 ? "warn" : undefined} />
       <DashRow label="Quality" value={quality} tone={quality === "Good" ? "ok" : "warn"} />
-      <div className="border-t border-[#ecebe5] px-3 py-2">
+      <div className="border-t border-[var(--sched-surface-rule-soft)] px-3 py-2">
         <Hint>Select an activity in the table or Gantt to open its command center.</Hint>
       </div>
     </div>
@@ -487,24 +487,24 @@ function Section({
   const [open, setOpen] = React.useState(defaultOpen);
   return (
     <section
-      className={"border-b border-[#ecebe5] " + (emphasis ? "bg-[#fbf5e3]/40" : "")}
+      className={"border-b border-[var(--sched-surface-rule-soft)] " + (emphasis ? "bg-[#fbf5e3]/40" : "")}
       data-testid={testId}
     >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left hover:bg-[#faf8f3]"
+        className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left hover:bg-[var(--sched-ivory)]"
         aria-expanded={open}
       >
         <span
           className={
             "text-[10px] font-semibold uppercase tracking-[0.18em] " +
-            (emphasis ? "text-[#7a5512]" : "text-[#675d4b]")
+            (emphasis ? "text-[var(--sched-near-critical)]" : "text-[var(--sched-graphite)]")
           }
         >
           {title}
         </span>
-        <span className="text-[10px] text-[#8a8980]">{open ? "▾" : "▸"}</span>
+        <span className="text-[10px] text-[var(--sched-graphite)]">{open ? "▾" : "▸"}</span>
       </button>
       {open ? <div className="pb-1">{children}</div> : null}
     </section>
@@ -522,12 +522,12 @@ function Row({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-2 px-3 py-0.5">
-      <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wider text-[#8a8980]">
+      <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
         {label}
       </span>
       <span
         className={
-          "min-w-0 truncate text-[11.5px] text-[#1f241f] " +
+          "min-w-0 truncate text-[11.5px] text-[var(--sched-graphite-strong)] " +
           (mono ? "font-mono tabular-nums" : "")
         }
         title={typeof value === "string" ? value : undefined}
@@ -553,17 +553,17 @@ function DashRow({
 }) {
   const valueColor =
     tone === "critical"
-      ? "text-[#b42318]"
+      ? "text-[var(--sched-critical)]"
       : tone === "warn"
-        ? "text-[#a36514]"
+        ? "text-[var(--sched-near-critical)]"
         : tone === "ok"
-          ? "text-[#2f5e3a]"
-          : "text-[#1f241f]";
+          ? "text-[var(--sched-validated)]"
+          : "text-[var(--sched-graphite-strong)]";
   return (
-    <div className="flex items-baseline justify-between gap-2 border-b border-[#f4f2ec] px-3 py-1.5 last:border-b-0">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-[#675d4b]">
+    <div className="flex items-baseline justify-between gap-2 border-b border-[var(--sched-surface-rule-soft)] px-3 py-1.5 last:border-b-0">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
         {label}
-        {sub ? <span className="ml-1.5 text-[9px] normal-case text-[#8a8980]">{sub}</span> : null}
+        {sub ? <span className="ml-1.5 text-[9px] normal-case text-[var(--sched-graphite)]">{sub}</span> : null}
       </div>
       <div
         className={`text-[13px] font-semibold tracking-tight ${valueColor} ${mono ? "font-mono tabular-nums" : ""}`}
@@ -575,7 +575,7 @@ function DashRow({
 }
 
 function Divider() {
-  return <div className="h-px bg-[#ecebe5]" />;
+  return <div className="h-px bg-[var(--sched-surface-rule-soft)]" />;
 }
 
 function CountStat({
@@ -588,15 +588,15 @@ function CountStat({
   driving: number;
 }) {
   return (
-    <div className="rounded border border-[#e3e0d8] bg-white px-2 py-1.5">
-      <div className="text-[9px] font-semibold uppercase tracking-wider text-[#8a8980]">
+    <div className="rounded border border-[var(--sched-surface-rule)] bg-white px-2 py-1.5">
+      <div className="text-[9px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
         {label}
       </div>
       <div className="mt-0.5 flex items-baseline gap-2">
-        <span className="font-mono text-[16px] font-semibold tabular-nums leading-none text-[#1f241f]">
+        <span className="font-mono text-[16px] font-semibold tabular-nums leading-none text-[var(--sched-graphite-strong)]">
           {count}
         </span>
-        <span className="text-[10px] font-semibold text-[#c2750a]" title="Driving relationships (control activity's float)">
+        <span className="text-[10px] font-semibold text-[var(--sched-near-critical)]" title="Driving relationships (control activity's float)">
           {driving} driving
         </span>
       </div>
@@ -627,21 +627,21 @@ function RelTable({
   return (
     <div className="px-3 pb-2 pt-2">
       <div className="mb-1 flex items-baseline justify-between gap-2">
-        <span className="text-[9.5px] font-semibold uppercase tracking-wider text-[#675d4b]">
+        <span className="text-[9.5px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
           {title}
         </span>
-        <span className="font-mono text-[9.5px] tabular-nums text-[#8a8980]">
+        <span className="font-mono text-[9.5px] tabular-nums text-[var(--sched-graphite)]">
           {driving.length > 0
             ? `${driving.length} driving · ${nonDriving.length} non-driving`
             : `${deps.length}`}
         </span>
       </div>
       {deps.length === 0 ? (
-        <p className="text-[10.5px] italic text-[#8a8980]">{emptyLabel}</p>
+        <p className="text-[10.5px] italic text-[var(--sched-graphite)]">{emptyLabel}</p>
       ) : (
-        <div className="overflow-hidden rounded border border-[#e3e0d8] bg-white">
+        <div className="overflow-hidden rounded border border-[var(--sched-surface-rule)] bg-white">
           {/* Column headers — explicit CPM terms */}
-          <div className="grid grid-cols-[44px_1fr_28px_36px_18px] items-center gap-1 border-b border-[#ecebe5] bg-[#faf8f3] px-1.5 py-0.5 text-[8.5px] font-semibold uppercase tracking-wider text-[#8a8980]">
+          <div className="grid grid-cols-[44px_1fr_28px_36px_18px] items-center gap-1 border-b border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] px-1.5 py-0.5 text-[8.5px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
             <span title="Activity ID">ID</span>
             <span title="Activity Name">Name</span>
             <span title="Relationship Type (FS/SS/FF/SF)">Rel</span>
@@ -658,36 +658,36 @@ function RelTable({
                 <li
                   key={`${otherId}-${i}`}
                   className={
-                    "border-b border-[#f4f2ec] last:border-b-0 " +
-                    (isFirstNonDriving ? "border-t border-t-[#e3e0d8]" : "")
+                    "border-b border-[var(--sched-surface-rule-soft)] last:border-b-0 " +
+                    (isFirstNonDriving ? "border-t border-t-[var(--sched-surface-rule)]" : "")
                   }
                 >
                   <button
                     type="button"
                     onClick={() => onSelect(otherId)}
-                    className="grid w-full grid-cols-[44px_1fr_28px_36px_18px] items-center gap-1 px-1.5 py-1 text-left text-[10.5px] hover:bg-[#faf8f3]"
+                    className="grid w-full grid-cols-[44px_1fr_28px_36px_18px] items-center gap-1 px-1.5 py-1 text-left text-[10.5px] hover:bg-[var(--sched-ivory)]"
                     title={`Jump to activity ${otherId}${
                       other ? " · " + other.name : ""
                     } — ${d.type}${d.lag ? ` ${d.lag > 0 ? "+" : ""}${d.lag}d` : ""} · ${
                       d.isDriving ? "Driving" : "Non-driving"
                     }`}
                   >
-                    <span className="truncate font-mono tabular-nums text-[#1f241f]">
+                    <span className="truncate font-mono tabular-nums text-[var(--sched-graphite-strong)]">
                       {otherId}
                     </span>
-                    <span className="truncate text-[#3a3f3a]">
+                    <span className="truncate text-[var(--sched-graphite-strong)]">
                       {other?.name ?? "—"}
                     </span>
-                    <span className="font-mono text-[9.5px] font-semibold tabular-nums text-[#675d4b]">
+                    <span className="font-mono text-[9.5px] font-semibold tabular-nums text-[var(--sched-graphite)]">
                       {d.type}
                     </span>
-                    <span className="text-right font-mono text-[9.5px] tabular-nums text-[#675d4b]">
+                    <span className="text-right font-mono text-[9.5px] tabular-nums text-[var(--sched-graphite)]">
                       {d.lag ? (d.lag > 0 ? `+${d.lag}` : `${d.lag}`) : "—"}
                     </span>
                     <span
                       className={
                         "text-[10px] " +
-                        (d.isDriving ? "font-bold text-[#c2750a]" : "text-[#cfcdc4]")
+                        (d.isDriving ? "font-bold text-[var(--sched-near-critical)]" : "text-[var(--sched-graphite-soft)]")
                       }
                       aria-label={d.isDriving ? "Driving" : "Non-driving"}
                     >
@@ -698,7 +698,7 @@ function RelTable({
               );
             })}
             {deps.length > 25 ? (
-              <li className="px-1.5 py-0.5 text-[9.5px] text-[#8a8980]">
+              <li className="px-1.5 py-0.5 text-[9.5px] text-[var(--sched-graphite)]">
                 …+{deps.length - 25} more (jump from the activity table)
               </li>
             ) : null}
@@ -711,7 +711,7 @@ function RelTable({
 
 function Hint({ children }: { children: React.ReactNode }) {
   return (
-    <p className="px-3 py-1.5 text-[10.5px] leading-snug text-[#8a8980]">{children}</p>
+    <p className="px-3 py-1.5 text-[10.5px] leading-snug text-[var(--sched-graphite)]">{children}</p>
   );
 }
 
@@ -719,7 +719,7 @@ function DisabledChip({ children }: { children: React.ReactNode }) {
   return (
     <span
       aria-disabled
-      className="cursor-not-allowed rounded border border-dashed border-[#dad7cd] bg-[#faf8f3] px-1.5 py-0.5 text-[10px] font-medium text-[#8a8980]"
+      className="cursor-not-allowed rounded border border-dashed border-[var(--sched-surface-rule)] bg-[var(--sched-ivory)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--sched-graphite)]"
       title="Reserved — arrives with the annotations data layer."
     >
       {children}
