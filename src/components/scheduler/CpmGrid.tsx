@@ -960,7 +960,7 @@ export function CpmGrid({
           : false;
         return (
           <div
-            className="pointer-events-none absolute z-40 w-64 rounded-md border border-[#1f241f]/15 bg-white p-3 text-[11px] shadow-[0_8px_24px_rgba(31,36,31,0.12)]"
+            className="pointer-events-none absolute z-50 w-64 rounded-md border border-[var(--sched-overlay-rule)] bg-[var(--sched-overlay)] p-3 text-[11px] shadow-[var(--sched-overlay-shadow)]"
             style={{
               left: flipLeft ? hover.x - 268 : hover.x + 12,
               top: hover.y + 12,
@@ -970,12 +970,12 @@ export function CpmGrid({
               <span
                 className={`inline-block h-2 w-2 rounded-full ${
                   pct >= 100
-                    ? "bg-[#2f7a3e]"
+                    ? "bg-[var(--sched-validated)]"
                     : t.isCritical
-                      ? "bg-[#b42318]"
+                      ? "bg-[var(--sched-critical)]"
                       : pct > 0
-                        ? "bg-[#5b8bd6]"
-                        : "bg-[#c7b89d]"
+                        ? "bg-[var(--sched-graphite-strong)]"
+                        : "bg-[var(--sched-graphite-soft)]"
                 }`}
               />
               <span className="font-mono text-[10px] text-[#5c574e]">{t.id}</span>

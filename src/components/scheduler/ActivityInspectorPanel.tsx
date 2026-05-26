@@ -77,7 +77,7 @@ export function ActivityInspectorPanel({
     <aside
       data-testid="activity-inspector-panel"
       aria-label="Activity inspector"
-      className="fixed right-0 z-30 flex flex-col border-l border-[#e3e0d8] bg-white shadow-[-1px_0_0_rgba(0,0,0,0.02)] print:hidden"
+      className="fixed right-0 z-30 flex flex-col border-l border-[var(--sched-surface-rule)] bg-[var(--sched-surface)] print:hidden"
       style={{
         top: topOffset,
         bottom: bottomOffset,
@@ -85,6 +85,26 @@ export function ActivityInspectorPanel({
         transition: "width 120ms ease",
       }}
     >
+      {/* Edge handle — 16px hover target on the left rule for collapse/expand. */}
+      <button
+        type="button"
+        onClick={() => setInspectorOpen(!expanded)}
+        aria-label={expanded ? "Collapse inspector" : "Expand inspector"}
+        title={expanded ? "Collapse to rail" : "Expand inspector"}
+        data-testid="activity-inspector-edge-handle"
+        className="group absolute -left-2 top-0 bottom-0 z-10 flex w-4 cursor-col-resize items-center justify-center"
+      >
+        <span
+          aria-hidden
+          className="h-12 w-[3px] rounded-full bg-[var(--sched-surface-rule)] transition group-hover:bg-[var(--sched-graphite-strong)]"
+        />
+        <span
+          aria-hidden
+          className="pointer-events-none absolute left-1/2 -translate-x-1/2 grid h-5 w-5 place-items-center rounded-full border border-[var(--sched-surface-rule)] bg-[var(--sched-surface)] text-[10px] font-bold text-[var(--sched-graphite)] opacity-0 transition group-hover:opacity-100"
+        >
+          {expanded ? "›" : "‹"}
+        </span>
+      </button>
       {/* HEADER — stronger selected-activity identity */}
       {expanded ? (
         <header
