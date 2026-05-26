@@ -117,12 +117,21 @@ describe("computeFitDayPx", () => {
     ).toBe(FIT_DAYPX_MIN);
   });
   it("produces fractional dayPx so the timeline fills edge-to-edge", () => {
-    // 1000 - sticky - 2 over 100 days should be a non-integer in the clamp.
     const sticky = getCpmStickyTableWidth();
-    const expected = (1000 - sticky - FIT_AVAILABLE_PADDING) / 100;
+    const workSurface = 1500;
+    const duration = 100;
+    const expected = (workSurface - sticky - FIT_AVAILABLE_PADDING) / duration;
+    // Guard: the expected value must fall inside the clamp so we are actually
+    // testing the fractional path, not the clamp.
+    expect(expected).toBeGreaterThan(FIT_DAYPX_MIN);
+    expect(expected).toBeLessThan(FIT_DAYPX_MAX);
     expect(
-      computeFitDayPx({ workSurface: 1000, projectDuration: 100 }),
+      computeFitDayPx({ workSurface, projectDuration: duration }),
     ).toBeCloseTo(expected, 6);
+    // And the result must not be an integer — regression guard for the
+    // historical Math.floor() that left a white gutter before the inspector.
+    const actual = computeFitDayPx({ workSurface, projectDuration: duration });
+    expect(actual).not.toBe(Math.floor(actual));
   });
 });
 
