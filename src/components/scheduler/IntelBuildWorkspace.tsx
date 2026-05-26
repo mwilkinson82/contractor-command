@@ -169,12 +169,12 @@ export function IntelBuildWorkspace({
 
   return (
     <div
-      className="flex h-full min-h-0 flex-1 flex-col bg-[#fdfcf7] text-[12px] text-[#3a3a35]"
+      className="flex h-full min-h-0 flex-1 flex-col bg-[var(--sched-ivory)] text-[12px] text-[var(--sched-graphite-strong)]"
       data-testid="intel-build-workspace"
     >
       <header
         className={
-          "shrink-0 border-b border-[#ece8db] bg-gradient-to-r from-white via-white to-[#f7e9b8]/30 " +
+          "shrink-0 border-b border-[var(--sched-surface-rule-soft)] bg-gradient-to-r from-white via-white to-[var(--sched-brass-soft)]/30 " +
           (expanded ? "px-6 py-4" : "px-4 py-2.5")
         }
       >
@@ -182,22 +182,22 @@ export function IntelBuildWorkspace({
           <div className="flex items-start gap-3">
             <div
               aria-hidden
-              className="mt-1 h-8 w-[3px] shrink-0 rounded-full bg-gradient-to-b from-[#c9a84c] to-[#a89968]"
+              className="mt-1 h-8 w-[3px] shrink-0 rounded-full bg-gradient-to-b from-[var(--sched-brass)] to-[var(--sched-brass-deep)]"
             />
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#a89968]">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--sched-brass-deep)]">
                 Build Mode · Flagship workspace
               </div>
               <div
                 className={
-                  "mt-0.5 font-semibold text-[#1f241f] " +
+                  "mt-0.5 font-semibold text-[var(--sched-graphite-strong)] " +
                   (expanded ? "text-[20px] leading-tight" : "text-[13px]")
                 }
               >
                 Describe the job. Baseline drafts the CPM.
               </div>
               {expanded ? (
-                <div className="mt-1 max-w-[68ch] text-[12px] leading-relaxed text-[#6b6a63]">
+                <div className="mt-1 max-w-[68ch] text-[12px] leading-relaxed text-[var(--sched-graphite)]">
                   Create a draft WBS, activities, durations, and logic before
                   anything is added to the live schedule. Nothing here writes
                   to the schedule until you review and approve.
@@ -209,7 +209,7 @@ export function IntelBuildWorkspace({
             <button
               type="button"
               onClick={onToggleExpanded}
-              className="shrink-0 rounded border border-[#ece8db] bg-white px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-[#1f241f] hover:border-[#1f241f]"
+              className="shrink-0 rounded border border-[var(--sched-surface-rule-soft)] bg-white px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-[var(--sched-graphite-strong)] hover:border-[var(--sched-graphite-strong)]"
               data-testid="intel-build-expand-toggle"
             >
               {expanded ? "Collapse" : "Expand"}
@@ -223,19 +223,19 @@ export function IntelBuildWorkspace({
           className="grid min-h-0 flex-1 gap-3 overflow-hidden p-4 lg:grid-cols-[minmax(300px,360px)_minmax(0,1.5fr)_minmax(300px,380px)]"
           data-testid="intel-build-3col"
         >
-          <div className="flex min-h-0 flex-col overflow-hidden rounded border border-[#ece8db] bg-white/60">
+          <div className="flex min-h-0 flex-col overflow-hidden rounded border border-[var(--sched-surface-rule-soft)] bg-white/60">
             <ColumnHeader eyebrow="01" title="Source Input" />
             <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3">
               {sourceColumn}
             </div>
           </div>
-          <div className="flex min-h-0 flex-col overflow-hidden rounded border border-[#ece8db] bg-white/60">
+          <div className="flex min-h-0 flex-col overflow-hidden rounded border border-[var(--sched-surface-rule-soft)] bg-white/60">
             <ColumnHeader eyebrow="02" title="Draft Workspace" />
             <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3">
               {draftColumn}
             </div>
           </div>
-          <div className="flex min-h-0 flex-col overflow-hidden rounded border border-[#ece8db] bg-white/60">
+          <div className="flex min-h-0 flex-col overflow-hidden rounded border border-[var(--sched-surface-rule-soft)] bg-white/60">
             <ColumnHeader eyebrow="03" title="Review & Approve" />
             <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3">
               {reviewColumn}
@@ -251,18 +251,18 @@ export function IntelBuildWorkspace({
       )}
 
       {!expanded ? (
-        <footer className="shrink-0 border-t border-[#ece8db] bg-white px-3 py-2">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#675d4b]">
+        <footer className="shrink-0 border-t border-[var(--sched-surface-rule-soft)] bg-white px-3 py-2">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--sched-graphite)]">
             Guardrails
           </div>
           <ul className="mt-1 space-y-0.5">
             {BUILD_GUARDRAILS.map((g) => (
-              <li key={g} className="text-[10.5px] text-[#6b6a63]">
+              <li key={g} className="text-[10.5px] text-[var(--sched-graphite)]">
                 • {g}
               </li>
             ))}
           </ul>
-          <div className="mt-1 text-[10px] text-[#8a8980]">{INTEL_ADVISORY_NOTE}</div>
+          <div className="mt-1 text-[10px] text-[var(--sched-graphite-soft)]">{INTEL_ADVISORY_NOTE}</div>
         </footer>
       ) : null}
 
@@ -279,10 +279,10 @@ export function IntelBuildWorkspace({
 
 function ColumnHeader({ eyebrow, title }: { eyebrow: string; title: string }) {
   return (
-    <div className="shrink-0 border-b border-[#ece8db] bg-white/80 px-3 py-2">
+    <div className="shrink-0 border-b border-[var(--sched-surface-rule-soft)] bg-white/80 px-3 py-2">
       <div className="flex items-baseline gap-2">
-        <span className="font-mono text-[10px] text-[#a89968]">{eyebrow}</span>
-        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1f241f]">
+        <span className="font-mono text-[10px] text-[var(--sched-brass-deep)]">{eyebrow}</span>
+        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--sched-graphite-strong)]">
           {title}
         </span>
       </div>
@@ -319,7 +319,7 @@ function SourceColumn({
 }) {
   return (
     <div className="flex h-full flex-col gap-3" data-testid="intel-build-input">
-      <section className="rounded border border-[#ece8db] bg-white p-3">
+      <section className="rounded border border-[var(--sched-surface-rule-soft)] bg-white p-3">
         <SectionLabel>Source</SectionLabel>
         <div className="mt-2 flex flex-wrap gap-1">
           {SOURCE_OPTIONS.map((opt) => {
@@ -337,8 +337,8 @@ function SourceColumn({
                 className={
                   "rounded border px-2 py-0.5 text-[10.5px] tracking-wide " +
                   (active
-                    ? "border-[#1f241f] bg-[#1f241f] text-[#f7e9b8]"
-                    : "border-[#ece8db] bg-white text-[#4a4944] hover:border-[#1f241f]") +
+                    ? "border-[var(--sched-graphite-strong)] bg-[var(--sched-graphite-strong)] text-[var(--sched-brass-soft)]"
+                    : "border-[var(--sched-surface-rule-soft)] bg-white text-[var(--sched-graphite)] hover:border-[var(--sched-graphite-strong)]") +
                   (disabled ? " opacity-40" : "")
                 }
               >
@@ -349,30 +349,30 @@ function SourceColumn({
         </div>
       </section>
 
-      <section className="flex flex-1 flex-col rounded border border-[#ece8db] bg-white p-3">
+      <section className="flex flex-1 flex-col rounded border border-[var(--sched-surface-rule-soft)] bg-white p-3">
         <SectionLabel>Input</SectionLabel>
         <textarea
           value={input}
           onChange={(e) => onInputChange(e.target.value)}
           placeholder={placeholderFor(source)}
-          className="mt-2 min-h-[180px] flex-1 resize-y rounded border border-[#ece8db] bg-[#fdfcf7] p-2 text-[12px] text-[#1f241f] outline-none focus:border-[#1f241f]"
+          className="mt-2 min-h-[180px] flex-1 resize-y rounded border border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] p-2 text-[12px] text-[var(--sched-graphite-strong)] outline-none focus:border-[var(--sched-graphite-strong)]"
           data-testid="intel-build-textarea"
         />
         {generateError ? (
           <div
-            className="mt-2 rounded border border-rose-300 bg-rose-50 px-2 py-1.5 text-[10.5px] text-rose-900"
+            className="mt-2 rounded border border-[var(--sched-critical)]/40 bg-[var(--sched-critical-soft)] px-2 py-1.5 text-[10.5px] text-[var(--sched-critical)]"
             data-testid="intel-build-error"
             role="alert"
           >
             {generateError} Your input is preserved — adjust and try again.
           </div>
         ) : null}
-        <p className="mt-2 text-[10.5px] text-[#8a8980]">
+        <p className="mt-2 text-[10.5px] text-[var(--sched-graphite-soft)]">
           Nothing here writes to your live schedule.
         </p>
       </section>
 
-      <section className="rounded border border-[#ece8db] bg-white p-3">
+      <section className="rounded border border-[var(--sched-surface-rule-soft)] bg-white p-3">
         <SectionLabel>Actions</SectionLabel>
         <div className="mt-2 flex flex-col gap-1.5">
           <button
@@ -382,8 +382,8 @@ function SourceColumn({
             className={
               "rounded border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider " +
               (canGenerate
-                ? "border-[#1f241f] bg-[#f7e9b8] text-[#1f241f] hover:bg-[#1f241f] hover:text-[#f7e9b8]"
-                : "cursor-not-allowed border-[#ddd6c4] bg-white/60 text-[#a8a89e]")
+                ? "border-[var(--sched-graphite-strong)] bg-[var(--sched-brass-soft)] text-[var(--sched-graphite-strong)] hover:bg-[var(--sched-graphite-strong)] hover:text-[var(--sched-brass-soft)]"
+                : "cursor-not-allowed border-[var(--sched-surface-rule)] bg-white/60 text-[var(--sched-graphite-soft)]")
             }
             title={
               source === "activity_list"
@@ -401,7 +401,7 @@ function SourceColumn({
           <button
             type="button"
             onClick={onLoadDemo}
-            className="rounded border border-[#1f241f] bg-white px-3 py-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-[#1f241f] hover:bg-[#1f241f] hover:text-[#f7e9b8]"
+            className="rounded border border-[var(--sched-graphite-strong)] bg-white px-3 py-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-[var(--sched-graphite-strong)] hover:bg-[var(--sched-graphite-strong)] hover:text-[var(--sched-brass-soft)]"
             title="Internal demo only — not AI output"
             data-testid="intel-build-load-demo"
           >
@@ -411,7 +411,7 @@ function SourceColumn({
             <button
               type="button"
               onClick={onLoadSample}
-              className="rounded border border-dashed border-[#1f241f] bg-white px-3 py-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-[#1f241f] hover:bg-[#1f241f] hover:text-[#f7e9b8]"
+              className="rounded border border-dashed border-[var(--sched-graphite-strong)] bg-white px-3 py-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-[var(--sched-graphite-strong)] hover:bg-[var(--sched-graphite-strong)] hover:text-[var(--sched-brass-soft)]"
               title="Dev only — populates the activity-list textarea with a sample input for AI-4 smoke testing"
               data-testid="intel-build-load-sample"
             >
@@ -422,16 +422,16 @@ function SourceColumn({
       </section>
 
       {showGuardrails ? (
-        <section className="rounded border border-[#ece8db] bg-white/80 p-3">
+        <section className="rounded border border-[var(--sched-surface-rule-soft)] bg-white/80 p-3">
           <SectionLabel>Guardrails</SectionLabel>
           <ul className="mt-1.5 space-y-0.5">
             {BUILD_GUARDRAILS.map((g) => (
-              <li key={g} className="text-[10.5px] leading-snug text-[#6b6a63]">
+              <li key={g} className="text-[10.5px] leading-snug text-[var(--sched-graphite)]">
                 • {g}
               </li>
             ))}
           </ul>
-          <div className="mt-1.5 text-[10px] text-[#8a8980]">
+          <div className="mt-1.5 text-[10px] text-[var(--sched-graphite-soft)]">
             {INTEL_ADVISORY_NOTE}
           </div>
         </section>
@@ -466,13 +466,13 @@ function DraftColumn({
     <div className="flex flex-col gap-3" data-testid="intel-build-preview">
       {draft ? (
         isDemo ? (
-          <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[10.5px] text-amber-900">
+          <div className="rounded border border-[var(--sched-near-critical)]/40 bg-[var(--sched-near-critical-soft)] px-3 py-2 text-[10.5px] text-[var(--sched-near-critical)]">
             DEMO DRAFT — internal scaffold data, not produced by an AI model.
             Not committed. Assumptions must be reviewed. Changes require
             approval.
           </div>
         ) : (
-          <div className="rounded border border-[#d8cdb8] bg-[#fdfcf7] px-3 py-2 text-[10.5px] text-[#4a4944]">
+          <div className="rounded border border-[var(--sched-surface-rule)] bg-[var(--sched-ivory)] px-3 py-2 text-[10.5px] text-[var(--sched-graphite)]">
             AI DRAFT · source: {SOURCE_LABEL[draft.source]} · status:{" "}
             {draft.status}. Advisory only — review every assumption and
             approve the change set before any schedule write.
@@ -488,8 +488,8 @@ function DraftColumn({
         {draft && draft.wbs.length > 0 ? (
           <ul className="space-y-0.5">
             {draft.wbs.map((w) => (
-              <li key={w.id} className="text-[11px] text-[#3a3a35]">
-                <span className="font-mono text-[#675d4b]">
+              <li key={w.id} className="text-[11px] text-[var(--sched-graphite-strong)]">
+                <span className="font-mono text-[var(--sched-graphite)]">
                   {w.code ?? "—"}
                 </span>{" "}
                 {w.name}
@@ -508,7 +508,7 @@ function DraftColumn({
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-[11px]">
               <thead>
-                <tr className="text-left text-[10px] uppercase tracking-wider text-[#8a8980]">
+                <tr className="text-left text-[10px] uppercase tracking-wider text-[var(--sched-graphite-soft)]">
                   <th className="py-1 pr-2 font-semibold">Name</th>
                   <th className="py-1 pr-2 font-semibold">WBS</th>
                   <th className="py-1 pr-2 font-semibold">Dur</th>
@@ -518,16 +518,16 @@ function DraftColumn({
               </thead>
               <tbody>
                 {draft.activities.map((a) => (
-                  <tr key={a.id} className="border-t border-[#ece8db]">
+                  <tr key={a.id} className="border-t border-[var(--sched-surface-rule-soft)]">
                     <td className="py-1 pr-2">{a.name}</td>
-                    <td className="py-1 pr-2 font-mono text-[#675d4b]">
+                    <td className="py-1 pr-2 font-mono text-[var(--sched-graphite)]">
                       {a.wbsId ? wbsById.get(a.wbsId)?.code ?? "—" : "—"}
                     </td>
                     <td className="py-1 pr-2">{a.durationDays ?? "—"}d</td>
                     <td className="py-1 pr-2">
                       {a.isMilestone ? "Milestone" : "Task"}
                     </td>
-                    <td className="py-1 text-[#8a8980]">
+                    <td className="py-1 text-[var(--sched-graphite-soft)]">
                       {a.assumed ? "assumed" : ""}
                     </td>
                   </tr>
@@ -546,15 +546,15 @@ function DraftColumn({
         {draft && draft.relationships.length > 0 ? (
           <ul className="space-y-0.5">
             {draft.relationships.map((r) => (
-              <li key={r.id} className="text-[11px] text-[#3a3a35]">
-                <span className="text-[#675d4b]">
+              <li key={r.id} className="text-[11px] text-[var(--sched-graphite-strong)]">
+                <span className="text-[var(--sched-graphite)]">
                   {actById.get(r.predecessorId)?.name ?? r.predecessorId}
                 </span>{" "}
                 →{" "}
-                <span className="text-[#675d4b]">
+                <span className="text-[var(--sched-graphite)]">
                   {actById.get(r.successorId)?.name ?? r.successorId}
                 </span>{" "}
-                <span className="font-mono text-[10px] text-[#8a8980]">
+                <span className="font-mono text-[10px] text-[var(--sched-graphite-soft)]">
                   {r.type}
                   {typeof r.lag === "number" ? ` +${r.lag}d` : ""}
                 </span>
@@ -572,7 +572,7 @@ function DraftColumn({
         {draft && draft.milestones.length > 0 ? (
           <ul className="space-y-0.5">
             {draft.milestones.map((m) => (
-              <li key={m.id} className="text-[11px] text-[#3a3a35]">
+              <li key={m.id} className="text-[11px] text-[var(--sched-graphite-strong)]">
                 ◆ {m.name}
               </li>
             ))}
@@ -590,8 +590,8 @@ function DraftColumn({
               className={
                 "rounded border px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider " +
                 (committable
-                  ? "border-emerald-600 bg-emerald-50 text-emerald-800"
-                  : "border-[#ddd6c4] bg-white text-[#8a8980]")
+                  ? "border-[var(--sched-validated)] bg-[var(--sched-validated-soft)] text-[var(--sched-validated)]"
+                  : "border-[var(--sched-surface-rule)] bg-white text-[var(--sched-graphite-soft)]")
               }
               data-testid="intel-build-committable"
             >
@@ -608,7 +608,7 @@ function DraftColumn({
               <Stat label="Add milestone" value={counts.addMilestone} />
               <Stat label="Total changes" value={counts.total} />
             </div>
-            <p className="mt-1.5 text-[10.5px] text-[#8a8980]">
+            <p className="mt-1.5 text-[10.5px] text-[var(--sched-graphite-soft)]">
               Commit is not implemented. This preview is advisory only.
             </p>
           </>
@@ -631,10 +631,10 @@ function ReviewColumn({ draft }: { draft: DraftSchedule | null }) {
         {draft && draft.assumptions.length > 0 ? (
           <ul className="space-y-0.5">
             {draft.assumptions.map((a) => (
-              <li key={a.id} className="text-[11px] text-[#3a3a35]">
+              <li key={a.id} className="text-[11px] text-[var(--sched-graphite-strong)]">
                 • {a.label}
                 {a.detail ? (
-                  <span className="text-[#8a8980]"> — {a.detail}</span>
+                  <span className="text-[var(--sched-graphite-soft)]"> — {a.detail}</span>
                 ) : null}
               </li>
             ))}
@@ -650,7 +650,7 @@ function ReviewColumn({ draft }: { draft: DraftSchedule | null }) {
         {draft && draft.questions.length > 0 ? (
           <ul className="space-y-0.5">
             {draft.questions.map((q) => (
-              <li key={q.id} className="text-[11px] text-[#3a3a35]">
+              <li key={q.id} className="text-[11px] text-[var(--sched-graphite-strong)]">
                 ? {q.question}
               </li>
             ))}
@@ -664,7 +664,7 @@ function ReviewColumn({ draft }: { draft: DraftSchedule | null }) {
         emptyHint="Validation warnings on the draft will appear here."
         statusChip={
           draft && draft.warnings.length > 0 ? (
-            <span className="rounded border border-amber-400 bg-amber-50 px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider text-amber-800">
+            <span className="rounded border border-[var(--sched-near-critical)] bg-[var(--sched-near-critical-soft)] px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider text-[var(--sched-near-critical)]">
               Review
             </span>
           ) : null
@@ -673,8 +673,8 @@ function ReviewColumn({ draft }: { draft: DraftSchedule | null }) {
         {draft && draft.warnings.length > 0 ? (
           <ul className="space-y-0.5">
             {draft.warnings.map((w) => (
-              <li key={w.id} className="text-[11px] text-[#3a3a35]">
-                <span className="font-mono text-[10px] uppercase text-[#8a8980]">
+              <li key={w.id} className="text-[11px] text-[var(--sched-graphite-strong)]">
+                <span className="font-mono text-[10px] uppercase text-[var(--sched-graphite-soft)]">
                   [{w.severity}]
                 </span>{" "}
                 {w.message}
@@ -686,18 +686,18 @@ function ReviewColumn({ draft }: { draft: DraftSchedule | null }) {
 
       <ApprovalChecklist />
 
-      <div className="mt-auto rounded border border-[#ece8db] bg-white/80 p-3">
+      <div className="mt-auto rounded border border-[var(--sched-surface-rule-soft)] bg-white/80 p-3">
         <SectionLabel>Commit</SectionLabel>
         <button
           type="button"
           disabled
-          className="mt-2 w-full cursor-not-allowed rounded bg-[#1f241f]/40 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-[#f7e9b8]"
+          className="mt-2 w-full cursor-not-allowed rounded bg-[var(--sched-graphite-strong)]/40 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--sched-brass-soft)]"
           title="Approval flow not wired — drafts are advisory only"
           data-testid="intel-build-add-to-schedule"
         >
           Add to Schedule — soon
         </button>
-        <p className="mt-1.5 text-[10px] text-[#8a8980]">
+        <p className="mt-1.5 text-[10px] text-[var(--sched-graphite-soft)]">
           Unlocks once a draft exists, every checklist item is reviewed, and
           the change set is approved. Not wired yet.
         </p>
@@ -710,7 +710,7 @@ function ReviewColumn({ draft }: { draft: DraftSchedule | null }) {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#675d4b]">
+    <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--sched-graphite)]">
       {children}
     </div>
   );
@@ -731,7 +731,7 @@ function DraftSection({
 }) {
   const hasContent = count > 0;
   return (
-    <section className="rounded border border-[#ece8db] bg-white p-3 shadow-[0_1px_0_rgba(31,36,31,0.02)]">
+    <section className="rounded border border-[var(--sched-surface-rule-soft)] bg-white p-3 shadow-[0_1px_0_rgba(31,36,31,0.02)]">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-baseline gap-2">
           <SectionLabel>{title}</SectionLabel>
@@ -739,8 +739,8 @@ function DraftSection({
             className={
               "rounded-full border px-1.5 py-0.5 text-[9.5px] font-semibold tabular-nums " +
               (hasContent
-                ? "border-[#d8cdb8] bg-[#f7e9b8]/50 text-[#1f241f]"
-                : "border-[#e3e0d8] bg-[#fdfcf7] text-[#8a8980]")
+                ? "border-[var(--sched-surface-rule)] bg-[var(--sched-brass-soft)]/50 text-[var(--sched-graphite-strong)]"
+                : "border-[var(--sched-surface-rule)] bg-[var(--sched-ivory)] text-[var(--sched-graphite-soft)]")
             }
           >
             {count}
@@ -748,7 +748,7 @@ function DraftSection({
         </div>
         {statusChip ??
           (hasContent ? null : (
-            <span className="rounded-full border border-[#e3e0d8] bg-[#fdfcf7] px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider text-[#a8a89e]">
+            <span className="rounded-full border border-[var(--sched-surface-rule)] bg-[var(--sched-ivory)] px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider text-[var(--sched-graphite-soft)]">
               Awaiting draft
             </span>
           ))}
@@ -757,12 +757,12 @@ function DraftSection({
         {hasContent ? (
           children
         ) : (
-          <div className="flex items-start gap-2 rounded border border-[#f0ece1] bg-[#fdfcf7] px-2.5 py-2">
+          <div className="flex items-start gap-2 rounded border border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] px-2.5 py-2">
             <span
               aria-hidden
-              className="mt-[5px] inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-[#c9b99a]"
+              className="mt-[5px] inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--sched-graphite-soft)]"
             />
-            <p className="text-[11px] leading-relaxed text-[#8a8980]">
+            <p className="text-[11px] leading-relaxed text-[var(--sched-graphite-soft)]">
               {emptyHint}
             </p>
           </div>
@@ -774,11 +774,11 @@ function DraftSection({
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded border border-[#ece8db] bg-[#fdfcf7] px-2 py-1">
-      <div className="text-[9.5px] uppercase tracking-wider text-[#8a8980]">
+    <div className="rounded border border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] px-2 py-1">
+      <div className="text-[9.5px] uppercase tracking-wider text-[var(--sched-graphite-soft)]">
         {label}
       </div>
-      <div className="text-[14px] font-semibold tabular-nums text-[#1f241f]">
+      <div className="text-[14px] font-semibold tabular-nums text-[var(--sched-graphite-strong)]">
         {value}
       </div>
     </div>
@@ -794,15 +794,15 @@ function ApprovalChecklist() {
     "Approve the change set",
   ];
   return (
-    <div className="rounded border border-[#ece8db] bg-white/80 p-3">
+    <div className="rounded border border-[var(--sched-surface-rule-soft)] bg-white/80 p-3">
       <SectionLabel>Approval checklist</SectionLabel>
       <ul className="mt-2 space-y-1">
         {items.map((it) => (
           <li
             key={it}
-            className="flex items-center gap-2 text-[11px] text-[#6b6a63]"
+            className="flex items-center gap-2 text-[11px] text-[var(--sched-graphite)]"
           >
-            <span className="inline-block h-3 w-3 rounded-sm border border-[#ddd6c4] bg-white" />
+            <span className="inline-block h-3 w-3 rounded-sm border border-[var(--sched-surface-rule)] bg-white" />
             {it}
           </li>
         ))}
