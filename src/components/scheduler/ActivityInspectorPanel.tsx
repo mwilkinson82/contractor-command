@@ -52,7 +52,7 @@ export function ActivityInspectorPanel({
   selectedTaskId,
   onSelect,
   nearCriticalFloat,
-  topOffset = 76,
+  topOffset = 40,
   bottomOffset = 44,
 }: ActivityInspectorPanelProps) {
   const { inspectorOpen, setInspectorOpen } = useSchedulerLayout();

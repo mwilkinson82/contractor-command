@@ -151,8 +151,6 @@ function SchedulerPage() {
   const [inspectorExpanded, setInspectorExpanded] = useState(false);
   // UI-2.0 moved Schedule Intelligence into a bottom-anchored dock owned by
   // SchedulerLayoutContext. The old right-side drawer state is gone.
-  // Focus mode hides the portal top-strip + sidebar so the grid is the hero.
-  const [focusMode, setFocusMode] = useState(false);
 
 
   // Hydrate from localStorage on mount / project change.
@@ -166,13 +164,11 @@ function SchedulerPage() {
         inspectorHeight: number;
         inspectorCollapsed: boolean;
         inspectorExpanded: boolean;
-        focusMode: boolean;
       }>;
       if (typeof v.nameColWidth === "number") setNameColWidth(v.nameColWidth);
       if (typeof v.inspectorHeight === "number") setInspectorHeight(v.inspectorHeight);
       if (typeof v.inspectorCollapsed === "boolean") setInspectorCollapsed(v.inspectorCollapsed);
       if (typeof v.inspectorExpanded === "boolean") setInspectorExpanded(v.inspectorExpanded);
-      if (typeof v.focusMode === "boolean") setFocusMode(v.focusMode);
     } catch {
       /* ignore corrupted layout */
     }
@@ -190,7 +186,6 @@ function SchedulerPage() {
           inspectorHeight,
           inspectorCollapsed,
           inspectorExpanded,
-          focusMode,
         }),
       );
     } catch {
@@ -202,19 +197,18 @@ function SchedulerPage() {
     inspectorHeight,
     inspectorCollapsed,
     inspectorExpanded,
-    focusMode,
   ]);
 
 
-  // Apply focus mode by toggling a body class so global CSS hides the
-  // portal-level top-strip + sidebar. Always clean up on unmount.
+  // Legacy focus mode is no longer user-facing. Remove any persisted body
+  // class from prior sessions so the layout cannot drift into an old mode.
   useEffect(() => {
     if (typeof document === "undefined") return;
-    document.body.classList.toggle("scheduler-focus-mode", focusMode);
+    document.body.classList.remove("scheduler-focus-mode");
     return () => {
       document.body.classList.remove("scheduler-focus-mode");
     };
-  }, [focusMode]);
+  }, []);
 
   // Always default the inspector to collapsed when nothing is selected so
   // the table/Gantt is the hero. When the user selects an activity the
@@ -819,22 +813,9 @@ function SchedulerPage() {
             type="button"
             onClick={() => setDrawerOpen(true)}
             className="rounded-md px-2.5 py-1.5 text-xs font-medium text-[var(--sched-graphite)] hover:bg-[var(--sched-surface-rule-soft)] hover:text-[var(--sched-graphite-strong)]"
-            title="Calendars, baselines, codes, reports, fragnet, update cycle, annotations"
+            title="Calendars, fragnets, update cycles, annotations"
           >
             Configure
-          </button>
-          <button
-            type="button"
-            onClick={() => setFocusMode((v) => !v)}
-            className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition ${
-              focusMode
-                ? "bg-[var(--sched-graphite-strong)] text-white hover:bg-[var(--sched-graphite-strong)]"
-                : "text-[var(--sched-graphite)] hover:bg-[var(--sched-surface-rule-soft)] hover:text-[var(--sched-graphite-strong)]"
-            }`}
-            title={focusMode ? "Exit focus mode" : "Focus mode (hide portal chrome)"}
-            aria-pressed={focusMode}
-          >
-            {focusMode ? "Exit Focus" : "Focus"}
           </button>
           <div className="mx-1 h-5 w-px bg-[var(--sched-surface-rule)]" />
           <Button
@@ -847,50 +828,6 @@ function SchedulerPage() {
           </Button>
         </div>
       </header>
-
-      {/* ============ TAB BAR ============ */}
-      <nav className="flex h-7 shrink-0 items-end gap-0 border-b border-[var(--sched-surface-rule)] bg-white/60 px-4">
-        {(
-          [
-            ["schedule", "Schedule"],
-            ["activities", "Activities"],
-            ["wbs", "WBS"],
-            ["resources", "Resources"],
-            ["reports", "Reports"],
-            ["dashboards", "Dashboards"],
-          ] as const
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setActiveTab(key)}
-            className={`relative px-3 py-1 text-[11.5px] font-medium transition ${
-              activeTab === key
-                ? "text-[var(--sched-graphite-strong)]"
-                : "text-[var(--sched-graphite)] hover:text-[var(--sched-graphite-strong)]"
-            }`}
-          >
-            {label}
-            {activeTab === key ? (
-              <span className="absolute inset-x-2 -bottom-px h-0.5 bg-[var(--sched-graphite-strong)]" />
-            ) : null}
-          </button>
-        ))}
-        <div className="ml-auto flex items-center gap-3 pb-1">
-          <Link
-            to="/scheduler-portfolio"
-            className="text-[10px] font-semibold uppercase tracking-wide text-[var(--sched-graphite)] hover:text-[var(--sched-graphite-strong)]"
-          >
-            Portfolio →
-          </Link>
-          <Link
-            to="/scheduler-field"
-            className="text-[10px] font-semibold uppercase tracking-wide text-[var(--sched-graphite)] hover:text-[var(--sched-graphite-strong)]"
-          >
-            Field →
-          </Link>
-        </div>
-      </nav>
 
       {/* ============ NOT-LOADED STATES ============ */}
       {!selectedId ? (
@@ -1345,9 +1282,12 @@ function SchedulerPage() {
                 </div>
 
 
-                {/* ============ ACTIVITY INSPECTOR (resizable / collapsible / expanded) ============ */}
+                {/* Legacy bottom inspector is intentionally hidden. The right
+                    ActivityInspectorPanel is the single activity command
+                    surface so the Gantt keeps the vertical workspace. */}
                 <div
-                  className="shrink-0 border-t border-[var(--sched-surface-rule)] bg-white print:hidden"
+                  aria-hidden="true"
+                  className="hidden"
                   style={{
                     height: inspectorCollapsed
                       ? 30
