@@ -493,38 +493,3 @@
 :root { --app-sidebar-w: 216px; }
 @media (max-width: 767px) { :root { --app-sidebar-w: 0px; } }
 
-/* ============================================================================
- * Scheduler focus mode — when active, the scheduler workbench hides the
- * portal-level top strip and sidebar so the CPM grid becomes the hero.
- * The body class is toggled by src/routes/scheduler.$projectId.tsx.
- *
- * IMPORTANT: also zero out --app-sidebar-w so any viewport-fixed overlay
- * (Build/Publish mode, IntelDock strip/drawer/full, ActivityInspector)
- * reclaims the area the sidebar used to occupy instead of leaving a blank
- * 216px gutter on the left.
- * ============================================================================ */
-body.scheduler-focus-mode { --app-sidebar-w: 0px !important; }
-body.scheduler-focus-mode header.sticky.top-0 { display: none !important; }
-body.scheduler-focus-mode aside.group\/sidebar,
-body.scheduler-focus-mode aside[class*="group/sidebar"] { display: none !important; }
-body.scheduler-focus-mode .min-h-screen.transition-\[padding\] { padding-left: 0 !important; }
-
-/* Focus-mode chrome compression — applied when the scheduler workbench
- * toggles focusMode. Targets the scheduler route's outer wrapper
- * (.scheduler-print-root) so other pages are unaffected. The goal is to
- * make the table/Gantt the hero: tab bar disappears, KPI band shrinks,
- * project meta strip becomes a single tight line, inspector sits flush.
- */
-body.scheduler-focus-mode .scheduler-print-root > header:first-of-type {
-  height: 2rem; /* h-8 */
-  padding-top: 0;
-  padding-bottom: 0;
-}
-body.scheduler-focus-mode .scheduler-print-root > nav { display: none !important; }
-body.scheduler-focus-mode [data-scheduler-toolbar] { padding-top: 2px; padding-bottom: 2px; row-gap: 4px; }
-body.scheduler-focus-mode [data-scheduler-viewmode] { display: none !important; }
-body.scheduler-focus-mode [data-scheduler-toolbar] .h-7,
-body.scheduler-focus-mode [data-scheduler-toolbar] .h-6 { height: 1.35rem; }
-body.scheduler-focus-mode [data-scheduler-kpi] { padding-top: 2px !important; padding-bottom: 2px !important; }
-body.scheduler-focus-mode [data-scheduler-kpi] [data-kpi-value] { font-size: 14px !important; }
-body.scheduler-focus-mode [data-scheduler-project-meta] { padding-top: 0 !important; padding-bottom: 0 !important; }
