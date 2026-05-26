@@ -813,22 +813,9 @@ function SchedulerPage() {
             type="button"
             onClick={() => setDrawerOpen(true)}
             className="rounded-md px-2.5 py-1.5 text-xs font-medium text-[var(--sched-graphite)] hover:bg-[var(--sched-surface-rule-soft)] hover:text-[var(--sched-graphite-strong)]"
-            title="Calendars, baselines, codes, reports, fragnet, update cycle, annotations"
+            title="Calendars, fragnets, update cycles, annotations"
           >
             Configure
-          </button>
-          <button
-            type="button"
-            onClick={() => setFocusMode((v) => !v)}
-            className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition ${
-              focusMode
-                ? "bg-[var(--sched-graphite-strong)] text-white hover:bg-[var(--sched-graphite-strong)]"
-                : "text-[var(--sched-graphite)] hover:bg-[var(--sched-surface-rule-soft)] hover:text-[var(--sched-graphite-strong)]"
-            }`}
-            title={focusMode ? "Exit focus mode" : "Focus mode (hide portal chrome)"}
-            aria-pressed={focusMode}
-          >
-            {focusMode ? "Exit Focus" : "Focus"}
           </button>
           <div className="mx-1 h-5 w-px bg-[var(--sched-surface-rule)]" />
           <Button
@@ -841,50 +828,6 @@ function SchedulerPage() {
           </Button>
         </div>
       </header>
-
-      {/* ============ TAB BAR ============ */}
-      <nav className="flex h-7 shrink-0 items-end gap-0 border-b border-[var(--sched-surface-rule)] bg-white/60 px-4">
-        {(
-          [
-            ["schedule", "Schedule"],
-            ["activities", "Activities"],
-            ["wbs", "WBS"],
-            ["resources", "Resources"],
-            ["reports", "Reports"],
-            ["dashboards", "Dashboards"],
-          ] as const
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setActiveTab(key)}
-            className={`relative px-3 py-1 text-[11.5px] font-medium transition ${
-              activeTab === key
-                ? "text-[var(--sched-graphite-strong)]"
-                : "text-[var(--sched-graphite)] hover:text-[var(--sched-graphite-strong)]"
-            }`}
-          >
-            {label}
-            {activeTab === key ? (
-              <span className="absolute inset-x-2 -bottom-px h-0.5 bg-[var(--sched-graphite-strong)]" />
-            ) : null}
-          </button>
-        ))}
-        <div className="ml-auto flex items-center gap-3 pb-1">
-          <Link
-            to="/scheduler-portfolio"
-            className="text-[10px] font-semibold uppercase tracking-wide text-[var(--sched-graphite)] hover:text-[var(--sched-graphite-strong)]"
-          >
-            Portfolio →
-          </Link>
-          <Link
-            to="/scheduler-field"
-            className="text-[10px] font-semibold uppercase tracking-wide text-[var(--sched-graphite)] hover:text-[var(--sched-graphite-strong)]"
-          >
-            Field →
-          </Link>
-        </div>
-      </nav>
 
       {/* ============ NOT-LOADED STATES ============ */}
       {!selectedId ? (
