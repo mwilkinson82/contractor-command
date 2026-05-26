@@ -236,32 +236,32 @@ export function DcmaPanel({ result }: Props) {
   }, [checks]);
 
   return (
-    <section className="rounded-md border border-[#e6dfd0] bg-white">
-      <header className="flex items-center justify-between border-b border-[#eee7d8] px-4 py-3">
+    <section className="rounded-md border border-[var(--sched-surface-rule)] bg-white">
+      <header className="flex items-center justify-between border-b border-[var(--sched-surface-rule-soft)] px-4 py-3">
         <div>
-          <h3 className="text-sm font-semibold text-[#1f241f]">
+          <h3 className="text-sm font-semibold text-[var(--sched-graphite-strong)]">
             Schedule integrity · DCMA-14
           </h3>
-          <p className="text-[11px] text-[#776e5e]">
+          <p className="text-[11px] text-[var(--sched-graphite)]">
             Industry-standard health checks for CPM schedules.
           </p>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <div className="text-[9px] font-semibold uppercase tracking-wider text-[#7a6a4d]">
+            <div className="text-[9px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
               Health score
             </div>
             <div
               className={`text-2xl font-bold leading-none tabular-nums ${
                 summary.score >= 85
-                  ? "text-[#2f7a3e]"
+                  ? "text-[var(--sched-validated)]"
                   : summary.score >= 60
-                    ? "text-[#d4842a]"
-                    : "text-[#b42318]"
+                    ? "text-[var(--sched-near-critical)]"
+                    : "text-[var(--sched-critical)]"
               }`}
             >
               {summary.score}
-              <span className="text-sm text-[#9c8b6e]">/100</span>
+              <span className="text-sm text-[var(--sched-graphite)]">/100</span>
             </div>
           </div>
           <div className="flex flex-col gap-0.5 text-[10px]">
@@ -272,38 +272,38 @@ export function DcmaPanel({ result }: Props) {
         </div>
       </header>
 
-      <ul className="divide-y divide-[#f3eede]">
+      <ul className="divide-y divide-[var(--sched-surface-rule-soft)]">
         {checks.map((c) => (
           <li key={c.id} className="grid grid-cols-[8px_1fr_auto] items-start gap-3 px-4 py-3">
             <span
               className={`mt-1 inline-block h-2 w-2 rounded-full ${
                 c.severity === "pass"
-                  ? "bg-[#2f7a3e]"
+                  ? "bg-[var(--sched-validated)]"
                   : c.severity === "warn"
-                    ? "bg-[#d4842a]"
-                    : "bg-[#b42318]"
+                    ? "bg-[var(--sched-near-critical)]"
+                    : "bg-[var(--sched-critical)]"
               }`}
             />
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-[#1f241f]">{c.label}</span>
-                <span className="text-[10px] text-[#9c8b6e]">target {c.threshold}</span>
+                <span className="text-xs font-semibold text-[var(--sched-graphite-strong)]">{c.label}</span>
+                <span className="text-[10px] text-[var(--sched-graphite)]">target {c.threshold}</span>
               </div>
-              <p className="mt-0.5 text-[11px] text-[#5c574e]">{c.description}</p>
+              <p className="mt-0.5 text-[11px] text-[var(--sched-graphite)]">{c.description}</p>
               {c.offenders.length > 0 ? (
                 <div className="mt-1.5 flex flex-wrap gap-1">
                   {c.offenders.map((o, i) => (
                     <span
                       key={i}
-                      className="inline-flex items-center gap-1 rounded border border-[#eee7d8] bg-[#faf8f3] px-1.5 py-0.5 text-[10px] text-[#5c574e]"
+                      className="inline-flex items-center gap-1 rounded border border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] px-1.5 py-0.5 text-[10px] text-[var(--sched-graphite)]"
                       title={o.name}
                     >
-                      <span className="font-mono text-[#3d3527]">{o.id}</span>
-                      {o.note ? <span className="text-[#9c8b6e]">{o.note}</span> : null}
+                      <span className="font-mono text-[var(--sched-graphite-strong)]">{o.id}</span>
+                      {o.note ? <span className="text-[var(--sched-graphite)]">{o.note}</span> : null}
                     </span>
                   ))}
                   {c.count > c.offenders.length ? (
-                    <span className="text-[10px] text-[#9c8b6e]">
+                    <span className="text-[10px] text-[var(--sched-graphite)]">
                       +{c.count - c.offenders.length} more
                     </span>
                   ) : null}
@@ -313,10 +313,10 @@ export function DcmaPanel({ result }: Props) {
             <span
               className={`min-w-[60px] text-right text-sm font-semibold tabular-nums ${
                 c.severity === "pass"
-                  ? "text-[#2f7a3e]"
+                  ? "text-[var(--sched-validated)]"
                   : c.severity === "warn"
-                    ? "text-[#d4842a]"
-                    : "text-[#b42318]"
+                    ? "text-[var(--sched-near-critical)]"
+                    : "text-[var(--sched-critical)]"
               }`}
             >
               {c.value}
@@ -331,10 +331,10 @@ export function DcmaPanel({ result }: Props) {
 function Badge({ children, tone }: { children: React.ReactNode; tone: "good" | "warn" | "bad" }) {
   const cls =
     tone === "good"
-      ? "bg-[#e9f3ec] text-[#2f7a3e]"
+      ? "bg-[var(--sched-validated-soft)] text-[var(--sched-validated)]"
       : tone === "warn"
-        ? "bg-[#fcf1e0] text-[#a35d10]"
-        : "bg-[#fbe9e6] text-[#b42318]";
+        ? "bg-[var(--sched-near-critical-soft)] text-[var(--sched-near-critical)]"
+        : "bg-[var(--sched-critical-soft)] text-[var(--sched-critical)]";
   return (
     <span className={`inline-flex justify-center rounded px-1.5 py-0.5 font-semibold ${cls}`}>
       {children}

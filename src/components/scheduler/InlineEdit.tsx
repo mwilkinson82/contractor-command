@@ -30,7 +30,7 @@ export function InlineText({ value, onCommit, className, placeholder }: InlineTe
   if (!editing) {
     return (
       <span
-        className={`block cursor-text truncate rounded-sm px-0.5 hover:bg-[#fef3d2]/50 ${className ?? ""}`}
+        className={`block cursor-text truncate rounded-sm px-0.5 hover:bg-[var(--sched-brass-soft)]/50 ${className ?? ""}`}
         onClick={(e) => {
           e.stopPropagation();
           setEditing(true);
@@ -42,7 +42,7 @@ export function InlineText({ value, onCommit, className, placeholder }: InlineTe
         title={value || placeholder}
       >
         {value || (
-          <span className="text-[#c7b89d] italic">{placeholder ?? "—"}</span>
+          <span className="text-[var(--sched-graphite-soft)] italic">{placeholder ?? "—"}</span>
         )}
       </span>
     );
@@ -68,7 +68,7 @@ export function InlineText({ value, onCommit, className, placeholder }: InlineTe
         if (draft !== value) onCommit(draft);
         setEditing(false);
       }}
-      className={`w-full rounded-sm border border-[#5b8bd6] bg-white px-1 py-0 outline-none ring-2 ring-[#5b8bd6]/20 ${className ?? ""}`}
+      className={`w-full rounded-sm border border-[var(--sched-graphite-strong)] bg-white px-1 py-0 outline-none ring-2 ring-[var(--sched-graphite-strong)]/20 ${className ?? ""}`}
     />
   );
 }
@@ -120,7 +120,7 @@ export function InlineNumber({
   if (!editing) {
     return (
       <span
-        className={`block cursor-text rounded-sm px-0.5 text-right tabular-nums hover:bg-[#fef3d2]/50 ${className ?? ""}`}
+        className={`block cursor-text rounded-sm px-0.5 text-right tabular-nums hover:bg-[var(--sched-brass-soft)]/50 ${className ?? ""}`}
         onClick={(e) => {
           e.stopPropagation();
           setEditing(true);
@@ -152,7 +152,7 @@ export function InlineNumber({
         else if (e.key === "Escape") setEditing(false);
       }}
       onBlur={commit}
-      className={`w-full rounded-sm border border-[#5b8bd6] bg-white px-1 py-0 text-right tabular-nums outline-none ring-2 ring-[#5b8bd6]/20 ${className ?? ""}`}
+      className={`w-full rounded-sm border border-[var(--sched-graphite-strong)] bg-white px-1 py-0 text-right tabular-nums outline-none ring-2 ring-[var(--sched-graphite-strong)]/20 ${className ?? ""}`}
     />
   );
 }

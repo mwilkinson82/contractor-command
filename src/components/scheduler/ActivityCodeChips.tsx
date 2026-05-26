@@ -29,7 +29,7 @@ export function ActivityCodeChips({ scheduleId, taskId }: Props) {
   const types = data?.codeTypes ?? [];
   if (types.length === 0) {
     return (
-      <p className="text-xs text-[#776e5e]">
+      <p className="text-xs text-[var(--sched-graphite)]">
         Define activity-code types in the Structure panel to tag activities.
       </p>
     );
@@ -47,7 +47,7 @@ export function ActivityCodeChips({ scheduleId, taskId }: Props) {
         const current = t.values.find((v) => v.id === currentValueId);
         return (
           <div key={t.id} className="flex items-center gap-2 text-xs">
-            <span className="w-20 shrink-0 truncate font-mono uppercase tracking-wider text-[#7a6a4d]">
+            <span className="w-20 shrink-0 truncate font-mono uppercase tracking-wider text-[var(--sched-graphite)]">
               {t.name}
             </span>
             <select

@@ -162,9 +162,9 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
 
 
   return (
-    <section className="rounded border border-[#d8cdb8] bg-white p-3">
+    <section className="rounded border border-[var(--sched-surface-rule)] bg-white p-3">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-[#675d4b]">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
           Project calendars
         </h3>
         {!adding ? (
@@ -175,7 +175,7 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
       </div>
 
       {cals.length === 0 && !adding ? (
-        <p className="text-xs text-[#776e5e]">
+        <p className="text-xs text-[var(--sched-graphite)]">
           No named calendars yet. Add one (e.g. 6-day site calendar) and promote it to project
           default to drive schedule math.
         </p>
@@ -183,7 +183,7 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
 
       <ul className="space-y-2">
         {cals.map((c) => (
-          <li key={c.id} className="rounded border border-[#eee7d8] bg-[#fbf8f0] p-2 text-xs">
+          <li key={c.id} className="rounded border border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] p-2 text-xs">
             <div className="flex items-center justify-between gap-2">
               <Input
                 className="h-7 max-w-[160px] text-xs"
@@ -199,19 +199,19 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
               />
               <div className="flex items-center gap-1">
                 <span
-                  className="rounded border border-[#d8cdb8] bg-white px-1.5 py-0.5 text-[10px] text-[#7a6a4d]"
+                  className="rounded border border-[var(--sched-surface-rule)] bg-white px-1.5 py-0.5 text-[10px] text-[var(--sched-graphite)]"
                   title="Approx working days per year, accounting for weekly pattern and holidays"
                 >
                   ~{workingDaysPerYear(c.workDays, c.holidays)}/yr
                 </span>
                 {c.isDefault ? (
-                  <span className="rounded bg-[#1f241f] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                  <span className="rounded bg-[var(--sched-graphite-strong)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
                     Default
                   </span>
                 ) : (
                   <button
                     type="button"
-                    className="text-[10px] uppercase tracking-wide text-[#3554a5] hover:underline"
+                    className="text-[10px] uppercase tracking-wide text-[var(--sched-graphite-strong)] hover:underline"
                     onClick={() => promoteMut.mutate(c.id)}
                   >
                     Set default
@@ -219,7 +219,7 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
                 )}
                 <button
                   type="button"
-                  className="text-[10px] uppercase tracking-wide text-[#3554a5] hover:underline"
+                  className="text-[10px] uppercase tracking-wide text-[var(--sched-graphite-strong)] hover:underline"
                   onClick={() => dupeMut.mutate(c)}
                   disabled={dupeMut.isPending}
                 >
@@ -228,7 +228,7 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
                 {!c.isDefault ? (
                   <button
                     type="button"
-                    className="text-[10px] uppercase tracking-wide text-[#b42318] hover:underline"
+                    className="text-[10px] uppercase tracking-wide text-[var(--sched-critical)] hover:underline"
                     onClick={() => {
                       if (confirm(`Delete calendar "${c.name}"?`)) delMut.mutate(c.id);
                     }}
@@ -256,8 +256,8 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
                     }
                     className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${
                       on
-                        ? "bg-[#1f241f] text-white"
-                        : "border border-[#d8cdb8] text-[#7a6a4d] hover:bg-[#eee6d7]"
+                        ? "bg-[var(--sched-graphite-strong)] text-white"
+                        : "border border-[var(--sched-surface-rule)] text-[var(--sched-graphite)] hover:bg-[var(--sched-surface-rule-soft)]"
                     }`}
                   >
                     {d}
@@ -282,7 +282,7 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
       </ul>
 
       {adding ? (
-        <div className="mt-3 space-y-2 rounded border border-dashed border-[#d8cdb8] bg-white p-2">
+        <div className="mt-3 space-y-2 rounded border border-dashed border-[var(--sched-surface-rule)] bg-white p-2">
           <Input
             className="h-7 text-xs"
             placeholder="Calendar name (e.g. 6-day site)"
@@ -299,8 +299,8 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
                   onClick={() => setDraftMask((m) => toggleBit(m, i))}
                   className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${
                     on
-                      ? "bg-[#1f241f] text-white"
-                      : "border border-[#d8cdb8] text-[#7a6a4d] hover:bg-[#eee6d7]"
+                      ? "bg-[var(--sched-graphite-strong)] text-white"
+                      : "border border-[var(--sched-surface-rule)] text-[var(--sched-graphite)] hover:bg-[var(--sched-surface-rule-soft)]"
                   }`}
                 >
                   {d}
@@ -331,7 +331,7 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
         </div>
       ) : null}
 
-      <p className="mt-3 text-[10px] leading-snug text-[#776e5e]">
+      <p className="mt-3 text-[10px] leading-snug text-[var(--sched-graphite)]">
         The default calendar drives lag math and any activity without a per-activity calendar.
         Activity-level calendars drive each activity's own duration walk.
       </p>
@@ -360,13 +360,13 @@ function HolidaysEditor({
     <div className="mt-2">
       <button
         type="button"
-        className="text-[10px] uppercase tracking-wide text-[#3554a5] hover:underline"
+        className="text-[10px] uppercase tracking-wide text-[var(--sched-graphite-strong)] hover:underline"
         onClick={() => setOpen((v) => !v)}
       >
         {open ? "Hide" : "Edit"} holidays ({holidays.length})
       </button>
       {open ? (
-        <div className="mt-1 space-y-1 rounded border border-dashed border-[#d8cdb8] bg-white p-2">
+        <div className="mt-1 space-y-1 rounded border border-dashed border-[var(--sched-surface-rule)] bg-white p-2">
           <div className="flex gap-1">
             <Input
               type="date"
@@ -386,8 +386,8 @@ function HolidaysEditor({
               Add
             </Button>
           </div>
-          <div className="flex flex-wrap items-center gap-1 border-t border-dashed border-[#e8ddc4] pt-1">
-            <span className="text-[10px] uppercase tracking-wide text-[#7a6a4d]">Quick add:</span>
+          <div className="flex flex-wrap items-center gap-1 border-t border-dashed border-[var(--sched-surface-rule)] pt-1">
+            <span className="text-[10px] uppercase tracking-wide text-[var(--sched-graphite)]">Quick add:</span>
             <Input
               type="number"
               className="h-6 w-[70px] text-xs"
@@ -396,7 +396,7 @@ function HolidaysEditor({
             />
             <button
               type="button"
-              className="rounded border border-[#d8cdb8] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[#3d3527] hover:bg-[#eee6d7]"
+              className="rounded border border-[var(--sched-surface-rule)] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[var(--sched-graphite-strong)] hover:bg-[var(--sched-surface-rule-soft)]"
               onClick={() => mergeDates(usFederalHolidays(year))}
             >
               US federal {year}
@@ -404,7 +404,7 @@ function HolidaysEditor({
             {holidays.length ? (
               <button
                 type="button"
-                className="ml-auto text-[10px] uppercase tracking-wide text-[#b42318] hover:underline"
+                className="ml-auto text-[10px] uppercase tracking-wide text-[var(--sched-critical)] hover:underline"
                 onClick={() => {
                   if (confirm("Clear all holidays?")) onChange([]);
                 }}
@@ -419,12 +419,12 @@ function HolidaysEditor({
               {sorted.map((h) => (
                 <span
                   key={h}
-                  className="inline-flex items-center gap-1 rounded bg-[#eee6d7] px-1.5 py-0.5 text-[10px] text-[#3d3527]"
+                  className="inline-flex items-center gap-1 rounded bg-[var(--sched-surface-rule-soft)] px-1.5 py-0.5 text-[10px] text-[var(--sched-graphite-strong)]"
                 >
                   {h}
                   <button
                     type="button"
-                    className="text-[#b42318] hover:underline"
+                    className="text-[var(--sched-critical)] hover:underline"
                     onClick={() => onChange(holidays.filter((x) => x !== h))}
                   >
                     ×
@@ -433,7 +433,7 @@ function HolidaysEditor({
               ))}
             </div>
           ) : (
-            <p className="text-[10px] text-[#7a6a4d]">No holidays yet.</p>
+            <p className="text-[10px] text-[var(--sched-graphite)]">No holidays yet.</p>
           )}
         </div>
       ) : null}

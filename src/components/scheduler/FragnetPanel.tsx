@@ -41,11 +41,11 @@ export function FragnetPanel({ tasks, dependencies, onInsert }: Props) {
   };
 
   return (
-    <section className="rounded border border-[#d8cdb8] bg-white p-4">
-      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[#675d4b]">
+    <section className="rounded border border-[var(--sched-surface-rule)] bg-white p-4">
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
         <Layers className="h-4 w-4" /> Fragnets
       </h2>
-      <p className="mb-3 text-[11px] text-[#776e5e]">
+      <p className="mb-3 text-[11px] text-[var(--sched-graphite)]">
         Drop in a reusable chunk of activities with logic pre-wired.
       </p>
       <div className="space-y-3">
@@ -63,7 +63,7 @@ export function FragnetPanel({ tasks, dependencies, onInsert }: Props) {
               ))}
             </SelectContent>
           </Select>
-          <p className="mt-1 text-[11px] text-[#776e5e]">
+          <p className="mt-1 text-[11px] text-[var(--sched-graphite)]">
             {def.description} · {def.items.length} activities
           </p>
         </div>

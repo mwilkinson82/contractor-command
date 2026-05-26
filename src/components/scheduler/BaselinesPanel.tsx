@@ -73,16 +73,16 @@ export function BaselinesPanel({ scheduleId, comparisonId, onComparisonChange, d
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[#e6dfd0] bg-white px-2 text-[11px] font-medium text-[#3d3527] hover:bg-[#faf8f3]"
+          className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--sched-surface-rule)] bg-white px-2 text-[11px] font-medium text-[var(--sched-graphite-strong)] hover:bg-[var(--sched-ivory)]"
           title="Baselines"
         >
-          <span className="inline-block h-2 w-2 rounded-sm bg-[#c7b89d]" />
+          <span className="inline-block h-2 w-2 rounded-sm bg-[var(--sched-graphite-soft)]" />
           <span className="max-w-[140px] truncate">{label}</span>
-          <ChevronDown className="h-3 w-3 text-[#9c8b6e]" />
+          <ChevronDown className="h-3 w-3 text-[var(--sched-graphite)]" />
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 p-3">
-        <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[#7a6a4d]">
+        <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
           Baselines
         </div>
         <div className="mb-2 flex gap-1.5">
@@ -103,15 +103,15 @@ export function BaselinesPanel({ scheduleId, comparisonId, onComparisonChange, d
           </Button>
         </div>
         {dirty ? (
-          <p className="mb-2 text-[10px] text-[#b42318]">
+          <p className="mb-2 text-[10px] text-[var(--sched-critical)]">
             Save your edits first — baselines snapshot what is in the database.
           </p>
         ) : null}
 
         {q.isLoading ? (
-          <p className="text-xs text-[#746b5c]">Loading…</p>
+          <p className="text-xs text-[var(--sched-graphite)]">Loading…</p>
         ) : baselines.length === 0 ? (
-          <p className="text-xs text-[#746b5c]">No baselines yet.</p>
+          <p className="text-xs text-[var(--sched-graphite)]">No baselines yet.</p>
         ) : (
           <ul className="max-h-64 space-y-1 overflow-auto">
             {baselines.map((b) => {
@@ -120,7 +120,7 @@ export function BaselinesPanel({ scheduleId, comparisonId, onComparisonChange, d
                 <li
                   key={b.id}
                   className={`flex items-center justify-between gap-2 rounded px-2 py-1 ${
-                    isActive ? "bg-[#1f241f] text-white" : "hover:bg-[#eee6d7]"
+                    isActive ? "bg-[var(--sched-graphite-strong)] text-white" : "hover:bg-[var(--sched-surface-rule-soft)]"
                   }`}
                 >
                   <button
@@ -129,7 +129,7 @@ export function BaselinesPanel({ scheduleId, comparisonId, onComparisonChange, d
                     onClick={() => onComparisonChange(isActive ? null : b.id)}
                   >
                     <div className="text-xs font-medium">{b.name}</div>
-                    <div className={`text-[10px] ${isActive ? "text-white/70" : "text-[#776e5e]"}`}>
+                    <div className={`text-[10px] ${isActive ? "text-white/70" : "text-[var(--sched-graphite)]"}`}>
                       {new Date(b.createdAt).toLocaleString()}
                     </div>
                   </button>
@@ -149,7 +149,7 @@ export function BaselinesPanel({ scheduleId, comparisonId, onComparisonChange, d
           </ul>
         )}
         {comparisonId ? (
-          <p className="mt-2 text-[10px] text-[#5c574e]">
+          <p className="mt-2 text-[10px] text-[var(--sched-graphite)]">
             Gantt shows the baseline as a tan ghost bar with slip days.
           </p>
         ) : null}

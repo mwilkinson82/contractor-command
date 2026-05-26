@@ -72,18 +72,18 @@ export function IntelChatPanel({ context, loading, onSend }: IntelChatPanelProps
 
   return (
     <div
-      className="flex h-full flex-1 flex-col text-[12px] text-[#3a3a35]"
+      className="flex h-full flex-1 flex-col text-[12px] text-[var(--sched-graphite-strong)]"
       data-testid="intel-chat-panel"
     >
-      <div className="border-b border-[#ece8db] bg-[#fdfcf7] px-3 py-2">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#675d4b]">
+      <div className="border-b border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] px-3 py-2">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--sched-graphite)]">
           Schedule Context
         </div>
-        <div className="mt-1 text-[11px] text-[#4a4944]">
+        <div className="mt-1 text-[11px] text-[var(--sched-graphite)]">
           {context.projectName ?? "Untitled schedule"} · {summary}
         </div>
         {context.selectedActivity ? (
-          <div className="mt-0.5 text-[10.5px] text-[#6b6a63]">
+          <div className="mt-0.5 text-[10.5px] text-[var(--sched-graphite)]">
             Selected: {context.selectedActivity.id} · {context.selectedActivity.name}
           </div>
         ) : null}
@@ -95,7 +95,7 @@ export function IntelChatPanel({ context, loading, onSend }: IntelChatPanelProps
       >
         {messages.length === 0 ? (
           <div className="space-y-2">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#675d4b]">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--sched-graphite)]">
               Try a starter
             </div>
             <ul className="space-y-1">
@@ -105,7 +105,7 @@ export function IntelChatPanel({ context, loading, onSend }: IntelChatPanelProps
                     type="button"
                     onClick={() => send(p)}
                     disabled={loading}
-                    className="w-full rounded border border-[#ece8db] bg-white/70 px-2 py-1.5 text-left text-[11.5px] text-[#1f241f] hover:border-[#1f241f] hover:bg-white disabled:opacity-50"
+                    className="w-full rounded border border-[var(--sched-surface-rule-soft)] bg-white/70 px-2 py-1.5 text-left text-[11.5px] text-[var(--sched-graphite-strong)] hover:border-[var(--sched-graphite-strong)] hover:bg-white disabled:opacity-50"
                   >
                     {p}
                   </button>
@@ -119,8 +119,8 @@ export function IntelChatPanel({ context, loading, onSend }: IntelChatPanelProps
               key={m.id}
               className={
                 m.role === "user"
-                  ? "ml-auto max-w-[85%] rounded-lg bg-[#1f241f] px-2.5 py-1.5 text-[11.5px] text-[#f7e9b8]"
-                  : "mr-auto max-w-[85%] rounded-lg border border-[#ece8db] bg-white/80 px-2.5 py-1.5 text-[11.5px] text-[#1f241f]"
+                  ? "ml-auto max-w-[85%] rounded-lg bg-[var(--sched-graphite-strong)] px-2.5 py-1.5 text-[11.5px] text-[var(--sched-brass-soft)]"
+                  : "mr-auto max-w-[85%] rounded-lg border border-[var(--sched-surface-rule-soft)] bg-white/80 px-2.5 py-1.5 text-[11.5px] text-[var(--sched-graphite-strong)]"
               }
             >
               {m.content}
@@ -128,7 +128,7 @@ export function IntelChatPanel({ context, loading, onSend }: IntelChatPanelProps
           ))
         )}
         {loading ? (
-          <div className="mr-auto rounded-lg border border-[#ece8db] bg-white/80 px-2.5 py-1.5 text-[11px] text-[#6b6a63]">
+          <div className="mr-auto rounded-lg border border-[var(--sched-surface-rule-soft)] bg-white/80 px-2.5 py-1.5 text-[11px] text-[var(--sched-graphite)]">
             Thinking…
           </div>
         ) : null}
@@ -136,7 +136,7 @@ export function IntelChatPanel({ context, loading, onSend }: IntelChatPanelProps
 
       <form
         onSubmit={handleSubmit}
-        className="shrink-0 border-t border-[#ece8db] bg-white px-3 py-2"
+        className="shrink-0 border-t border-[var(--sched-surface-rule-soft)] bg-white px-3 py-2"
       >
         <div className="flex items-center gap-2">
           <input
@@ -146,17 +146,17 @@ export function IntelChatPanel({ context, loading, onSend }: IntelChatPanelProps
             placeholder="Ask about this schedule…"
             disabled={loading}
             aria-label="Ask the schedule assistant"
-            className="flex-1 rounded border border-[#ece8db] bg-[#fdfcf7] px-2 py-1.5 text-[12px] text-[#1f241f] outline-none focus:border-[#1f241f] disabled:opacity-50"
+            className="flex-1 rounded border border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] px-2 py-1.5 text-[12px] text-[var(--sched-graphite-strong)] outline-none focus:border-[var(--sched-graphite-strong)] disabled:opacity-50"
           />
           <button
             type="submit"
             disabled={loading || input.trim().length === 0}
-            className="rounded bg-[#1f241f] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#f7e9b8] disabled:opacity-40"
+            className="rounded bg-[var(--sched-graphite-strong)] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--sched-brass-soft)] disabled:opacity-40"
           >
             Send
           </button>
         </div>
-        <div className="mt-1.5 text-[10px] text-[#8a8980]">
+        <div className="mt-1.5 text-[10px] text-[var(--sched-graphite)]">
           {INTEL_ADVISORY_NOTE}
         </div>
       </form>
@@ -167,25 +167,25 @@ export function IntelChatPanel({ context, loading, onSend }: IntelChatPanelProps
 export function IntelBuildPanel() {
   return (
     <div
-      className="flex h-full flex-1 flex-col items-start gap-2 overflow-auto px-3 py-4 text-[12px] text-[#3a3a35]"
+      className="flex h-full flex-1 flex-col items-start gap-2 overflow-auto px-3 py-4 text-[12px] text-[var(--sched-graphite-strong)]"
       data-testid="intel-build-panel"
     >
-      <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#675d4b]">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--sched-graphite)]">
         Build — coming soon
       </div>
-      <p className="text-[11.5px] leading-relaxed text-[#4a4944]">
+      <p className="text-[11.5px] leading-relaxed text-[var(--sched-graphite)]">
         The CPM builder will let you draft activities, WBS, and logic from a
         scope narrative, activity list, or schedule of values, then stage the
         result as a reviewable change set. Nothing here writes to the live
         schedule.
       </p>
-      <ul className="ml-4 list-disc space-y-1 text-[11px] text-[#6b6a63]">
+      <ul className="ml-4 list-disc space-y-1 text-[11px] text-[var(--sched-graphite)]">
         <li>Propose WBS &amp; activities from input</li>
         <li>Suggest durations and predecessors</li>
         <li>Surface assumptions and open questions</li>
         <li>Approve, edit, then commit (future phases)</li>
       </ul>
-      <div className="mt-2 text-[10px] text-[#8a8980]">
+      <div className="mt-2 text-[10px] text-[var(--sched-graphite)]">
         {INTEL_ADVISORY_NOTE}
       </div>
     </div>

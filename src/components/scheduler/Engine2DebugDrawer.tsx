@@ -44,7 +44,7 @@ interface Engine2DebugDrawerProps {
 
 const SEVERITY_COLOR: Record<DebugDifferenceRow["severity"], string> = {
   high: "bg-red-600 text-white",
-  medium: "bg-amber-500 text-black",
+  medium: "bg-[var(--sched-near-critical)] text-[var(--sched-graphite-strong)]",
   low: "bg-zinc-300 text-zinc-800",
 };
 
@@ -155,7 +155,7 @@ export function Engine2DebugDrawer({
                         c.classification === "investigate"
                           ? "bg-red-600 text-white"
                           : c.classification === "known-engine-limitation"
-                            ? "bg-amber-500 text-black"
+                            ? "bg-[var(--sched-near-critical)] text-[var(--sched-graphite-strong)]"
                             : "bg-zinc-300 text-zinc-800"
                       }
                     >
