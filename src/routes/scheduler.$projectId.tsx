@@ -61,11 +61,11 @@ import { AnnotationsPanel } from "@/components/scheduler/AnnotationsPanel";
 import { UpdateCyclePanel } from "@/components/scheduler/UpdateCyclePanel";
 import { InlineText, InlineNumber } from "@/components/scheduler/InlineEdit";
 import { EmptyScheduleState } from "@/components/scheduler/EmptyScheduleState";
+import { ActivityInspectorPanel } from "@/components/scheduler/ActivityInspectorPanel";
 import {
-  ActivityInspectorPanel,
-  ACTIVITY_INSPECTOR_FULL_WIDTH,
-  ACTIVITY_INSPECTOR_RAIL_WIDTH,
-} from "@/components/scheduler/ActivityInspectorPanel";
+  computeFitDayPx,
+  computeInspectorWidth,
+} from "@/lib/scheduler/geometry";
 import type { SamplePayload } from "@/lib/scheduler/sample";
 import { exportScheduleCsv } from "@/lib/scheduler/csv-export";
 import { Textarea } from "@/components/ui/textarea";
@@ -458,13 +458,17 @@ function SchedulerPage() {
     if (!computed || computed.projectDuration < 1) return;
     const container = rightScrollRef.current;
     if (!container) return;
-    const available = container.clientWidth - getCpmStickyTableWidth(nameColWidth) - 2;
-    if (available <= 0) return;
-    // Use exact fractional dayPx so the timeline fills the available width
-    // edge-to-edge with no white gutter before the inspector boundary.
-    const ideal = available / computed.projectDuration;
-    const clamped = Math.max(4, Math.min(36, ideal));
-    setDayPx(clamped);
+    // The container already sits inside the inspector-aware right pad and
+    // (in focus mode) the zeroed sidebar var, so its clientWidth IS the
+    // current work surface. Geometry helper applies the sticky-table
+    // deduction, padding, and clamp for us — single source of truth.
+    const dayPx = computeFitDayPx({
+      workSurface: container.clientWidth,
+      nameColWidth,
+      projectDuration: computed.projectDuration,
+    });
+    if (dayPx <= 0) return;
+    setDayPx(dayPx);
     container.scrollLeft = 0;
   }, [computed, nameColWidth]);
   useEffect(() => {
@@ -3646,12 +3650,10 @@ function ReportThumbnail({
 function RightInspectorGate({ children }: { children: React.ReactNode }) {
   const { productMode, inspectorOpen } = useSchedulerLayout();
   React.useEffect(() => {
-    const pad =
-      productMode === "schedule"
-        ? inspectorOpen
-          ? ACTIVITY_INSPECTOR_FULL_WIDTH
-          : ACTIVITY_INSPECTOR_RAIL_WIDTH
-        : 0;
+    const pad = computeInspectorWidth({
+      visible: productMode === "schedule",
+      expanded: inspectorOpen,
+    });
     document.documentElement.style.setProperty(
       "--scheduler-right-pad",
       `${pad}px`,
