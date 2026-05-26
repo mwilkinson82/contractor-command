@@ -32,7 +32,6 @@ export function ScheduleKpiBar({ result, tasks, dataDate }: Props) {
       ev += budget * pct;
       ac += actCost;
 
-      // PV: planned value as of dataDate (linear earn over baseline duration)
       if (ddTime && st.earlyStartDate && st.earlyFinishDate && st.duration > 0) {
         const s = new Date(`${st.earlyStartDate}T00:00:00.000Z`).getTime();
         const f = new Date(`${st.earlyFinishDate}T00:00:00.000Z`).getTime();
@@ -77,46 +76,92 @@ export function ScheduleKpiBar({ result, tasks, dataDate }: Props) {
   }, [result, tasks, dataDate]);
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-1 border-b border-[var(--sched-surface-rule)] bg-[var(--sched-surface)] px-4 py-1 text-[11px] text-[var(--sched-graphite)]">
-      <Pill label="Activities" value={kpis.total.toString()} sub={`${kpis.notStarted} ns`} />
-      <Pill label="Critical" value={kpis.critical.toString()} sub={`+${kpis.nearCrit} nc`} dot="var(--sched-critical)" />
-      <Pill label="In progress" value={kpis.inProg.toString()} sub={`${kpis.completed} done`} dot="var(--sched-graphite-strong)" />
-      <Pill label="% Complete" value={`${kpis.pctComplete}%`} dot="var(--sched-validated)" />
-      <Pill label="SPI" value={kpis.spi ? kpis.spi.toFixed(2) : "—"} tone={kpis.spi ? (kpis.spi >= 1 ? "good" : "bad") : undefined} />
-      <Pill label="CPI" value={kpis.cpi ? kpis.cpi.toFixed(2) : "—"} tone={kpis.cpi ? (kpis.cpi >= 1 ? "good" : "bad") : undefined} />
-      <Pill label="Finish" value={result.projectFinishDate ?? "—"} sub={`${result.projectDuration}d`} />
+    <div className="flex shrink-0 items-stretch overflow-x-auto border-b border-[var(--sched-surface-rule)] bg-[var(--sched-surface)] px-5 py-2.5">
+      <Cell label="Activities" value={kpis.total.toString()} sub={`${kpis.notStarted} not started`} />
+      <Divider />
+      <Cell
+        label="Critical"
+        value={kpis.critical.toString()}
+        sub={`+${kpis.nearCrit} near-critical`}
+        tone={kpis.critical > 0 ? "critical" : undefined}
+      />
+      <Divider />
+      <Cell label="In progress" value={kpis.inProg.toString()} sub={`${kpis.completed} complete`} />
+      <Divider />
+      <Cell
+        label="% Complete"
+        value={`${kpis.pctComplete}%`}
+        sub="earned ÷ budget"
+      />
+      <Divider />
+      <Cell
+        label="SPI"
+        value={kpis.spi ? kpis.spi.toFixed(2) : "—"}
+        sub={kpis.spi ? (kpis.spi >= 1 ? "on / ahead" : "behind") : "no data date"}
+        tone={kpis.spi ? (kpis.spi >= 1 ? undefined : "critical") : undefined}
+      />
+      <Divider />
+      <Cell
+        label="CPI"
+        value={kpis.cpi ? kpis.cpi.toFixed(2) : "—"}
+        sub={kpis.cpi ? (kpis.cpi >= 1 ? "under / on budget" : "over budget") : "no cost actuals"}
+        tone={kpis.cpi ? (kpis.cpi >= 1 ? undefined : "critical") : undefined}
+      />
+      <Divider />
+      <Cell
+        label="Finish"
+        value={result.projectFinishDate ?? "—"}
+        sub={`${result.projectDuration} d duration`}
+        wide
+      />
       {kpis.bac > 0 ? (
-        <Pill label="EV" value={fmtMoney(kpis.ev)} sub={`/ ${fmtMoney(kpis.bac)}`} />
+        <>
+          <Divider />
+          <Cell
+            label="Earned · Budget"
+            value={fmtMoney(kpis.ev)}
+            sub={`of ${fmtMoney(kpis.bac)}`}
+          />
+        </>
       ) : null}
     </div>
   );
 }
 
-function Pill({
+function Divider() {
+  return <span aria-hidden className="mx-4 w-px self-stretch bg-[var(--sched-surface-rule)]" />;
+}
+
+function Cell({
   label,
   value,
   sub,
   tone,
-  dot,
+  wide,
 }: {
   label: string;
   value: string;
   sub?: string;
-  tone?: "good" | "bad";
-  dot?: string;
+  tone?: "critical" | "good";
+  wide?: boolean;
 }) {
-  const toneClass =
-    tone === "good"
-      ? "text-[var(--sched-validated)]"
-      : tone === "bad"
-        ? "text-[var(--sched-critical)]"
+  const valueTone =
+    tone === "critical"
+      ? "text-[var(--sched-critical)]"
+      : tone === "good"
+        ? "text-[var(--sched-validated)]"
         : "text-[var(--sched-graphite-strong)]";
   return (
-    <span className="inline-flex items-center gap-1.5">
-      {dot ? <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: dot }} /> : null}
-      <span className="text-[9px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">{label}</span>
-      <span className={`font-semibold tabular-nums ${toneClass}`}>{value}</span>
-      {sub ? <span className="text-[10px] text-[var(--sched-graphite-soft)]">{sub}</span> : null}
-    </span>
+    <div className={`flex shrink-0 flex-col justify-center ${wide ? "min-w-[8.5rem]" : "min-w-[5rem]"}`}>
+      <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[var(--sched-graphite)]">
+        {label}
+      </span>
+      <span className={`mt-0.5 text-[19px] font-semibold leading-none tabular-nums tracking-tight ${valueTone}`}>
+        {value}
+      </span>
+      {sub ? (
+        <span className="mt-1 text-[10px] leading-tight text-[var(--sched-graphite-soft)]">{sub}</span>
+      ) : null}
+    </div>
   );
 }
