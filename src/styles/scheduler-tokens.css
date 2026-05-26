@@ -1,60 +1,61 @@
 /* ============================================================================
- * Scheduler design tokens — Premium Pass 1 (foundation)
+ * Scheduler design tokens — Color System Reset (Cool Intelligence Base)
  *
- * Locked palette for every scheduler surface. Use these tokens via
- * arbitrary Tailwind values, e.g. bg-[var(--sched-surface)],
- * text-[var(--sched-critical)]. Do NOT add raw hex literals to new
- * scheduler components — extend this file instead.
+ * Design lane: Primavera authority + Perplexity / ElevenLabs clarity +
+ * selective construction risk color. The base is a cool, near-white
+ * instrument surface with graphite text and crisp blue-gray hairlines.
+ * Color is reserved for SCHEDULE MEANING — never decoration.
  *
- * Semantic contract:
- *   --sched-critical          red, true critical path / danger ONLY
- *   --sched-near-critical     amber, near-critical / needs review / assumptions
- *   --sched-validated         green, complete / good / validated
- *   --sched-graphite          neutral schedule data (bars, grid, text)
- *   --sched-brass             Build / Intelligence emphasis ONLY
- *   --sched-ivory             shell background
- *   --sched-surface           cool white / slate work surface
+ * Semantic contract (DO NOT widen without intent):
+ *   --sched-critical          red       → critical path / danger / negative float
+ *   --sched-near-critical     amber     → near-critical / needs review / AI draft
+ *   --sched-validated         green     → complete / on track / validated
+ *   --sched-graphite          slate     → neutral text, bars, grid, command surfaces
+ *   --sched-brass             brass     → Build Mode + Intelligence accents ONLY
+ *   --sched-ivory             shell     → outer shell wash (now cool, not beige)
+ *   --sched-surface           white     → primary work surface
  *
- * All values in oklch() so they live next to the rest of the portal tokens.
+ * Token NAMES are preserved so the entire scheduler theme swaps by tuning
+ * values here. Do not add hex literals in components — extend this file.
  * ============================================================================ */
 
 :root {
-  /* Critical (red) — true critical path / danger only. */
-  --sched-critical: oklch(0.515 0.197 28.5);          /* #b42318 */
-  --sched-critical-soft: oklch(0.953 0.022 24);       /* #fbe9e6 */
+  /* Critical (red) — sacred. True critical path / danger only. */
+  --sched-critical: oklch(0.555 0.205 27);            /* deep signal red */
+  --sched-critical-soft: oklch(0.962 0.028 22);       /* faint red wash */
 
-  /* Near-critical (amber) — needs review, assumptions, soon-to-be-critical. */
-  --sched-near-critical: oklch(0.682 0.151 67);       /* #c08a17-ish */
-  --sched-near-critical-soft: oklch(0.962 0.041 88);  /* warm amber wash */
+  /* Near-critical (amber) — needs review / assumptions / AI-drafted. */
+  --sched-near-critical: oklch(0.715 0.158 65);       /* warm amber */
+  --sched-near-critical-soft: oklch(0.965 0.045 85);  /* pale amber wash */
 
-  /* Validated (green) — complete / good / passing. */
-  --sched-validated: oklch(0.535 0.106 152);          /* #3c7a4a */
-  --sched-validated-soft: oklch(0.954 0.034 152);     /* pale validated wash */
+  /* Validated (green) — complete / on track / validated. */
+  --sched-validated: oklch(0.555 0.118 155);          /* confident green */
+  --sched-validated-soft: oklch(0.960 0.038 155);     /* pale validated wash */
 
-  /* Graphite — neutral schedule data (bars, grid lines, body text). */
-  --sched-graphite: oklch(0.476 0.012 95);            /* #6b6a63 */
-  --sched-graphite-strong: oklch(0.235 0.011 132);    /* #1f241f */
-  --sched-graphite-soft: oklch(0.704 0.011 95);       /* #9a9991 */
+  /* Graphite — cool slate. Neutral text, bars, grid, command surfaces. */
+  --sched-graphite-strong: oklch(0.225 0.012 250);    /* near-black slate, command */
+  --sched-graphite: oklch(0.455 0.014 248);           /* primary body text */
+  --sched-graphite-soft: oklch(0.665 0.014 248);      /* secondary / muted text */
 
-  /* Brass — Build / Intelligence emphasis ONLY. Never for normal CTAs. */
-  --sched-brass: oklch(0.755 0.111 84);               /* #c9a84c */
-  --sched-brass-deep: oklch(0.672 0.092 80);          /* #a89968 */
-  --sched-brass-soft: oklch(0.945 0.058 88);          /* #f7e9b8 */
+  /* Brass — Build Mode + Intelligence accent ONLY. Sparing use. */
+  --sched-brass: oklch(0.755 0.111 84);               /* brass accent */
+  --sched-brass-deep: oklch(0.652 0.098 78);          /* pressed / deep brass */
+  --sched-brass-soft: oklch(0.955 0.052 88);          /* faint brass wash */
 
-  /* Shell + surfaces. */
-  --sched-ivory: oklch(0.978 0.013 95);               /* #faf8f3 */
-  --sched-surface: oklch(0.996 0 0);                  /* near-white work surface */
-  --sched-surface-deep: oklch(0.974 0.011 95);        /* slightly recessed band */
-  --sched-surface-rule: oklch(0.910 0.013 95);        /* #e3e0d8 — hairline */
-  --sched-surface-rule-soft: oklch(0.951 0.011 95);   /* #ecebe5 — softest hairline */
+  /* Shell + surfaces — cool intelligence base (no beige, no tan). */
+  --sched-ivory: oklch(0.985 0.004 250);              /* outer shell (cool off-white) */
+  --sched-surface: oklch(0.998 0.001 250);            /* primary work surface (near-white) */
+  --sched-surface-deep: oklch(0.972 0.006 248);       /* recessed band / panel rail */
+  --sched-surface-rule: oklch(0.905 0.010 248);       /* blue-gray hairline */
+  --sched-surface-rule-soft: oklch(0.948 0.008 248);  /* softest hairline */
 
   /* Overlay (popovers, hover cards, tooltips). */
-  --sched-overlay: oklch(0.992 0.004 95);
-  --sched-overlay-rule: oklch(0.235 0.011 132 / 0.15);
-  --sched-overlay-shadow: 0 8px 24px oklch(0.235 0.011 132 / 0.12);
+  --sched-overlay: oklch(0.995 0.002 250);
+  --sched-overlay-rule: oklch(0.225 0.012 250 / 0.14);
+  --sched-overlay-shadow: 0 8px 24px oklch(0.225 0.012 250 / 0.14);
 
   /* Elevation presets reused across scheduler surfaces. */
   --sched-elevation-1: 0 1px 0 oklch(0 0 0 / 0.04);
-  --sched-elevation-2: 0 2px 0 oklch(0 0 0 / 0.06),
-                       0 14px 28px -12px oklch(0.235 0.011 132 / 0.22);
+  --sched-elevation-2: 0 2px 0 oklch(0 0 0 / 0.05),
+                       0 14px 28px -12px oklch(0.225 0.012 250 / 0.22);
 }
