@@ -77,7 +77,7 @@ export function ActivityInspectorPanel({
     <aside
       data-testid="activity-inspector-panel"
       aria-label="Activity inspector"
-      className="fixed right-0 z-30 flex flex-col border-l border-[var(--sched-surface-rule)] bg-[var(--sched-surface)] print:hidden"
+      className="fixed right-0 z-40 flex flex-col border-l border-[var(--sched-surface-rule)] bg-[var(--sched-surface)] print:hidden"
       style={{
         top: topOffset,
         bottom: bottomOffset,
