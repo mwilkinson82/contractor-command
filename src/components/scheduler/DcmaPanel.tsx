@@ -333,7 +333,7 @@ function Badge({ children, tone }: { children: React.ReactNode; tone: "good" | "
     tone === "good"
       ? "bg-[var(--sched-validated-soft)] text-[var(--sched-validated)]"
       : tone === "warn"
-        ? "bg-[#fcf1e0] text-[var(--sched-near-critical)]"
+        ? "bg-[var(--sched-near-critical-soft)] text-[var(--sched-near-critical)]"
         : "bg-[var(--sched-critical-soft)] text-[var(--sched-critical)]";
   return (
     <span className={`inline-flex justify-center rounded px-1.5 py-0.5 font-semibold ${cls}`}>

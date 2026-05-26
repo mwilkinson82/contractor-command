@@ -52,7 +52,7 @@ export function EmptyScheduleState({
 
   return (
     <div className="flex h-full w-full items-center justify-center p-8">
-      <div className="w-full max-w-2xl rounded-2xl border border-[var(--sched-surface-rule)] bg-[#fbfaf6] p-8 shadow-[0_1px_0_rgba(255,255,255,0.7)_inset,0_24px_60px_-30px_rgba(60,40,10,0.25)]">
+      <div className="w-full max-w-2xl rounded-2xl border border-[var(--sched-surface-rule)] bg-[var(--sched-ivory)] p-8 shadow-[0_1px_0_rgba(255,255,255,0.7)_inset,0_24px_60px_-30px_rgba(60,40,10,0.25)]">
         <div className="mb-6 text-center">
           <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--sched-graphite-strong)] text-[var(--sched-brass-soft)]">
             <Sparkles className="h-5 w-5" />

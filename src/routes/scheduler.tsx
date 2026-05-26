@@ -43,8 +43,8 @@ const STATUS_LABEL: Record<Project["status"], string> = {
 
 const STATUS_DOT: Record<Project["status"], string> = {
   planning: "bg-[var(--sched-brass)]",
-  active: "bg-emerald-600",
-  on_hold: "bg-amber-500",
+  active: "bg-[var(--sched-validated)]",
+  on_hold: "bg-[var(--sched-near-critical)]",
   closed: "bg-[var(--sched-graphite-soft)]",
 };
 
