@@ -3646,12 +3646,10 @@ function ReportThumbnail({
 function RightInspectorGate({ children }: { children: React.ReactNode }) {
   const { productMode, inspectorOpen } = useSchedulerLayout();
   React.useEffect(() => {
-    const pad =
-      productMode === "schedule"
-        ? inspectorOpen
-          ? ACTIVITY_INSPECTOR_FULL_WIDTH
-          : ACTIVITY_INSPECTOR_RAIL_WIDTH
-        : 0;
+    const pad = computeInspectorWidth({
+      visible: productMode === "schedule",
+      expanded: inspectorOpen,
+    });
     document.documentElement.style.setProperty(
       "--scheduler-right-pad",
       `${pad}px`,
