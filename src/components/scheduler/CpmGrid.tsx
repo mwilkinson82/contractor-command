@@ -601,7 +601,7 @@ export function CpmGrid({
                       y={y + rowH - 4}
                       width={Math.max(baselineT.duration * dayPx, 2)}
                       height={2}
-                      fill="#a8a59b"
+                      fill="var(--sched-graphite-soft)"
                       opacity={0.9}
                     />
                   ) : null}
