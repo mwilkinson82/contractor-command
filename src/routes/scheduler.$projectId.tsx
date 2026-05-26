@@ -3682,7 +3682,7 @@ function PublishShortcut({ disabled }: { disabled?: boolean }) {
       type="button"
       onClick={() => setProductMode("publish")}
       disabled={disabled}
-      className="rounded-md border border-[#e3e0d8] bg-white px-2.5 py-1.5 text-xs font-medium text-[#2d2d28] hover:bg-[#faf8f3] disabled:opacity-50"
+      className="rounded-md px-2.5 py-1.5 text-xs font-medium text-[#4a4944] hover:bg-[#f3f1ea] hover:text-[#1f241f] disabled:opacity-40"
       title="Open Publish mode — output, PDF, and report templates"
       data-testid="top-publish-shortcut"
     >
