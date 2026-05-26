@@ -1,0 +1,85 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`computeScheduleGeometry — regression snapshots > desktop · focus mode · inspector collapsed 1`] = `
+{
+  "fitDayPx": 4,
+  "ganttBand": 714,
+  "inspector": 56,
+  "sidebar": 0,
+  "stickyTable": 668,
+  "viewport": 1440,
+  "workSurface": 1384,
+}
+`;
+
+exports[`computeScheduleGeometry — regression snapshots > desktop · focus mode · inspector expanded 1`] = `
+{
+  "fitDayPx": 4,
+  "ganttBand": 430,
+  "inspector": 340,
+  "sidebar": 0,
+  "stickyTable": 668,
+  "viewport": 1440,
+  "workSurface": 1100,
+}
+`;
+
+exports[`computeScheduleGeometry — regression snapshots > desktop · sidebar expanded · inspector collapsed (rail) 1`] = `
+{
+  "fitDayPx": 4,
+  "ganttBand": 498,
+  "inspector": 56,
+  "sidebar": 216,
+  "stickyTable": 668,
+  "viewport": 1440,
+  "workSurface": 1168,
+}
+`;
+
+exports[`computeScheduleGeometry — regression snapshots > desktop · sidebar expanded · inspector expanded 1`] = `
+{
+  "fitDayPx": 4,
+  "ganttBand": 214,
+  "inspector": 340,
+  "sidebar": 216,
+  "stickyTable": 668,
+  "viewport": 1440,
+  "workSurface": 884,
+}
+`;
+
+exports[`computeScheduleGeometry — regression snapshots > desktop · sidebar expanded · inspector hidden 1`] = `
+{
+  "fitDayPx": 4,
+  "ganttBand": 554,
+  "inspector": 0,
+  "sidebar": 216,
+  "stickyTable": 668,
+  "viewport": 1440,
+  "workSurface": 1224,
+}
+`;
+
+exports[`computeScheduleGeometry — regression snapshots > laptop · sidebar collapsed · inspector expanded 1`] = `
+{
+  "fitDayPx": 4,
+  "ganttBand": 210,
+  "inspector": 340,
+  "sidebar": 60,
+  "stickyTable": 668,
+  "viewport": 1280,
+  "workSurface": 880,
+}
+`;
+
+exports[`computeScheduleGeometry — regression snapshots > mobile · inspector hidden 1`] = `
+{
+  "fitDayPx": 0,
+  "ganttBand": 0,
+  "inspector": 0,
+  "sidebar": 0,
+  "stickyTable": 668,
+  "viewport": 414,
+  "workSurface": 414,
+}
+`;
