@@ -130,7 +130,7 @@ export function ActivityInspectorPanel({
               className={
                 "shrink-0 rounded p-0.5 " +
                 (selectedTask
-                  ? "text-[var(--sched-brass)] hover:bg-[#2a2f2a]"
+                  ? "text-[var(--sched-brass)] hover:bg-[var(--sched-graphite-strong)]/85"
                   : "text-[var(--sched-graphite)] hover:bg-white")
               }
               aria-label="Collapse inspector"
@@ -176,7 +176,7 @@ export function ActivityInspectorPanel({
           <button
             type="button"
             onClick={() => setInspectorOpen(true)}
-            className="grid h-7 w-7 place-items-center rounded bg-[var(--sched-graphite-strong)] text-[10px] font-bold tracking-wide text-[var(--sched-brass-soft)] hover:bg-[#2a2f2a]"
+            className="grid h-7 w-7 place-items-center rounded bg-[var(--sched-graphite-strong)] text-[10px] font-bold tracking-wide text-[var(--sched-brass-soft)] hover:bg-[var(--sched-graphite-strong)]/85"
             data-testid="activity-inspector-toggle"
             aria-label="Expand inspector"
             title={selectedTask ? `${selectedTask.id}` : "Expand inspector"}
@@ -226,7 +226,7 @@ function headerChipClass(tone: StatusTone): string {
     case "ok":
       return "bg-[var(--sched-validated)] text-white";
     case "info":
-      return "bg-[#3b5f8a] text-white";
+      return "bg-[var(--sched-graphite-strong)] text-white";
     default:
       return "bg-[var(--sched-graphite-strong)] text-[var(--sched-graphite-soft)]";
   }
@@ -487,7 +487,7 @@ function Section({
   const [open, setOpen] = React.useState(defaultOpen);
   return (
     <section
-      className={"border-b border-[var(--sched-surface-rule-soft)] " + (emphasis ? "bg-[#fbf5e3]/40" : "")}
+      className={"border-b border-[var(--sched-surface-rule-soft)] " + (emphasis ? "bg-[var(--sched-brass-soft)]/40" : "")}
       data-testid={testId}
     >
       <button
