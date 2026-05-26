@@ -42,12 +42,15 @@
   --sched-brass-deep: oklch(0.652 0.098 78);          /* pressed / deep brass */
   --sched-brass-soft: oklch(0.955 0.052 88);          /* faint brass wash */
 
-  /* Shell + surfaces — cool intelligence base (no beige, no tan). */
-  --sched-ivory: oklch(0.985 0.004 250);              /* outer shell (cool off-white) */
-  --sched-surface: oklch(0.998 0.001 250);            /* primary work surface (near-white) */
-  --sched-surface-deep: oklch(0.972 0.006 248);       /* recessed band / panel rail */
-  --sched-surface-rule: oklch(0.905 0.010 248);       /* blue-gray hairline */
-  --sched-surface-rule-soft: oklch(0.948 0.008 248);  /* softest hairline */
+  /* Shell + surfaces — cool intelligence base (no beige, no tan).
+     Pushed cooler + brighter so the schedule reads as a technical
+     instrument rather than a paper-stock admin panel. */
+  --sched-ivory: oklch(0.978 0.005 248);              /* outer shell wash (cool, near-white) */
+  --sched-surface: 0 0% 100%;                         /* deprecated alias */
+  --sched-surface: oklch(1 0 0);                      /* primary work surface (pure white) */
+  --sched-surface-deep: oklch(0.965 0.008 248);       /* recessed band / panel rail */
+  --sched-surface-rule: oklch(0.880 0.012 248);       /* crisper blue-gray hairline */
+  --sched-surface-rule-soft: oklch(0.935 0.010 248);  /* softest hairline */
 
   /* Overlay (popovers, hover cards, tooltips). */
   --sched-overlay: oklch(0.995 0.002 250);
