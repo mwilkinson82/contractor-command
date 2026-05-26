@@ -174,20 +174,20 @@ function PortfolioPage() {
     });
 
   return (
-    <div className="min-h-screen bg-[#f7f4ed] px-4 py-8 text-[var(--sched-graphite-strong)] sm:px-6">
+    <div className="min-h-screen bg-[var(--sched-surface-rule-soft)] px-4 py-8 text-[var(--sched-graphite-strong)] sm:px-6">
       <div className="mx-auto max-w-7xl">
         <header className="mb-6">
           <Link
             to="/scheduler"
-            className="inline-flex items-center gap-1 text-xs text-[#776e5e] hover:text-[var(--sched-graphite-strong)]"
+            className="inline-flex items-center gap-1 text-xs text-[var(--sched-graphite)] hover:text-[var(--sched-graphite-strong)]"
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Back to Scheduler
           </Link>
-          <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#7a6a4d]">
+          <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--sched-graphite)]">
             CPM Workbench · Multi-project view
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">Portfolio roll-up</h1>
-          <p className="mt-1 max-w-2xl text-sm text-[#5c574e]">
+          <p className="mt-1 max-w-2xl text-sm text-[var(--sched-graphite)]">
             Every active schedule, one screen. Finish dates, schedule and cost performance,
             critical-path concentration.
           </p>
@@ -206,13 +206,13 @@ function PortfolioPage() {
         </div>
 
         {list.isLoading ? (
-          <p className="text-sm text-[#776e5e]">Loading portfolio…</p>
+          <p className="text-sm text-[var(--sched-graphite)]">Loading portfolio…</p>
         ) : rows.length === 0 ? (
-          <p className="text-sm text-[#776e5e]">No schedules yet. Create one from the Scheduler.</p>
+          <p className="text-sm text-[var(--sched-graphite)]">No schedules yet. Create one from the Scheduler.</p>
         ) : (
-          <div className="overflow-x-auto rounded border border-[#d8cdb8] bg-white">
+          <div className="overflow-x-auto rounded border border-[var(--sched-surface-rule)] bg-white">
             <table className="w-full text-sm">
-              <thead className="bg-[#eee6d7] text-left text-[11px] uppercase tracking-wide text-[var(--sched-graphite)]">
+              <thead className="bg-[var(--sched-surface-rule-soft)] text-left text-[11px] uppercase tracking-wide text-[var(--sched-graphite)]">
                 <tr>
                   <th className="px-3 py-2">Project</th>
                   <th className="px-3 py-2">Finish</th>
@@ -226,7 +226,7 @@ function PortfolioPage() {
               </thead>
               <tbody>
                 {rows.map((r) => (
-                  <tr key={r.id} className="border-t border-[#eee6d7] hover:bg-[#faf6ec]">
+                  <tr key={r.id} className="border-t border-[var(--sched-surface-rule-soft)] hover:bg-[var(--sched-ivory)]">
                     <td className="px-3 py-2">
                       <Link
                         to="/scheduler"
@@ -235,23 +235,23 @@ function PortfolioPage() {
                         {r.name}
                       </Link>
                       {r.dataDate ? (
-                        <div className="text-[11px] text-[#776e5e]">Data date {r.dataDate}</div>
+                        <div className="text-[11px] text-[var(--sched-graphite)]">Data date {r.dataDate}</div>
                       ) : null}
                       {r.error ? <div className="text-[11px] text-[var(--sched-critical)]">{r.error}</div> : null}
                     </td>
                     <td className="px-3 py-2">
                       {r.loading ? (
-                        <span className="text-[#776e5e]">…</span>
+                        <span className="text-[var(--sched-graphite)]">…</span>
                       ) : (
                         <>
                           {r.finishDate ?? "—"}
-                          <div className="text-[11px] text-[#776e5e]">{r.durationDays}d total</div>
+                          <div className="text-[11px] text-[var(--sched-graphite)]">{r.durationDays}d total</div>
                         </>
                       )}
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
-                        <div className="h-1.5 w-20 overflow-hidden rounded-full bg-[#eee6d7]">
+                        <div className="h-1.5 w-20 overflow-hidden rounded-full bg-[var(--sched-surface-rule-soft)]">
                           <div
                             className="h-full bg-[var(--sched-graphite-strong)]"
                             style={{ width: `${Math.min(100, r.pctComplete)}%` }}
@@ -274,7 +274,7 @@ function PortfolioPage() {
                             r.eac > r.bac * 1.05
                               ? "text-[var(--sched-critical)]"
                               : r.eac < r.bac * 0.95
-                                ? "text-[#2f7a3e]"
+                                ? "text-[var(--sched-validated)]"
                                 : ""
                           }
                         >
@@ -287,7 +287,7 @@ function PortfolioPage() {
                     <td className="px-3 py-2 text-xs">
                       <span
                         className={
-                          r.criticalCount > 0 ? "font-medium text-[var(--sched-critical)]" : "text-[#776e5e]"
+                          r.criticalCount > 0 ? "font-medium text-[var(--sched-critical)]" : "text-[var(--sched-graphite)]"
                         }
                       >
                         {r.criticalCount}/{r.totalCount}
@@ -306,13 +306,13 @@ function PortfolioPage() {
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: "warn" | "good" }) {
   return (
-    <div className="rounded border border-[#d8cdb8] bg-white p-3">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-[#776e5e]">
+    <div className="rounded border border-[var(--sched-surface-rule)] bg-white p-3">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
         {label}
       </div>
       <div
         className={`mt-1 text-xl font-semibold ${
-          tone === "warn" ? "text-[var(--sched-critical)]" : tone === "good" ? "text-[#2f7a3e]" : ""
+          tone === "warn" ? "text-[var(--sched-critical)]" : tone === "good" ? "text-[var(--sched-validated)]" : ""
         }`}
       >
         {value}
@@ -322,7 +322,7 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "wa
 }
 
 function Pi({ value }: { value: number | null }) {
-  if (value === null) return <span className="text-[#776e5e]">—</span>;
-  const tone = value >= 1 ? "text-[#2f7a3e]" : value >= 0.95 ? "text-[#9b7400]" : "text-[var(--sched-critical)]";
+  if (value === null) return <span className="text-[var(--sched-graphite)]">—</span>;
+  const tone = value >= 1 ? "text-[var(--sched-validated)]" : value >= 0.95 ? "text-[#9b7400]" : "text-[var(--sched-critical)]";
   return <span className={`tabular-nums ${tone}`}>{value.toFixed(2)}</span>;
 }

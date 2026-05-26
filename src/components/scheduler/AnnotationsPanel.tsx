@@ -50,11 +50,11 @@ export function AnnotationsPanel({ annotations, tasks, onChange }: Props) {
   };
 
   return (
-    <section className="rounded border border-[#d8cdb8] bg-white p-4">
+    <section className="rounded border border-[var(--sched-surface-rule)] bg-white p-4">
       <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
         <Flag className="h-4 w-4" /> Annotations
       </h2>
-      <p className="mb-3 text-[11px] text-[#776e5e]">
+      <p className="mb-3 text-[11px] text-[var(--sched-graphite)]">
         Pin milestones (owner approval, permit) and callouts to dates. They appear on the Gantt and
         on the printable PDF.
       </p>
@@ -111,27 +111,27 @@ export function AnnotationsPanel({ annotations, tasks, onChange }: Props) {
       </div>
 
       {annotations.length > 0 ? (
-        <ul className="mt-3 space-y-1 border-t border-[#eee7d8] pt-3">
+        <ul className="mt-3 space-y-1 border-t border-[var(--sched-surface-rule-soft)] pt-3">
           {annotations
             .slice()
             .sort((a, b) => a.date.localeCompare(b.date))
             .map((a) => (
               <li
                 key={a.id}
-                className="flex items-center justify-between gap-2 rounded px-2 py-1 text-xs hover:bg-[#f7f4ed]"
+                className="flex items-center justify-between gap-2 rounded px-2 py-1 text-xs hover:bg-[var(--sched-surface-rule-soft)]"
               >
                 <div className="min-w-0 flex-1">
                   <span
                     className="mr-1 inline-block rounded px-1 text-[9px] font-semibold uppercase"
                     style={{
-                      background: a.kind === "milestone" ? "#7a5cc4" : "#c47a1f",
+                      background: a.kind === "milestone" ? "var(--sched-brass-deep)" : "var(--sched-near-critical)",
                       color: "white",
                     }}
                   >
                     {a.kind === "milestone" ? "MS" : "CL"}
                   </span>
                   <span className="font-medium text-[var(--sched-graphite-strong)]">{a.label}</span>
-                  <span className="ml-1 text-[#776e5e]">· {a.date}</span>
+                  <span className="ml-1 text-[var(--sched-graphite)]">· {a.date}</span>
                 </div>
                 <Button
                   variant="ghost"

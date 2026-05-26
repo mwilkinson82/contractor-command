@@ -233,7 +233,7 @@ export function IntelDock({
           aria-label="Schedule intelligence dock"
         >
           <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--sched-brass-soft)]">
-            <span className="text-[#d4b94a]">✶</span> Schedule Intelligence
+            <span className="text-[var(--sched-brass)]">✶</span> Schedule Intelligence
           </span>
 
           <div className="mx-2 h-5 w-px bg-[var(--sched-brass-soft)]/20" />
@@ -281,7 +281,7 @@ export function IntelDock({
           <button
             type="button"
             onClick={openBuildFull}
-            className="inline-flex items-center gap-1.5 rounded border border-[#d4b94a]/40 bg-gradient-to-r from-[var(--sched-brass)] to-[var(--sched-brass-deep)] px-2 py-1 text-[10.5px] font-semibold uppercase tracking-wide text-[var(--sched-graphite-strong)] transition hover:brightness-110"
+            className="inline-flex items-center gap-1.5 rounded border border-[var(--sched-brass)]/40 bg-gradient-to-r from-[var(--sched-brass)] to-[var(--sched-brass-deep)] px-2 py-1 text-[10.5px] font-semibold uppercase tracking-wide text-[var(--sched-graphite-strong)] transition hover:brightness-110"
             data-testid="intel-strip-cta-build"
             title="Open Build mode — draft a CPM"
           >
@@ -328,7 +328,7 @@ export function IntelDock({
       {/* Full-screen sheet */}
       {isFull ? (
         <div
-          className="fixed inset-y-0 right-0 z-50 flex flex-col bg-[#fdfcf7] print:hidden"
+          className="fixed inset-y-0 right-0 z-50 flex flex-col bg-[var(--sched-ivory)] print:hidden"
           style={{ left: "var(--app-sidebar-w, 0px)" }}
           data-testid="intel-dock-full"
         >

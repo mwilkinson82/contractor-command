@@ -50,7 +50,7 @@ export function ReportsPanel({ result, ganttContainerSelector }: Props) {
   const active = KINDS.find((k) => k.value === kind);
 
   return (
-    <section className="rounded border border-[#d8cdb8] bg-white p-4">
+    <section className="rounded border border-[var(--sched-surface-rule)] bg-white p-4">
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
         Reports & export
       </h2>
@@ -69,7 +69,7 @@ export function ReportsPanel({ result, ganttContainerSelector }: Props) {
               ))}
             </SelectContent>
           </Select>
-          {active ? <p className="mt-1 text-[11px] text-[#776e5e]">{active.hint}</p> : null}
+          {active ? <p className="mt-1 text-[11px] text-[var(--sched-graphite)]">{active.hint}</p> : null}
         </div>
 
         {kind === "lookahead" ? (
@@ -97,7 +97,7 @@ export function ReportsPanel({ result, ganttContainerSelector }: Props) {
           <FileDown className="mr-2 h-4 w-4" />
           Open printable report
         </Button>
-        <p className="text-[11px] text-[#776e5e]">
+        <p className="text-[11px] text-[var(--sched-graphite)]">
           Opens in a new tab. Use your browser's Print → Save as PDF.
         </p>
       </div>

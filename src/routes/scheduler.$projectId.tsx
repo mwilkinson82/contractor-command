@@ -738,27 +738,27 @@ function SchedulerPage() {
   return (
     <SchedulerShell projectId={selectedId}>
     <div
-      className="scheduler-print-root flex h-screen flex-col bg-[#faf8f3] text-[#1f241f]"
+      className="scheduler-print-root flex h-screen flex-col bg-[var(--sched-ivory)] text-[var(--sched-graphite-strong)]"
       style={{ paddingRight: "var(--scheduler-right-pad, 0px)" }}
     >
       {/* ============ TOP HEADER ============ */}
-      <header className="flex h-12 shrink-0 items-center gap-3 border-b border-[#e3e0d8] bg-white/85 px-5 backdrop-blur">
+      <header className="flex h-12 shrink-0 items-center gap-3 border-b border-[var(--sched-surface-rule)] bg-white/85 px-5 backdrop-blur">
         <Link
           to="/scheduler"
-          className="group flex items-center gap-2 text-[#4a4944] hover:text-[#1f241f]"
+          className="group flex items-center gap-2 text-[var(--sched-graphite)] hover:text-[var(--sched-graphite-strong)]"
           title="All projects"
         >
-          <span className="grid h-7 w-7 place-items-center rounded-[5px] bg-[#1f241f] text-[10px] font-bold tracking-wider text-[#f7e9b8]">
+          <span className="grid h-7 w-7 place-items-center rounded-[5px] bg-[var(--sched-graphite-strong)] text-[10px] font-bold tracking-wider text-[var(--sched-brass-soft)]">
             AOS
           </span>
-          <span className="hidden text-[10px] font-semibold uppercase tracking-[0.22em] text-[#8a8980] group-hover:text-[#4a4944] sm:inline">
+          <span className="hidden text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--sched-graphite)] group-hover:text-[var(--sched-graphite)] sm:inline">
             Projects ·
           </span>
         </Link>
 
         <ProductModeSwitcher />
 
-        <div className="h-5 w-px bg-[#e3e0d8]" />
+        <div className="h-5 w-px bg-[var(--sched-surface-rule)]" />
 
         <div className="flex flex-1 items-center gap-2 min-w-0">
           {draft ? (
@@ -768,11 +768,11 @@ function SchedulerPage() {
                 setDraft({ ...draft, name: e.target.value });
                 setDirty(true);
               }}
-              className="min-w-0 flex-1 truncate bg-transparent text-[17px] font-semibold tracking-tight text-[#1f241f] outline-none placeholder:text-[#9a9991] focus:rounded focus:bg-[#f7f4ed] focus:px-2"
+              className="min-w-0 flex-1 truncate bg-transparent text-[17px] font-semibold tracking-tight text-[var(--sched-graphite-strong)] outline-none placeholder:text-[var(--sched-graphite-soft)] focus:rounded focus:bg-[var(--sched-surface-rule-soft)] focus:px-2"
               placeholder="Untitled schedule"
             />
           ) : (
-            <span className="text-[17px] font-semibold text-[#9a9991]">Loading…</span>
+            <span className="text-[17px] font-semibold text-[var(--sched-graphite-soft)]">Loading…</span>
           )}
         </div>
 
@@ -783,10 +783,10 @@ function SchedulerPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search activities…"
-              className="h-8 w-60 rounded-md border border-transparent bg-[#f3f1ea] pl-8 pr-3 text-xs outline-none transition focus:border-[#cfcdc4] focus:bg-white"
+              className="h-8 w-60 rounded-md border border-transparent bg-[var(--sched-surface-rule-soft)] pl-8 pr-3 text-xs outline-none transition focus:border-[var(--sched-graphite-soft)] focus:bg-white"
             />
             <svg
-              className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8a8980]"
+              className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sched-graphite)]"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -800,8 +800,8 @@ function SchedulerPage() {
 
         <div className="flex items-center gap-1">
           {comparisonBaselineId ? (
-            <span className="hidden lg:inline-flex items-center gap-1.5 rounded-md bg-[#f3f1ea] px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#4a4944]">
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#7a5cc4]" />
+            <span className="hidden lg:inline-flex items-center gap-1.5 rounded-md bg-[var(--sched-surface-rule-soft)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--sched-brass-deep)]" />
               Baseline
             </span>
           ) : null}
@@ -809,7 +809,7 @@ function SchedulerPage() {
             type="button"
             onClick={() => exportScheduleCsv(draft, computed)}
             disabled={!draft || !computed}
-            className="rounded-md px-2.5 py-1.5 text-xs font-medium text-[#4a4944] hover:bg-[#f3f1ea] hover:text-[#1f241f] disabled:opacity-40"
+            className="rounded-md px-2.5 py-1.5 text-xs font-medium text-[var(--sched-graphite)] hover:bg-[var(--sched-surface-rule-soft)] hover:text-[var(--sched-graphite-strong)] disabled:opacity-40"
             title="Export activities as CSV"
           >
             Export
@@ -818,7 +818,7 @@ function SchedulerPage() {
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
-            className="rounded-md px-2.5 py-1.5 text-xs font-medium text-[#4a4944] hover:bg-[#f3f1ea] hover:text-[#1f241f]"
+            className="rounded-md px-2.5 py-1.5 text-xs font-medium text-[var(--sched-graphite)] hover:bg-[var(--sched-surface-rule-soft)] hover:text-[var(--sched-graphite-strong)]"
             title="Calendars, baselines, codes, reports, fragnet, update cycle, annotations"
           >
             Configure
@@ -828,20 +828,20 @@ function SchedulerPage() {
             onClick={() => setFocusMode((v) => !v)}
             className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition ${
               focusMode
-                ? "bg-[#1f241f] text-white hover:bg-[#2d2d28]"
-                : "text-[#4a4944] hover:bg-[#f3f1ea] hover:text-[#1f241f]"
+                ? "bg-[var(--sched-graphite-strong)] text-white hover:bg-[var(--sched-graphite-strong)]"
+                : "text-[var(--sched-graphite)] hover:bg-[var(--sched-surface-rule-soft)] hover:text-[var(--sched-graphite-strong)]"
             }`}
             title={focusMode ? "Exit focus mode" : "Focus mode (hide portal chrome)"}
             aria-pressed={focusMode}
           >
             {focusMode ? "Exit Focus" : "Focus"}
           </button>
-          <div className="mx-1 h-5 w-px bg-[#e3e0d8]" />
+          <div className="mx-1 h-5 w-px bg-[var(--sched-surface-rule)]" />
           <Button
             size="sm"
             onClick={() => saveMut.mutate()}
             disabled={!dirty || saveMut.isPending}
-            className="bg-[#1f241f] text-white shadow-sm hover:bg-[#2d2d28] disabled:opacity-40"
+            className="bg-[var(--sched-graphite-strong)] text-white shadow-sm hover:bg-[var(--sched-graphite-strong)] disabled:opacity-40"
           >
             {saveMut.isPending ? "Saving…" : dirty ? "Update Schedule" : "Saved"}
           </Button>
@@ -849,7 +849,7 @@ function SchedulerPage() {
       </header>
 
       {/* ============ TAB BAR ============ */}
-      <nav className="flex h-8 shrink-0 items-end gap-0 border-b border-[#e3e0d8] bg-white/60 px-4">
+      <nav className="flex h-8 shrink-0 items-end gap-0 border-b border-[var(--sched-surface-rule)] bg-white/60 px-4">
         {(
           [
             ["schedule", "Schedule"],
@@ -866,26 +866,26 @@ function SchedulerPage() {
             onClick={() => setActiveTab(key)}
             className={`relative px-3.5 py-1.5 text-[12px] font-medium transition ${
               activeTab === key
-                ? "text-[#1f241f]"
-                : "text-[#6b6a63] hover:text-[#2d2d28]"
+                ? "text-[var(--sched-graphite-strong)]"
+                : "text-[var(--sched-graphite)] hover:text-[var(--sched-graphite-strong)]"
             }`}
           >
             {label}
             {activeTab === key ? (
-              <span className="absolute inset-x-2 -bottom-px h-0.5 bg-[#1f241f]" />
+              <span className="absolute inset-x-2 -bottom-px h-0.5 bg-[var(--sched-graphite-strong)]" />
             ) : null}
           </button>
         ))}
         <div className="ml-auto flex items-center gap-3 pb-2">
           <Link
             to="/scheduler-portfolio"
-            className="text-[10px] font-semibold uppercase tracking-wide text-[#6b6a63] hover:text-[#1f241f]"
+            className="text-[10px] font-semibold uppercase tracking-wide text-[var(--sched-graphite)] hover:text-[var(--sched-graphite-strong)]"
           >
             Portfolio →
           </Link>
           <Link
             to="/scheduler-field"
-            className="text-[10px] font-semibold uppercase tracking-wide text-[#6b6a63] hover:text-[#1f241f]"
+            className="text-[10px] font-semibold uppercase tracking-wide text-[var(--sched-graphite)] hover:text-[var(--sched-graphite-strong)]"
           >
             Field →
           </Link>
@@ -895,18 +895,18 @@ function SchedulerPage() {
       {/* ============ NOT-LOADED STATES ============ */}
       {!selectedId ? (
         <div className="flex flex-1 items-center justify-center">
-          <div className="rounded-md border border-dashed border-[#dad7cd] bg-white/60 p-10 text-center text-sm text-[#6b6a63]">
+          <div className="rounded-md border border-dashed border-[var(--sched-surface-rule)] bg-white/60 p-10 text-center text-sm text-[var(--sched-graphite)]">
             Select a schedule, or create one to start editing.
           </div>
         </div>
       ) : loadQuery.isLoading || !draft ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-[#6b6a63]">
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-[var(--sched-graphite)]">
           <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em]">
-            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[#3d8a5c]" />
+            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--sched-validated)]" />
             Loading schedule
           </div>
-          <div className="h-1 w-48 overflow-hidden rounded-full bg-[#ecebe5]">
-            <div className="h-full w-1/3 animate-pulse rounded-full bg-[#1f241f]" />
+          <div className="h-1 w-48 overflow-hidden rounded-full bg-[var(--sched-surface-rule-soft)]">
+            <div className="h-full w-1/3 animate-pulse rounded-full bg-[var(--sched-graphite-strong)]" />
           </div>
         </div>
 
@@ -915,46 +915,46 @@ function SchedulerPage() {
           {/* ============ TOOLBAR ============ */}
           <div
             data-scheduler-toolbar
-            className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-[#e3e0d8] bg-white px-5 py-1.5"
+            className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-[var(--sched-surface-rule)] bg-white px-5 py-1.5"
           >
             {/* ——— VIEW ——— */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">View</span>
+              <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--sched-graphite)]">View</span>
               <div
                 data-scheduler-viewmode
-                className="flex items-center rounded-md border border-[#e3e0d8] bg-[#faf8f3] p-0.5"
+                className="flex items-center rounded-md border border-[var(--sched-surface-rule)] bg-[var(--sched-ivory)] p-0.5"
               >
-                <button className="rounded bg-white px-2.5 py-0.5 text-[11px] font-medium text-[#1f241f] shadow-sm">
+                <button className="rounded bg-white px-2.5 py-0.5 text-[11px] font-medium text-[var(--sched-graphite-strong)] shadow-sm">
                   Gantt
                 </button>
                 <button
                   disabled
                   title="Board view — coming soon"
-                  className="px-2.5 py-0.5 text-[11px] text-[#bfbeb5] cursor-not-allowed"
+                  className="px-2.5 py-0.5 text-[11px] text-[var(--sched-graphite-soft)] cursor-not-allowed"
                 >
                   Board
                 </button>
                 <button
                   disabled
                   title="List view — coming soon"
-                  className="px-2.5 py-0.5 text-[11px] text-[#bfbeb5] cursor-not-allowed"
+                  className="px-2.5 py-0.5 text-[11px] text-[var(--sched-graphite-soft)] cursor-not-allowed"
                 >
                   List
                 </button>
               </div>
             </div>
 
-            <div className="h-5 w-px bg-[#ecebe5]" />
+            <div className="h-5 w-px bg-[var(--sched-surface-rule-soft)]" />
 
             {/* ——— FILTER ——— */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">Filter</span>
+              <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--sched-graphite)]">Filter</span>
 
               {calendars.length > 0 ? (
                 <select
                   value={calendarFilter}
                   onChange={(e) => setCalendarFilter(e.target.value)}
-                  className="h-7 rounded-md border border-[#e3e0d8] bg-white px-2 text-[11px] text-[#2d2d28] hover:bg-[#faf8f3]"
+                  className="h-7 rounded-md border border-[var(--sched-surface-rule)] bg-white px-2 text-[11px] text-[var(--sched-graphite-strong)] hover:bg-[var(--sched-ivory)]"
                   title="Filter by activity calendar"
                 >
                   <option value="">Calendar · All</option>
@@ -980,7 +980,7 @@ function SchedulerPage() {
                   <select
                     value={resourceFilter}
                     onChange={(e) => setResourceFilter(e.target.value)}
-                    className="h-7 rounded-md border border-[#e3e0d8] bg-white px-2 text-[11px] text-[#2d2d28] hover:bg-[#faf8f3]"
+                    className="h-7 rounded-md border border-[var(--sched-surface-rule)] bg-white px-2 text-[11px] text-[var(--sched-graphite-strong)] hover:bg-[var(--sched-ivory)]"
                     title="Filter by resource"
                   >
                     <option value="">Resource · All</option>
@@ -998,7 +998,7 @@ function SchedulerPage() {
                 <select
                   value={codeFilter}
                   onChange={(e) => setCodeFilter(e.target.value)}
-                  className="h-7 rounded-md border border-[#e3e0d8] bg-white px-2 text-[11px] text-[#2d2d28] hover:bg-[#faf8f3]"
+                  className="h-7 rounded-md border border-[var(--sched-surface-rule)] bg-white px-2 text-[11px] text-[var(--sched-graphite-strong)] hover:bg-[var(--sched-ivory)]"
                   title="Filter by activity code"
                 >
                   <option value="">Code · All</option>
@@ -1015,18 +1015,18 @@ function SchedulerPage() {
                 </select>
               ) : null}
 
-              <div className="flex items-center overflow-hidden rounded-md border border-[#e3e0d8] bg-white">
+              <div className="flex items-center overflow-hidden rounded-md border border-[var(--sched-surface-rule)] bg-white">
                 {(["wbs", "critical", "none"] as const).map((g, i) => (
                   <button
                     key={g}
                     type="button"
                     onClick={() => setGroupBy(g)}
                     className={`px-2.5 py-1 text-[11px] ${
-                      i > 0 ? "border-l border-[#e3e0d8]" : ""
+                      i > 0 ? "border-l border-[var(--sched-surface-rule)]" : ""
                     } ${
                       groupBy === g
-                        ? "bg-[#1f241f] text-white"
-                        : "text-[#4a4944] hover:bg-[#faf8f3]"
+                        ? "bg-[var(--sched-graphite-strong)] text-white"
+                        : "text-[var(--sched-graphite)] hover:bg-[var(--sched-ivory)]"
                     }`}
                   >
                     {g === "wbs" ? "WBS" : g === "critical" ? "Critical" : "Flat"}
@@ -1037,20 +1037,20 @@ function SchedulerPage() {
               <button
                 type="button"
                 onClick={() => setShowCompleted((v) => !v)}
-                className={`rounded-md border border-[#e3e0d8] px-2.5 py-1 text-[11px] ${
-                  showCompleted ? "bg-white text-[#4a4944]" : "bg-[#1f241f] text-white"
-                } hover:bg-[#faf8f3]`}
+                className={`rounded-md border border-[var(--sched-surface-rule)] px-2.5 py-1 text-[11px] ${
+                  showCompleted ? "bg-white text-[var(--sched-graphite)]" : "bg-[var(--sched-graphite-strong)] text-white"
+                } hover:bg-[var(--sched-ivory)]`}
                 title="Hide 100% complete activities"
               >
                 {showCompleted ? "All" : "Remaining"}
               </button>
 
               <label
-                className="flex items-center gap-1.5 rounded-md border border-[#e3e0d8] bg-white px-2 py-0.5 text-[11px] text-[#4a4944]"
+                className="flex items-center gap-1.5 rounded-md border border-[var(--sched-surface-rule)] bg-white px-2 py-0.5 text-[11px] text-[var(--sched-graphite)]"
                 title="Activities with total float at or below this many working days are highlighted as near-critical."
               >
                 <span className="inline-block h-2 w-2 rounded-sm bg-[var(--sched-near-critical,#c08a17)]" />
-                <span className="text-[10px] uppercase tracking-wide text-[#6b6a63]">Near-crit ≤</span>
+                <span className="text-[10px] uppercase tracking-wide text-[var(--sched-graphite)]">Near-crit ≤</span>
                 <input
                   type="number"
                   min={0}
@@ -1060,17 +1060,17 @@ function SchedulerPage() {
                   onChange={(e) =>
                     setNearCriticalFloat(Math.max(0, Math.min(99, Number(e.target.value) || 0)))
                   }
-                  className="h-5 w-10 rounded border border-[#e3e0d8] bg-white px-1 text-right text-[11px] tabular-nums"
+                  className="h-5 w-10 rounded border border-[var(--sched-surface-rule)] bg-white px-1 text-right text-[11px] tabular-nums"
                 />
-                <span className="text-[10px] text-[#8a8980]">d</span>
+                <span className="text-[10px] text-[var(--sched-graphite)]">d</span>
               </label>
             </div>
 
-            <div className="h-5 w-px bg-[#ecebe5]" />
+            <div className="h-5 w-px bg-[var(--sched-surface-rule-soft)]" />
 
             {/* ——— ANALYZE ——— */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">Analyze</span>
+              <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--sched-graphite)]">Analyze</span>
               <button
                 type="button"
                 onClick={() => {
@@ -1090,7 +1090,7 @@ function SchedulerPage() {
             <div className="ml-auto flex items-center gap-3">
               {/* ——— COMPARE ——— */}
               <div className="flex items-center gap-1.5">
-                <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">Compare</span>
+                <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--sched-graphite)]">Compare</span>
                 <BaselinesPanel
                   scheduleId={selectedId}
                   comparisonId={comparisonBaselineId}
@@ -1099,31 +1099,31 @@ function SchedulerPage() {
                 />
               </div>
 
-              <div className="h-5 w-px bg-[#ecebe5]" />
+              <div className="h-5 w-px bg-[var(--sched-surface-rule-soft)]" />
 
               {/* ——— ZOOM ——— */}
               <div className="flex items-center gap-1.5">
-                <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">Zoom</span>
+                <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--sched-graphite)]">Zoom</span>
                 <button
                   type="button"
                   onClick={() => { setZoomUserSet(false); fitToContainer(); }}
-                  className="rounded border border-[#e3e0d8] bg-white px-1.5 py-0.5 text-[10px] text-[#4a4944] hover:bg-[#faf8f3]"
+                  className="rounded border border-[var(--sched-surface-rule)] bg-white px-1.5 py-0.5 text-[10px] text-[var(--sched-graphite)] hover:bg-[var(--sched-ivory)]"
                   title="Fit project to viewport"
                 >
                   Fit
                 </button>
-                <div className="flex items-center overflow-hidden rounded-md border border-[#e3e0d8] bg-white">
+                <div className="flex items-center overflow-hidden rounded-md border border-[var(--sched-surface-rule)] bg-white">
                   {ZOOM_LEVELS.map((z, i) => (
                     <button
                       key={z.label}
                       type="button"
                       onClick={() => setDayPxUser(z.dayPx)}
                       className={`px-2 py-0.5 text-[10px] ${
-                        i > 0 ? "border-l border-[#e3e0d8]" : ""
+                        i > 0 ? "border-l border-[var(--sched-surface-rule)]" : ""
                       } ${
                         dayPx === z.dayPx && zoomUserSet
-                          ? "bg-[#1f241f] text-white"
-                          : "text-[#4a4944] hover:bg-[#faf8f3]"
+                          ? "bg-[var(--sched-graphite-strong)] text-white"
+                          : "text-[var(--sched-graphite)] hover:bg-[var(--sched-ivory)]"
                       }`}
                     >
                       {z.label}
@@ -1147,12 +1147,12 @@ function SchedulerPage() {
                 ) : null}
 
                 {/* Project meta strip — compact single-line pill row */}
-                <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[#ecebe5] bg-white px-4 py-0.5 text-[11px] text-[#4a4944]">
+                <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[var(--sched-surface-rule-soft)] bg-white px-4 py-0.5 text-[11px] text-[var(--sched-graphite)]">
                   <label className="inline-flex items-center gap-1.5">
-                    <span className="text-[9px] font-semibold uppercase tracking-wider text-[#8a8980]">Start</span>
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">Start</span>
                     <input
                       type="date"
-                      className="h-6 rounded border border-[#e3e0d8] bg-white px-1.5 text-[11px] tabular-nums"
+                      className="h-6 rounded border border-[var(--sched-surface-rule)] bg-white px-1.5 text-[11px] tabular-nums"
                       value={draft.projectStartDate ?? ""}
                       onChange={(e) => {
                         setDraft({ ...draft, projectStartDate: e.target.value || undefined });
@@ -1161,10 +1161,10 @@ function SchedulerPage() {
                     />
                   </label>
                   <label className="inline-flex items-center gap-1.5">
-                    <span className="text-[9px] font-semibold uppercase tracking-wider text-[#8a8980]">Data date</span>
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">Data date</span>
                     <input
                       type="date"
-                      className="h-6 rounded border border-[#e3e0d8] bg-white px-1.5 text-[11px] tabular-nums"
+                      className="h-6 rounded border border-[var(--sched-surface-rule)] bg-white px-1.5 text-[11px] tabular-nums"
                       value={draft.dataDate ?? ""}
                       onChange={(e) => {
                         setDraft({ ...draft, dataDate: e.target.value || undefined });
@@ -1211,7 +1211,7 @@ function SchedulerPage() {
                         `Reset ${r.summary.inProgress} in-progress · ${r.summary.completed} done · ${r.summary.notStarted} not started (rollback baseline saved)`,
                       );
                     }}
-                    className="ml-auto rounded border border-[#e3e0d8] bg-white px-2 py-0.5 text-[10px] uppercase tracking-wide text-[#2d2d28] hover:bg-[#faf8f3] disabled:opacity-40"
+                    className="ml-auto rounded border border-[var(--sched-surface-rule)] bg-white px-2 py-0.5 text-[10px] uppercase tracking-wide text-[var(--sched-graphite-strong)] hover:bg-[var(--sched-ivory)] disabled:opacity-40"
                   >
                     Reschedule from data date
                   </button>
@@ -1230,7 +1230,7 @@ function SchedulerPage() {
                 {/* Split: activity table + Gantt */}
                 <div className="scheduler-print-split relative flex flex-1 min-h-0 overflow-hidden">
                   {draft.tasks.length === 0 ? (
-                    <div className="absolute inset-0 z-10 overflow-auto bg-[#faf8f3]/95 backdrop-blur-sm print:hidden">
+                    <div className="absolute inset-0 z-10 overflow-auto bg-[var(--sched-ivory)]/95 backdrop-blur-sm print:hidden">
                       <EmptyScheduleSlot
                         onAddActivity={addTask}
                         onApplySample={applySample}
@@ -1241,17 +1241,17 @@ function SchedulerPage() {
                   ) : null}
 
                   {/* Print-only title block (P6-style) */}
-                  <div className="print-only mb-3 border-b-2 border-[#1f241f] pb-2">
+                  <div className="print-only mb-3 border-b-2 border-[var(--sched-graphite-strong)] pb-2">
                     <div className="flex items-end justify-between">
                       <div>
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#4a4944]">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--sched-graphite)]">
                           CPM Schedule
                         </div>
-                        <div className="text-xl font-semibold text-[#1f241f]">
+                        <div className="text-xl font-semibold text-[var(--sched-graphite-strong)]">
                           {draft.name || "Untitled schedule"}
                         </div>
                       </div>
-                      <div className="text-right text-[10px] text-[#2d2d28]">
+                      <div className="text-right text-[10px] text-[var(--sched-graphite-strong)]">
                         <div>
                           <span className="font-semibold uppercase tracking-wide">Start </span>
                           {draft.projectStartDate || "—"}
@@ -1270,7 +1270,7 @@ function SchedulerPage() {
                           <span className="font-semibold uppercase tracking-wide">Activities </span>
                           {draft.tasks.length}
                         </div>
-                        <div className="mt-1 text-[#6b6a63]">
+                        <div className="mt-1 text-[var(--sched-graphite)]">
                           Printed {new Date().toLocaleString()}
                         </div>
                       </div>
@@ -1314,24 +1314,24 @@ function SchedulerPage() {
                       style={{ left: getCpmStickyTableWidth(nameColWidth) }}
                       title="Drag to resize · double-click to reset"
                     >
-                      <div className="mx-auto h-full w-px bg-transparent group-hover:bg-[#c4c1b7] group-active:bg-[#1f241f]" />
+                      <div className="mx-auto h-full w-px bg-transparent group-hover:bg-[#c4c1b7] group-active:bg-[var(--sched-graphite-strong)]" />
                     </div>
                     {/* Legend — slim inline strip */}
-                    <div className="flex shrink-0 items-center justify-center gap-4 border-t border-[#ecebe5] bg-[#faf8f3] px-4 py-1 text-[10px] text-[#4a4944]">
-                      <LegendDot color="#2a3e5f" label="Planned" />
-                      <LegendDot color="#9c2418" label="Critical" />
+                    <div className="flex shrink-0 items-center justify-center gap-4 border-t border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] px-4 py-1 text-[10px] text-[var(--sched-graphite)]">
+                      <LegendDot color="var(--sched-graphite-strong)" label="Planned" />
+                      <LegendDot color="var(--sched-critical)" label="Critical" />
                       {nearCriticalFloat > 0 ? (
                         <LegendDot
-                          color="#c2750a"
+                          color="var(--sched-near-critical)"
                           label={`Near-critical (≤${nearCriticalFloat}d)`}
                         />
                       ) : null}
-                      <LegendDot color="#8a8980" label="Float / baseline" />
+                      <LegendDot color="var(--sched-graphite)" label="Float / baseline" />
                       <span className="inline-flex items-center gap-1">
-                        <span className="inline-block h-2 w-2 rotate-45 bg-[#7a5cc4]" /> Milestone
+                        <span className="inline-block h-2 w-2 rotate-45 bg-[var(--sched-brass-deep)]" /> Milestone
                       </span>
                       <span className="inline-flex items-center gap-1">
-                        <span className="inline-block h-3 w-0.5 bg-[#2f7a3e]" /> Data date
+                        <span className="inline-block h-3 w-0.5 bg-[var(--sched-validated)]" /> Data date
                       </span>
                     </div>
                   </div>
@@ -1347,7 +1347,7 @@ function SchedulerPage() {
 
                 {/* ============ ACTIVITY INSPECTOR (resizable / collapsible / expanded) ============ */}
                 <div
-                  className="shrink-0 border-t border-[#e3e0d8] bg-white print:hidden"
+                  className="shrink-0 border-t border-[var(--sched-surface-rule)] bg-white print:hidden"
                   style={{
                     height: inspectorCollapsed
                       ? 30
@@ -1366,7 +1366,7 @@ function SchedulerPage() {
                       className="group relative h-1.5 cursor-row-resize select-none"
                       title="Drag to resize"
                     >
-                      <div className="absolute inset-x-0 top-0 h-px bg-[#e3e0d8] group-hover:bg-[#1f241f]" />
+                      <div className="absolute inset-x-0 top-0 h-px bg-[var(--sched-surface-rule)] group-hover:bg-[var(--sched-graphite-strong)]" />
                     </div>
                   ) : null}
 
@@ -1375,24 +1375,24 @@ function SchedulerPage() {
                     <button
                       type="button"
                       onClick={() => setInspectorCollapsed(false)}
-                      className="flex h-[30px] w-full items-center gap-3 border-b border-[#ecebe5] px-4 text-left hover:bg-[#faf8f3]"
+                      className="flex h-[30px] w-full items-center gap-3 border-b border-[var(--sched-surface-rule-soft)] px-4 text-left hover:bg-[var(--sched-ivory)]"
                       title="Expand inspector"
                     >
-                      <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">
+                      <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--sched-graphite)]">
                         {selectedTaskCalc ? "Activity" : "Schedule"} Inspector
                       </span>
                       {selectedTaskCalc ? (
-                        <span className="truncate text-[11px] text-[#1f241f]">
+                        <span className="truncate text-[11px] text-[var(--sched-graphite-strong)]">
                           {selectedTaskCalc.id} · {draft.tasks[selectedTaskIdx]?.name ?? ""}
                         </span>
                       ) : (
-                        <span className="text-[11px] text-[#6b6a63]">
+                        <span className="text-[11px] text-[var(--sched-graphite)]">
                           {computed?.projectFinishDate
                             ? `Finish ${computed.projectFinishDate}`
                             : "—"}
                         </span>
                       )}
-                      <span className="ml-auto text-[#6b6a63]">▴</span>
+                      <span className="ml-auto text-[var(--sched-graphite)]">▴</span>
                     </button>
                   ) : (
                     <div className="flex h-full flex-col">
@@ -1420,11 +1420,11 @@ function SchedulerPage() {
                         />
                       ) : null}
 
-                      <div className="flex items-center gap-3 border-b border-[#ecebe5] px-4">
-                        <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">
+                      <div className="flex items-center gap-3 border-b border-[var(--sched-surface-rule-soft)] px-4">
+                        <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--sched-graphite)]">
                           {selectedTaskCalc ? "Activity" : "Schedule"}
                         </span>
-                        <div className="h-4 w-px bg-[#ecebe5]" />
+                        <div className="h-4 w-px bg-[var(--sched-surface-rule-soft)]" />
                         <div className="flex items-end gap-0">
                           {(
                             [
@@ -1442,13 +1442,13 @@ function SchedulerPage() {
                               onClick={() => setInspectorTab(key)}
                               className={`relative px-3 py-2 text-xs font-medium ${
                                 inspectorTab === key
-                                  ? "text-[#1f241f]"
-                                  : "text-[#6b6a63] hover:text-[#2d2d28]"
+                                  ? "text-[var(--sched-graphite-strong)]"
+                                  : "text-[var(--sched-graphite)] hover:text-[var(--sched-graphite-strong)]"
                               }`}
                             >
                               {label}
                               {inspectorTab === key ? (
-                                <span className="absolute inset-x-2 -bottom-px h-0.5 bg-[#1f241f]" />
+                                <span className="absolute inset-x-2 -bottom-px h-0.5 bg-[var(--sched-graphite-strong)]" />
                               ) : null}
                             </button>
                           ))}
@@ -1459,7 +1459,7 @@ function SchedulerPage() {
                           <button
                             type="button"
                             onClick={() => setInspectorExpanded((v) => !v)}
-                            className="rounded p-1 text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
+                            className="rounded p-1 text-[var(--sched-graphite)] hover:bg-[var(--sched-ivory)] hover:text-[var(--sched-graphite-strong)]"
                             title={inspectorExpanded ? "Restore" : "Expand inspector"}
                             aria-label={inspectorExpanded ? "Restore inspector" : "Expand inspector"}
                           >
@@ -1468,7 +1468,7 @@ function SchedulerPage() {
                           <button
                             type="button"
                             onClick={() => setInspectorCollapsed(true)}
-                            className="rounded p-1 text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
+                            className="rounded p-1 text-[var(--sched-graphite)] hover:bg-[var(--sched-ivory)] hover:text-[var(--sched-graphite-strong)]"
                             title="Collapse inspector"
                             aria-label="Collapse inspector"
                           >
@@ -1513,7 +1513,7 @@ function SchedulerPage() {
                         setDirty={setDirty}
                       />
                     ) : inspectorTab === "resources" ? (
-                      <div className="text-xs text-[#4a4944]">
+                      <div className="text-xs text-[var(--sched-graphite)]">
                         {draft.tasks[selectedTaskIdx]?.resourceName ||
                         draft.tasks[selectedTaskIdx]?.budgetCost ? (
                           <ResourcesPanel
@@ -1522,11 +1522,11 @@ function SchedulerPage() {
                             onTaskChange={updateTask}
                           />
                         ) : (
-                          <div className="rounded-md border border-dashed border-[#dad7cd] bg-[#faf8f3] p-3">
-                            <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8a8980]">
+                          <div className="rounded-md border border-dashed border-[var(--sched-surface-rule)] bg-[var(--sched-ivory)] p-3">
+                            <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
                               No resources assigned
                             </div>
-                            <p className="mt-1 text-[11px] text-[#6b6a63]">
+                            <p className="mt-1 text-[11px] text-[var(--sched-graphite)]">
                               Add a resource label and budget to track cost and
                               crew loading. Resource leveling is not part of
                               this engine yet — these values populate dashboards
@@ -1572,11 +1572,11 @@ function SchedulerPage() {
                               ))}
                           </SelectContent>
                         </Select>
-                        <p className="text-[10px] text-[#6b6a63]">
+                        <p className="text-[10px] text-[var(--sched-graphite)]">
                           Duration walks in this calendar. Lag stays in project-default days.
                         </p>
                         {calendars.length <= 1 ? (
-                          <p className="text-[10px] text-[#8a8980]">
+                          <p className="text-[10px] text-[var(--sched-graphite)]">
                             Only the project default calendar exists. Create
                             named calendars in the Structure panel to assign
                             crew or shift-specific schedules.
@@ -1594,7 +1594,7 @@ function SchedulerPage() {
                           }
                           placeholder="Notes, assumptions, scope, hand-off context…"
                         />
-                        <p className="text-[10px] text-[#8a8980]">
+                        <p className="text-[10px] text-[var(--sched-graphite)]">
                           Notebook entries stay with the activity and surface on
                           hover throughout the workbench.
                         </p>
@@ -1652,58 +1652,58 @@ function SchedulerPage() {
                 ) : null}
               </div>
             ) : (
-              <div className="flex flex-1 items-center justify-center text-sm text-[#8a8980]" />
+              <div className="flex flex-1 items-center justify-center text-sm text-[var(--sched-graphite)]" />
             )}
           </div>
 
           {/* ============ STATUS BAR ============ */}
-          <footer className="flex h-8 shrink-0 items-center gap-6 border-t border-[#e3e0d8] bg-[#faf8f3] px-4 text-[11px] text-[#4a4944]">
+          <footer className="flex h-8 shrink-0 items-center gap-6 border-t border-[var(--sched-surface-rule)] bg-[var(--sched-ivory)] px-4 text-[11px] text-[var(--sched-graphite)]">
             <span className="flex items-center gap-1.5">
               <span
                 className={`inline-block h-2 w-2 rounded-full ${
                   dataQuality === "Good"
-                    ? "bg-[#3d8a5c]"
+                    ? "bg-[var(--sched-validated)]"
                     : dataQuality === "Warnings"
-                      ? "bg-[#d4842a]"
+                      ? "bg-[var(--sched-near-critical)]"
                       : dataQuality === "Errors"
-                        ? "bg-[#b42318]"
-                        : "bg-[#bfbeb5]"
+                        ? "bg-[var(--sched-critical)]"
+                        : "bg-[var(--sched-graphite-soft)]"
                 }`}
               />
-              <span className="uppercase tracking-wide text-[#6b6a63]">Data Date</span>{" "}
-              <span className="font-medium text-[#1f241f]">{draft.dataDate ?? "—"}</span>
+              <span className="uppercase tracking-wide text-[var(--sched-graphite)]">Data Date</span>{" "}
+              <span className="font-medium text-[var(--sched-graphite-strong)]">{draft.dataDate ?? "—"}</span>
             </span>
             <span>
-              <span className="uppercase tracking-wide text-[#6b6a63]">Baseline</span>{" "}
-              <span className="font-medium text-[#1f241f]">
+              <span className="uppercase tracking-wide text-[var(--sched-graphite)]">Baseline</span>{" "}
+              <span className="font-medium text-[var(--sched-graphite-strong)]">
                 {comparisonBaselineId ? "Comparing" : "—"}
               </span>
             </span>
             <span>
-              <span className="uppercase tracking-wide text-[#6b6a63]">Activities</span>{" "}
-              <span className="font-medium text-[#1f241f]">{totalActivities}</span>
+              <span className="uppercase tracking-wide text-[var(--sched-graphite)]">Activities</span>{" "}
+              <span className="font-medium text-[var(--sched-graphite-strong)]">{totalActivities}</span>
             </span>
             <span>
-              <span className="uppercase tracking-wide text-[#6b6a63]">Critical</span>{" "}
-              <span className="font-medium text-[#b42318]">{criticalCount}</span>
+              <span className="uppercase tracking-wide text-[var(--sched-graphite)]">Critical</span>{" "}
+              <span className="font-medium text-[var(--sched-critical)]">{criticalCount}</span>
             </span>
             <span>
-              <span className="uppercase tracking-wide text-[#6b6a63]">In Progress</span>{" "}
-              <span className="font-medium text-[#1f241f]">{inProgressCount}</span>
+              <span className="uppercase tracking-wide text-[var(--sched-graphite)]">In Progress</span>{" "}
+              <span className="font-medium text-[var(--sched-graphite-strong)]">{inProgressCount}</span>
             </span>
             <span>
-              <span className="uppercase tracking-wide text-[#6b6a63]">Completed</span>{" "}
-              <span className="font-medium text-[#3d8a5c]">{completedCount}</span>
+              <span className="uppercase tracking-wide text-[var(--sched-graphite)]">Completed</span>{" "}
+              <span className="font-medium text-[var(--sched-validated)]">{completedCount}</span>
             </span>
             <span className="ml-auto">
-              <span className="uppercase tracking-wide text-[#6b6a63]">Quality</span>{" "}
+              <span className="uppercase tracking-wide text-[var(--sched-graphite)]">Quality</span>{" "}
               <span
                 className={`font-medium ${
                   dataQuality === "Good"
-                    ? "text-[#3d8a5c]"
+                    ? "text-[var(--sched-validated)]"
                     : dataQuality === "Errors"
-                      ? "text-[#b42318]"
-                      : "text-[#d4842a]"
+                      ? "text-[var(--sched-critical)]"
+                      : "text-[var(--sched-near-critical)]"
                 }`}
               >
                 {dataQuality}
@@ -1715,7 +1715,7 @@ function SchedulerPage() {
                 if (confirm("Delete this schedule?")) deleteMut.mutate(selectedId);
               }}
               disabled={deleteMut.isPending}
-              className="text-[#b42318] hover:underline"
+              className="text-[var(--sched-critical)] hover:underline"
             >
               Delete
             </button>
@@ -1733,17 +1733,17 @@ function SchedulerPage() {
           <div className="flex-1 bg-black/30 backdrop-blur-sm" />
 
           <aside
-            className="relative flex h-full w-[420px] flex-col overflow-hidden border-l border-[#e3e0d8] bg-[#faf8f3] shadow-2xl"
+            className="relative flex h-full w-[420px] flex-col overflow-hidden border-l border-[var(--sched-surface-rule)] bg-[var(--sched-ivory)] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <header className="flex shrink-0 items-center justify-between border-b border-[#e3e0d8] bg-white px-4 py-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-[#1f241f]">
+            <header className="flex shrink-0 items-center justify-between border-b border-[var(--sched-surface-rule)] bg-white px-4 py-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--sched-graphite-strong)]">
                 Configure schedule
               </h2>
               <button
                 type="button"
                 onClick={() => setDrawerOpen(false)}
-                className="text-[#6b6a63] hover:text-[#1f241f]"
+                className="text-[var(--sched-graphite)] hover:text-[var(--sched-graphite-strong)]"
                 aria-label="Close"
               >
                 ✕
@@ -1871,10 +1871,10 @@ function statusFromPct(pct: number | undefined): {
 } {
   const p = pct ?? 0;
   if (p >= 100)
-    return { label: "Complete", dot: "bg-[#3d8a5c]", text: "text-[#3d8a5c]" };
+    return { label: "Complete", dot: "bg-[var(--sched-validated)]", text: "text-[var(--sched-validated)]" };
   if (p > 0)
-    return { label: "In progress", dot: "bg-[#2a3e5f]", text: "text-[#2a3e5f]" };
-  return { label: "Not started", dot: "bg-[#a8a59b]", text: "text-[#6b6a63]" };
+    return { label: "In progress", dot: "bg-[var(--sched-graphite-strong)]", text: "text-[var(--sched-graphite-strong)]" };
+  return { label: "Not started", dot: "bg-[var(--sched-graphite-soft)]", text: "text-[var(--sched-graphite)]" };
 }
 
 function InspectorTitleRow({
@@ -1903,21 +1903,21 @@ function InspectorTitleRow({
   const isNearCrit =
     !isCritical && t.totalFloat > 0 && t.totalFloat <= nearCriticalFloat;
   return (
-    <div className="flex items-center gap-3 border-b border-[#ecebe5] bg-[#faf8f3] px-4 py-2">
+    <div className="flex items-center gap-3 border-b border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] px-4 py-2">
       <span
         className={`inline-block h-2 w-2 rounded-full ${status.dot}`}
         title={status.label}
       />
-      <span className="font-mono text-[11px] tabular-nums text-[#6b6a63]">
+      <span className="font-mono text-[11px] tabular-nums text-[var(--sched-graphite)]">
         {t.id}
       </span>
-      <span className="text-[#dad7cd]">·</span>
-      <span className="truncate text-[13px] font-semibold tracking-tight text-[#1f241f]">
+      <span className="text-[var(--sched-surface-rule)]">·</span>
+      <span className="truncate text-[13px] font-semibold tracking-tight text-[var(--sched-graphite-strong)]">
         {name || "(unnamed activity)"}
       </span>
       {wbs ? (
         <span
-          className="hidden shrink-0 rounded-sm border border-[#e3e0d8] bg-white px-1.5 py-0.5 font-mono text-[10px] text-[#6b6a63] md:inline-block"
+          className="hidden shrink-0 rounded-sm border border-[var(--sched-surface-rule)] bg-white px-1.5 py-0.5 font-mono text-[10px] text-[var(--sched-graphite)] md:inline-block"
           title="WBS"
         >
           {wbs}
@@ -1925,7 +1925,7 @@ function InspectorTitleRow({
       ) : null}
       {calendarName ? (
         <span
-          className="hidden shrink-0 truncate text-[10px] text-[#8a8980] md:inline-block"
+          className="hidden shrink-0 truncate text-[10px] text-[var(--sched-graphite)] md:inline-block"
           title="Calendar"
         >
           📅 {calendarName}
@@ -1938,38 +1938,38 @@ function InspectorTitleRow({
             ? ` · ${Math.round(percentComplete)}%`
             : ""}
         </span>
-        <span className="text-[#dad7cd]">·</span>
-        <span className="uppercase tracking-wide text-[#6b6a63]">
+        <span className="text-[var(--sched-surface-rule)]">·</span>
+        <span className="uppercase tracking-wide text-[var(--sched-graphite)]">
           {predCount} pred · {succCount} succ
         </span>
-        <span className="text-[#dad7cd]">·</span>
+        <span className="text-[var(--sched-surface-rule)]">·</span>
         <span
-          className="uppercase tracking-wide text-[#6b6a63]"
+          className="uppercase tracking-wide text-[var(--sched-graphite)]"
           title="Free float"
         >
           FF {t.freeFloat}d
         </span>
-        <span className="text-[#dad7cd]">·</span>
+        <span className="text-[var(--sched-surface-rule)]">·</span>
         {isCritical ? (
-          <span className="inline-flex items-center gap-1 rounded-sm bg-[#fbe9e7] px-1.5 py-0.5 font-semibold uppercase tracking-wide text-[#b42318]">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#b42318]" />
+          <span className="inline-flex items-center gap-1 rounded-sm bg-[var(--sched-critical-soft)] px-1.5 py-0.5 font-semibold uppercase tracking-wide text-[var(--sched-critical)]">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--sched-critical)]" />
             Critical · 0d
           </span>
         ) : isNearCrit ? (
-          <span className="inline-flex items-center gap-1 rounded-sm bg-[#fdf3e3] px-1.5 py-0.5 font-semibold uppercase tracking-wide text-[#c2750a]">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#c2750a]" />
+          <span className="inline-flex items-center gap-1 rounded-sm bg-[var(--sched-near-critical-soft)] px-1.5 py-0.5 font-semibold uppercase tracking-wide text-[var(--sched-near-critical)]">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--sched-near-critical)]" />
             Near-crit · TF {t.totalFloat}d
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1 rounded-sm bg-[#eef2f7] px-1.5 py-0.5 uppercase tracking-wide text-[#2a3e5f]">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#2a3e5f]" />
+          <span className="inline-flex items-center gap-1 rounded-sm bg-[var(--sched-surface-rule-soft)] px-1.5 py-0.5 uppercase tracking-wide text-[var(--sched-graphite-strong)]">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--sched-graphite-strong)]" />
             TF {t.totalFloat}d
           </span>
         )}
         <button
           type="button"
           onClick={onClear}
-          className="ml-1 rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[#6b6a63] hover:bg-white hover:text-[#1f241f]"
+          className="ml-1 rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[var(--sched-graphite)] hover:bg-white hover:text-[var(--sched-graphite-strong)]"
           title="Clear selection"
         >
           ✕
@@ -1994,7 +1994,7 @@ function ScheduleContextSummary({
 }) {
   if (!computed) {
     return (
-      <div className="py-4 text-center text-xs text-[#8a8980]">
+      <div className="py-4 text-center text-xs text-[var(--sched-graphite)]">
         Select an activity to inspect.
       </div>
     );
@@ -2088,29 +2088,29 @@ function ScheduleContextSummary({
         tone={qualityTone}
       />
       <div className="col-span-2">
-        <div className="text-[9px] font-semibold uppercase tracking-wider text-[#8a8980]">
+        <div className="text-[9px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
           Driving path
         </div>
         {drivingFinish ? (
           <button
             type="button"
             onClick={() => onSelect(drivingFinish.id)}
-            className="mt-0.5 block w-full truncate text-left text-[12px] font-semibold tabular-nums text-[#1f241f] hover:underline"
+            className="mt-0.5 block w-full truncate text-left text-[12px] font-semibold tabular-nums text-[var(--sched-graphite-strong)] hover:underline"
             title={drivingFinish.name}
           >
             {drivingFinish.name}
           </button>
         ) : (
-          <div className="mt-0.5 text-[12px] text-[#6b6a63]">—</div>
+          <div className="mt-0.5 text-[12px] text-[var(--sched-graphite)]">—</div>
         )}
-        <div className="text-[10px] text-[#6b6a63]">
+        <div className="text-[10px] text-[var(--sched-graphite)]">
           → {drivingFinish?.earlyFinishDate ?? "—"}
         </div>
       </div>
 
       {nearCrit.length > 0 ? (
-        <div className="col-span-12 border-t border-[#ecebe5] pt-2">
-          <div className="text-[9px] font-semibold uppercase tracking-wider text-[#8a8980]">
+        <div className="col-span-12 border-t border-[var(--sched-surface-rule-soft)] pt-2">
+          <div className="text-[9px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
             Near-critical activities
           </div>
           <ul className="mt-1 grid grid-cols-2 gap-x-4 gap-y-0.5 md:grid-cols-3">
@@ -2119,12 +2119,12 @@ function ScheduleContextSummary({
                 <button
                   type="button"
                   onClick={() => onSelect(t.id)}
-                  className="flex w-full items-center gap-2 rounded px-1 py-0.5 text-left hover:bg-[#faf8f3]"
+                  className="flex w-full items-center gap-2 rounded px-1 py-0.5 text-left hover:bg-[var(--sched-ivory)]"
                 >
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#c2750a]" />
-                  <span className="font-mono text-[10px] text-[#6b6a63]">{t.id}</span>
-                  <span className="flex-1 truncate text-[#1f241f]">{t.name}</span>
-                  <span className="tabular-nums text-[10px] text-[#c2750a]">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--sched-near-critical)]" />
+                  <span className="font-mono text-[10px] text-[var(--sched-graphite)]">{t.id}</span>
+                  <span className="flex-1 truncate text-[var(--sched-graphite-strong)]">{t.name}</span>
+                  <span className="tabular-nums text-[10px] text-[var(--sched-near-critical)]">
                     {t.totalFloat}d
                   </span>
                 </button>
@@ -2152,19 +2152,19 @@ function SummaryMetric({
 }) {
   const valueColor =
     tone === "critical"
-      ? "text-[#b42318]"
+      ? "text-[var(--sched-critical)]"
       : tone === "warn"
-        ? "text-[#c2750a]"
-        : "text-[#1f241f]";
+        ? "text-[var(--sched-near-critical)]"
+        : "text-[var(--sched-graphite-strong)]";
   return (
     <div className={className}>
-      <div className="text-[9px] font-semibold uppercase tracking-wider text-[#8a8980]">
+      <div className="text-[9px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
         {label}
       </div>
       <div className={`mt-0.5 text-[14px] font-semibold tabular-nums ${valueColor}`}>
         {value}
       </div>
-      {sub ? <div className="text-[10px] text-[#6b6a63]">{sub}</div> : null}
+      {sub ? <div className="text-[10px] text-[var(--sched-graphite)]">{sub}</div> : null}
     </div>
   );
 }
@@ -2208,17 +2208,17 @@ function InspectorDetails({
     behind: "Behind data date",
   };
   const progressTone: Record<NonNullable<typeof progressState>, string> = {
-    future: "bg-[#eef2f7] text-[#2a3e5f]",
-    inprogress: "bg-[#fdf3e3] text-[#c2750a]",
-    complete: "bg-[#e5f1ea] text-[#3d8a5c]",
-    behind: "bg-[#fbe9e7] text-[#b42318]",
+    future: "bg-[var(--sched-surface-rule-soft)] text-[var(--sched-graphite-strong)]",
+    inprogress: "bg-[var(--sched-near-critical-soft)] text-[var(--sched-near-critical)]",
+    complete: "bg-[#e5f1ea] text-[var(--sched-validated)]",
+    behind: "bg-[var(--sched-critical-soft)] text-[var(--sched-critical)]",
   };
 
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_360px]">
       <div className="space-y-3">
         <div>
-          <Label className="text-[10px] uppercase tracking-wide text-[#6b6a63]">
+          <Label className="text-[10px] uppercase tracking-wide text-[var(--sched-graphite)]">
             Activity name
           </Label>
           <Input
@@ -2229,7 +2229,7 @@ function InspectorDetails({
         </div>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <div>
-            <Label className="text-[10px] uppercase tracking-wide text-[#6b6a63]">Duration</Label>
+            <Label className="text-[10px] uppercase tracking-wide text-[var(--sched-graphite)]">Duration</Label>
             <Input
               type="number"
               min={0}
@@ -2239,7 +2239,7 @@ function InspectorDetails({
             />
           </div>
           <div>
-            <Label className="text-[10px] uppercase tracking-wide text-[#6b6a63]">% Complete</Label>
+            <Label className="text-[10px] uppercase tracking-wide text-[var(--sched-graphite)]">% Complete</Label>
             <Input
               type="number"
               min={0}
@@ -2254,7 +2254,7 @@ function InspectorDetails({
             />
           </div>
           <div>
-            <Label className="text-[10px] uppercase tracking-wide text-[#6b6a63]">Start NET</Label>
+            <Label className="text-[10px] uppercase tracking-wide text-[var(--sched-graphite)]">Start NET</Label>
             <Input
               type="date"
               className="h-8 text-xs"
@@ -2263,7 +2263,7 @@ function InspectorDetails({
             />
           </div>
           <div>
-            <Label className="text-[10px] uppercase tracking-wide text-[#6b6a63]">WBS</Label>
+            <Label className="text-[10px] uppercase tracking-wide text-[var(--sched-graphite)]">WBS</Label>
             <Input
               className="h-8 text-sm"
               value={draftTask.wbs ?? ""}
@@ -2271,24 +2271,24 @@ function InspectorDetails({
             />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-md border border-[#ecebe5] bg-[#faf8f3] p-2 text-[11px]">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-md border border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] p-2 text-[11px]">
           <div className="flex items-center gap-2">
-            <span className="text-[9px] uppercase tracking-wide text-[#8a8980]">Calendar</span>
-            <span className="truncate text-[#1f241f]">{calName}</span>
+            <span className="text-[9px] uppercase tracking-wide text-[var(--sched-graphite)]">Calendar</span>
+            <span className="truncate text-[var(--sched-graphite-strong)]">{calName}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[9px] uppercase tracking-wide text-[#8a8980]">Links</span>
-            <span className="text-[#1f241f]">
+            <span className="text-[9px] uppercase tracking-wide text-[var(--sched-graphite)]">Links</span>
+            <span className="text-[var(--sched-graphite-strong)]">
               {predCount} pred · {succCount} succ
             </span>
           </div>
           {codes.length > 0 ? (
             <div className="col-span-2 flex flex-wrap items-center gap-1.5 pt-1">
-              <span className="text-[9px] uppercase tracking-wide text-[#8a8980]">Codes</span>
+              <span className="text-[9px] uppercase tracking-wide text-[var(--sched-graphite)]">Codes</span>
               {codes.slice(0, 6).map((c, i) => (
                 <span
                   key={`${c.typeName}-${i}`}
-                  className="inline-flex items-center gap-1 rounded-sm border border-[#e3e0d8] bg-white px-1.5 py-0.5 text-[10px] text-[#2d2d28]"
+                  className="inline-flex items-center gap-1 rounded-sm border border-[var(--sched-surface-rule)] bg-white px-1.5 py-0.5 text-[10px] text-[var(--sched-graphite-strong)]"
                   title={c.typeName}
                 >
                   {c.color ? (
@@ -2301,23 +2301,23 @@ function InspectorDetails({
                 </span>
               ))}
               {codes.length > 6 ? (
-                <span className="text-[10px] text-[#6b6a63]">+{codes.length - 6}</span>
+                <span className="text-[10px] text-[var(--sched-graphite)]">+{codes.length - 6}</span>
               ) : null}
             </div>
           ) : null}
           {draftTask.description ? (
-            <div className="col-span-2 truncate text-[10px] text-[#6b6a63]" title={draftTask.description}>
+            <div className="col-span-2 truncate text-[10px] text-[var(--sched-graphite)]" title={draftTask.description}>
               📝 {draftTask.description}
             </div>
           ) : null}
         </div>
       </div>
-      <div className="rounded-md border border-[#e3e0d8] bg-[#faf8f3] p-3">
+      <div className="rounded-md border border-[var(--sched-surface-rule)] bg-[var(--sched-ivory)] p-3">
         <div className="flex items-center justify-between">
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-[#6b6a63]">
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
             Date intelligence
           </div>
-          <div className="flex items-center gap-1.5 text-[10px] tabular-nums text-[#6b6a63]">
+          <div className="flex items-center gap-1.5 text-[10px] tabular-nums text-[var(--sched-graphite)]">
             <span>{draftTask.duration ?? 0}d</span>
             {progressState ? (
               <span
@@ -2329,43 +2329,43 @@ function InspectorDetails({
           </div>
         </div>
         {dataDate ? (
-          <div className="mt-1 text-[10px] text-[#8a8980]">
-            Data date <span className="tabular-nums text-[#4a4944]">{dataDate}</span>
+          <div className="mt-1 text-[10px] text-[var(--sched-graphite)]">
+            Data date <span className="tabular-nums text-[var(--sched-graphite)]">{dataDate}</span>
           </div>
         ) : null}
-        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px] text-[#2d2d28]">
-          <dt className="text-[#6b6a63]">Start (early)</dt>
-          <dd className="text-right font-semibold tabular-nums text-[#1f241f]">
+        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px] text-[var(--sched-graphite-strong)]">
+          <dt className="text-[var(--sched-graphite)]">Start (early)</dt>
+          <dd className="text-right font-semibold tabular-nums text-[var(--sched-graphite-strong)]">
             {t.earlyStartDate ?? `d${t.earlyStart}`}
           </dd>
-          <dt className="text-[#6b6a63]">Finish (early)</dt>
-          <dd className="text-right font-semibold tabular-nums text-[#1f241f]">
+          <dt className="text-[var(--sched-graphite)]">Finish (early)</dt>
+          <dd className="text-right font-semibold tabular-nums text-[var(--sched-graphite-strong)]">
             {t.earlyFinishDate ?? `d${t.earlyFinish}`}
           </dd>
-          <dt className="text-[#6b6a63]">Late start</dt>
-          <dd className="text-right font-medium tabular-nums text-[#4a4944]">
+          <dt className="text-[var(--sched-graphite)]">Late start</dt>
+          <dd className="text-right font-medium tabular-nums text-[var(--sched-graphite)]">
             {t.lateStartDate ?? `d${t.lateStart}`}
           </dd>
-          <dt className="text-[#6b6a63]">Late finish</dt>
-          <dd className="text-right font-medium tabular-nums text-[#4a4944]">
+          <dt className="text-[var(--sched-graphite)]">Late finish</dt>
+          <dd className="text-right font-medium tabular-nums text-[var(--sched-graphite)]">
             {t.lateFinishDate ?? `d${t.lateFinish}`}
           </dd>
           {draftTask.startNoEarlierThan ? (
             <>
-              <dt className="text-[#6b6a63]">Start NET</dt>
-              <dd className="text-right font-medium tabular-nums text-[#4a4944]">
+              <dt className="text-[var(--sched-graphite)]">Start NET</dt>
+              <dd className="text-right font-medium tabular-nums text-[var(--sched-graphite)]">
                 {draftTask.startNoEarlierThan}
               </dd>
             </>
           ) : null}
-          <dt className="col-span-2 mt-1 border-t border-[#ecebe5] pt-1" />
-          <dt className="text-[#6b6a63]">Total float</dt>
+          <dt className="col-span-2 mt-1 border-t border-[var(--sched-surface-rule-soft)] pt-1" />
+          <dt className="text-[var(--sched-graphite)]">Total float</dt>
           <dd
-            className={`text-right font-semibold tabular-nums ${t.totalFloat <= 0 ? "text-[#b42318]" : t.totalFloat <= 3 ? "text-[#c2750a]" : "text-[#3d8a5c]"}`}
+            className={`text-right font-semibold tabular-nums ${t.totalFloat <= 0 ? "text-[var(--sched-critical)]" : t.totalFloat <= 3 ? "text-[var(--sched-near-critical)]" : "text-[var(--sched-validated)]"}`}
           >
             {t.totalFloat}d
           </dd>
-          <dt className="text-[#6b6a63]">Free float</dt>
+          <dt className="text-[var(--sched-graphite)]">Free float</dt>
           <dd className="text-right font-medium tabular-nums">{t.freeFloat}d</dd>
         </dl>
       </div>
@@ -2520,7 +2520,7 @@ function InspectorRelationships({
             onValueChange={(v) => updateDep(di, side === "pred" ? { from: v } : { to: v })}
           >
             <SelectTrigger
-              className={`h-7 flex-1 text-xs ${hasError ? "border-[#b42318] ring-1 ring-[#b42318]/30" : ""}`}
+              className={`h-7 flex-1 text-xs ${hasError ? "border-[var(--sched-critical)] ring-1 ring-[var(--sched-critical)]/30" : ""}`}
             >
               <SelectValue />
             </SelectTrigger>
@@ -2554,13 +2554,13 @@ function InspectorRelationships({
             title="Lag in working days (negative = lead)"
           />
           {driving ? (
-            <span className="text-[10px] font-semibold text-[#7a5cc4]" title="Driving">
+            <span className="text-[10px] font-semibold text-[var(--sched-brass-deep)]" title="Driving">
               ★
             </span>
           ) : null}
           <button
             type="button"
-            className="text-[#b42318]"
+            className="text-[var(--sched-critical)]"
             onClick={() => removeDep(di)}
             aria-label="Remove link"
           >
@@ -2568,7 +2568,7 @@ function InspectorRelationships({
           </button>
         </div>
         {hasError ? (
-          <div className="ml-1 mt-0.5 text-[10px] font-medium text-[#b42318]">
+          <div className="ml-1 mt-0.5 text-[10px] font-medium text-[var(--sched-critical)]">
             {errors.join(" · ")}
           </div>
         ) : null}
@@ -2583,47 +2583,47 @@ function InspectorRelationships({
   return (
     <div className="space-y-3">
       {allErrors > 0 ? (
-        <div className="rounded border border-[#b42318]/30 bg-[#fdf2f0] px-2 py-1 text-[11px] text-[#b42318]">
+        <div className="rounded border border-[var(--sched-critical)]/30 bg-[#fdf2f0] px-2 py-1 text-[11px] text-[var(--sched-critical)]">
           {allErrors} relationship issue{allErrors === 1 ? "" : "s"} — fix before saving to avoid CPM errors.
         </div>
       ) : null}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
-          <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-[#6b6a63]">
+          <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
             <span>Predecessors · {predRows.length}</span>
             <button
               type="button"
               onClick={() => addLink("pred")}
-              className="text-[#1f241f] hover:underline"
+              className="text-[var(--sched-graphite-strong)] hover:underline"
             >
               + add
             </button>
           </div>
           {predRows.length === 0 ? (
-            <div className="text-xs text-[#8a8980]">No predecessors</div>
+            <div className="text-xs text-[var(--sched-graphite)]">No predecessors</div>
           ) : (
             predRows.map((r) => renderRow(r, "pred"))
           )}
         </div>
         <div>
-          <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-[#6b6a63]">
+          <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
             <span>Successors · {succRows.length}</span>
             <button
               type="button"
               onClick={() => addLink("succ")}
-              className="text-[#1f241f] hover:underline"
+              className="text-[var(--sched-graphite-strong)] hover:underline"
             >
               + add
             </button>
           </div>
           {succRows.length === 0 ? (
-            <div className="text-xs text-[#8a8980]">No successors</div>
+            <div className="text-xs text-[var(--sched-graphite)]">No successors</div>
           ) : (
             succRows.map((r) => renderRow(r, "succ"))
           )}
         </div>
       </div>
-      <div className="text-[10px] text-[#6b6a63]">
+      <div className="text-[10px] text-[var(--sched-graphite)]">
         FS = Finish-to-Start · SS = Start-to-Start · FF = Finish-to-Finish · SF = Start-to-Finish ·
         Lag in working days (negative = lead) · ★ = driving relationship
       </div>
@@ -2644,9 +2644,9 @@ function DependenciesEditor({
   addDep: () => void;
 }) {
   return (
-    <section className="overflow-hidden rounded-md border border-[#e3e0d8] bg-white">
-      <div className="flex items-center justify-between border-b border-[#ecebe5] px-3 py-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-[#6b6a63]">
+    <section className="overflow-hidden rounded-md border border-[var(--sched-surface-rule)] bg-white">
+      <div className="flex items-center justify-between border-b border-[var(--sched-surface-rule-soft)] px-3 py-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
           All dependencies · {draft.dependencies.length}
         </h3>
         <Button size="sm" variant="outline" onClick={addDep}>
@@ -2654,7 +2654,7 @@ function DependenciesEditor({
         </Button>
       </div>
       <table className="w-full text-sm">
-        <thead className="bg-[#faf8f3] text-[10px] uppercase tracking-wide text-[#6b6a63]">
+        <thead className="bg-[var(--sched-ivory)] text-[10px] uppercase tracking-wide text-[var(--sched-graphite)]">
           <tr>
             <th className="px-2 py-2 text-left">From</th>
             <th className="px-2 py-2 text-left">To</th>
@@ -2665,7 +2665,7 @@ function DependenciesEditor({
         </thead>
         <tbody>
           {draft.dependencies.map((d, idx) => (
-            <tr key={idx} className="border-t border-[#eeede7]">
+            <tr key={idx} className="border-t border-[var(--sched-surface-rule-soft)]">
               <td className="px-2 py-1">
                 <Select value={d.from} onValueChange={(v) => updateDep(idx, { from: v })}>
                   <SelectTrigger className="h-8 w-32 text-xs">
@@ -2732,7 +2732,7 @@ function DependenciesEditor({
           ))}
           {draft.dependencies.length === 0 ? (
             <tr>
-              <td colSpan={5} className="px-3 py-6 text-center text-[#8a8980]">
+              <td colSpan={5} className="px-3 py-6 text-center text-[var(--sched-graphite)]">
                 No dependencies yet. Click "Add dependency".
               </td>
             </tr>
@@ -2764,7 +2764,7 @@ function IntelDrawerContent({
 }) {
   if (!draft || !computed) {
     return (
-      <div className="flex-1 overflow-auto p-4 text-[12px] text-[#6b6a63]">
+      <div className="flex-1 overflow-auto p-4 text-[12px] text-[var(--sched-graphite)]">
         Load a schedule to see schedule intelligence.
       </div>
     );
@@ -2932,11 +2932,11 @@ function IntelDrawerContent({
     : "";
 
   return (
-    <div className="flex-1 overflow-auto text-[12px] leading-relaxed text-[#3a3a35]">
+    <div className="flex-1 overflow-auto text-[12px] leading-relaxed text-[var(--sched-graphite-strong)]">
       {/* ---- 1. SCHEDULE READ ---- */}
-      <section className="border-b border-[#ece8db] bg-[#fdfcf7] px-3 py-3">
+      <section className="border-b border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] px-3 py-3">
         <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#675d4b]">
+          <h3 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--sched-graphite)]">
             Schedule Read
           </h3>
           <PostureBadge value={posture} />
@@ -2969,7 +2969,7 @@ function IntelDrawerContent({
       {/* ---- 2. REVIEW FIRST ---- */}
       <IntelSection title="Review First">
         {priorities.length === 0 ? (
-          <div className="rounded border border-[#cfe4d2] bg-[#f1f7f0] p-2 text-[11px] text-[#2f5a3a]">
+          <div className="rounded border border-[var(--sched-validated-soft)] bg-[var(--sched-validated-soft)] p-2 text-[11px] text-[var(--sched-validated)]">
             No prioritized issues detected from current schedule data.
           </div>
         ) : (
@@ -2977,24 +2977,24 @@ function IntelDrawerContent({
             {(mode === "compact" ? priorities.slice(0, 1) : priorities).map((p, i) => (
               <li
                 key={p.id}
-                className="rounded border border-[#ece8db] bg-white/70 p-2"
+                className="rounded border border-[var(--sched-surface-rule-soft)] bg-white/70 p-2"
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="grid h-4 w-4 place-items-center rounded-full bg-[#1f241f] text-[9px] font-bold text-[#f7e9b8]">
+                    <span className="grid h-4 w-4 place-items-center rounded-full bg-[var(--sched-graphite-strong)] text-[9px] font-bold text-[var(--sched-brass-soft)]">
                       {i + 1}
                     </span>
-                    <span className="text-[11.5px] font-medium text-[#1f241f]">
+                    <span className="text-[11.5px] font-medium text-[var(--sched-graphite-strong)]">
                       {p.label}
                     </span>
                   </div>
                   <SeverityChip severity={p.severity} />
                 </div>
-                <div className="mt-1 pl-6 text-[10.5px] text-[#4a4944]">{p.detail}</div>
+                <div className="mt-1 pl-6 text-[10.5px] text-[var(--sched-graphite)]">{p.detail}</div>
               </li>
             ))}
             {mode === "compact" && priorities.length > 1 ? (
-              <li className="pl-1 text-[10px] text-[#8a8980]">
+              <li className="pl-1 text-[10px] text-[var(--sched-graphite)]">
                 …{priorities.length - 1} more in Standard view
               </li>
             ) : null}
@@ -3003,7 +3003,7 @@ function IntelDrawerContent({
       </IntelSection>
 
       {mode === "compact" ? (
-        <div className="px-3 pb-4 pt-2 text-[10px] uppercase tracking-wider text-[#a8a496]">
+        <div className="px-3 pb-4 pt-2 text-[10px] uppercase tracking-wider text-[var(--sched-graphite-soft)]">
           Compact view · widen drawer for full review
         </div>
       ) : null}
@@ -3018,51 +3018,51 @@ function IntelDrawerContent({
         <IntelRow label="Zero-float activities" value={String(zeroFloat.length)} />
         <IntelRow label="Finish date" value={computed.projectFinishDate ?? "—"} />
         {heavyCritical ? (
-          <div className="mt-1 rounded border border-[#e2c89a] bg-[#fbf3df] p-2 text-[11px] text-[#6b5320]">
+          <div className="mt-1 rounded border border-[var(--sched-brass-soft)] bg-[var(--sched-brass-soft)] p-2 text-[11px] text-[var(--sched-graphite)]">
             Review: more than 40% of activities are critical. Logic may be too
             tightly constrained or durations aggressive.
           </div>
         ) : null}
         {critical.length > 0 ? (
-          <ul className="mt-2 max-h-32 space-y-0.5 overflow-auto font-mono text-[10.5px] text-[#4a4944]">
+          <ul className="mt-2 max-h-32 space-y-0.5 overflow-auto font-mono text-[10.5px] text-[var(--sched-graphite)]">
             {critical.slice(0, 12).map((t) => (
               <li key={t.id} className="truncate">
                 {t.id} · <span className="font-sans">{t.name}</span>
               </li>
             ))}
             {critical.length > 12 ? (
-              <li className="text-[#8a8980]">…and {critical.length - 12} more</li>
+              <li className="text-[var(--sched-graphite)]">…and {critical.length - 12} more</li>
             ) : null}
           </ul>
         ) : (
-          <div className="text-[11px] text-[#8a8980]">No critical activities detected.</div>
+          <div className="text-[11px] text-[var(--sched-graphite)]">No critical activities detected.</div>
         )}
       </IntelSection>
 
       {/* ---- 4. NEAR-CRITICAL ---- */}
       <IntelSection title={`Near-Critical (≤${nearCriticalFloat}d)`}>
         {nearCritical.length === 0 ? (
-          <div className="text-[11px] text-[#8a8980]">No near-critical activities.</div>
+          <div className="text-[11px] text-[var(--sched-graphite)]">No near-critical activities.</div>
         ) : (
           <ul className="max-h-40 space-y-1 overflow-auto">
             {nearCritical.slice(0, 20).map((t) => (
               <li
                 key={t.id}
-                className="rounded border border-[#ece8db] bg-white/60 p-1.5 text-[11px]"
+                className="rounded border border-[var(--sched-surface-rule-soft)] bg-white/60 p-1.5 text-[11px]"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-[10.5px] text-[#1f241f]">{t.id}</span>
-                  <span className="text-[10px] text-[#8a6a20]">TF {t.totalFloat}d</span>
+                  <span className="font-mono text-[10.5px] text-[var(--sched-graphite-strong)]">{t.id}</span>
+                  <span className="text-[10px] text-[var(--sched-brass-deep)]">TF {t.totalFloat}d</span>
                 </div>
-                <div className="truncate text-[#3a3a35]">{t.name}</div>
-                <div className="flex items-center justify-between text-[10px] text-[#776e5e]">
+                <div className="truncate text-[var(--sched-graphite-strong)]">{t.name}</div>
+                <div className="flex items-center justify-between text-[10px] text-[var(--sched-graphite)]">
                   <span className="truncate">{t.wbs ?? "—"}</span>
                   <span>{t.earlyFinishDate ?? ""}</span>
                 </div>
               </li>
             ))}
             {nearCritical.length > 20 ? (
-              <li className="text-[10px] text-[#8a8980]">
+              <li className="text-[10px] text-[var(--sched-graphite)]">
                 …and {nearCritical.length - 20} more
               </li>
             ) : null}
@@ -3110,7 +3110,7 @@ function IntelDrawerContent({
       {selectedTask ? (
         <IntelSection title="Selected Activity">
           <div className="space-y-2">
-            <div className="font-mono text-[11px] text-[#1f241f]">
+            <div className="font-mono text-[11px] text-[var(--sched-graphite-strong)]">
               {selectedTask.id} · <span className="font-sans">{selectedTask.name}</span>
             </div>
             <div className="flex flex-wrap gap-1">
@@ -3135,75 +3135,75 @@ function IntelDrawerContent({
             </div>
 
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8a8980]">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
                 Why this matters
               </div>
-              <div className="mt-1 text-[11px] text-[#3a3a35]">{selWhyMatters}</div>
+              <div className="mt-1 text-[11px] text-[var(--sched-graphite-strong)]">{selWhyMatters}</div>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8a8980]">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
                   Driven by
                 </div>
                 {selDrivenBy.length === 0 ? (
-                  <div className="mt-0.5 text-[10.5px] text-[#8a8980]">No predecessors</div>
+                  <div className="mt-0.5 text-[10.5px] text-[var(--sched-graphite)]">No predecessors</div>
                 ) : (
                   <ul className="mt-0.5 max-h-20 space-y-0.5 overflow-auto text-[10.5px]">
                     {selDrivenBy.slice(0, 6).map((d) => (
                       <li key={d.id} className="truncate">
                         <span
-                          className={`font-mono ${d.driving ? "text-[#a83232]" : "text-[#4a4944]"}`}
+                          className={`font-mono ${d.driving ? "text-[var(--sched-critical)]" : "text-[var(--sched-graphite)]"}`}
                         >
                           {d.id}
                         </span>{" "}
-                        <span className="text-[#776e5e]">{taskName(d.id)}</span>
+                        <span className="text-[var(--sched-graphite)]">{taskName(d.id)}</span>
                       </li>
                     ))}
                     {selDrivenBy.length > 6 ? (
-                      <li className="text-[#8a8980]">…+{selDrivenBy.length - 6}</li>
+                      <li className="text-[var(--sched-graphite)]">…+{selDrivenBy.length - 6}</li>
                     ) : null}
                   </ul>
                 )}
                 {drivingPreds.length > 0 ? (
-                  <div className="mt-0.5 text-[10px] text-[#a83232]">
+                  <div className="mt-0.5 text-[10px] text-[var(--sched-critical)]">
                     {drivingPreds.length} driving
                   </div>
                 ) : null}
               </div>
               <div>
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8a8980]">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
                   Drives
                 </div>
                 {selDrives.length === 0 ? (
-                  <div className="mt-0.5 text-[10.5px] text-[#8a8980]">No successors</div>
+                  <div className="mt-0.5 text-[10.5px] text-[var(--sched-graphite)]">No successors</div>
                 ) : (
                   <ul className="mt-0.5 max-h-20 space-y-0.5 overflow-auto text-[10.5px]">
                     {selDrives.slice(0, 6).map((d) => (
                       <li key={d.id} className="truncate">
                         <span
-                          className={`font-mono ${d.driving ? "text-[#a83232]" : "text-[#4a4944]"}`}
+                          className={`font-mono ${d.driving ? "text-[var(--sched-critical)]" : "text-[var(--sched-graphite)]"}`}
                         >
                           {d.id}
                         </span>{" "}
-                        <span className="text-[#776e5e]">{taskName(d.id)}</span>
+                        <span className="text-[var(--sched-graphite)]">{taskName(d.id)}</span>
                       </li>
                     ))}
                     {selDrives.length > 6 ? (
-                      <li className="text-[#8a8980]">…+{selDrives.length - 6}</li>
+                      <li className="text-[var(--sched-graphite)]">…+{selDrives.length - 6}</li>
                     ) : null}
                   </ul>
                 )}
                 {drivenSuccs.length > 0 ? (
-                  <div className="mt-0.5 text-[10px] text-[#a83232]">
+                  <div className="mt-0.5 text-[10px] text-[var(--sched-critical)]">
                     {drivenSuccs.length} driving
                   </div>
                 ) : null}
               </div>
             </div>
 
-            <div className="rounded border border-[#e3e0d8] bg-[#fdfcf7] p-2 text-[11px] text-[#4a4944]">
-              <span className="font-semibold text-[#1f241f]">Recommendation. </span>
+            <div className="rounded border border-[var(--sched-surface-rule)] bg-[var(--sched-ivory)] p-2 text-[11px] text-[var(--sched-graphite)]">
+              <span className="font-semibold text-[var(--sched-graphite-strong)]">Recommendation. </span>
               {selRecommendation}
             </div>
           </div>
@@ -3211,18 +3211,18 @@ function IntelDrawerContent({
       ) : null}
 
       {mode === "wide" ? (
-        <section className="border-t border-dashed border-[#dad7cd] bg-white/60 px-3 py-3">
-          <h3 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#675d4b]">
+        <section className="border-t border-dashed border-[var(--sched-surface-rule)] bg-white/60 px-3 py-3">
+          <h3 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--sched-graphite)]">
             Builder workspace
           </h3>
-          <div className="mt-1 text-[11px] text-[#6b6a63]">
+          <div className="mt-1 text-[11px] text-[var(--sched-graphite)]">
             Reserved for AI / chat-assisted schedule building. No live behavior
             wired yet — use Standard for the current deterministic review.
           </div>
         </section>
       ) : null}
 
-      <div className="px-3 pb-4 pt-2 text-[10px] uppercase tracking-wider text-[#a8a496]">
+      <div className="px-3 pb-4 pt-2 text-[10px] uppercase tracking-wider text-[var(--sched-graphite-soft)]">
         {mode === "wide" ? "Standard review + reserved builder space" : "Deterministic review · derived from current schedule"}
       </div>
         </div>
@@ -3236,10 +3236,10 @@ function IntelDrawerContent({
 function PostureBadge({ value }: { value: "Stable" | "Tight" | "Risky" }) {
   const cls =
     value === "Risky"
-      ? "border-[#e2b8b8] bg-[#fbecec] text-[#a83232]"
+      ? "border-[var(--sched-critical-soft)] bg-[var(--sched-critical-soft)] text-[var(--sched-critical)]"
       : value === "Tight"
-        ? "border-[#e2c89a] bg-[#fbf3df] text-[#6b5320]"
-        : "border-[#cfe4d2] bg-[#f1f7f0] text-[#2f5a3a]";
+        ? "border-[var(--sched-brass-soft)] bg-[var(--sched-brass-soft)] text-[var(--sched-graphite)]"
+        : "border-[var(--sched-validated-soft)] bg-[var(--sched-validated-soft)] text-[var(--sched-validated)]";
   return (
     <span
       className={`rounded border px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider ${cls}`}
@@ -3252,10 +3252,10 @@ function PostureBadge({ value }: { value: "Stable" | "Tight" | "Risky" }) {
 function SeverityChip({ severity }: { severity: "high" | "med" | "low" }) {
   const cls =
     severity === "high"
-      ? "border-[#e2b8b8] bg-[#fbecec] text-[#a83232]"
+      ? "border-[var(--sched-critical-soft)] bg-[var(--sched-critical-soft)] text-[var(--sched-critical)]"
       : severity === "med"
-        ? "border-[#e2c89a] bg-[#fbf3df] text-[#6b5320]"
-        : "border-[#d8d5c8] bg-[#f3f1e8] text-[#6b6a63]";
+        ? "border-[var(--sched-brass-soft)] bg-[var(--sched-brass-soft)] text-[var(--sched-graphite)]"
+        : "border-[#d8d5c8] bg-[#f3f1e8] text-[var(--sched-graphite)]";
   const label = severity === "high" ? "High" : severity === "med" ? "Med" : "Low";
   return (
     <span
@@ -3275,12 +3275,12 @@ function MiniChip({
 }) {
   const cls =
     tone === "danger"
-      ? "border-[#e2b8b8] bg-[#fbecec] text-[#a83232]"
+      ? "border-[var(--sched-critical-soft)] bg-[var(--sched-critical-soft)] text-[var(--sched-critical)]"
       : tone === "warn"
-        ? "border-[#e2c89a] bg-[#fbf3df] text-[#6b5320]"
+        ? "border-[var(--sched-brass-soft)] bg-[var(--sched-brass-soft)] text-[var(--sched-graphite)]"
         : tone === "ok"
-          ? "border-[#cfe4d2] bg-[#f1f7f0] text-[#2f5a3a]"
-          : "border-[#e3e0d8] bg-white text-[#4a4944]";
+          ? "border-[var(--sched-validated-soft)] bg-[var(--sched-validated-soft)] text-[var(--sched-validated)]"
+          : "border-[var(--sched-surface-rule)] bg-white text-[var(--sched-graphite)]";
   return (
     <span className={`rounded border px-1.5 py-0.5 text-[10px] ${cls}`}>{children}</span>
   );
@@ -3288,8 +3288,8 @@ function MiniChip({
 
 function IntelSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="border-b border-[#ece8db] px-3 py-3">
-      <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#675d4b]">
+    <section className="border-b border-[var(--sched-surface-rule-soft)] px-3 py-3">
+      <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--sched-graphite)]">
         {title}
       </h3>
       <div className="space-y-1">{children}</div>
@@ -3308,15 +3308,15 @@ function IntelRow({
 }) {
   const toneClass =
     tone === "danger"
-      ? "text-[#a83232]"
+      ? "text-[var(--sched-critical)]"
       : tone === "warn"
-        ? "text-[#8a6a20]"
+        ? "text-[var(--sched-brass-deep)]"
         : tone === "ok"
-          ? "text-[#2f7a3e]"
-          : "text-[#1f241f]";
+          ? "text-[var(--sched-validated)]"
+          : "text-[var(--sched-graphite-strong)]";
   return (
     <div className="flex items-center justify-between gap-3 text-[11.5px]">
-      <span className="text-[#6b6a63]">{label}</span>
+      <span className="text-[var(--sched-graphite)]">{label}</span>
       <span className={`font-medium tabular-nums ${toneClass}`}>{value}</span>
     </div>
   );
@@ -3335,16 +3335,16 @@ function IntelReviewRow({
 }) {
   const tone = count === 0 ? "ok" : count > 5 ? "warn" : undefined;
   return (
-    <div className="rounded border border-[#ece8db] bg-white/50 p-2">
+    <div className="rounded border border-[var(--sched-surface-rule-soft)] bg-white/50 p-2">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] text-[#3a3a35]">{label}</span>
+        <span className="text-[11px] text-[var(--sched-graphite-strong)]">{label}</span>
         <span
           className={`text-[11px] font-medium tabular-nums ${
             tone === "warn"
-              ? "text-[#8a6a20]"
+              ? "text-[var(--sched-brass-deep)]"
               : tone === "ok"
-                ? "text-[#2f7a3e]"
-                : "text-[#1f241f]"
+                ? "text-[var(--sched-validated)]"
+                : "text-[var(--sched-graphite-strong)]"
           }`}
         >
           {count}
@@ -3352,9 +3352,9 @@ function IntelReviewRow({
       </div>
       {count > 0 ? (
         <>
-          <div className="mt-1 text-[10.5px] text-[#776e5e]">{hint}</div>
+          <div className="mt-1 text-[10.5px] text-[var(--sched-graphite)]">{hint}</div>
           {sample.length > 0 ? (
-            <div className="mt-1 truncate font-mono text-[10px] text-[#4a4944]">
+            <div className="mt-1 truncate font-mono text-[10px] text-[var(--sched-graphite)]">
               {sample.join(", ")}
               {count > sample.length ? ` …+${count - sample.length}` : ""}
             </div>
@@ -3392,7 +3392,7 @@ function ProductModeSwitcher() {
       role="tablist"
       aria-label="Scheduler mode"
       data-testid="product-mode-switcher"
-      className="ml-2 hidden items-center gap-0.5 rounded-md border border-[#e3e0d8] bg-[#faf8f3] p-0.5 md:inline-flex"
+      className="ml-2 hidden items-center gap-0.5 rounded-md border border-[var(--sched-surface-rule)] bg-[var(--sched-ivory)] p-0.5 md:inline-flex"
     >
       {PRODUCT_MODES.map((m) => {
         const active = productMode === m.key;
@@ -3409,9 +3409,9 @@ function ProductModeSwitcher() {
               "rounded px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors " +
               (active
                 ? m.key === "build"
-                  ? "bg-gradient-to-r from-[#c9a84c] to-[#a89968] text-[#1f241f] shadow-[inset_0_0_0_1px_rgba(31,36,31,0.15)]"
-                  : "bg-[#1f241f] text-[#f7e9b8]"
-                : "text-[#6b6a63] hover:bg-white hover:text-[#1f241f]")
+                  ? "bg-gradient-to-r from-[var(--sched-brass)] to-[var(--sched-brass-deep)] text-[var(--sched-graphite-strong)] shadow-[inset_0_0_0_1px_rgba(31,36,31,0.15)]"
+                  : "bg-[var(--sched-graphite-strong)] text-[var(--sched-brass-soft)]"
+                : "text-[var(--sched-graphite)] hover:bg-white hover:text-[var(--sched-graphite-strong)]")
             }
           >
             {m.label}
@@ -3435,20 +3435,20 @@ function ProductModeOverlay() {
   if (productMode === "schedule") return null;
   return (
     <div
-      className="fixed inset-y-0 right-0 z-40 flex flex-col bg-[#faf8f3] print:hidden"
+      className="fixed inset-y-0 right-0 z-40 flex flex-col bg-[var(--sched-ivory)] print:hidden"
       style={{ left: "var(--app-sidebar-w, 0px)" }}
       data-testid={`product-mode-overlay-${productMode}`}
     >
 
-      <header className="flex h-11 shrink-0 items-center gap-4 border-b border-[#e3e0d8] bg-white/90 px-4 backdrop-blur">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#4a4944]">
+      <header className="flex h-11 shrink-0 items-center gap-4 border-b border-[var(--sched-surface-rule)] bg-white/90 px-4 backdrop-blur">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--sched-graphite)]">
           {productMode === "build" ? "Build Mode" : "Publish Mode"}
         </span>
         <ProductModeSwitcher />
         <button
           type="button"
           onClick={() => setProductMode("schedule")}
-          className="ml-auto rounded border border-[#e3e0d8] bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#1f241f] hover:bg-[#faf8f3]"
+          className="ml-auto rounded border border-[var(--sched-surface-rule)] bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--sched-graphite-strong)] hover:bg-[var(--sched-ivory)]"
           data-testid="product-mode-exit"
         >
           ← Back to Schedule
@@ -3507,9 +3507,9 @@ function PublishModeShell() {
       className="grid min-h-0 flex-1 gap-4 overflow-hidden p-4 lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]"
       data-testid="publish-mode-shell"
     >
-      <aside className="flex min-h-0 flex-col overflow-hidden rounded border border-[#ece8db] bg-white">
-        <div className="shrink-0 border-b border-[#ece8db] bg-[#faf8f3] px-3 py-2">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#675d4b]">
+      <aside className="flex min-h-0 flex-col overflow-hidden rounded border border-[var(--sched-surface-rule-soft)] bg-white">
+        <div className="shrink-0 border-b border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] px-3 py-2">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--sched-graphite)]">
             Report templates
           </div>
         </div>
@@ -3520,25 +3520,25 @@ function PublishModeShell() {
                 type="button"
                 disabled
                 data-testid={`publish-report-${r.key}`}
-                className="w-full cursor-not-allowed rounded border border-transparent px-2.5 py-2 text-left opacity-90 hover:border-[#ece8db] hover:bg-[#faf8f3]"
+                className="w-full cursor-not-allowed rounded border border-transparent px-2.5 py-2 text-left opacity-90 hover:border-[var(--sched-surface-rule-soft)] hover:bg-[var(--sched-ivory)]"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[12.5px] font-semibold tracking-tight text-[#1f241f]">
+                  <span className="text-[12.5px] font-semibold tracking-tight text-[var(--sched-graphite-strong)]">
                     {r.title}
                   </span>
-                  <span className="rounded bg-[#ecebe5] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#675d4b]">
+                  <span className="rounded bg-[var(--sched-surface-rule-soft)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
                     Soon
                   </span>
                 </div>
-                <div className="mt-1 text-[11px] leading-snug text-[#6b6a63]">{r.desc}</div>
+                <div className="mt-1 text-[11px] leading-snug text-[var(--sched-graphite)]">{r.desc}</div>
               </button>
             </li>
           ))}
         </ul>
       </aside>
-      <section className="flex min-h-0 flex-col overflow-hidden rounded border border-[#ece8db] bg-white">
-        <div className="flex shrink-0 items-center justify-between border-b border-[#ece8db] bg-[#faf8f3] px-3 py-2">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#675d4b]">
+      <section className="flex min-h-0 flex-col overflow-hidden rounded border border-[var(--sched-surface-rule-soft)] bg-white">
+        <div className="flex shrink-0 items-center justify-between border-b border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] px-3 py-2">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--sched-graphite)]">
             Preview gallery
           </div>
           <div className="text-[10px] font-medium uppercase tracking-wider text-[#a8a190]">
@@ -3585,10 +3585,10 @@ function ReportThumbnail({
   })();
   const isCritical = reportKey === "critical-path" || reportKey === "delay-narrative";
   const accent = reportKey === "owner-report"
-    ? "#c9a84c"
+    ? "var(--sched-brass)"
     : isCritical
-      ? "#b42318"
-      : "#1f241f";
+      ? "var(--sched-critical)"
+      : "var(--sched-graphite-strong)";
 
   return (
     <figure className="group flex flex-col overflow-hidden rounded-sm border border-[#dcd6c4] bg-white shadow-[0_1px_0_rgba(0,0,0,0.04),0_8px_20px_-12px_rgba(31,36,31,0.18)] transition hover:shadow-[0_2px_0_rgba(0,0,0,0.06),0_14px_28px_-12px_rgba(31,36,31,0.28)]">
@@ -3597,14 +3597,14 @@ function ReportThumbnail({
         {/* Page header band */}
         <div
           className="flex items-center justify-between px-3 py-2 text-[8px] font-semibold uppercase tracking-[0.22em]"
-          style={{ background: accent, color: accent === "#c9a84c" ? "#1f241f" : "#f7e9b8" }}
+          style={{ background: accent, color: accent === "var(--sched-brass)" ? "var(--sched-graphite-strong)" : "var(--sched-brass-soft)" }}
         >
           <span className="truncate">{title}</span>
           <span className="opacity-70">AOS</span>
         </div>
         {/* Faux WBS column + gantt rows */}
         <div className="absolute inset-x-0 bottom-0 top-7 grid grid-cols-[28%_minmax(0,1fr)]">
-          <div className="border-r border-[#ece8db] bg-[#faf8f3] px-2 py-2 space-y-1.5">
+          <div className="border-r border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] px-2 py-2 space-y-1.5">
             {bars.map((_, i) => (
               <div key={i} className="h-1.5 w-[85%] rounded-sm bg-[#d8d2bf]" />
             ))}
@@ -3626,12 +3626,12 @@ function ReportThumbnail({
                       width: `${w}%`,
                       background:
                         isCritical && i % 2 === 0
-                          ? "#b42318"
+                          ? "var(--sched-critical)"
                           : i === bars.length - 1
-                            ? "#3c7a4a"
-                            : accent === "#c9a84c"
-                              ? "#c9a84c"
-                              : "#1f241f",
+                            ? "var(--sched-validated)"
+                            : accent === "var(--sched-brass)"
+                              ? "var(--sched-brass)"
+                              : "var(--sched-graphite-strong)",
                       opacity: 0.85,
                     }}
                   />
@@ -3642,16 +3642,16 @@ function ReportThumbnail({
         </div>
         {/* watermark */}
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
-          <span className="rotate-[-12deg] text-[10px] font-bold uppercase tracking-[0.4em] text-[#1f241f]/[0.06]">
+          <span className="rotate-[-12deg] text-[10px] font-bold uppercase tracking-[0.4em] text-[var(--sched-graphite-strong)]/[0.06]">
             Preview
           </span>
         </div>
       </div>
-      <figcaption className="flex items-center justify-between gap-2 border-t border-[#ece8db] bg-[#faf8f3] px-3 py-2">
-        <span className="truncate text-[11.5px] font-semibold tracking-tight text-[#1f241f]">
+      <figcaption className="flex items-center justify-between gap-2 border-t border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] px-3 py-2">
+        <span className="truncate text-[11.5px] font-semibold tracking-tight text-[var(--sched-graphite-strong)]">
           {title}
         </span>
-        <span className="rounded bg-[#ecebe5] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#675d4b]">
+        <span className="rounded bg-[var(--sched-surface-rule-soft)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
           Soon
         </span>
       </figcaption>
@@ -3697,7 +3697,7 @@ function PublishShortcut({ disabled }: { disabled?: boolean }) {
       type="button"
       onClick={() => setProductMode("publish")}
       disabled={disabled}
-      className="rounded-md px-2.5 py-1.5 text-xs font-medium text-[#4a4944] hover:bg-[#f3f1ea] hover:text-[#1f241f] disabled:opacity-40"
+      className="rounded-md px-2.5 py-1.5 text-xs font-medium text-[var(--sched-graphite)] hover:bg-[var(--sched-surface-rule-soft)] hover:text-[var(--sched-graphite-strong)] disabled:opacity-40"
       title="Open Publish mode — output, PDF, and report templates"
       data-testid="top-publish-shortcut"
     >

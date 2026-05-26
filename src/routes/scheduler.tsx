@@ -165,10 +165,10 @@ function ProjectsIndex() {
   }, [detailQs]);
 
   return (
-    <div className="min-h-screen bg-[#f7f4ed] px-4 py-8 text-[var(--sched-graphite-strong)] sm:px-6">
+    <div className="min-h-screen bg-[var(--sched-surface-rule-soft)] px-4 py-8 text-[var(--sched-graphite-strong)] sm:px-6">
       <div className="mx-auto max-w-7xl">
         <header className="mb-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7a6a4d]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--sched-graphite)]">
             CPM Workbench · Primavera-class scheduling, AOS ease
           </p>
           <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
@@ -176,25 +176,25 @@ function ProjectsIndex() {
             <div className="flex flex-wrap gap-2">
               <Link
                 to="/scheduler-portfolio"
-                className="rounded border border-[#d8cdb8] bg-white px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-[var(--sched-graphite-strong)] hover:bg-[#eee6d7]"
+                className="rounded border border-[var(--sched-surface-rule)] bg-white px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-[var(--sched-graphite-strong)] hover:bg-[var(--sched-surface-rule-soft)]"
               >
                 Portfolio EVM →
               </Link>
               <Link
                 to="/scheduler-field"
-                className="rounded border border-[#d8cdb8] bg-white px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-[var(--sched-graphite-strong)] hover:bg-[#eee6d7]"
+                className="rounded border border-[var(--sched-surface-rule)] bg-white px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-[var(--sched-graphite-strong)] hover:bg-[var(--sched-surface-rule-soft)]"
               >
                 Field update (mobile) →
               </Link>
             </div>
           </div>
-          <p className="mt-1 max-w-2xl text-sm text-[#5c574e]">
+          <p className="mt-1 max-w-2xl text-sm text-[var(--sched-graphite)]">
             Every job, every owner, every schedule — open one to step into the CPM workbench.
           </p>
         </header>
 
         {/* Portfolio strip */}
-        <section className="mb-6 grid grid-cols-2 gap-3 rounded border border-[#d8cdb8] bg-white p-4 sm:grid-cols-4">
+        <section className="mb-6 grid grid-cols-2 gap-3 rounded border border-[var(--sched-surface-rule)] bg-white p-4 sm:grid-cols-4">
           <Stat label="Projects" value={String(projects.length)} />
           <Stat
             label="Portfolio % complete"
@@ -218,7 +218,7 @@ function ProjectsIndex() {
         <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
           {/* Left: new project + filters */}
           <aside className="space-y-6">
-            <section className="rounded border border-[#d8cdb8] bg-white p-4">
+            <section className="rounded border border-[var(--sched-surface-rule)] bg-white p-4">
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
                 New project
               </h2>
@@ -257,14 +257,14 @@ function ProjectsIndex() {
                 >
                   {createMut.isPending ? "Creating…" : "Create project"}
                 </Button>
-                <p className="text-xs text-[#7a6a4d]">
+                <p className="text-xs text-[var(--sched-graphite)]">
                   After creating, open the project and import an XER, start from sample, or build by
                   hand.
                 </p>
               </div>
             </section>
 
-            <section className="rounded border border-[#d8cdb8] bg-white p-4">
+            <section className="rounded border border-[var(--sched-surface-rule)] bg-white p-4">
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
                 Filter
               </h2>
@@ -303,9 +303,9 @@ function ProjectsIndex() {
           {/* Right: project list */}
           <main>
             {projectsQ.isLoading ? (
-              <p className="text-sm text-[#746b5c]">Loading projects…</p>
+              <p className="text-sm text-[var(--sched-graphite)]">Loading projects…</p>
             ) : filtered.length === 0 ? (
-              <div className="rounded border border-dashed border-[#d8cdb8] bg-white/60 p-10 text-center text-sm text-[#746b5c]">
+              <div className="rounded border border-dashed border-[var(--sched-surface-rule)] bg-white/60 p-10 text-center text-sm text-[var(--sched-graphite)]">
                 {projects.length === 0
                   ? "No projects yet. Create your first one on the left."
                   : "No projects match your filters."}
@@ -345,11 +345,11 @@ function ProjectsIndex() {
                       <Link
                         to="/scheduler/$projectId"
                         params={{ projectId: p.id }}
-                        className="group block rounded border border-[#d8cdb8] bg-white p-4 transition hover:border-[var(--sched-graphite-strong)] hover:shadow-sm"
+                        className="group block rounded border border-[var(--sched-surface-rule)] bg-white p-4 transition hover:border-[var(--sched-graphite-strong)] hover:shadow-sm"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-[#7a6a4d]">
+                            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-[var(--sched-graphite)]">
                               <span
                                 className={`inline-block h-1.5 w-1.5 rounded-full ${STATUS_DOT[p.status]}`}
                               />
@@ -360,10 +360,10 @@ function ProjectsIndex() {
                               {p.name}
                             </div>
                             {p.client ? (
-                              <div className="truncate text-xs text-[#5c574e]">{p.client}</div>
+                              <div className="truncate text-xs text-[var(--sched-graphite)]">{p.client}</div>
                             ) : null}
                           </div>
-                          <div className="text-right text-xs text-[#746b5c]">
+                          <div className="text-right text-xs text-[var(--sched-graphite)]">
                             {p.projectStartDate ?? "—"}
                             <div>→ {finish ?? "—"}</div>
                           </div>
@@ -397,19 +397,19 @@ function ProjectsIndex() {
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div>
-      <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#7a6a4d]">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--sched-graphite)]">
         {label}
       </div>
       <div className="mt-1 text-xl font-semibold tracking-tight">{value}</div>
-      {sub ? <div className="text-[11px] text-[#746b5c]">{sub}</div> : null}
+      {sub ? <div className="text-[11px] text-[var(--sched-graphite)]">{sub}</div> : null}
     </div>
   );
 }
 
 function Mini({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded border border-[#eee6d7] bg-[#faf7ee] px-2 py-1.5">
-      <div className="text-[9px] uppercase tracking-wide text-[#7a6a4d]">{label}</div>
+    <div className="rounded border border-[var(--sched-surface-rule-soft)] bg-[#faf7ee] px-2 py-1.5">
+      <div className="text-[9px] uppercase tracking-wide text-[var(--sched-graphite)]">{label}</div>
       <div className="text-sm font-medium">{value}</div>
     </div>
   );

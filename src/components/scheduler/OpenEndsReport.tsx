@@ -13,7 +13,7 @@ export function OpenEndsReport({ result }: { result: ScheduleResult }) {
 
   if (danglingStarts.length === 0 && danglingEnds.length === 0) {
     return (
-      <div className="text-xs text-[#5c574e]">
+      <div className="text-xs text-[var(--sched-graphite)]">
         No open ends — every activity is tied to a predecessor and a successor.
       </div>
     );
@@ -23,13 +23,13 @@ export function OpenEndsReport({ result }: { result: ScheduleResult }) {
     <div className="space-y-2 text-xs">
       {danglingStarts.length > 0 ? (
         <div>
-          <div className="font-semibold text-[#7a6a4d]">Missing predecessors</div>
+          <div className="font-semibold text-[var(--sched-graphite)]">Missing predecessors</div>
           <div className="font-mono">{danglingStarts.map((t) => t.id).join(", ")}</div>
         </div>
       ) : null}
       {danglingEnds.length > 0 ? (
         <div>
-          <div className="font-semibold text-[#7a6a4d]">Missing successors</div>
+          <div className="font-semibold text-[var(--sched-graphite)]">Missing successors</div>
           <div className="font-mono">{danglingEnds.map((t) => t.id).join(", ")}</div>
         </div>
       ) : null}

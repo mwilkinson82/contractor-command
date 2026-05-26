@@ -281,14 +281,14 @@ export function CpmGrid({
   return (
     <div
       ref={scrollRef}
-      className="h-full w-full overflow-auto border-t border-[#e3e0d8] bg-white"
+      className="h-full w-full overflow-auto border-t border-[var(--sched-surface-rule)] bg-white"
     >
       <div className="flex min-w-max">
         {/* ============ LEFT: activity table ============ */}
-        <div className="sticky left-0 z-20 shrink-0 border-r border-[#e3e0d8] bg-white shadow-[1px_0_0_rgba(31,36,31,0.04)]">
+        <div className="sticky left-0 z-20 shrink-0 border-r border-[var(--sched-surface-rule)] bg-white shadow-[1px_0_0_rgba(31,36,31,0.04)]">
           {/* Column header — cool slate-ivory, technical */}
           <div
-            className="sticky top-0 z-30 border-b border-[#e3e0d8] bg-[#f3f2ed] text-[10px] font-semibold uppercase tracking-wider text-[#3d3d38]"
+            className="sticky top-0 z-30 border-b border-[var(--sched-surface-rule)] bg-[var(--sched-surface-rule-soft)] text-[10px] font-semibold uppercase tracking-wider text-[#3d3d38]"
             style={{ height: HEADER_H }}
           >
             <table className="w-full border-collapse">
@@ -323,7 +323,7 @@ export function CpmGrid({
 
           {/* Rows */}
           <table
-            className="w-full border-collapse text-[11px] text-[#1f241f]"
+            className="w-full border-collapse text-[11px] text-[var(--sched-graphite-strong)]"
             style={{ fontFamily: "ui-sans-serif, system-ui" }}
           >
             <colgroup>
@@ -343,16 +343,16 @@ export function CpmGrid({
                   return (
                     <tr
                       key={`g-${row.key}`}
-                      className="cursor-pointer bg-[#eeede7] font-medium text-[#2d2d28] hover:bg-[#e6e5dd]"
+                      className="cursor-pointer bg-[var(--sched-surface-rule-soft)] font-medium text-[var(--sched-graphite-strong)] hover:bg-[#e6e5dd]"
                       style={{ height: GROUP_H }}
                       onClick={() => onToggleGroup?.(row.key)}
                     >
-                      <td colSpan={9} className="border-b border-[#dad7cd] px-2">
+                      <td colSpan={9} className="border-b border-[var(--sched-surface-rule)] px-2">
                         <span className="mr-1.5 inline-block w-3 text-center text-[10px] text-[#7a7972]">
                           {row.collapsed ? "▸" : "▾"}
                         </span>
-                        <span className="text-[10px] uppercase tracking-[0.1em] text-[#4a4944]">{row.key}</span>
-                        <span className="ml-2 text-[10px] font-normal text-[#8a8980]">
+                        <span className="text-[10px] uppercase tracking-[0.1em] text-[var(--sched-graphite)]">{row.key}</span>
+                        <span className="ml-2 text-[10px] font-normal text-[var(--sched-graphite)]">
                           · {row.taskCount}
                         </span>
                       </td>
@@ -369,49 +369,49 @@ export function CpmGrid({
                   <tr
                     key={t.id}
                     onClick={() => onSelect(t.id)}
-                    className={`cursor-pointer border-b border-[#ecebe5] ${
-                      isSelected ? "bg-[#eef3f8]" : i % 2 ? "bg-[#fafaf7]" : "bg-white"
+                    className={`cursor-pointer border-b border-[var(--sched-surface-rule-soft)] ${
+                      isSelected ? "bg-[var(--sched-surface-rule-soft)]" : i % 2 ? "bg-[var(--sched-ivory)]" : "bg-white"
                     } hover:bg-[#f5f7fa]`}
                     style={{ height: ROW_H }}
                   >
-                    <td className="border-r border-[#ecebe5] px-2 font-mono text-[10px] text-[#6b6a63]">
+                    <td className="border-r border-[var(--sched-surface-rule-soft)] px-2 font-mono text-[10px] text-[var(--sched-graphite)]">
                       {t.id}
                     </td>
                     <td
-                      className={`truncate border-r border-[#ecebe5] px-2 pl-3 text-[#1f241f] ${
+                      className={`truncate border-r border-[var(--sched-surface-rule-soft)] px-2 pl-3 text-[var(--sched-graphite-strong)] ${
                         t.isCritical ? "font-semibold" : ""
                       }`}
                       style={{ maxWidth: 240 }}
                       title={t.name}
                     >
-                      {isMilestone ? <span className="mr-1 text-[#7a5cc4]">◆</span> : null}
+                      {isMilestone ? <span className="mr-1 text-[var(--sched-brass-deep)]">◆</span> : null}
                       {t.name}
                     </td>
-                    <td className="border-r border-[#ecebe5] px-1 text-right tabular-nums text-[#1f241f]">
+                    <td className="border-r border-[var(--sched-surface-rule-soft)] px-1 text-right tabular-nums text-[var(--sched-graphite-strong)]">
                       {t.duration}
                     </td>
-                    <td className="border-r border-[#ecebe5] px-1 text-right tabular-nums text-[#8a8980]">
+                    <td className="border-r border-[var(--sched-surface-rule-soft)] px-1 text-right tabular-nums text-[var(--sched-graphite)]">
                       {actual || ""}
                     </td>
-                    <td className="border-r border-[#ecebe5] px-1 text-right tabular-nums text-[#1f241f]">
+                    <td className="border-r border-[var(--sched-surface-rule-soft)] px-1 text-right tabular-nums text-[var(--sched-graphite-strong)]">
                       {remaining}
                     </td>
-                    <td className="border-r border-[#ecebe5] px-1 text-right tabular-nums text-[#4a4944]">
+                    <td className="border-r border-[var(--sched-surface-rule-soft)] px-1 text-right tabular-nums text-[var(--sched-graphite)]">
                       {pct > 0 ? `${pct}%` : ""}
                     </td>
-                    <td className="border-r border-[#ecebe5] px-2 text-[10px] tabular-nums text-[#4a4944]">
+                    <td className="border-r border-[var(--sched-surface-rule-soft)] px-2 text-[10px] tabular-nums text-[var(--sched-graphite)]">
                       {formatDate(t.earlyStartDate)}
                     </td>
-                    <td className="border-r border-[#ecebe5] px-2 text-[10px] tabular-nums text-[#4a4944]">
+                    <td className="border-r border-[var(--sched-surface-rule-soft)] px-2 text-[10px] tabular-nums text-[var(--sched-graphite)]">
                       {formatDate(t.earlyFinishDate)}
                     </td>
                     <td
                       className={`px-1 text-right tabular-nums ${
                         t.isCritical
-                          ? "font-semibold text-[#b42318]"
+                          ? "font-semibold text-[var(--sched-critical)]"
                           : nearCriticalFloat > 0 && t.totalFloat > 0 && t.totalFloat <= nearCriticalFloat
-                            ? "font-medium text-[#c2750a]"
-                            : "text-[#6b6a63]"
+                            ? "font-medium text-[var(--sched-near-critical)]"
+                            : "text-[var(--sched-graphite)]"
                       }`}
                     >
                       {t.totalFloat}
@@ -428,7 +428,7 @@ export function CpmGrid({
         <div className="relative" style={{ width: timelineWidth }}>
           {/* Header bands */}
           <div
-            className="sticky top-0 z-10 border-b border-[#e3e0d8] bg-[#f3f2ed]"
+            className="sticky top-0 z-10 border-b border-[var(--sched-surface-rule)] bg-[var(--sched-surface-rule-soft)]"
             style={{ height: HEADER_H }}
           >
             <svg width={timelineWidth} height={HEADER_H} className="block">
@@ -440,9 +440,9 @@ export function CpmGrid({
                     y={0}
                     width={y.w}
                     height={HEADER_H / 2}
-                    fill={i % 2 ? "#e9e7df" : "#eeede7"}
+                    fill={i % 2 ? "#e9e7df" : "var(--sched-surface-rule-soft)"}
                   />
-                  <line x1={y.x} x2={y.x} y1={0} y2={HEADER_H} stroke="#d6d3c9" strokeWidth={1} />
+                  <line x1={y.x} x2={y.x} y1={0} y2={HEADER_H} stroke="var(--sched-graphite-soft)" strokeWidth={1} />
                   {y.w > 24 ? (
                     <text
                       x={y.x + y.w / 2}
@@ -450,7 +450,7 @@ export function CpmGrid({
                       textAnchor="middle"
                       fontSize={10}
                       fontWeight={700}
-                      fill="#2d2d28"
+                      fill="var(--sched-graphite-strong)"
                       fontFamily="ui-sans-serif, system-ui"
                     >
                       {y.year}
@@ -466,14 +466,14 @@ export function CpmGrid({
                     y={HEADER_H / 2}
                     width={m.w}
                     height={HEADER_H / 2}
-                    fill={i % 2 ? "#f7f6f1" : "#f3f2ed"}
+                    fill={i % 2 ? "#f7f6f1" : "var(--sched-surface-rule-soft)"}
                   />
                   <line
                     x1={m.x}
                     x2={m.x}
                     y1={HEADER_H / 2}
                     y2={HEADER_H}
-                    stroke="#d6d3c9"
+                    stroke="var(--sched-graphite-soft)"
                     strokeWidth={1}
                   />
                   {m.w > 16 ? (
@@ -482,7 +482,7 @@ export function CpmGrid({
                       y={HEADER_H - 5}
                       textAnchor="middle"
                       fontSize={9}
-                      fill="#4a4944"
+                      fill="var(--sched-graphite)"
                       fontFamily="ui-sans-serif, system-ui"
                     >
                       {m.w > 28 ? m.label : m.label.slice(0, 1)}
@@ -510,7 +510,7 @@ export function CpmGrid({
                 x2={m.x}
                 y1={0}
                 y2={totalH}
-                stroke="#eeede7"
+                stroke="var(--sched-surface-rule-soft)"
                 strokeWidth={1}
               />
             ))}
@@ -526,15 +526,15 @@ export function CpmGrid({
                 const w = Math.max((row.maxEF - row.minES) * dayPx, 2);
                 return (
                   <g key={`g-${row.key}`}>
-                    <rect x={0} y={y} width={timelineWidth} height={rowH} fill="#eeede7" />
-                    <line x1={0} x2={timelineWidth} y1={y + rowH} y2={y + rowH} stroke="#dad7cd" strokeWidth={1} />
+                    <rect x={0} y={y} width={timelineWidth} height={rowH} fill="var(--sched-surface-rule-soft)" />
+                    <line x1={0} x2={timelineWidth} y1={y + rowH} y2={y + rowH} stroke="var(--sched-surface-rule)" strokeWidth={1} />
                     {/* slim summary span — quiet, no heavy brackets */}
                     <rect
                       x={x}
                       y={y + rowH / 2 - 1}
                       width={w}
                       height={2}
-                      fill={row.anyCritical ? "#9c2418" : "#4a4944"}
+                      fill={row.anyCritical ? "var(--sched-critical)" : "var(--sched-graphite)"}
                       opacity={0.6}
                     />
                   </g>
@@ -589,9 +589,9 @@ export function CpmGrid({
                     y={y}
                     width={timelineWidth}
                     height={rowH}
-                    fill={isSelected ? "#eef3f8" : i % 2 ? "#fafaf7" : "white"}
+                    fill={isSelected ? "var(--sched-surface-rule-soft)" : i % 2 ? "var(--sched-ivory)" : "white"}
                   />
-                  <line x1={0} x2={timelineWidth} y1={y + rowH} y2={y + rowH} stroke="#ecebe5" />
+                  <line x1={0} x2={timelineWidth} y1={y + rowH} y2={y + rowH} stroke="var(--sched-surface-rule-soft)" />
 
 
                   {/* baseline ghost */}
@@ -623,7 +623,7 @@ export function CpmGrid({
                         fill={fill}
                         fontFamily="ui-sans-serif, system-ui"
                         fontWeight={600}
-                        stroke="#faf8f3"
+                        stroke="var(--sched-ivory)"
                         strokeWidth={3}
                         paintOrder="stroke"
                         strokeLinejoin="round"
@@ -653,7 +653,7 @@ export function CpmGrid({
                           width={Math.max((w * (t.percentComplete ?? 0)) / 100, 1)}
                           height={rowH - 7}
                           rx={0}
-                          fill="#1f241f"
+                          fill="var(--sched-graphite-strong)"
                           opacity={0.55}
                           pointerEvents="none"
                         />
@@ -688,9 +688,9 @@ export function CpmGrid({
                           x={x + w + (t.totalFloat * dayPx || 0) + 4}
                           y={y + rowH / 2 + 3}
                           fontSize={9}
-                          fill="#4a4944"
+                          fill="var(--sched-graphite)"
                           fontFamily="ui-sans-serif, system-ui"
-                          stroke="#faf8f3"
+                          stroke="var(--sched-ivory)"
                           strokeWidth={3}
                           paintOrder="stroke"
                           strokeLinejoin="round"
@@ -720,7 +720,7 @@ export function CpmGrid({
                       height={rowH - 9}
                       fill={fill}
                       opacity={0.35}
-                      stroke="#1f241f"
+                      stroke="var(--sched-graphite-strong)"
                       strokeDasharray="3 2"
                       pointerEvents="none"
                     />
@@ -806,7 +806,7 @@ export function CpmGrid({
                       markerHeight="7"
                       orient="auto-start-reverse"
                     >
-                      <path d="M0,0 L10,5 L0,10 z" fill="#7a5cc4" />
+                      <path d="M0,0 L10,5 L0,10 z" fill="var(--sched-brass-deep)" />
                     </marker>
                   </defs>
                   {result.dependencies.map((d, di) => {
@@ -837,7 +837,7 @@ export function CpmGrid({
                     const onChain = drivingChain.has(chainKey);
                     const bothCrit = src.isCritical && tgt.isCritical;
                     const stroke = onChain
-                      ? "#7a5cc4"
+                      ? "var(--sched-brass-deep)"
                       : d.isDriving
                       ? bothCrit
                         ? "var(--sched-critical)"
@@ -879,7 +879,7 @@ export function CpmGrid({
                   x2={dataDateOffset * dayPx}
                   y1={0}
                   y2={totalH}
-                  stroke="#2f7a3e"
+                  stroke="var(--sched-validated)"
                   strokeWidth={1.5}
                   strokeDasharray="4 3"
                 />
@@ -899,7 +899,7 @@ export function CpmGrid({
                   }
                   if (off < 0) return null;
                   const x = off * dayPx;
-                  const color = a.kind === "milestone" ? "#7a5cc4" : "#c47a1f";
+                  const color = a.kind === "milestone" ? "var(--sched-brass-deep)" : "var(--sched-near-critical)";
                   const ly = 10 + (i % 3) * 10;
                   return (
                     <g key={`an-${a.id}`}>
@@ -924,7 +924,7 @@ export function CpmGrid({
                         fill={color}
                         fontWeight={600}
                         fontFamily="ui-sans-serif, system-ui"
-                        stroke="#faf8f3"
+                        stroke="var(--sched-ivory)"
                         strokeWidth={3}
                         paintOrder="stroke"
                         strokeLinejoin="round"
@@ -940,7 +940,7 @@ export function CpmGrid({
           {/* Data-date banner pinned at top */}
           {dataDateOffset !== null && dataDateOffset >= 0 && dataDateOffset <= duration ? (
             <div
-              className="pointer-events-none absolute z-20 rounded-sm bg-[#2f7a3e] px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-white"
+              className="pointer-events-none absolute z-20 rounded-sm bg-[var(--sched-validated)] px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-white"
               style={{ left: dataDateOffset * dayPx - 28, top: HEADER_H - 2 }}
             >
               DATA DATE
@@ -982,23 +982,23 @@ export function CpmGrid({
                         : "bg-[var(--sched-graphite-soft)]"
                 }`}
               />
-              <span className="font-mono text-[10px] text-[#5c574e]">{t.id}</span>
+              <span className="font-mono text-[10px] text-[var(--sched-graphite)]">{t.id}</span>
               {isMs ? (
-                <span className="rounded bg-[#eee6d7] px-1 text-[9px] font-semibold uppercase tracking-wide text-[#5c574e]">
+                <span className="rounded bg-[var(--sched-surface-rule-soft)] px-1 text-[9px] font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
                   Milestone
                 </span>
               ) : null}
               {t.isCritical ? (
-                <span className="rounded bg-[#fbe9e6] px-1 text-[9px] font-semibold uppercase tracking-wide text-[#b42318]">
+                <span className="rounded bg-[var(--sched-critical-soft)] px-1 text-[9px] font-semibold uppercase tracking-wide text-[var(--sched-critical)]">
                   Critical
                 </span>
               ) : null}
             </div>
-            <div className="mt-0.5 truncate text-[13px] font-semibold text-[#1f241f]">
+            <div className="mt-0.5 truncate text-[13px] font-semibold text-[var(--sched-graphite-strong)]">
               {t.name}
             </div>
             {t.wbs ? (
-              <div className="text-[10px] text-[#a8a59b]">{t.wbs}</div>
+              <div className="text-[10px] text-[var(--sched-graphite-soft)]">{t.wbs}</div>
             ) : null}
 
             <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
@@ -1018,24 +1018,24 @@ export function CpmGrid({
               />
             </div>
 
-            <div className="mt-2 h-1.5 w-full overflow-hidden rounded bg-[#f3eede]">
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded bg-[var(--sched-surface-rule-soft)]">
               <div
                 className={`h-full ${
                   pct >= 100
-                    ? "bg-[#2f7a3e]"
+                    ? "bg-[var(--sched-validated)]"
                     : t.isCritical
-                      ? "bg-[#b42318]"
-                      : "bg-[#5b8bd6]"
+                      ? "bg-[var(--sched-critical)]"
+                      : "bg-[var(--sched-graphite-strong)]"
                 }`}
                 style={{ width: `${pct}%` }}
               />
             </div>
 
             {t.resourceName ? (
-              <div className="mt-2 flex items-center justify-between text-[10px] text-[#5c574e]">
+              <div className="mt-2 flex items-center justify-between text-[10px] text-[var(--sched-graphite)]">
                 <span>
-                  <span className="text-[#a8a59b]">Resource</span>{" "}
-                  <span className="font-medium text-[#1f241f]">{t.resourceName}</span>
+                  <span className="text-[var(--sched-graphite-soft)]">Resource</span>{" "}
+                  <span className="font-medium text-[var(--sched-graphite-strong)]">{t.resourceName}</span>
                 </span>
                 {t.resourceUnitsPerDay ? (
                   <span className="font-mono">{t.resourceUnitsPerDay}/d</span>
@@ -1046,7 +1046,7 @@ export function CpmGrid({
             {baselineT && slip !== 0 ? (
               <div
                 className={`mt-2 rounded px-1.5 py-1 text-[10px] font-medium ${
-                  slip > 0 ? "bg-[#fbe9e6] text-[#b42318]" : "bg-[#e9f3ec] text-[#2f7a3e]"
+                  slip > 0 ? "bg-[var(--sched-critical-soft)] text-[var(--sched-critical)]" : "bg-[var(--sched-validated-soft)] text-[var(--sched-validated)]"
                 }`}
               >
                 {slip > 0 ? "Slipping " : "Ahead "}
@@ -1071,15 +1071,15 @@ function HC({
 }) {
   const toneClass =
     tone === "good"
-      ? "text-[#2f7a3e]"
+      ? "text-[var(--sched-validated)]"
       : tone === "bad"
-        ? "text-[#b42318]"
+        ? "text-[var(--sched-critical)]"
         : tone === "warn"
-          ? "text-[#a35d10]"
-          : "text-[#1f241f]";
+          ? "text-[var(--sched-near-critical)]"
+          : "text-[var(--sched-graphite-strong)]";
   return (
     <div>
-      <div className="text-[9px] font-semibold uppercase tracking-wider text-[#a8a59b]">
+      <div className="text-[9px] font-semibold uppercase tracking-wider text-[var(--sched-graphite-soft)]">
         {label}
       </div>
       <div className={`text-[12px] font-semibold tabular-nums ${toneClass}`}>{value}</div>

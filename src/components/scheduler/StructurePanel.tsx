@@ -84,14 +84,14 @@ export function StructurePanel({ scheduleId }: Props) {
   const [tab, setTab] = useState<"wbs" | "codes">("wbs");
 
   return (
-    <section className="rounded border border-[#d8cdb8] bg-white">
-      <header className="flex items-center justify-between border-b border-[#e4dcc8] px-3 py-2">
+    <section className="rounded border border-[var(--sched-surface-rule)] bg-white">
+      <header className="flex items-center justify-between border-b border-[var(--sched-surface-rule)] px-3 py-2">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--sched-graphite-strong)]">Structure</h2>
         <div className="flex gap-1 text-[10px]">
           <button
             onClick={() => setTab("wbs")}
             className={`rounded px-2 py-0.5 font-semibold uppercase tracking-wider ${
-              tab === "wbs" ? "bg-[var(--sched-graphite-strong)] text-[#f7f4ed]" : "text-[#746b5c] hover:bg-[#f0e8d6]"
+              tab === "wbs" ? "bg-[var(--sched-graphite-strong)] text-[var(--sched-surface-rule-soft)]" : "text-[var(--sched-graphite)] hover:bg-[var(--sched-brass-soft)]"
             }`}
           >
             WBS
@@ -99,7 +99,7 @@ export function StructurePanel({ scheduleId }: Props) {
           <button
             onClick={() => setTab("codes")}
             className={`rounded px-2 py-0.5 font-semibold uppercase tracking-wider ${
-              tab === "codes" ? "bg-[var(--sched-graphite-strong)] text-[#f7f4ed]" : "text-[#746b5c] hover:bg-[#f0e8d6]"
+              tab === "codes" ? "bg-[var(--sched-graphite-strong)] text-[var(--sched-surface-rule-soft)]" : "text-[var(--sched-graphite)] hover:bg-[var(--sched-brass-soft)]"
             }`}
           >
             Codes
@@ -109,7 +109,7 @@ export function StructurePanel({ scheduleId }: Props) {
 
       <div className="p-3">
         {isLoading ? (
-          <p className="text-xs text-[#746b5c]">Loading…</p>
+          <p className="text-xs text-[var(--sched-graphite)]">Loading…</p>
         ) : tab === "wbs" ? (
           <WbsTree
             nodes={data?.wbs ?? []}
@@ -171,11 +171,11 @@ function WbsTree({
       return (
         <div key={n.id}>
           <div
-            className="flex items-center gap-1 rounded px-1 py-0.5 text-xs hover:bg-[#f0e8d6]"
+            className="flex items-center gap-1 rounded px-1 py-0.5 text-xs hover:bg-[var(--sched-brass-soft)]"
             style={{ paddingLeft: depth * 12 + 4 }}
           >
             {kids.length > 0 ? (
-              <button onClick={() => toggle(n.id)} className="text-[#7a6a4d]">
+              <button onClick={() => toggle(n.id)} className="text-[var(--sched-graphite)]">
                 {isOpen ? (
                   <ChevronDown className="h-3 w-3" />
                 ) : (
@@ -185,12 +185,12 @@ function WbsTree({
             ) : (
               <span className="inline-block w-3" />
             )}
-            <span className="font-mono text-[#7a6a4d]">{n.code}</span>
+            <span className="font-mono text-[var(--sched-graphite)]">{n.code}</span>
             <span className="flex-1 truncate">{n.name}</span>
             <button
               onClick={() => setParentId(n.id)}
               title="Add child"
-              className="text-[#7a6a4d] hover:text-[var(--sched-graphite-strong)]"
+              className="text-[var(--sched-graphite)] hover:text-[var(--sched-graphite-strong)]"
             >
               <Plus className="h-3 w-3" />
             </button>
@@ -198,7 +198,7 @@ function WbsTree({
               onClick={() => {
                 if (confirm(`Delete WBS "${n.code}"? Children will be removed.`)) onDelete(n.id);
               }}
-              className="text-[#a05a4a] hover:text-[#7a3528]"
+              className="text-[var(--sched-critical)] hover:text-[var(--sched-critical)]"
             >
               <Trash2 className="h-3 w-3" />
             </button>
@@ -221,17 +221,17 @@ function WbsTree({
 
   return (
     <div className="space-y-3">
-      <div className="max-h-64 overflow-y-auto rounded border border-[#e4dcc8] bg-[#fafaf3] p-1">
+      <div className="max-h-64 overflow-y-auto rounded border border-[var(--sched-surface-rule)] bg-[var(--sched-ivory)] p-1">
         {nodes.length === 0 ? (
-          <p className="px-2 py-3 text-center text-xs text-[#746b5c]">
+          <p className="px-2 py-3 text-center text-xs text-[var(--sched-graphite)]">
             No WBS yet. Build your breakdown structure below.
           </p>
         ) : (
           render(null, 0)
         )}
       </div>
-      <div className="space-y-1.5 rounded border border-dashed border-[#d8cdb8] p-2">
-        <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-[#7a6a4d]">
+      <div className="space-y-1.5 rounded border border-dashed border-[var(--sched-surface-rule)] p-2">
+        <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-[var(--sched-graphite)]">
           <span>Add under: {parentLabel}</span>
           {parentId !== null ? (
             <button onClick={() => setParentId(null)} className="underline">
@@ -303,7 +303,7 @@ function CodesEditor({
       </div>
 
       {types.length === 0 ? (
-        <p className="text-xs text-[#746b5c]">
+        <p className="text-xs text-[var(--sched-graphite)]">
           No activity codes yet. Add types like Phase, Area, Trade, Responsibility.
         </p>
       ) : (
@@ -311,8 +311,8 @@ function CodesEditor({
           {types.map((t) => {
             const isOpen = openType === t.id;
             return (
-              <div key={t.id} className="rounded border border-[#e4dcc8]">
-                <div className="flex items-center justify-between bg-[#fafaf3] px-2 py-1">
+              <div key={t.id} className="rounded border border-[var(--sched-surface-rule)]">
+                <div className="flex items-center justify-between bg-[var(--sched-ivory)] px-2 py-1">
                   <button
                     onClick={() => setOpenType(isOpen ? null : t.id)}
                     className="flex flex-1 items-center gap-1 text-left text-xs font-semibold uppercase tracking-wider text-[var(--sched-graphite-strong)]"
@@ -323,7 +323,7 @@ function CodesEditor({
                       <ChevronRight className="h-3 w-3" />
                     )}
                     {t.name}
-                    <span className="ml-1 text-[10px] font-normal text-[#746b5c]">
+                    <span className="ml-1 text-[10px] font-normal text-[var(--sched-graphite)]">
                       ({t.values.length})
                     </span>
                   </button>
@@ -332,7 +332,7 @@ function CodesEditor({
                       if (confirm(`Delete code type "${t.name}" and its values?`))
                         onDeleteType(t.id);
                     }}
-                    className="text-[#a05a4a] hover:text-[#7a3528]"
+                    className="text-[var(--sched-critical)] hover:text-[var(--sched-critical)]"
                   >
                     <Trash2 className="h-3 w-3" />
                   </button>
@@ -347,11 +347,11 @@ function CodesEditor({
                         />
                         <span className="font-mono">{v.code}</span>
                         {v.description ? (
-                          <span className="text-[#746b5c]"> — {v.description}</span>
+                          <span className="text-[var(--sched-graphite)]"> — {v.description}</span>
                         ) : null}
                         <button
                           onClick={() => onDeleteValue(v.id)}
-                          className="ml-auto text-[#a05a4a] hover:text-[#7a3528]"
+                          className="ml-auto text-[var(--sched-critical)] hover:text-[var(--sched-critical)]"
                         >
                           <Trash2 className="h-3 w-3" />
                         </button>

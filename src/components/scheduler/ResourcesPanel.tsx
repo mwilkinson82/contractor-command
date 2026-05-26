@@ -114,7 +114,7 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
   const maxCum = Math.max(1, cumCost[duration - 1] ?? 0);
 
   const resourceKeys = Object.keys(resourceSeries);
-  const palette = ["var(--sched-graphite-strong)", "var(--sched-critical)", "#2f7a3e", "#9c8b6e", "#4a6cf7", "#c9851f", "#7a5cc6"];
+  const palette = ["var(--sched-graphite-strong)", "var(--sched-critical)", "var(--sched-validated)", "var(--sched-graphite)", "#4a6cf7", "#c9851f", "#7a5cc6"];
 
   // EVM curves
   const pvPath = cumCost
@@ -137,12 +137,12 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
     .join(" ");
 
   return (
-    <section className="space-y-4 rounded border border-[#d8cdb8] bg-white p-4">
+    <section className="space-y-4 rounded border border-[var(--sched-surface-rule)] bg-white p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
           Resources, cost & earned value
         </h3>
-        <div className="text-xs text-[#776e5e]">
+        <div className="text-xs text-[var(--sched-graphite)]">
           Data date: {dataDay >= 0 ? `d${dataDay}` : "n/a"}
         </div>
       </div>
@@ -169,10 +169,10 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
       {/* Resource histogram */}
       <div>
         <div className="mb-1 flex items-center justify-between">
-          <div className="text-xs font-semibold uppercase tracking-wide text-[#7a6a4d]">
+          <div className="text-xs font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
             Resource histogram (units / day)
           </div>
-          <div className="flex flex-wrap gap-2 text-[10px] text-[#5c574e]">
+          <div className="flex flex-wrap gap-2 text-[10px] text-[var(--sched-graphite)]">
             {resourceKeys.map((k, i) => (
               <span key={k} className="inline-flex items-center gap-1">
                 <span
@@ -192,11 +192,11 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
         <div className="overflow-x-auto">
           <svg width={chartW} height={Hh} className="block">
             {/* axis */}
-            <line x1={60} x2={chartW} y1={Hh - 18} y2={Hh - 18} stroke="#d8cdb8" />
-            <text x={4} y={14} fontSize={10} fill="#7a6a4d">
+            <line x1={60} x2={chartW} y1={Hh - 18} y2={Hh - 18} stroke="var(--sched-surface-rule)" />
+            <text x={4} y={14} fontSize={10} fill="var(--sched-graphite)">
               {Math.ceil(maxStack)}
             </text>
-            <text x={4} y={Hh - 22} fontSize={10} fill="#7a6a4d">
+            <text x={4} y={Hh - 22} fontSize={10} fill="var(--sched-graphite)">
               0
             </text>
             {Array.from({ length: duration }).map((_, d) => {
@@ -240,15 +240,15 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
       {/* S-curve */}
       <div>
         <div className="mb-1 flex items-center justify-between">
-          <div className="text-xs font-semibold uppercase tracking-wide text-[#7a6a4d]">
+          <div className="text-xs font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
             Cash flow S-curve
           </div>
-          <div className="flex gap-3 text-[10px] text-[#5c574e]">
+          <div className="flex gap-3 text-[10px] text-[var(--sched-graphite)]">
             <span className="inline-flex items-center gap-1">
               <span className="inline-block h-[2px] w-4 bg-[var(--sched-graphite-strong)]" /> PV (planned)
             </span>
             <span className="inline-flex items-center gap-1">
-              <span className="inline-block h-[2px] w-4 bg-[#2f7a3e]" /> EV (earned)
+              <span className="inline-block h-[2px] w-4 bg-[var(--sched-validated)]" /> EV (earned)
             </span>
             <span className="inline-flex items-center gap-1">
               <span className="inline-block h-[2px] w-4 bg-[var(--sched-critical)]" /> AC (actual)
@@ -257,15 +257,15 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
         </div>
         <div className="overflow-x-auto">
           <svg width={chartW} height={Hs} className="block">
-            <line x1={60} x2={chartW} y1={Hs - 10} y2={Hs - 10} stroke="#d8cdb8" />
-            <text x={4} y={14} fontSize={10} fill="#7a6a4d">
+            <line x1={60} x2={chartW} y1={Hs - 10} y2={Hs - 10} stroke="var(--sched-surface-rule)" />
+            <text x={4} y={14} fontSize={10} fill="var(--sched-graphite)">
               {fmtMoney(maxCum)}
             </text>
-            <text x={4} y={Hs - 14} fontSize={10} fill="#7a6a4d">
+            <text x={4} y={Hs - 14} fontSize={10} fill="var(--sched-graphite)">
               $0
             </text>
             <path d={pvPath} fill="none" stroke="var(--sched-graphite-strong)" strokeWidth={1.5} />
-            <path d={evPath} fill="none" stroke="#2f7a3e" strokeWidth={1.5} />
+            <path d={evPath} fill="none" stroke="var(--sched-validated)" strokeWidth={1.5} />
             <path d={acPath} fill="none" stroke="var(--sched-critical)" strokeWidth={1.5} />
             {dataDay >= 0 && dataDay <= duration ? (
               <line
@@ -282,9 +282,9 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
       </div>
 
       {/* Per-task editor */}
-      <div className="overflow-x-auto rounded border border-[#eee7d8]">
+      <div className="overflow-x-auto rounded border border-[var(--sched-surface-rule-soft)]">
         <table className="w-full text-xs">
-          <thead className="bg-[#eee6d7] uppercase tracking-wide text-[var(--sched-graphite)]">
+          <thead className="bg-[var(--sched-surface-rule-soft)] uppercase tracking-wide text-[var(--sched-graphite)]">
             <tr>
               <th className="px-2 py-2 text-left">Task</th>
               <th className="px-2 py-2 text-left">Resource</th>
@@ -296,10 +296,10 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
           </thead>
           <tbody>
             {tasks.map((t, idx) => (
-              <tr key={t.id} className="border-t border-[#eee7d8]">
+              <tr key={t.id} className="border-t border-[var(--sched-surface-rule-soft)]">
                 <td className="px-2 py-1">
                   <div className="font-mono text-[11px]">{t.id}</div>
-                  <div className="text-[#5c574e]">{t.name}</div>
+                  <div className="text-[var(--sched-graphite)]">{t.name}</div>
                 </td>
                 <td className="px-2 py-1">
                   <Input
@@ -352,7 +352,7 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
                     }
                   />
                 </td>
-                <td className="px-2 py-1 text-right text-[#5c574e]">{t.percentComplete ?? 0}%</td>
+                <td className="px-2 py-1 text-right text-[var(--sched-graphite)]">{t.percentComplete ?? 0}%</td>
               </tr>
             ))}
           </tbody>
@@ -364,10 +364,10 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
 
 function Cell({ label, value, tone }: { label: string; value: string; tone?: "good" | "bad" }) {
   const toneClass =
-    tone === "good" ? "text-[#2f7a3e]" : tone === "bad" ? "text-[var(--sched-critical)]" : "text-[var(--sched-graphite-strong)]";
+    tone === "good" ? "text-[var(--sched-validated)]" : tone === "bad" ? "text-[var(--sched-critical)]" : "text-[var(--sched-graphite-strong)]";
   return (
-    <div className="rounded border border-[#eee7d8] bg-[#f7f4ed] px-2 py-1.5">
-      <div className="text-[10px] uppercase tracking-wide text-[#7a6a4d]">{label}</div>
+    <div className="rounded border border-[var(--sched-surface-rule-soft)] bg-[var(--sched-surface-rule-soft)] px-2 py-1.5">
+      <div className="text-[10px] uppercase tracking-wide text-[var(--sched-graphite)]">{label}</div>
       <div className={`text-sm font-semibold ${toneClass}`}>{value}</div>
     </div>
   );

@@ -75,7 +75,7 @@ export function IntelChatPanel({ context, loading, onSend }: IntelChatPanelProps
       className="flex h-full flex-1 flex-col text-[12px] text-[var(--sched-graphite-strong)]"
       data-testid="intel-chat-panel"
     >
-      <div className="border-b border-[var(--sched-surface-rule-soft)] bg-[#fdfcf7] px-3 py-2">
+      <div className="border-b border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] px-3 py-2">
         <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--sched-graphite)]">
           Schedule Context
         </div>
@@ -146,7 +146,7 @@ export function IntelChatPanel({ context, loading, onSend }: IntelChatPanelProps
             placeholder="Ask about this schedule…"
             disabled={loading}
             aria-label="Ask the schedule assistant"
-            className="flex-1 rounded border border-[var(--sched-surface-rule-soft)] bg-[#fdfcf7] px-2 py-1.5 text-[12px] text-[var(--sched-graphite-strong)] outline-none focus:border-[var(--sched-graphite-strong)] disabled:opacity-50"
+            className="flex-1 rounded border border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] px-2 py-1.5 text-[12px] text-[var(--sched-graphite-strong)] outline-none focus:border-[var(--sched-graphite-strong)] disabled:opacity-50"
           />
           <button
             type="submit"

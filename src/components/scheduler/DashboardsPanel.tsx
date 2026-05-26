@@ -15,7 +15,7 @@ export function DashboardsPanel({ result, tasks, onTaskChange, dataDate }: Props
       { label: "Critical (0d)", min: 0, max: 0, color: "var(--sched-critical)", count: 0 },
       { label: "1–5d", min: 1, max: 5, color: "var(--sched-near-critical)", count: 0 },
       { label: "6–15d", min: 6, max: 15, color: "var(--sched-brass)", count: 0 },
-      { label: "16–30d", min: 16, max: 30, color: "#5b8bd6", count: 0 },
+      { label: "16–30d", min: 16, max: 30, color: "var(--sched-graphite-strong)", count: 0 },
       { label: "30d+", min: 31, max: Infinity, color: "var(--sched-validated)", count: 0 },
     ];
     for (const t of result.tasks) {
@@ -59,14 +59,14 @@ export function DashboardsPanel({ result, tasks, onTaskChange, dataDate }: Props
     <div className="space-y-4 p-4">
       {/* Top row: float distribution + critical chain */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-md border border-[#e6dfd0] bg-white p-4">
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#7a6a4d]">
+        <section className="rounded-md border border-[var(--sched-surface-rule)] bg-white p-4">
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
             Total float distribution
           </h3>
           <div className="space-y-2">
             {floatBuckets.map((b) => (
               <div key={b.label} className="flex items-center gap-3 text-xs">
-                <span className="w-24 text-[#5c574e]">{b.label}</span>
+                <span className="w-24 text-[var(--sched-graphite)]">{b.label}</span>
                 <div className="relative h-5 flex-1 rounded bg-[var(--sched-ivory)]">
                   <div
                     className="absolute inset-y-0 left-0 rounded transition-all"
@@ -83,20 +83,20 @@ export function DashboardsPanel({ result, tasks, onTaskChange, dataDate }: Props
               </div>
             ))}
           </div>
-          <p className="mt-3 text-[10px] text-[#776e5e]">
+          <p className="mt-3 text-[10px] text-[var(--sched-graphite)]">
             Healthier schedules show a fat tail of high-float activities and a tight critical band.
           </p>
         </section>
 
-        <section className="rounded-md border border-[#e6dfd0] bg-white p-4">
-          <h3 className="mb-3 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-[#7a6a4d]">
+        <section className="rounded-md border border-[var(--sched-surface-rule)] bg-white p-4">
+          <h3 className="mb-3 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
             <span>Critical path</span>
-            <span className="text-[10px] font-normal normal-case text-[#776e5e]">
+            <span className="text-[10px] font-normal normal-case text-[var(--sched-graphite)]">
               {criticalChain.length} activities
             </span>
           </h3>
           {criticalChain.length === 0 ? (
-            <p className="text-xs text-[#9c8b6e]">
+            <p className="text-xs text-[var(--sched-graphite)]">
               No critical path computed yet. Add dependencies between activities.
             </p>
           ) : (
@@ -109,9 +109,9 @@ export function DashboardsPanel({ result, tasks, onTaskChange, dataDate }: Props
                   <span className="grid h-5 w-5 place-items-center rounded-full bg-[var(--sched-critical)]/10 font-mono text-[10px] font-semibold text-[var(--sched-critical)]">
                     {i + 1}
                   </span>
-                  <span className="font-mono text-[10px] text-[#5c574e]">{t.id}</span>
+                  <span className="font-mono text-[10px] text-[var(--sched-graphite)]">{t.id}</span>
                   <span className="flex-1 truncate text-[var(--sched-graphite-strong)]">{t.name}</span>
-                  <span className="font-mono text-[10px] text-[#776e5e]">{t.duration}d</span>
+                  <span className="font-mono text-[10px] text-[var(--sched-graphite)]">{t.duration}d</span>
                 </li>
               ))}
             </ol>
@@ -121,22 +121,22 @@ export function DashboardsPanel({ result, tasks, onTaskChange, dataDate }: Props
 
       {/* Lookahead + longest */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-md border border-[#e6dfd0] bg-white p-4">
-          <h3 className="mb-3 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-[#7a6a4d]">
+        <section className="rounded-md border border-[var(--sched-surface-rule)] bg-white p-4">
+          <h3 className="mb-3 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
             <span>3-week look-ahead</span>
-            <span className="text-[10px] font-normal normal-case text-[#776e5e]">
+            <span className="text-[10px] font-normal normal-case text-[var(--sched-graphite)]">
               {ddIso ? `from ${ddIso}` : "set data date"}
             </span>
           </h3>
           {lookahead.length === 0 ? (
-            <p className="text-xs text-[#9c8b6e]">
+            <p className="text-xs text-[var(--sched-graphite)]">
               {ddIso
                 ? "No upcoming activities in the next 21 days."
                 : "Set a data date to see what's coming up."}
             </p>
           ) : (
             <table className="w-full text-xs">
-              <thead className="text-[10px] uppercase tracking-wider text-[#7a6a4d]">
+              <thead className="text-[10px] uppercase tracking-wider text-[var(--sched-graphite)]">
                 <tr>
                   <th className="pb-1 text-left">ID</th>
                   <th className="pb-1 text-left">Activity</th>
@@ -148,14 +148,14 @@ export function DashboardsPanel({ result, tasks, onTaskChange, dataDate }: Props
                 {lookahead.map((t) => (
                   <tr
                     key={t.id}
-                    className={`border-t border-[#f3eede] ${t.isCritical ? "bg-[#fef2f0]" : ""}`}
+                    className={`border-t border-[var(--sched-surface-rule-soft)] ${t.isCritical ? "bg-[var(--sched-critical-soft)]" : ""}`}
                   >
-                    <td className="py-1 font-mono text-[10px] text-[#5c574e]">{t.id}</td>
+                    <td className="py-1 font-mono text-[10px] text-[var(--sched-graphite)]">{t.id}</td>
                     <td className="py-1 text-[var(--sched-graphite-strong)]">{t.name}</td>
-                    <td className="py-1 text-right text-[10px] text-[#5c574e]">
+                    <td className="py-1 text-right text-[10px] text-[var(--sched-graphite)]">
                       {t.earlyStartDate}
                     </td>
-                    <td className="py-1 text-right text-[10px] font-medium text-[#3d3527]">
+                    <td className="py-1 text-right text-[10px] font-medium text-[var(--sched-graphite-strong)]">
                       {t.duration}d
                     </td>
                   </tr>
@@ -165,14 +165,14 @@ export function DashboardsPanel({ result, tasks, onTaskChange, dataDate }: Props
           )}
         </section>
 
-        <section className="rounded-md border border-[#e6dfd0] bg-white p-4">
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#7a6a4d]">
+        <section className="rounded-md border border-[var(--sched-surface-rule)] bg-white p-4">
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">
             Longest activities
           </h3>
           <ul className="space-y-1.5">
             {longest.map((t) => (
               <li key={t.id} className="flex items-center gap-2 text-xs">
-                <span className="font-mono text-[10px] text-[#5c574e]">{t.id}</span>
+                <span className="font-mono text-[10px] text-[var(--sched-graphite)]">{t.id}</span>
                 <span className="flex-1 truncate text-[var(--sched-graphite-strong)]">{t.name}</span>
                 <div className="relative h-3 w-32 rounded bg-[var(--sched-ivory)]">
                   <div
