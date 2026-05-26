@@ -742,20 +742,23 @@ function SchedulerPage() {
       style={{ paddingRight: "var(--scheduler-right-pad, 0px)" }}
     >
       {/* ============ TOP HEADER ============ */}
-      <header className="flex h-11 shrink-0 items-center gap-4 border-b border-[#e3e0d8] bg-white/80 px-4 backdrop-blur">
+      <header className="flex h-12 shrink-0 items-center gap-3 border-b border-[#e3e0d8] bg-white/85 px-5 backdrop-blur">
         <Link
           to="/scheduler"
-          className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#4a4944] hover:text-[#1f241f]"
+          className="group flex items-center gap-2 text-[#4a4944] hover:text-[#1f241f]"
+          title="All projects"
         >
-          <span className="grid h-7 w-7 place-items-center rounded bg-[#1f241f] text-[10px] font-bold text-[#f7e9b8]">
+          <span className="grid h-7 w-7 place-items-center rounded-[5px] bg-[#1f241f] text-[10px] font-bold tracking-wider text-[#f7e9b8]">
             AOS
           </span>
-          <span className="hidden sm:inline">CPM Schedule</span>
+          <span className="hidden text-[10px] font-semibold uppercase tracking-[0.22em] text-[#8a8980] group-hover:text-[#4a4944] sm:inline">
+            Projects ·
+          </span>
         </Link>
 
         <ProductModeSwitcher />
 
-        <div className="h-6 w-px bg-[#e3e0d8]" />
+        <div className="h-5 w-px bg-[#e3e0d8]" />
 
         <div className="flex flex-1 items-center gap-2 min-w-0">
           {draft ? (
@@ -765,11 +768,11 @@ function SchedulerPage() {
                 setDraft({ ...draft, name: e.target.value });
                 setDirty(true);
               }}
-              className="min-w-0 flex-1 truncate bg-transparent text-base font-semibold tracking-tight outline-none placeholder:text-[#9a9991] focus:bg-[#f7f4ed] focus:rounded focus:px-2"
+              className="min-w-0 flex-1 truncate bg-transparent text-[17px] font-semibold tracking-tight text-[#1f241f] outline-none placeholder:text-[#9a9991] focus:rounded focus:bg-[#f7f4ed] focus:px-2"
               placeholder="Untitled schedule"
             />
           ) : (
-            <span className="text-base font-semibold text-[#9a9991]">Loading…</span>
+            <span className="text-[17px] font-semibold text-[#9a9991]">Loading…</span>
           )}
         </div>
 
@@ -780,7 +783,7 @@ function SchedulerPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search activities…"
-              className="h-8 w-64 rounded-md border border-[#e3e0d8] bg-[#faf8f3] pl-8 pr-3 text-xs outline-none focus:border-[#8a8980] focus:bg-white"
+              className="h-8 w-60 rounded-md border border-transparent bg-[#f3f1ea] pl-8 pr-3 text-xs outline-none transition focus:border-[#cfcdc4] focus:bg-white"
             />
             <svg
               className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8a8980]"
@@ -795,49 +798,50 @@ function SchedulerPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           {comparisonBaselineId ? (
-            <span className="hidden lg:inline-flex items-center gap-1 rounded-md bg-[#ecebe5] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#4a4944]">
-              Baseline on
+            <span className="hidden lg:inline-flex items-center gap-1.5 rounded-md bg-[#f3f1ea] px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#4a4944]">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#7a5cc4]" />
+              Baseline
             </span>
           ) : null}
           <button
             type="button"
             onClick={() => exportScheduleCsv(draft, computed)}
             disabled={!draft || !computed}
-            className="rounded-md border border-[#e3e0d8] bg-white px-2.5 py-1.5 text-xs font-medium text-[#2d2d28] hover:bg-[#faf8f3] disabled:opacity-50"
+            className="rounded-md px-2.5 py-1.5 text-xs font-medium text-[#4a4944] hover:bg-[#f3f1ea] hover:text-[#1f241f] disabled:opacity-40"
             title="Export activities as CSV"
           >
-            ↓ Export
+            Export
           </button>
           <PublishShortcut disabled={!draft || !computed} />
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
-            className="rounded-md border border-[#e3e0d8] bg-white px-2.5 py-1.5 text-xs font-medium text-[#2d2d28] hover:bg-[#faf8f3]"
+            className="rounded-md px-2.5 py-1.5 text-xs font-medium text-[#4a4944] hover:bg-[#f3f1ea] hover:text-[#1f241f]"
             title="Calendars, baselines, codes, reports, fragnet, update cycle, annotations"
           >
-            ⚙ Configure
+            Configure
           </button>
           <button
             type="button"
             onClick={() => setFocusMode((v) => !v)}
-            className={`rounded-md border px-2.5 py-1.5 text-xs font-medium ${
+            className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition ${
               focusMode
-                ? "border-[#1f241f] bg-[#1f241f] text-white"
-                : "border-[#e3e0d8] bg-white text-[#2d2d28] hover:bg-[#faf8f3]"
+                ? "bg-[#1f241f] text-white hover:bg-[#2d2d28]"
+                : "text-[#4a4944] hover:bg-[#f3f1ea] hover:text-[#1f241f]"
             }`}
             title={focusMode ? "Exit focus mode" : "Focus mode (hide portal chrome)"}
             aria-pressed={focusMode}
           >
-            {focusMode ? "◳ Exit Focus" : "◱ Focus"}
+            {focusMode ? "Exit Focus" : "Focus"}
           </button>
+          <div className="mx-1 h-5 w-px bg-[#e3e0d8]" />
           <Button
-
             size="sm"
             onClick={() => saveMut.mutate()}
             disabled={!dirty || saveMut.isPending}
-            className="bg-[#1f241f] text-white hover:bg-[#2d2d28] disabled:opacity-50"
+            className="bg-[#1f241f] text-white shadow-sm hover:bg-[#2d2d28] disabled:opacity-40"
           >
             {saveMut.isPending ? "Saving…" : dirty ? "Update Schedule" : "Saved"}
           </Button>
@@ -911,210 +915,225 @@ function SchedulerPage() {
           {/* ============ TOOLBAR ============ */}
           <div
             data-scheduler-toolbar
-            className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[#e3e0d8] bg-white px-4 py-1"
+            className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-[#e3e0d8] bg-white px-5 py-1.5"
           >
-            {/* View modes (only Gantt is wired) */}
-            <div
-              data-scheduler-viewmode
-              className="flex items-center rounded-md border border-[#e3e0d8] bg-[#faf8f3] p-0.5"
-            >
-
-              <button className="rounded bg-white px-3 py-1 text-xs font-medium shadow-sm">
-                Gantt
-              </button>
-              <button
-                disabled
-                title="Board view — coming soon"
-                className="px-3 py-1 text-xs text-[#bfbeb5] cursor-not-allowed"
+            {/* ——— VIEW ——— */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">View</span>
+              <div
+                data-scheduler-viewmode
+                className="flex items-center rounded-md border border-[#e3e0d8] bg-[#faf8f3] p-0.5"
               >
-                Board
-              </button>
-              <button
-                disabled
-                title="List view — coming soon"
-                className="px-3 py-1 text-xs text-[#bfbeb5] cursor-not-allowed"
-              >
-                List
-              </button>
+                <button className="rounded bg-white px-2.5 py-0.5 text-[11px] font-medium text-[#1f241f] shadow-sm">
+                  Gantt
+                </button>
+                <button
+                  disabled
+                  title="Board view — coming soon"
+                  className="px-2.5 py-0.5 text-[11px] text-[#bfbeb5] cursor-not-allowed"
+                >
+                  Board
+                </button>
+                <button
+                  disabled
+                  title="List view — coming soon"
+                  className="px-2.5 py-0.5 text-[11px] text-[#bfbeb5] cursor-not-allowed"
+                >
+                  List
+                </button>
+              </div>
             </div>
 
-            <div className="mx-1 h-5 w-px bg-[#e3e0d8]" />
+            <div className="h-5 w-px bg-[#ecebe5]" />
 
-            {calendars.length > 0 ? (
-              <select
-                value={calendarFilter}
-                onChange={(e) => setCalendarFilter(e.target.value)}
-                className="h-7 rounded-md border border-[#e3e0d8] bg-white px-2 text-xs text-[#2d2d28] hover:bg-[#faf8f3]"
-                title="Filter by activity calendar"
-              >
-                <option value="">⛬ Calendar (All)</option>
-                <option value="__default">Project default only</option>
-                {calendars.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            ) : null}
+            {/* ——— FILTER ——— */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">Filter</span>
 
-            {(() => {
-              const resources = Array.from(
-                new Set(
-                  (draft?.tasks ?? [])
-                    .map((t) => t.resourceName?.trim())
-                    .filter((r): r is string => !!r),
-                ),
-              ).sort();
-              if (resources.length === 0) return null;
-              return (
+              {calendars.length > 0 ? (
                 <select
-                  value={resourceFilter}
-                  onChange={(e) => setResourceFilter(e.target.value)}
-                  className="h-7 rounded-md border border-[#e3e0d8] bg-white px-2 text-xs text-[#2d2d28] hover:bg-[#faf8f3]"
-                  title="Filter by resource"
+                  value={calendarFilter}
+                  onChange={(e) => setCalendarFilter(e.target.value)}
+                  className="h-7 rounded-md border border-[#e3e0d8] bg-white px-2 text-[11px] text-[#2d2d28] hover:bg-[#faf8f3]"
+                  title="Filter by activity calendar"
                 >
-                  <option value="">◇ Resource (All)</option>
-                  <option value="__none">Unassigned</option>
-                  {resources.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
+                  <option value="">Calendar · All</option>
+                  <option value="__default">Project default only</option>
+                  {calendars.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
                     </option>
                   ))}
                 </select>
-              );
-            })()}
+              ) : null}
 
-            {structure && structure.codeTypes.length > 0 ? (
-              <select
-                value={codeFilter}
-                onChange={(e) => setCodeFilter(e.target.value)}
-                className="h-7 rounded-md border border-[#e3e0d8] bg-white px-2 text-xs text-[#2d2d28] hover:bg-[#faf8f3]"
-                title="Filter by activity code"
-              >
-                <option value="">◊ Code (All)</option>
-                {structure.codeTypes.map((t) => (
-                  <optgroup key={t.id} label={t.name}>
-                    {t.values.map((v) => (
-                      <option key={v.id} value={`${t.id}:${v.id}`}>
-                        {t.name}: {v.code}
-                        {v.description ? ` · ${v.description}` : ""}
+              {(() => {
+                const resources = Array.from(
+                  new Set(
+                    (draft?.tasks ?? [])
+                      .map((t) => t.resourceName?.trim())
+                      .filter((r): r is string => !!r),
+                  ),
+                ).sort();
+                if (resources.length === 0) return null;
+                return (
+                  <select
+                    value={resourceFilter}
+                    onChange={(e) => setResourceFilter(e.target.value)}
+                    className="h-7 rounded-md border border-[#e3e0d8] bg-white px-2 text-[11px] text-[#2d2d28] hover:bg-[#faf8f3]"
+                    title="Filter by resource"
+                  >
+                    <option value="">Resource · All</option>
+                    <option value="__none">Unassigned</option>
+                    {resources.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
                       </option>
                     ))}
-                  </optgroup>
-                ))}
-              </select>
-            ) : null}
+                  </select>
+                );
+              })()}
 
-
-            <div className="flex items-center rounded-md border border-[#e3e0d8] bg-white">
-              {(["wbs", "critical", "none"] as const).map((g, i) => (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => setGroupBy(g)}
-                  className={`px-2.5 py-1 text-xs ${
-                    i > 0 ? "border-l border-[#e3e0d8]" : ""
-                  } ${
-                    groupBy === g
-                      ? "bg-[#1f241f] text-white"
-                      : "text-[#4a4944] hover:bg-[#faf8f3]"
-                  }`}
+              {structure && structure.codeTypes.length > 0 ? (
+                <select
+                  value={codeFilter}
+                  onChange={(e) => setCodeFilter(e.target.value)}
+                  className="h-7 rounded-md border border-[#e3e0d8] bg-white px-2 text-[11px] text-[#2d2d28] hover:bg-[#faf8f3]"
+                  title="Filter by activity code"
                 >
-                  {g === "wbs" ? "Group: WBS" : g === "critical" ? "Critical" : "Flat"}
-                </button>
-              ))}
+                  <option value="">Code · All</option>
+                  {structure.codeTypes.map((t) => (
+                    <optgroup key={t.id} label={t.name}>
+                      {t.values.map((v) => (
+                        <option key={v.id} value={`${t.id}:${v.id}`}>
+                          {t.name}: {v.code}
+                          {v.description ? ` · ${v.description}` : ""}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              ) : null}
+
+              <div className="flex items-center overflow-hidden rounded-md border border-[#e3e0d8] bg-white">
+                {(["wbs", "critical", "none"] as const).map((g, i) => (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => setGroupBy(g)}
+                    className={`px-2.5 py-1 text-[11px] ${
+                      i > 0 ? "border-l border-[#e3e0d8]" : ""
+                    } ${
+                      groupBy === g
+                        ? "bg-[#1f241f] text-white"
+                        : "text-[#4a4944] hover:bg-[#faf8f3]"
+                    }`}
+                  >
+                    {g === "wbs" ? "WBS" : g === "critical" ? "Critical" : "Flat"}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowCompleted((v) => !v)}
+                className={`rounded-md border border-[#e3e0d8] px-2.5 py-1 text-[11px] ${
+                  showCompleted ? "bg-white text-[#4a4944]" : "bg-[#1f241f] text-white"
+                } hover:bg-[#faf8f3]`}
+                title="Hide 100% complete activities"
+              >
+                {showCompleted ? "All" : "Remaining"}
+              </button>
+
+              <label
+                className="flex items-center gap-1.5 rounded-md border border-[#e3e0d8] bg-white px-2 py-0.5 text-[11px] text-[#4a4944]"
+                title="Activities with total float at or below this many working days are highlighted as near-critical."
+              >
+                <span className="inline-block h-2 w-2 rounded-sm bg-[var(--sched-near-critical,#c08a17)]" />
+                <span className="text-[10px] uppercase tracking-wide text-[#6b6a63]">Near-crit ≤</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={99}
+                  step={1}
+                  value={nearCriticalFloat}
+                  onChange={(e) =>
+                    setNearCriticalFloat(Math.max(0, Math.min(99, Number(e.target.value) || 0)))
+                  }
+                  className="h-5 w-10 rounded border border-[#e3e0d8] bg-white px-1 text-right text-[11px] tabular-nums"
+                />
+                <span className="text-[10px] text-[#8a8980]">d</span>
+              </label>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowCompleted((v) => !v)}
-              className={`rounded-md border border-[#e3e0d8] px-2.5 py-1 text-xs ${
-                showCompleted ? "bg-white text-[#4a4944]" : "bg-[#1f241f] text-white"
-              } hover:bg-[#faf8f3]`}
-              title="Hide 100% complete activities"
-            >
-              {showCompleted ? "All activities" : "Remaining only"}
-            </button>
+            <div className="h-5 w-px bg-[#ecebe5]" />
 
-            <label
-              className="flex items-center gap-1.5 rounded-md border border-[#e3e0d8] bg-white px-2 py-0.5 text-[11px] text-[#4a4944]"
-              title="Activities with total float at or below this many working days are highlighted as near-critical."
-            >
-              <span className="inline-block h-2 w-2 rounded-sm bg-[#d97706]" />
-              <span className="uppercase tracking-wide text-[10px] text-[#6b6a63]">Near-crit ≤</span>
-              <input
-                type="number"
-                min={0}
-                max={99}
-                step={1}
-                value={nearCriticalFloat}
-                onChange={(e) =>
-                  setNearCriticalFloat(Math.max(0, Math.min(99, Number(e.target.value) || 0)))
-                }
-                className="h-5 w-10 rounded border border-[#e3e0d8] bg-white px-1 text-right text-[11px] tabular-nums"
-              />
-              <span className="text-[10px] text-[#8a8980]">d</span>
-            </label>
+            {/* ——— ANALYZE ——— */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">Analyze</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!computed || computed.tasks.length === 0) return;
+                  const finish = computed.tasks.reduce((a, b) =>
+                    b.earlyFinish > a.earlyFinish ? b : a,
+                  );
+                  setSelectedTaskId(finish.id);
+                }}
+                className="rounded-md border border-[#d9c9ee] bg-[#f6f0ff] px-2.5 py-1 text-[11px] font-medium text-[#5c3d8a] hover:bg-[#ede0ff]"
+                title="Highlight the longest driving chain into project finish"
+              >
+                Driving path
+              </button>
+            </div>
 
+            <div className="ml-auto flex items-center gap-3">
+              {/* ——— COMPARE ——— */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">Compare</span>
+                <BaselinesPanel
+                  scheduleId={selectedId}
+                  comparisonId={comparisonBaselineId}
+                  onComparisonChange={setComparisonBaselineId}
+                  dirty={dirty}
+                />
+              </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                if (!computed || computed.tasks.length === 0) return;
-                const finish = computed.tasks.reduce((a, b) =>
-                  b.earlyFinish > a.earlyFinish ? b : a,
-                );
-                setSelectedTaskId(finish.id);
-              }}
-              className="rounded-md border border-[#b89dd9] bg-[#f6f0ff] px-2.5 py-1 text-xs font-medium text-[#5c3d8a] hover:bg-[#ede0ff]"
-              title="Highlight the longest driving chain into project finish"
-            >
-              ★ Driving path
-            </button>
+              <div className="h-5 w-px bg-[#ecebe5]" />
 
-            <div className="ml-auto flex items-center gap-2">
-              {/* Baseline picker */}
-              <BaselinesPanel
-                scheduleId={selectedId}
-                comparisonId={comparisonBaselineId}
-                onComparisonChange={setComparisonBaselineId}
-                dirty={dirty}
-                
-              />
-
-              <div className="mx-1 h-5 w-px bg-[#e3e0d8]" />
-
-              {/* Zoom */}
-              <div className="flex items-center gap-1">
-                <span className="text-[10px] uppercase tracking-wide text-[#6b6a63]">
-                  Zoom
-                </span>
+              {/* ——— ZOOM ——— */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8980]">Zoom</span>
                 <button
                   type="button"
                   onClick={() => { setZoomUserSet(false); fitToContainer(); }}
-                  className="rounded border border-[#e3e0d8] px-1.5 py-0.5 text-[10px] text-[#4a4944] hover:bg-[#faf8f3]"
+                  className="rounded border border-[#e3e0d8] bg-white px-1.5 py-0.5 text-[10px] text-[#4a4944] hover:bg-[#faf8f3]"
                   title="Fit project to viewport"
                 >
                   Fit
                 </button>
-
-                {ZOOM_LEVELS.map((z) => (
-                  <button
-                    key={z.label}
-                    type="button"
-                    onClick={() => setDayPxUser(z.dayPx)}
-                    className={`rounded px-1.5 py-0.5 text-[10px] ${
-                      dayPx === z.dayPx && zoomUserSet
-                        ? "bg-[#1f241f] text-white"
-                        : "border border-[#e3e0d8] text-[#4a4944] hover:bg-[#faf8f3]"
-                    }`}
-                  >
-                    {z.label}
-                  </button>
-                ))}
+                <div className="flex items-center overflow-hidden rounded-md border border-[#e3e0d8] bg-white">
+                  {ZOOM_LEVELS.map((z, i) => (
+                    <button
+                      key={z.label}
+                      type="button"
+                      onClick={() => setDayPxUser(z.dayPx)}
+                      className={`px-2 py-0.5 text-[10px] ${
+                        i > 0 ? "border-l border-[#e3e0d8]" : ""
+                      } ${
+                        dayPx === z.dayPx && zoomUserSet
+                          ? "bg-[#1f241f] text-white"
+                          : "text-[#4a4944] hover:bg-[#faf8f3]"
+                      }`}
+                    >
+                      {z.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
+
 
           {/* ============ MAIN CONTENT ============ */}
           <div className="flex flex-1 min-h-0 flex-col">
@@ -3678,7 +3697,7 @@ function PublishShortcut({ disabled }: { disabled?: boolean }) {
       type="button"
       onClick={() => setProductMode("publish")}
       disabled={disabled}
-      className="rounded-md border border-[#e3e0d8] bg-white px-2.5 py-1.5 text-xs font-medium text-[#2d2d28] hover:bg-[#faf8f3] disabled:opacity-50"
+      className="rounded-md px-2.5 py-1.5 text-xs font-medium text-[#4a4944] hover:bg-[#f3f1ea] hover:text-[#1f241f] disabled:opacity-40"
       title="Open Publish mode — output, PDF, and report templates"
       data-testid="top-publish-shortcut"
     >
