@@ -742,13 +742,13 @@ function SchedulerPage() {
       style={{ paddingRight: "var(--scheduler-right-pad, 0px)" }}
     >
       {/* ============ TOP HEADER ============ */}
-      <header className="flex h-12 shrink-0 items-center gap-3 border-b border-[var(--sched-surface-rule)] bg-white/85 px-5 backdrop-blur">
+      <header className="flex h-10 shrink-0 items-center gap-3 border-b border-[var(--sched-surface-rule)] bg-white/90 px-4 backdrop-blur">
         <Link
           to="/scheduler"
           className="group flex items-center gap-2 text-[var(--sched-graphite)] hover:text-[var(--sched-graphite-strong)]"
           title="All projects"
         >
-          <span className="grid h-7 w-7 place-items-center rounded-[5px] bg-[var(--sched-graphite-strong)] text-[10px] font-bold tracking-wider text-[var(--sched-brass-soft)]">
+          <span className="grid h-6 w-6 place-items-center rounded-[5px] bg-[var(--sched-graphite-strong)] text-[9px] font-bold tracking-wider text-[var(--sched-brass-soft)]">
             AOS
           </span>
           <span className="hidden text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--sched-graphite)] group-hover:text-[var(--sched-graphite)] sm:inline">
@@ -768,11 +768,11 @@ function SchedulerPage() {
                 setDraft({ ...draft, name: e.target.value });
                 setDirty(true);
               }}
-              className="min-w-0 flex-1 truncate bg-transparent text-[17px] font-semibold tracking-tight text-[var(--sched-graphite-strong)] outline-none placeholder:text-[var(--sched-graphite-soft)] focus:rounded focus:bg-[var(--sched-surface-rule-soft)] focus:px-2"
+              className="min-w-0 flex-1 truncate bg-transparent text-[14px] font-semibold tracking-tight text-[var(--sched-graphite-strong)] outline-none placeholder:text-[var(--sched-graphite-soft)] focus:rounded focus:bg-[var(--sched-surface-rule-soft)] focus:px-2"
               placeholder="Untitled schedule"
             />
           ) : (
-            <span className="text-[17px] font-semibold text-[var(--sched-graphite-soft)]">Loading…</span>
+            <span className="text-[14px] font-semibold text-[var(--sched-graphite-soft)]">Loading…</span>
           )}
         </div>
 
@@ -783,7 +783,7 @@ function SchedulerPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search activities…"
-              className="h-8 w-60 rounded-md border border-transparent bg-[var(--sched-surface-rule-soft)] pl-8 pr-3 text-xs outline-none transition focus:border-[var(--sched-graphite-soft)] focus:bg-white"
+              className="h-7 w-56 rounded-md border border-transparent bg-[var(--sched-surface-rule-soft)] pl-8 pr-3 text-xs outline-none transition focus:border-[var(--sched-graphite-soft)] focus:bg-white"
             />
             <svg
               className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sched-graphite)]"
@@ -849,7 +849,7 @@ function SchedulerPage() {
       </header>
 
       {/* ============ TAB BAR ============ */}
-      <nav className="flex h-8 shrink-0 items-end gap-0 border-b border-[var(--sched-surface-rule)] bg-white/60 px-4">
+      <nav className="flex h-7 shrink-0 items-end gap-0 border-b border-[var(--sched-surface-rule)] bg-white/60 px-4">
         {(
           [
             ["schedule", "Schedule"],
@@ -864,7 +864,7 @@ function SchedulerPage() {
             key={key}
             type="button"
             onClick={() => setActiveTab(key)}
-            className={`relative px-3.5 py-1.5 text-[12px] font-medium transition ${
+            className={`relative px-3 py-1 text-[11.5px] font-medium transition ${
               activeTab === key
                 ? "text-[var(--sched-graphite-strong)]"
                 : "text-[var(--sched-graphite)] hover:text-[var(--sched-graphite-strong)]"
@@ -876,7 +876,7 @@ function SchedulerPage() {
             ) : null}
           </button>
         ))}
-        <div className="ml-auto flex items-center gap-3 pb-2">
+        <div className="ml-auto flex items-center gap-3 pb-1">
           <Link
             to="/scheduler-portfolio"
             className="text-[10px] font-semibold uppercase tracking-wide text-[var(--sched-graphite)] hover:text-[var(--sched-graphite-strong)]"
