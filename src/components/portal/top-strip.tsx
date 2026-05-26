@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { Sparkles, MessageCircle, PanelLeftClose, PanelLeft, Menu } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -20,7 +20,55 @@ export function TopStrip() {
   const limit = data?.limit ?? 30;
   const low = remaining !== null && remaining <= 5;
   const { collapsed, toggle, toggleMobile } = useAppSidebar();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // When inside the scheduler, the right-side Activity Inspector extends to
+  // the very top of the viewport and would overlap header controls. Move the
+  // Ask Marshall / usage / account cluster to the LEFT so the right side
+  // stays clear for the inspector.
+  const isScheduler = pathname.startsWith("/scheduler");
 
+  const rightCluster = (
+    <div className="flex items-center gap-1.5 sm:gap-2">
+      <Link
+        to="/ask"
+        className="group inline-flex items-center gap-1.5 rounded-full bg-ink px-3 sm:px-3.5 py-1.5 text-cream shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md"
+        style={{ fontFamily: "var(--font-serif)" }}
+      >
+        <Sparkles className="h-3.5 w-3.5" />
+        <span className="text-[14px] sm:text-[15px] italic leading-none">Ask Marshall</span>
+      </Link>
+
+      <Link
+        to="/ask"
+        title={`${remaining ?? "—"} of ${limit} messages with Marshall left today`}
+        className={`hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors sm:inline-flex ${
+          low
+            ? "border-signal/40 bg-gold-soft text-signal hover:bg-gold-soft/80"
+            : "border-border bg-card text-foreground/80 hover:bg-muted"
+        }`}
+      >
+        <MessageCircle className="h-3 w-3" />
+        <span className="font-mono tabular-nums">
+          {remaining ?? "—"}
+          <span className="text-muted-foreground">/{limit}</span>
+        </span>
+        <span
+          className="italic text-muted-foreground"
+          style={{ fontFamily: "var(--font-serif)" }}
+        >
+          today
+        </span>
+      </Link>
+
+      <Link
+        to="/account"
+        className="flex items-center gap-2 rounded-full border border-border bg-card px-2 sm:px-2.5 py-1 text-[11px] hover:bg-muted"
+      >
+        <span className="grid h-6 w-6 place-items-center rounded-full bg-ink text-[10px] font-medium text-cream">M</span>
+        <span className="hidden sm:inline text-foreground/80">Marshall</span>
+      </Link>
+    </div>
+  );
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 sm:gap-4 border-b border-border bg-background px-3 sm:px-6">
@@ -42,54 +90,18 @@ export function TopStrip() {
         >
           {collapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
         </button>
-        <p
-          className="hidden sm:block text-[14px] text-muted-foreground truncate"
-          style={{ fontFamily: "var(--font-serif)" }}
-        >
-          <span className="text-signal">●</span> Live · Contractor Circle
-        </p>
-      </div>
-      <div className="flex items-center gap-1.5 sm:gap-2">
-        <Link
-          to="/ask"
-          className="group inline-flex items-center gap-1.5 rounded-full bg-ink px-3 sm:px-3.5 py-1.5 text-cream shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md"
-          style={{ fontFamily: "var(--font-serif)" }}
-        >
-          <Sparkles className="h-3.5 w-3.5" />
-          <span className="text-[14px] sm:text-[15px] italic leading-none">Ask Marshall</span>
-        </Link>
-
-        <Link
-          to="/ask"
-          title={`${remaining ?? "—"} of ${limit} messages with Marshall left today`}
-          className={`hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors sm:inline-flex ${
-            low
-              ? "border-signal/40 bg-gold-soft text-signal hover:bg-gold-soft/80"
-              : "border-border bg-card text-foreground/80 hover:bg-muted"
-          }`}
-        >
-          <MessageCircle className="h-3 w-3" />
-          <span className="font-mono tabular-nums">
-            {remaining ?? "—"}
-            <span className="text-muted-foreground">/{limit}</span>
-          </span>
-          <span
-            className="italic text-muted-foreground"
+        {isScheduler ? (
+          rightCluster
+        ) : (
+          <p
+            className="hidden sm:block text-[14px] text-muted-foreground truncate"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            today
-          </span>
-        </Link>
-
-        <Link
-          to="/account"
-          className="flex items-center gap-2 rounded-full border border-border bg-card px-2 sm:px-2.5 py-1 text-[11px] hover:bg-muted"
-        >
-          <span className="grid h-6 w-6 place-items-center rounded-full bg-ink text-[10px] font-medium text-cream">M</span>
-          <span className="hidden sm:inline text-foreground/80">Marshall</span>
-        </Link>
+            <span className="text-signal">●</span> Live · Contractor Circle
+          </p>
+        )}
       </div>
+      {isScheduler ? <div aria-hidden /> : rightCluster}
     </header>
   );
 }
-
