@@ -1282,9 +1282,12 @@ function SchedulerPage() {
                 </div>
 
 
-                {/* ============ ACTIVITY INSPECTOR (resizable / collapsible / expanded) ============ */}
+                {/* Legacy bottom inspector is intentionally hidden. The right
+                    ActivityInspectorPanel is the single activity command
+                    surface so the Gantt keeps the vertical workspace. */}
                 <div
-                  className="shrink-0 border-t border-[var(--sched-surface-rule)] bg-white print:hidden"
+                  aria-hidden="true"
+                  className="hidden"
                   style={{
                     height: inspectorCollapsed
                       ? 30
