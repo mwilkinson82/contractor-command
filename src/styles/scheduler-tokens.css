@@ -1,0 +1,60 @@
+/* ============================================================================
+ * Scheduler design tokens — Premium Pass 1 (foundation)
+ *
+ * Locked palette for every scheduler surface. Use these tokens via
+ * arbitrary Tailwind values, e.g. bg-[var(--sched-surface)],
+ * text-[var(--sched-critical)]. Do NOT add raw hex literals to new
+ * scheduler components — extend this file instead.
+ *
+ * Semantic contract:
+ *   --sched-critical          red, true critical path / danger ONLY
+ *   --sched-near-critical     amber, near-critical / needs review / assumptions
+ *   --sched-validated         green, complete / good / validated
+ *   --sched-graphite          neutral schedule data (bars, grid, text)
+ *   --sched-brass             Build / Intelligence emphasis ONLY
+ *   --sched-ivory             shell background
+ *   --sched-surface           cool white / slate work surface
+ *
+ * All values in oklch() so they live next to the rest of the portal tokens.
+ * ============================================================================ */
+
+:root {
+  /* Critical (red) — true critical path / danger only. */
+  --sched-critical: oklch(0.515 0.197 28.5);          /* #b42318 */
+  --sched-critical-soft: oklch(0.953 0.022 24);       /* #fbe9e6 */
+
+  /* Near-critical (amber) — needs review, assumptions, soon-to-be-critical. */
+  --sched-near-critical: oklch(0.682 0.151 67);       /* #c08a17-ish */
+  --sched-near-critical-soft: oklch(0.962 0.041 88);  /* warm amber wash */
+
+  /* Validated (green) — complete / good / passing. */
+  --sched-validated: oklch(0.535 0.106 152);          /* #3c7a4a */
+  --sched-validated-soft: oklch(0.954 0.034 152);     /* pale validated wash */
+
+  /* Graphite — neutral schedule data (bars, grid lines, body text). */
+  --sched-graphite: oklch(0.476 0.012 95);            /* #6b6a63 */
+  --sched-graphite-strong: oklch(0.235 0.011 132);    /* #1f241f */
+  --sched-graphite-soft: oklch(0.704 0.011 95);       /* #9a9991 */
+
+  /* Brass — Build / Intelligence emphasis ONLY. Never for normal CTAs. */
+  --sched-brass: oklch(0.755 0.111 84);               /* #c9a84c */
+  --sched-brass-deep: oklch(0.672 0.092 80);          /* #a89968 */
+  --sched-brass-soft: oklch(0.945 0.058 88);          /* #f7e9b8 */
+
+  /* Shell + surfaces. */
+  --sched-ivory: oklch(0.978 0.013 95);               /* #faf8f3 */
+  --sched-surface: oklch(0.996 0 0);                  /* near-white work surface */
+  --sched-surface-deep: oklch(0.974 0.011 95);        /* slightly recessed band */
+  --sched-surface-rule: oklch(0.910 0.013 95);        /* #e3e0d8 — hairline */
+  --sched-surface-rule-soft: oklch(0.951 0.011 95);   /* #ecebe5 — softest hairline */
+
+  /* Overlay (popovers, hover cards, tooltips). */
+  --sched-overlay: oklch(0.992 0.004 95);
+  --sched-overlay-rule: oklch(0.235 0.011 132 / 0.15);
+  --sched-overlay-shadow: 0 8px 24px oklch(0.235 0.011 132 / 0.12);
+
+  /* Elevation presets reused across scheduler surfaces. */
+  --sched-elevation-1: 0 1px 0 oklch(0 0 0 / 0.04);
+  --sched-elevation-2: 0 2px 0 oklch(0 0 0 / 0.06),
+                       0 14px 28px -12px oklch(0.235 0.011 132 / 0.22);
+}
