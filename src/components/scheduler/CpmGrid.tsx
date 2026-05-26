@@ -840,9 +840,9 @@ export function CpmGrid({
                       ? "#7a5cc4"
                       : d.isDriving
                       ? bothCrit
-                        ? "#b42318"
-                        : "#2a3e5f"
-                      : "#a8a59b";
+                        ? "var(--sched-critical)"
+                        : "var(--sched-graphite-strong)"
+                      : "var(--sched-graphite-soft)";
                     const marker = onChain
                       ? "url(#cpm-arrow-chain)"
                       : d.isDriving
