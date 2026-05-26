@@ -458,13 +458,17 @@ function SchedulerPage() {
     if (!computed || computed.projectDuration < 1) return;
     const container = rightScrollRef.current;
     if (!container) return;
-    const available = container.clientWidth - getCpmStickyTableWidth(nameColWidth) - 2;
-    if (available <= 0) return;
-    // Use exact fractional dayPx so the timeline fills the available width
-    // edge-to-edge with no white gutter before the inspector boundary.
-    const ideal = available / computed.projectDuration;
-    const clamped = Math.max(4, Math.min(36, ideal));
-    setDayPx(clamped);
+    // The container already sits inside the inspector-aware right pad and
+    // (in focus mode) the zeroed sidebar var, so its clientWidth IS the
+    // current work surface. Geometry helper applies the sticky-table
+    // deduction, padding, and clamp for us — single source of truth.
+    const dayPx = computeFitDayPx({
+      workSurface: container.clientWidth,
+      nameColWidth,
+      projectDuration: computed.projectDuration,
+    });
+    if (dayPx <= 0) return;
+    setDayPx(dayPx);
     container.scrollLeft = 0;
   }, [computed, nameColWidth]);
   useEffect(() => {
