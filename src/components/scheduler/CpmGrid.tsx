@@ -772,7 +772,7 @@ export function CpmGrid({
                       markerHeight="6"
                       orient="auto-start-reverse"
                     >
-                      <path d="M0,0 L10,5 L0,10 z" fill="#b42318" />
+                      <path d="M0,0 L10,5 L0,10 z" fill="var(--sched-critical)" />
 
                     </marker>
                     <marker
@@ -784,7 +784,7 @@ export function CpmGrid({
                       markerHeight="6"
                       orient="auto-start-reverse"
                     >
-                      <path d="M0,0 L10,5 L0,10 z" fill="#2a3e5f" />
+                      <path d="M0,0 L10,5 L0,10 z" fill="var(--sched-graphite-strong)" />
                     </marker>
                     <marker
                       id="cpm-arrow-soft"
@@ -795,7 +795,7 @@ export function CpmGrid({
                       markerHeight="6"
                       orient="auto-start-reverse"
                     >
-                      <path d="M0,0 L10,5 L0,10 z" fill="#a8a59b" />
+                      <path d="M0,0 L10,5 L0,10 z" fill="var(--sched-graphite-soft)" />
                     </marker>
                     <marker
                       id="cpm-arrow-chain"
