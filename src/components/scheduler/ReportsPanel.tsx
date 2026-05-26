@@ -51,7 +51,7 @@ export function ReportsPanel({ result, ganttContainerSelector }: Props) {
 
   return (
     <section className="rounded border border-[#d8cdb8] bg-white p-4">
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[#675d4b]">
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
         Reports & export
       </h2>
       <div className="space-y-3">

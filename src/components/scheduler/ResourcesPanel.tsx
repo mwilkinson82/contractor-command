@@ -114,7 +114,7 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
   const maxCum = Math.max(1, cumCost[duration - 1] ?? 0);
 
   const resourceKeys = Object.keys(resourceSeries);
-  const palette = ["#1f241f", "#b42318", "#2f7a3e", "#9c8b6e", "#4a6cf7", "#c9851f", "#7a5cc6"];
+  const palette = ["var(--sched-graphite-strong)", "var(--sched-critical)", "#2f7a3e", "#9c8b6e", "#4a6cf7", "#c9851f", "#7a5cc6"];
 
   // EVM curves
   const pvPath = cumCost
@@ -139,7 +139,7 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
   return (
     <section className="space-y-4 rounded border border-[#d8cdb8] bg-white p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-[#675d4b]">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
           Resources, cost & earned value
         </h3>
         <div className="text-xs text-[#776e5e]">
@@ -229,7 +229,7 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
                 x2={60 + dataDay * dayPx}
                 y1={4}
                 y2={Hh - 18}
-                stroke="#b42318"
+                stroke="var(--sched-critical)"
                 strokeDasharray="3 3"
               />
             ) : null}
@@ -245,13 +245,13 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
           </div>
           <div className="flex gap-3 text-[10px] text-[#5c574e]">
             <span className="inline-flex items-center gap-1">
-              <span className="inline-block h-[2px] w-4 bg-[#1f241f]" /> PV (planned)
+              <span className="inline-block h-[2px] w-4 bg-[var(--sched-graphite-strong)]" /> PV (planned)
             </span>
             <span className="inline-flex items-center gap-1">
               <span className="inline-block h-[2px] w-4 bg-[#2f7a3e]" /> EV (earned)
             </span>
             <span className="inline-flex items-center gap-1">
-              <span className="inline-block h-[2px] w-4 bg-[#b42318]" /> AC (actual)
+              <span className="inline-block h-[2px] w-4 bg-[var(--sched-critical)]" /> AC (actual)
             </span>
           </div>
         </div>
@@ -264,16 +264,16 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
             <text x={4} y={Hs - 14} fontSize={10} fill="#7a6a4d">
               $0
             </text>
-            <path d={pvPath} fill="none" stroke="#1f241f" strokeWidth={1.5} />
+            <path d={pvPath} fill="none" stroke="var(--sched-graphite-strong)" strokeWidth={1.5} />
             <path d={evPath} fill="none" stroke="#2f7a3e" strokeWidth={1.5} />
-            <path d={acPath} fill="none" stroke="#b42318" strokeWidth={1.5} />
+            <path d={acPath} fill="none" stroke="var(--sched-critical)" strokeWidth={1.5} />
             {dataDay >= 0 && dataDay <= duration ? (
               <line
                 x1={60 + dataDay * dayPx}
                 x2={60 + dataDay * dayPx}
                 y1={4}
                 y2={Hs - 10}
-                stroke="#b42318"
+                stroke="var(--sched-critical)"
                 strokeDasharray="3 3"
               />
             ) : null}
@@ -284,7 +284,7 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
       {/* Per-task editor */}
       <div className="overflow-x-auto rounded border border-[#eee7d8]">
         <table className="w-full text-xs">
-          <thead className="bg-[#eee6d7] uppercase tracking-wide text-[#675d4b]">
+          <thead className="bg-[#eee6d7] uppercase tracking-wide text-[var(--sched-graphite)]">
             <tr>
               <th className="px-2 py-2 text-left">Task</th>
               <th className="px-2 py-2 text-left">Resource</th>
@@ -364,7 +364,7 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
 
 function Cell({ label, value, tone }: { label: string; value: string; tone?: "good" | "bad" }) {
   const toneClass =
-    tone === "good" ? "text-[#2f7a3e]" : tone === "bad" ? "text-[#b42318]" : "text-[#1f241f]";
+    tone === "good" ? "text-[#2f7a3e]" : tone === "bad" ? "text-[var(--sched-critical)]" : "text-[var(--sched-graphite-strong)]";
   return (
     <div className="rounded border border-[#eee7d8] bg-[#f7f4ed] px-2 py-1.5">
       <div className="text-[10px] uppercase tracking-wide text-[#7a6a4d]">{label}</div>

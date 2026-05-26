@@ -73,7 +73,7 @@ export function BaselinesPanel({ scheduleId, comparisonId, onComparisonChange, d
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[#e6dfd0] bg-white px-2 text-[11px] font-medium text-[#3d3527] hover:bg-[#faf8f3]"
+          className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[#e6dfd0] bg-white px-2 text-[11px] font-medium text-[#3d3527] hover:bg-[var(--sched-ivory)]"
           title="Baselines"
         >
           <span className="inline-block h-2 w-2 rounded-sm bg-[#c7b89d]" />
@@ -103,7 +103,7 @@ export function BaselinesPanel({ scheduleId, comparisonId, onComparisonChange, d
           </Button>
         </div>
         {dirty ? (
-          <p className="mb-2 text-[10px] text-[#b42318]">
+          <p className="mb-2 text-[10px] text-[var(--sched-critical)]">
             Save your edits first — baselines snapshot what is in the database.
           </p>
         ) : null}
@@ -120,7 +120,7 @@ export function BaselinesPanel({ scheduleId, comparisonId, onComparisonChange, d
                 <li
                   key={b.id}
                   className={`flex items-center justify-between gap-2 rounded px-2 py-1 ${
-                    isActive ? "bg-[#1f241f] text-white" : "hover:bg-[#eee6d7]"
+                    isActive ? "bg-[var(--sched-graphite-strong)] text-white" : "hover:bg-[#eee6d7]"
                   }`}
                 >
                   <button

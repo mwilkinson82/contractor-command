@@ -115,7 +115,7 @@ export function UpdateCyclePanel({ scheduleId, dirty, dataDate, computed, onCycl
 
   return (
     <section className="rounded border border-[#d8cdb8] bg-white p-4">
-      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[#675d4b]">
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
         <CalendarClock className="h-4 w-4" /> Update cycles
       </h2>
       <p className="mb-3 text-[11px] text-[#776e5e]">
@@ -126,17 +126,17 @@ export function UpdateCyclePanel({ scheduleId, dirty, dataDate, computed, onCycl
       <div className="mb-3 rounded border border-[#eee7d8] bg-[#faf6ec] p-2 text-[11px]">
         <div className="flex items-center justify-between">
           <span className="text-[#776e5e]">Next update</span>
-          <span className="font-semibold text-[#1f241f]">
+          <span className="font-semibold text-[var(--sched-graphite-strong)]">
             #{String(nextNumber).padStart(2, "0")}
           </span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-[#776e5e]">Data date</span>
-          <span className="font-mono text-[#1f241f]">{dataDate ?? "—"}</span>
+          <span className="font-mono text-[var(--sched-graphite-strong)]">{dataDate ?? "—"}</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-[#776e5e]">Current finish</span>
-          <span className="font-mono text-[#1f241f]">{baselineFinish ?? "—"}</span>
+          <span className="font-mono text-[var(--sched-graphite-strong)]">{baselineFinish ?? "—"}</span>
         </div>
       </div>
 
@@ -150,7 +150,7 @@ export function UpdateCyclePanel({ scheduleId, dirty, dataDate, computed, onCycl
         Close out period {String(nextNumber).padStart(2, "0")}
       </Button>
       {dirty ? (
-        <p className="mt-2 text-[11px] text-[#b42318]">
+        <p className="mt-2 text-[11px] text-[var(--sched-critical)]">
           Save your edits first — snapshots read from the database.
         </p>
       ) : null}
@@ -158,7 +158,7 @@ export function UpdateCyclePanel({ scheduleId, dirty, dataDate, computed, onCycl
       {rows.length > 0 ? (
         <div className="mt-4">
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-[11px] font-semibold uppercase tracking-wide text-[#675d4b]">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
               History
             </h3>
             {firstUpdateFinish && lastUpdateFinish ? (
@@ -180,10 +180,10 @@ export function UpdateCyclePanel({ scheduleId, dirty, dataDate, computed, onCycl
                 return (
                   <li key={r.id} className="rounded border border-[#eee7d8] px-2 py-1.5 text-xs">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-[#1f241f]">{r.label}</span>
+                      <span className="font-semibold text-[var(--sched-graphite-strong)]">{r.label}</span>
                       {slip !== null && slip !== 0 ? (
                         <span
-                          className={`font-mono text-[10px] ${slip > 0 ? "text-[#b42318]" : "text-[#2f7a3e]"}`}
+                          className={`font-mono text-[10px] ${slip > 0 ? "text-[var(--sched-critical)]" : "text-[#2f7a3e]"}`}
                         >
                           {slip > 0 ? "+" : ""}
                           {slip}d

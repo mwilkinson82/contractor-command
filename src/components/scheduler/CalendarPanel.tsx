@@ -47,7 +47,7 @@ export function CalendarPanel({ workDays, holidays, onChange }: Props) {
 
   return (
     <section className="rounded border border-[#d8cdb8] bg-white p-4">
-      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[#675d4b]">
+      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
         Calendar
       </h3>
 
@@ -90,7 +90,7 @@ export function CalendarPanel({ workDays, holidays, onChange }: Props) {
               onClick={() => toggleDay(d.idx)}
               className={`rounded py-1 text-[10px] font-semibold uppercase ${
                 on
-                  ? "bg-[#1f241f] text-white"
+                  ? "bg-[var(--sched-graphite-strong)] text-white"
                   : "border border-[#d8cdb8] text-[#a39988] hover:bg-[#eee6d7]"
               }`}
             >
@@ -127,7 +127,7 @@ export function CalendarPanel({ workDays, holidays, onChange }: Props) {
               <button
                 type="button"
                 onClick={() => removeHoliday(h)}
-                className="text-[#a39988] hover:text-[#b42318]"
+                className="text-[#a39988] hover:text-[var(--sched-critical)]"
                 aria-label="Remove holiday"
               >
                 <Trash2 className="h-3 w-3" />

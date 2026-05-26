@@ -164,7 +164,7 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
   return (
     <section className="rounded border border-[#d8cdb8] bg-white p-3">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-[#675d4b]">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
           Project calendars
         </h3>
         {!adding ? (
@@ -205,7 +205,7 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
                   ~{workingDaysPerYear(c.workDays, c.holidays)}/yr
                 </span>
                 {c.isDefault ? (
-                  <span className="rounded bg-[#1f241f] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                  <span className="rounded bg-[var(--sched-graphite-strong)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
                     Default
                   </span>
                 ) : (
@@ -228,7 +228,7 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
                 {!c.isDefault ? (
                   <button
                     type="button"
-                    className="text-[10px] uppercase tracking-wide text-[#b42318] hover:underline"
+                    className="text-[10px] uppercase tracking-wide text-[var(--sched-critical)] hover:underline"
                     onClick={() => {
                       if (confirm(`Delete calendar "${c.name}"?`)) delMut.mutate(c.id);
                     }}
@@ -256,7 +256,7 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
                     }
                     className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${
                       on
-                        ? "bg-[#1f241f] text-white"
+                        ? "bg-[var(--sched-graphite-strong)] text-white"
                         : "border border-[#d8cdb8] text-[#7a6a4d] hover:bg-[#eee6d7]"
                     }`}
                   >
@@ -299,7 +299,7 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
                   onClick={() => setDraftMask((m) => toggleBit(m, i))}
                   className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${
                     on
-                      ? "bg-[#1f241f] text-white"
+                      ? "bg-[var(--sched-graphite-strong)] text-white"
                       : "border border-[#d8cdb8] text-[#7a6a4d] hover:bg-[#eee6d7]"
                   }`}
                 >
@@ -404,7 +404,7 @@ function HolidaysEditor({
             {holidays.length ? (
               <button
                 type="button"
-                className="ml-auto text-[10px] uppercase tracking-wide text-[#b42318] hover:underline"
+                className="ml-auto text-[10px] uppercase tracking-wide text-[var(--sched-critical)] hover:underline"
                 onClick={() => {
                   if (confirm("Clear all holidays?")) onChange([]);
                 }}
@@ -424,7 +424,7 @@ function HolidaysEditor({
                   {h}
                   <button
                     type="button"
-                    className="text-[#b42318] hover:underline"
+                    className="text-[var(--sched-critical)] hover:underline"
                     onClick={() => onChange(holidays.filter((x) => x !== h))}
                   >
                     ×

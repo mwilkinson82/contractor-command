@@ -86,12 +86,12 @@ export function StructurePanel({ scheduleId }: Props) {
   return (
     <section className="rounded border border-[#d8cdb8] bg-white">
       <header className="flex items-center justify-between border-b border-[#e4dcc8] px-3 py-2">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-[#1f241f]">Structure</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--sched-graphite-strong)]">Structure</h2>
         <div className="flex gap-1 text-[10px]">
           <button
             onClick={() => setTab("wbs")}
             className={`rounded px-2 py-0.5 font-semibold uppercase tracking-wider ${
-              tab === "wbs" ? "bg-[#1f241f] text-[#f7f4ed]" : "text-[#746b5c] hover:bg-[#f0e8d6]"
+              tab === "wbs" ? "bg-[var(--sched-graphite-strong)] text-[#f7f4ed]" : "text-[#746b5c] hover:bg-[#f0e8d6]"
             }`}
           >
             WBS
@@ -99,7 +99,7 @@ export function StructurePanel({ scheduleId }: Props) {
           <button
             onClick={() => setTab("codes")}
             className={`rounded px-2 py-0.5 font-semibold uppercase tracking-wider ${
-              tab === "codes" ? "bg-[#1f241f] text-[#f7f4ed]" : "text-[#746b5c] hover:bg-[#f0e8d6]"
+              tab === "codes" ? "bg-[var(--sched-graphite-strong)] text-[#f7f4ed]" : "text-[#746b5c] hover:bg-[#f0e8d6]"
             }`}
           >
             Codes
@@ -190,7 +190,7 @@ function WbsTree({
             <button
               onClick={() => setParentId(n.id)}
               title="Add child"
-              className="text-[#7a6a4d] hover:text-[#1f241f]"
+              className="text-[#7a6a4d] hover:text-[var(--sched-graphite-strong)]"
             >
               <Plus className="h-3 w-3" />
             </button>
@@ -315,7 +315,7 @@ function CodesEditor({
                 <div className="flex items-center justify-between bg-[#fafaf3] px-2 py-1">
                   <button
                     onClick={() => setOpenType(isOpen ? null : t.id)}
-                    className="flex flex-1 items-center gap-1 text-left text-xs font-semibold uppercase tracking-wider text-[#1f241f]"
+                    className="flex flex-1 items-center gap-1 text-left text-xs font-semibold uppercase tracking-wider text-[var(--sched-graphite-strong)]"
                   >
                     {isOpen ? (
                       <ChevronDown className="h-3 w-3" />
@@ -370,7 +370,7 @@ function CodesEditor({
                             key={c}
                             onClick={() => setValColor(c)}
                             className={`h-5 w-3 rounded-sm border ${
-                              valColor === c ? "ring-2 ring-[#1f241f]" : "border-black/10"
+                              valColor === c ? "ring-2 ring-[var(--sched-graphite-strong)]" : "border-black/10"
                             }`}
                             style={{ background: c }}
                           />

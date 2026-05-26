@@ -79,7 +79,7 @@ function FieldUpdatePage() {
   if (!activeId) {
     return (
       <div className="min-h-screen bg-[#f5f0e2] px-4 py-6">
-        <h1 className="mb-4 text-2xl font-semibold text-[#1f241f]">Field Update</h1>
+        <h1 className="mb-4 text-2xl font-semibold text-[var(--sched-graphite-strong)]">Field Update</h1>
         <p className="mb-4 text-sm text-[#776e5e]">Pick a schedule to update from the field.</p>
         {list.isLoading ? (
           <p className="text-sm text-[#776e5e]">Loading…</p>
@@ -93,7 +93,7 @@ function FieldUpdatePage() {
                   onClick={() => setActiveId(s.id)}
                   className="block w-full rounded border border-[#d8cdb8] bg-white px-4 py-3 text-left active:bg-[#eee6d7]"
                 >
-                  <div className="font-medium text-[#1f241f]">{s.name}</div>
+                  <div className="font-medium text-[var(--sched-graphite-strong)]">{s.name}</div>
                   <div className="mt-1 text-xs text-[#776e5e]">
                     Updated {new Date(s.updatedAt).toLocaleDateString()}
                   </div>
@@ -169,11 +169,11 @@ function FieldUpdateActive({
     <div className="min-h-screen bg-[#f5f0e2]">
       <header className="sticky top-0 z-10 border-b border-[#d8cdb8] bg-[#f5f0e2]/95 px-4 py-3 backdrop-blur">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={onBack} className="-ml-2 text-[#1f241f]">
+          <Button variant="ghost" size="sm" onClick={onBack} className="-ml-2 text-[var(--sched-graphite-strong)]">
             <ArrowLeft className="mr-1 h-4 w-4" /> Schedules
           </Button>
         </div>
-        <h1 className="mt-1 text-lg font-semibold text-[#1f241f]">{schedule.name}</h1>
+        <h1 className="mt-1 text-lg font-semibold text-[var(--sched-graphite-strong)]">{schedule.name}</h1>
         <div className="mt-2 flex items-center gap-2 text-xs text-[#776e5e]">
           <Calendar className="h-3.5 w-3.5" />
           <span>Data date</span>
@@ -211,7 +211,7 @@ function FieldUpdateActive({
                 <li key={t.id} className="rounded border border-[#d8cdb8] bg-white p-3 shadow-sm">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-medium text-[#1f241f]">
+                      <div className="truncate text-sm font-medium text-[var(--sched-graphite-strong)]">
                         {t.id} · {t.name}
                       </div>
                       <div className="mt-0.5 text-[11px] text-[#776e5e]">
@@ -236,8 +236,8 @@ function FieldUpdateActive({
                         onClick={() => patch(t.id, { percentComplete: v })}
                         className={`rounded border px-2 py-2 text-xs font-medium transition-colors ${
                           pct === v
-                            ? "border-[#1f241f] bg-[#1f241f] text-white"
-                            : "border-[#d8cdb8] bg-white text-[#1f241f] active:bg-[#eee6d7]"
+                            ? "border-[var(--sched-graphite-strong)] bg-[var(--sched-graphite-strong)] text-white"
+                            : "border-[#d8cdb8] bg-white text-[var(--sched-graphite-strong)] active:bg-[#eee6d7]"
                         }`}
                       >
                         {v}%
@@ -253,7 +253,7 @@ function FieldUpdateActive({
                     step={5}
                     value={pct}
                     onChange={(e) => patch(t.id, { percentComplete: Number(e.target.value) })}
-                    className="mt-3 w-full accent-[#1f241f]"
+                    className="mt-3 w-full accent-[var(--sched-graphite-strong)]"
                   />
                   <div className="mt-1 text-right text-[11px] text-[#776e5e]">{pct}% complete</div>
                 </li>

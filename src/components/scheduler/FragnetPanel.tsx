@@ -42,7 +42,7 @@ export function FragnetPanel({ tasks, dependencies, onInsert }: Props) {
 
   return (
     <section className="rounded border border-[#d8cdb8] bg-white p-4">
-      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[#675d4b]">
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
         <Layers className="h-4 w-4" /> Fragnets
       </h2>
       <p className="mb-3 text-[11px] text-[#776e5e]">

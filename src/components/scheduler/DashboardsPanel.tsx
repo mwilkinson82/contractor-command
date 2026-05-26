@@ -12,11 +12,11 @@ interface Props {
 export function DashboardsPanel({ result, tasks, onTaskChange, dataDate }: Props) {
   const { floatBuckets, criticalChain, longest } = useMemo(() => {
     const buckets = [
-      { label: "Critical (0d)", min: 0, max: 0, color: "#b42318", count: 0 },
-      { label: "1–5d", min: 1, max: 5, color: "#d4842a", count: 0 },
-      { label: "6–15d", min: 6, max: 15, color: "#c9a84c", count: 0 },
+      { label: "Critical (0d)", min: 0, max: 0, color: "var(--sched-critical)", count: 0 },
+      { label: "1–5d", min: 1, max: 5, color: "var(--sched-near-critical)", count: 0 },
+      { label: "6–15d", min: 6, max: 15, color: "var(--sched-brass)", count: 0 },
       { label: "16–30d", min: 16, max: 30, color: "#5b8bd6", count: 0 },
-      { label: "30d+", min: 31, max: Infinity, color: "#3d8a5c", count: 0 },
+      { label: "30d+", min: 31, max: Infinity, color: "var(--sched-validated)", count: 0 },
     ];
     for (const t of result.tasks) {
       const f = t.totalFloat;
@@ -67,7 +67,7 @@ export function DashboardsPanel({ result, tasks, onTaskChange, dataDate }: Props
             {floatBuckets.map((b) => (
               <div key={b.label} className="flex items-center gap-3 text-xs">
                 <span className="w-24 text-[#5c574e]">{b.label}</span>
-                <div className="relative h-5 flex-1 rounded bg-[#faf8f3]">
+                <div className="relative h-5 flex-1 rounded bg-[var(--sched-ivory)]">
                   <div
                     className="absolute inset-y-0 left-0 rounded transition-all"
                     style={{
@@ -77,7 +77,7 @@ export function DashboardsPanel({ result, tasks, onTaskChange, dataDate }: Props
                     }}
                   />
                 </div>
-                <span className="w-10 text-right font-mono text-[11px] font-semibold text-[#1f241f]">
+                <span className="w-10 text-right font-mono text-[11px] font-semibold text-[var(--sched-graphite-strong)]">
                   {b.count}
                 </span>
               </div>
@@ -104,13 +104,13 @@ export function DashboardsPanel({ result, tasks, onTaskChange, dataDate }: Props
               {criticalChain.map((t, i) => (
                 <li
                   key={t.id}
-                  className="flex items-center gap-2 rounded px-2 py-1 text-xs hover:bg-[#faf8f3]"
+                  className="flex items-center gap-2 rounded px-2 py-1 text-xs hover:bg-[var(--sched-ivory)]"
                 >
-                  <span className="grid h-5 w-5 place-items-center rounded-full bg-[#b42318]/10 font-mono text-[10px] font-semibold text-[#b42318]">
+                  <span className="grid h-5 w-5 place-items-center rounded-full bg-[var(--sched-critical)]/10 font-mono text-[10px] font-semibold text-[var(--sched-critical)]">
                     {i + 1}
                   </span>
                   <span className="font-mono text-[10px] text-[#5c574e]">{t.id}</span>
-                  <span className="flex-1 truncate text-[#1f241f]">{t.name}</span>
+                  <span className="flex-1 truncate text-[var(--sched-graphite-strong)]">{t.name}</span>
                   <span className="font-mono text-[10px] text-[#776e5e]">{t.duration}d</span>
                 </li>
               ))}
@@ -151,7 +151,7 @@ export function DashboardsPanel({ result, tasks, onTaskChange, dataDate }: Props
                     className={`border-t border-[#f3eede] ${t.isCritical ? "bg-[#fef2f0]" : ""}`}
                   >
                     <td className="py-1 font-mono text-[10px] text-[#5c574e]">{t.id}</td>
-                    <td className="py-1 text-[#1f241f]">{t.name}</td>
+                    <td className="py-1 text-[var(--sched-graphite-strong)]">{t.name}</td>
                     <td className="py-1 text-right text-[10px] text-[#5c574e]">
                       {t.earlyStartDate}
                     </td>
@@ -173,18 +173,18 @@ export function DashboardsPanel({ result, tasks, onTaskChange, dataDate }: Props
             {longest.map((t) => (
               <li key={t.id} className="flex items-center gap-2 text-xs">
                 <span className="font-mono text-[10px] text-[#5c574e]">{t.id}</span>
-                <span className="flex-1 truncate text-[#1f241f]">{t.name}</span>
-                <div className="relative h-3 w-32 rounded bg-[#faf8f3]">
+                <span className="flex-1 truncate text-[var(--sched-graphite-strong)]">{t.name}</span>
+                <div className="relative h-3 w-32 rounded bg-[var(--sched-ivory)]">
                   <div
                     className="absolute inset-y-0 left-0 rounded"
                     style={{
                       width: `${(t.duration / Math.max(longest[0].duration, 1)) * 100}%`,
-                      background: t.isCritical ? "#b42318" : "#1f241f",
+                      background: t.isCritical ? "var(--sched-critical)" : "var(--sched-graphite-strong)",
                       opacity: 0.85,
                     }}
                   />
                 </div>
-                <span className="w-10 text-right font-mono text-[11px] font-semibold text-[#1f241f]">
+                <span className="w-10 text-right font-mono text-[11px] font-semibold text-[var(--sched-graphite-strong)]">
                   {t.duration}d
                 </span>
               </li>

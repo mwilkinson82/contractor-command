@@ -174,12 +174,12 @@ function PortfolioPage() {
     });
 
   return (
-    <div className="min-h-screen bg-[#f7f4ed] px-4 py-8 text-[#1f241f] sm:px-6">
+    <div className="min-h-screen bg-[#f7f4ed] px-4 py-8 text-[var(--sched-graphite-strong)] sm:px-6">
       <div className="mx-auto max-w-7xl">
         <header className="mb-6">
           <Link
             to="/scheduler"
-            className="inline-flex items-center gap-1 text-xs text-[#776e5e] hover:text-[#1f241f]"
+            className="inline-flex items-center gap-1 text-xs text-[#776e5e] hover:text-[var(--sched-graphite-strong)]"
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Back to Scheduler
           </Link>
@@ -212,7 +212,7 @@ function PortfolioPage() {
         ) : (
           <div className="overflow-x-auto rounded border border-[#d8cdb8] bg-white">
             <table className="w-full text-sm">
-              <thead className="bg-[#eee6d7] text-left text-[11px] uppercase tracking-wide text-[#675d4b]">
+              <thead className="bg-[#eee6d7] text-left text-[11px] uppercase tracking-wide text-[var(--sched-graphite)]">
                 <tr>
                   <th className="px-3 py-2">Project</th>
                   <th className="px-3 py-2">Finish</th>
@@ -230,14 +230,14 @@ function PortfolioPage() {
                     <td className="px-3 py-2">
                       <Link
                         to="/scheduler"
-                        className="font-medium text-[#1f241f] underline-offset-2 hover:underline"
+                        className="font-medium text-[var(--sched-graphite-strong)] underline-offset-2 hover:underline"
                       >
                         {r.name}
                       </Link>
                       {r.dataDate ? (
                         <div className="text-[11px] text-[#776e5e]">Data date {r.dataDate}</div>
                       ) : null}
-                      {r.error ? <div className="text-[11px] text-[#b42318]">{r.error}</div> : null}
+                      {r.error ? <div className="text-[11px] text-[var(--sched-critical)]">{r.error}</div> : null}
                     </td>
                     <td className="px-3 py-2">
                       {r.loading ? (
@@ -253,7 +253,7 @@ function PortfolioPage() {
                       <div className="flex items-center gap-2">
                         <div className="h-1.5 w-20 overflow-hidden rounded-full bg-[#eee6d7]">
                           <div
-                            className="h-full bg-[#1f241f]"
+                            className="h-full bg-[var(--sched-graphite-strong)]"
                             style={{ width: `${Math.min(100, r.pctComplete)}%` }}
                           />
                         </div>
@@ -272,7 +272,7 @@ function PortfolioPage() {
                         <span
                           className={
                             r.eac > r.bac * 1.05
-                              ? "text-[#b42318]"
+                              ? "text-[var(--sched-critical)]"
                               : r.eac < r.bac * 0.95
                                 ? "text-[#2f7a3e]"
                                 : ""
@@ -287,7 +287,7 @@ function PortfolioPage() {
                     <td className="px-3 py-2 text-xs">
                       <span
                         className={
-                          r.criticalCount > 0 ? "font-medium text-[#b42318]" : "text-[#776e5e]"
+                          r.criticalCount > 0 ? "font-medium text-[var(--sched-critical)]" : "text-[#776e5e]"
                         }
                       >
                         {r.criticalCount}/{r.totalCount}
@@ -312,7 +312,7 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "wa
       </div>
       <div
         className={`mt-1 text-xl font-semibold ${
-          tone === "warn" ? "text-[#b42318]" : tone === "good" ? "text-[#2f7a3e]" : ""
+          tone === "warn" ? "text-[var(--sched-critical)]" : tone === "good" ? "text-[#2f7a3e]" : ""
         }`}
       >
         {value}
@@ -323,6 +323,6 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "wa
 
 function Pi({ value }: { value: number | null }) {
   if (value === null) return <span className="text-[#776e5e]">—</span>;
-  const tone = value >= 1 ? "text-[#2f7a3e]" : value >= 0.95 ? "text-[#9b7400]" : "text-[#b42318]";
+  const tone = value >= 1 ? "text-[#2f7a3e]" : value >= 0.95 ? "text-[#9b7400]" : "text-[var(--sched-critical)]";
   return <span className={`tabular-nums ${tone}`}>{value.toFixed(2)}</span>;
 }

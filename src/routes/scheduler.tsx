@@ -42,7 +42,7 @@ const STATUS_LABEL: Record<Project["status"], string> = {
 };
 
 const STATUS_DOT: Record<Project["status"], string> = {
-  planning: "bg-[#c9a84c]",
+  planning: "bg-[var(--sched-brass)]",
   active: "bg-emerald-600",
   on_hold: "bg-amber-500",
   closed: "bg-[#9b9789]",
@@ -165,7 +165,7 @@ function ProjectsIndex() {
   }, [detailQs]);
 
   return (
-    <div className="min-h-screen bg-[#f7f4ed] px-4 py-8 text-[#1f241f] sm:px-6">
+    <div className="min-h-screen bg-[#f7f4ed] px-4 py-8 text-[var(--sched-graphite-strong)] sm:px-6">
       <div className="mx-auto max-w-7xl">
         <header className="mb-6">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7a6a4d]">
@@ -176,13 +176,13 @@ function ProjectsIndex() {
             <div className="flex flex-wrap gap-2">
               <Link
                 to="/scheduler-portfolio"
-                className="rounded border border-[#d8cdb8] bg-white px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-[#1f241f] hover:bg-[#eee6d7]"
+                className="rounded border border-[#d8cdb8] bg-white px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-[var(--sched-graphite-strong)] hover:bg-[#eee6d7]"
               >
                 Portfolio EVM →
               </Link>
               <Link
                 to="/scheduler-field"
-                className="rounded border border-[#d8cdb8] bg-white px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-[#1f241f] hover:bg-[#eee6d7]"
+                className="rounded border border-[#d8cdb8] bg-white px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-[var(--sched-graphite-strong)] hover:bg-[#eee6d7]"
               >
                 Field update (mobile) →
               </Link>
@@ -219,7 +219,7 @@ function ProjectsIndex() {
           {/* Left: new project + filters */}
           <aside className="space-y-6">
             <section className="rounded border border-[#d8cdb8] bg-white p-4">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[#675d4b]">
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
                 New project
               </h2>
               <div className="space-y-3">
@@ -265,7 +265,7 @@ function ProjectsIndex() {
             </section>
 
             <section className="rounded border border-[#d8cdb8] bg-white p-4">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[#675d4b]">
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
                 Filter
               </h2>
               <div className="space-y-3">
@@ -345,7 +345,7 @@ function ProjectsIndex() {
                       <Link
                         to="/scheduler/$projectId"
                         params={{ projectId: p.id }}
-                        className="group block rounded border border-[#d8cdb8] bg-white p-4 transition hover:border-[#1f241f] hover:shadow-sm"
+                        className="group block rounded border border-[#d8cdb8] bg-white p-4 transition hover:border-[var(--sched-graphite-strong)] hover:shadow-sm"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
@@ -375,9 +375,9 @@ function ProjectsIndex() {
                           <Mini label="Data date" value={p.dataDate ?? "—"} />
                         </div>
 
-                        <div className="mt-3 flex items-center justify-between gap-3 text-[10px] uppercase tracking-wide text-[#9b9075]">
+                        <div className="mt-3 flex items-center justify-between gap-3 text-[10px] uppercase tracking-wide text-[var(--sched-graphite-soft)]">
                           <span>Updated {new Date(p.updatedAt).toLocaleDateString()}</span>
-                          <span className="font-semibold text-[#1f241f] group-hover:underline">
+                          <span className="font-semibold text-[var(--sched-graphite-strong)] group-hover:underline">
                             Open CPM workbench →
                           </span>
                         </div>
