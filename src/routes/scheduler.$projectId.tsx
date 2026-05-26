@@ -216,15 +216,15 @@ function SchedulerPage() {
     };
   }, [focusMode]);
 
-  // In focus mode, default the inspector to collapsed when nothing is
-  // selected and to standard (non-collapsed) when an activity is selected.
-  // Users can still manually resize / collapse / expand after that.
+  // Always default the inspector to collapsed when nothing is selected so
+  // the table/Gantt is the hero. When the user selects an activity the
+  // inspector pops open to its previous height. Manual collapse/expand is
+  // still honored mid-session.
   const hasSelection = !!selectedTaskId;
   useEffect(() => {
-    if (!focusMode) return;
     setInspectorCollapsed(!hasSelection);
     if (hasSelection) setInspectorExpanded(false);
-  }, [focusMode, hasSelection]);
+  }, [hasSelection]);
 
   // PA-2b: when the right-side ActivityInspectorPanel is open AND an
   // activity is selected, demote the legacy bottom inspector to its compact
