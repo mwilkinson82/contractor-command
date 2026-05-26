@@ -46,7 +46,6 @@
      Pushed cooler + brighter so the schedule reads as a technical
      instrument rather than a paper-stock admin panel. */
   --sched-ivory: oklch(0.978 0.005 248);              /* outer shell wash (cool, near-white) */
-  --sched-surface: 0 0% 100%;                         /* deprecated alias */
   --sched-surface: oklch(1 0 0);                      /* primary work surface (pure white) */
   --sched-surface-deep: oklch(0.965 0.008 248);       /* recessed band / panel rail */
   --sched-surface-rule: oklch(0.880 0.012 248);       /* crisper blue-gray hairline */
