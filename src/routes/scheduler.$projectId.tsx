@@ -1147,7 +1147,7 @@ function SchedulerPage() {
                 ) : null}
 
                 {/* Project meta strip — compact single-line pill row */}
-                <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[var(--sched-surface-rule-soft)] bg-white px-4 py-0.5 text-[11px] text-[var(--sched-graphite)]">
+                <div data-scheduler-project-meta className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[var(--sched-surface-rule-soft)] bg-white px-4 py-0.5 text-[11px] text-[var(--sched-graphite)]">
                   <label className="inline-flex items-center gap-1.5">
                     <span className="text-[9px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)]">Start</span>
                     <input

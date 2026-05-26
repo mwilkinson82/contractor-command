@@ -76,7 +76,8 @@ export function ScheduleKpiBar({ result, tasks, dataDate }: Props) {
   }, [result, tasks, dataDate]);
 
   return (
-    <div className="flex shrink-0 items-stretch overflow-x-auto border-b border-[var(--sched-surface-rule)] bg-[var(--sched-surface)] px-5 py-2.5">
+    <div data-scheduler-kpi className="flex shrink-0 items-stretch overflow-x-auto border-b border-[var(--sched-surface-rule)] bg-[var(--sched-surface)] px-5 py-1.5">
+
       <Cell label="Activities" value={kpis.total.toString()} sub={`${kpis.notStarted} not started`} />
       <Divider />
       <Cell
@@ -129,7 +130,7 @@ export function ScheduleKpiBar({ result, tasks, dataDate }: Props) {
 }
 
 function Divider() {
-  return <span aria-hidden className="mx-4 w-px self-stretch bg-[var(--sched-surface-rule)]" />;
+  return <span aria-hidden className="mx-3 w-px self-stretch bg-[var(--sched-surface-rule)]" />;
 }
 
 function Cell({
@@ -152,15 +153,15 @@ function Cell({
         ? "text-[var(--sched-validated)]"
         : "text-[var(--sched-graphite-strong)]";
   return (
-    <div className={`flex shrink-0 flex-col justify-center ${wide ? "min-w-[8.5rem]" : "min-w-[5rem]"}`}>
+    <div className={`flex shrink-0 flex-col justify-center ${wide ? "min-w-[7.5rem]" : "min-w-[4.5rem]"}`}>
       <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[var(--sched-graphite)]">
         {label}
       </span>
-      <span className={`mt-0.5 text-[19px] font-semibold leading-none tabular-nums tracking-tight ${valueTone}`}>
+      <span data-kpi-value className={`mt-0.5 text-[16px] font-semibold leading-none tabular-nums tracking-tight ${valueTone}`}>
         {value}
       </span>
       {sub ? (
-        <span className="mt-1 text-[10px] leading-tight text-[var(--sched-graphite-soft)]">{sub}</span>
+        <span className="mt-0.5 text-[9.5px] leading-tight text-[var(--sched-graphite-soft)]">{sub}</span>
       ) : null}
     </div>
   );
