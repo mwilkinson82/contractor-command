@@ -458,9 +458,11 @@ function SchedulerPage() {
     if (!computed || computed.projectDuration < 1) return;
     const container = rightScrollRef.current;
     if (!container) return;
-    const available = container.clientWidth - getCpmStickyTableWidth(nameColWidth) - 16;
+    const available = container.clientWidth - getCpmStickyTableWidth(nameColWidth) - 2;
     if (available <= 0) return;
-    const ideal = Math.floor(available / computed.projectDuration);
+    // Use exact fractional dayPx so the timeline fills the available width
+    // edge-to-edge with no white gutter before the inspector boundary.
+    const ideal = available / computed.projectDuration;
     const clamped = Math.max(4, Math.min(36, ideal));
     setDayPx(clamped);
     container.scrollLeft = 0;
