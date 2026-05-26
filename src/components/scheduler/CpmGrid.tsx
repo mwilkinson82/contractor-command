@@ -598,9 +598,9 @@ export function CpmGrid({
                   {baselineT ? (
                     <rect
                       x={baselineT.earlyStart * dayPx}
-                      y={y + rowH - 4}
+                      y={y + rowH - 5}
                       width={Math.max(baselineT.duration * dayPx, 2)}
-                      height={2}
+                      height={3}
                       fill="var(--sched-graphite-soft)"
                       opacity={0.9}
                     />
