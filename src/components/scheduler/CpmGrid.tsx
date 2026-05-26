@@ -288,7 +288,7 @@ export function CpmGrid({
         <div className="sticky left-0 z-20 shrink-0 border-r border-[var(--sched-surface-rule)] bg-white shadow-[1px_0_0_rgba(31,36,31,0.04)]">
           {/* Column header — cool slate-ivory, technical */}
           <div
-            className="sticky top-0 z-30 border-b border-[var(--sched-surface-rule)] bg-[var(--sched-surface-rule-soft)] text-[10px] font-semibold uppercase tracking-wider text-[#3d3d38]"
+            className="sticky top-0 z-30 border-b border-[var(--sched-surface-rule)] bg-[var(--sched-surface-rule-soft)] text-[10px] font-semibold uppercase tracking-wider text-[var(--sched-graphite-strong)]"
             style={{ height: HEADER_H }}
           >
             <table className="w-full border-collapse">
@@ -343,12 +343,12 @@ export function CpmGrid({
                   return (
                     <tr
                       key={`g-${row.key}`}
-                      className="cursor-pointer bg-[var(--sched-surface-rule-soft)] font-medium text-[var(--sched-graphite-strong)] hover:bg-[#e6e5dd]"
+                      className="cursor-pointer bg-[var(--sched-surface-rule-soft)] font-medium text-[var(--sched-graphite-strong)] hover:bg-[var(--sched-surface-rule-soft)]"
                       style={{ height: GROUP_H }}
                       onClick={() => onToggleGroup?.(row.key)}
                     >
                       <td colSpan={9} className="border-b border-[var(--sched-surface-rule)] px-2">
-                        <span className="mr-1.5 inline-block w-3 text-center text-[10px] text-[#7a7972]">
+                        <span className="mr-1.5 inline-block w-3 text-center text-[10px] text-[var(--sched-graphite)]">
                           {row.collapsed ? "▸" : "▾"}
                         </span>
                         <span className="text-[10px] uppercase tracking-[0.1em] text-[var(--sched-graphite)]">{row.key}</span>
@@ -371,7 +371,7 @@ export function CpmGrid({
                     onClick={() => onSelect(t.id)}
                     className={`cursor-pointer border-b border-[var(--sched-surface-rule-soft)] ${
                       isSelected ? "bg-[var(--sched-surface-rule-soft)]" : i % 2 ? "bg-[var(--sched-ivory)]" : "bg-white"
-                    } hover:bg-[#f5f7fa]`}
+                    } hover:bg-[var(--sched-surface-rule-soft)]`}
                     style={{ height: ROW_H }}
                   >
                     <td className="border-r border-[var(--sched-surface-rule-soft)] px-2 font-mono text-[10px] text-[var(--sched-graphite)]">
@@ -440,7 +440,7 @@ export function CpmGrid({
                     y={0}
                     width={y.w}
                     height={HEADER_H / 2}
-                    fill={i % 2 ? "#e9e7df" : "var(--sched-surface-rule-soft)"}
+                    fill={i % 2 ? "var(--sched-surface-rule-soft)" : "var(--sched-surface-rule-soft)"}
                   />
                   <line x1={y.x} x2={y.x} y1={0} y2={HEADER_H} stroke="var(--sched-graphite-soft)" strokeWidth={1} />
                   {y.w > 24 ? (
@@ -466,7 +466,7 @@ export function CpmGrid({
                     y={HEADER_H / 2}
                     width={m.w}
                     height={HEADER_H / 2}
-                    fill={i % 2 ? "#f7f6f1" : "var(--sched-surface-rule-soft)"}
+                    fill={i % 2 ? "var(--sched-surface-rule-soft)" : "var(--sched-surface-rule-soft)"}
                   />
                   <line
                     x1={m.x}

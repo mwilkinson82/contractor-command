@@ -323,6 +323,6 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "wa
 
 function Pi({ value }: { value: number | null }) {
   if (value === null) return <span className="text-[var(--sched-graphite)]">—</span>;
-  const tone = value >= 1 ? "text-[var(--sched-validated)]" : value >= 0.95 ? "text-[#9b7400]" : "text-[var(--sched-critical)]";
+  const tone = value >= 1 ? "text-[var(--sched-validated)]" : value >= 0.95 ? "text-[var(--sched-near-critical)]" : "text-[var(--sched-critical)]";
   return <span className={`tabular-nums ${tone}`}>{value.toFixed(2)}</span>;
 }

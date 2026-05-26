@@ -114,7 +114,7 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
   const maxCum = Math.max(1, cumCost[duration - 1] ?? 0);
 
   const resourceKeys = Object.keys(resourceSeries);
-  const palette = ["var(--sched-graphite-strong)", "var(--sched-critical)", "var(--sched-validated)", "var(--sched-graphite)", "#4a6cf7", "#c9851f", "#7a5cc6"];
+  const palette = ["var(--sched-graphite-strong)", "var(--sched-critical)", "var(--sched-validated)", "var(--sched-graphite)", "var(--sched-graphite-strong)", "var(--sched-near-critical)", "var(--sched-brass-deep)"];
 
   // EVM curves
   const pvPath = cumCost
@@ -183,7 +183,7 @@ export function ResourcesPanel({ result, tasks, onTaskChange }: Props) {
               </span>
             ))}
             {resourceKeys.length === 0 ? (
-              <span className="italic text-[#9a9080]">
+              <span className="italic text-[var(--sched-graphite)]">
                 Assign a resource + units/day below to populate.
               </span>
             ) : null}

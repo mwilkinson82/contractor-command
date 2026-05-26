@@ -183,7 +183,7 @@ export function CalendarsPanel({ scheduleId, onDefaultChanged }: Props) {
 
       <ul className="space-y-2">
         {cals.map((c) => (
-          <li key={c.id} className="rounded border border-[var(--sched-surface-rule-soft)] bg-[#fbf8f0] p-2 text-xs">
+          <li key={c.id} className="rounded border border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] p-2 text-xs">
             <div className="flex items-center justify-between gap-2">
               <Input
                 className="h-7 max-w-[160px] text-xs"
@@ -386,7 +386,7 @@ function HolidaysEditor({
               Add
             </Button>
           </div>
-          <div className="flex flex-wrap items-center gap-1 border-t border-dashed border-[#e8ddc4] pt-1">
+          <div className="flex flex-wrap items-center gap-1 border-t border-dashed border-[var(--sched-surface-rule)] pt-1">
             <span className="text-[10px] uppercase tracking-wide text-[var(--sched-graphite)]">Quick add:</span>
             <Input
               type="number"

@@ -227,7 +227,7 @@ export function IntelDock({
       {/* Strip — always visible unless full-screen. */}
       {!isFull ? (
         <div
-          className="fixed right-0 bottom-0 z-30 flex items-center gap-2 border-t border-[var(--sched-graphite-strong)]/15 bg-gradient-to-r from-[var(--sched-graphite-strong)] via-[#26302a] to-[var(--sched-graphite-strong)] px-3 text-[var(--sched-brass-soft)] shadow-[0_-2px_8px_rgba(0,0,0,0.08)] print:hidden"
+          className="fixed right-0 bottom-0 z-30 flex items-center gap-2 border-t border-[var(--sched-graphite-strong)]/15 bg-gradient-to-r from-[var(--sched-graphite-strong)] via-[var(--sched-graphite-strong)] to-[var(--sched-graphite-strong)] px-3 text-[var(--sched-brass-soft)] shadow-[0_-2px_8px_rgba(0,0,0,0.08)] print:hidden"
           style={{ height: STRIP_HEIGHT, left: "var(--app-sidebar-w, 0px)" }}
           data-testid="intel-dock-strip"
           aria-label="Schedule intelligence dock"
@@ -253,7 +253,7 @@ export function IntelDock({
                   "rounded-full px-1.5 py-0.5 text-[9px] font-bold tabular-nums " +
                   (reviewCount > 5
                     ? "bg-[var(--sched-critical)] text-white"
-                    : "bg-[#d4a017] text-[var(--sched-graphite-strong)]")
+                    : "bg-[var(--sched-brass)] text-[var(--sched-graphite-strong)]")
                 }
               >
                 {reviewCount} {reviewCount === 1 ? "finding" : "findings"}

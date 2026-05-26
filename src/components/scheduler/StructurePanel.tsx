@@ -20,14 +20,14 @@ import {
 type Props = { scheduleId: string };
 
 const SWATCHES = [
-  "#dc2626",
-  "#ea580c",
-  "#ca8a04",
-  "#16a34a",
-  "#0891b2",
-  "#4f46e5",
-  "#9333ea",
-  "#db2777",
+  "var(--sched-critical)",
+  "var(--sched-near-critical)",
+  "var(--sched-near-critical)",
+  "var(--sched-validated)",
+  "var(--sched-graphite-strong)",
+  "var(--sched-graphite-strong)",
+  "var(--sched-brass-deep)",
+  "var(--sched-brass-deep)",
 ];
 
 export function StructurePanel({ scheduleId }: Props) {

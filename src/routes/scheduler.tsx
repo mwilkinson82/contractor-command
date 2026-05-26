@@ -45,7 +45,7 @@ const STATUS_DOT: Record<Project["status"], string> = {
   planning: "bg-[var(--sched-brass)]",
   active: "bg-emerald-600",
   on_hold: "bg-amber-500",
-  closed: "bg-[#9b9789]",
+  closed: "bg-[var(--sched-graphite-soft)]",
 };
 
 function ProjectsHome() {
@@ -408,7 +408,7 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
 
 function Mini({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded border border-[var(--sched-surface-rule-soft)] bg-[#faf7ee] px-2 py-1.5">
+    <div className="rounded border border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] px-2 py-1.5">
       <div className="text-[9px] uppercase tracking-wide text-[var(--sched-graphite)]">{label}</div>
       <div className="text-sm font-medium">{value}</div>
     </div>

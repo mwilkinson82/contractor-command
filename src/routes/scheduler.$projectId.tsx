@@ -1049,7 +1049,7 @@ function SchedulerPage() {
                 className="flex items-center gap-1.5 rounded-md border border-[var(--sched-surface-rule)] bg-white px-2 py-0.5 text-[11px] text-[var(--sched-graphite)]"
                 title="Activities with total float at or below this many working days are highlighted as near-critical."
               >
-                <span className="inline-block h-2 w-2 rounded-sm bg-[var(--sched-near-critical,#c08a17)]" />
+                <span className="inline-block h-2 w-2 rounded-sm bg-[var(--sched-near-critical,var(--sched-near-critical))]" />
                 <span className="text-[10px] uppercase tracking-wide text-[var(--sched-graphite)]">Near-crit ≤</span>
                 <input
                   type="number"
@@ -1080,7 +1080,7 @@ function SchedulerPage() {
                   );
                   setSelectedTaskId(finish.id);
                 }}
-                className="rounded-md border border-[#d9c9ee] bg-[#f6f0ff] px-2.5 py-1 text-[11px] font-medium text-[#5c3d8a] hover:bg-[#ede0ff]"
+                className="rounded-md border border-[var(--sched-brass-soft)] bg-[var(--sched-brass-soft)] px-2.5 py-1 text-[11px] font-medium text-[var(--sched-brass-deep)] hover:bg-[var(--sched-brass-soft)]"
                 title="Highlight the longest driving chain into project finish"
               >
                 Driving path
@@ -1314,7 +1314,7 @@ function SchedulerPage() {
                       style={{ left: getCpmStickyTableWidth(nameColWidth) }}
                       title="Drag to resize · double-click to reset"
                     >
-                      <div className="mx-auto h-full w-px bg-transparent group-hover:bg-[#c4c1b7] group-active:bg-[var(--sched-graphite-strong)]" />
+                      <div className="mx-auto h-full w-px bg-transparent group-hover:bg-[var(--sched-graphite-soft)] group-active:bg-[var(--sched-graphite-strong)]" />
                     </div>
                     {/* Legend — slim inline strip */}
                     <div className="flex shrink-0 items-center justify-center gap-4 border-t border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] px-4 py-1 text-[10px] text-[var(--sched-graphite)]">
@@ -2210,7 +2210,7 @@ function InspectorDetails({
   const progressTone: Record<NonNullable<typeof progressState>, string> = {
     future: "bg-[var(--sched-surface-rule-soft)] text-[var(--sched-graphite-strong)]",
     inprogress: "bg-[var(--sched-near-critical-soft)] text-[var(--sched-near-critical)]",
-    complete: "bg-[#e5f1ea] text-[var(--sched-validated)]",
+    complete: "bg-[var(--sched-validated-soft)] text-[var(--sched-validated)]",
     behind: "bg-[var(--sched-critical-soft)] text-[var(--sched-critical)]",
   };
 
@@ -2583,7 +2583,7 @@ function InspectorRelationships({
   return (
     <div className="space-y-3">
       {allErrors > 0 ? (
-        <div className="rounded border border-[var(--sched-critical)]/30 bg-[#fdf2f0] px-2 py-1 text-[11px] text-[var(--sched-critical)]">
+        <div className="rounded border border-[var(--sched-critical)]/30 bg-[var(--sched-critical-soft)] px-2 py-1 text-[11px] text-[var(--sched-critical)]">
           {allErrors} relationship issue{allErrors === 1 ? "" : "s"} — fix before saving to avoid CPM errors.
         </div>
       ) : null}
@@ -3255,7 +3255,7 @@ function SeverityChip({ severity }: { severity: "high" | "med" | "low" }) {
       ? "border-[var(--sched-critical-soft)] bg-[var(--sched-critical-soft)] text-[var(--sched-critical)]"
       : severity === "med"
         ? "border-[var(--sched-brass-soft)] bg-[var(--sched-brass-soft)] text-[var(--sched-graphite)]"
-        : "border-[#d8d5c8] bg-[#f3f1e8] text-[var(--sched-graphite)]";
+        : "border-[var(--sched-graphite-soft)] bg-[var(--sched-surface-rule-soft)] text-[var(--sched-graphite)]";
   const label = severity === "high" ? "High" : severity === "med" ? "Med" : "Low";
   return (
     <span
@@ -3541,11 +3541,11 @@ function PublishModeShell() {
           <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--sched-graphite)]">
             Preview gallery
           </div>
-          <div className="text-[10px] font-medium uppercase tracking-wider text-[#a8a190]">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--sched-graphite-soft)]">
             Rendering arrives in a later phase
           </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto bg-[#f4f1e8] p-6">
+        <div className="min-h-0 flex-1 overflow-auto bg-[var(--sched-surface-rule-soft)] p-6">
           <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
             {PUBLISH_REPORTS.map((r) => (
               <ReportThumbnail key={r.key} reportKey={r.key} title={r.title} />
@@ -3591,7 +3591,7 @@ function ReportThumbnail({
       : "var(--sched-graphite-strong)";
 
   return (
-    <figure className="group flex flex-col overflow-hidden rounded-sm border border-[#dcd6c4] bg-white shadow-[0_1px_0_rgba(0,0,0,0.04),0_8px_20px_-12px_rgba(31,36,31,0.18)] transition hover:shadow-[0_2px_0_rgba(0,0,0,0.06),0_14px_28px_-12px_rgba(31,36,31,0.28)]">
+    <figure className="group flex flex-col overflow-hidden rounded-sm border border-[var(--sched-surface-rule)] bg-white shadow-[0_1px_0_rgba(0,0,0,0.04),0_8px_20px_-12px_rgba(31,36,31,0.18)] transition hover:shadow-[0_2px_0_rgba(0,0,0,0.06),0_14px_28px_-12px_rgba(31,36,31,0.28)]">
       {/* Paper page */}
       <div className="relative aspect-[11/8.5] w-full overflow-hidden bg-white">
         {/* Page header band */}
@@ -3606,14 +3606,14 @@ function ReportThumbnail({
         <div className="absolute inset-x-0 bottom-0 top-7 grid grid-cols-[28%_minmax(0,1fr)]">
           <div className="border-r border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] px-2 py-2 space-y-1.5">
             {bars.map((_, i) => (
-              <div key={i} className="h-1.5 w-[85%] rounded-sm bg-[#d8d2bf]" />
+              <div key={i} className="h-1.5 w-[85%] rounded-sm bg-[var(--sched-surface-rule)]" />
             ))}
           </div>
           <div className="relative px-2 py-2">
             {/* date tick header */}
             <div className="mb-1.5 flex gap-1 opacity-60">
               {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="h-1 flex-1 rounded-sm bg-[#e3ddc9]" />
+                <div key={i} className="h-1 flex-1 rounded-sm bg-[var(--sched-surface-rule)]" />
               ))}
             </div>
             <div className="space-y-1.5">
