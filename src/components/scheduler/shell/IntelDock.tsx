@@ -168,14 +168,20 @@ export function IntelDock({
         />
       ) : null}
 
-      {/* Drawer */}
+      {/* Drawer — elevated panel with brass left-edge accent so it reads as
+          distinct from the always-visible strip / KPI bar. */}
       {isDrawer ? (
         <aside
-          className="fixed right-0 z-30 flex flex-col border-t border-[#e3e0d8] bg-[#faf8f3] print:hidden"
+          className="fixed right-0 z-30 flex flex-col border-t border-[var(--sched-surface-rule)] bg-[var(--sched-ivory)] shadow-[var(--sched-elevation-2)] print:hidden"
           style={{ bottom: STRIP_HEIGHT, height: dockHeight, left: "var(--app-sidebar-w, 0px)" }}
           aria-label="Schedule intelligence drawer"
           data-testid="intel-dock-drawer"
         >
+          {/* Brass left-edge accent — Intelligence is brass emphasis territory. */}
+          <span
+            aria-hidden
+            className="absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b from-[var(--sched-brass)] to-[var(--sched-brass-deep)]"
+          />
 
           <div
             role="separator"
@@ -185,12 +191,12 @@ export function IntelDock({
             className="group absolute inset-x-0 -top-1 z-10 h-2 cursor-row-resize"
             title="Drag to resize"
           >
-            <div className="absolute inset-x-0 top-1 h-px bg-[#e3e0d8] group-hover:bg-[#1f241f]" />
+            <div className="absolute inset-x-0 top-1 h-px bg-[var(--sched-surface-rule)] group-hover:bg-[var(--sched-graphite-strong)]" />
           </div>
-          <header className="flex shrink-0 items-center justify-between gap-2 border-b border-[#e3e0d8] bg-white px-3 py-1.5">
+          <header className="flex shrink-0 items-center justify-between gap-2 border-b border-[var(--sched-surface-rule)] bg-[var(--sched-surface)] px-3 py-1.5">
             <div className="flex items-center gap-3">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#4a4944]">
-                Schedule Intelligence
+              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--sched-graphite)]">
+                <span className="text-[var(--sched-brass-deep)]">✶</span> Schedule Intelligence
               </span>
               {tabBar}
             </div>
@@ -198,7 +204,7 @@ export function IntelDock({
               <button
                 type="button"
                 onClick={goFull}
-                className="rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
+                className="rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--sched-graphite)] hover:bg-[var(--sched-ivory)] hover:text-[var(--sched-graphite-strong)]"
                 data-testid="intel-dock-go-full"
               >
                 Full
@@ -206,7 +212,7 @@ export function IntelDock({
               <button
                 type="button"
                 onClick={collapseToStrip}
-                className="rounded p-1 text-[#6b6a63] hover:bg-[#faf8f3] hover:text-[#1f241f]"
+                className="rounded p-1 text-[var(--sched-graphite)] hover:bg-[var(--sched-ivory)] hover:text-[var(--sched-graphite-strong)]"
                 aria-label="Collapse intelligence to strip"
                 data-testid="intel-dock-collapse"
               >
