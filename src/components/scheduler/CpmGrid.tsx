@@ -549,7 +549,11 @@ export function CpmGrid({
               const w = Math.max(t.duration * dayPx, 2);
               const isNearCritical =
                 !t.isCritical && nearCriticalFloat > 0 && t.totalFloat > 0 && t.totalFloat <= nearCriticalFloat;
-              const fill = t.isCritical ? "#b42318" : isNearCritical ? "#c2750a" : "#2a3e5f";
+              const fill = t.isCritical
+                ? "var(--sched-critical)"
+                : isNearCritical
+                  ? "var(--sched-near-critical)"
+                  : "var(--sched-graphite-strong)";
               const baselineT = baselineMap.get(t.id);
               const slipped = baselineT ? t.earlyFinish - baselineT.earlyFinish : 0;
 
@@ -594,10 +598,10 @@ export function CpmGrid({
                   {baselineT ? (
                     <rect
                       x={baselineT.earlyStart * dayPx}
-                      y={y + rowH - 4}
+                      y={y + rowH - 5}
                       width={Math.max(baselineT.duration * dayPx, 2)}
-                      height={2}
-                      fill="#a8a59b"
+                      height={3}
+                      fill="var(--sched-graphite-soft)"
                       opacity={0.9}
                     />
                   ) : null}
@@ -636,7 +640,7 @@ export function CpmGrid({
                         height={rowH - 7}
                         rx={0}
                         fill={fill}
-                        stroke={isSelected ? "#1f241f" : t.isCritical ? "#8a1d12" : "rgba(0,0,0,0.18)"}
+                        stroke={isSelected ? "var(--sched-graphite-strong)" : t.isCritical ? "var(--sched-critical)" : "rgba(31,36,31,0.22)"}
                         strokeWidth={isSelected ? 1.5 : 0.5}
                         style={{ cursor: onTaskReschedule ? "grab" : "pointer" }}
                         onPointerDown={(e) => beginDrag(e, t.id, "move")}
@@ -673,7 +677,7 @@ export function CpmGrid({
                           y={y + rowH / 2 - 1}
                           width={t.totalFloat * dayPx}
                           height={2}
-                          fill="#a8a59b"
+                          fill="var(--sched-graphite-soft)"
                           opacity={0.6}
                           pointerEvents="none"
                         />
@@ -693,7 +697,7 @@ export function CpmGrid({
                         >
                           {t.id}
                           {baselineT && slipped !== 0 ? (
-                            <tspan fill={slipped > 0 ? "#b42318" : "#2f7a3e"}>
+                            <tspan fill={slipped > 0 ? "var(--sched-critical)" : "var(--sched-validated)"}>
                               {` ${slipped > 0 ? "+" : ""}${slipped}d`}
                             </tspan>
                           ) : null}
@@ -768,7 +772,7 @@ export function CpmGrid({
                       markerHeight="6"
                       orient="auto-start-reverse"
                     >
-                      <path d="M0,0 L10,5 L0,10 z" fill="#b42318" />
+                      <path d="M0,0 L10,5 L0,10 z" fill="var(--sched-critical)" />
 
                     </marker>
                     <marker
@@ -780,7 +784,7 @@ export function CpmGrid({
                       markerHeight="6"
                       orient="auto-start-reverse"
                     >
-                      <path d="M0,0 L10,5 L0,10 z" fill="#2a3e5f" />
+                      <path d="M0,0 L10,5 L0,10 z" fill="var(--sched-graphite-strong)" />
                     </marker>
                     <marker
                       id="cpm-arrow-soft"
@@ -791,7 +795,7 @@ export function CpmGrid({
                       markerHeight="6"
                       orient="auto-start-reverse"
                     >
-                      <path d="M0,0 L10,5 L0,10 z" fill="#a8a59b" />
+                      <path d="M0,0 L10,5 L0,10 z" fill="var(--sched-graphite-soft)" />
                     </marker>
                     <marker
                       id="cpm-arrow-chain"
@@ -836,9 +840,9 @@ export function CpmGrid({
                       ? "#7a5cc4"
                       : d.isDriving
                       ? bothCrit
-                        ? "#b42318"
-                        : "#2a3e5f"
-                      : "#a8a59b";
+                        ? "var(--sched-critical)"
+                        : "var(--sched-graphite-strong)"
+                      : "var(--sched-graphite-soft)";
                     const marker = onChain
                       ? "url(#cpm-arrow-chain)"
                       : d.isDriving
