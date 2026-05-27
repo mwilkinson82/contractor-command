@@ -1234,6 +1234,28 @@ function SchedulerPage() {
                           groupBy={groupBy}
                           nearCriticalFloat={nearCriticalFloat}
                           onTaskReschedule={rescheduleTask}
+                          onCreateDependency={(fromId, toId, type) => {
+                            setDraft((d) => {
+                              if (!d) return d;
+                              // Dedupe: skip if exact link already exists
+                              const exists = d.dependencies.some(
+                                (dep) => dep.from === fromId && dep.to === toId && dep.type === type,
+                              );
+                              if (exists) {
+                                toast.message(`${fromId} → ${toId} already linked`);
+                                return d;
+                              }
+                              toast.success(`Linked ${fromId} → ${toId} (${type})`);
+                              return {
+                                ...d,
+                                dependencies: [
+                                  ...d.dependencies,
+                                  { from: fromId, to: toId, type, lag: 0 },
+                                ],
+                              };
+                            });
+                            setDirty(true);
+                          }}
                           nameColWidth={nameColWidth}
                         />
                       ) : null}

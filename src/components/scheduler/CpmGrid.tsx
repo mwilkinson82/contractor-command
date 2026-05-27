@@ -26,6 +26,8 @@ interface Props {
     taskId: string,
     patch: { startShiftDays?: number; duration?: number },
   ) => void;
+  /** Called when the user finishes a drag-to-link gesture between two task bars. */
+  onCreateDependency?: (fromId: string, toId: string, type: "FS" | "SS" | "FF" | "SF") => void;
   /** Activity-name column width (px). Defaults to 240. */
   nameColWidth?: number;
 }
@@ -101,6 +103,7 @@ export function CpmGrid({
   groupBy = "wbs",
   nearCriticalFloat = 0,
   onTaskReschedule,
+  onCreateDependency,
   nameColWidth = DEFAULT_NAME_COL_WIDTH,
 }: Props) {
 
@@ -117,6 +120,15 @@ export function CpmGrid({
   } | null>(null);
   const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const svgBodyRef = useRef<SVGSVGElement | null>(null);
+  const [link, setLink] = useState<{
+    fromId: string;
+    fromX: number;
+    fromY: number;
+    curX: number;
+    curY: number;
+    hoverTargetId: string | null;
+  } | null>(null);
 
   // Group tasks by WBS, ordered by ES
   const { rows, baselineMap } = useMemo(() => {
@@ -277,6 +289,63 @@ export function CpmGrid({
     rowYs.push(yAcc);
     yAcc += r.kind === "group" ? GROUP_H : ROW_H;
   }
+
+  // ---- drag-to-link handlers ------------------------------------------
+  function svgPoint(e: React.PointerEvent): { x: number; y: number } | null {
+    const svg = svgBodyRef.current;
+    if (!svg) return null;
+    const r = svg.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+  function rowIndexAtY(y: number): number {
+    for (let i = 0; i < rows.length; i++) {
+      const rowH = rows[i].kind === "group" ? GROUP_H : ROW_H;
+      if (y >= rowYs[i] && y < rowYs[i] + rowH) return i;
+    }
+    return -1;
+  }
+  function beginLink(
+    e: React.PointerEvent<SVGElement>,
+    fromId: string,
+    fromX: number,
+    fromY: number,
+  ) {
+    if (!onCreateDependency) return;
+    e.stopPropagation();
+    (e.target as Element).setPointerCapture(e.pointerId);
+    const p = svgPoint(e);
+    setLink({
+      fromId,
+      fromX,
+      fromY,
+      curX: p?.x ?? fromX,
+      curY: p?.y ?? fromY,
+      hoverTargetId: null,
+    });
+  }
+  function moveLink(e: React.PointerEvent) {
+    if (!link) return;
+    const p = svgPoint(e);
+    if (!p) return;
+    const idx = rowIndexAtY(p.y);
+    const row = idx >= 0 ? rows[idx] : null;
+    const targetId =
+      row && row.kind === "task" && row.task.id !== link.fromId ? row.task.id : null;
+    setLink({ ...link, curX: p.x, curY: p.y, hoverTargetId: targetId });
+  }
+  function endLink(e: React.PointerEvent) {
+    if (!link) return;
+    try {
+      (e.target as Element).releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+    if (link.hoverTargetId && onCreateDependency) {
+      onCreateDependency(link.fromId, link.hoverTargetId, "FS");
+    }
+    setLink(null);
+  }
+
 
   return (
     <div
@@ -496,12 +565,20 @@ export function CpmGrid({
 
           {/* Body */}
           <svg
+            ref={svgBodyRef}
             width={timelineWidth}
             height={totalH}
             className="block select-none"
-            onPointerMove={moveDrag}
-            onPointerUp={endDrag}
+            onPointerMove={(e) => {
+              moveDrag(e);
+              moveLink(e);
+            }}
+            onPointerUp={(e) => {
+              endDrag(e);
+              endLink(e);
+            }}
           >
+
             {/* Month grid lines */}
             {monthBands.map((m, i) => (
               <line
@@ -670,6 +747,39 @@ export function CpmGrid({
                           onPointerDown={(e) => beginDrag(e, t.id, "resize")}
                         />
                       ) : null}
+                      {/* link handle — drag from finish to another bar to create FS link */}
+                      {onCreateDependency ? (
+                        <circle
+                          cx={x + w + 4}
+                          cy={y + rowH / 2}
+                          r={3.5}
+                          fill="var(--sched-brass-deep, #b08a3e)"
+                          stroke="white"
+                          strokeWidth={1}
+                          opacity={link?.fromId === t.id ? 1 : 0.55}
+                          style={{ cursor: "crosshair" }}
+                          onPointerDown={(e) =>
+                            beginLink(e, t.id, x + w, y + rowH / 2)
+                          }
+                        >
+                          <title>Drag to another activity to create a Finish→Start link</title>
+                        </circle>
+                      ) : null}
+                      {/* highlight ring on hovered link target */}
+                      {link && link.hoverTargetId === t.id ? (
+                        <rect
+                          x={x - 1}
+                          y={y + 2}
+                          width={w + 2}
+                          height={rowH - 5}
+                          fill="none"
+                          stroke="var(--sched-validated, #2f7d4f)"
+                          strokeWidth={1.5}
+                          strokeDasharray="3 2"
+                          pointerEvents="none"
+                        />
+                      ) : null}
+
                       {/* float bar */}
                       {!t.isCritical && t.totalFloat > 0 ? (
                         <rect
@@ -935,7 +1045,29 @@ export function CpmGrid({
                   );
                 })
               : null}
+
+            {/* Drag-to-link rubber band */}
+            {link ? (
+              <g pointerEvents="none">
+                <line
+                  x1={link.fromX}
+                  y1={link.fromY}
+                  x2={link.curX}
+                  y2={link.curY}
+                  stroke="var(--sched-brass-deep, #b08a3e)"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 3"
+                />
+                <circle
+                  cx={link.curX}
+                  cy={link.curY}
+                  r={3}
+                  fill={link.hoverTargetId ? "var(--sched-validated, #2f7d4f)" : "var(--sched-brass-deep, #b08a3e)"}
+                />
+              </g>
+            ) : null}
           </svg>
+
 
           {/* Data-date banner pinned at top */}
           {dataDateOffset !== null && dataDateOffset >= 0 && dataDateOffset <= duration ? (
