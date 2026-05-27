@@ -565,12 +565,20 @@ export function CpmGrid({
 
           {/* Body */}
           <svg
+            ref={svgBodyRef}
             width={timelineWidth}
             height={totalH}
             className="block select-none"
-            onPointerMove={moveDrag}
-            onPointerUp={endDrag}
+            onPointerMove={(e) => {
+              moveDrag(e);
+              moveLink(e);
+            }}
+            onPointerUp={(e) => {
+              endDrag(e);
+              endLink(e);
+            }}
           >
+
             {/* Month grid lines */}
             {monthBands.map((m, i) => (
               <line
