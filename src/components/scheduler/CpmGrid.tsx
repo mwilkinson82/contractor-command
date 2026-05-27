@@ -747,6 +747,39 @@ export function CpmGrid({
                           onPointerDown={(e) => beginDrag(e, t.id, "resize")}
                         />
                       ) : null}
+                      {/* link handle — drag from finish to another bar to create FS link */}
+                      {onCreateDependency ? (
+                        <circle
+                          cx={x + w + 4}
+                          cy={y + rowH / 2}
+                          r={3.5}
+                          fill="var(--sched-brass-deep, #b08a3e)"
+                          stroke="white"
+                          strokeWidth={1}
+                          opacity={link?.fromId === t.id ? 1 : 0.55}
+                          style={{ cursor: "crosshair" }}
+                          onPointerDown={(e) =>
+                            beginLink(e, t.id, x + w, y + rowH / 2)
+                          }
+                        >
+                          <title>Drag to another activity to create a Finish→Start link</title>
+                        </circle>
+                      ) : null}
+                      {/* highlight ring on hovered link target */}
+                      {link && link.hoverTargetId === t.id ? (
+                        <rect
+                          x={x - 1}
+                          y={y + 2}
+                          width={w + 2}
+                          height={rowH - 5}
+                          fill="none"
+                          stroke="var(--sched-validated, #2f7d4f)"
+                          strokeWidth={1.5}
+                          strokeDasharray="3 2"
+                          pointerEvents="none"
+                        />
+                      ) : null}
+
                       {/* float bar */}
                       {!t.isCritical && t.totalFloat > 0 ? (
                         <rect
