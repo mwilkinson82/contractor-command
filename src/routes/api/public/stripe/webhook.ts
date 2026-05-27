@@ -224,6 +224,11 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
 async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
   let email: string | null = null;
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
+  const existingByStripe = await supabaseAdmin
+    .from("subscriptions")
+    .select("user_id,email,tier,status,is_founding,is_comped")
+    .eq("stripe_subscription_id", sub.id)
+    .maybeSingle();
   try {
     const customer = await stripe.customers.retrieve(customerId);
     if (!("deleted" in customer) || !customer.deleted) {
@@ -238,7 +243,7 @@ async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
     throw new Error(`Stripe subscription has no resolvable email: ${sub.id}`);
   }
 
-  const normalizedEmail = email.toLowerCase();
+  const normalizedEmail = (existingByStripe.data?.email ?? email).toLowerCase();
   const priceId = sub.items.data[0]?.price?.id ?? null;
   const productId = (sub.items.data[0]?.price?.product as string | null) ?? null;
   const cpe = (sub as Stripe.Subscription & { current_period_end?: number }).current_period_end;
@@ -253,17 +258,17 @@ async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
     .maybeSingle();
 
   const row = {
-    user_id: profile?.id ?? null,
+    user_id: profile?.id ?? existingByStripe.data?.user_id ?? null,
     email: normalizedEmail,
     stripe_customer_id: customerId,
     stripe_subscription_id: sub.id,
     price_id: priceId,
     product_id: productId,
-    status: sub.status,
+    status: sub.status === "past_due" && existingByStripe.data?.status === "active" ? "active" : sub.status,
     cancel_at_period_end: sub.cancel_at_period_end ?? false,
     current_period_end: currentPeriodEnd,
-    metadata: { ...metadata, product: productLabelForTier(tier) },
-    tier,
+    metadata: { ...metadata, stripe_customer_email: email.toLowerCase(), product: productLabelForTier(tier) },
+    tier: tier === "aos_only" && existingByStripe.data?.tier === "circle" ? "circle" : tier,
     updated_at: new Date().toISOString(),
   };
 
