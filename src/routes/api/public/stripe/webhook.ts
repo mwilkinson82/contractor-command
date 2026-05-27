@@ -25,6 +25,11 @@ type SupabaseRpcClient = {
   rpc: <T>(fn: string, args: Record<string, unknown>) => SupabaseRpcResult<T>;
 };
 
+const LEGACY_CIRCLE_PRICE_IDS = new Set([
+  // Founding Circle import price used before the current STRIPE_PRICE_ID_CIRCLE env var.
+  "price_1TDR3aJdDAUSVXbNZOY6EXF3",
+]);
+
 function tierForPrice(
   priceId: string | null,
   metaProduct?: string | null,
@@ -41,6 +46,7 @@ function tierForPrice(
   if (priceId && priceId === process.env.STRIPE_PRICE_ID_BOOK) return "book_buyer";
   if (priceId && priceId === process.env.STRIPE_PRICE_ID_INTENSIVE) return "intensive";
   if (priceId && priceId === process.env.STRIPE_PRICE_ID_CIRCLE) return "circle";
+  if (priceId && LEGACY_CIRCLE_PRICE_IDS.has(priceId)) return "circle";
   if (priceId && (priceId === process.env.STRIPE_PRICE_ID_POWER_HOUR_MONTH || priceId === process.env.STRIPE_PRICE_ID_POWER_HOUR_QUARTER)) return "power_hour";
   if (priceId && (priceId === process.env.STRIPE_PRICE_ID_SM_SCHOOL_MONTH || priceId === process.env.STRIPE_PRICE_ID_SM_SCHOOL_QUARTER)) return "sm_school";
   if (priceId && (priceId === process.env.STRIPE_PRICE_ID_CONTRACTOR_SCHOOL_MONTH || priceId === process.env.STRIPE_PRICE_ID_CONTRACTOR_SCHOOL_QUARTER)) return "contractor_school";
@@ -218,6 +224,11 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
 async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
   let email: string | null = null;
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
+  const existingByStripe = await supabaseAdmin
+    .from("subscriptions")
+    .select("user_id,email,tier,status,is_founding,is_comped")
+    .eq("stripe_subscription_id", sub.id)
+    .maybeSingle();
   try {
     const customer = await stripe.customers.retrieve(customerId);
     if (!("deleted" in customer) || !customer.deleted) {
@@ -232,7 +243,7 @@ async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
     throw new Error(`Stripe subscription has no resolvable email: ${sub.id}`);
   }
 
-  const normalizedEmail = email.toLowerCase();
+  const normalizedEmail = (existingByStripe.data?.email ?? email).toLowerCase();
   const priceId = sub.items.data[0]?.price?.id ?? null;
   const productId = (sub.items.data[0]?.price?.product as string | null) ?? null;
   const cpe = (sub as Stripe.Subscription & { current_period_end?: number }).current_period_end;
@@ -247,17 +258,17 @@ async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
     .maybeSingle();
 
   const row = {
-    user_id: profile?.id ?? null,
+    user_id: profile?.id ?? existingByStripe.data?.user_id ?? null,
     email: normalizedEmail,
     stripe_customer_id: customerId,
     stripe_subscription_id: sub.id,
     price_id: priceId,
     product_id: productId,
-    status: sub.status,
+    status: sub.status === "past_due" && existingByStripe.data?.status === "active" ? "active" : sub.status,
     cancel_at_period_end: sub.cancel_at_period_end ?? false,
     current_period_end: currentPeriodEnd,
-    metadata: { ...metadata, product: productLabelForTier(tier) },
-    tier,
+    metadata: { ...metadata, stripe_customer_email: email.toLowerCase(), product: productLabelForTier(tier) },
+    tier: tier === "aos_only" && existingByStripe.data?.tier === "circle" ? "circle" : tier,
     updated_at: new Date().toISOString(),
   };
 
