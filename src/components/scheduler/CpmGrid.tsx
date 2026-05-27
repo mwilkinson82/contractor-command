@@ -120,6 +120,15 @@ export function CpmGrid({
   } | null>(null);
   const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const svgBodyRef = useRef<SVGSVGElement | null>(null);
+  const [link, setLink] = useState<{
+    fromId: string;
+    fromX: number;
+    fromY: number;
+    curX: number;
+    curY: number;
+    hoverTargetId: string | null;
+  } | null>(null);
 
   // Group tasks by WBS, ordered by ES
   const { rows, baselineMap } = useMemo(() => {
