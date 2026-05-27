@@ -103,6 +103,7 @@ export function CpmGrid({
   groupBy = "wbs",
   nearCriticalFloat = 0,
   onTaskReschedule,
+  onCreateDependency,
   nameColWidth = DEFAULT_NAME_COL_WIDTH,
 }: Props) {
 
