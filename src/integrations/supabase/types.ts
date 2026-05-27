@@ -1292,6 +1292,16 @@ export type Database = {
         Args: { _dependencies: Json; _schedule_id: string; _tasks: Json }
         Returns: undefined
       }
+      subscription_matches_identity: {
+        Args: {
+          _email: string
+          _sub_email: string
+          _sub_metadata: Json
+          _sub_user_id: string
+          _user_id: string
+        }
+        Returns: boolean
+      }
       tier_rank: {
         Args: { _tier: Database["public"]["Enums"]["app_tier"] }
         Returns: number
