@@ -290,6 +290,63 @@ export function CpmGrid({
     yAcc += r.kind === "group" ? GROUP_H : ROW_H;
   }
 
+  // ---- drag-to-link handlers ------------------------------------------
+  function svgPoint(e: React.PointerEvent): { x: number; y: number } | null {
+    const svg = svgBodyRef.current;
+    if (!svg) return null;
+    const r = svg.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+  function rowIndexAtY(y: number): number {
+    for (let i = 0; i < rows.length; i++) {
+      const rowH = rows[i].kind === "group" ? GROUP_H : ROW_H;
+      if (y >= rowYs[i] && y < rowYs[i] + rowH) return i;
+    }
+    return -1;
+  }
+  function beginLink(
+    e: React.PointerEvent<SVGElement>,
+    fromId: string,
+    fromX: number,
+    fromY: number,
+  ) {
+    if (!onCreateDependency) return;
+    e.stopPropagation();
+    (e.target as Element).setPointerCapture(e.pointerId);
+    const p = svgPoint(e);
+    setLink({
+      fromId,
+      fromX,
+      fromY,
+      curX: p?.x ?? fromX,
+      curY: p?.y ?? fromY,
+      hoverTargetId: null,
+    });
+  }
+  function moveLink(e: React.PointerEvent) {
+    if (!link) return;
+    const p = svgPoint(e);
+    if (!p) return;
+    const idx = rowIndexAtY(p.y);
+    const row = idx >= 0 ? rows[idx] : null;
+    const targetId =
+      row && row.kind === "task" && row.task.id !== link.fromId ? row.task.id : null;
+    setLink({ ...link, curX: p.x, curY: p.y, hoverTargetId: targetId });
+  }
+  function endLink(e: React.PointerEvent) {
+    if (!link) return;
+    try {
+      (e.target as Element).releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+    if (link.hoverTargetId && onCreateDependency) {
+      onCreateDependency(link.fromId, link.hoverTargetId, "FS");
+    }
+    setLink(null);
+  }
+
+
   return (
     <div
       ref={scrollRef}
