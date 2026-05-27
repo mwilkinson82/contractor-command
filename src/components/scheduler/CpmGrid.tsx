@@ -26,6 +26,8 @@ interface Props {
     taskId: string,
     patch: { startShiftDays?: number; duration?: number },
   ) => void;
+  /** Called when the user finishes a drag-to-link gesture between two task bars. */
+  onCreateDependency?: (fromId: string, toId: string, type: "FS" | "SS" | "FF" | "SF") => void;
   /** Activity-name column width (px). Defaults to 240. */
   nameColWidth?: number;
 }
