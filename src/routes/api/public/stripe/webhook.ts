@@ -25,6 +25,11 @@ type SupabaseRpcClient = {
   rpc: <T>(fn: string, args: Record<string, unknown>) => SupabaseRpcResult<T>;
 };
 
+const LEGACY_CIRCLE_PRICE_IDS = new Set([
+  // Founding Circle import price used before the current STRIPE_PRICE_ID_CIRCLE env var.
+  "price_1TDR3aJdDAUSVXbNZOY6EXF3",
+]);
+
 function tierForPrice(
   priceId: string | null,
   metaProduct?: string | null,
@@ -41,6 +46,7 @@ function tierForPrice(
   if (priceId && priceId === process.env.STRIPE_PRICE_ID_BOOK) return "book_buyer";
   if (priceId && priceId === process.env.STRIPE_PRICE_ID_INTENSIVE) return "intensive";
   if (priceId && priceId === process.env.STRIPE_PRICE_ID_CIRCLE) return "circle";
+  if (priceId && LEGACY_CIRCLE_PRICE_IDS.has(priceId)) return "circle";
   if (priceId && (priceId === process.env.STRIPE_PRICE_ID_POWER_HOUR_MONTH || priceId === process.env.STRIPE_PRICE_ID_POWER_HOUR_QUARTER)) return "power_hour";
   if (priceId && (priceId === process.env.STRIPE_PRICE_ID_SM_SCHOOL_MONTH || priceId === process.env.STRIPE_PRICE_ID_SM_SCHOOL_QUARTER)) return "sm_school";
   if (priceId && (priceId === process.env.STRIPE_PRICE_ID_CONTRACTOR_SCHOOL_MONTH || priceId === process.env.STRIPE_PRICE_ID_CONTRACTOR_SCHOOL_QUARTER)) return "contractor_school";
