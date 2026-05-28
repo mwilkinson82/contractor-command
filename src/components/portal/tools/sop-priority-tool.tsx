@@ -506,19 +506,59 @@ function OwnerMode() {
 
 /* ------------------------- Mode B: Department ------------------------- */
 
-function DepartmentMode() {
-  const [department, setDepartment] = useState<SopDepartment>("Project Management");
-  const [companyStage, setCompanyStage] = useState<CompanyStage>("scaling");
-  const [seatHeadcount, setSeatHeadcount] = useState<number>(1);
-  const [context, setContext] = useState("");
+const DEPT_STORAGE_KEY = "sop-priority:department-mode-v1";
 
-  const [stage, setStage] = useState<Stage>("idle");
-  const [result, setResult] = useState<SopBacklogResult | null>(null);
+type DeptPersisted = {
+  department: SopDepartment;
+  companyStage: CompanyStage;
+  seatHeadcount: number;
+  context: string;
+  stage: Stage;
+  result: SopBacklogResult | null;
+  buildingSop: SopBacklogItem | null;
+};
+
+function loadDeptPersisted(): Partial<DeptPersisted> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(DEPT_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Partial<DeptPersisted>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function DepartmentMode() {
+  const initial = loadDeptPersisted();
+  const [department, setDepartment] = useState<SopDepartment>(initial.department ?? "Project Management");
+  const [companyStage, setCompanyStage] = useState<CompanyStage>(initial.companyStage ?? "scaling");
+  const [seatHeadcount, setSeatHeadcount] = useState<number>(initial.seatHeadcount ?? 1);
+  const [context, setContext] = useState(initial.context ?? "");
+
+  const hasInitialResult = !!initial.result && initial.stage === "ready";
+  const [stage, setStage] = useState<Stage>(hasInitialResult ? "ready" : "idle");
+  const [result, setResult] = useState<SopBacklogResult | null>(initial.result ?? null);
   const [error, setError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
-  const [buildingSop, setBuildingSop] = useState<SopBacklogItem | null>(null);
+  const [buildingSop, setBuildingSop] = useState<SopBacklogItem | null>(initial.buildingSop ?? null);
   const [openPlayId, setOpenPlayId] = useState<string | null>(null);
   const [theaterComplete, setTheaterComplete] = useState(false);
+
+  // Persist so user returns to the SOP they were drafting.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const payload: DeptPersisted = {
+        department, companyStage, seatHeadcount, context,
+        stage: stage === "running" || stage === "error" ? "idle" : stage,
+        result, buildingSop,
+      };
+      window.localStorage.setItem(DEPT_STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      // ignore
+    }
+  }, [department, companyStage, seatHeadcount, context, stage, result, buildingSop]);
+
 
   const pending = useRef<SopBacklogResult | null>(null);
   const theaterDone = useRef(false);
