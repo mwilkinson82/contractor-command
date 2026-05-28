@@ -1,5 +1,5 @@
 import { type Packet, packetToClipboard, vault } from "@/lib/vault";
-import { Check, Copy, Loader2, Mail } from "lucide-react";
+import { Check, Copy, Loader2, Mail, Pencil } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -15,6 +15,13 @@ const SOP_STATUSES = ["Open", "Brought to Session", "Carried into AOS", "Archive
 
 function isSopPacket(p: Packet): boolean {
   return p.source.toLowerCase().includes("sop");
+}
+
+/** True when this packet has an embedded editable SOP document. */
+function hasEditableSop(p: Packet): boolean {
+  if (p.kind !== "command") return false;
+  const sop = p.inputs?.sopDocument;
+  return typeof sop === "string" && sop.length > 0;
 }
 
 export function PacketCard({
@@ -98,6 +105,16 @@ export function PacketCard({
           <Mail className="h-3.5 w-3.5" />
           Email packet
         </button>
+        {hasEditableSop(packet) && (
+          <Link
+            to="/tools/sop-edit/$packetId"
+            params={{ packetId: packet.id }}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs hover:bg-muted"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Edit SOP
+          </Link>
+        )}
         {packet.kind === "command" && packet.intensiveRecommended ? (
           <Link
             to="/work-with-marshall"

@@ -36,14 +36,19 @@ type Props = {
   parentPlay: OptimizationPlay | null;
   ownerContext?: string;
   onBack: () => void;
+  /** When provided, skip the AI draft fetch and edit this doc directly. */
+  initialDoc?: SopDocument;
+  /** When provided, "Save to vault" updates this existing packet instead of creating a new one. */
+  existingPacketId?: string;
 };
 
-export function SopDocumentBuilder({ item, department, parentPlay, ownerContext, onBack }: Props) {
-  const [loading, setLoading] = useState(true);
+export function SopDocumentBuilder({ item, department, parentPlay, ownerContext, onBack, initialDoc, existingPacketId }: Props) {
+  const isEditMode = !!initialDoc;
+  const [loading, setLoading] = useState(!isEditMode);
   const [error, setError] = useState<string | null>(null);
-  const [doc, setDoc] = useState<SopDocument | null>(null);
-  const [savedId, setSavedId] = useState<string | null>(null);
-  const triedDraft = useRef(false);
+  const [doc, setDoc] = useState<SopDocument | null>(initialDoc ?? null);
+  const [savedId, setSavedId] = useState<string | null>(existingPacketId ?? null);
+  const triedDraft = useRef(isEditMode);
 
   // AOS Knowledge Hub hand-off
   const mintAosImport = useServerFn(mintAosSopImportToken);
@@ -196,11 +201,14 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
     setDoc((d) => (d ? { ...d, [key]: d[key].filter((_, i) => i !== idx) } : d));
   }
 
+  // Tracks the vault packet id this builder is bound to. Seeded from the
+  // edit-mode prop and updated after the first save in create-mode so
+  // subsequent saves update the same packet instead of creating duplicates.
+  const packetIdRef = useRef<string | null>(existingPacketId ?? null);
+
   function saveToVault() {
     if (!doc) return;
-    const saved = vault.save({
-      kind: "command",
-      source: "SOP Builder · Document",
+    const payload = {
       title: `SOP · ${doc.title}`,
       primaryFinding: doc.purpose,
       primaryConstraint: `${department} — ${doc.owner}`,
@@ -210,14 +218,30 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
       bringOneIssuePrompt: "Who on the team needs to be trained on this SOP first?",
       intensiveRecommended: false,
       inputs: {
-        department,
+        department: String(department),
         owner: doc.owner,
         stepCount: doc.steps.length,
         sopDocument: JSON.stringify(doc),
       },
+    };
+    if (packetIdRef.current) {
+      const updated = vault.update(packetIdRef.current, payload);
+      if (updated) {
+        setSavedId(updated.id);
+        return;
+      }
+      // Packet vanished (e.g. deleted in another tab) — fall through to create.
+      packetIdRef.current = null;
+    }
+    const saved = vault.save({
+      kind: "command",
+      source: "SOP Builder · Document",
+      ...payload,
     });
+    packetIdRef.current = saved.id;
     setSavedId(saved.id);
   }
+
 
   // Email send state
   const [emailOpen, setEmailOpen] = useState(false);
@@ -447,7 +471,9 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
               className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 disabled:opacity-70"
             >
               {savedId ? <Check className="h-3.5 w-3.5 text-signal-success" /> : <Save className="h-3.5 w-3.5" />}
-              {savedId ? "Saved to vault" : "Save to vault"}
+              {savedId
+                ? (packetIdRef.current && isEditMode ? "Changes saved" : "Saved to vault")
+                : (packetIdRef.current ? "Save changes" : "Save to vault")}
             </button>
             <button
               type="button"
@@ -471,18 +497,20 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
               <Download className="h-3.5 w-3.5" /> Download PDF
             </button>
             {/* Send to AOS Knowledge Hub hidden — SSO hand-off temporarily disabled. */}
-            <button
-              type="button"
-              onClick={() => {
-                try { if (typeof window !== "undefined") window.localStorage.removeItem(storageKey); } catch {}
-                triedDraft.current = false;
-                void draft();
-              }}
-              className="ml-auto inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-[12px] text-foreground/70 hover:bg-muted"
-              title="Re-draft from scratch with AI (discards your edits)"
-            >
-              <Sparkles className="h-3.5 w-3.5" /> Re-draft
-            </button>
+            {!isEditMode && (
+              <button
+                type="button"
+                onClick={() => {
+                  try { if (typeof window !== "undefined") window.localStorage.removeItem(storageKey); } catch {}
+                  triedDraft.current = false;
+                  void draft();
+                }}
+                className="ml-auto inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-[12px] text-foreground/70 hover:bg-muted"
+                title="Re-draft from scratch with AI (discards your edits)"
+              >
+                <Sparkles className="h-3.5 w-3.5" /> Re-draft
+              </button>
+            )}
           </div>
 
 
