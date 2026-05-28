@@ -3,7 +3,7 @@
 //  B) Department build-out — owner is out; AI generates a prioritized SOP
 //     backlog for a specific seat/silo (AOS-native), ordered by dependency.
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Play,
   RotateCcw,
