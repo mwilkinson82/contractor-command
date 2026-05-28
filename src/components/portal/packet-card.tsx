@@ -105,6 +105,16 @@ export function PacketCard({
           <Mail className="h-3.5 w-3.5" />
           Email packet
         </button>
+        {hasEditableSop(packet) && (
+          <Link
+            to="/tools/sop-edit/$packetId"
+            params={{ packetId: packet.id }}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs hover:bg-muted"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Edit SOP
+          </Link>
+        )}
         {packet.kind === "command" && packet.intensiveRecommended ? (
           <Link
             to="/work-with-marshall"
