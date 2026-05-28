@@ -163,7 +163,7 @@ function EditSopPage() {
             item={syntheticItem}
             department={doc.department}
             parentPlay={null}
-            onBack={() => navigate({ to: "/vault" })}
+            onBack={() => navigate({ to: "/tools", search: { t: "sop-priority" } })}
             initialDoc={doc}
             existingPacketId={packetId}
           />
