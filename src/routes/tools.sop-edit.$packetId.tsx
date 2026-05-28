@@ -116,17 +116,16 @@ function EditSopPage() {
   // In edit mode the builder doesn't re-call the AI draft endpoint, so these
   // fields are only used for labels and the localStorage cache key.
   const syntheticItem: SopBacklogItem = {
+    rank: 1,
+    playId: "edit",
     name: `${doc.title} · ${packetId}`,
     purpose: doc.purpose,
     trigger: doc.trigger,
     owner: doc.owner,
-    inputs: doc.inputs,
-    outputs: doc.outputs,
-    kpis: doc.kpis,
     dependsOn: [],
-    priority: 1,
-    rationale: "Editing previously saved SOP.",
-  } as unknown as SopBacklogItem;
+    effort: "M",
+    why: "Editing previously saved SOP.",
+  };
 
   return (
     <div className="mx-auto w-full max-w-[1180px] px-6 py-8">
