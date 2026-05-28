@@ -440,16 +440,7 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
             >
               <Download className="h-3.5 w-3.5" /> Download PDF
             </button>
-            <button
-              type="button"
-              onClick={sendToAos}
-              disabled={aosSending}
-              className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-[13px] font-medium text-foreground hover:bg-muted disabled:opacity-60"
-              title="Open AOS Knowledge Hub to import this SOP"
-            >
-              <Send className="h-3.5 w-3.5" />
-              {aosSending ? "Opening AOS…" : aosSentAt ? "Sent to AOS ✓" : "Send to AOS Knowledge Hub"}
-            </button>
+            {/* Send to AOS Knowledge Hub hidden — SSO hand-off temporarily disabled. */}
             <button
               type="button"
               onClick={() => { triedDraft.current = false; void draft(); }}
@@ -459,12 +450,6 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
               <Sparkles className="h-3.5 w-3.5" /> Re-draft
             </button>
           </div>
-
-          {aosError && (
-            <div className="mt-3 rounded-md border border-signal/40 bg-signal/10 p-3 text-[12px] text-signal">
-              {aosError}
-            </div>
-          )}
 
 
           {emailOpen && (
