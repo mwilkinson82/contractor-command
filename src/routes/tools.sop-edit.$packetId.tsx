@@ -33,7 +33,9 @@ function EditSopError({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
   return (
     <div className="mx-auto max-w-xl px-6 py-16 text-center">
-      <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-signal">Edit SOP failed</p>
+      <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-signal">
+        Edit SOP failed
+      </p>
       <p className="mt-2 text-[13px] text-foreground">{error.message}</p>
       <button
         type="button"
