@@ -167,6 +167,31 @@ export const vault = {
     emit();
     void supabase.from("vault_packets").update({ status }).eq("id", id);
   },
+  /**
+   * Replace an existing packet in place — preserves id, createdAt, status,
+   * source, and kind. Used by the SOP builder's edit flow so re-saving a
+   * previously-vaulted SOP updates the same packet instead of creating a
+   * duplicate every time.
+   */
+  update(
+    id: string,
+    updates: Partial<Omit<CommandPacket, "id" | "createdAt" | "kind">> &
+      Partial<Omit<IssuePacket, "id" | "createdAt" | "kind">>,
+  ): Packet | undefined {
+    const existing = cache.find((p) => p.id === id);
+    if (!existing) return undefined;
+    const merged = { ...existing, ...updates } as Packet;
+    cache = cache.map((p) => (p.id === id ? merged : p));
+    emit();
+    void supabase
+      .from("vault_packets")
+      .update({
+        title: merged.title,
+        payload: packetToPayload(merged) as never,
+      })
+      .eq("id", id);
+    return merged;
+  },
   remove(id: string) {
     cache = cache.filter((p) => p.id !== id);
     emit();
