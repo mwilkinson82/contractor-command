@@ -72,13 +72,31 @@ function rowToPacket(r: Row): Packet {
   if (r.kind === "command") {
     return { ...base, kind: "command", ...(r.payload as object) } as CommandPacket;
   }
-  return { ...base, kind: "issue", source: "Bring One Issue", ...(r.payload as object) } as IssuePacket;
+  return {
+    ...base,
+    kind: "issue",
+    source: "Bring One Issue",
+    ...(r.payload as object),
+  } as IssuePacket;
 }
 
 function packetToPayload(p: Packet): Record<string, unknown> {
   // Strip fields stored as columns; keep everything else in payload jsonb.
-  const { id: _id, createdAt: _c, kind: _k, source: _s, title: _t, status: _st, ...rest } = p as Record<string, unknown> & Packet;
-  void _id; void _c; void _k; void _s; void _t; void _st;
+  const {
+    id: _id,
+    createdAt: _c,
+    kind: _k,
+    source: _s,
+    title: _t,
+    status: _st,
+    ...rest
+  } = p as Record<string, unknown> & Packet;
+  void _id;
+  void _c;
+  void _k;
+  void _s;
+  void _t;
+  void _st;
   return rest;
 }
 

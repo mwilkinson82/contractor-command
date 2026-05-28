@@ -17,11 +17,16 @@ export const Route = createFileRoute("/tools/sop-edit/$packetId")({
     const router = useRouter();
     return (
       <div className="mx-auto max-w-xl px-6 py-16 text-center">
-        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-signal">Edit SOP failed</p>
+        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-signal">
+          Edit SOP failed
+        </p>
         <p className="mt-2 text-[13px] text-foreground">{error.message}</p>
         <button
           type="button"
-          onClick={() => { reset(); router.invalidate(); }}
+          onClick={() => {
+            reset();
+            router.invalidate();
+          }}
           className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] text-cream"
         >
           Try again
@@ -33,7 +38,10 @@ export const Route = createFileRoute("/tools/sop-edit/$packetId")({
     <div className="mx-auto max-w-xl px-6 py-16 text-center">
       <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">404</p>
       <h1 className="mt-2 font-display text-2xl">SOP not found</h1>
-      <Link to="/vault" className="mt-4 inline-flex rounded-md bg-ink px-3 py-1.5 text-[12px] text-cream">
+      <Link
+        to="/vault"
+        className="mt-4 inline-flex rounded-md bg-ink px-3 py-1.5 text-[12px] text-cream"
+      >
         Back to Vault
       </Link>
     </div>
@@ -88,7 +96,9 @@ function EditSopPage() {
         setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [packetId]);
 
   if (loading) {
@@ -103,9 +113,14 @@ function EditSopPage() {
   if (error || !doc || !packet) {
     return (
       <div className="mx-auto max-w-xl px-6 py-16 text-center">
-        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-signal">Can't open this SOP</p>
+        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-signal">
+          Can't open this SOP
+        </p>
         <p className="mt-2 text-[13px] text-foreground">{error ?? "Missing SOP data."}</p>
-        <Link to="/vault" className="mt-4 inline-flex rounded-md bg-ink px-3 py-1.5 text-[12px] text-cream">
+        <Link
+          to="/vault"
+          className="mt-4 inline-flex rounded-md bg-ink px-3 py-1.5 text-[12px] text-cream"
+        >
           Back to Vault
         </Link>
       </div>

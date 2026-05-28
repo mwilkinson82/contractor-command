@@ -24,11 +24,7 @@ import { mintAosSopImportToken } from "@/lib/aos.functions";
 import { vault } from "@/lib/vault";
 import type { SopDocument, SopStep } from "@/lib/tools/sop-draft";
 import type jsPDF from "jspdf";
-import type {
-  OptimizationPlay,
-  SopBacklogItem,
-  SopDepartment,
-} from "@/lib/tools/sop-department";
+import type { OptimizationPlay, SopBacklogItem, SopDepartment } from "@/lib/tools/sop-department";
 
 type Props = {
   item: SopBacklogItem;
@@ -42,7 +38,15 @@ type Props = {
   existingPacketId?: string;
 };
 
-export function SopDocumentBuilder({ item, department, parentPlay, ownerContext, onBack, initialDoc, existingPacketId }: Props) {
+export function SopDocumentBuilder({
+  item,
+  department,
+  parentPlay,
+  ownerContext,
+  onBack,
+  initialDoc,
+  existingPacketId,
+}: Props) {
   const isEditMode = !!initialDoc;
   const [loading, setLoading] = useState(!isEditMode);
   const [error, setError] = useState<string | null>(null);
@@ -120,7 +124,9 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
     setLoading(true);
     setError(null);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const token = session?.access_token;
       if (!token) {
         setError("You need to be signed in to draft an SOP.");
@@ -136,7 +142,9 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
           trigger: item.trigger,
           owner: item.owner,
           department,
-          parentPlay: parentPlay ? { name: parentPlay.name, mechanism: parentPlay.mechanism } : undefined,
+          parentPlay: parentPlay
+            ? { name: parentPlay.name, mechanism: parentPlay.mechanism }
+            : undefined,
           context: ownerContext,
         }),
       });
@@ -153,7 +161,6 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
       setLoading(false);
     }
   }
-
 
   function update<K extends keyof SopDocument>(key: K, value: SopDocument[K]) {
     setDoc((d) => (d ? { ...d, [key]: value } : d));
@@ -178,14 +185,16 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
   function removeStep(idx: number) {
     setDoc((d) => {
       if (!d) return d;
-      const steps = d.steps
-        .filter((_, i) => i !== idx)
-        .map((s, i) => ({ ...s, number: i + 1 }));
+      const steps = d.steps.filter((_, i) => i !== idx).map((s, i) => ({ ...s, number: i + 1 }));
       return { ...d, steps };
     });
   }
 
-  function updateListItem(key: "inputs" | "outputs" | "kpis" | "exceptions", idx: number, val: string) {
+  function updateListItem(
+    key: "inputs" | "outputs" | "kpis" | "exceptions",
+    idx: number,
+    val: string,
+  ) {
     setDoc((d) => {
       if (!d) return d;
       const arr = [...d[key]];
@@ -242,7 +251,6 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
     setSavedId(saved.id);
   }
 
-
   // Email send state
   const [emailOpen, setEmailOpen] = useState(false);
   const [emailTo, setEmailTo] = useState("");
@@ -265,7 +273,7 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
       await sendTransactionalEmail({
         templateName: "sop-document",
         recipientEmail: recipient,
-        idempotencyKey: `sop-${(savedId ?? doc.title)}-${recipient}-${Date.now()}`,
+        idempotencyKey: `sop-${savedId ?? doc.title}-${recipient}-${Date.now()}`,
         templateData: {
           title: doc.title,
           department: doc.department,
@@ -299,7 +307,11 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
     const { jsPDF } = await import("jspdf");
     const pdf = new jsPDF({ unit: "pt", format: "letter" });
     renderSopToPdf(pdf, doc);
-    const safe = doc.title.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || "sop";
+    const safe =
+      doc.title
+        .replace(/[^a-z0-9]+/gi, "-")
+        .replace(/^-+|-+$/g, "")
+        .toLowerCase() || "sop";
     pdf.save(`${safe}.pdf`);
   }
 
@@ -329,11 +341,16 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
 
       {error && !loading && (
         <div className="mt-6 rounded-md border border-signal/40 bg-signal/10 p-4">
-          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-signal">Draft failed</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-signal">
+            Draft failed
+          </p>
           <p className="mt-1 text-[13px] text-foreground">{error}</p>
           <button
             type="button"
-            onClick={() => { triedDraft.current = false; void draft(); }}
+            onClick={() => {
+              triedDraft.current = false;
+              void draft();
+            }}
             className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90"
           >
             <Sparkles className="h-3.5 w-3.5" /> Try again
@@ -346,7 +363,12 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
           <div className="mt-5 space-y-4">
             <div>
               <Label>Title</Label>
-              <TextLine value={doc.title} onChange={(v) => update("title", v)} className="text-[18px]" serif />
+              <TextLine
+                value={doc.title}
+                onChange={(v) => update("title", v)}
+                className="text-[18px]"
+                serif
+              />
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
@@ -360,9 +382,19 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
               </div>
             </div>
 
-            <Block label="Purpose" value={doc.purpose} onChange={(v) => update("purpose", v)} rows={2} />
+            <Block
+              label="Purpose"
+              value={doc.purpose}
+              onChange={(v) => update("purpose", v)}
+              rows={2}
+            />
             <Block label="Scope" value={doc.scope} onChange={(v) => update("scope", v)} rows={2} />
-            <Block label="Trigger" value={doc.trigger} onChange={(v) => update("trigger", v)} rows={2} />
+            <Block
+              label="Trigger"
+              value={doc.trigger}
+              onChange={(v) => update("trigger", v)}
+              rows={2}
+            />
 
             <List
               label="Inputs"
@@ -459,7 +491,10 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
 
             <div>
               <Label>Revision cadence</Label>
-              <TextLine value={doc.revisionCadence} onChange={(v) => update("revisionCadence", v)} />
+              <TextLine
+                value={doc.revisionCadence}
+                onChange={(v) => update("revisionCadence", v)}
+              />
             </div>
           </div>
 
@@ -470,10 +505,18 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
               disabled={!!savedId}
               className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 disabled:opacity-70"
             >
-              {savedId ? <Check className="h-3.5 w-3.5 text-signal-success" /> : <Save className="h-3.5 w-3.5" />}
+              {savedId ? (
+                <Check className="h-3.5 w-3.5 text-signal-success" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}
               {savedId
-                ? (packetIdRef.current && isEditMode ? "Changes saved" : "Saved to vault")
-                : (packetIdRef.current ? "Save changes" : "Save to vault")}
+                ? packetIdRef.current && isEditMode
+                  ? "Changes saved"
+                  : "Saved to vault"
+                : packetIdRef.current
+                  ? "Save changes"
+                  : "Save to vault"}
             </button>
             <button
               type="button"
@@ -501,7 +544,9 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
               <button
                 type="button"
                 onClick={() => {
-                  try { if (typeof window !== "undefined") window.localStorage.removeItem(storageKey); } catch {}
+                  try {
+                    if (typeof window !== "undefined") window.localStorage.removeItem(storageKey);
+                  } catch {}
                   triedDraft.current = false;
                   void draft();
                 }}
@@ -513,9 +558,11 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
             )}
           </div>
 
-
           {emailOpen && (
-            <div ref={emailPanelRef} className="mt-3 rounded-md border border-border bg-background/60 p-4">
+            <div
+              ref={emailPanelRef}
+              className="mt-3 rounded-md border border-border bg-background/60 p-4"
+            >
               <div className="flex items-center justify-between">
                 <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
                   Send this SOP from AOS
@@ -535,7 +582,10 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
                   <input
                     type="email"
                     value={emailTo}
-                    onChange={(e) => { setEmailTo(e.target.value); setEmailError(null); }}
+                    onChange={(e) => {
+                      setEmailTo(e.target.value);
+                      setEmailError(null);
+                    }}
                     placeholder="seat@yourcompany.com"
                     className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-foreground/40"
                   />
@@ -550,9 +600,7 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
                     className="mt-1 w-full resize-y rounded-md border border-border bg-background p-2.5 text-[13px] leading-relaxed text-foreground outline-none focus:border-foreground/40"
                   />
                 </div>
-                {emailError && (
-                  <p className="text-[12px] text-signal">{emailError}</p>
-                )}
+                {emailError && <p className="text-[12px] text-signal">{emailError}</p>}
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -560,7 +608,11 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
                     disabled={emailSending}
                     className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 disabled:opacity-70"
                   >
-                    {emailSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                    {emailSending ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Send className="h-3.5 w-3.5" />
+                    )}
                     {emailSending ? "Sending…" : "Send SOP"}
                   </button>
                   <p className="text-[11px] text-muted-foreground">
@@ -728,8 +780,6 @@ function renderSopAsText(d: SopDocument): string {
   lines.push(`Revision cadence: ${d.revisionCadence}`);
   return lines.join("\n");
 }
-
-
 
 /* ----------------------------- PDF render -----------------------------
  * AOS "ALP Engine" palette, banded layout. jsPDF uses RGB so the AOS
@@ -1024,19 +1074,30 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
 
   // Pre-render each panel's content lines to compute heights
   type Block =
-    | { kind: "para"; size: number; family: "times" | "helvetica"; style: "normal" | "bold"; color: [number, number, number]; lines: string[]; lineHeight: number; gap: number }
+    | {
+        kind: "para";
+        size: number;
+        family: "times" | "helvetica";
+        style: "normal" | "bold";
+        color: [number, number, number];
+        lines: string[];
+        lineHeight: number;
+        gap: number;
+      }
     | { kind: "kpi"; metric: string[]; target: string[] };
 
-  const ddBlocks: Block[] = [{
-    kind: "para",
-    size: 10,
-    family: "helvetica",
-    style: "normal",
-    color: INK,
-    lines: wrapLines(d.definitionOfDone, ctrlInnerW, 10, "helvetica", "normal"),
-    lineHeight: 1.5,
-    gap: 0,
-  }];
+  const ddBlocks: Block[] = [
+    {
+      kind: "para",
+      size: 10,
+      family: "helvetica",
+      style: "normal",
+      color: INK,
+      lines: wrapLines(d.definitionOfDone, ctrlInnerW, 10, "helvetica", "normal"),
+      lineHeight: 1.5,
+      gap: 0,
+    },
+  ];
 
   const kpiBlocks: Block[] = d.kpis.map((it) => {
     const cleaned = safe(it);
@@ -1099,7 +1160,16 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
     cy += 14;
     for (const b of blocks) {
       if (b.kind === "para") {
-        drawLines(b.lines, xPos + ctrlPadX, cy - b.size, b.size, b.family, b.style, b.color, b.lineHeight);
+        drawLines(
+          b.lines,
+          xPos + ctrlPadX,
+          cy - b.size,
+          b.size,
+          b.family,
+          b.style,
+          b.color,
+          b.lineHeight,
+        );
         cy += b.lines.length * b.size * b.lineHeight + b.gap;
       } else {
         drawLines(b.metric, xPos + ctrlPadX, cy - 9.5, 9.5, "helvetica", "normal", INK_MUTED, 1.4);
@@ -1145,9 +1215,7 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
 
     // Measure right-side text first so we can clip the left title to whatever
     // space remains — prevents the two strings from overlapping.
-    const rightText = safe(
-      `Page ${i} of ${pageCount}  ·  v1  ·  Review ${cadenceClean}`,
-    );
+    const rightText = safe(`Page ${i} of ${pageCount}  ·  v1  ·  Review ${cadenceClean}`);
     const rightW = pdf.getTextWidth(rightText);
     const gap = 16;
     const leftMax = Math.max(40, contentW - rightW - gap);
@@ -1170,4 +1238,3 @@ function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
     pdf.text(rightText, pageW - margin, pageH - 14, { align: "right" });
   }
 }
-
