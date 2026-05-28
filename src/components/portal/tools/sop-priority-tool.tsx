@@ -627,7 +627,9 @@ function DepartmentMode() {
     theaterDone.current = false;
     fetchDone.current = false;
     setTheaterComplete(false);
+    try { if (typeof window !== "undefined") window.localStorage.removeItem(DEPT_STORAGE_KEY); } catch {}
   }
+
 
   function savePacket() {
     if (!result) return;
