@@ -527,15 +527,19 @@ export function SopDocumentBuilder({
             <button
               type="button"
               onClick={saveToVault}
-              disabled={!!savedId}
+              disabled={saving || !!savedId}
               className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 disabled:opacity-70"
             >
-              {savedId ? (
+              {saving ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : savedId ? (
                 <Check className="h-3.5 w-3.5 text-signal-success" />
               ) : (
                 <Save className="h-3.5 w-3.5" />
               )}
-              {savedId
+              {saving
+                ? "Saving…"
+                : savedId
                 ? packetIdRef.current && isEditMode
                   ? "Changes saved"
                   : "Saved to vault"
@@ -584,6 +588,8 @@ export function SopDocumentBuilder({
               </button>
             )}
           </div>
+
+          {saveError && <p className="mt-2 text-[12px] text-signal">{saveError}</p>}
 
           {emailOpen && (
             <div
