@@ -157,7 +157,7 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
 
   function update<K extends keyof SopDocument>(key: K, value: SopDocument[K]) {
     setDoc((d) => (d ? { ...d, [key]: value } : d));
-    setSavedId(null);
+    if (!isEditMode) setSavedId(null);
   }
 
   function updateStep(idx: number, patch: Partial<SopStep>) {
@@ -166,7 +166,7 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
       const steps = d.steps.map((s, i) => (i === idx ? { ...s, ...patch } : s));
       return { ...d, steps };
     });
-    setSavedId(null);
+    if (!isEditMode) setSavedId(null);
   }
   function addStep() {
     setDoc((d) => {
@@ -192,7 +192,7 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
       arr[idx] = val;
       return { ...d, [key]: arr };
     });
-    setSavedId(null);
+    if (!isEditMode) setSavedId(null);
   }
   function addListItem(key: "inputs" | "outputs" | "kpis" | "exceptions") {
     setDoc((d) => (d ? { ...d, [key]: [...d[key], ""] } : d));
