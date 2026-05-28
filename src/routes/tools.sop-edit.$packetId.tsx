@@ -13,27 +13,7 @@ import type { SopBacklogItem } from "@/lib/tools/sop-department";
 
 export const Route = createFileRoute("/tools/sop-edit/$packetId")({
   head: () => ({ meta: [{ title: "Edit SOP — ALP Contractor Circle" }] }),
-  errorComponent: ({ error, reset }) => {
-    const router = useRouter();
-    return (
-      <div className="mx-auto max-w-xl px-6 py-16 text-center">
-        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-signal">
-          Edit SOP failed
-        </p>
-        <p className="mt-2 text-[13px] text-foreground">{error.message}</p>
-        <button
-          type="button"
-          onClick={() => {
-            reset();
-            router.invalidate();
-          }}
-          className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] text-cream"
-        >
-          Try again
-        </button>
-      </div>
-    );
-  },
+  errorComponent: EditSopError,
   notFoundComponent: () => (
     <div className="mx-auto max-w-xl px-6 py-16 text-center">
       <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">404</p>
@@ -48,6 +28,26 @@ export const Route = createFileRoute("/tools/sop-edit/$packetId")({
   ),
   component: EditSopPage,
 });
+
+function EditSopError({ error, reset }: { error: Error; reset: () => void }) {
+  const router = useRouter();
+  return (
+    <div className="mx-auto max-w-xl px-6 py-16 text-center">
+      <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-signal">Edit SOP failed</p>
+      <p className="mt-2 text-[13px] text-foreground">{error.message}</p>
+      <button
+        type="button"
+        onClick={() => {
+          reset();
+          router.invalidate();
+        }}
+        className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] text-cream"
+      >
+        Try again
+      </button>
+    </div>
+  );
+}
 
 function EditSopPage() {
   const { packetId } = Route.useParams();
