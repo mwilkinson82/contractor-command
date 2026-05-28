@@ -471,7 +471,9 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
               className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 disabled:opacity-70"
             >
               {savedId ? <Check className="h-3.5 w-3.5 text-signal-success" /> : <Save className="h-3.5 w-3.5" />}
-              {savedId ? "Saved to vault" : "Save to vault"}
+              {savedId
+                ? (packetIdRef.current && isEditMode ? "Changes saved" : "Saved to vault")
+                : (packetIdRef.current ? "Save changes" : "Save to vault")}
             </button>
             <button
               type="button"
