@@ -17,6 +17,13 @@ function isSopPacket(p: Packet): boolean {
   return p.source.toLowerCase().includes("sop");
 }
 
+/** True when this packet has an embedded editable SOP document. */
+function hasEditableSop(p: Packet): boolean {
+  if (p.kind !== "command") return false;
+  const sop = p.inputs?.sopDocument;
+  return typeof sop === "string" && sop.length > 0;
+}
+
 export function PacketCard({
   packet,
   compact = false,

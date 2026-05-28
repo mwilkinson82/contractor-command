@@ -53,6 +53,7 @@ import { Route as AdminMigrateRouteImport } from './routes/admin.migrate'
 import { Route as AdminLibraryRouteImport } from './routes/admin.library'
 import { Route as AdminBackfillRouteImport } from './routes/admin.backfill'
 import { Route as AdminAnnounceRouteImport } from './routes/admin.announce'
+import { Route as ToolsSopEditPacketIdRouteImport } from './routes/tools.sop-edit.$packetId'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as ApiPublicAosFpRouteImport } from './routes/api/public/aos-fp'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
@@ -283,6 +284,11 @@ const AdminAnnounceRoute = AdminAnnounceRouteImport.update({
   path: '/admin/announce',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ToolsSopEditPacketIdRoute = ToolsSopEditPacketIdRouteImport.update({
+  id: '/sop-edit/$packetId',
+  path: '/sop-edit/$packetId',
+  getParentRoute: () => ToolsRoute,
+} as any)
 const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   id: '/lovable/email/suppression',
   path: '/lovable/email/suppression',
@@ -379,6 +385,7 @@ export interface FileRoutesByFullPath {
   '/ask/': typeof AskIndexRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
+  '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -434,6 +441,7 @@ export interface FileRoutesByTo {
   '/ask': typeof AskIndexRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
+  '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -490,6 +498,7 @@ export interface FileRoutesById {
   '/ask/': typeof AskIndexRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
+  '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -547,6 +556,7 @@ export interface FileRouteTypes {
     | '/ask/'
     | '/api/public/aos-fp'
     | '/lovable/email/suppression'
+    | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
     | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
@@ -602,6 +612,7 @@ export interface FileRouteTypes {
     | '/ask'
     | '/api/public/aos-fp'
     | '/lovable/email/suppression'
+    | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
     | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
@@ -657,6 +668,7 @@ export interface FileRouteTypes {
     | '/ask/'
     | '/api/public/aos-fp'
     | '/lovable/email/suppression'
+    | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
     | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
@@ -1029,6 +1041,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAnnounceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tools/sop-edit/$packetId': {
+      id: '/tools/sop-edit/$packetId'
+      path: '/sop-edit/$packetId'
+      fullPath: '/tools/sop-edit/$packetId'
+      preLoaderRoute: typeof ToolsSopEditPacketIdRouteImport
+      parentRoute: typeof ToolsRoute
+    }
     '/lovable/email/suppression': {
       id: '/lovable/email/suppression'
       path: '/lovable/email/suppression'
@@ -1110,11 +1129,13 @@ const SchedulerRouteWithChildren = SchedulerRoute._addFileChildren(
 interface ToolsRouteChildren {
   ToolsGrowthConstraintRoute: typeof ToolsGrowthConstraintRoute
   ToolsOwnerDependencyRoute: typeof ToolsOwnerDependencyRoute
+  ToolsSopEditPacketIdRoute: typeof ToolsSopEditPacketIdRoute
 }
 
 const ToolsRouteChildren: ToolsRouteChildren = {
   ToolsGrowthConstraintRoute: ToolsGrowthConstraintRoute,
   ToolsOwnerDependencyRoute: ToolsOwnerDependencyRoute,
+  ToolsSopEditPacketIdRoute: ToolsSopEditPacketIdRoute,
 }
 
 const ToolsRouteWithChildren = ToolsRoute._addFileChildren(ToolsRouteChildren)
