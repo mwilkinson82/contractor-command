@@ -36,14 +36,19 @@ type Props = {
   parentPlay: OptimizationPlay | null;
   ownerContext?: string;
   onBack: () => void;
+  /** When provided, skip the AI draft fetch and edit this doc directly. */
+  initialDoc?: SopDocument;
+  /** When provided, "Save to vault" updates this existing packet instead of creating a new one. */
+  existingPacketId?: string;
 };
 
-export function SopDocumentBuilder({ item, department, parentPlay, ownerContext, onBack }: Props) {
-  const [loading, setLoading] = useState(true);
+export function SopDocumentBuilder({ item, department, parentPlay, ownerContext, onBack, initialDoc, existingPacketId }: Props) {
+  const isEditMode = !!initialDoc;
+  const [loading, setLoading] = useState(!isEditMode);
   const [error, setError] = useState<string | null>(null);
-  const [doc, setDoc] = useState<SopDocument | null>(null);
-  const [savedId, setSavedId] = useState<string | null>(null);
-  const triedDraft = useRef(false);
+  const [doc, setDoc] = useState<SopDocument | null>(initialDoc ?? null);
+  const [savedId, setSavedId] = useState<string | null>(existingPacketId ?? null);
+  const triedDraft = useRef(isEditMode);
 
   // AOS Knowledge Hub hand-off
   const mintAosImport = useServerFn(mintAosSopImportToken);
