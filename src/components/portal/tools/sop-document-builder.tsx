@@ -546,7 +546,9 @@ export function SopDocumentBuilder({
                 onClick={() => {
                   try {
                     if (typeof window !== "undefined") window.localStorage.removeItem(storageKey);
-                  } catch {}
+                  } catch {
+                    // Ignore storage failures; re-drafting can still continue.
+                  }
                   triedDraft.current = false;
                   void draft();
                 }}
