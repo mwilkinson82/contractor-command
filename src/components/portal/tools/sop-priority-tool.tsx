@@ -3,7 +3,7 @@
 //  B) Department build-out — owner is out; AI generates a prioritized SOP
 //     backlog for a specific seat/silo (AOS-native), ordered by dependency.
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Play,
   RotateCcw,
@@ -125,10 +125,36 @@ function ModeBtn({
 
 /* ---------------------------- Mode A: Owner ---------------------------- */
 
+const OWNER_STORAGE_KEY = "sop-priority:owner-mode-v1";
+
+type OwnerPersisted = {
+  areas: SopArea[];
+  ownerContext: string;
+  stage: Stage;
+  buildingSop: {
+    item: SopBacklogItem;
+    parentPlay: OptimizationPlay | null;
+    area: string;
+  } | null;
+};
+
+function loadOwnerPersisted(): Partial<OwnerPersisted> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(OWNER_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Partial<OwnerPersisted>) : {};
+  } catch {
+    return {};
+  }
+}
+
 function OwnerMode() {
-  const [areas, setAreas] = useState<SopArea[]>(DEFAULT_SOP_AREAS);
-  const [ownerContext, setOwnerContext] = useState("");
-  const [stage, setStage] = useState<Stage>("idle");
+  const initial = loadOwnerPersisted();
+  const [areas, setAreas] = useState<SopArea[]>(initial.areas ?? DEFAULT_SOP_AREAS);
+  const [ownerContext, setOwnerContext] = useState(initial.ownerContext ?? "");
+  const [stage, setStage] = useState<Stage>(
+    initial.stage === "ready" ? "ready" : "idle",
+  );
   const [savedId, setSavedId] = useState<string | null>(null);
 
   // Per-area cached plays results (keyed by area name).
@@ -142,7 +168,19 @@ function OwnerMode() {
     item: SopBacklogItem;
     parentPlay: OptimizationPlay | null;
     area: string;
-  } | null>(null);
+  } | null>(initial.buildingSop ?? null);
+
+  // Persist core state so navigating away and returning restores the SOP draft.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const payload: OwnerPersisted = { areas, ownerContext, stage, buildingSop };
+      window.localStorage.setItem(OWNER_STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      // ignore
+    }
+  }, [areas, ownerContext, stage, buildingSop]);
+
 
   const result = useMemo(() => calcSopPriority(areas), [areas]);
   const ticker = useMemo(() => sopPriorityTicker(areas, result), [areas, result]);
@@ -184,7 +222,9 @@ function OwnerMode() {
     setAreaError({});
     setExpandedArea(null);
     setBuildingSop(null);
+    try { if (typeof window !== "undefined") window.localStorage.removeItem(OWNER_STORAGE_KEY); } catch {}
   }
+
 
   async function loadPlaysFor(area: SopScored) {
     if (playsByArea[area.name] || loadingArea === area.name) return;
@@ -466,19 +506,59 @@ function OwnerMode() {
 
 /* ------------------------- Mode B: Department ------------------------- */
 
-function DepartmentMode() {
-  const [department, setDepartment] = useState<SopDepartment>("Project Management");
-  const [companyStage, setCompanyStage] = useState<CompanyStage>("scaling");
-  const [seatHeadcount, setSeatHeadcount] = useState<number>(1);
-  const [context, setContext] = useState("");
+const DEPT_STORAGE_KEY = "sop-priority:department-mode-v1";
 
-  const [stage, setStage] = useState<Stage>("idle");
-  const [result, setResult] = useState<SopBacklogResult | null>(null);
+type DeptPersisted = {
+  department: SopDepartment;
+  companyStage: CompanyStage;
+  seatHeadcount: number;
+  context: string;
+  stage: Stage;
+  result: SopBacklogResult | null;
+  buildingSop: SopBacklogItem | null;
+};
+
+function loadDeptPersisted(): Partial<DeptPersisted> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(DEPT_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Partial<DeptPersisted>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function DepartmentMode() {
+  const initial = loadDeptPersisted();
+  const [department, setDepartment] = useState<SopDepartment>(initial.department ?? "Project Management");
+  const [companyStage, setCompanyStage] = useState<CompanyStage>(initial.companyStage ?? "scaling");
+  const [seatHeadcount, setSeatHeadcount] = useState<number>(initial.seatHeadcount ?? 1);
+  const [context, setContext] = useState(initial.context ?? "");
+
+  const hasInitialResult = !!initial.result && initial.stage === "ready";
+  const [stage, setStage] = useState<Stage>(hasInitialResult ? "ready" : "idle");
+  const [result, setResult] = useState<SopBacklogResult | null>(initial.result ?? null);
   const [error, setError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
-  const [buildingSop, setBuildingSop] = useState<SopBacklogItem | null>(null);
+  const [buildingSop, setBuildingSop] = useState<SopBacklogItem | null>(initial.buildingSop ?? null);
   const [openPlayId, setOpenPlayId] = useState<string | null>(null);
   const [theaterComplete, setTheaterComplete] = useState(false);
+
+  // Persist so user returns to the SOP they were drafting.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const payload: DeptPersisted = {
+        department, companyStage, seatHeadcount, context,
+        stage: stage === "running" || stage === "error" ? "idle" : stage,
+        result, buildingSop,
+      };
+      window.localStorage.setItem(DEPT_STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      // ignore
+    }
+  }, [department, companyStage, seatHeadcount, context, stage, result, buildingSop]);
+
 
   const pending = useRef<SopBacklogResult | null>(null);
   const theaterDone = useRef(false);
@@ -547,7 +627,9 @@ function DepartmentMode() {
     theaterDone.current = false;
     fetchDone.current = false;
     setTheaterComplete(false);
+    try { if (typeof window !== "undefined") window.localStorage.removeItem(DEPT_STORAGE_KEY); } catch {}
   }
+
 
   function savePacket() {
     if (!result) return;
