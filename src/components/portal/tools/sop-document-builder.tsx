@@ -497,18 +497,20 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
               <Download className="h-3.5 w-3.5" /> Download PDF
             </button>
             {/* Send to AOS Knowledge Hub hidden — SSO hand-off temporarily disabled. */}
-            <button
-              type="button"
-              onClick={() => {
-                try { if (typeof window !== "undefined") window.localStorage.removeItem(storageKey); } catch {}
-                triedDraft.current = false;
-                void draft();
-              }}
-              className="ml-auto inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-[12px] text-foreground/70 hover:bg-muted"
-              title="Re-draft from scratch with AI (discards your edits)"
-            >
-              <Sparkles className="h-3.5 w-3.5" /> Re-draft
-            </button>
+            {!isEditMode && (
+              <button
+                type="button"
+                onClick={() => {
+                  try { if (typeof window !== "undefined") window.localStorage.removeItem(storageKey); } catch {}
+                  triedDraft.current = false;
+                  void draft();
+                }}
+                className="ml-auto inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-[12px] text-foreground/70 hover:bg-muted"
+                title="Re-draft from scratch with AI (discards your edits)"
+              >
+                <Sparkles className="h-3.5 w-3.5" /> Re-draft
+              </button>
+            )}
           </div>
 
 
