@@ -125,10 +125,36 @@ function ModeBtn({
 
 /* ---------------------------- Mode A: Owner ---------------------------- */
 
+const OWNER_STORAGE_KEY = "sop-priority:owner-mode-v1";
+
+type OwnerPersisted = {
+  areas: SopArea[];
+  ownerContext: string;
+  stage: Stage;
+  buildingSop: {
+    item: SopBacklogItem;
+    parentPlay: OptimizationPlay | null;
+    area: string;
+  } | null;
+};
+
+function loadOwnerPersisted(): Partial<OwnerPersisted> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(OWNER_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Partial<OwnerPersisted>) : {};
+  } catch {
+    return {};
+  }
+}
+
 function OwnerMode() {
-  const [areas, setAreas] = useState<SopArea[]>(DEFAULT_SOP_AREAS);
-  const [ownerContext, setOwnerContext] = useState("");
-  const [stage, setStage] = useState<Stage>("idle");
+  const initial = loadOwnerPersisted();
+  const [areas, setAreas] = useState<SopArea[]>(initial.areas ?? DEFAULT_SOP_AREAS);
+  const [ownerContext, setOwnerContext] = useState(initial.ownerContext ?? "");
+  const [stage, setStage] = useState<Stage>(
+    initial.stage === "ready" ? "ready" : "idle",
+  );
   const [savedId, setSavedId] = useState<string | null>(null);
 
   // Per-area cached plays results (keyed by area name).
@@ -142,7 +168,19 @@ function OwnerMode() {
     item: SopBacklogItem;
     parentPlay: OptimizationPlay | null;
     area: string;
-  } | null>(null);
+  } | null>(initial.buildingSop ?? null);
+
+  // Persist core state so navigating away and returning restores the SOP draft.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const payload: OwnerPersisted = { areas, ownerContext, stage, buildingSop };
+      window.localStorage.setItem(OWNER_STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      // ignore
+    }
+  }, [areas, ownerContext, stage, buildingSop]);
+
 
   const result = useMemo(() => calcSopPriority(areas), [areas]);
   const ticker = useMemo(() => sopPriorityTicker(areas, result), [areas, result]);
