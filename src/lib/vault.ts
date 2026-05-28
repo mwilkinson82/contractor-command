@@ -41,6 +41,9 @@ export type IssuePacket = {
 
 export type Packet = CommandPacket | IssuePacket;
 
+type PacketUpdate = Partial<Omit<CommandPacket, "id" | "createdAt" | "kind">> &
+  Partial<Omit<IssuePacket, "id" | "createdAt" | "kind">>;
+
 let cache: Packet[] = [];
 let hydrated = false;
 let hydratingFor: string | null = null;
@@ -123,9 +126,9 @@ export const vault = {
   get(id: string): Packet | undefined {
     return cache.find((p) => p.id === id);
   },
-  async getById(id: string): Promise<Packet | undefined> {
+  async getById(id: string, options?: { fresh?: boolean }): Promise<Packet | undefined> {
     const cached = cache.find((p) => p.id === id);
-    if (cached) return cached;
+    if (cached && !options?.fresh) return cached;
     const { data, error } = await supabase
       .from("vault_packets")
       .select("id, created_at, kind, source, title, status, payload")
@@ -133,9 +136,13 @@ export const vault = {
       .maybeSingle();
     if (error) {
       console.error("[vault] getById failed", error);
+      return cached;
+    }
+    if (!data) {
+      cache = cache.filter((p) => p.id !== id);
+      emit();
       return undefined;
     }
-    if (!data) return undefined;
     const packet = rowToPacket(data as Row);
     cache = [packet, ...cache.filter((p) => p.id !== packet.id)];
     hydrated = true;
@@ -199,6 +206,52 @@ export const vault = {
 
     return full;
   },
+  async saveAndPersist(
+    packet:
+      | Omit<CommandPacket, "id" | "createdAt" | "status">
+      | Omit<IssuePacket, "id" | "createdAt" | "status">,
+  ): Promise<Packet | undefined> {
+    const tempId = `pkt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    const full = {
+      ...packet,
+      id: tempId,
+      createdAt: new Date().toISOString(),
+      status: "Open" as PacketStatus,
+    } as Packet;
+    cache = [full, ...cache];
+    emit();
+
+    const { data: auth } = await supabase.auth.getUser();
+    const uid = auth.user?.id;
+    if (!uid) {
+      cache = cache.filter((p) => p.id !== tempId);
+      emit();
+      return undefined;
+    }
+    const { data, error } = await supabase
+      .from("vault_packets")
+      .insert({
+        user_id: uid,
+        kind: full.kind,
+        source: full.source,
+        title: full.title,
+        status: full.status,
+        payload: packetToPayload(full) as never,
+      })
+      .select("id, created_at, kind, source, title, status, payload")
+      .single();
+    if (error) {
+      console.error("[vault] saveAndPersist failed", error);
+      cache = cache.filter((p) => p.id !== tempId);
+      emit();
+      return undefined;
+    }
+    const saved = rowToPacket(data as Row);
+    cache = [saved, ...cache.filter((p) => p.id !== tempId && p.id !== saved.id)];
+    hydrated = true;
+    emit();
+    return saved;
+  },
   updateStatus(id: string, status: PacketStatus) {
     cache = cache.map((p) => (p.id === id ? ({ ...p, status } as Packet) : p));
     emit();
@@ -210,11 +263,7 @@ export const vault = {
    * previously-vaulted SOP updates the same packet instead of creating a
    * duplicate every time.
    */
-  update(
-    id: string,
-    updates: Partial<Omit<CommandPacket, "id" | "createdAt" | "kind">> &
-      Partial<Omit<IssuePacket, "id" | "createdAt" | "kind">>,
-  ): Packet | undefined {
+  update(id: string, updates: PacketUpdate): Packet | undefined {
     const existing = cache.find((p) => p.id === id);
     if (!existing) return undefined;
     const merged = { ...existing, ...updates } as Packet;
@@ -228,6 +277,34 @@ export const vault = {
       })
       .eq("id", id);
     return merged;
+  },
+  async updateAndPersist(id: string, updates: PacketUpdate): Promise<Packet | undefined> {
+    const existing = cache.find((p) => p.id === id) ?? (await this.getById(id, { fresh: true }));
+    if (!existing) return undefined;
+    const merged = { ...existing, ...updates } as Packet;
+    cache = cache.map((p) => (p.id === id ? merged : p));
+    emit();
+
+    const { data, error } = await supabase
+      .from("vault_packets")
+      .update({
+        title: merged.title,
+        payload: packetToPayload(merged) as never,
+      })
+      .eq("id", id)
+      .select("id, created_at, kind, source, title, status, payload")
+      .single();
+    if (error) {
+      console.error("[vault] updateAndPersist failed", error);
+      cache = cache.map((p) => (p.id === id ? existing : p));
+      emit();
+      return undefined;
+    }
+    const saved = rowToPacket(data as Row);
+    cache = [saved, ...cache.filter((p) => p.id !== saved.id)];
+    hydrated = true;
+    emit();
+    return saved;
   },
   remove(id: string) {
     cache = cache.filter((p) => p.id !== id);

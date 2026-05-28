@@ -52,6 +52,8 @@ export function SopDocumentBuilder({
   const [error, setError] = useState<string | null>(null);
   const [doc, setDoc] = useState<SopDocument | null>(initialDoc ?? null);
   const [savedId, setSavedId] = useState<string | null>(existingPacketId ?? null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const triedDraft = useRef(isEditMode);
 
   // AOS Knowledge Hub hand-off
@@ -162,9 +164,14 @@ export function SopDocumentBuilder({
     }
   }
 
+  function markDirty() {
+    setSavedId(null);
+    setSaveError(null);
+  }
+
   function update<K extends keyof SopDocument>(key: K, value: SopDocument[K]) {
     setDoc((d) => (d ? { ...d, [key]: value } : d));
-    setSavedId(null);
+    markDirty();
   }
 
   function updateStep(idx: number, patch: Partial<SopStep>) {
@@ -173,7 +180,7 @@ export function SopDocumentBuilder({
       const steps = d.steps.map((s, i) => (i === idx ? { ...s, ...patch } : s));
       return { ...d, steps };
     });
-    setSavedId(null);
+    markDirty();
   }
   function addStep() {
     setDoc((d) => {
@@ -181,6 +188,7 @@ export function SopDocumentBuilder({
       const next = d.steps.length + 1;
       return { ...d, steps: [...d.steps, { number: next, action: "", detail: "" }] };
     });
+    markDirty();
   }
   function removeStep(idx: number) {
     setDoc((d) => {
@@ -188,6 +196,7 @@ export function SopDocumentBuilder({
       const steps = d.steps.filter((_, i) => i !== idx).map((s, i) => ({ ...s, number: i + 1 }));
       return { ...d, steps };
     });
+    markDirty();
   }
 
   function updateListItem(
@@ -201,13 +210,15 @@ export function SopDocumentBuilder({
       arr[idx] = val;
       return { ...d, [key]: arr };
     });
-    setSavedId(null);
+    markDirty();
   }
   function addListItem(key: "inputs" | "outputs" | "kpis" | "exceptions") {
     setDoc((d) => (d ? { ...d, [key]: [...d[key], ""] } : d));
+    markDirty();
   }
   function removeListItem(key: "inputs" | "outputs" | "kpis" | "exceptions", idx: number) {
     setDoc((d) => (d ? { ...d, [key]: d[key].filter((_, i) => i !== idx) } : d));
+    markDirty();
   }
 
   // Tracks the vault packet id this builder is bound to. Seeded from the
@@ -215,8 +226,10 @@ export function SopDocumentBuilder({
   // subsequent saves update the same packet instead of creating duplicates.
   const packetIdRef = useRef<string | null>(existingPacketId ?? null);
 
-  function saveToVault() {
+  async function saveToVault() {
     if (!doc) return;
+    setSaving(true);
+    setSaveError(null);
     const payload = {
       title: `SOP · ${doc.title}`,
       primaryFinding: doc.purpose,
@@ -233,22 +246,34 @@ export function SopDocumentBuilder({
         sopDocument: JSON.stringify(doc),
       },
     };
-    if (packetIdRef.current) {
-      const updated = vault.update(packetIdRef.current, payload);
-      if (updated) {
-        setSavedId(updated.id);
+    try {
+      if (packetIdRef.current) {
+        const updated = await vault.updateAndPersist(packetIdRef.current, payload);
+        if (updated) {
+          setSavedId(updated.id);
+          return;
+        }
+        if (isEditMode) {
+          setSaveError("Could not save changes to this existing SOP. Please try again.");
+          return;
+        }
+        // Packet vanished (e.g. deleted in another tab) — fall through to create.
+        packetIdRef.current = null;
+      }
+      const saved = await vault.saveAndPersist({
+        kind: "command",
+        source: "SOP Builder · Document",
+        ...payload,
+      });
+      if (!saved) {
+        setSaveError("Could not save this SOP to the vault. Please try again.");
         return;
       }
-      // Packet vanished (e.g. deleted in another tab) — fall through to create.
-      packetIdRef.current = null;
+      packetIdRef.current = saved.id;
+      setSavedId(saved.id);
+    } finally {
+      setSaving(false);
     }
-    const saved = vault.save({
-      kind: "command",
-      source: "SOP Builder · Document",
-      ...payload,
-    });
-    packetIdRef.current = saved.id;
-    setSavedId(saved.id);
   }
 
   // Email send state
@@ -502,21 +527,25 @@ export function SopDocumentBuilder({
             <button
               type="button"
               onClick={saveToVault}
-              disabled={!!savedId}
+              disabled={saving || !!savedId}
               className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 disabled:opacity-70"
             >
-              {savedId ? (
+              {saving ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : savedId ? (
                 <Check className="h-3.5 w-3.5 text-signal-success" />
               ) : (
                 <Save className="h-3.5 w-3.5" />
               )}
-              {savedId
-                ? packetIdRef.current && isEditMode
-                  ? "Changes saved"
-                  : "Saved to vault"
-                : packetIdRef.current
-                  ? "Save changes"
-                  : "Save to vault"}
+              {saving
+                ? "Saving…"
+                : savedId
+                  ? packetIdRef.current && isEditMode
+                    ? "Changes saved"
+                    : "Saved to vault"
+                  : packetIdRef.current
+                    ? "Save changes"
+                    : "Save to vault"}
             </button>
             <button
               type="button"
@@ -559,6 +588,8 @@ export function SopDocumentBuilder({
               </button>
             )}
           </div>
+
+          {saveError && <p className="mt-2 text-[12px] text-signal">{saveError}</p>}
 
           {emailOpen && (
             <div

@@ -72,7 +72,7 @@ function EditSopPage() {
         }
         await vault.hydrateFor(uid);
         if (cancelled) return;
-        const found = await vault.getById(packetId);
+        const found = await vault.getById(packetId, { fresh: true });
         if (!found) {
           setError("This SOP isn't in your vault.");
           setLoading(false);
