@@ -473,7 +473,11 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
             {/* Send to AOS Knowledge Hub hidden — SSO hand-off temporarily disabled. */}
             <button
               type="button"
-              onClick={() => { triedDraft.current = false; void draft(); }}
+              onClick={() => {
+                try { if (typeof window !== "undefined") window.localStorage.removeItem(storageKey); } catch {}
+                triedDraft.current = false;
+                void draft();
+              }}
               className="ml-auto inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-[12px] text-foreground/70 hover:bg-muted"
               title="Re-draft from scratch with AI (discards your edits)"
             >
