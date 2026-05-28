@@ -105,6 +105,25 @@ export const vault = {
   get(id: string): Packet | undefined {
     return cache.find((p) => p.id === id);
   },
+  async getById(id: string): Promise<Packet | undefined> {
+    const cached = cache.find((p) => p.id === id);
+    if (cached) return cached;
+    const { data, error } = await supabase
+      .from("vault_packets")
+      .select("id, created_at, kind, source, title, status, payload")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) {
+      console.error("[vault] getById failed", error);
+      return undefined;
+    }
+    if (!data) return undefined;
+    const packet = rowToPacket(data as Row);
+    cache = [packet, ...cache.filter((p) => p.id !== packet.id)];
+    hydrated = true;
+    emit();
+    return packet;
+  },
   async hydrateFor(userId: string) {
     if (hydratingFor !== userId) {
       cache = [];
