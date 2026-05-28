@@ -540,12 +540,12 @@ export function SopDocumentBuilder({
               {saving
                 ? "Saving…"
                 : savedId
-                ? packetIdRef.current && isEditMode
-                  ? "Changes saved"
-                  : "Saved to vault"
-                : packetIdRef.current
-                  ? "Save changes"
-                  : "Save to vault"}
+                  ? packetIdRef.current && isEditMode
+                    ? "Changes saved"
+                    : "Saved to vault"
+                  : packetIdRef.current
+                    ? "Save changes"
+                    : "Save to vault"}
             </button>
             <button
               type="button"
