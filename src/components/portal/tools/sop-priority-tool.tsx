@@ -222,7 +222,9 @@ function OwnerMode() {
     setAreaError({});
     setExpandedArea(null);
     setBuildingSop(null);
+    try { if (typeof window !== "undefined") window.localStorage.removeItem(OWNER_STORAGE_KEY); } catch {}
   }
+
 
   async function loadPlaysFor(area: SopScored) {
     if (playsByArea[area.name] || loadingArea === area.name) return;
