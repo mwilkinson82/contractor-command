@@ -75,12 +75,41 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
     }
   }
 
+  // localStorage key for persisting the in-progress SOP draft across navigations.
+  const storageKey = `sop-doc:${department}:${item.name}`;
+
   useEffect(() => {
     if (triedDraft.current) return;
     triedDraft.current = true;
+    // Try restoring a saved draft first; only call the AI if there isn't one.
+    try {
+      if (typeof window !== "undefined") {
+        const cached = window.localStorage.getItem(storageKey);
+        if (cached) {
+          const parsed = JSON.parse(cached) as SopDocument;
+          setDoc(parsed);
+          setLoading(false);
+          return;
+        }
+      }
+    } catch {
+      // fall through to draft
+    }
     void draft();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Persist doc edits so navigating away doesn't lose the work.
+  useEffect(() => {
+    if (!doc) return;
+    try {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(storageKey, JSON.stringify(doc));
+      }
+    } catch {
+      // ignore quota / serialization errors
+    }
+  }, [doc, storageKey]);
 
   async function draft() {
     setLoading(true);
@@ -119,6 +148,7 @@ export function SopDocumentBuilder({ item, department, parentPlay, ownerContext,
       setLoading(false);
     }
   }
+
 
   function update<K extends keyof SopDocument>(key: K, value: SopDocument[K]) {
     setDoc((d) => (d ? { ...d, [key]: value } : d));
