@@ -103,69 +103,72 @@ function EditSopPage() {
     };
   }, [packetId]);
 
-  if (loading) {
-    return (
-      <div className="mx-auto flex max-w-xl items-center justify-center gap-3 px-6 py-24">
-        <Loader2 className="h-4 w-4 animate-spin text-foreground/70" />
-        <p className="text-[13px] text-foreground/80">Loading SOP…</p>
-      </div>
-    );
-  }
-
-  if (error || !doc || !packet) {
-    return (
-      <div className="mx-auto max-w-xl px-6 py-16 text-center">
-        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-signal">
-          Can't open this SOP
-        </p>
-        <p className="mt-2 text-[13px] text-foreground">{error ?? "Missing SOP data."}</p>
-        <Link
-          to="/vault"
-          className="mt-4 inline-flex rounded-md bg-ink px-3 py-1.5 text-[12px] text-cream"
-        >
-          Back to Vault
-        </Link>
-      </div>
-    );
-  }
-
   // Synthesize a backlog item so the builder has the metadata it expects.
   // In edit mode the builder doesn't re-call the AI draft endpoint, so these
   // fields are only used for labels and the localStorage cache key.
-  const syntheticItem: SopBacklogItem = {
-    rank: 1,
-    playId: "edit",
-    name: `${doc.title} · ${packetId}`,
-    purpose: doc.purpose,
-    trigger: doc.trigger,
-    owner: doc.owner,
-    dependsOn: [],
-    effort: "M",
-    why: "Editing previously saved SOP.",
-  };
+  const syntheticItem: SopBacklogItem | null = doc
+    ? {
+        rank: 1,
+        playId: "edit",
+        name: `${doc.title} · ${packetId}`,
+        purpose: doc.purpose,
+        trigger: doc.trigger,
+        owner: doc.owner,
+        dependsOn: [],
+        effort: "M",
+        why: "Editing previously saved SOP.",
+      }
+    : null;
 
+  // IMPORTANT: keep a single stable outer wrapper. The root `useGlobalReveal`
+  // effect tags `<main>`'s direct children with `data-reveal` + `is-visible`;
+  // if we swap the outer element (or its className) between loading/error/ok
+  // states, React's className write strips `is-visible` and the element stays
+  // stuck at opacity 0 (blank page). Swap inner content only.
   return (
     <div className="mx-auto w-full max-w-[1180px] px-6 py-8">
-      <div className="mb-4 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => navigate({ to: "/vault" })}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" /> Back to Vault
-        </button>
-        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-          Editing saved SOP
-        </p>
-      </div>
-      <SopDocumentBuilder
-        item={syntheticItem}
-        department={doc.department}
-        parentPlay={null}
-        onBack={() => navigate({ to: "/vault" })}
-        initialDoc={doc}
-        existingPacketId={packetId}
-      />
+      {loading ? (
+        <div className="flex items-center justify-center gap-3 py-24">
+          <Loader2 className="h-4 w-4 animate-spin text-foreground/70" />
+          <p className="text-[13px] text-foreground/80">Loading SOP…</p>
+        </div>
+      ) : error || !doc || !packet || !syntheticItem ? (
+        <div className="mx-auto max-w-xl py-16 text-center">
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-signal">
+            Can't open this SOP
+          </p>
+          <p className="mt-2 text-[13px] text-foreground">{error ?? "Missing SOP data."}</p>
+          <Link
+            to="/vault"
+            className="mt-4 inline-flex rounded-md bg-ink px-3 py-1.5 text-[12px] text-cream"
+          >
+            Back to Vault
+          </Link>
+        </div>
+      ) : (
+        <>
+          <div className="mb-4 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => navigate({ to: "/vault" })}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" /> Back to Vault
+            </button>
+            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+              Editing saved SOP
+            </p>
+          </div>
+          <SopDocumentBuilder
+            item={syntheticItem}
+            department={doc.department}
+            parentPlay={null}
+            onBack={() => navigate({ to: "/vault" })}
+            initialDoc={doc}
+            existingPacketId={packetId}
+          />
+        </>
+      )}
     </div>
   );
 }
