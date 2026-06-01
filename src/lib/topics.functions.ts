@@ -6,7 +6,7 @@ import { z } from "zod";
 const ADMIN_EMAIL = "marshall@marshallwilkinson.com";
 
 const SubmitInput = z.object({
-  kind: z.enum(["Biweekly Call", "Monthly Bootcamp"]),
+  kind: z.enum(["Biweekly Call", "Monthly Bootcamp", "AOS Feature"]),
   title: z.string().trim().min(1).max(200),
   needsPressure: z.string().trim().max(2000).optional().default(""),
   alreadyTried: z.string().trim().max(2000).optional().default(""),
