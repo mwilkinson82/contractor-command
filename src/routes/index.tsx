@@ -235,9 +235,6 @@ function HomePage() {
                 </div>
               </div>
             </article>
-
-            {/* Featured AOS — submit for the next Circle call */}
-            <AosFeatureSubmit />
           </div>
 
           {/* RIGHT RAIL — odd-shaped/secondary cards */}
