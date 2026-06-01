@@ -66,17 +66,30 @@ export function AosFeatureSubmit() {
   };
 
   return (
-    <article className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card to-muted/40 p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="max-w-[560px]">
-          <p className="label-mono inline-flex items-center gap-1.5">
-            <Sparkles className="h-3 w-3" /> Featured AOS — this Sunday's call
+    <article className="relative overflow-hidden rounded-2xl border-2 border-ink/80 bg-gradient-to-br from-ink via-ink to-ink/90 p-6 text-cream shadow-[0_10px_40px_-12px_rgba(0,0,0,0.4)]">
+      {/* Featured ribbon */}
+      <div className="absolute right-0 top-0 z-10">
+        <div className="flex items-center gap-1.5 rounded-bl-xl bg-signal px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-ink">
+          <Sparkles className="h-3 w-3" />
+          Featured this call
+        </div>
+      </div>
+
+      {/* Decorative glow */}
+      <div className="pointer-events-none absolute -left-16 -top-16 h-48 w-48 rounded-full bg-signal/20 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-20 -right-10 h-56 w-56 rounded-full bg-signal/10 blur-3xl" />
+
+      <div className="relative flex flex-wrap items-end justify-between gap-5">
+        <div className="max-w-[580px]">
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-signal">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-signal align-middle mr-2 animate-signal-pulse" />
+            New — Sunday's Circle call
           </p>
-          <h3 className="mt-2 font-display text-[18px] leading-snug">
-            Want Marshall to review your AOS live on the next Circle call?
+          <h3 className="mt-3 font-display text-[22px] leading-tight">
+            Get your AOS reviewed live by Marshall.
           </h3>
-          <p className="mt-2 text-[13px] text-muted-foreground">
-            Submit your build to be featured. Marshall picks one member each call to walk through, critique, and pressure-test in front of the room.
+          <p className="mt-2 text-[13.5px] leading-relaxed text-cream/75">
+            One member's build gets featured each call — walked through, critiqued, and pressure-tested in front of the room. Submit yours to be considered.
           </p>
         </div>
         <Dialog
@@ -87,8 +100,8 @@ export function AosFeatureSubmit() {
           }}
         >
           <DialogTrigger asChild>
-            <button className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90">
-              <Sparkles className="h-3 w-3" /> Submit my AOS
+            <button className="inline-flex items-center gap-1.5 rounded-md bg-signal px-4 py-2 text-[13px] font-medium text-ink shadow-sm transition hover:opacity-90">
+              <Sparkles className="h-3.5 w-3.5" /> Submit my AOS
             </button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[560px]">
