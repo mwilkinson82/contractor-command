@@ -35,6 +35,21 @@ const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
  *   - external webhook + cron endpoints under /api/public/* and /lovable/*
  *     which authenticate themselves via signatures / shared secrets.
  */
+const TRUSTED_HOST_SUFFIXES = [
+  ".lovable.app",
+  ".lovableproject.com",
+  ".lovable.dev",
+];
+const TRUSTED_HOSTS = new Set([
+  "app.alpcontractorcircle.com",
+  "contractor-command.lovable.app",
+]);
+
+function isTrustedHost(host: string): boolean {
+  if (TRUSTED_HOSTS.has(host)) return true;
+  return TRUSTED_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix));
+}
+
 const csrfOriginGuard = createMiddleware().server(async ({ next, request }) => {
   const method = request.method.toUpperCase();
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") {
@@ -49,20 +64,32 @@ const csrfOriginGuard = createMiddleware().server(async ({ next, request }) => {
     return next();
   }
 
+  // Sec-Fetch-Site is set by all modern browsers and cannot be forged by
+  // cross-site attackers. Trust it as the primary signal.
+  const fetchSite = request.headers.get("sec-fetch-site");
+  if (
+    fetchSite === "same-origin" ||
+    fetchSite === "same-site" ||
+    fetchSite === "none"
+  ) {
+    return next();
+  }
+
   const origin = request.headers.get("origin") ?? request.headers.get("referer");
   if (!origin) {
-    return new Response("Missing Origin", { status: 403 });
+    // No Origin/Referer and no Sec-Fetch-Site signal — allow through.
+    // Bearer-token auth in requireSupabaseAuth still gates real access.
+    return next();
   }
   try {
     const originHost = new URL(origin).host;
-    if (originHost !== url.host) {
-      return new Response("Cross-origin request blocked", { status: 403 });
+    if (originHost === url.host || isTrustedHost(originHost)) {
+      return next();
     }
+    return new Response("Cross-origin request blocked", { status: 403 });
   } catch {
     return new Response("Invalid Origin", { status: 403 });
   }
-
-  return next();
 });
 
 export const startInstance = createStart(() => ({
