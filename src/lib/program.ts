@@ -53,7 +53,7 @@ export const UPCOMING: Session[] = [
   {
     kind: "Monthly Bootcamp",
     title: "Owner dependency — installing the first system.",
-    date: "2026-06-04T17:00:00.000Z", // Thu Jun 4, 10:00 AM PT
+    date: "2026-07-09T17:00:00.000Z", // Thu Jul 9, 10:00 AM PT
     durationMin: 120,
     zoomUrl: "https://us06web.zoom.us/j/83215167292?pwd=Mtt970HFCPStqSw62btyyta2Wxo0Pr.1",
     zoomId: "832 1516 7292",
