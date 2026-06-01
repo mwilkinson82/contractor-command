@@ -16,6 +16,7 @@ import { isAllowedReturnTo, RETURN_TO_STORAGE_KEY } from "@/lib/return-to";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { AosPulse } from "@/components/portal/aos-pulse";
+import { AosFeatureSubmit } from "@/components/portal/aos-feature-submit";
 import { AosHero } from "@/components/portal/aos-hero";
 import { HomeHero } from "@/components/portal/home-hero";
 import { HandbookAnchor } from "@/components/portal/handbook-anchor";
