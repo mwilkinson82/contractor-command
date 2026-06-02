@@ -1,0 +1,2 @@
+ALTER TABLE public.call_topics DROP CONSTRAINT IF EXISTS call_topics_kind_check;
+ALTER TABLE public.call_topics ADD CONSTRAINT call_topics_kind_check CHECK (kind = ANY (ARRAY['Biweekly Call'::text, 'Monthly Bootcamp'::text, 'AOS Feature'::text]));
