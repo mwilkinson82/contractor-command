@@ -5,7 +5,8 @@
  * Reference: index.css from the ALP Handbook source project.
  */
 
-@import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+/* Fonts loaded via <link> in src/routes/__root.tsx (lightningcss can't resolve remote @import). */
+
 
 .handbook-scope {
   /* Warm paper page tokens (HSL) */
