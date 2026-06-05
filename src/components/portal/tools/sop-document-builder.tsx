@@ -64,6 +64,8 @@ export function SopDocumentBuilder({
   const [aosSending, setAosSending] = useState(false);
   const [aosSentAt, setAosSentAt] = useState<number | null>(null);
   const [aosError, setAosError] = useState<string | null>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   async function sendToAos() {
     if (!doc) return;
