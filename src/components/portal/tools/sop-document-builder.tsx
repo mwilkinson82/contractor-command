@@ -474,9 +474,50 @@ export function SopDocumentBuilder({
                 </button>
               </div>
               <ol className="mt-2 space-y-2">
-                {doc.steps.map((s, i) => (
-                  <li key={i} className="rounded-md border border-border bg-background/60 p-3">
-                    <div className="flex items-start gap-3">
+                {doc.steps.map((s, i) => {
+                  const isDragging = dragIndex === i;
+                  const isDropTarget = dragOverIndex === i && dragIndex !== null && dragIndex !== i;
+                  return (
+                  <li
+                    key={i}
+                    onDragOver={(e) => {
+                      if (dragIndex === null) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      if (dragOverIndex !== i) setDragOverIndex(i);
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverIndex === i) setDragOverIndex(null);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (dragIndex !== null) reorderSteps(dragIndex, i);
+                      setDragIndex(null);
+                      setDragOverIndex(null);
+                    }}
+                    className={`rounded-md border bg-background/60 p-3 transition ${
+                      isDragging ? "opacity-40" : ""
+                    } ${isDropTarget ? "border-foreground/60 ring-1 ring-foreground/30" : "border-border"}`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <button
+                        type="button"
+                        draggable
+                        onDragStart={(e) => {
+                          setDragIndex(i);
+                          e.dataTransfer.effectAllowed = "move";
+                          try { e.dataTransfer.setData("text/plain", String(i)); } catch {}
+                        }}
+                        onDragEnd={() => {
+                          setDragIndex(null);
+                          setDragOverIndex(null);
+                        }}
+                        className="mt-1 cursor-grab touch-none rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing"
+                        aria-label="Drag to reorder step"
+                        title="Drag to reorder"
+                      >
+                        <GripVertical className="h-3.5 w-3.5" />
+                      </button>
                       <span className="mt-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-foreground/30 font-mono text-[10px] text-foreground">
                         {i + 1}
                       </span>
@@ -531,7 +572,8 @@ export function SopDocumentBuilder({
                       </div>
                     </div>
                   </li>
-                ))}
+                  );
+                })}
               </ol>
             </div>
 
