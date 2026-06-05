@@ -6,6 +6,8 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
+  ArrowDown,
+  ArrowUp,
   Loader2,
   Plus,
   Trash2,
@@ -195,6 +197,18 @@ export function SopDocumentBuilder({
       if (!d) return d;
       const steps = d.steps.filter((_, i) => i !== idx).map((s, i) => ({ ...s, number: i + 1 }));
       return { ...d, steps };
+    });
+    markDirty();
+  }
+
+  function moveStep(idx: number, direction: -1 | 1) {
+    setDoc((d) => {
+      if (!d) return d;
+      const target = idx + direction;
+      if (target < 0 || target >= d.steps.length) return d;
+      const steps = [...d.steps];
+      [steps[idx], steps[target]] = [steps[target], steps[idx]];
+      return { ...d, steps: steps.map((s, i) => ({ ...s, number: i + 1 })) };
     });
     markDirty();
   }
@@ -466,14 +480,37 @@ export function SopDocumentBuilder({
                           className="w-full resize-y rounded-sm bg-transparent px-1 text-[13px] leading-snug text-foreground/80 outline-none focus:bg-background/80"
                         />
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => removeStep(i)}
-                        className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                        aria-label="Remove step"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      <div className="flex shrink-0 flex-col gap-1">
+                        <button
+                          type="button"
+                          onClick={() => moveStep(i, -1)}
+                          disabled={i === 0}
+                          className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+                          aria-label="Move step up"
+                          title="Move step up"
+                        >
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveStep(i, 1)}
+                          disabled={i === doc.steps.length - 1}
+                          className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+                          aria-label="Move step down"
+                          title="Move step down"
+                        >
+                          <ArrowDown className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeStep(i)}
+                          className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                          aria-label="Remove step"
+                          title="Remove step"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </li>
                 ))}
