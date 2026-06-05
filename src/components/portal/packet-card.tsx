@@ -115,6 +115,18 @@ export function PacketCard({
             Edit SOP
           </Link>
         )}
+        <button
+          onClick={() => {
+            if (confirm(`Delete "${packet.title}"? This can't be undone.`)) {
+              vault.remove(packet.id);
+              onChange?.();
+            }
+          }}
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-[color:var(--danger-warm)]"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Delete
+        </button>
         {packet.kind === "command" && packet.intensiveRecommended ? (
           <Link
             to="/work-with-marshall"
