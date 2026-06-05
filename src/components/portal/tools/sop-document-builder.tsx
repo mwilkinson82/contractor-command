@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   ArrowDown,
   ArrowUp,
+  GripVertical,
   Loader2,
   Plus,
   Trash2,
