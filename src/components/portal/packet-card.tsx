@@ -1,5 +1,5 @@
 import { type Packet, packetToClipboard, vault } from "@/lib/vault";
-import { Check, Copy, Loader2, Mail, Pencil } from "lucide-react";
+import { Check, Copy, Loader2, Mail, Pencil, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
