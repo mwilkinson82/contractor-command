@@ -214,6 +214,21 @@ export function SopDocumentBuilder({
     markDirty();
   }
 
+  function reorderSteps(from: number, to: number) {
+    if (from === to) return;
+    setDoc((d) => {
+      if (!d) return d;
+      if (from < 0 || from >= d.steps.length) return d;
+      const clamped = Math.max(0, Math.min(to, d.steps.length - 1));
+      const steps = [...d.steps];
+      const [moved] = steps.splice(from, 1);
+      steps.splice(clamped, 0, moved);
+      return { ...d, steps: steps.map((s, i) => ({ ...s, number: i + 1 })) };
+    });
+    markDirty();
+  }
+
+
   function updateListItem(
     key: "inputs" | "outputs" | "kpis" | "exceptions",
     idx: number,
