@@ -32,6 +32,13 @@ import {
   type PersonIssue,
 } from "@/lib/admin-people.functions";
 
+type RepairAction =
+  | "link_subscriptions"
+  | "claim_pending"
+  | "send_reset"
+  | "send_invite"
+  | "dedupe_subscriptions";
+
 export const Route = createFileRoute("/admin/people")({
   head: () => ({ meta: [{ title: "People — Admin" }] }),
   component: PeoplePage,
