@@ -49,6 +49,8 @@ import { Route as ApiAskRouteImport } from './routes/api/ask'
 import { Route as AosLinkRouteImport } from './routes/aos.link'
 import { Route as AosAddCapacityRouteImport } from './routes/aos.add-capacity'
 import { Route as AdminTopicsRouteImport } from './routes/admin.topics'
+import { Route as AdminQaRouteImport } from './routes/admin.qa'
+import { Route as AdminPeopleRouteImport } from './routes/admin.people'
 import { Route as AdminMigrateRouteImport } from './routes/admin.migrate'
 import { Route as AdminLibraryRouteImport } from './routes/admin.library'
 import { Route as AdminHandbookRouteImport } from './routes/admin.handbook'
@@ -265,6 +267,16 @@ const AdminTopicsRoute = AdminTopicsRouteImport.update({
   path: '/admin/topics',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminQaRoute = AdminQaRouteImport.update({
+  id: '/admin/qa',
+  path: '/admin/qa',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminPeopleRoute = AdminPeopleRouteImport.update({
+  id: '/admin/people',
+  path: '/admin/people',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminMigrateRoute = AdminMigrateRouteImport.update({
   id: '/admin/migrate',
   path: '/admin/migrate',
@@ -373,6 +385,8 @@ export interface FileRoutesByFullPath {
   '/admin/handbook': typeof AdminHandbookRoute
   '/admin/library': typeof AdminLibraryRoute
   '/admin/migrate': typeof AdminMigrateRoute
+  '/admin/people': typeof AdminPeopleRoute
+  '/admin/qa': typeof AdminQaRoute
   '/admin/topics': typeof AdminTopicsRoute
   '/aos/add-capacity': typeof AosAddCapacityRoute
   '/aos/link': typeof AosLinkRoute
@@ -430,6 +444,8 @@ export interface FileRoutesByTo {
   '/admin/handbook': typeof AdminHandbookRoute
   '/admin/library': typeof AdminLibraryRoute
   '/admin/migrate': typeof AdminMigrateRoute
+  '/admin/people': typeof AdminPeopleRoute
+  '/admin/qa': typeof AdminQaRoute
   '/admin/topics': typeof AdminTopicsRoute
   '/aos/add-capacity': typeof AosAddCapacityRoute
   '/aos/link': typeof AosLinkRoute
@@ -488,6 +504,8 @@ export interface FileRoutesById {
   '/admin/handbook': typeof AdminHandbookRoute
   '/admin/library': typeof AdminLibraryRoute
   '/admin/migrate': typeof AdminMigrateRoute
+  '/admin/people': typeof AdminPeopleRoute
+  '/admin/qa': typeof AdminQaRoute
   '/admin/topics': typeof AdminTopicsRoute
   '/aos/add-capacity': typeof AosAddCapacityRoute
   '/aos/link': typeof AosLinkRoute
@@ -547,6 +565,8 @@ export interface FileRouteTypes {
     | '/admin/handbook'
     | '/admin/library'
     | '/admin/migrate'
+    | '/admin/people'
+    | '/admin/qa'
     | '/admin/topics'
     | '/aos/add-capacity'
     | '/aos/link'
@@ -604,6 +624,8 @@ export interface FileRouteTypes {
     | '/admin/handbook'
     | '/admin/library'
     | '/admin/migrate'
+    | '/admin/people'
+    | '/admin/qa'
     | '/admin/topics'
     | '/aos/add-capacity'
     | '/aos/link'
@@ -661,6 +683,8 @@ export interface FileRouteTypes {
     | '/admin/handbook'
     | '/admin/library'
     | '/admin/migrate'
+    | '/admin/people'
+    | '/admin/qa'
     | '/admin/topics'
     | '/aos/add-capacity'
     | '/aos/link'
@@ -719,6 +743,8 @@ export interface RootRouteChildren {
   AdminHandbookRoute: typeof AdminHandbookRoute
   AdminLibraryRoute: typeof AdminLibraryRoute
   AdminMigrateRoute: typeof AdminMigrateRoute
+  AdminPeopleRoute: typeof AdminPeopleRoute
+  AdminQaRoute: typeof AdminQaRoute
   AdminTopicsRoute: typeof AdminTopicsRoute
   AosAddCapacityRoute: typeof AosAddCapacityRoute
   AosLinkRoute: typeof AosLinkRoute
@@ -1026,6 +1052,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminTopicsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/qa': {
+      id: '/admin/qa'
+      path: '/admin/qa'
+      fullPath: '/admin/qa'
+      preLoaderRoute: typeof AdminQaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/people': {
+      id: '/admin/people'
+      path: '/admin/people'
+      fullPath: '/admin/people'
+      preLoaderRoute: typeof AdminPeopleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/migrate': {
       id: '/admin/migrate'
       path: '/admin/migrate'
@@ -1189,6 +1229,8 @@ const rootRouteChildren: RootRouteChildren = {
   AdminHandbookRoute: AdminHandbookRoute,
   AdminLibraryRoute: AdminLibraryRoute,
   AdminMigrateRoute: AdminMigrateRoute,
+  AdminPeopleRoute: AdminPeopleRoute,
+  AdminQaRoute: AdminQaRoute,
   AdminTopicsRoute: AdminTopicsRoute,
   AosAddCapacityRoute: AosAddCapacityRoute,
   AosLinkRoute: AosLinkRoute,
@@ -1216,13 +1258,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

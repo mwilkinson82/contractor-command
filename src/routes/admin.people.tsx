@@ -83,7 +83,7 @@ function PeoplePage() {
   const [busy, setBusy] = useState<string | null>(null);
 
   const repairMut = useMutation({
-    mutationFn: async (input: { email: string; actions: Parameters<typeof repair>[0]["data"]["actions"] }) =>
+    mutationFn: async (input: { email: string; actions: RepairAction[] }) =>
       repair({ data: input }),
     onMutate: ({ email }) => setBusy(email),
     onSettled: () => setBusy(null),
