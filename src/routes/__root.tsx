@@ -39,16 +39,18 @@ const ONBOARDING_ROUTE = "/onboarding";
 // user. Tiers ranked in src/hooks/use-tier.ts. Hardcore inherits everything
 // Circle has, plus its own /hardcore surface (calendar embed).
 //
-// - Vault / Tools / Field tools / Community / Ask → Power Hour and up
-// - Replays → Book Buyer and up (per-category gating happens in the page + RLS)
+// ALP Handbook buyers (book_buyer) get: Handbook + AOS + Ask + Tools + Vault.
+// - Ask / Vault / Tools / Field tools → book_buyer and up (handbook entitlement)
+// - Community → power_hour and up (room is for paying members)
+// - Replays → book_buyer and up (per-category gating happens in the page + RLS)
 // - Templates / Calls → Circle and up
 // - Hardcore Calendar → Hardcore only
 const ROUTE_TIER_GATES: Array<{ prefix: string; min: Tier }> = [
-  { prefix: "/vault", min: "power_hour" },
-  { prefix: "/tools", min: "power_hour" },
-  { prefix: "/field-tools", min: "power_hour" },
+  { prefix: "/vault", min: "book_buyer" },
+  { prefix: "/tools", min: "book_buyer" },
+  { prefix: "/field-tools", min: "book_buyer" },
+  { prefix: "/ask", min: "book_buyer" },
   { prefix: "/community", min: "power_hour" },
-  { prefix: "/ask", min: "power_hour" },
   { prefix: "/templates", min: "circle" },
   { prefix: "/calls", min: "circle" },
   { prefix: "/hardcore", min: "hardcore" },
