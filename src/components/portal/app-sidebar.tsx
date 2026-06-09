@@ -167,16 +167,23 @@ const HARDCORE_REAL: Group = {
   items: [{ to: "/hardcore", label: "Hardcore Room", icon: Flame }],
 };
 
-// Book Buyer: Handbook + AOS + Ask Marshall (15/day cap), with Upgrade as
-// the obvious next step. No replays, no templates, no calls.
+// Book Buyer (ALP Handbook tier): Handbook + AOS + Ask Marshall + Tools + Vault.
+// Locked out of Circle calls, templates, replays, community, hardcore.
 const BOOK_BUYER_GROUPS: Group[] = [
   {
-    label: "Your tools",
+    label: "Daily",
     items: [
       { to: "/", label: "Home", icon: Home },
       { to: "/handbook", label: "Handbook", icon: BookOpen },
       { to: "/aos", label: "AOS", icon: Compass },
       { to: "/ask", label: "Ask Marshall", icon: Megaphone, match: "/ask" },
+    ],
+  },
+  {
+    label: "Command",
+    items: [
+      { to: "/tools", label: "Tools", icon: Wrench, match: "/tools" },
+      { to: "/vault", label: "Vault", icon: Archive },
     ],
   },
   {
