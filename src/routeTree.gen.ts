@@ -51,6 +51,7 @@ import { Route as AosAddCapacityRouteImport } from './routes/aos.add-capacity'
 import { Route as AdminTopicsRouteImport } from './routes/admin.topics'
 import { Route as AdminMigrateRouteImport } from './routes/admin.migrate'
 import { Route as AdminLibraryRouteImport } from './routes/admin.library'
+import { Route as AdminHandbookRouteImport } from './routes/admin.handbook'
 import { Route as AdminBackfillRouteImport } from './routes/admin.backfill'
 import { Route as AdminAnnounceRouteImport } from './routes/admin.announce'
 import { Route as ToolsSopEditPacketIdRouteImport } from './routes/tools.sop-edit.$packetId'
@@ -274,6 +275,11 @@ const AdminLibraryRoute = AdminLibraryRouteImport.update({
   path: '/admin/library',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminHandbookRoute = AdminHandbookRouteImport.update({
+  id: '/admin/handbook',
+  path: '/admin/handbook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminBackfillRoute = AdminBackfillRouteImport.update({
   id: '/admin/backfill',
   path: '/admin/backfill',
@@ -364,6 +370,7 @@ export interface FileRoutesByFullPath {
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/admin/announce': typeof AdminAnnounceRoute
   '/admin/backfill': typeof AdminBackfillRoute
+  '/admin/handbook': typeof AdminHandbookRoute
   '/admin/library': typeof AdminLibraryRoute
   '/admin/migrate': typeof AdminMigrateRoute
   '/admin/topics': typeof AdminTopicsRoute
@@ -420,6 +427,7 @@ export interface FileRoutesByTo {
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/admin/announce': typeof AdminAnnounceRoute
   '/admin/backfill': typeof AdminBackfillRoute
+  '/admin/handbook': typeof AdminHandbookRoute
   '/admin/library': typeof AdminLibraryRoute
   '/admin/migrate': typeof AdminMigrateRoute
   '/admin/topics': typeof AdminTopicsRoute
@@ -477,6 +485,7 @@ export interface FileRoutesById {
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/admin/announce': typeof AdminAnnounceRoute
   '/admin/backfill': typeof AdminBackfillRoute
+  '/admin/handbook': typeof AdminHandbookRoute
   '/admin/library': typeof AdminLibraryRoute
   '/admin/migrate': typeof AdminMigrateRoute
   '/admin/topics': typeof AdminTopicsRoute
@@ -535,6 +544,7 @@ export interface FileRouteTypes {
     | '/work-with-marshall'
     | '/admin/announce'
     | '/admin/backfill'
+    | '/admin/handbook'
     | '/admin/library'
     | '/admin/migrate'
     | '/admin/topics'
@@ -591,6 +601,7 @@ export interface FileRouteTypes {
     | '/work-with-marshall'
     | '/admin/announce'
     | '/admin/backfill'
+    | '/admin/handbook'
     | '/admin/library'
     | '/admin/migrate'
     | '/admin/topics'
@@ -647,6 +658,7 @@ export interface FileRouteTypes {
     | '/work-with-marshall'
     | '/admin/announce'
     | '/admin/backfill'
+    | '/admin/handbook'
     | '/admin/library'
     | '/admin/migrate'
     | '/admin/topics'
@@ -704,6 +716,7 @@ export interface RootRouteChildren {
   WorkWithMarshallRoute: typeof WorkWithMarshallRoute
   AdminAnnounceRoute: typeof AdminAnnounceRoute
   AdminBackfillRoute: typeof AdminBackfillRoute
+  AdminHandbookRoute: typeof AdminHandbookRoute
   AdminLibraryRoute: typeof AdminLibraryRoute
   AdminMigrateRoute: typeof AdminMigrateRoute
   AdminTopicsRoute: typeof AdminTopicsRoute
@@ -1027,6 +1040,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminLibraryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/handbook': {
+      id: '/admin/handbook'
+      path: '/admin/handbook'
+      fullPath: '/admin/handbook'
+      preLoaderRoute: typeof AdminHandbookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/backfill': {
       id: '/admin/backfill'
       path: '/admin/backfill'
@@ -1166,6 +1186,7 @@ const rootRouteChildren: RootRouteChildren = {
   WorkWithMarshallRoute: WorkWithMarshallRoute,
   AdminAnnounceRoute: AdminAnnounceRoute,
   AdminBackfillRoute: AdminBackfillRoute,
+  AdminHandbookRoute: AdminHandbookRoute,
   AdminLibraryRoute: AdminLibraryRoute,
   AdminMigrateRoute: AdminMigrateRoute,
   AdminTopicsRoute: AdminTopicsRoute,
