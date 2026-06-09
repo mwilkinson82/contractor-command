@@ -106,6 +106,18 @@ function AdminDashboard() {
             Library
           </Link>
           <Link
+            to="/admin/people"
+            className="rounded-md border border-border bg-card px-3 py-1.5 text-[12px] hover:bg-muted"
+          >
+            People
+          </Link>
+          <Link
+            to="/admin/qa"
+            className="rounded-md border border-border bg-card px-3 py-1.5 text-[12px] hover:bg-muted"
+          >
+            Tier QA
+          </Link>
+          <Link
             to="/admin/handbook"
             className="rounded-md border border-foreground bg-foreground px-3 py-1.5 text-[12px] text-background hover:opacity-90"
           >
