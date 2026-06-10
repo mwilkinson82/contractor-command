@@ -356,13 +356,24 @@ export const repairPerson = createServerFn({ method: "POST" })
         .select("id,status,is_comped,stripe_subscription_id,stripe_customer_id,tier,created_at")
         .ilike("email", data.email);
       if (rows && rows.length > 1) {
-        // Keep the row with the strongest signal: stripe sub id > customer id > comped > newest.
-        const score = (s: (typeof rows)[number]) =>
+        // Winner rule (in order):
+        //   1. Higher tier rank wins (hardcore > circle > intensive > book_buyer > aos_only).
+        //      A comped hardcore beats a paid book_buyer — the person actually has hardcore.
+        //   2. Within the same tier: real Stripe sub id > customer id > comped flag.
+        //   3. Tiebreak: newest created_at.
+        const tierRank: Record<string, number> = {
+          aos_only: 0, book_buyer: 1, intensive: 3,
+          power_hour: 4, sm_school: 4, contractor_school: 4, circle: 4,
+          hardcore: 5,
+        };
+        const stripeScore = (s: (typeof rows)[number]) =>
           (s.stripe_subscription_id ? 4 : 0) +
           (s.stripe_customer_id ? 2 : 0) +
           (s.is_comped ? 1 : 0);
         const sorted = [...rows].sort((a, b) => {
-          const ds = score(b) - score(a);
+          const dt = (tierRank[b.tier ?? ""] ?? -1) - (tierRank[a.tier ?? ""] ?? -1);
+          if (dt !== 0) return dt;
+          const ds = stripeScore(b) - stripeScore(a);
           if (ds !== 0) return ds;
           return (b.created_at ?? "").localeCompare(a.created_at ?? "");
         });
