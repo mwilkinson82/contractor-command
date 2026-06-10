@@ -38,10 +38,12 @@ function originRoot(): string {
 }
 
 const LIVE_STATUSES = new Set(["active", "trialing"]);
+const DEAD_STATUSES = new Set(["canceled", "superseded", "incomplete_expired", "incomplete"]);
 const PENDING_CLAIM_WINDOW_DAYS = 30;
 
 function isLiveSubscription(row: { status: string | null; is_comped: boolean }) {
-  return row.is_comped || LIVE_STATUSES.has(row.status ?? "");
+  if (DEAD_STATUSES.has(row.status ?? "")) return false;
+  return row.is_comped || LIVE_STATUSES.has(row.status ?? "") || row.status === "comped";
 }
 
 function isPeopleRelevantSubscription(row: {
@@ -233,8 +235,6 @@ export const auditPeople = createServerFn({ method: "GET" })
 
       const issues: PersonIssue[] = [];
       if ((b.subs.length > 0 || b.claims.length > 0) && !auth) issues.push("no_auth_account");
-      if (auth && !auth.last_sign_in_at) issues.push("never_signed_in");
-      if (auth && !(auth.email_confirmed_at || auth.confirmed_at)) issues.push("email_unconfirmed");
       if (b.subs.some((s) => !s.user_id)) issues.push("subscription_unlinked");
       if (b.subs.length > 1) issues.push("duplicate_subscriptions");
       if (auth && b.claims.some((c) => !c.claimed_at)) issues.push("unclaimed_pending_claim");
