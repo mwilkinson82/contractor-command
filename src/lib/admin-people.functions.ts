@@ -12,9 +12,15 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
-async function assertAdmin(userId: string) {
+async function getSupabaseAdmin() {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin;
+}
+
+type SupabaseAdmin = Awaited<ReturnType<typeof getSupabaseAdmin>>;
+
+async function assertAdmin(userId: string, supabaseAdmin: SupabaseAdmin) {
   const { data: roles } = await supabaseAdmin
     .from("user_roles")
     .select("role")
@@ -29,6 +35,38 @@ function originRoot(): string {
     process.env.APP_ORIGIN ||
     "https://app.alpcontractorcircle.com";
   return o.replace(/\/$/, "");
+}
+
+const LIVE_STATUSES = new Set(["active", "trialing"]);
+const DEAD_STATUSES = new Set(["canceled", "superseded", "incomplete_expired", "incomplete"]);
+const PENDING_CLAIM_WINDOW_DAYS = 30;
+
+function isLiveSubscription(row: { status: string | null; is_comped: boolean }) {
+  if (DEAD_STATUSES.has(row.status ?? "")) return false;
+  return row.is_comped || LIVE_STATUSES.has(row.status ?? "") || row.status === "comped";
+}
+
+function isPeopleRelevantSubscription(row: {
+  tier: string | null;
+  status: string | null;
+  is_comped: boolean;
+  stripe_subscription_id?: string | null;
+}) {
+  if (!isLiveSubscription(row)) return false;
+
+  // `aos_only` Stripe rows were the noisy catch-all for unrelated Stripe products
+  // like ALP University. AOS is granted through the portal, not treated as a buyer tier here.
+  if (row.tier === "aos_only" && !row.is_comped && row.stripe_subscription_id) return false;
+
+  return true;
+}
+
+function isRecentOpenClaim(row: { claimed_at: string | null; created_at: string }) {
+  if (row.claimed_at) return false;
+  const createdAt = new Date(row.created_at).getTime();
+  if (!Number.isFinite(createdAt)) return false;
+  const cutoff = Date.now() - PENDING_CLAIM_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  return createdAt >= cutoff;
 }
 
 // What can be wrong with a person.
@@ -84,7 +122,7 @@ type AuthUserLite = {
   created_at: string;
 };
 
-async function loadAuthUsers(): Promise<AuthUserLite[]> {
+async function loadAuthUsers(supabaseAdmin: SupabaseAdmin): Promise<AuthUserLite[]> {
   const out: AuthUserLite[] = [];
   const perPage = 200;
   for (let page = 1; page <= 50; page++) {
@@ -131,11 +169,12 @@ function bestTier(rows: { tier: string | null; status: string | null; is_comped:
 export const auditPeople = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<PeopleAudit> => {
-    await assertAdmin(context.userId);
+    const supabaseAdmin = await getSupabaseAdmin();
+    await assertAdmin(context.userId, supabaseAdmin);
 
     const [authUsers, { data: profiles }, { data: subs }, { data: claims }, { data: roles }] =
       await Promise.all([
-        loadAuthUsers(),
+        loadAuthUsers(supabaseAdmin),
         supabaseAdmin.from("profiles").select("id,email,full_name,created_at"),
         supabaseAdmin
           .from("subscriptions")
@@ -147,6 +186,9 @@ export const auditPeople = createServerFn({ method: "GET" })
           .select("id,email,status,claimed_at,metadata,created_at"),
         supabaseAdmin.from("user_roles").select("user_id,role"),
       ]);
+
+    const relevantSubs = (subs ?? []).filter(isPeopleRelevantSubscription);
+    const relevantClaims = (claims ?? []).filter(isRecentOpenClaim);
 
     const adminIds = new Set(
       (roles ?? []).filter((r) => r.role === "admin").map((r) => r.user_id),
@@ -174,30 +216,31 @@ export const auditPeople = createServerFn({ method: "GET" })
 
     for (const u of authUsers) bucket(u.email)?.auth.push(u);
     for (const p of profiles ?? []) bucket(p.email)?.profiles.push(p);
-    for (const s of subs ?? []) bucket(s.email)?.subs.push(s);
-    for (const c of claims ?? []) bucket(c.email)?.claims.push(c);
+    for (const s of relevantSubs) bucket(s.email)?.subs.push(s);
+    for (const c of relevantClaims) bucket(c.email)?.claims.push(c);
 
     const people: PersonRow[] = [];
     for (const b of buckets.values()) {
       const auth = b.auth[0] ?? null;
       const prof = b.profiles[0] ?? null;
       const authId = auth?.id ?? prof?.id ?? null;
+      const isAdmin = authId ? adminIds.has(authId) : false;
+
+      // This view is for entitlement cleanup. Do not surface random auth/profile
+      // rows unless they have a relevant subscription/claim or are an admin.
+      if (!isAdmin && b.subs.length === 0 && b.claims.length === 0) continue;
 
       const { tier, active } = bestTier(b.subs);
       const isComped = b.subs.some((s) => s.is_comped);
 
       const issues: PersonIssue[] = [];
       if ((b.subs.length > 0 || b.claims.length > 0) && !auth) issues.push("no_auth_account");
-      if (auth && !auth.last_sign_in_at) issues.push("never_signed_in");
-      if (auth && !(auth.email_confirmed_at || auth.confirmed_at)) issues.push("email_unconfirmed");
       if (b.subs.some((s) => !s.user_id)) issues.push("subscription_unlinked");
       if (b.subs.length > 1) issues.push("duplicate_subscriptions");
       if (auth && b.claims.some((c) => !c.claimed_at)) issues.push("unclaimed_pending_claim");
       if (!prof && auth) {
         // no profile row — usually means handle_new_user trigger didn't fire (rare).
       }
-
-      const isAdmin = authId ? adminIds.has(authId) : false;
 
       people.push({
         key: authId ?? `email:${b.email}`,
@@ -227,8 +270,8 @@ export const auditPeople = createServerFn({ method: "GET" })
       people: people.length,
       withIssues: people.filter((p) => p.issues.length > 0).length,
       duplicates: people.filter((p) => p.subscriptionCount > 1).length,
-      unlinkedSubs: (subs ?? []).filter((s) => !s.user_id).length,
-      pendingClaims: (claims ?? []).filter((c) => !c.claimed_at).length,
+      unlinkedSubs: relevantSubs.filter((s) => !s.user_id).length,
+      pendingClaims: relevantClaims.length,
     };
 
     return { people, totals };
@@ -264,14 +307,15 @@ export const repairPerson = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(RepairInput.parse)
   .handler(async ({ data, context }): Promise<RepairResult> => {
-    await assertAdmin(context.userId);
+    const supabaseAdmin = await getSupabaseAdmin();
+    await assertAdmin(context.userId, supabaseAdmin);
 
     const performed: string[] = [];
     const notes: string[] = [];
     const errors: string[] = [];
 
     // Resolve auth user (if any).
-    const authUsers = await loadAuthUsers();
+    const authUsers = await loadAuthUsers(supabaseAdmin);
     const auth = authUsers.find((u) => (u.email ?? "").toLowerCase() === data.email) ?? null;
 
     if (data.actions.includes("link_subscriptions")) {

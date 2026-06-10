@@ -111,7 +111,7 @@ function PeoplePage() {
       if (filter === "issues" && p.issues.length === 0) return false;
       if (filter === "duplicates" && p.subscriptionCount <= 1) return false;
       if (filter === "unlinked" && !p.issues.includes("subscription_unlinked")) return false;
-      if (filter === "never_in" && !p.issues.includes("never_signed_in")) return false;
+      if (filter === "never_in" && (!p.authUserId || p.lastSignInAt)) return false;
       if (!text) return true;
       return p.email.includes(text) || (p.fullName ?? "").toLowerCase().includes(text);
     });
@@ -266,8 +266,6 @@ function PersonRowItem({
   if (person.issues.includes("unclaimed_pending_claim") && hasAuth) suggested.push("claim_pending");
   if (person.issues.includes("duplicate_subscriptions")) suggested.push("dedupe_subscriptions");
   if (person.issues.includes("no_auth_account")) suggested.push("send_invite");
-  else if (person.issues.includes("never_signed_in") || person.issues.includes("email_unconfirmed"))
-    suggested.push("send_reset");
 
   return (
     <li className="grid grid-cols-[2fr_1fr_1.4fr_1.6fr] items-start gap-3 px-4 py-3">
@@ -278,7 +276,7 @@ function PersonRowItem({
           {person.isAdmin ? <span className="ml-2 text-signal">admin</span> : null}
           {person.lastSignInAt
             ? <span className="ml-2">· last in {new Date(person.lastSignInAt).toLocaleDateString()}</span>
-            : hasAuth ? <span className="ml-2">· never signed in</span> : null}
+            : hasAuth ? <span className="ml-2">· account not used yet</span> : null}
         </p>
       </div>
       <div className="text-[12px]">

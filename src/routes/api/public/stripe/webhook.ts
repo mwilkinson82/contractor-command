@@ -1,6 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import Stripe from "stripe";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+
+type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
+
+async function getSupabaseAdmin() {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin;
+}
 
 // Stripe webhook: keeps `subscriptions` in sync with Stripe state.
 // Configure this URL in Stripe Dashboard → Developers → Webhooks:
@@ -12,8 +18,8 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 //   STRIPE_PRICE_ID_BOOK       → 'book_buyer'   (alphandbook.com, $47 one-time)
 //   STRIPE_PRICE_ID_INTENSIVE  → 'intensive'    ($5,000 one-time)
 //   STRIPE_PRICE_ID_CIRCLE     → 'circle'       (recurring subscription)
-// Anything else defaults to 'aos_only' (safe baseline — no Circle access
-// is ever granted unless the price/metadata explicitly maps to it).
+// Anything else is ignored. This Stripe account also sells products outside
+// this portal, so unknown prices must not create people/subscription rows here.
 
 type Tier = "book_buyer" | "power_hour" | "sm_school" | "contractor_school" | "intensive" | "circle" | "aos_only";
 type WebhookEventClaim = "process" | "duplicate" | "in_progress";
@@ -34,7 +40,7 @@ function tierForPrice(
   priceId: string | null,
   metaProduct?: string | null,
   metaKind?: string | null,
-): Tier {
+): Tier | null {
   const product = metaProduct ?? metaKind ?? null;
   if (product === "book_v2" || product === "book") return "book_buyer";
   if (product === "power_hour") return "power_hour";
@@ -50,7 +56,7 @@ function tierForPrice(
   if (priceId && (priceId === process.env.STRIPE_PRICE_ID_POWER_HOUR_MONTH || priceId === process.env.STRIPE_PRICE_ID_POWER_HOUR_QUARTER)) return "power_hour";
   if (priceId && (priceId === process.env.STRIPE_PRICE_ID_SM_SCHOOL_MONTH || priceId === process.env.STRIPE_PRICE_ID_SM_SCHOOL_QUARTER)) return "sm_school";
   if (priceId && (priceId === process.env.STRIPE_PRICE_ID_CONTRACTOR_SCHOOL_MONTH || priceId === process.env.STRIPE_PRICE_ID_CONTRACTOR_SCHOOL_QUARTER)) return "contractor_school";
-  return "aos_only";
+  return null;
 }
 
 function productLabelForTier(tier: Tier): string {
@@ -63,7 +69,7 @@ function stripeObjectId(event: Stripe.Event): string | null {
   return typeof object.id === "string" ? object.id : null;
 }
 
-async function beginWebhookEvent(event: Stripe.Event): Promise<WebhookEventClaim> {
+async function beginWebhookEvent(supabaseAdmin: SupabaseAdminClient, event: Stripe.Event): Promise<WebhookEventClaim> {
   const rpc = supabaseAdmin as unknown as SupabaseRpcClient;
   const { data, error } = await rpc.rpc<WebhookEventClaim>("begin_stripe_webhook_event", {
     _event_id: event.id,
@@ -82,7 +88,7 @@ async function beginWebhookEvent(event: Stripe.Event): Promise<WebhookEventClaim
   throw new Error(`Unexpected Stripe webhook claim result: ${String(data)}`);
 }
 
-async function finishWebhookEvent(eventId: string, status: "processed" | "failed", err?: unknown) {
+async function finishWebhookEvent(supabaseAdmin: SupabaseAdminClient, eventId: string, status: "processed" | "failed", err?: unknown) {
   const message = err instanceof Error ? err.message : err ? String(err) : null;
   const rpc = supabaseAdmin as unknown as SupabaseRpcClient;
   const { error } = await rpc.rpc<void>("finish_stripe_webhook_event", {
@@ -117,6 +123,7 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
 
         const body = await request.text();
         const stripe = new Stripe(secret, { apiVersion: "2024-12-18.acacia" as never });
+        const supabaseAdmin = await getSupabaseAdmin();
 
         let event: Stripe.Event;
         try {
@@ -128,7 +135,7 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
 
         let claim: WebhookEventClaim;
         try {
-          claim = await beginWebhookEvent(event);
+          claim = await beginWebhookEvent(supabaseAdmin, event);
         } catch (err) {
           console.error("Stripe webhook idempotency check failed", {
             type: event.type,
@@ -156,9 +163,9 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
             case "customer.subscription.deleted": {
               const sub = event.data.object as Stripe.Subscription;
               if (isAosAddonSubscription(sub)) {
-                await upsertAosAddon(stripe, sub);
+                await upsertAosAddon(supabaseAdmin, stripe, sub);
               } else {
-                await upsertSubscription(stripe, sub);
+                await upsertSubscription(supabaseAdmin, stripe, sub);
               }
               break;
             }
@@ -171,15 +178,15 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
                     : session.subscription.id,
                 );
                 if (isAosAddonSubscription(sub)) {
-                  await upsertAosAddon(stripe, sub);
+                  await upsertAosAddon(supabaseAdmin, stripe, sub);
                 } else {
-                  await upsertSubscription(stripe, sub);
+                  await upsertSubscription(supabaseAdmin, stripe, sub);
                 }
               } else {
                 // One-time purchase (book, intensive). No subscription object;
                 // we synthesize a row keyed on the session id so the tier
                 // resolver and claim flow still work.
-                await upsertOneTimePurchase(stripe, session);
+                await upsertOneTimePurchase(supabaseAdmin, stripe, session);
               }
               break;
             }
@@ -194,18 +201,18 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
                 typeof subscription === "string" ? subscription : subscription?.id;
               if (subscriptionId) {
                 const sub = await stripe.subscriptions.retrieve(subscriptionId);
-                await upsertSubscription(stripe, sub);
+                await upsertSubscription(supabaseAdmin, stripe, sub);
               }
               break;
             }
             default:
               break;
           }
-          await finishWebhookEvent(event.id, "processed");
+          await finishWebhookEvent(supabaseAdmin, event.id, "processed");
         } catch (err) {
           console.error("Stripe webhook handler error", { type: event.type, err });
           try {
-            await finishWebhookEvent(event.id, "failed", err);
+            await finishWebhookEvent(supabaseAdmin, event.id, "failed", err);
           } catch {
             // finishWebhookEvent already logs; preserve the Stripe retry signal.
           }
@@ -221,7 +228,7 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
   },
 });
 
-async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
+async function upsertSubscription(supabaseAdmin: SupabaseAdminClient, stripe: Stripe, sub: Stripe.Subscription) {
   let email: string | null = null;
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const existingByStripe = await supabaseAdmin
@@ -250,6 +257,7 @@ async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
   const currentPeriodEnd = cpe ? new Date(cpe * 1000).toISOString() : null;
   const metadata = (sub.metadata ?? {}) as Record<string, string>;
   const tier = tierForPrice(priceId, metadata.product, metadata.kind);
+  if (!tier) return;
 
   const { data: profile } = await supabaseAdmin
     .from("profiles")
@@ -300,14 +308,14 @@ async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
     }
 
     if (sub.status === "active" || sub.status === "trialing") {
-      await invitePaidMemberIfNeeded(normalizedEmail);
+      await invitePaidMemberIfNeeded(supabaseAdmin, normalizedEmail);
     }
   }
 }
 
 // One-time purchase path (book, intensive). Mirrors upsertSubscription so the
 // tier/claim resolver works the same way for recurring and one-time products.
-async function upsertOneTimePurchase(stripe: Stripe, session: Stripe.Checkout.Session) {
+async function upsertOneTimePurchase(supabaseAdmin: SupabaseAdminClient, stripe: Stripe, session: Stripe.Checkout.Session) {
   let email: string | null = session.customer_details?.email ?? session.customer_email ?? null;
   const customerId =
     typeof session.customer === "string" ? session.customer : (session.customer?.id ?? null);
@@ -382,6 +390,7 @@ async function upsertOneTimePurchase(stripe: Stripe, session: Stripe.Checkout.Se
   }
 
   const tier = tierForPrice(priceId, metadata.product, metadata.kind);
+  if (!tier) return;
 
   const { data: profile } = await supabaseAdmin
     .from("profiles")
@@ -434,11 +443,11 @@ async function upsertOneTimePurchase(stripe: Stripe, session: Stripe.Checkout.Se
       console.error("Failed to upsert one-time pending claim", pendingErr);
       throw new Error(pendingErr.message);
     }
-    await invitePaidMemberIfNeeded(normalizedEmail);
+    await invitePaidMemberIfNeeded(supabaseAdmin, normalizedEmail);
   }
 }
 
-async function invitePaidMemberIfNeeded(email: string) {
+async function invitePaidMemberIfNeeded(supabaseAdmin: SupabaseAdminClient, email: string) {
   const perPage = 200;
   for (let page = 1; page <= 25; page++) {
     const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
@@ -492,7 +501,7 @@ function addonKindForPrice(priceId: string | null): "seat" | "workspace" | null 
   return null;
 }
 
-async function upsertAosAddon(stripe: Stripe, sub: Stripe.Subscription) {
+async function upsertAosAddon(supabaseAdmin: SupabaseAdminClient, stripe: Stripe, sub: Stripe.Subscription) {
   let email: string | null = null;
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   try {
