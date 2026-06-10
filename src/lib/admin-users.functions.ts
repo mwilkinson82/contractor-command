@@ -87,14 +87,26 @@ export const listAdminUsers = createServerFn({ method: "GET" })
     );
 
     type SubRow = NonNullable<typeof subs>[number];
-    // Pick the "best" sub row when multiple exist for the same user/email:
-    // 1. one with a real Stripe subscription_id wins
-    // 2. then one with a Stripe customer_id
-    // 3. then the most recently created
+    // Pick the "best" sub row when multiple exist for the same user/email.
+    // Order matters: a live row ALWAYS beats a dead one, even if the dead row
+    // has stronger Stripe IDs. Otherwise an admin_dedupe-canceled book_buyer
+    // row outranks the comped hardcore row and the member shows "Canceled".
+    const DEAD = new Set(["canceled", "superseded", "incomplete_expired", "incomplete"]);
+    const TIER_RANK: Record<string, number> = {
+      aos_only: 0, book_buyer: 1, intensive: 3,
+      power_hour: 4, sm_school: 4, contractor_school: 4, circle: 4,
+      hardcore: 5,
+    };
+    function isLive(s: SubRow): boolean {
+      if (DEAD.has(s.status ?? "")) return false;
+      return s.is_comped || s.status === "active" || s.status === "trialing" || s.status === "comped";
+    }
     function rank(s: SubRow): number {
-      if (s.stripe_subscription_id) return 3;
-      if (s.stripe_customer_id) return 2;
-      return 1;
+      // Encode priority as a single number: live (1000) > tier (×10) > stripe signal.
+      const liveScore = isLive(s) ? 1000 : 0;
+      const tierScore = (TIER_RANK[(s as { tier?: string | null }).tier ?? ""] ?? 0) * 10;
+      const stripeScore = s.stripe_subscription_id ? 3 : s.stripe_customer_id ? 2 : 1;
+      return liveScore + tierScore + stripeScore;
     }
     function pickBetter(a: SubRow | undefined, b: SubRow): SubRow {
       if (!a) return b;
