@@ -12,9 +12,15 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
-async function assertAdmin(userId: string) {
+async function getSupabaseAdmin() {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin;
+}
+
+type SupabaseAdmin = Awaited<ReturnType<typeof getSupabaseAdmin>>;
+
+async function assertAdmin(userId: string, supabaseAdmin: SupabaseAdmin) {
   const { data: roles } = await supabaseAdmin
     .from("user_roles")
     .select("role")
@@ -29,6 +35,36 @@ function originRoot(): string {
     process.env.APP_ORIGIN ||
     "https://app.alpcontractorcircle.com";
   return o.replace(/\/$/, "");
+}
+
+const LIVE_STATUSES = new Set(["active", "trialing"]);
+const PENDING_CLAIM_WINDOW_DAYS = 30;
+
+function isLiveSubscription(row: { status: string | null; is_comped: boolean }) {
+  return row.is_comped || LIVE_STATUSES.has(row.status ?? "");
+}
+
+function isPeopleRelevantSubscription(row: {
+  tier: string | null;
+  status: string | null;
+  is_comped: boolean;
+  stripe_subscription_id?: string | null;
+}) {
+  if (!isLiveSubscription(row)) return false;
+
+  // `aos_only` Stripe rows were the noisy catch-all for unrelated Stripe products
+  // like ALP University. AOS is granted through the portal, not treated as a buyer tier here.
+  if (row.tier === "aos_only" && !row.is_comped && row.stripe_subscription_id) return false;
+
+  return true;
+}
+
+function isRecentOpenClaim(row: { claimed_at: string | null; created_at: string }) {
+  if (row.claimed_at) return false;
+  const createdAt = new Date(row.created_at).getTime();
+  if (!Number.isFinite(createdAt)) return false;
+  const cutoff = Date.now() - PENDING_CLAIM_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  return createdAt >= cutoff;
 }
 
 // What can be wrong with a person.
@@ -84,7 +120,7 @@ type AuthUserLite = {
   created_at: string;
 };
 
-async function loadAuthUsers(): Promise<AuthUserLite[]> {
+async function loadAuthUsers(supabaseAdmin: SupabaseAdmin): Promise<AuthUserLite[]> {
   const out: AuthUserLite[] = [];
   const perPage = 200;
   for (let page = 1; page <= 50; page++) {
