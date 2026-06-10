@@ -307,14 +307,15 @@ export const repairPerson = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(RepairInput.parse)
   .handler(async ({ data, context }): Promise<RepairResult> => {
-    await assertAdmin(context.userId);
+    const supabaseAdmin = await getSupabaseAdmin();
+    await assertAdmin(context.userId, supabaseAdmin);
 
     const performed: string[] = [];
     const notes: string[] = [];
     const errors: string[] = [];
 
     // Resolve auth user (if any).
-    const authUsers = await loadAuthUsers();
+    const authUsers = await loadAuthUsers(supabaseAdmin);
     const auth = authUsers.find((u) => (u.email ?? "").toLowerCase() === data.email) ?? null;
 
     if (data.actions.includes("link_subscriptions")) {
