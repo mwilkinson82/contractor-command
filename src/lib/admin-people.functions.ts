@@ -167,11 +167,12 @@ function bestTier(rows: { tier: string | null; status: string | null; is_comped:
 export const auditPeople = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<PeopleAudit> => {
-    await assertAdmin(context.userId);
+    const supabaseAdmin = await getSupabaseAdmin();
+    await assertAdmin(context.userId, supabaseAdmin);
 
     const [authUsers, { data: profiles }, { data: subs }, { data: claims }, { data: roles }] =
       await Promise.all([
-        loadAuthUsers(),
+        loadAuthUsers(supabaseAdmin),
         supabaseAdmin.from("profiles").select("id,email,full_name,created_at"),
         supabaseAdmin
           .from("subscriptions")
@@ -183,6 +184,9 @@ export const auditPeople = createServerFn({ method: "GET" })
           .select("id,email,status,claimed_at,metadata,created_at"),
         supabaseAdmin.from("user_roles").select("user_id,role"),
       ]);
+
+    const relevantSubs = (subs ?? []).filter(isPeopleRelevantSubscription);
+    const relevantClaims = (claims ?? []).filter(isRecentOpenClaim);
 
     const adminIds = new Set(
       (roles ?? []).filter((r) => r.role === "admin").map((r) => r.user_id),
@@ -210,14 +214,19 @@ export const auditPeople = createServerFn({ method: "GET" })
 
     for (const u of authUsers) bucket(u.email)?.auth.push(u);
     for (const p of profiles ?? []) bucket(p.email)?.profiles.push(p);
-    for (const s of subs ?? []) bucket(s.email)?.subs.push(s);
-    for (const c of claims ?? []) bucket(c.email)?.claims.push(c);
+    for (const s of relevantSubs) bucket(s.email)?.subs.push(s);
+    for (const c of relevantClaims) bucket(c.email)?.claims.push(c);
 
     const people: PersonRow[] = [];
     for (const b of buckets.values()) {
       const auth = b.auth[0] ?? null;
       const prof = b.profiles[0] ?? null;
       const authId = auth?.id ?? prof?.id ?? null;
+      const isAdmin = authId ? adminIds.has(authId) : false;
+
+      // This view is for entitlement cleanup. Do not surface random auth/profile
+      // rows unless they have a relevant subscription/claim or are an admin.
+      if (!isAdmin && b.subs.length === 0 && b.claims.length === 0) continue;
 
       const { tier, active } = bestTier(b.subs);
       const isComped = b.subs.some((s) => s.is_comped);
@@ -232,8 +241,6 @@ export const auditPeople = createServerFn({ method: "GET" })
       if (!prof && auth) {
         // no profile row — usually means handle_new_user trigger didn't fire (rare).
       }
-
-      const isAdmin = authId ? adminIds.has(authId) : false;
 
       people.push({
         key: authId ?? `email:${b.email}`,
@@ -263,8 +270,8 @@ export const auditPeople = createServerFn({ method: "GET" })
       people: people.length,
       withIssues: people.filter((p) => p.issues.length > 0).length,
       duplicates: people.filter((p) => p.subscriptionCount > 1).length,
-      unlinkedSubs: (subs ?? []).filter((s) => !s.user_id).length,
-      pendingClaims: (claims ?? []).filter((c) => !c.claimed_at).length,
+      unlinkedSubs: relevantSubs.filter((s) => !s.user_id).length,
+      pendingClaims: relevantClaims.length,
     };
 
     return { people, totals };
