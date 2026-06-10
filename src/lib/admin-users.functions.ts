@@ -77,7 +77,7 @@ export const listAdminUsers = createServerFn({ method: "GET" })
       supabaseAdmin
         .from("subscriptions")
         .select(
-          "id,user_id,email,status,is_comped,is_founding,cancel_at_period_end,current_period_end,price_id,stripe_customer_id,stripe_subscription_id",
+          "id,user_id,email,status,is_comped,is_founding,cancel_at_period_end,current_period_end,price_id,stripe_customer_id,stripe_subscription_id,tier",
         ),
       supabaseAdmin.from("user_roles").select("user_id,role"),
     ]);
