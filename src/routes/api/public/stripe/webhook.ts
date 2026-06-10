@@ -123,6 +123,7 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
 
         const body = await request.text();
         const stripe = new Stripe(secret, { apiVersion: "2024-12-18.acacia" as never });
+        const supabaseAdmin = await getSupabaseAdmin();
 
         let event: Stripe.Event;
         try {
@@ -134,7 +135,7 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
 
         let claim: WebhookEventClaim;
         try {
-          claim = await beginWebhookEvent(event);
+          claim = await beginWebhookEvent(supabaseAdmin, event);
         } catch (err) {
           console.error("Stripe webhook idempotency check failed", {
             type: event.type,
@@ -162,9 +163,9 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
             case "customer.subscription.deleted": {
               const sub = event.data.object as Stripe.Subscription;
               if (isAosAddonSubscription(sub)) {
-                await upsertAosAddon(stripe, sub);
+                await upsertAosAddon(supabaseAdmin, stripe, sub);
               } else {
-                await upsertSubscription(stripe, sub);
+                await upsertSubscription(supabaseAdmin, stripe, sub);
               }
               break;
             }
@@ -177,15 +178,15 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
                     : session.subscription.id,
                 );
                 if (isAosAddonSubscription(sub)) {
-                  await upsertAosAddon(stripe, sub);
+                  await upsertAosAddon(supabaseAdmin, stripe, sub);
                 } else {
-                  await upsertSubscription(stripe, sub);
+                  await upsertSubscription(supabaseAdmin, stripe, sub);
                 }
               } else {
                 // One-time purchase (book, intensive). No subscription object;
                 // we synthesize a row keyed on the session id so the tier
                 // resolver and claim flow still work.
-                await upsertOneTimePurchase(stripe, session);
+                await upsertOneTimePurchase(supabaseAdmin, stripe, session);
               }
               break;
             }
@@ -200,18 +201,18 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
                 typeof subscription === "string" ? subscription : subscription?.id;
               if (subscriptionId) {
                 const sub = await stripe.subscriptions.retrieve(subscriptionId);
-                await upsertSubscription(stripe, sub);
+                await upsertSubscription(supabaseAdmin, stripe, sub);
               }
               break;
             }
             default:
               break;
           }
-          await finishWebhookEvent(event.id, "processed");
+          await finishWebhookEvent(supabaseAdmin, event.id, "processed");
         } catch (err) {
           console.error("Stripe webhook handler error", { type: event.type, err });
           try {
-            await finishWebhookEvent(event.id, "failed", err);
+            await finishWebhookEvent(supabaseAdmin, event.id, "failed", err);
           } catch {
             // finishWebhookEvent already logs; preserve the Stripe retry signal.
           }
