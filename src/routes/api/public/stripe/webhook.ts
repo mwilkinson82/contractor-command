@@ -1,6 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import Stripe from "stripe";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+
+type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
+
+async function getSupabaseAdmin() {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin;
+}
 
 // Stripe webhook: keeps `subscriptions` in sync with Stripe state.
 // Configure this URL in Stripe Dashboard → Developers → Webhooks:
@@ -12,8 +18,8 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 //   STRIPE_PRICE_ID_BOOK       → 'book_buyer'   (alphandbook.com, $47 one-time)
 //   STRIPE_PRICE_ID_INTENSIVE  → 'intensive'    ($5,000 one-time)
 //   STRIPE_PRICE_ID_CIRCLE     → 'circle'       (recurring subscription)
-// Anything else defaults to 'aos_only' (safe baseline — no Circle access
-// is ever granted unless the price/metadata explicitly maps to it).
+// Anything else is ignored. This Stripe account also sells products outside
+// this portal, so unknown prices must not create people/subscription rows here.
 
 type Tier = "book_buyer" | "power_hour" | "sm_school" | "contractor_school" | "intensive" | "circle" | "aos_only";
 type WebhookEventClaim = "process" | "duplicate" | "in_progress";
@@ -34,7 +40,7 @@ function tierForPrice(
   priceId: string | null,
   metaProduct?: string | null,
   metaKind?: string | null,
-): Tier {
+): Tier | null {
   const product = metaProduct ?? metaKind ?? null;
   if (product === "book_v2" || product === "book") return "book_buyer";
   if (product === "power_hour") return "power_hour";
@@ -50,7 +56,7 @@ function tierForPrice(
   if (priceId && (priceId === process.env.STRIPE_PRICE_ID_POWER_HOUR_MONTH || priceId === process.env.STRIPE_PRICE_ID_POWER_HOUR_QUARTER)) return "power_hour";
   if (priceId && (priceId === process.env.STRIPE_PRICE_ID_SM_SCHOOL_MONTH || priceId === process.env.STRIPE_PRICE_ID_SM_SCHOOL_QUARTER)) return "sm_school";
   if (priceId && (priceId === process.env.STRIPE_PRICE_ID_CONTRACTOR_SCHOOL_MONTH || priceId === process.env.STRIPE_PRICE_ID_CONTRACTOR_SCHOOL_QUARTER)) return "contractor_school";
-  return "aos_only";
+  return null;
 }
 
 function productLabelForTier(tier: Tier): string {
@@ -63,7 +69,7 @@ function stripeObjectId(event: Stripe.Event): string | null {
   return typeof object.id === "string" ? object.id : null;
 }
 
-async function beginWebhookEvent(event: Stripe.Event): Promise<WebhookEventClaim> {
+async function beginWebhookEvent(supabaseAdmin: SupabaseAdminClient, event: Stripe.Event): Promise<WebhookEventClaim> {
   const rpc = supabaseAdmin as unknown as SupabaseRpcClient;
   const { data, error } = await rpc.rpc<WebhookEventClaim>("begin_stripe_webhook_event", {
     _event_id: event.id,
@@ -82,7 +88,7 @@ async function beginWebhookEvent(event: Stripe.Event): Promise<WebhookEventClaim
   throw new Error(`Unexpected Stripe webhook claim result: ${String(data)}`);
 }
 
-async function finishWebhookEvent(eventId: string, status: "processed" | "failed", err?: unknown) {
+async function finishWebhookEvent(supabaseAdmin: SupabaseAdminClient, eventId: string, status: "processed" | "failed", err?: unknown) {
   const message = err instanceof Error ? err.message : err ? String(err) : null;
   const rpc = supabaseAdmin as unknown as SupabaseRpcClient;
   const { error } = await rpc.rpc<void>("finish_stripe_webhook_event", {
