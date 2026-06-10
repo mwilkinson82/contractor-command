@@ -501,7 +501,7 @@ function addonKindForPrice(priceId: string | null): "seat" | "workspace" | null 
   return null;
 }
 
-async function upsertAosAddon(stripe: Stripe, sub: Stripe.Subscription) {
+async function upsertAosAddon(supabaseAdmin: SupabaseAdminClient, stripe: Stripe, sub: Stripe.Subscription) {
   let email: string | null = null;
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   try {
