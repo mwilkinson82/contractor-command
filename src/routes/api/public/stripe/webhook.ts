@@ -228,7 +228,7 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
   },
 });
 
-async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
+async function upsertSubscription(supabaseAdmin: SupabaseAdminClient, stripe: Stripe, sub: Stripe.Subscription) {
   let email: string | null = null;
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const existingByStripe = await supabaseAdmin
@@ -257,6 +257,7 @@ async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
   const currentPeriodEnd = cpe ? new Date(cpe * 1000).toISOString() : null;
   const metadata = (sub.metadata ?? {}) as Record<string, string>;
   const tier = tierForPrice(priceId, metadata.product, metadata.kind);
+  if (!tier) return;
 
   const { data: profile } = await supabaseAdmin
     .from("profiles")
@@ -307,14 +308,14 @@ async function upsertSubscription(stripe: Stripe, sub: Stripe.Subscription) {
     }
 
     if (sub.status === "active" || sub.status === "trialing") {
-      await invitePaidMemberIfNeeded(normalizedEmail);
+      await invitePaidMemberIfNeeded(supabaseAdmin, normalizedEmail);
     }
   }
 }
 
 // One-time purchase path (book, intensive). Mirrors upsertSubscription so the
 // tier/claim resolver works the same way for recurring and one-time products.
-async function upsertOneTimePurchase(stripe: Stripe, session: Stripe.Checkout.Session) {
+async function upsertOneTimePurchase(supabaseAdmin: SupabaseAdminClient, stripe: Stripe, session: Stripe.Checkout.Session) {
   let email: string | null = session.customer_details?.email ?? session.customer_email ?? null;
   const customerId =
     typeof session.customer === "string" ? session.customer : (session.customer?.id ?? null);
@@ -389,6 +390,7 @@ async function upsertOneTimePurchase(stripe: Stripe, session: Stripe.Checkout.Se
   }
 
   const tier = tierForPrice(priceId, metadata.product, metadata.kind);
+  if (!tier) return;
 
   const { data: profile } = await supabaseAdmin
     .from("profiles")
@@ -441,11 +443,11 @@ async function upsertOneTimePurchase(stripe: Stripe, session: Stripe.Checkout.Se
       console.error("Failed to upsert one-time pending claim", pendingErr);
       throw new Error(pendingErr.message);
     }
-    await invitePaidMemberIfNeeded(normalizedEmail);
+    await invitePaidMemberIfNeeded(supabaseAdmin, normalizedEmail);
   }
 }
 
-async function invitePaidMemberIfNeeded(email: string) {
+async function invitePaidMemberIfNeeded(supabaseAdmin: SupabaseAdminClient, email: string) {
   const perPage = 200;
   for (let page = 1; page <= 25; page++) {
     const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
