@@ -26,7 +26,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { mintAosSopImportToken } from "@/lib/aos.functions";
 import { vault } from "@/lib/vault";
 import type { SopDocument, SopStep } from "@/lib/tools/sop-draft";
-import type jsPDF from "jspdf";
+import { downloadSopAsPdf, downloadSopMarkdown } from "@/lib/tools/sop-download";
 import type { OptimizationPlay, SopBacklogItem, SopDepartment } from "@/lib/tools/sop-department";
 
 type Props = {
