@@ -1058,6 +1058,48 @@ const CARD: [number, number, number] = [252, 251, 249];
 const BORDER: [number, number, number] = [209, 207, 199];
 const DIVIDER: [number, number, number] = [226, 222, 214];
 
+function sopToMarkdown(d: SopDocument): string {
+  const lines: string[] = [];
+  lines.push(`# ${d.title}`);
+  lines.push("");
+  lines.push(`**Department:** ${d.department}  `);
+  lines.push(`**Owner:** ${d.owner}  `);
+  lines.push(`**Revision cadence:** ${d.revisionCadence}`);
+  lines.push("");
+  lines.push(`## Purpose`);
+  lines.push(d.purpose);
+  lines.push("");
+  lines.push(`## Scope`);
+  lines.push(d.scope);
+  lines.push("");
+  lines.push(`## Trigger`);
+  lines.push(d.trigger);
+  lines.push("");
+  lines.push(`## Inputs`);
+  d.inputs.forEach((x) => lines.push(`- ${x}`));
+  lines.push("");
+  lines.push(`## Procedure`);
+  d.steps.forEach((s) => {
+    lines.push(`${s.number}. ${s.action}`);
+    if (s.detail) lines.push(`   - ${s.detail}`);
+  });
+  lines.push("");
+  lines.push(`## Outputs`);
+  d.outputs.forEach((x) => lines.push(`- ${x}`));
+  lines.push("");
+  lines.push(`## Definition of Done`);
+  lines.push(d.definitionOfDone);
+  lines.push("");
+  lines.push(`## KPIs`);
+  d.kpis.forEach((x) => lines.push(`- ${x}`));
+  lines.push("");
+  lines.push(`## Exceptions`);
+  d.exceptions.forEach((x) => lines.push(`- ${x}`));
+  lines.push("");
+  return lines.join("\n");
+}
+
+
 function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
