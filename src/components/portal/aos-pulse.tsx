@@ -198,7 +198,8 @@ export function AosPulse() {
             isFetching={isFetching}
             opening={opening}
             onOpenAos={openAosInNewTab}
-            onRecheck={() => refetch()}
+            onRecheck={handleRecheck}
+
           />
         ) : (
           <PulseBoard snapshot={data.snapshot} companyName={data.snapshot.company_name} />
