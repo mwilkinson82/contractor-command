@@ -126,6 +126,14 @@ export function AosPulse() {
     }
   }, [data, companyId]);
 
+  useEffect(() => {
+    if (!data?.ok || !data.snapshot.linked) return;
+    const liveCompanyId = data.snapshot.company_id;
+    if (!liveCompanyId || liveCompanyId === companyId) return;
+    setCompanyId(liveCompanyId);
+    window.localStorage.setItem(COMPANY_KEY, liveCompanyId);
+  }, [data, companyId]);
+
   const companies: AosCompany[] =
     data?.ok
       ? data.snapshot.linked
