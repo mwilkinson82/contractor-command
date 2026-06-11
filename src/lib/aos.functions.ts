@@ -298,7 +298,7 @@ export const getAosSnapshot = createServerFn({ method: "POST" })
               .clone()
               .text()
               .catch(() => "");
-            if (!/signature/i.test(text)) break;
+            if (![401, 403].includes(res.status) && !/signature|unauthori[sz]ed|forbidden/i.test(text)) break;
           }
 
           if (res?.ok || signingSecret === secret.trim()) break;
