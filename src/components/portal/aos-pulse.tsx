@@ -76,6 +76,35 @@ export function AosPulse() {
     enabled: !!user,
   });
 
+  const handleRecheck = useCallback(async () => {
+    const t = toast.loading("Checking AOS…");
+    try {
+      const res = await refetch();
+      const d = res.data;
+      if (d?.ok && d.snapshot.linked) {
+        toast.success("AOS connected", { id: t });
+      } else if (d?.ok && !d.snapshot.linked) {
+        toast.message("Still not connected", {
+          id: t,
+          description:
+            d.snapshot.reason ||
+            "AOS doesn't see a workspace for your email yet. Sign in to AOS with the same email, then check again.",
+        });
+      } else {
+        toast.error("Couldn't reach AOS", {
+          id: t,
+          description: d && !d.ok ? d.error : "Try again in a moment.",
+        });
+      }
+    } catch (e) {
+      toast.error("Couldn't reach AOS", {
+        id: t,
+        description: e instanceof Error ? e.message : "Try again in a moment.",
+      });
+    }
+  }, [refetch]);
+
+
   useEffect(() => {
     if (!data || !data.ok) return;
     const linkedNow = data.snapshot.linked;
