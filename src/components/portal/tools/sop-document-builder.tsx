@@ -435,11 +435,31 @@ export function SopDocumentBuilder({
       </div>
 
       {loading && (
-        <div className="mt-6 flex items-center gap-3 rounded-md border border-dashed border-border bg-background/60 p-6">
-          <Loader2 className="h-4 w-4 animate-spin text-foreground/70" />
-          <p className="text-[13px] text-foreground/80">
-            Drafting <span className="font-medium">{item.name}</span>…
-          </p>
+        <div className="mt-6 rounded-md border border-dashed border-border bg-background/60 p-5">
+          <div className="flex items-center gap-3">
+            <Loader2 className="h-4 w-4 animate-spin text-foreground/70" />
+            <p className="text-[13px] text-foreground/90">
+              Drafting <span className="font-medium">{item.name}</span>
+              <span className="ml-1 tabular-nums text-foreground/60">· {draftElapsed}s</span>
+            </p>
+          </div>
+          <p className="mt-2 text-[12px] text-muted-foreground">{draftPhase}</p>
+          {draftAttempt > 1 && (
+            <p className="mt-1 text-[11px] text-foreground/70">
+              First attempt timed out — retrying with a faster model. Hang tight.
+            </p>
+          )}
+          {draftElapsed >= 20 && draftAttempt === 1 && (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              First-run drafts can take up to 60 seconds while the model warms up.
+            </p>
+          )}
+          <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-foreground/10">
+            <div
+              className="h-full bg-foreground/40 transition-[width] duration-500 ease-out"
+              style={{ width: `${Math.min(95, draftElapsed * 1.8)}%` }}
+            />
+          </div>
         </div>
       )}
 
@@ -453,7 +473,7 @@ export function SopDocumentBuilder({
             type="button"
             onClick={() => {
               triedDraft.current = false;
-              void draft();
+              void draft(1);
             }}
             className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90"
           >
