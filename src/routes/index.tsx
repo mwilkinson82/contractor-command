@@ -200,10 +200,8 @@ function HomePage() {
         <div className="mx-auto grid w-full max-w-[1180px] gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
           {/* LEFT — symmetrical center column */}
           <div className="flex flex-col gap-5">
-            {/* Featured AOS — submit for the next Circle call (featured slot) */}
-            <AosFeatureSubmit />
-
             {/* Today's move — hero of the dashboard */}
+
             <TodaysMove packets={packets} />
 
             {/* Open issues — same width as Today's move */}
