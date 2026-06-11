@@ -127,6 +127,20 @@ export function PacketCard({
           <Mail className="h-3.5 w-3.5" />
           Email packet
         </button>
+        {sopDoc && (
+          <button
+            onClick={handleDownloadSop}
+            disabled={downloading}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-50"
+          >
+            {downloading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Download className="h-3.5 w-3.5" />
+            )}
+            {downloading ? "Preparing…" : "Download PDF"}
+          </button>
+        )}
         {hasEditableSop(packet) && (
           <Link
             to="/tools/sop-edit/$packetId"
