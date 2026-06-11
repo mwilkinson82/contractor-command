@@ -92,11 +92,15 @@ async function tryGenerateAcrossModels(
   task: (modelId: string, signal: AbortSignal) => Promise<z.infer<typeof DocSchema>>,
   validate: (draft: z.infer<typeof DocSchema>) => void,
 ) {
+  // Flash first: faster + far less prone to cold-start timeouts on the first click.
+  // Pro as a quality fallback if flash fails validation. Each attempt gets enough
+  // headroom to survive a cold AI-gateway warm-up (~6-10s observed).
   const attempts: { modelId: string; timeoutMs: number }[] = [
-    { modelId: "google/gemini-2.5-pro", timeoutMs: 16000 },
-    { modelId: "google/gemini-2.5-flash", timeoutMs: 14000 },
-    { modelId: "openai/gpt-5-mini", timeoutMs: 14000 },
+    { modelId: "google/gemini-2.5-flash", timeoutMs: 28000 },
+    { modelId: "google/gemini-2.5-pro", timeoutMs: 28000 },
+    { modelId: "openai/gpt-5-mini", timeoutMs: 24000 },
   ];
+
 
   let lastError: unknown;
   for (const attempt of attempts) {
