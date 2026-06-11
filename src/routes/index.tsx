@@ -113,6 +113,14 @@ function HomePage() {
   };
 
   useEffect(() => {
+    if (!aosData?.ok || !aosData.snapshot.linked) return;
+    const liveCompanyId = aosData.snapshot.company_id;
+    if (!liveCompanyId || liveCompanyId === companyId) return;
+    try { window.localStorage.setItem(COMPANY_KEY, liveCompanyId); } catch {}
+    setCompanyId(liveCompanyId);
+  }, [aosData, companyId]);
+
+  useEffect(() => {
     setHello(greeting());
     setToday(
       new Date().toLocaleDateString(undefined, {
