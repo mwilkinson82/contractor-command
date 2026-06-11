@@ -307,9 +307,40 @@ export const vault = {
     return saved;
   },
   remove(id: string) {
+    const prev = cache;
     cache = cache.filter((p) => p.id !== id);
     emit();
-    void supabase.from("vault_packets").delete().eq("id", id);
+    void (async () => {
+      const { error } = await supabase.from("vault_packets").delete().eq("id", id);
+      if (error) {
+        console.error("[vault] remove failed — restoring packet", error);
+        // Restore the packet in cache so the UI reflects reality on next render.
+        cache = prev;
+        hydrated = true;
+        emit();
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("vault:delete-failed", {
+              detail: { id, message: error.message },
+            }),
+          );
+        }
+      }
+    })();
+  },
+  async removeAndPersist(id: string): Promise<{ ok: boolean; error?: string }> {
+    const prev = cache;
+    cache = cache.filter((p) => p.id !== id);
+    emit();
+    const { error } = await supabase.from("vault_packets").delete().eq("id", id);
+    if (error) {
+      console.error("[vault] removeAndPersist failed", error);
+      cache = prev;
+      hydrated = true;
+      emit();
+      return { ok: false, error: error.message };
+    }
+    return { ok: true };
   },
 };
 
