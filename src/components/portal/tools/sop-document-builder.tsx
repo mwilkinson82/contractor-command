@@ -155,9 +155,14 @@ export function SopDocumentBuilder({
     }
   }, [doc, storageKey]);
 
-  async function draft() {
+  async function draft(attempt: number = 1) {
     setLoading(true);
     setError(null);
+    setDraftAttempt(attempt);
+    // Cancel any prior in-flight request before starting a new one.
+    draftAbortRef.current?.abort();
+    const controller = new AbortController();
+    draftAbortRef.current = controller;
     try {
       const {
         data: { session },
@@ -170,6 +175,7 @@ export function SopDocumentBuilder({
       }
       const res = await fetch("/api/sop-draft", {
         method: "POST",
+        signal: controller.signal,
         headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
         body: JSON.stringify({
           sopName: item.name,
@@ -184,7 +190,14 @@ export function SopDocumentBuilder({
         }),
       });
       if (!res.ok) {
-        setError((await res.text()) || `Draft failed (${res.status})`);
+        const msg = (await res.text()) || `Draft failed (${res.status})`;
+        // Auto-retry transient first-click failures (timeout / 502 / 504) once
+        // so the user doesn't have to click again.
+        if (attempt === 1 && (res.status === 502 || res.status === 504 || /timed out/i.test(msg))) {
+          await draft(2);
+          return;
+        }
+        setError(msg);
         setLoading(false);
         return;
       }
@@ -192,7 +205,13 @@ export function SopDocumentBuilder({
       setDoc(drafted);
       setLoading(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Draft failed.");
+      if (controller.signal.aborted) return;
+      const msg = e instanceof Error ? e.message : "Draft failed.";
+      if (attempt === 1) {
+        await draft(2);
+        return;
+      }
+      setError(msg);
       setLoading(false);
     }
   }
