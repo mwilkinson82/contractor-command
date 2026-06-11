@@ -1,10 +1,11 @@
 import { type Packet, packetToClipboard, vault } from "@/lib/vault";
-import { Check, Copy, Loader2, Mail, Pencil, Trash2 } from "lucide-react";
+import { Check, Copy, Download, Loader2, Mail, Pencil, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { sendTransactionalEmail } from "@/lib/email/send";
 import { supabase } from "@/integrations/supabase/client";
+import { downloadSopAsPdf, parseSopFromPacketInputs } from "@/lib/tools/sop-download";
 
 // All packet kinds share the same internal markers. These are NOTES the
 // operator sets for themselves — they do not notify Marshall or fire any
