@@ -1,10 +1,11 @@
 import { type Packet, packetToClipboard, vault } from "@/lib/vault";
-import { Check, Copy, Loader2, Mail, Pencil, Trash2 } from "lucide-react";
+import { Check, Copy, Download, Loader2, Mail, Pencil, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { sendTransactionalEmail } from "@/lib/email/send";
 import { supabase } from "@/integrations/supabase/client";
+import { downloadSopAsPdf, parseSopFromPacketInputs } from "@/lib/tools/sop-download";
 
 // All packet kinds share the same internal markers. These are NOTES the
 // operator sets for themselves — they do not notify Marshall or fire any
@@ -35,10 +36,31 @@ export function PacketCard({
 }) {
   const [copied, setCopied] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadNote, setDownloadNote] = useState<string | null>(null);
   const isSop = isSopPacket(packet);
   const statuses = isSop ? SOP_STATUSES : BASE_STATUSES;
+  const sopDoc = useMemo(
+    () =>
+      packet.kind === "command" ? parseSopFromPacketInputs(packet.inputs) : null,
+    [packet],
+  );
 
   const body = useMemo(() => packetToClipboard(packet), [packet]);
+
+  async function handleDownloadSop() {
+    if (!sopDoc) return;
+    setDownloading(true);
+    setDownloadNote(null);
+    try {
+      const res = await downloadSopAsPdf(sopDoc);
+      if (res.ok === false) {
+        setDownloadNote(res.format === "md" ? res.warning : res.error);
+      }
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   async function handleCopy() {
     try {
@@ -105,6 +127,20 @@ export function PacketCard({
           <Mail className="h-3.5 w-3.5" />
           Email packet
         </button>
+        {sopDoc && (
+          <button
+            onClick={handleDownloadSop}
+            disabled={downloading}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-50"
+          >
+            {downloading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Download className="h-3.5 w-3.5" />
+            )}
+            {downloading ? "Preparing…" : "Download PDF"}
+          </button>
+        )}
         {hasEditableSop(packet) && (
           <Link
             to="/tools/sop-edit/$packetId"
@@ -140,6 +176,12 @@ export function PacketCard({
           </Link>
         ) : null}
       </div>
+
+      {downloadNote && (
+        <p className="mt-2 text-[12px] text-muted-foreground">{downloadNote}</p>
+      )}
+
+
 
       <EmailPacketDialog
         open={emailOpen}
