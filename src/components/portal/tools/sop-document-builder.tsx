@@ -58,6 +58,34 @@ export function SopDocumentBuilder({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const triedDraft = useRef(isEditMode);
+  const [draftElapsed, setDraftElapsed] = useState(0);
+  const [draftAttempt, setDraftAttempt] = useState(1);
+  const draftAbortRef = useRef<AbortController | null>(null);
+
+  // Drive an elapsed timer while drafting so the UI never looks frozen.
+  useEffect(() => {
+    if (!loading) {
+      setDraftElapsed(0);
+      return;
+    }
+    const start = Date.now();
+    const id = window.setInterval(() => {
+      setDraftElapsed(Math.floor((Date.now() - start) / 1000));
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [loading]);
+
+  const DRAFT_PHASES = [
+    "Warming up the model…",
+    "Scoping the SOP to the seat's authority…",
+    "Drafting purpose, scope, trigger…",
+    "Writing the runnable procedure…",
+    "Wiring inputs, outputs, definition of done…",
+    "Setting KPIs and escalation paths…",
+    "Polishing the final draft…",
+  ];
+  const draftPhase =
+    DRAFT_PHASES[Math.min(Math.floor(draftElapsed / 8), DRAFT_PHASES.length - 1)];
 
   // AOS Knowledge Hub hand-off
   const mintAosImport = useServerFn(mintAosSopImportToken);
