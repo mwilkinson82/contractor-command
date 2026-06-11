@@ -177,6 +177,12 @@ export function PacketCard({
         ) : null}
       </div>
 
+      {downloadNote && (
+        <p className="mt-2 text-[12px] text-muted-foreground">{downloadNote}</p>
+      )}
+
+
+
       <EmailPacketDialog
         open={emailOpen}
         onOpenChange={setEmailOpen}
