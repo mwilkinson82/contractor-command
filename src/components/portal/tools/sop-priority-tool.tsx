@@ -596,7 +596,10 @@ function DepartmentMode() {
         return;
       }
       const controller = new AbortController();
-      const timeout = window.setTimeout(() => controller.abort(), 24000);
+      // Server tries up to three models with its own per-model timeouts; give
+      // the request enough headroom to actually walk the chain on cold start.
+      const timeout = window.setTimeout(() => controller.abort(), 75000);
+
       const res = await fetch("/api/sop-backlog", {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
