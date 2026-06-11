@@ -58,6 +58,34 @@ export function SopDocumentBuilder({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const triedDraft = useRef(isEditMode);
+  const [draftElapsed, setDraftElapsed] = useState(0);
+  const [draftAttempt, setDraftAttempt] = useState(1);
+  const draftAbortRef = useRef<AbortController | null>(null);
+
+  // Drive an elapsed timer while drafting so the UI never looks frozen.
+  useEffect(() => {
+    if (!loading) {
+      setDraftElapsed(0);
+      return;
+    }
+    const start = Date.now();
+    const id = window.setInterval(() => {
+      setDraftElapsed(Math.floor((Date.now() - start) / 1000));
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [loading]);
+
+  const DRAFT_PHASES = [
+    "Warming up the model…",
+    "Scoping the SOP to the seat's authority…",
+    "Drafting purpose, scope, trigger…",
+    "Writing the runnable procedure…",
+    "Wiring inputs, outputs, definition of done…",
+    "Setting KPIs and escalation paths…",
+    "Polishing the final draft…",
+  ];
+  const draftPhase =
+    DRAFT_PHASES[Math.min(Math.floor(draftElapsed / 8), DRAFT_PHASES.length - 1)];
 
   // AOS Knowledge Hub hand-off
   const mintAosImport = useServerFn(mintAosSopImportToken);
@@ -127,9 +155,14 @@ export function SopDocumentBuilder({
     }
   }, [doc, storageKey]);
 
-  async function draft() {
+  async function draft(attempt: number = 1) {
     setLoading(true);
     setError(null);
+    setDraftAttempt(attempt);
+    // Cancel any prior in-flight request before starting a new one.
+    draftAbortRef.current?.abort();
+    const controller = new AbortController();
+    draftAbortRef.current = controller;
     try {
       const {
         data: { session },
@@ -142,6 +175,7 @@ export function SopDocumentBuilder({
       }
       const res = await fetch("/api/sop-draft", {
         method: "POST",
+        signal: controller.signal,
         headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
         body: JSON.stringify({
           sopName: item.name,
@@ -156,7 +190,14 @@ export function SopDocumentBuilder({
         }),
       });
       if (!res.ok) {
-        setError((await res.text()) || `Draft failed (${res.status})`);
+        const msg = (await res.text()) || `Draft failed (${res.status})`;
+        // Auto-retry transient first-click failures (timeout / 502 / 504) once
+        // so the user doesn't have to click again.
+        if (attempt === 1 && (res.status === 502 || res.status === 504 || /timed out/i.test(msg))) {
+          await draft(2);
+          return;
+        }
+        setError(msg);
         setLoading(false);
         return;
       }
@@ -164,7 +205,13 @@ export function SopDocumentBuilder({
       setDoc(drafted);
       setLoading(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Draft failed.");
+      if (controller.signal.aborted) return;
+      const msg = e instanceof Error ? e.message : "Draft failed.";
+      if (attempt === 1) {
+        await draft(2);
+        return;
+      }
+      setError(msg);
       setLoading(false);
     }
   }
@@ -388,11 +435,31 @@ export function SopDocumentBuilder({
       </div>
 
       {loading && (
-        <div className="mt-6 flex items-center gap-3 rounded-md border border-dashed border-border bg-background/60 p-6">
-          <Loader2 className="h-4 w-4 animate-spin text-foreground/70" />
-          <p className="text-[13px] text-foreground/80">
-            Drafting <span className="font-medium">{item.name}</span>…
-          </p>
+        <div className="mt-6 rounded-md border border-dashed border-border bg-background/60 p-5">
+          <div className="flex items-center gap-3">
+            <Loader2 className="h-4 w-4 animate-spin text-foreground/70" />
+            <p className="text-[13px] text-foreground/90">
+              Drafting <span className="font-medium">{item.name}</span>
+              <span className="ml-1 tabular-nums text-foreground/60">· {draftElapsed}s</span>
+            </p>
+          </div>
+          <p className="mt-2 text-[12px] text-muted-foreground">{draftPhase}</p>
+          {draftAttempt > 1 && (
+            <p className="mt-1 text-[11px] text-foreground/70">
+              First attempt timed out — retrying with a faster model. Hang tight.
+            </p>
+          )}
+          {draftElapsed >= 20 && draftAttempt === 1 && (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              First-run drafts can take up to 60 seconds while the model warms up.
+            </p>
+          )}
+          <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-foreground/10">
+            <div
+              className="h-full bg-foreground/40 transition-[width] duration-500 ease-out"
+              style={{ width: `${Math.min(95, draftElapsed * 1.8)}%` }}
+            />
+          </div>
         </div>
       )}
 
@@ -406,7 +473,7 @@ export function SopDocumentBuilder({
             type="button"
             onClick={() => {
               triedDraft.current = false;
-              void draft();
+              void draft(1);
             }}
             className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90"
           >
