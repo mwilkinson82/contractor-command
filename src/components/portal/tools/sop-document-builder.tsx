@@ -745,7 +745,7 @@ export function SopDocumentBuilder({
             </button>
             <button
               type="button"
-              onClick={downloadMarkdownFallback}
+              onClick={() => doc && downloadSopMarkdown(doc)}
               className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-[12px] text-foreground/80 hover:bg-muted"
               title="Download a Markdown copy of this SOP"
             >
