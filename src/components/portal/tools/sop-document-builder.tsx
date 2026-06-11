@@ -406,17 +406,58 @@ export function SopDocumentBuilder({
     }
   }
 
-  async function downloadPdf() {
-    if (!doc) return;
-    const { jsPDF } = await import("jspdf");
-    const pdf = new jsPDF({ unit: "pt", format: "letter" });
-    renderSopToPdf(pdf, doc);
-    const safe =
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  function safeFileName(): string {
+    if (!doc) return "sop";
+    return (
       doc.title
         .replace(/[^a-z0-9]+/gi, "-")
         .replace(/^-+|-+$/g, "")
-        .toLowerCase() || "sop";
-    pdf.save(`${safe}.pdf`);
+        .toLowerCase() || "sop"
+    );
+  }
+
+  function downloadMarkdownFallback() {
+    if (!doc) return;
+    const md = sopToMarkdown(doc);
+    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${safeFileName()}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  async function downloadPdf() {
+    if (!doc) return;
+    setDownloadError(null);
+    setDownloading(true);
+    try {
+      const mod = await import("jspdf");
+      const Ctor = (mod as { jsPDF?: typeof jsPDF; default?: typeof jsPDF }).jsPDF
+        ?? (mod as { default?: typeof jsPDF }).default;
+      if (!Ctor) throw new Error("jsPDF failed to load");
+      const pdf = new Ctor({ unit: "pt", format: "letter" });
+      renderSopToPdf(pdf, doc);
+      pdf.save(`${safeFileName()}.pdf`);
+    } catch (e) {
+      console.error("[sop] downloadPdf failed", e);
+      // Fall back to a markdown file so the user always gets a downloadable artifact.
+      try {
+        downloadMarkdownFallback();
+        setDownloadError("PDF generator failed — downloaded a Markdown copy instead.");
+      } catch (e2) {
+        console.error("[sop] markdown fallback failed", e2);
+        setDownloadError(e instanceof Error ? e.message : "Download failed.");
+      }
+    } finally {
+      setDownloading(false);
+    }
   }
 
   return (
