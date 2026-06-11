@@ -36,10 +36,31 @@ export function PacketCard({
 }) {
   const [copied, setCopied] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadNote, setDownloadNote] = useState<string | null>(null);
   const isSop = isSopPacket(packet);
   const statuses = isSop ? SOP_STATUSES : BASE_STATUSES;
+  const sopDoc = useMemo(
+    () =>
+      packet.kind === "command" ? parseSopFromPacketInputs(packet.inputs) : null,
+    [packet],
+  );
 
   const body = useMemo(() => packetToClipboard(packet), [packet]);
+
+  async function handleDownloadSop() {
+    if (!sopDoc) return;
+    setDownloading(true);
+    setDownloadNote(null);
+    try {
+      const res = await downloadSopAsPdf(sopDoc);
+      if (res.ok === false) {
+        setDownloadNote(res.format === "md" ? res.warning : res.error);
+      }
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   async function handleCopy() {
     try {
