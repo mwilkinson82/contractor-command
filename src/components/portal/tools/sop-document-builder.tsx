@@ -809,6 +809,7 @@ export function SopDocumentBuilder({
           </div>
 
           {saveError && <p className="mt-2 text-[12px] text-signal">{saveError}</p>}
+          {downloadError && <p className="mt-2 text-[12px] text-signal">{downloadError}</p>}
 
           {emailOpen && (
             <div
