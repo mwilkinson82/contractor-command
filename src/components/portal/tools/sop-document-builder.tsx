@@ -769,9 +769,23 @@ export function SopDocumentBuilder({
             <button
               type="button"
               onClick={downloadPdf}
-              className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-[13px] font-medium text-foreground hover:bg-muted"
+              disabled={downloading}
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-[13px] font-medium text-foreground hover:bg-muted disabled:opacity-60"
             >
-              <Download className="h-3.5 w-3.5" /> Download PDF
+              {downloading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Download className="h-3.5 w-3.5" />
+              )}
+              {downloading ? "Preparing…" : "Download PDF"}
+            </button>
+            <button
+              type="button"
+              onClick={downloadMarkdownFallback}
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-[12px] text-foreground/80 hover:bg-muted"
+              title="Download a Markdown copy of this SOP"
+            >
+              <Download className="h-3.5 w-3.5" /> .md
             </button>
             {/* Send to AOS Knowledge Hub hidden — SSO hand-off temporarily disabled. */}
             {!isEditMode && (
