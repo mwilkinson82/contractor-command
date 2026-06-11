@@ -116,11 +116,15 @@ export function PacketCard({
           </Link>
         )}
         <button
-          onClick={() => {
-            if (confirm(`Delete "${packet.title}"? This can't be undone.`)) {
-              vault.remove(packet.id);
-              onChange?.();
+          onClick={async () => {
+            if (!confirm(`Delete "${packet.title}"? This can't be undone.`)) return;
+            const res = await vault.removeAndPersist(packet.id);
+            if (!res.ok) {
+              alert(
+                `Couldn't delete "${packet.title}": ${res.error ?? "unknown error"}. The packet is still in your vault.`,
+              );
             }
+            onChange?.();
           }}
           className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-[color:var(--danger-warm)]"
         >

@@ -406,17 +406,58 @@ export function SopDocumentBuilder({
     }
   }
 
-  async function downloadPdf() {
-    if (!doc) return;
-    const { jsPDF } = await import("jspdf");
-    const pdf = new jsPDF({ unit: "pt", format: "letter" });
-    renderSopToPdf(pdf, doc);
-    const safe =
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  function safeFileName(): string {
+    if (!doc) return "sop";
+    return (
       doc.title
         .replace(/[^a-z0-9]+/gi, "-")
         .replace(/^-+|-+$/g, "")
-        .toLowerCase() || "sop";
-    pdf.save(`${safe}.pdf`);
+        .toLowerCase() || "sop"
+    );
+  }
+
+  function downloadMarkdownFallback() {
+    if (!doc) return;
+    const md = sopToMarkdown(doc);
+    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${safeFileName()}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  async function downloadPdf() {
+    if (!doc) return;
+    setDownloadError(null);
+    setDownloading(true);
+    try {
+      const mod = await import("jspdf");
+      const Ctor = (mod as { jsPDF?: typeof jsPDF; default?: typeof jsPDF }).jsPDF
+        ?? (mod as { default?: typeof jsPDF }).default;
+      if (!Ctor) throw new Error("jsPDF failed to load");
+      const pdf = new Ctor({ unit: "pt", format: "letter" });
+      renderSopToPdf(pdf, doc);
+      pdf.save(`${safeFileName()}.pdf`);
+    } catch (e) {
+      console.error("[sop] downloadPdf failed", e);
+      // Fall back to a markdown file so the user always gets a downloadable artifact.
+      try {
+        downloadMarkdownFallback();
+        setDownloadError("PDF generator failed — downloaded a Markdown copy instead.");
+      } catch (e2) {
+        console.error("[sop] markdown fallback failed", e2);
+        setDownloadError(e instanceof Error ? e.message : "Download failed.");
+      }
+    } finally {
+      setDownloading(false);
+    }
   }
 
   return (
@@ -728,9 +769,23 @@ export function SopDocumentBuilder({
             <button
               type="button"
               onClick={downloadPdf}
-              className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-[13px] font-medium text-foreground hover:bg-muted"
+              disabled={downloading}
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-[13px] font-medium text-foreground hover:bg-muted disabled:opacity-60"
             >
-              <Download className="h-3.5 w-3.5" /> Download PDF
+              {downloading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Download className="h-3.5 w-3.5" />
+              )}
+              {downloading ? "Preparing…" : "Download PDF"}
+            </button>
+            <button
+              type="button"
+              onClick={downloadMarkdownFallback}
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-[12px] text-foreground/80 hover:bg-muted"
+              title="Download a Markdown copy of this SOP"
+            >
+              <Download className="h-3.5 w-3.5" /> .md
             </button>
             {/* Send to AOS Knowledge Hub hidden — SSO hand-off temporarily disabled. */}
             {!isEditMode && (
@@ -754,6 +809,7 @@ export function SopDocumentBuilder({
           </div>
 
           {saveError && <p className="mt-2 text-[12px] text-signal">{saveError}</p>}
+          {downloadError && <p className="mt-2 text-[12px] text-signal">{downloadError}</p>}
 
           {emailOpen && (
             <div
@@ -1001,6 +1057,48 @@ const PAPER_DEEP: [number, number, number] = [236, 235, 229];
 const CARD: [number, number, number] = [252, 251, 249];
 const BORDER: [number, number, number] = [209, 207, 199];
 const DIVIDER: [number, number, number] = [226, 222, 214];
+
+function sopToMarkdown(d: SopDocument): string {
+  const lines: string[] = [];
+  lines.push(`# ${d.title}`);
+  lines.push("");
+  lines.push(`**Department:** ${d.department}  `);
+  lines.push(`**Owner:** ${d.owner}  `);
+  lines.push(`**Revision cadence:** ${d.revisionCadence}`);
+  lines.push("");
+  lines.push(`## Purpose`);
+  lines.push(d.purpose);
+  lines.push("");
+  lines.push(`## Scope`);
+  lines.push(d.scope);
+  lines.push("");
+  lines.push(`## Trigger`);
+  lines.push(d.trigger);
+  lines.push("");
+  lines.push(`## Inputs`);
+  d.inputs.forEach((x) => lines.push(`- ${x}`));
+  lines.push("");
+  lines.push(`## Procedure`);
+  d.steps.forEach((s) => {
+    lines.push(`${s.number}. ${s.action}`);
+    if (s.detail) lines.push(`   - ${s.detail}`);
+  });
+  lines.push("");
+  lines.push(`## Outputs`);
+  d.outputs.forEach((x) => lines.push(`- ${x}`));
+  lines.push("");
+  lines.push(`## Definition of Done`);
+  lines.push(d.definitionOfDone);
+  lines.push("");
+  lines.push(`## KPIs`);
+  d.kpis.forEach((x) => lines.push(`- ${x}`));
+  lines.push("");
+  lines.push(`## Exceptions`);
+  d.exceptions.forEach((x) => lines.push(`- ${x}`));
+  lines.push("");
+  return lines.join("\n");
+}
+
 
 function renderSopToPdf(pdf: jsPDF, d: SopDocument): void {
   const pageW = pdf.internal.pageSize.getWidth();
