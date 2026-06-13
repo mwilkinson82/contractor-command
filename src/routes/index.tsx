@@ -398,3 +398,65 @@ function RailRow({
     </div>
   );
 }
+
+function FeaturedLatestClass() {
+  const [busy, setBusy] = useState(false);
+  const templatePath = "project-management/ior-source-of-truth.pdf";
+
+  async function handleDownload() {
+    setBusy(true);
+    const url = await openTemplateFile(templatePath);
+    setBusy(false);
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  return (
+    <section className="relative px-4 sm:px-6 pb-10">
+      <div className="mx-auto w-full max-w-[1180px]">
+        <div className="rounded-2xl border border-ink/15 bg-[var(--paper-deep)] p-6 md:p-8 shadow-[0_1px_0_rgba(0,0,0,0.04)]">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-3.5 w-3.5 text-gold" />
+            <p className="label-mono">Featured · Latest class</p>
+          </div>
+          <h2 className="mt-3 font-display text-3xl md:text-4xl leading-tight">
+            Contractor Circle Project Management Methodologies: IOR
+          </h2>
+
+          <div className="mt-6 overflow-hidden rounded-xl border border-border bg-black">
+            <div style={{ position: "relative", width: "100%", height: 0, paddingBottom: "56.25%" }}>
+              <iframe
+                src="https://us06web.zoom.us/clips/embed/Xz5pycRtQXaogCx_FRwLbw"
+                frameBorder="0"
+                allowFullScreen
+                style={{ position: "absolute", width: "100%", height: "100%", top: 0, left: 0 }}
+                title="Contractor Circle Project Management Methodologies: IOR"
+              />
+            </div>
+          </div>
+
+          <article className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-5">
+            <div className="min-w-0 flex-1">
+              <p className="label-mono">Companion template · PDF</p>
+              <h3 className="mt-1 font-display text-[17px] leading-snug">
+                Project Management Methodology: IOR — The Source of Truth
+              </h3>
+              <p className="mt-1 text-[13px] text-muted-foreground">
+                Marshall's IOR methodology — identify risks before they hit profit, centralize tracking, and run the weekly reporting cadence.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleDownload}
+              disabled={busy}
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 ${busy ? "opacity-60" : ""}`}
+            >
+              <Download className="h-3.5 w-3.5" />
+              {busy ? "Opening…" : "Download PDF"}
+            </button>
+          </article>
+        </div>
+      </div>
+    </section>
+  );
+}
+
