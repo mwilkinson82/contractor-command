@@ -154,6 +154,11 @@ function HomePage() {
 
   return (
     <div className="relative">
+      {/* Featured: latest Contractor Circle class — top of page */}
+      <div className="pt-6">
+        <FeaturedLatestClass />
+      </div>
+
       {/* Ask Marshall hero — the front door */}
       <HomeHero
         companyName={companyName}
@@ -204,9 +209,6 @@ function HomePage() {
           </div>
         </section>
       )}
-
-      {/* Featured: latest Contractor Circle class */}
-      <FeaturedLatestClass />
 
 
       {/* Centered spine + right rail (Perplexity-style) */}
