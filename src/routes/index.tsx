@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { openTemplateFile } from "@/lib/library";
+import { Download, Sparkles } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -202,6 +204,10 @@ function HomePage() {
           </div>
         </section>
       )}
+
+      {/* Featured: latest Contractor Circle class */}
+      <FeaturedLatestClass />
+
 
       {/* Centered spine + right rail (Perplexity-style) */}
       <section className="relative px-4 sm:px-6 pb-10">
