@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Search, ExternalLink, Download, X } from "lucide-react";
+import { FileText, Search, ExternalLink, Download, X, Sparkles } from "lucide-react";
 import { PageHeader, Container } from "@/components/portal/page-header";
 import { openTemplateFile, type TemplateRow } from "@/lib/library";
 import { templatesQueryOptions } from "@/lib/library-queries";
@@ -26,6 +26,11 @@ function TemplatesPage() {
 
   const aosItems = useMemo(
     () => (rows ?? []).filter((r) => r.category === AOS_CATEGORY),
+    [rows],
+  );
+
+  const featuredItems = useMemo(
+    () => (rows ?? []).filter((r) => r.featured && r.category !== AOS_CATEGORY),
     [rows],
   );
 
@@ -88,6 +93,8 @@ function TemplatesPage() {
       ) : (
         <>
           {aosItems.length > 0 && <AOSBand items={aosItems} />}
+
+          {featuredItems.length > 0 && <FeaturedBand items={featuredItems} />}
 
           <section className="mt-16">
             <div className="flex items-baseline justify-between gap-4 border-b border-border pb-3">
@@ -217,6 +224,67 @@ function AOSBand({ items }: { items: TemplateRow[] }) {
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+function FeaturedBand({ items }: { items: TemplateRow[] }) {
+  return (
+    <section className="mt-10">
+      <div className="flex items-center gap-2">
+        <Sparkles className="h-3.5 w-3.5 text-gold" />
+        <p className="label-mono">Featured</p>
+      </div>
+      <div className="mt-3 grid gap-4 md:grid-cols-2">
+        {items.map((it) => {
+          const added = it.created_at
+            ? new Date(it.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+            : null;
+          const metaBits = [
+            it.file_type?.toUpperCase(),
+            it.pages,
+            added ? `Added ${added}` : null,
+          ].filter(Boolean);
+          const prettyCategory = it.category.replace(/_/g, " ");
+          return (
+            <article
+              key={it.id}
+              className="relative overflow-hidden rounded-2xl border border-ink/15 bg-[var(--paper-deep)] p-6 md:p-7 shadow-[0_1px_0_rgba(0,0,0,0.04)]"
+            >
+              <div className="absolute right-5 top-5 flex items-center gap-1.5">
+                {it.badge && (
+                  <span className="rounded-full bg-gold/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.18em] text-gold">
+                    {it.badge}
+                  </span>
+                )}
+              </div>
+              <p className="label-mono capitalize">{prettyCategory}</p>
+              <h3 className="mt-2 font-display text-2xl md:text-[26px] leading-tight pr-20">
+                {it.title}
+              </h3>
+              {it.description && (
+                <p className="mt-3 text-sm text-muted-foreground">{it.description}</p>
+              )}
+              {it.highlights && it.highlights.length > 0 && (
+                <ul className="mt-4 grid gap-1.5">
+                  {it.highlights.slice(0, 4).map((h) => (
+                    <li key={h} className="flex items-start gap-2 text-[13px] text-foreground/80">
+                      <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-ink/60" />
+                      {h}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="mt-5 flex items-center justify-between gap-4 border-t border-border pt-4">
+                <p className="text-[11px] text-muted-foreground">
+                  {metaBits.join(" · ")}
+                </p>
+                <OpenButton template={it} />
+              </div>
+            </article>
+          );
+        })}
+      </div>
     </section>
   );
 }
