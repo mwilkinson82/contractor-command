@@ -210,9 +210,6 @@ function HomePage() {
         </section>
       )}
 
-      {/* Featured: latest Contractor Circle class */}
-      <FeaturedLatestClass />
-
 
       {/* Centered spine + right rail (Perplexity-style) */}
       <section className="relative px-4 sm:px-6 pb-10">
