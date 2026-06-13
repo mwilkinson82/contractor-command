@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Search, ExternalLink, Download, X } from "lucide-react";
+import { FileText, Search, ExternalLink, Download, X, Sparkles } from "lucide-react";
 import { PageHeader, Container } from "@/components/portal/page-header";
 import { openTemplateFile, type TemplateRow } from "@/lib/library";
 import { templatesQueryOptions } from "@/lib/library-queries";
@@ -26,6 +26,11 @@ function TemplatesPage() {
 
   const aosItems = useMemo(
     () => (rows ?? []).filter((r) => r.category === AOS_CATEGORY),
+    [rows],
+  );
+
+  const featuredItems = useMemo(
+    () => (rows ?? []).filter((r) => r.featured && r.category !== AOS_CATEGORY),
     [rows],
   );
 
@@ -88,6 +93,8 @@ function TemplatesPage() {
       ) : (
         <>
           {aosItems.length > 0 && <AOSBand items={aosItems} />}
+
+          {featuredItems.length > 0 && <FeaturedBand items={featuredItems} />}
 
           <section className="mt-16">
             <div className="flex items-baseline justify-between gap-4 border-b border-border pb-3">
