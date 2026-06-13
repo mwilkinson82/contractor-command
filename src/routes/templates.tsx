@@ -91,7 +91,7 @@ function TemplatesPage() {
 
           <section className="mt-16">
             <div className="flex items-baseline justify-between gap-4 border-b border-border pb-3">
-              <h2 className="font-display text-xl">The Library</h2>
+              <h2 className="font-display text-3xl md:text-4xl text-foreground">The Library</h2>
               <span className="text-xs text-muted-foreground">
                 {filtered.length} {filtered.length === 1 ? "template" : "templates"}
               </span>
@@ -167,7 +167,7 @@ function TemplatesPage() {
                 {grouped.map(([group, items]) => (
                   <section key={group}>
                     <div className="flex items-baseline justify-between border-b border-border pb-2">
-                      <h3 className="label-mono">{group}</h3>
+                      <h3 className="font-display text-xl md:text-2xl text-foreground capitalize">{group.replace(/_/g, " ")}</h3>
                       <span className="text-[11px] text-muted-foreground">
                         {items.length} {items.length === 1 ? "item" : "items"}
                       </span>
