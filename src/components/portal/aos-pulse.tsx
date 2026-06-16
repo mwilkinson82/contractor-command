@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
+import { supabase } from "@/integrations/supabase/client";
 import { getAosSnapshot, mintAosSsoToken, type AosResult, type AosCompany } from "@/lib/aos.functions";
 import {
   ArrowUpRight,
@@ -20,6 +21,7 @@ import {
 const COMPANY_KEY = "aos.company_id";
 
 export function AosPulse() {
+  const queryClient = useQueryClient();
   const fn = useServerFn(getAosSnapshot);
   const mint = useServerFn(mintAosSsoToken);
   const { user } = useAuth();
@@ -133,6 +135,33 @@ export function AosPulse() {
     setCompanyId(liveCompanyId);
     window.localStorage.setItem(COMPANY_KEY, liveCompanyId);
   }, [data, companyId]);
+
+  // Self-heal: if the stored workspace id is no longer in the list AOS returns,
+  // drop it. Otherwise every refresh keeps sending a dead id and the server has
+  // to fall back to an email-only lookup on each call.
+  useEffect(() => {
+    if (!companyId || !data?.ok) return;
+    const list = data.snapshot.linked
+      ? data.snapshot.companies
+      : data.snapshot.companies ?? [];
+    if (list.length > 0 && !list.some((c) => c.id === companyId)) {
+      window.localStorage.removeItem(COMPANY_KEY);
+      setCompanyId(null);
+    }
+  }, [data, companyId]);
+
+  // Self-heal: on sign-in (or sign-out), wipe cached snapshot results so a
+  // stale "not linked" payload from a prior broken session can't survive the
+  // login. The next render re-runs the query against the now-fixed backend.
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") {
+        queryClient.invalidateQueries({ queryKey: ["aos-snapshot"] });
+      }
+    });
+    return () => sub.subscription.unsubscribe();
+  }, [queryClient]);
+
 
   const companies: AosCompany[] =
     data?.ok
