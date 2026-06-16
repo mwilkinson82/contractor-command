@@ -17,6 +17,8 @@ import {
 } from "@/lib/announce.functions";
 import { Megaphone, Send, Users, AlertTriangle } from "lucide-react";
 
+type Audience = "active" | "all_with_login";
+
 const DRAFT_KEY = "admin.announce.draft.v1";
 
 type Draft = {
@@ -34,8 +36,6 @@ export const Route = createFileRoute("/admin/announce")({
   head: () => ({ meta: [{ title: "Announce — Admin" }] }),
   component: AnnouncePage,
 });
-
-type Audience = "active" | "all_with_login";
 
 function AnnouncePage() {
   const isAdmin = useIsAdmin();
