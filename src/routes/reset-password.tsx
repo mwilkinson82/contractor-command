@@ -117,7 +117,7 @@ function ResetPasswordPage() {
     return (
       <AuthCard
         title="Link expired."
-        subtitle="This reset link is no longer valid. Request a new one."
+        subtitle="This reset link is no longer valid — it may have been opened by your mail app's link preview before you clicked it. Request a fresh one and open it on a desktop browser if you can."
       >
         <Link
           to="/forgot-password"
