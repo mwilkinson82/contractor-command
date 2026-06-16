@@ -100,7 +100,7 @@ export const expressIntensiveInterest = createServerFn({ method: "POST" })
     }).parse,
   )
   .handler(async ({ data, context }): Promise<{ ok: true; alreadyOpen: boolean }> => {
-    const { supabase, userId } = context;
+    const { supabase, userId, claims } = context;
 
     // Avoid duplicate open leads per thread
     const { data: existing } = await supabase
