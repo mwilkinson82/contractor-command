@@ -67,15 +67,15 @@ function AnnouncePage() {
   const sendFn = useServerFn(sendMemberAnnouncement);
   const lastFn = useServerFn(getLastMemberAnnouncement);
 
-  // If there was no local draft, fall back to the most recent sent
-  // announcement so the form is always pre-populated with the last thing
-  // we sent (real or test).
+  // Always fetch the most recent saved announcement so the user can pull it
+  // back into the form on demand, even if a stale local draft is in the way.
   const { data: lastSent } = useQuery({
     queryKey: ["announce-last"],
     queryFn: () => lastFn(),
-    enabled: !!isAdmin && !initial,
+    enabled: !!isAdmin,
   });
 
+  // First-load auto-hydrate (only when there was no local draft).
   useEffect(() => {
     if (hydratedFromServer) return;
     const a = lastSent?.announcement;
@@ -92,6 +92,25 @@ function AnnouncePage() {
     }
     setHydratedFromServer(true);
   }, [lastSent, hydratedFromServer]);
+
+  const loadLastSent = () => {
+    const a = lastSent?.announcement;
+    if (!a) {
+      toast.error("No previous announcement saved yet.");
+      return;
+    }
+    setSubject(a.subject ?? "");
+    setHeadline(a.headline ?? "");
+    setPreheader(a.preheader ?? "");
+    setBody(a.body ?? "");
+    setCtaLabel(a.cta_label ?? "");
+    setCtaUrl(a.cta_url ?? "");
+    setSignoff(a.signoff ?? "— Marshall");
+    if (a.audience === "active" || a.audience === "all_with_login") {
+      setAudience(a.audience);
+    }
+    toast.success("Loaded most recent announcement");
+  };
 
   // Autosave the draft on every change so nothing is ever lost again.
   useEffect(() => {
@@ -181,12 +200,23 @@ function AnnouncePage() {
             send a test to yourself first.
           </p>
         </div>
-        <Link
-          to="/admin"
-          className="rounded-md border border-border bg-card px-3 py-1.5 text-[12px] hover:bg-muted"
-        >
-          ← Back to admin
-        </Link>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={loadLastSent}
+            disabled={!lastSent?.announcement}
+          >
+            Load most recent
+          </Button>
+          <Link
+            to="/admin"
+            className="rounded-md border border-border bg-card px-3 py-1.5 text-[12px] hover:bg-muted"
+          >
+            ← Back to admin
+          </Link>
+        </div>
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
