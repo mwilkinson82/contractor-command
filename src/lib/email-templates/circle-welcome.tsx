@@ -50,10 +50,11 @@ const CircleWelcomeEmail = ({
             </Text>
 
             <Section style={ctaWrap}>
-              <Button style={button} href={siteUrl}>Open the portal</Button>
+              <Button style={button} href={loginUrl ?? siteUrl}>Enter the portal</Button>
               <Text style={ctaNote}>
-                Sign in with the email you bought with. Already have a login on
-                this address? Use that password — same account.
+                One click — no password to remember. The link signs you in and
+                keeps you signed in on this device. If it ever expires, just
+                request a new one from the login page.
               </Text>
             </Section>
 
