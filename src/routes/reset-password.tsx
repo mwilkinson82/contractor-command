@@ -21,20 +21,50 @@ function ResetPasswordPage() {
 
   // Supabase auto-consumes the recovery tokens from the URL hash. Wait one
   // tick, check for a session, and surface the right state.
+  //
+  // Failure mode we've actually hit: mobile mail apps (Gmail, Outlook,
+  // corporate scanners) pre-fetch the link, which burns the one-time token.
+  // When the human then clicks, Supabase redirects back here with
+  // `?error=access_denied&error_code=otp_expired` (no session). We MUST
+  // surface that as "link expired" instead of spinning on "checking" forever.
   useEffect(() => {
     let cancelled = false;
+
+    // If Supabase bounced us back with an explicit error, short-circuit.
+    if (typeof window !== "undefined") {
+      const qs = new URLSearchParams(window.location.search);
+      const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      if (qs.get("error") || hash.get("error")) {
+        setPhase("no-session");
+        return;
+      }
+    }
+
     const check = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (cancelled) return;
-      setPhase(data.session ? "ready" : "no-session");
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (cancelled) return;
+        setPhase(data.session ? "ready" : "no-session");
+      } catch {
+        if (!cancelled) setPhase("no-session");
+      }
     };
     void check();
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
       if (cancelled) return;
       if (s) setPhase("ready");
     });
+
+    // Hard timeout — never leave the user staring at "Confirming…" forever.
+    const fallback = setTimeout(() => {
+      if (!cancelled) {
+        setPhase((p) => (p === "checking" ? "no-session" : p));
+      }
+    }, 4000);
+
     return () => {
       cancelled = true;
+      clearTimeout(fallback);
       sub.subscription.unsubscribe();
     };
   }, []);
