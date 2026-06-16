@@ -34,6 +34,9 @@ type SupabaseRpcClient = {
 const LEGACY_CIRCLE_PRICE_IDS = new Set([
   // Founding Circle import price used before the current STRIPE_PRICE_ID_CIRCLE env var.
   "price_1TDR3aJdDAUSVXbNZOY6EXF3",
+  // $497/mo Circle price used for direct Stripe checkouts before the env-managed price.
+  // Without this entry, the webhook mislabeled these subs as aos_only.
+  "price_1TDR3aJdDAUSVXbNWVzFLblo",
 ]);
 
 function tierForPrice(
