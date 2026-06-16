@@ -88,6 +88,12 @@ function AdminDashboard() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
+            to="/admin/email-approvals"
+            className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-[12px] text-amber-900 hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
+          >
+            Email approvals
+          </Link>
+          <Link
             to="/admin/announce"
             className="rounded-md border border-border bg-card px-3 py-1.5 text-[12px] hover:bg-muted"
           >
