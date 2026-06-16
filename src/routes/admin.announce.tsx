@@ -368,3 +368,30 @@ function Field({
     </div>
   );
 }
+
+function readDraft(): Draft | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<Draft>;
+    if (!parsed || typeof parsed !== "object") return null;
+    // Require *something* to count as a draft.
+    if (!parsed.subject && !parsed.body && !parsed.headline) return null;
+    return {
+      subject: parsed.subject ?? "",
+      headline: parsed.headline ?? "",
+      preheader: parsed.preheader ?? "",
+      body: parsed.body ?? "",
+      ctaLabel: parsed.ctaLabel ?? "",
+      ctaUrl: parsed.ctaUrl ?? "",
+      signoff: parsed.signoff ?? "— Marshall",
+      audience:
+        parsed.audience === "active" || parsed.audience === "all_with_login"
+          ? parsed.audience
+          : "all_with_login",
+    };
+  } catch {
+    return null;
+  }
+}
