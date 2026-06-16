@@ -101,6 +101,7 @@ export async function enqueueCircleWelcome({
     firstName: firstName ?? undefined,
     siteName: SITE_NAME,
     siteUrl: "https://app.alpcontractorcircle.com",
+    loginUrl: loginUrl ?? undefined,
   };
   const element = React.createElement(entry.component, props);
   const html = await render(element);
