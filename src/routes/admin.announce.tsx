@@ -13,8 +13,22 @@ import { Button } from "@/components/ui/button";
 import {
   sendMemberAnnouncement,
   previewMemberAnnouncementAudience,
+  getLastMemberAnnouncement,
 } from "@/lib/announce.functions";
 import { Megaphone, Send, Users, AlertTriangle } from "lucide-react";
+
+const DRAFT_KEY = "admin.announce.draft.v1";
+
+type Draft = {
+  subject: string;
+  headline: string;
+  preheader: string;
+  body: string;
+  ctaLabel: string;
+  ctaUrl: string;
+  signoff: string;
+  audience: Audience;
+};
 
 export const Route = createFileRoute("/admin/announce")({
   head: () => ({ meta: [{ title: "Announce — Admin" }] }),
