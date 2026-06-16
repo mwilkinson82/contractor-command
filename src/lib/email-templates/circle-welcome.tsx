@@ -83,8 +83,14 @@ const CircleWelcomeEmail = ({
             </Text>
 
             <Text style={footer}>
-              Questions, problems, or just want me to point you at the right
-              tool first — hit reply. Goes straight to me.
+              <strong style={itemTitle}>Having trouble logging in?</strong> Send
+              yourself a fresh magic link any time at{' '}
+              <Link style={inlineLink} href="https://app.alpcontractorcircle.com/magic-link">
+                app.alpcontractorcircle.com/magic-link
+              </Link>
+              . Type your email, click the link in your inbox, you're in.
+              <br /><br />
+              Anything else — hit reply. Goes straight to me.
             </Text>
           </Section>
           <Text style={signoff}>— Marshall &amp; the ALP team</Text>
