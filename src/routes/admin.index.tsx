@@ -183,7 +183,6 @@ function AdminDashboard() {
             loading={isLoading}
             note="Members who tapped Six-Week Intensive somewhere in the portal."
             icon={Sparkles}
-            href="/admin/intensive-leads"
           />
           <SignalCard
             label="Billing questions"
@@ -193,6 +192,9 @@ function AdminDashboard() {
             icon={MessageSquare}
           />
         </div>
+
+        {/* Inline intensive leads list */}
+        <IntensiveLeadsInline enabled={!!isAdmin} />
       </Section>
     </Container>
   );
