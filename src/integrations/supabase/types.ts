@@ -359,6 +359,75 @@ export type Database = {
         }
         Relationships: []
       }
+      email_approvals: {
+        Row: {
+          created_at: string
+          from_address: string
+          html: string
+          id: string
+          idempotency_key: string
+          message_id: string
+          plain_text: string
+          recipient_email: string
+          requested_by: string | null
+          requested_by_email: string | null
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          sender_domain: string
+          status: string
+          subject: string
+          template_data: Json
+          template_name: string
+          unsubscribe_token: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          from_address: string
+          html: string
+          id?: string
+          idempotency_key: string
+          message_id: string
+          plain_text: string
+          recipient_email: string
+          requested_by?: string | null
+          requested_by_email?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          sender_domain: string
+          status?: string
+          subject: string
+          template_data?: Json
+          template_name: string
+          unsubscribe_token: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          from_address?: string
+          html?: string
+          id?: string
+          idempotency_key?: string
+          message_id?: string
+          plain_text?: string
+          recipient_email?: string
+          requested_by?: string | null
+          requested_by_email?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          sender_domain?: string
+          status?: string
+          subject?: string
+          template_data?: Json
+          template_name?: string
+          unsubscribe_token?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       email_send_log: {
         Row: {
           created_at: string
