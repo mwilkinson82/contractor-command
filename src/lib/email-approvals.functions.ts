@@ -45,7 +45,10 @@ export const listEmailApprovals = createServerFn({ method: "GET" })
       .order("created_at", { ascending: false })
       .limit(200);
     if (error) throw new Error(error.message);
-    return (data ?? []) as EmailApprovalRow[];
+    return (data ?? []).map((r) => ({
+      ...r,
+      template_data: JSON.stringify(r.template_data ?? {}),
+    })) as EmailApprovalRow[];
   });
 
 export const approveEmailApproval = createServerFn({ method: "POST" })
