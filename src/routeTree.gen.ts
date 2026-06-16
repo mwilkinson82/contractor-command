@@ -53,6 +53,7 @@ import { Route as AdminQaRouteImport } from './routes/admin.qa'
 import { Route as AdminPeopleRouteImport } from './routes/admin.people'
 import { Route as AdminMigrateRouteImport } from './routes/admin.migrate'
 import { Route as AdminLibraryRouteImport } from './routes/admin.library'
+import { Route as AdminIntensiveLeadsRouteImport } from './routes/admin.intensive-leads'
 import { Route as AdminHandbookRouteImport } from './routes/admin.handbook'
 import { Route as AdminEmailApprovalsRouteImport } from './routes/admin.email-approvals'
 import { Route as AdminBackfillRouteImport } from './routes/admin.backfill'
@@ -288,6 +289,11 @@ const AdminLibraryRoute = AdminLibraryRouteImport.update({
   path: '/admin/library',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminIntensiveLeadsRoute = AdminIntensiveLeadsRouteImport.update({
+  id: '/admin/intensive-leads',
+  path: '/admin/intensive-leads',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminHandbookRoute = AdminHandbookRouteImport.update({
   id: '/admin/handbook',
   path: '/admin/handbook',
@@ -390,6 +396,7 @@ export interface FileRoutesByFullPath {
   '/admin/backfill': typeof AdminBackfillRoute
   '/admin/email-approvals': typeof AdminEmailApprovalsRoute
   '/admin/handbook': typeof AdminHandbookRoute
+  '/admin/intensive-leads': typeof AdminIntensiveLeadsRoute
   '/admin/library': typeof AdminLibraryRoute
   '/admin/migrate': typeof AdminMigrateRoute
   '/admin/people': typeof AdminPeopleRoute
@@ -450,6 +457,7 @@ export interface FileRoutesByTo {
   '/admin/backfill': typeof AdminBackfillRoute
   '/admin/email-approvals': typeof AdminEmailApprovalsRoute
   '/admin/handbook': typeof AdminHandbookRoute
+  '/admin/intensive-leads': typeof AdminIntensiveLeadsRoute
   '/admin/library': typeof AdminLibraryRoute
   '/admin/migrate': typeof AdminMigrateRoute
   '/admin/people': typeof AdminPeopleRoute
@@ -511,6 +519,7 @@ export interface FileRoutesById {
   '/admin/backfill': typeof AdminBackfillRoute
   '/admin/email-approvals': typeof AdminEmailApprovalsRoute
   '/admin/handbook': typeof AdminHandbookRoute
+  '/admin/intensive-leads': typeof AdminIntensiveLeadsRoute
   '/admin/library': typeof AdminLibraryRoute
   '/admin/migrate': typeof AdminMigrateRoute
   '/admin/people': typeof AdminPeopleRoute
@@ -573,6 +582,7 @@ export interface FileRouteTypes {
     | '/admin/backfill'
     | '/admin/email-approvals'
     | '/admin/handbook'
+    | '/admin/intensive-leads'
     | '/admin/library'
     | '/admin/migrate'
     | '/admin/people'
@@ -633,6 +643,7 @@ export interface FileRouteTypes {
     | '/admin/backfill'
     | '/admin/email-approvals'
     | '/admin/handbook'
+    | '/admin/intensive-leads'
     | '/admin/library'
     | '/admin/migrate'
     | '/admin/people'
@@ -693,6 +704,7 @@ export interface FileRouteTypes {
     | '/admin/backfill'
     | '/admin/email-approvals'
     | '/admin/handbook'
+    | '/admin/intensive-leads'
     | '/admin/library'
     | '/admin/migrate'
     | '/admin/people'
@@ -754,6 +766,7 @@ export interface RootRouteChildren {
   AdminBackfillRoute: typeof AdminBackfillRoute
   AdminEmailApprovalsRoute: typeof AdminEmailApprovalsRoute
   AdminHandbookRoute: typeof AdminHandbookRoute
+  AdminIntensiveLeadsRoute: typeof AdminIntensiveLeadsRoute
   AdminLibraryRoute: typeof AdminLibraryRoute
   AdminMigrateRoute: typeof AdminMigrateRoute
   AdminPeopleRoute: typeof AdminPeopleRoute
@@ -1093,6 +1106,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminLibraryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/intensive-leads': {
+      id: '/admin/intensive-leads'
+      path: '/admin/intensive-leads'
+      fullPath: '/admin/intensive-leads'
+      preLoaderRoute: typeof AdminIntensiveLeadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/handbook': {
       id: '/admin/handbook'
       path: '/admin/handbook'
@@ -1248,6 +1268,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminBackfillRoute: AdminBackfillRoute,
   AdminEmailApprovalsRoute: AdminEmailApprovalsRoute,
   AdminHandbookRoute: AdminHandbookRoute,
+  AdminIntensiveLeadsRoute: AdminIntensiveLeadsRoute,
   AdminLibraryRoute: AdminLibraryRoute,
   AdminMigrateRoute: AdminMigrateRoute,
   AdminPeopleRoute: AdminPeopleRoute,
@@ -1279,13 +1300,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
