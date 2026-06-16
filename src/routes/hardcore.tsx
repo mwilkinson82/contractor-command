@@ -1,65 +1,45 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { PageHeader, Container } from "@/components/portal/page-header";
-import { useTier } from "@/hooks/use-tier";
-import { useIsAdmin } from "@/hooks/use-is-admin";
-
-// Hardcore-only surface. Daily class calendar (Power Hour, Contractor School,
-// S&M School) lives here via a Google Calendar embed. Meet recordings open
-// from each event in the calendar itself.
-//
-// To wire this in, set VITE_HARDCORE_GCAL_SRC to the public calendar address
-// (the long URL-encoded `src=` value Google generates under "Settings →
-// Integrate calendar → Public URL to this calendar"). Without it we render an
-// instructions stub so the page never crashes.
+import { Link } from "@tanstack/react-router";
+import { Container } from "@/components/portal/page-header";
 
 export const Route = createFileRoute("/hardcore")({
   head: () => ({
     meta: [
-      { title: "Hardcore Calendar — ALP Contractor Circle" },
-      { name: "description", content: "Daily Power Hour, Contractor School, and S&M School calendar." },
+      { title: "Hardcore — ALP Contractor Circle" },
+      { name: "description", content: "Hardcore class materials are not housed inside the Contractor Circle hub." },
     ],
   }),
   component: HardcorePage,
 });
 
 function HardcorePage() {
-  const { tier, loading } = useTier();
-  const isAdmin = useIsAdmin();
-  const allowed = isAdmin || tier === "hardcore";
-  const gcalSrc = import.meta.env.VITE_HARDCORE_GCAL_SRC as string | undefined;
-
   return (
     <Container>
-      <PageHeader
-        eyebrow="ALP Hardcore"
-        title={<>The daily room.</>}
-        lede="Power Hour every weekday at 8AM PT. Contractor School Tuesdays. Sales & Marketing School Wednesdays. Click any past event to open the Google Meet recording."
-      />
-
-      {loading ? (
-        <div className="mt-8 text-sm text-muted-foreground">Loading…</div>
-      ) : !allowed ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-          This room is for ALP Hardcore members.
+      <section className="max-w-2xl py-14">
+        <p className="label-mono">Outside this hub</p>
+        <h1 className="mt-4 font-display text-4xl leading-tight text-foreground md:text-5xl">
+          Hardcore class materials are not housed here.
+        </h1>
+        <p className="mt-5 text-sm leading-6 text-muted-foreground">
+          This Contractor Circle portal includes the Circle hub, Vault, calls, replays, AOS,
+          tools, Ask Marshall, templates, and community access. Hardcore recorded classes are
+          managed separately and are not part of this hub.
+        </p>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <Link
+            to="/"
+            className="inline-flex items-center justify-center rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-cream transition-opacity hover:opacity-90"
+          >
+            Back to hub
+          </Link>
+          <Link
+            to="/replays"
+            className="inline-flex items-center justify-center rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+          >
+            Circle replays
+          </Link>
         </div>
-      ) : gcalSrc ? (
-        <div className="mt-8 overflow-hidden rounded-2xl border border-border bg-card">
-          <iframe
-            src={`https://calendar.google.com/calendar/embed?src=${encodeURIComponent(gcalSrc)}&mode=WEEK&ctz=America%2FLos_Angeles`}
-            className="h-[800px] w-full border-0"
-            title="ALP Hardcore Calendar"
-          />
-        </div>
-      ) : (
-        <div className="mt-8 rounded-2xl border border-dashed border-border p-10 text-sm text-muted-foreground">
-          <p className="font-medium text-foreground">Calendar not connected yet.</p>
-          <p className="mt-2">
-            Send Marshall the public Google Calendar address that hosts the daily classes
-            and we'll wire it in. (Calendar → Settings → Integrate calendar → Public address in
-            iCal format.)
-          </p>
-        </div>
-      )}
+      </section>
     </Container>
   );
 }
