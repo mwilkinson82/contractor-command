@@ -311,7 +311,10 @@ async function upsertSubscription(supabaseAdmin: SupabaseAdminClient, stripe: St
     }
 
     if (sub.status === "active" || sub.status === "trialing") {
-      await invitePaidMemberIfNeeded(supabaseAdmin, normalizedEmail);
+      // Circle gets the magic-link welcome below — skip the password-setup invite.
+      if (tier !== "circle") {
+        await invitePaidMemberIfNeeded(supabaseAdmin, normalizedEmail);
+      }
     }
   }
 
@@ -319,6 +322,12 @@ async function upsertSubscription(supabaseAdmin: SupabaseAdminClient, stripe: St
   // subscription id, so retries / status updates won't duplicate the send.
   if (tier === "circle" && (sub.status === "active" || sub.status === "trialing")) {
     try {
+      const origin = (
+        process.env.PUBLIC_APP_ORIGIN ||
+        process.env.APP_ORIGIN ||
+        "https://app.alpcontractorcircle.com"
+      ).replace(/\/$/, "");
+      const loginUrl = await ensureMagicLinkForMember(supabaseAdmin, normalizedEmail, origin);
       const { enqueueCircleWelcome } = await import("@/lib/email/enqueue-circle-welcome");
       const firstName =
         ((sub.metadata?.first_name as string | undefined) ?? "").trim() || null;
@@ -326,6 +335,7 @@ async function upsertSubscription(supabaseAdmin: SupabaseAdminClient, stripe: St
         supabaseAdmin,
         email: normalizedEmail,
         firstName,
+        loginUrl,
         idempotencyKey: `circle-welcome-${sub.id}`,
       });
       if (result.status === "failed") {
@@ -335,6 +345,50 @@ async function upsertSubscription(supabaseAdmin: SupabaseAdminClient, stripe: St
       // Never fail the webhook over an email send.
       console.error("Circle welcome enqueue threw", { sub: sub.id, err });
     }
+  }
+}
+
+// Make sure the auth user exists, then return a one-click magic link that
+// signs them straight into the portal. Falls back to the bare site URL if
+// link generation fails — the welcome email is never worth blocking on.
+async function ensureMagicLinkForMember(
+  supabaseAdmin: SupabaseAdminClient,
+  email: string,
+  origin: string,
+): Promise<string | null> {
+  try {
+    const perPage = 200;
+    let exists = false;
+    for (let page = 1; page <= 25; page++) {
+      const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
+      if (error) throw error;
+      const users = data?.users ?? [];
+      if (users.some((u) => (u.email ?? "").toLowerCase() === email)) {
+        exists = true;
+        break;
+      }
+      if (users.length < perPage) break;
+    }
+    if (!exists) {
+      const { error: createErr } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        email_confirm: true,
+        user_metadata: { source: "stripe_purchase", invited_at: new Date().toISOString() },
+      });
+      if (createErr && !/already|registered|exists/i.test(createErr.message ?? "")) {
+        throw createErr;
+      }
+    }
+    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+      type: "magiclink",
+      email,
+      options: { redirectTo: `${origin}/` },
+    });
+    if (error) throw error;
+    return data?.properties?.action_link ?? null;
+  } catch (err) {
+    console.error("ensureMagicLinkForMember failed", { email, err });
+    return null;
   }
 }
 

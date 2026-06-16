@@ -8,6 +8,7 @@ interface CircleWelcomeProps {
   siteName?: string
   siteUrl?: string
   firstName?: string
+  loginUrl?: string
   vaultUrl?: string
   callsUrl?: string
   replaysUrl?: string
@@ -18,6 +19,7 @@ const CircleWelcomeEmail = ({
   siteName = 'Contractor Circle',
   siteUrl = 'https://app.alpcontractorcircle.com',
   firstName,
+  loginUrl,
   vaultUrl = 'https://app.alpcontractorcircle.com/vault',
   callsUrl = 'https://app.alpcontractorcircle.com/calls',
   replaysUrl = 'https://app.alpcontractorcircle.com/replays',
@@ -48,10 +50,11 @@ const CircleWelcomeEmail = ({
             </Text>
 
             <Section style={ctaWrap}>
-              <Button style={button} href={siteUrl}>Open the portal</Button>
+              <Button style={button} href={loginUrl ?? siteUrl}>Enter the portal</Button>
               <Text style={ctaNote}>
-                Sign in with the email you bought with. Already have a login on
-                this address? Use that password — same account.
+                One click — no password to remember. The link signs you in and
+                keeps you signed in on this device. If it ever expires, just
+                request a new one from the login page.
               </Text>
             </Section>
 

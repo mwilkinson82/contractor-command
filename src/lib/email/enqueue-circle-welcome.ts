@@ -51,6 +51,7 @@ interface EnqueueOpts {
   supabaseAdmin: SupabaseAdminClient;
   email: string;
   firstName?: string | null;
+  loginUrl?: string | null;
   idempotencyKey: string;
 }
 
@@ -58,6 +59,7 @@ export async function enqueueCircleWelcome({
   supabaseAdmin,
   email,
   firstName,
+  loginUrl,
   idempotencyKey,
 }: EnqueueOpts): Promise<{ status: "queued" | "duplicate" | "suppressed" | "failed"; reason?: string }> {
   const emailLower = email.toLowerCase();
@@ -99,6 +101,7 @@ export async function enqueueCircleWelcome({
     firstName: firstName ?? undefined,
     siteName: SITE_NAME,
     siteUrl: "https://app.alpcontractorcircle.com",
+    loginUrl: loginUrl ?? undefined,
   };
   const element = React.createElement(entry.component, props);
   const html = await render(element);
