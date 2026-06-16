@@ -136,6 +136,33 @@ export function AosPulse() {
     window.localStorage.setItem(COMPANY_KEY, liveCompanyId);
   }, [data, companyId]);
 
+  // Self-heal: if the stored workspace id is no longer in the list AOS returns,
+  // drop it. Otherwise every refresh keeps sending a dead id and the server has
+  // to fall back to an email-only lookup on each call.
+  useEffect(() => {
+    if (!companyId || !data?.ok) return;
+    const list = data.snapshot.linked
+      ? data.snapshot.companies
+      : data.snapshot.companies ?? [];
+    if (list.length > 0 && !list.some((c) => c.id === companyId)) {
+      window.localStorage.removeItem(COMPANY_KEY);
+      setCompanyId(null);
+    }
+  }, [data, companyId]);
+
+  // Self-heal: on sign-in (or sign-out), wipe cached snapshot results so a
+  // stale "not linked" payload from a prior broken session can't survive the
+  // login. The next render re-runs the query against the now-fixed backend.
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") {
+        queryClient.invalidateQueries({ queryKey: ["aos-snapshot"] });
+      }
+    });
+    return () => sub.subscription.unsubscribe();
+  }, [queryClient]);
+
+
   const companies: AosCompany[] =
     data?.ok
       ? data.snapshot.linked
