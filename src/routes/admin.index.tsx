@@ -9,6 +9,11 @@ import { useIsAdmin } from "@/hooks/use-is-admin";
 import { subscribePresence, type PresenceUser } from "@/lib/portal-presence";
 import { getAdminMetrics, type AdminMetrics } from "@/lib/admin.functions";
 import {
+  listIntensiveLeads,
+  setIntensiveLeadStatus,
+  type IntensiveLead,
+} from "@/lib/intensive-leads.functions";
+import {
   listAdminUsers,
   sendMemberAccessLink,
   setUserComped,
@@ -183,7 +188,6 @@ function AdminDashboard() {
             loading={isLoading}
             note="Members who tapped Six-Week Intensive somewhere in the portal."
             icon={Sparkles}
-            href="/admin/intensive-leads"
           />
           <SignalCard
             label="Billing questions"
@@ -193,6 +197,9 @@ function AdminDashboard() {
             icon={MessageSquare}
           />
         </div>
+
+        {/* Inline intensive leads list */}
+        <IntensiveLeadsInline enabled={!!isAdmin} />
       </Section>
     </Container>
   );
@@ -811,4 +818,113 @@ function formatRelative(iso: string): string {
   if (day < 30) return `${day}d ago`;
   return formatShortDate(iso);
 }
+
+/* ----------------- intensive leads (inline) ----------------- */
+
+function IntensiveLeadsInline({ enabled }: { enabled: boolean }) {
+  const qc = useQueryClient();
+  const fetchLeads = useServerFn(listIntensiveLeads);
+  const updateStatus = useServerFn(setIntensiveLeadStatus);
+
+  const { data: leads, isLoading } = useQuery<IntensiveLead[]>({
+    queryKey: ["admin-intensive-leads"],
+    queryFn: () => fetchLeads(),
+    enabled,
+  });
+
+  const statusMut = useMutation({
+    mutationFn: (vars: { id: string; status: string }) =>
+      updateStatus({ data: vars }),
+    onSuccess: () => {
+      toast.success("Status updated");
+      qc.invalidateQueries({ queryKey: ["admin-intensive-leads"] });
+      qc.invalidateQueries({ queryKey: ["admin-metrics"] });
+    },
+    onError: (e: any) => toast.error(e?.message || "Failed"),
+  });
+
+  return (
+    <div className="mt-5 rounded-2xl border border-border bg-card p-5">
+      <div className="flex items-center justify-between">
+        <p className="label-mono inline-flex items-center gap-1.5">
+          <Sparkles className="h-3 w-3" /> Intensive leads
+        </p>
+        <span className="text-[11px] text-muted-foreground">
+          {leads?.length ?? 0} total
+        </span>
+      </div>
+
+      {isLoading && (
+        <p className="mt-3 text-[12px] text-muted-foreground">Loading…</p>
+      )}
+      {!isLoading && (!leads || leads.length === 0) && (
+        <p className="mt-3 text-[12px] text-muted-foreground">No leads yet.</p>
+      )}
+
+      <ul className="mt-3 divide-y divide-border">
+        {(leads ?? []).map((lead) => (
+          <li key={lead.id} className="py-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-[14px] font-medium">
+                  {lead.full_name || lead.email || "Unknown member"}
+                  <span className="ml-2 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    {lead.status}
+                  </span>
+                </p>
+                {lead.email && (
+                  <p className="mt-0.5 text-[12px] text-muted-foreground">
+                    <a
+                      href={`mailto:${lead.email}?subject=Six-Week Intensive`}
+                      className="hover:text-foreground"
+                    >
+                      {lead.email}
+                    </a>
+                  </p>
+                )}
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {formatRelative(lead.created_at)}
+                  {lead.thread_title ? ` · “${lead.thread_title}”` : ""}
+                </p>
+                {lead.recent_messages.length > 0 && (
+                  <p className="mt-2 line-clamp-2 text-[12px] text-foreground/80">
+                    {lead.recent_messages[0]?.content?.slice(0, 220)}
+                    {(lead.recent_messages[0]?.content?.length ?? 0) > 220
+                      ? "…"
+                      : ""}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {(["Open", "Contacted", "Won", "Lost"] as const).map((s) => (
+                  <button
+                    key={s}
+                    disabled={statusMut.isPending || lead.status === s}
+                    onClick={() =>
+                      statusMut.mutate({ id: lead.id, status: s })
+                    }
+                    className={`rounded border px-2 py-1 text-[11px] transition disabled:cursor-default ${
+                      lead.status === s
+                        ? "border-foreground bg-foreground text-background"
+                        : "border-border bg-background hover:bg-muted"
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+                <Link
+                  to="/admin/intensive-leads"
+                  className="rounded border border-border bg-background px-2 py-1 text-[11px] hover:bg-muted"
+                >
+                  Detail
+                </Link>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 
