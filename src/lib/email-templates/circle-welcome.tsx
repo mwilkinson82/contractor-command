@@ -8,6 +8,7 @@ interface CircleWelcomeProps {
   siteName?: string
   siteUrl?: string
   firstName?: string
+  loginUrl?: string
   vaultUrl?: string
   callsUrl?: string
   replaysUrl?: string
