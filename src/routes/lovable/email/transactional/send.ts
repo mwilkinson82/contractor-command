@@ -276,10 +276,55 @@ export const Route = createFileRoute("/lovable/email/transactional/send")({
             ? template.subject(templateData)
             : template.subject
 
-        // 5. Enqueue the pre-rendered email for async processing by the dispatcher.
-        // The dispatcher (process-email-queue) handles sending, retries, and rate-limit backoff.
+        // 5. Approval gate — stage every send for admin review instead of enqueueing.
+        // Templates with a fixed `to` (system notifications routed to the site owner)
+        // bypass the gate so internal alerts continue to flow.
+        const bypassApproval = Boolean(template.to);
 
-        // Log pending BEFORE enqueue so we have a record even if enqueue crashes
+        if (!bypassApproval) {
+          const { error: stageError } = await supabase.from('email_approvals').insert({
+            message_id: messageId,
+            template_name: templateName,
+            recipient_email: effectiveRecipient,
+            subject: resolvedSubject,
+            html,
+            plain_text: plainText,
+            template_data: templateData,
+            idempotency_key: idempotencyKey,
+            unsubscribe_token: unsubscribeToken,
+            from_address: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
+            sender_domain: SENDER_DOMAIN,
+            status: 'pending',
+            requested_by: user.id,
+            requested_by_email: user.email ?? null,
+          })
+
+          if (stageError) {
+            console.error('Failed to stage email for approval', {
+              error: stageError,
+              templateName,
+              recipient_redacted: redactEmail(effectiveRecipient),
+            })
+            return Response.json(
+              { error: 'Failed to stage email for approval' },
+              { status: 500 }
+            )
+          }
+
+          console.log('Email staged for admin approval', {
+            templateName,
+            recipient_redacted: redactEmail(effectiveRecipient),
+          })
+
+          return Response.json({
+            success: true,
+            queued: false,
+            pendingApproval: true,
+            messageId,
+          })
+        }
+
+        // System-notification bypass: enqueue immediately.
         await supabase.from('email_send_log').insert({
           message_id: messageId,
           template_name: templateName,
@@ -326,7 +371,7 @@ export const Route = createFileRoute("/lovable/email/transactional/send")({
           )
         }
 
-        console.log('Transactional email enqueued', {
+        console.log('Transactional email enqueued (bypass approval)', {
           templateName,
           recipient_redacted: redactEmail(effectiveRecipient),
         })
