@@ -293,3 +293,20 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
       announcementId,
     };
   });
+
+export const getLastMemberAnnouncement = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.userId);
+    const { data, error } = await supabaseAdmin
+      .from("member_announcements")
+      .select(
+        "subject,headline,preheader,body,cta_label,cta_url,signoff,audience,was_test,recipient_count,created_at",
+      )
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return { announcement: data ?? null };
+  });
+
