@@ -17,7 +17,6 @@ import { template as memberAnnouncementTemplate } from './member-announcement'
 import { template as adminActivityNoticeTemplate } from './admin-activity-notice'
 import { template as loginNudgeTemplate } from './login-nudge'
 import { template as discordNudgeTemplate } from './discord-nudge'
-import { template as hardcoreOrientationTemplate } from './hardcore-orientation'
 
 export const TEMPLATES: Record<string, TemplateEntry> = {
   'sop-document': sopDocumentTemplate,
@@ -28,5 +27,4 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
   'admin-activity-notice': adminActivityNoticeTemplate,
   'login-nudge': loginNudgeTemplate,
   'discord-nudge': discordNudgeTemplate,
-  'hardcore-orientation': hardcoreOrientationTemplate,
 }
