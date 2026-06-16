@@ -183,6 +183,7 @@ function AdminDashboard() {
             loading={isLoading}
             note="Members who tapped Six-Week Intensive somewhere in the portal."
             icon={Sparkles}
+            href="/admin/intensive-leads"
           />
           <SignalCard
             label="Billing questions"
@@ -405,22 +406,40 @@ function SignalCard({
   note,
   loading,
   icon: Icon,
+  href,
 }: {
   label: string;
   value: number | undefined;
   note: string;
   loading?: boolean;
   icon: React.ComponentType<{ className?: string }>;
+  href?: string;
 }) {
-  return (
-    <div className="rounded-2xl border border-border bg-card p-5">
+  const body = (
+    <>
       <p className="label-mono inline-flex items-center gap-1.5">
         <Icon className="h-3 w-3" /> {label}
       </p>
       <p className="mt-3 font-display text-3xl">{loading ? "…" : value ?? 0}</p>
       <p className="mt-1 text-[12px] text-muted-foreground">{note}</p>
-    </div>
+      {href && (
+        <p className="mt-2 text-[11px] text-muted-foreground underline">
+          View list →
+        </p>
+      )}
+    </>
   );
+  if (href) {
+    return (
+      <Link
+        to={href}
+        className="block rounded-2xl border border-border bg-card p-5 transition hover:border-foreground/30"
+      >
+        {body}
+      </Link>
+    );
+  }
+  return <div className="rounded-2xl border border-border bg-card p-5">{body}</div>;
 }
 
 function formatUSD(cents: number): string {

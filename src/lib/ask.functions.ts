@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
@@ -99,7 +100,7 @@ export const expressIntensiveInterest = createServerFn({ method: "POST" })
     }).parse,
   )
   .handler(async ({ data, context }): Promise<{ ok: true; alreadyOpen: boolean }> => {
-    const { supabase, userId } = context;
+    const { supabase, userId, claims } = context;
 
     // Avoid duplicate open leads per thread
     const { data: existing } = await supabase
@@ -143,6 +144,43 @@ export const expressIntensiveInterest = createServerFn({ method: "POST" })
       },
     });
     if (error) throw new Error(error.message);
+
+    // Internal notify — bypasses approval queue (template has fixed `to`)
+    try {
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("email, full_name")
+        .eq("id", userId)
+        .maybeSingle();
+      const req = getRequest();
+      const authHeader = req?.headers.get("authorization") ?? "";
+      const origin =
+        req?.headers.get("origin") ||
+        (req?.url ? new URL(req.url).origin : "");
+      if (origin) {
+        await fetch(`${origin}/lovable/email/transactional/send`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(authHeader ? { Authorization: authHeader } : {}),
+          },
+          body: JSON.stringify({
+            templateName: "admin-activity-notice",
+            recipientEmail: "wilkinson.marshall@gmail.com",
+            idempotencyKey: `intensive-lead-${data.threadId}-${userId}`,
+            templateData: {
+              event: "New intensive lead",
+              memberEmail: prof?.email ?? (claims.email as string) ?? "—",
+              memberName: prof?.full_name ?? null,
+              occurredAt: new Date().toISOString(),
+            },
+          }),
+        }).catch((e) => console.error("[ask] intensive notify failed", e));
+      }
+    } catch (e) {
+      console.error("[ask] intensive notify threw", e);
+    }
+
     return { ok: true, alreadyOpen: false };
   });
 
