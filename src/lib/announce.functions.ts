@@ -8,7 +8,7 @@ import { TEMPLATES } from "@/lib/email-templates/registry";
 
 // Must match SENDER_DOMAIN / FROM_DOMAIN in
 // src/routes/lovable/email/transactional/send.ts
-const SITE_NAME = "AOS";
+const SITE_NAME = "Contractor Circle";
 const SENDER_DOMAIN = "notify.mail.alpcontractorcircle.com";
 const FROM_DOMAIN = "notify.mail.alpcontractorcircle.com";
 const TEMPLATE_NAME = "member-announcement";
