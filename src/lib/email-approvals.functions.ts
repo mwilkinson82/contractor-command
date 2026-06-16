@@ -9,7 +9,7 @@ export type EmailApprovalRow = {
   subject: string;
   html: string;
   plain_text: string;
-  template_data: unknown;
+  template_data: string;
   idempotency_key: string;
   unsubscribe_token: string;
   from_address: string;
