@@ -21,6 +21,7 @@ import {
 const COMPANY_KEY = "aos.company_id";
 
 export function AosPulse() {
+  const queryClient = useQueryClient();
   const fn = useServerFn(getAosSnapshot);
   const mint = useServerFn(mintAosSsoToken);
   const { user } = useAuth();
