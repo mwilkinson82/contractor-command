@@ -314,6 +314,28 @@ async function upsertSubscription(supabaseAdmin: SupabaseAdminClient, stripe: St
       await invitePaidMemberIfNeeded(supabaseAdmin, normalizedEmail);
     }
   }
+
+  // Fire Circle welcome email on first activation. Idempotent per Stripe
+  // subscription id, so retries / status updates won't duplicate the send.
+  if (tier === "circle" && (sub.status === "active" || sub.status === "trialing")) {
+    try {
+      const { enqueueCircleWelcome } = await import("@/lib/email/enqueue-circle-welcome");
+      const firstName =
+        ((sub.metadata?.first_name as string | undefined) ?? "").trim() || null;
+      const result = await enqueueCircleWelcome({
+        supabaseAdmin,
+        email: normalizedEmail,
+        firstName,
+        idempotencyKey: `circle-welcome-${sub.id}`,
+      });
+      if (result.status === "failed") {
+        console.error("Circle welcome enqueue failed", { sub: sub.id, reason: result.reason });
+      }
+    } catch (err) {
+      // Never fail the webhook over an email send.
+      console.error("Circle welcome enqueue threw", { sub: sub.id, err });
+    }
+  }
 }
 
 // One-time purchase path (book, intensive). Mirrors upsertSubscription so the
