@@ -200,12 +200,23 @@ function AnnouncePage() {
             send a test to yourself first.
           </p>
         </div>
-        <Link
-          to="/admin"
-          className="rounded-md border border-border bg-card px-3 py-1.5 text-[12px] hover:bg-muted"
-        >
-          ← Back to admin
-        </Link>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={loadLastSent}
+            disabled={!lastSent?.announcement}
+          >
+            Load most recent
+          </Button>
+          <Link
+            to="/admin"
+            className="rounded-md border border-border bg-card px-3 py-1.5 text-[12px] hover:bg-muted"
+          >
+            ← Back to admin
+          </Link>
+        </div>
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
