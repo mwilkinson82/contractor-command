@@ -137,6 +137,24 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
     // One announcement id ties every send together for idempotency + audit.
     const announcementId = crypto.randomUUID();
 
+    // Persist a copy of the composed announcement so the form can always
+    // re-load the last thing we sent (real or test). This is the safety net
+    // against losing a draft when the preview/browser blows up.
+    await supabaseAdmin.from("member_announcements").insert({
+      announcement_id: announcementId,
+      sent_by: context.userId,
+      audience: data.audience,
+      subject: data.subject,
+      headline: data.headline,
+      preheader: data.preheader ?? null,
+      body: data.body,
+      cta_label: data.ctaLabel ?? null,
+      cta_url: data.ctaUrl ?? null,
+      signoff: data.signoff ?? null,
+      recipient_count: recipients.length,
+      was_test: data.audience === "test",
+    });
+
     // Bulk-load suppression list once.
     const emails = recipients.map((r) => r.email.toLowerCase());
     const { data: suppressedRows } = await supabaseAdmin
@@ -275,3 +293,20 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
       announcementId,
     };
   });
+
+export const getLastMemberAnnouncement = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.userId);
+    const { data, error } = await supabaseAdmin
+      .from("member_announcements")
+      .select(
+        "subject,headline,preheader,body,cta_label,cta_url,signoff,audience,was_test,recipient_count,created_at",
+      )
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return { announcement: data ?? null };
+  });
+

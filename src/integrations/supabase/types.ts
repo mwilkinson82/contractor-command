@@ -515,6 +515,57 @@ export type Database = {
         }
         Relationships: []
       }
+      member_announcements: {
+        Row: {
+          announcement_id: string | null
+          audience: string
+          body: string
+          created_at: string
+          cta_label: string | null
+          cta_url: string | null
+          headline: string
+          id: string
+          preheader: string | null
+          recipient_count: number
+          sent_by: string | null
+          signoff: string | null
+          subject: string
+          was_test: boolean
+        }
+        Insert: {
+          announcement_id?: string | null
+          audience: string
+          body: string
+          created_at?: string
+          cta_label?: string | null
+          cta_url?: string | null
+          headline: string
+          id?: string
+          preheader?: string | null
+          recipient_count?: number
+          sent_by?: string | null
+          signoff?: string | null
+          subject: string
+          was_test?: boolean
+        }
+        Update: {
+          announcement_id?: string | null
+          audience?: string
+          body?: string
+          created_at?: string
+          cta_label?: string | null
+          cta_url?: string | null
+          headline?: string
+          id?: string
+          preheader?: string | null
+          recipient_count?: number
+          sent_by?: string | null
+          signoff?: string | null
+          subject?: string
+          was_test?: boolean
+        }
+        Relationships: []
+      }
       pending_claims: {
         Row: {
           claimed_at: string | null

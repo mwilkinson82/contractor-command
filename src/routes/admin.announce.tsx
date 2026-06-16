@@ -13,15 +13,29 @@ import { Button } from "@/components/ui/button";
 import {
   sendMemberAnnouncement,
   previewMemberAnnouncementAudience,
+  getLastMemberAnnouncement,
 } from "@/lib/announce.functions";
 import { Megaphone, Send, Users, AlertTriangle } from "lucide-react";
+
+type Audience = "active" | "all_with_login";
+
+const DRAFT_KEY = "admin.announce.draft.v1";
+
+type Draft = {
+  subject: string;
+  headline: string;
+  preheader: string;
+  body: string;
+  ctaLabel: string;
+  ctaUrl: string;
+  signoff: string;
+  audience: Audience;
+};
 
 export const Route = createFileRoute("/admin/announce")({
   head: () => ({ meta: [{ title: "Announce — Admin" }] }),
   component: AnnouncePage,
 });
-
-type Audience = "active" | "all_with_login";
 
 function AnnouncePage() {
   const isAdmin = useIsAdmin();
@@ -32,39 +46,72 @@ function AnnouncePage() {
     if (isAdmin === false) navigate({ to: "/" });
   }, [isAdmin, navigate]);
 
-  const [subject, setSubject] = useState(
-    "Welcome to the new Contractor Circle portal",
-  );
-  const [headline, setHeadline] = useState(
-    "Welcome to the new Contractor Circle portal",
-  );
-  const [preheader, setPreheader] = useState(
-    "Your membership is active — set your password to get in.",
-  );
-  const [body, setBody] = useState(
-    `The Circle has a new home. Everything you already had access to — Ask Marshall, the Vault, Calls, SOPs — is now in one portal we built from scratch for members.
+  // Load any in-progress draft from localStorage so a crash / accidental
+  // navigation can't erase what was typed.
+  const initial = readDraft();
 
-Your membership is already active on the new system. To get in:
-
-1. Go to https://app.alpcontractorcircle.com/login
-2. Click "Forgot password?"
-3. Enter the email this message was sent to
-4. Check your inbox for the reset link and set a password
-
-Takes about 60 seconds.
-
-No need to reply — if anything's off, ping me in Discord.`,
+  const [subject, setSubject] = useState(initial?.subject ?? "");
+  const [headline, setHeadline] = useState(initial?.headline ?? "");
+  const [preheader, setPreheader] = useState(initial?.preheader ?? "");
+  const [body, setBody] = useState(initial?.body ?? "");
+  const [ctaLabel, setCtaLabel] = useState(initial?.ctaLabel ?? "");
+  const [ctaUrl, setCtaUrl] = useState(initial?.ctaUrl ?? "");
+  const [signoff, setSignoff] = useState(initial?.signoff ?? "— Marshall");
+  const [audience, setAudience] = useState<Audience>(
+    initial?.audience ?? "all_with_login",
   );
-  const [ctaLabel, setCtaLabel] = useState("Set your password");
-  const [ctaUrl, setCtaUrl] = useState(
-    "https://app.alpcontractorcircle.com/login",
-  );
-  const [signoff, setSignoff] = useState("— Marshall");
-  const [audience, setAudience] = useState<Audience>("all_with_login");
   const [confirmText, setConfirmText] = useState("");
+  const [hydratedFromServer, setHydratedFromServer] = useState(!!initial);
 
   const previewFn = useServerFn(previewMemberAnnouncementAudience);
   const sendFn = useServerFn(sendMemberAnnouncement);
+  const lastFn = useServerFn(getLastMemberAnnouncement);
+
+  // If there was no local draft, fall back to the most recent sent
+  // announcement so the form is always pre-populated with the last thing
+  // we sent (real or test).
+  const { data: lastSent } = useQuery({
+    queryKey: ["announce-last"],
+    queryFn: () => lastFn(),
+    enabled: !!isAdmin && !initial,
+  });
+
+  useEffect(() => {
+    if (hydratedFromServer) return;
+    const a = lastSent?.announcement;
+    if (!a) return;
+    setSubject(a.subject ?? "");
+    setHeadline(a.headline ?? "");
+    setPreheader(a.preheader ?? "");
+    setBody(a.body ?? "");
+    setCtaLabel(a.cta_label ?? "");
+    setCtaUrl(a.cta_url ?? "");
+    setSignoff(a.signoff ?? "— Marshall");
+    if (a.audience === "active" || a.audience === "all_with_login") {
+      setAudience(a.audience);
+    }
+    setHydratedFromServer(true);
+  }, [lastSent, hydratedFromServer]);
+
+  // Autosave the draft on every change so nothing is ever lost again.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const draft: Draft = {
+      subject,
+      headline,
+      preheader,
+      body,
+      ctaLabel,
+      ctaUrl,
+      signoff,
+      audience,
+    };
+    try {
+      window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    } catch {
+      /* ignore quota / private-mode errors */
+    }
+  }, [subject, headline, preheader, body, ctaLabel, ctaUrl, signoff, audience]);
 
   const { data: audienceCount, isLoading: countLoading } = useQuery({
     queryKey: ["announce-audience", audience],
@@ -320,4 +367,31 @@ function Field({
       {children}
     </div>
   );
+}
+
+function readDraft(): Draft | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<Draft>;
+    if (!parsed || typeof parsed !== "object") return null;
+    // Require *something* to count as a draft.
+    if (!parsed.subject && !parsed.body && !parsed.headline) return null;
+    return {
+      subject: parsed.subject ?? "",
+      headline: parsed.headline ?? "",
+      preheader: parsed.preheader ?? "",
+      body: parsed.body ?? "",
+      ctaLabel: parsed.ctaLabel ?? "",
+      ctaUrl: parsed.ctaUrl ?? "",
+      signoff: parsed.signoff ?? "— Marshall",
+      audience:
+        parsed.audience === "active" || parsed.audience === "all_with_login"
+          ? parsed.audience
+          : "all_with_login",
+    };
+  } catch {
+    return null;
+  }
 }
