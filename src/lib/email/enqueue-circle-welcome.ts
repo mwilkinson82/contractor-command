@@ -51,6 +51,7 @@ interface EnqueueOpts {
   supabaseAdmin: SupabaseAdminClient;
   email: string;
   firstName?: string | null;
+  loginUrl?: string | null;
   idempotencyKey: string;
 }
 
@@ -58,6 +59,7 @@ export async function enqueueCircleWelcome({
   supabaseAdmin,
   email,
   firstName,
+  loginUrl,
   idempotencyKey,
 }: EnqueueOpts): Promise<{ status: "queued" | "duplicate" | "suppressed" | "failed"; reason?: string }> {
   const emailLower = email.toLowerCase();
