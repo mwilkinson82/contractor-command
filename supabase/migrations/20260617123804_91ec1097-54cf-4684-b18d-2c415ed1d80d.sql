@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS public.pending_claims_stripe_subscription_id_key;
+ALTER TABLE public.pending_claims ADD CONSTRAINT pending_claims_stripe_subscription_id_key UNIQUE (stripe_subscription_id);
