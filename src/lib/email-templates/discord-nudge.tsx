@@ -3,6 +3,7 @@ import {
   Body, Button, Container, Head, Heading, Html, Link, Preview, Section, Text,
 } from '@react-email/components'
 import type { TemplateEntry } from './registry'
+import { DISCORD_URL } from '../program'
 
 interface DiscordNudgeProps {
   siteName?: string
@@ -12,7 +13,7 @@ interface DiscordNudgeProps {
 
 const DiscordNudgeEmail = ({
   siteName = 'Contractor Circle',
-  discordUrl = 'https://discord.gg/yvVN2N3qvN',
+  discordUrl = DISCORD_URL,
   firstName,
 }: DiscordNudgeProps) => {
   const name = firstName?.trim()
@@ -46,7 +47,7 @@ const DiscordNudgeEmail = ({
               <Button style={button} href={discordUrl}>Open the Discord</Button>
               <Text style={ctaNote}>
                 Free, members-only.{' '}
-                <Link href={discordUrl} style={inlineLink}>discord.gg/yvVN2N3qvN</Link>
+                <Link href={discordUrl} style={inlineLink}>{discordUrl.replace(/^https?:\/\//, '')}</Link>
               </Text>
             </Section>
             <Text style={footer}>
@@ -69,7 +70,7 @@ export const template = {
   previewData: {
     firstName: 'Cesar',
     siteName: 'Contractor Circle',
-    discordUrl: 'https://discord.gg/yvVN2N3qvN',
+    discordUrl: DISCORD_URL,
   },
 } satisfies TemplateEntry
 
