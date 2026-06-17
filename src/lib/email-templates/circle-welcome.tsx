@@ -3,6 +3,8 @@ import {
   Body, Button, Container, Head, Heading, Html, Link, Preview, Section, Text,
 } from '@react-email/components'
 import type { TemplateEntry } from './registry'
+import { DISCORD_URL } from '../program'
+
 
 interface CircleWelcomeProps {
   siteName?: string
