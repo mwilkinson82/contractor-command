@@ -54,9 +54,8 @@ const CircleWelcomeEmail = ({
             <Section style={ctaWrap}>
               <Button style={button} href={loginUrl ?? siteUrl}>Enter the portal</Button>
               <Text style={ctaNote}>
-                One click — no password to remember. The link signs you in and
-                keeps you signed in on this device. If it ever expires, just
-                request a new one from the login page.
+                Sign in with your email and password. If you need a new password,
+                use the reset link on the login page.
               </Text>
             </Section>
 
@@ -85,12 +84,11 @@ const CircleWelcomeEmail = ({
             </Text>
 
             <Text style={footer}>
-              <strong style={itemTitle}>Having trouble logging in?</strong> Send
-              yourself a fresh magic link any time at{' '}
-              <Link style={inlineLink} href="https://app.alpcontractorcircle.com/magic-link">
-                app.alpcontractorcircle.com/magic-link
+              <strong style={itemTitle}>Having trouble logging in?</strong> Go to{' '}
+              <Link style={inlineLink} href="https://app.alpcontractorcircle.com/login">
+                app.alpcontractorcircle.com/login
               </Link>
-              . Type your email, click the link in your inbox, you're in.
+              . Type your email and password, or reset your password from there.
               <br /><br />
               Anything else — hit reply. Goes straight to me.
             </Text>
