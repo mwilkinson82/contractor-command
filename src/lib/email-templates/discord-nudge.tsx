@@ -70,7 +70,7 @@ export const template = {
   previewData: {
     firstName: 'Cesar',
     siteName: 'Contractor Circle',
-    discordUrl: 'https://discord.gg/yvVN2N3qvN',
+    discordUrl: DISCORD_URL,
   },
 } satisfies TemplateEntry
 
