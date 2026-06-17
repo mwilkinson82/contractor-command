@@ -1,24 +1,25 @@
-import * as React from 'react'
-import { render } from '@react-email/components'
-import { parseEmailWebhookPayload } from '@lovable.dev/email-js'
-import { WebhookError, verifyWebhookRequest } from '@lovable.dev/webhooks-js'
-import { createClient } from '@supabase/supabase-js'
-import { createFileRoute } from '@tanstack/react-router'
-import { SignupEmail } from '@/lib/email-templates/signup'
-import { InviteEmail } from '@/lib/email-templates/invite'
-import { MagicLinkEmail } from '@/lib/email-templates/magic-link'
-import { RecoveryEmail } from '@/lib/email-templates/recovery'
-import { EmailChangeEmail } from '@/lib/email-templates/email-change'
-import { ReauthenticationEmail } from '@/lib/email-templates/reauthentication'
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import * as React from "react";
+import { render } from "@react-email/components";
+import { parseEmailWebhookPayload } from "@lovable.dev/email-js";
+import { WebhookError, verifyWebhookRequest } from "@lovable.dev/webhooks-js";
+import { createClient } from "@supabase/supabase-js";
+import { createFileRoute } from "@tanstack/react-router";
+import { SignupEmail } from "@/lib/email-templates/signup";
+import { InviteEmail } from "@/lib/email-templates/invite";
+import { MagicLinkEmail } from "@/lib/email-templates/magic-link";
+import { RecoveryEmail } from "@/lib/email-templates/recovery";
+import { EmailChangeEmail } from "@/lib/email-templates/email-change";
+import { ReauthenticationEmail } from "@/lib/email-templates/reauthentication";
 
 const EMAIL_SUBJECTS: Record<string, string> = {
-  signup: 'Confirm your email',
+  signup: "Confirm your email",
   invite: "You've been invited",
-  magiclink: 'Your login link',
-  recovery: 'Reset your password',
-  email_change: 'Confirm your new email',
-  reauthentication: 'Your verification code',
-}
+  magiclink: "Your login link",
+  recovery: "Reset your password",
+  email_change: "Confirm your new email",
+  reauthentication: "Your verification code",
+};
 
 // Template mapping
 const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
@@ -28,19 +29,19 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
   recovery: RecoveryEmail,
   email_change: EmailChangeEmail,
   reauthentication: ReauthenticationEmail,
-}
+};
 
 // Configuration
-const SITE_NAME = "Contractor Circle"
-const SENDER_DOMAIN = "notify.mail.alpcontractorcircle.com"
-const ROOT_DOMAIN = "mail.alpcontractorcircle.com"
-const FROM_DOMAIN = "mail.alpcontractorcircle.com"
+const SITE_NAME = "Contractor Circle";
+const SENDER_DOMAIN = "notify.mail.alpcontractorcircle.com";
+const ROOT_DOMAIN = "mail.alpcontractorcircle.com";
+const FROM_DOMAIN = "mail.alpcontractorcircle.com";
 
 function redactEmail(email: string | null | undefined): string {
-  if (!email) return '***'
-  const [localPart, domain] = email.split('@')
-  if (!localPart || !domain) return '***'
-  return `${localPart[0]}***@${domain}`
+  if (!email) return "***";
+  const [localPart, domain] = email.split("@");
+  if (!localPart || !domain) return "***";
+  return `${localPart[0]}***@${domain}`;
 }
 
 async function handleAuthEmailWebhook(request: Request) {
