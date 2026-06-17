@@ -25,7 +25,7 @@ const CircleWelcomeEmail = ({
   vaultUrl = 'https://app.alpcontractorcircle.com/vault',
   callsUrl = 'https://app.alpcontractorcircle.com/calls',
   replaysUrl = 'https://app.alpcontractorcircle.com/replays',
-  discordUrl = 'https://discord.gg/alpcontractorcircle',
+  discordUrl = DISCORD_URL,
 }: CircleWelcomeProps) => {
   const name = firstName?.trim()
   return (
