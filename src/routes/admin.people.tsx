@@ -20,6 +20,7 @@ import {
   RotateCcw,
   Layers,
   ShieldCheck,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Container } from "@/components/portal/page-header";
@@ -27,10 +28,12 @@ import { useIsAdmin } from "@/hooks/use-is-admin";
 import {
   auditPeople,
   repairPerson,
+  mintSignInLink,
   type PeopleAudit,
   type PersonRow,
   type PersonIssue,
 } from "@/lib/admin-people.functions";
+
 
 type RepairAction =
   | "link_subscriptions"
@@ -304,6 +307,7 @@ function PersonRowItem({
         )}
       </div>
       <div className="flex flex-wrap gap-1.5">
+        {hasAuth && <MintLinkButton email={person.email} />}
         {ok ? (
           <span className="text-[11px] text-muted-foreground">No action needed</span>
         ) : (
@@ -327,6 +331,7 @@ function PersonRowItem({
           </>
         )}
       </div>
+
     </li>
   );
 }
@@ -372,5 +377,36 @@ function RepairMenu({
         </div>
       </details>
     </div>
+  );
+}
+
+function MintLinkButton({ email }: { email: string }) {
+  const mint = useServerFn(mintSignInLink);
+  const [busy, setBusy] = useState(false);
+  async function copyLink() {
+    setBusy(true);
+    try {
+      const res = await mint({ data: { email, type: "magiclink" } });
+      await navigator.clipboard.writeText(res.url);
+      toast.success("Sign-in link copied", {
+        description: `One-time link for ${email}. Paste into a text or DM.`,
+      });
+    } catch (e: any) {
+      toast.error("Couldn't mint link", { description: e?.message ?? "Unknown error" });
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={copyLink}
+      title="Copy a one-time sign-in URL for this member"
+      className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[11px] font-medium hover:bg-muted disabled:opacity-50"
+    >
+      {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Copy className="h-3 w-3" />}
+      Copy sign-in link
+    </button>
   );
 }
