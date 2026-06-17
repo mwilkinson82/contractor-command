@@ -158,7 +158,12 @@ function PeoplePage() {
         <Stat label="Pending claims" value={data?.totals.pendingClaims} loading={isLoading} />
       </div>
 
+      {/* Mint a sign-in link for ANY auth user, even if they're not in this list
+          (no subscription / claim yet). Useful for triaging "can't log in" reports. */}
+      <MintByEmail />
+
       {/* Filters */}
+
       <div className="mt-6 flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[220px]">
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
