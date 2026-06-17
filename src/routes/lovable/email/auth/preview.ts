@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { renderAsync } from '@react-email/components'
+import { render } from '@react-email/components'
 import { createFileRoute } from '@tanstack/react-router'
 import { SignupEmail } from '@/lib/email-templates/signup'
 import { InviteEmail } from '@/lib/email-templates/invite'
@@ -18,7 +18,7 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
 }
 
 // Configuration
-const SITE_NAME = "contractor-command"
+const SITE_NAME = "Contractor Circle"
 const ROOT_DOMAIN = "mail.alpcontractorcircle.com"
 
 // Sample data for preview mode ONLY (not used in actual email sending).
@@ -100,7 +100,7 @@ export const Route = createFileRoute("/lovable/email/auth/preview")({
         }
 
         const sampleData = SAMPLE_DATA[type] || {}
-        const html = await renderAsync(React.createElement(EmailTemplate, sampleData))
+        const html = await render(React.createElement(EmailTemplate, sampleData))
 
         return new Response(html, {
           status: 200,
