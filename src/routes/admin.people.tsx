@@ -388,14 +388,22 @@ function RepairMenu({
 function MintLinkButton({ email }: { email: string }) {
   const mint = useServerFn(mintSignInLink);
   const [busy, setBusy] = useState(false);
+  const [lastUrl, setLastUrl] = useState<string | null>(null);
   async function copyLink() {
     setBusy(true);
     try {
       const res = await mint({ data: { email, type: "magiclink" } });
-      await navigator.clipboard.writeText(res.url);
-      toast.success("Sign-in link copied", {
-        description: `One-time link for ${email}. Paste into a text or DM.`,
-      });
+      setLastUrl(res.url);
+      try {
+        await navigator.clipboard.writeText(res.url);
+        toast.success("Sign-in link copied", {
+          description: `One-time link for ${email}. Paste into a text or DM.`,
+        });
+      } catch {
+        toast.warning("Sign-in link created", {
+          description: "Clipboard is blocked here — copy it from the field that appeared.",
+        });
+      }
     } catch (e: any) {
       toast.error("Couldn't mint link", { description: e?.message ?? "Unknown error" });
     } finally {
@@ -403,16 +411,26 @@ function MintLinkButton({ email }: { email: string }) {
     }
   }
   return (
-    <button
-      type="button"
-      disabled={busy}
-      onClick={copyLink}
-      title="Copy a one-time sign-in URL for this member"
-      className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[11px] font-medium hover:bg-muted disabled:opacity-50"
-    >
-      {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Copy className="h-3 w-3" />}
-      Copy sign-in link
-    </button>
+    <div className="basis-full space-y-1">
+      <button
+        type="button"
+        disabled={busy}
+        onClick={copyLink}
+        title="Copy a one-time sign-in URL for this member"
+        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[11px] font-medium hover:bg-muted disabled:opacity-50"
+      >
+        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Copy className="h-3 w-3" />}
+        Copy sign-in link
+      </button>
+      {lastUrl ? (
+        <input
+          readOnly
+          value={lastUrl}
+          onFocus={(e) => e.currentTarget.select()}
+          className="w-full rounded-md border border-border bg-background px-2 py-1 text-[11px] text-muted-foreground"
+        />
+      ) : null}
+    </div>
   );
 }
 
@@ -420,6 +438,7 @@ function MintByEmail() {
   const mint = useServerFn(mintSignInLink);
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
+  const [lastUrl, setLastUrl] = useState<string | null>(null);
   async function copyLink(e: React.FormEvent) {
     e.preventDefault();
     const target = email.trim().toLowerCase();
@@ -427,10 +446,17 @@ function MintByEmail() {
     setBusy(true);
     try {
       const res = await mint({ data: { email: target, type: "magiclink" } });
-      await navigator.clipboard.writeText(res.url);
-      toast.success("Sign-in link copied", {
-        description: `One-time link for ${target}. Paste into a text or DM.`,
-      });
+      setLastUrl(res.url);
+      try {
+        await navigator.clipboard.writeText(res.url);
+        toast.success("Sign-in link copied", {
+          description: `One-time link for ${target}. Paste into a text or DM.`,
+        });
+      } catch {
+        toast.warning("Sign-in link created", {
+          description: "Clipboard is blocked here — copy it from the field that appeared.",
+        });
+      }
     } catch (err: any) {
       toast.error("Couldn't mint link", { description: err?.message ?? "Unknown error" });
     } finally {
@@ -464,6 +490,14 @@ function MintByEmail() {
       <span className="basis-full text-[11px] text-muted-foreground">
         Works for any existing auth account — even ones hidden from this list (no sub / no claim).
       </span>
+      {lastUrl ? (
+        <input
+          readOnly
+          value={lastUrl}
+          onFocus={(e) => e.currentTarget.select()}
+          className="basis-full rounded-md border border-border bg-background px-2 py-1.5 text-[11px] text-muted-foreground"
+        />
+      ) : null}
     </form>
   );
 }
