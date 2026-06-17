@@ -1,10 +1,11 @@
 import { createFileRoute, Link, redirect, useNavigate, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { sendTransactionalEmail } from "@/lib/email/send";
+import { requestMemberMagicLink } from "@/lib/magic-link.functions";
 import ccMark from "@/assets/cc-mark.png";
 import bulldozer from "@/assets/bulldozer.png";
-
 
 // Only allow same-origin relative paths. Blocks "//evil.com", "https://...", etc.
 function safeRedirect(value: unknown): string {
@@ -16,8 +17,7 @@ function safeRedirect(value: unknown): string {
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Sign in — ALP Contractor Circle" }] }),
   validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
-    redirect:
-      typeof search.redirect === "string" ? safeRedirect(search.redirect) : undefined,
+    redirect: typeof search.redirect === "string" ? safeRedirect(search.redirect) : undefined,
   }),
   beforeLoad: async ({ search }) => {
     const { data } = await supabase.auth.getSession();
@@ -29,12 +29,14 @@ export const Route = createFileRoute("/login")({
 function LoginPage() {
   const router = useRouter();
   const navigate = useNavigate();
+  const requestMagicLink = useServerFn(requestMemberMagicLink);
   const { redirect: redirectTo } = Route.useSearch();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [mode] = useState<"password">("password");
+  const [mode, setMode] = useState<"magic" | "password">("magic");
+  const [magicSent, setMagicSent] = useState(false);
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_, s) => {
@@ -46,6 +48,20 @@ function LoginPage() {
     return () => sub.subscription.unsubscribe();
   }, [router, navigate, redirectTo]);
 
+  async function onMagicSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setErr(null);
+    try {
+      await requestMagicLink({ data: { email: email.trim() } });
+      setMagicSent(true);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onPasswordSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -54,6 +70,8 @@ function LoginPage() {
     if (error) setErr(error.message);
     if (data?.user) {
       const u = data.user;
+      const metadata = u.user_metadata as { full_name?: unknown };
+      const fullName = typeof metadata.full_name === "string" ? metadata.full_name : undefined;
       void sendTransactionalEmail({
         templateName: "admin-activity-notice",
         recipientEmail: "wilkinson.marshall@gmail.com",
@@ -61,7 +79,7 @@ function LoginPage() {
         templateData: {
           event: "Member signed in",
           memberEmail: u.email,
-          memberName: (u.user_metadata as any)?.full_name,
+          memberName: fullName,
           occurredAt: new Date().toISOString(),
         },
       }).catch((e) => console.warn("admin notify (login) failed", e));
@@ -76,7 +94,11 @@ function LoginPage() {
         <div className="w-full max-w-[440px]">
           <div className="rounded-[28px] bg-cream shadow-[0_30px_80px_-40px_rgba(20,16,12,0.35),0_2px_0_rgba(20,16,12,0.04)] ring-1 ring-ink/[0.06]">
             <div className="px-10 pt-10 pb-9">
-              <Link to="/" className="inline-flex items-center gap-3" aria-label="Contractor Circle">
+              <Link
+                to="/"
+                className="inline-flex items-center gap-3"
+                aria-label="Contractor Circle"
+              >
                 <img src={ccMark} alt="" className="h-12 w-12 object-contain" />
                 <span className="text-[10px] uppercase tracking-[0.28em] text-ink/45">
                   ALP &middot; Contractor Circle
@@ -87,10 +109,60 @@ function LoginPage() {
                 Sign in
               </h1>
               <p className="mt-2 text-[13px] leading-relaxed text-ink/55">
-                Your private operating system.
+                {mode === "magic"
+                  ? "We'll email you a one-click sign-in link. No password needed."
+                  : "Your private operating system."}
               </p>
 
-              {mode === "password" && (
+              {magicSent ? (
+                <div className="mt-8 rounded-2xl border border-ink/10 bg-paper-edge/30 px-5 py-5 text-[13px] leading-relaxed text-ink/75">
+                  <p>
+                    If <strong className="text-ink">{email}</strong> is an active member, a sign-in
+                    link is on its way. Check your inbox and spam folder.
+                  </p>
+                  <button
+                    type="button"
+                    className="mt-4 font-display text-[12px] italic text-ink/45 transition-colors hover:text-ink"
+                    onClick={() => setMagicSent(false)}
+                  >
+                    Try a different email
+                  </button>
+                </div>
+              ) : mode === "magic" ? (
+                <form onSubmit={onMagicSubmit} className="mt-8 space-y-6">
+                  <Field
+                    id="email"
+                    label="Email"
+                    type="email"
+                    value={email}
+                    onChange={setEmail}
+                    placeholder="name@company.com"
+                    required
+                    autoFocus
+                  />
+
+                  {err && <p className="text-[12px] text-[color:var(--danger-warm)]">{err}</p>}
+
+                  <button
+                    type="submit"
+                    disabled={busy}
+                    className="mt-2 inline-flex w-full items-center justify-center rounded-full bg-ink px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-cream transition-opacity hover:opacity-90 disabled:opacity-50"
+                  >
+                    {busy ? "Sending" : "Email sign-in link"}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="mx-auto block font-display text-[12px] italic text-ink/45 transition-colors hover:text-ink"
+                    onClick={() => {
+                      setErr(null);
+                      setMode("password");
+                    }}
+                  >
+                    Use password instead
+                  </button>
+                </form>
+              ) : (
                 <form onSubmit={onPasswordSubmit} className="mt-8 space-y-6">
                   <Field
                     id="email"
@@ -131,6 +203,16 @@ function LoginPage() {
                     {busy ? "Entering" : "Enter"}
                   </button>
 
+                  <button
+                    type="button"
+                    className="mx-auto block font-display text-[12px] italic text-ink/45 transition-colors hover:text-ink"
+                    onClick={() => {
+                      setErr(null);
+                      setMode("magic");
+                    }}
+                  >
+                    Email me a sign-in link
+                  </button>
                 </form>
               )}
             </div>
@@ -154,23 +236,25 @@ function LoginPage() {
             draggable={false}
           />
           <h2 className="font-display text-[96px] leading-[0.92] -tracking-[0.025em] text-ink lg:text-[112px]">
-            Boring<br />wins.
+            Boring
+            <br />
+            wins.
           </h2>
 
           <div className="mt-10 grid grid-cols-3 gap-5 text-[11.5px] leading-[1.55] text-ink/75 [text-align:justify] [hyphens:auto] [text-justify:inter-word] tracking-[-0.005em]">
             <p>
-              The best contractors we know aren't the loudest ones. They're the
-              ones with systems. The ones who go home at five. The ones whose
-              crews know what to do Monday morning without being told twice.
+              The best contractors we know aren't the loudest ones. They're the ones with systems.
+              The ones who go home at five. The ones whose crews know what to do Monday morning
+              without being told twice.
             </p>
             <p>
-              That's what this is. Not another app. An operating system for the
-              company behind your projects&mdash;meetings that end, numbers
-              that mean something, a team that runs without you in the room.
+              That's what this is. Not another app. An operating system for the company behind your
+              projects&mdash;meetings that end, numbers that mean something, a team that runs
+              without you in the room.
             </p>
             <p>
-              It isn't flashy. There's no dashboard with a rocket on it.
-              Just a quiet, repeatable way to run a real construction business.
+              It isn't flashy. There's no dashboard with a rocket on it. Just a quiet, repeatable
+              way to run a real construction business.
               <br />
               Boring, maybe. But boring is what scales.
             </p>
@@ -184,7 +268,6 @@ function LoginPage() {
     </div>
   );
 }
-
 
 function Field({
   id,
