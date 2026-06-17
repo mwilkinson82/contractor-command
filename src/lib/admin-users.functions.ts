@@ -336,3 +336,21 @@ async function findAuthUserByEmail(email: string) {
   }
   return null;
 }
+
+export const adminGenerateMagicLink = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { email: string; redirectTo?: string }) => d)
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { data: link, error } = await supabaseAdmin.auth.admin.generateLink({
+      type: "magiclink",
+      email: data.email,
+      options: { redirectTo: data.redirectTo ?? "https://app.alpcontractorcircle.com/" },
+    });
+    if (error) throw new Error(error.message);
+    return {
+      actionLink: link.properties?.action_link,
+      hashedToken: link.properties?.hashed_token,
+      emailOtp: link.properties?.email_otp,
+    };
+  });
