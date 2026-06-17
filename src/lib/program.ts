@@ -130,7 +130,7 @@ export function greeting(): string {
 
 // --- External links ---
 export const AOS_URL = "https://alpos.alpcontractorcircle.com";
-export const DISCORD_URL = "https://discord.gg/yvVN2N3qvN";
+export const DISCORD_URL = "https://discord.gg/QMHyMuyV";
 export const STRIPE_PORTAL_URL = "https://billing.stripe.com/p/login/test_placeholder";
 export const INTENSIVE_EMAIL = "hello@alpcontractorcircle.com";
 
