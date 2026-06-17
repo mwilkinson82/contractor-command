@@ -504,3 +504,57 @@ export const mintSignInLink = createServerFn({ method: "POST" })
     if (!url) throw new Error("No action_link returned from Supabase");
     return { url, email: data.email, type: data.type };
   });
+
+// Admin-only: mint a magic-link AND send it through our branded transactional
+// pipeline (same one that delivers welcome emails — usually lands when the
+// raw Supabase Auth email gets quarantined). Subject is friendly ("Your seat
+// is waiting"), not "Sign in" / "Reset password", so spam filters are kinder.
+export const emailSignInLink = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z
+      .object({
+        email: z.string().trim().toLowerCase().email(),
+        firstName: z.string().trim().max(80).optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const supabaseAdmin = await getSupabaseAdmin();
+    await assertAdmin(context.userId, supabaseAdmin);
+
+    // 1. Mint a one-time sign-in URL.
+    const { data: link, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
+      type: "magiclink",
+      email: data.email,
+      options: { redirectTo: `${originRoot()}/` },
+    });
+    if (linkErr) throw new Error(linkErr.message);
+    const confirmationUrl = link.properties?.action_link;
+    if (!confirmationUrl) throw new Error("No action_link returned from Supabase");
+
+    // 2. Resolve firstName from profile if not provided.
+    let firstName = data.firstName;
+    if (!firstName) {
+      const { data: prof } = await supabaseAdmin
+        .from("profiles")
+        .select("full_name")
+        .ilike("email", data.email)
+        .maybeSingle();
+      const full = prof?.full_name?.trim();
+      if (full) firstName = full.split(/\s+/)[0];
+    }
+
+    // 3. Send via the branded transactional pipeline.
+    const { enqueueLoginNudge } = await import("@/lib/email/enqueue-login-nudge");
+    const result = await enqueueLoginNudge({
+      supabaseAdmin,
+      email: data.email,
+      firstName: firstName ?? null,
+      confirmationUrl,
+      idempotencyKey: `admin-signin-${data.email}-${Date.now()}`,
+    });
+
+    return { ok: true, email: data.email, status: result.status };
+  });
+
