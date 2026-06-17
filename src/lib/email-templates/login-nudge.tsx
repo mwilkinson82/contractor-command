@@ -14,7 +14,7 @@ interface LoginNudgeProps {
 const LoginNudgeEmail = ({
   siteName = 'Contractor Circle',
   siteUrl = 'https://app.alpcontractorcircle.com',
-  confirmationUrl = 'https://app.alpcontractorcircle.com/magic-link',
+  confirmationUrl = 'https://app.alpcontractorcircle.com/login',
   firstName,
 }: LoginNudgeProps) => {
   const name = firstName?.trim()
@@ -35,16 +35,15 @@ const LoginNudgeEmail = ({
             <Heading style={h1}>{name ? `${name}, your seat is waiting.` : 'Your seat is waiting.'}</Heading>
             <Text style={lede}>
               You're paid up and you're in the room — but we haven't seen you log in yet.
-              No password required. Request a magic link with the email this was sent to
-              and you're inside the portal: Vault, replays, AOS Engine, the whole thing.
+              Use the email this was sent to and your password to step inside the portal:
+              Vault, replays, AOS Engine, the whole thing.
             </Text>
             <Section style={ctaWrap}>
-              <Button style={button} href={confirmationUrl}>Send me a magic link</Button>
+              <Button style={button} href={confirmationUrl}>Sign in</Button>
               <Text style={ctaNote}>
                 Opens at{' '}
                 <Link href={siteUrl} style={inlineLink}>app.alpcontractorcircle.com</Link>.
-                The link arrives in seconds and signs you straight in — nothing to set,
-                nothing to remember.
+                If you need a new password, use the reset link on the login page.
               </Text>
             </Section>
             <Text style={footer}>
@@ -68,7 +67,7 @@ export const template = {
     firstName: 'Cesar',
     siteName: 'Contractor Circle',
     siteUrl: 'https://app.alpcontractorcircle.com',
-    confirmationUrl: 'https://app.alpcontractorcircle.com/magic-link',
+    confirmationUrl: 'https://app.alpcontractorcircle.com/login',
   },
 } satisfies TemplateEntry
 
