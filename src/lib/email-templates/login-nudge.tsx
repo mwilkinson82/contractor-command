@@ -14,7 +14,7 @@ interface LoginNudgeProps {
 const LoginNudgeEmail = ({
   siteName = 'Contractor Circle',
   siteUrl = 'https://app.alpcontractorcircle.com',
-  confirmationUrl = 'https://app.alpcontractorcircle.com/welcome',
+  confirmationUrl = 'https://app.alpcontractorcircle.com/magic-link',
   firstName,
 }: LoginNudgeProps) => {
   const name = firstName?.trim()
@@ -34,20 +34,22 @@ const LoginNudgeEmail = ({
             <Text style={eyebrow}>ALP CONTRACTOR CIRCLE · QUICK NUDGE</Text>
             <Heading style={h1}>{name ? `${name}, your seat is waiting.` : 'Your seat is waiting.'}</Heading>
             <Text style={lede}>
-              You're paid up, you're in the room — but you haven't set your password yet.
-              One click and you're inside the portal: Vault, replays, AOS Engine, the
-              whole thing.
+              You're paid up and you're in the room — but we haven't seen you log in yet.
+              No password required. Request a magic link with the email this was sent to
+              and you're inside the portal: Vault, replays, AOS Engine, the whole thing.
             </Text>
             <Section style={ctaWrap}>
-              <Button style={button} href={confirmationUrl}>Set your password</Button>
+              <Button style={button} href={confirmationUrl}>Send me a magic link</Button>
               <Text style={ctaNote}>
-                Fresh link. Opens at{' '}
+                Opens at{' '}
                 <Link href={siteUrl} style={inlineLink}>app.alpcontractorcircle.com</Link>.
+                The link arrives in seconds and signs you straight in — nothing to set,
+                nothing to remember.
               </Text>
             </Section>
             <Text style={footer}>
-              Already in? Ignore this — we won't nudge again. Stuck on the link? Reply and
-              we'll send a fresh one.
+              Already in? Ignore this — we won't nudge again. Trouble with the link? Reply
+              and we'll get you in by hand.
             </Text>
           </Section>
           <Text style={signoff}>— Marshall &amp; the ALP team</Text>
@@ -61,12 +63,12 @@ export const template = {
   component: LoginNudgeEmail,
   subject: (d: Record<string, any>) =>
     d?.firstName ? `${d.firstName}, your seat is waiting` : 'Your seat at the Circle is waiting',
-  displayName: 'Login nudge (no password set)',
+  displayName: 'Login nudge (magic link)',
   previewData: {
     firstName: 'Cesar',
     siteName: 'Contractor Circle',
     siteUrl: 'https://app.alpcontractorcircle.com',
-    confirmationUrl: 'https://app.alpcontractorcircle.com/welcome?token=preview',
+    confirmationUrl: 'https://app.alpcontractorcircle.com/magic-link',
   },
 } satisfies TemplateEntry
 
