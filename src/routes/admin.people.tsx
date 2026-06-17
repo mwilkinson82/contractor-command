@@ -21,6 +21,7 @@ import {
   Layers,
   ShieldCheck,
   Copy,
+  Mail,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Container } from "@/components/portal/page-header";
@@ -29,10 +30,12 @@ import {
   auditPeople,
   repairPerson,
   mintSignInLink,
+  emailSignInLink,
   type PeopleAudit,
   type PersonRow,
   type PersonIssue,
 } from "@/lib/admin-people.functions";
+
 
 
 type RepairAction =
