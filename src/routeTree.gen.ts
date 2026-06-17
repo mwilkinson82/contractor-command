@@ -69,6 +69,7 @@ import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/em
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api/public/stripe/webhook'
 import { Route as ApiPublicAosTierLookupRouteImport } from './routes/api/public/aos/tier-lookup'
+import { Route as ApiPublicAdminMintLinkRouteImport } from './routes/api/public/admin/mint-link'
 
 const WorkWithMarshallRoute = WorkWithMarshallRouteImport.update({
   id: '/work-with-marshall',
@@ -373,6 +374,11 @@ const ApiPublicAosTierLookupRoute = ApiPublicAosTierLookupRouteImport.update({
   path: '/api/public/aos/tier-lookup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicAdminMintLinkRoute = ApiPublicAdminMintLinkRouteImport.update({
+  id: '/api/public/admin/mint-link',
+  path: '/api/public/admin/mint-link',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -428,6 +434,7 @@ export interface FileRoutesByFullPath {
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
+  '/api/public/admin/mint-link': typeof ApiPublicAdminMintLinkRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -490,6 +497,7 @@ export interface FileRoutesByTo {
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
+  '/api/public/admin/mint-link': typeof ApiPublicAdminMintLinkRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -553,6 +561,7 @@ export interface FileRoutesById {
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
+  '/api/public/admin/mint-link': typeof ApiPublicAdminMintLinkRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -617,6 +626,7 @@ export interface FileRouteTypes {
     | '/api/public/aos-fp'
     | '/lovable/email/suppression'
     | '/tools/sop-edit/$packetId'
+    | '/api/public/admin/mint-link'
     | '/api/public/aos/tier-lookup'
     | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
@@ -679,6 +689,7 @@ export interface FileRouteTypes {
     | '/api/public/aos-fp'
     | '/lovable/email/suppression'
     | '/tools/sop-edit/$packetId'
+    | '/api/public/admin/mint-link'
     | '/api/public/aos/tier-lookup'
     | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
@@ -741,6 +752,7 @@ export interface FileRouteTypes {
     | '/api/public/aos-fp'
     | '/lovable/email/suppression'
     | '/tools/sop-edit/$packetId'
+    | '/api/public/admin/mint-link'
     | '/api/public/aos/tier-lookup'
     | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
@@ -800,6 +812,7 @@ export interface RootRouteChildren {
   AskIndexRoute: typeof AskIndexRoute
   ApiPublicAosFpRoute: typeof ApiPublicAosFpRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
+  ApiPublicAdminMintLinkRoute: typeof ApiPublicAdminMintLinkRoute
   ApiPublicAosTierLookupRoute: typeof ApiPublicAosTierLookupRoute
   ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
@@ -1231,6 +1244,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAosTierLookupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/admin/mint-link': {
+      id: '/api/public/admin/mint-link'
+      path: '/api/public/admin/mint-link'
+      fullPath: '/api/public/admin/mint-link'
+      preLoaderRoute: typeof ApiPublicAdminMintLinkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -1310,6 +1330,7 @@ const rootRouteChildren: RootRouteChildren = {
   AskIndexRoute: AskIndexRoute,
   ApiPublicAosFpRoute: ApiPublicAosFpRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
+  ApiPublicAdminMintLinkRoute: ApiPublicAdminMintLinkRoute,
   ApiPublicAosTierLookupRoute: ApiPublicAosTierLookupRoute,
   ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
@@ -1321,13 +1342,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
