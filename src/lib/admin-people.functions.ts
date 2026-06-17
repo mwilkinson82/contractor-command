@@ -470,3 +470,37 @@ export const repairPerson = createServerFn({ method: "POST" })
 
     return { email: data.email, performed, notes, errors };
   });
+
+// Admin-only: mint a one-time sign-in URL for a member when email delivery
+// is failing (spam quarantine, iOS Mail prefetch burning tokens, etc.).
+// Returns the URL so the operator can hand-deliver it (text/Slack/etc.).
+// The URL is single-use and short-lived — Supabase enforces both.
+export const mintSignInLink = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z
+      .object({
+        email: z.string().trim().toLowerCase().email(),
+        type: z.enum(["magiclink", "recovery"]).default("magiclink"),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const supabaseAdmin = await getSupabaseAdmin();
+    await assertAdmin(context.userId, supabaseAdmin);
+
+    const { data: link, error } = await supabaseAdmin.auth.admin.generateLink({
+      type: data.type,
+      email: data.email,
+      options: {
+        redirectTo:
+          data.type === "recovery"
+            ? `${originRoot()}/reset-password`
+            : `${originRoot()}/`,
+      },
+    });
+    if (error) throw new Error(error.message);
+    const url = link.properties?.action_link;
+    if (!url) throw new Error("No action_link returned from Supabase");
+    return { url, email: data.email, type: data.type };
+  });
