@@ -34,8 +34,7 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [mode, setMode] = useState<"magic" | "password">("magic");
-  const [magicSent, setMagicSent] = useState(false);
+  const [mode] = useState<"password">("password");
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_, s) => {
@@ -46,26 +45,6 @@ function LoginPage() {
     });
     return () => sub.subscription.unsubscribe();
   }, [router, navigate, redirectTo]);
-
-  async function onMagicSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setErr(null);
-    const origin = typeof window !== "undefined" ? window.location.origin : undefined;
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim().toLowerCase(),
-      options: {
-        shouldCreateUser: false,
-        emailRedirectTo: origin ? `${origin}/` : undefined,
-      },
-    });
-    setBusy(false);
-    if (error && !/not.*found|exist/i.test(error.message)) {
-      setErr(error.message);
-      return;
-    }
-    setMagicSent(true);
-  }
 
   async function onPasswordSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -108,66 +87,10 @@ function LoginPage() {
                 Sign in
               </h1>
               <p className="mt-2 text-[13px] leading-relaxed text-ink/55">
-                {mode === "magic"
-                  ? "We'll email you a one-click sign-in link. No password needed."
-                  : "Your private operating system."}
+                Your private operating system.
               </p>
 
-              {magicSent ? (
-                <div className="mt-8 rounded-2xl border border-ink/10 bg-paper-edge/30 px-5 py-5 text-[13px] leading-relaxed text-ink/75">
-                  <p>
-                    If <strong className="text-ink">{email}</strong> is an active member,
-                    a sign-in link is on its way. Check your inbox (and spam folder).
-                  </p>
-                  <p className="mt-3 text-[12px] text-ink/50">
-                    Didn't get it after a minute?{" "}
-                    <button
-                      type="button"
-                      onClick={() => setMagicSent(false)}
-                      className="underline underline-offset-2 hover:text-ink"
-                    >
-                      Try again
-                    </button>
-                    .
-                  </p>
-                </div>
-              ) : mode === "magic" ? (
-                <form onSubmit={onMagicSubmit} className="mt-8 space-y-6">
-                  <Field
-                    id="email"
-                    label="Email"
-                    type="email"
-                    value={email}
-                    onChange={setEmail}
-                    placeholder="name@company.com"
-                    required
-                    autoFocus
-                  />
-
-                  {err && <p className="text-[12px] text-[color:var(--danger-warm)]">{err}</p>}
-
-                  <button
-                    type="submit"
-                    disabled={busy || !email.trim()}
-                    className="mt-2 inline-flex w-full items-center justify-center rounded-full bg-ink px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-cream transition-opacity hover:opacity-90 disabled:opacity-50"
-                  >
-                    {busy ? "Sending" : "Email me a sign-in link"}
-                  </button>
-
-                  <p className="text-center text-[12px] text-ink/45">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setErr(null);
-                        setMode("password");
-                      }}
-                      className="font-display italic transition-colors hover:text-ink"
-                    >
-                      Use password instead
-                    </button>
-                  </p>
-                </form>
-              ) : (
+              {mode === "password" && (
                 <form onSubmit={onPasswordSubmit} className="mt-8 space-y-6">
                   <Field
                     id="email"
@@ -208,18 +131,6 @@ function LoginPage() {
                     {busy ? "Entering" : "Enter"}
                   </button>
 
-                  <p className="text-center text-[12px] text-ink/45">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setErr(null);
-                        setMode("magic");
-                      }}
-                      className="font-display italic transition-colors hover:text-ink"
-                    >
-                      Email me a sign-in link instead
-                    </button>
-                  </p>
                 </form>
               )}
             </div>
