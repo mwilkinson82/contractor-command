@@ -307,6 +307,7 @@ function PersonRowItem({
         )}
       </div>
       <div className="flex flex-wrap gap-1.5">
+        {hasAuth && <MintLinkButton email={person.email} />}
         {ok ? (
           <span className="text-[11px] text-muted-foreground">No action needed</span>
         ) : (
@@ -330,6 +331,7 @@ function PersonRowItem({
           </>
         )}
       </div>
+
     </li>
   );
 }
