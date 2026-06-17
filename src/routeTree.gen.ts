@@ -23,7 +23,6 @@ import { Route as SchedulerRouteImport } from './routes/scheduler'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ReplaysRouteImport } from './routes/replays'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
-import { Route as MagicLinkRouteImport } from './routes/magic-link'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as HardcoreRouteImport } from './routes/hardcore'
 import { Route as HandbookRouteImport } from './routes/handbook'
@@ -138,11 +137,6 @@ const ReplaysRoute = ReplaysRouteImport.update({
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MagicLinkRoute = MagicLinkRouteImport.update({
-  id: '/magic-link',
-  path: '/magic-link',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -384,7 +378,6 @@ export interface FileRoutesByFullPath {
   '/handbook': typeof HandbookRoute
   '/hardcore': typeof HardcoreRoute
   '/login': typeof LoginRoute
-  '/magic-link': typeof MagicLinkRoute
   '/onboarding': typeof OnboardingRoute
   '/replays': typeof ReplaysRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -446,7 +439,6 @@ export interface FileRoutesByTo {
   '/handbook': typeof HandbookRoute
   '/hardcore': typeof HardcoreRoute
   '/login': typeof LoginRoute
-  '/magic-link': typeof MagicLinkRoute
   '/onboarding': typeof OnboardingRoute
   '/replays': typeof ReplaysRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -509,7 +501,6 @@ export interface FileRoutesById {
   '/handbook': typeof HandbookRoute
   '/hardcore': typeof HardcoreRoute
   '/login': typeof LoginRoute
-  '/magic-link': typeof MagicLinkRoute
   '/onboarding': typeof OnboardingRoute
   '/replays': typeof ReplaysRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -573,7 +564,6 @@ export interface FileRouteTypes {
     | '/handbook'
     | '/hardcore'
     | '/login'
-    | '/magic-link'
     | '/onboarding'
     | '/replays'
     | '/reset-password'
@@ -635,7 +625,6 @@ export interface FileRouteTypes {
     | '/handbook'
     | '/hardcore'
     | '/login'
-    | '/magic-link'
     | '/onboarding'
     | '/replays'
     | '/reset-password'
@@ -697,7 +686,6 @@ export interface FileRouteTypes {
     | '/handbook'
     | '/hardcore'
     | '/login'
-    | '/magic-link'
     | '/onboarding'
     | '/replays'
     | '/reset-password'
@@ -760,7 +748,6 @@ export interface RootRouteChildren {
   HandbookRoute: typeof HandbookRoute
   HardcoreRoute: typeof HardcoreRoute
   LoginRoute: typeof LoginRoute
-  MagicLinkRoute: typeof MagicLinkRoute
   OnboardingRoute: typeof OnboardingRoute
   ReplaysRoute: typeof ReplaysRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
@@ -907,13 +894,6 @@ declare module '@tanstack/react-router' {
       path: '/onboarding'
       fullPath: '/onboarding'
       preLoaderRoute: typeof OnboardingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/magic-link': {
-      id: '/magic-link'
-      path: '/magic-link'
-      fullPath: '/magic-link'
-      preLoaderRoute: typeof MagicLinkRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -1270,7 +1250,6 @@ const rootRouteChildren: RootRouteChildren = {
   HandbookRoute: HandbookRoute,
   HardcoreRoute: HardcoreRoute,
   LoginRoute: LoginRoute,
-  MagicLinkRoute: MagicLinkRoute,
   OnboardingRoute: OnboardingRoute,
   ReplaysRoute: ReplaysRoute,
   ResetPasswordRoute: ResetPasswordRoute,
