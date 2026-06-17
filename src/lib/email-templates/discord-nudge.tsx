@@ -3,6 +3,7 @@ import {
   Body, Button, Container, Head, Heading, Html, Link, Preview, Section, Text,
 } from '@react-email/components'
 import type { TemplateEntry } from './registry'
+import { DISCORD_URL } from '../program'
 
 interface DiscordNudgeProps {
   siteName?: string
@@ -12,7 +13,7 @@ interface DiscordNudgeProps {
 
 const DiscordNudgeEmail = ({
   siteName = 'Contractor Circle',
-  discordUrl = 'https://discord.gg/yvVN2N3qvN',
+  discordUrl = DISCORD_URL,
   firstName,
 }: DiscordNudgeProps) => {
   const name = firstName?.trim()
