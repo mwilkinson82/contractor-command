@@ -390,10 +390,11 @@ function RepairMenu({
 
 function MintLinkButton({ email }: { email: string }) {
   const mint = useServerFn(mintSignInLink);
-  const [busy, setBusy] = useState(false);
+  const emailFn = useServerFn(emailSignInLink);
+  const [busy, setBusy] = useState<null | "copy" | "email">(null);
   const [lastUrl, setLastUrl] = useState<string | null>(null);
   async function copyLink() {
-    setBusy(true);
+    setBusy("copy");
     try {
       const res = await mint({ data: { email, type: "magiclink" } });
       setLastUrl(res.url);
@@ -410,21 +411,46 @@ function MintLinkButton({ email }: { email: string }) {
     } catch (e: any) {
       toast.error("Couldn't mint link", { description: e?.message ?? "Unknown error" });
     } finally {
-      setBusy(false);
+      setBusy(null);
+    }
+  }
+  async function emailLink() {
+    setBusy("email");
+    try {
+      await emailFn({ data: { email } });
+      toast.success("Sign-in email sent", {
+        description: `Branded magic link emailed to ${email}.`,
+      });
+    } catch (e: any) {
+      toast.error("Couldn't send email", { description: e?.message ?? "Unknown error" });
+    } finally {
+      setBusy(null);
     }
   }
   return (
     <div className="basis-full space-y-1">
-      <button
-        type="button"
-        disabled={busy}
-        onClick={copyLink}
-        title="Copy a one-time sign-in URL for this member"
-        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[11px] font-medium hover:bg-muted disabled:opacity-50"
-      >
-        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Copy className="h-3 w-3" />}
-        Copy sign-in link
-      </button>
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          disabled={busy !== null}
+          onClick={copyLink}
+          title="Copy a one-time sign-in URL for this member"
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[11px] font-medium hover:bg-muted disabled:opacity-50"
+        >
+          {busy === "copy" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Copy className="h-3 w-3" />}
+          Copy sign-in link
+        </button>
+        <button
+          type="button"
+          disabled={busy !== null}
+          onClick={emailLink}
+          title="Email a branded one-tap sign-in link (uses our delivery pipeline that lands)"
+          className="inline-flex items-center gap-1.5 rounded-md border border-foreground bg-foreground px-2.5 py-1.5 text-[11px] font-medium text-background hover:opacity-90 disabled:opacity-50"
+        >
+          {busy === "email" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Mail className="h-3 w-3" />}
+          Email sign-in link
+        </button>
+      </div>
       {lastUrl ? (
         <input
           readOnly
@@ -439,6 +465,8 @@ function MintLinkButton({ email }: { email: string }) {
 
 function MintByEmail() {
   const mint = useServerFn(mintSignInLink);
+  const emailFn = useServerFn(emailSignInLink);
+
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [lastUrl, setLastUrl] = useState<string | null>(null);
