@@ -158,7 +158,12 @@ function PeoplePage() {
         <Stat label="Pending claims" value={data?.totals.pendingClaims} loading={isLoading} />
       </div>
 
+      {/* Mint a sign-in link for ANY auth user, even if they're not in this list
+          (no subscription / claim yet). Useful for triaging "can't log in" reports. */}
+      <MintByEmail />
+
       {/* Filters */}
+
       <div className="mt-6 flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[220px]">
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -410,3 +415,56 @@ function MintLinkButton({ email }: { email: string }) {
     </button>
   );
 }
+
+function MintByEmail() {
+  const mint = useServerFn(mintSignInLink);
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function copyLink(e: React.FormEvent) {
+    e.preventDefault();
+    const target = email.trim().toLowerCase();
+    if (!target) return;
+    setBusy(true);
+    try {
+      const res = await mint({ data: { email: target, type: "magiclink" } });
+      await navigator.clipboard.writeText(res.url);
+      toast.success("Sign-in link copied", {
+        description: `One-time link for ${target}. Paste into a text or DM.`,
+      });
+    } catch (err: any) {
+      toast.error("Couldn't mint link", { description: err?.message ?? "Unknown error" });
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <form
+      onSubmit={copyLink}
+      className="mt-6 flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-border bg-muted/30 px-3 py-2.5"
+    >
+      <LinkIcon className="h-3.5 w-3.5 text-muted-foreground" />
+      <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
+        Mint sign-in link
+      </span>
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="email@example.com"
+        className="min-w-[240px] flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-[13px] focus:border-ink focus:outline-none"
+      />
+      <button
+        type="submit"
+        disabled={busy || !email.trim()}
+        className="inline-flex items-center gap-1.5 rounded-md border border-foreground bg-foreground px-3 py-1.5 text-[11px] font-medium text-background hover:opacity-90 disabled:opacity-50"
+      >
+        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Copy className="h-3 w-3" />}
+        Copy link
+      </button>
+      <span className="basis-full text-[11px] text-muted-foreground">
+        Works for any existing auth account — even ones hidden from this list (no sub / no claim).
+      </span>
+    </form>
+  );
+}
+
