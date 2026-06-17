@@ -3,6 +3,8 @@ import {
   Body, Button, Container, Head, Heading, Html, Link, Preview, Section, Text,
 } from '@react-email/components'
 import type { TemplateEntry } from './registry'
+import { DISCORD_URL } from '../program'
+
 
 interface CircleWelcomeProps {
   siteName?: string
@@ -23,7 +25,7 @@ const CircleWelcomeEmail = ({
   vaultUrl = 'https://app.alpcontractorcircle.com/vault',
   callsUrl = 'https://app.alpcontractorcircle.com/calls',
   replaysUrl = 'https://app.alpcontractorcircle.com/replays',
-  discordUrl = 'https://discord.gg/alpcontractorcircle',
+  discordUrl = DISCORD_URL,
 }: CircleWelcomeProps) => {
   const name = firstName?.trim()
   return (
