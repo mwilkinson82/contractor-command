@@ -47,7 +47,7 @@ const DiscordNudgeEmail = ({
               <Button style={button} href={discordUrl}>Open the Discord</Button>
               <Text style={ctaNote}>
                 Free, members-only.{' '}
-                <Link href={discordUrl} style={inlineLink}>discord.gg/yvVN2N3qvN</Link>
+                <Link href={discordUrl} style={inlineLink}>{discordUrl.replace(/^https?:\/\//, '')}</Link>
               </Text>
             </Section>
             <Text style={footer}>
