@@ -83,7 +83,9 @@ export type EmailDeliveryHealth = {
   suppressedAllTime: number;
   suppressedLast30d: number;
   stalePending: EmailDeliveryLogRow[];
+  stalePendingCount: number;
   recentFailures: EmailDeliveryLogRow[];
+  actionableFailures: EmailDeliveryLogRow[];
   recentPublicMagicLinks: EmailDeliveryLogRow[];
 };
 
@@ -127,6 +129,17 @@ function mapEmailLogRow(row: {
     channel: metadataValue(row.metadata, "channel"),
     reason: metadataValue(row.metadata, "reason"),
   };
+}
+
+function isExpiredQueueHistory(row: EmailDeliveryLogRow): boolean {
+  return row.status === "dlq" && row.reason === "ttl_exceeded";
+}
+
+function isActionableDeliveryProblem(row: EmailDeliveryLogRow): boolean {
+  if (row.status === "dlq") {
+    return !isExpiredQueueHistory(row);
+  }
+  return ["failed", "bounced", "complained"].includes(row.status);
 }
 
 async function assertAdminUser(userId: string): Promise<void> {
@@ -350,6 +363,16 @@ export const getEmailDeliveryHealth = createServerFn({ method: "GET" })
         .filter((row) => row.status === "sent" && row.messageId)
         .map((row) => row.messageId as string),
     );
+    const stalePending = rows.filter(
+      (row) =>
+        row.status === "pending" &&
+        row.createdAt < staleBefore &&
+        (!row.messageId || !sentMessageIds.has(row.messageId)),
+    );
+    const recentFailures = rows.filter((row) =>
+      ["failed", "bounced", "complained", "dlq"].includes(row.status),
+    );
+    const actionableFailures = recentFailures.filter(isActionableDeliveryProblem);
 
     return {
       generatedAt: new Date(now).toISOString(),
@@ -373,17 +396,10 @@ export const getEmailDeliveryHealth = createServerFn({ method: "GET" })
       publicMagicLinksLast24h,
       suppressedAllTime: suppressedAllTime ?? 0,
       suppressedLast30d: suppressedLast30d ?? 0,
-      stalePending: rows
-        .filter(
-          (row) =>
-            row.status === "pending" &&
-            row.createdAt < staleBefore &&
-            (!row.messageId || !sentMessageIds.has(row.messageId)),
-        )
-        .slice(0, 12),
-      recentFailures: rows
-        .filter((row) => ["failed", "bounced", "complained", "dlq"].includes(row.status))
-        .slice(0, 12),
+      stalePending: stalePending.slice(0, 12),
+      stalePendingCount: stalePending.length,
+      recentFailures: recentFailures.slice(0, 12),
+      actionableFailures: actionableFailures.slice(0, 12),
       recentPublicMagicLinks: rows
         .filter((row) => row.templateName === "login-nudge" && row.channel === "public_magic_link")
         .slice(0, 12),

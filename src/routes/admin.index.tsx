@@ -360,8 +360,8 @@ function EmailHealthPanel({
   const issueCount = health
     ? Number(!health.config.lovableApiConfigured) +
       Number(health.sendState?.rateLimitedNow ?? false) +
-      health.stalePending.length +
-      health.recentFailures.length
+      health.stalePendingCount +
+      health.actionableFailures.length
     : 0;
   const isHealthy = !!health && issueCount === 0;
 
@@ -439,11 +439,7 @@ function EmailHealthPanel({
                   : undefined
               }
               loading={loading}
-              accent={
-                health && (health.totalsLast24h.failed > 0 || health.totalsLast24h.dlq > 0)
-                  ? "warn"
-                  : "ok"
-              }
+              accent={health && health.actionableFailures.length > 0 ? "warn" : "ok"}
             />
             <HealthStat
               label="Suppressed list"
@@ -470,17 +466,17 @@ function EmailHealthPanel({
             />
           </div>
 
-          {health && (!health.config.lovableApiConfigured || health.stalePending.length > 0) && (
+          {health && (!health.config.lovableApiConfigured || health.stalePendingCount > 0) && (
             <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-[12px] text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
               {!health.config.lovableApiConfigured && (
                 <p>
                   LOVABLE_API_KEY is missing in this environment. Access emails cannot send here.
                 </p>
               )}
-              {health.stalePending.length > 0 && (
+              {health.stalePendingCount > 0 && (
                 <p className="mt-1">
-                  {health.stalePending.length} pending email log row
-                  {health.stalePending.length === 1 ? "" : "s"} look stale. Check delivery before
+                  {health.stalePendingCount} pending email log row
+                  {health.stalePendingCount === 1 ? "" : "s"} look stale. Check delivery before
                   telling a member the link was sent.
                 </p>
               )}
@@ -495,8 +491,12 @@ function EmailHealthPanel({
             />
             <EmailLogList
               title="Recent delivery problems"
-              rows={health?.recentFailures ?? []}
-              empty="No failed, bounced, complained, or DLQ rows in the last 24 hours."
+              rows={health?.actionableFailures ?? []}
+              empty={
+                health && health.recentFailures.length > 0
+                  ? "No actionable delivery problems. Recent expired queue rows are history."
+                  : "No failed, bounced, complained, or non-expired DLQ rows in the last 24 hours."
+              }
             />
           </div>
         </>

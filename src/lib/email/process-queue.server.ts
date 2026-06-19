@@ -24,6 +24,7 @@ export type ProcessEmailQueueResult = {
   read: number;
   failed: number;
   movedToDlq: number;
+  suppressed: number;
   skippedDuplicates: number;
   cycles: number;
   stopped?: "rate_limited" | "forbidden";
@@ -41,6 +42,23 @@ function isForbidden(error: unknown): boolean {
     return (error as { status: number }).status === 403;
   }
   return error instanceof Error && error.message.includes("403");
+}
+
+function getErrorStatus(error: unknown): number | null {
+  if (error && typeof error === "object" && "status" in error) {
+    const status = (error as { status?: unknown }).status;
+    return typeof status === "number" ? status : null;
+  }
+  if (error instanceof Error) {
+    const match = error.message.match(/\b([45]\d\d)\b/);
+    return match ? Number(match[1]) : null;
+  }
+  return null;
+}
+
+function isNonRetryableProviderError(error: unknown): boolean {
+  const status = getErrorStatus(error);
+  return Boolean(status && status >= 400 && status < 500 && status !== 403 && status !== 429);
 }
 
 function getRetryAfterSeconds(error: unknown): number {
@@ -100,7 +118,96 @@ function buildSendRequest(payload: JsonObject): EmailSendRequest | null {
   };
 }
 
-async function moveToDlq(
+function generateToken(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function deleteQueueMessage(
+  supabase: AppSupabaseClient,
+  queue: string,
+  msg: EmailQueueMessage,
+): Promise<void> {
+  const { error } = await supabase.rpc("delete_email", {
+    queue_name: queue,
+    message_id: msg.msg_id,
+  });
+  if (error) {
+    console.error("Failed to delete message from queue", {
+      queue,
+      msg_id: msg.msg_id,
+      error,
+    });
+  }
+}
+
+type TokenRepairResult =
+  | { status: "ready"; token: string }
+  | { status: "suppressed"; reason: string }
+  | { status: "failed"; reason: string };
+
+async function ensureUnsubscribeTokenForQueue(
+  supabase: AppSupabaseClient,
+  email: string,
+): Promise<TokenRepairResult> {
+  const emailLower = email.toLowerCase();
+
+  const { data: suppressed, error: suppressionError } = await supabase
+    .from("suppressed_emails")
+    .select("email")
+    .eq("email", emailLower)
+    .maybeSingle();
+  if (suppressionError) {
+    return { status: "failed", reason: "Failed to verify suppression status" };
+  }
+  if (suppressed) {
+    return { status: "suppressed", reason: "email_suppressed" };
+  }
+
+  const { data: existing, error: lookupError } = await supabase
+    .from("email_unsubscribe_tokens")
+    .select("token,used_at")
+    .eq("email", emailLower)
+    .maybeSingle();
+  if (lookupError) {
+    return { status: "failed", reason: "Failed to look up unsubscribe token" };
+  }
+  if (existing && !existing.used_at) {
+    return { status: "ready", token: existing.token };
+  }
+  if (existing?.used_at) {
+    return { status: "suppressed", reason: "unsubscribe_token_used" };
+  }
+
+  const newToken = generateToken();
+  const { error: upsertError } = await supabase
+    .from("email_unsubscribe_tokens")
+    .upsert(
+      { token: newToken, email: emailLower },
+      { onConflict: "email", ignoreDuplicates: true },
+    );
+  if (upsertError) {
+    return { status: "failed", reason: "Failed to create unsubscribe token" };
+  }
+
+  const { data: stored, error: reReadError } = await supabase
+    .from("email_unsubscribe_tokens")
+    .select("token,used_at")
+    .eq("email", emailLower)
+    .maybeSingle();
+  if (reReadError || !stored) {
+    return { status: "failed", reason: "Failed to confirm unsubscribe token" };
+  }
+  if (stored.used_at) {
+    return { status: "suppressed", reason: "unsubscribe_token_used" };
+  }
+  return { status: "ready", token: stored.token };
+}
+
+async function suppressQueueMessage(
   supabase: AppSupabaseClient,
   queue: string,
   msg: EmailQueueMessage,
@@ -111,8 +218,66 @@ async function moveToDlq(
     message_id: getString(payload, "message_id"),
     template_name: getString(payload, "label") ?? queue,
     recipient_email: getString(payload, "to") ?? "unknown",
+    status: "suppressed",
+    error_message: reason,
+    metadata: { queue, reason },
+  });
+  await deleteQueueMessage(supabase, queue, msg);
+}
+
+async function prepareSendRequest({
+  supabase,
+  queue,
+  msg,
+  sendRequest,
+}: {
+  supabase: AppSupabaseClient;
+  queue: string;
+  msg: EmailQueueMessage;
+  sendRequest: EmailSendRequest;
+}): Promise<
+  | { status: "ready"; sendRequest: EmailSendRequest }
+  | { status: "suppressed"; reason: string }
+  | { status: "failed"; reason: string }
+> {
+  if (sendRequest.unsubscribe_token || sendRequest.purpose !== "transactional") {
+    return { status: "ready", sendRequest };
+  }
+
+  const tokenRepair = await ensureUnsubscribeTokenForQueue(supabase, sendRequest.to);
+  if (tokenRepair.status === "ready") {
+    return {
+      status: "ready",
+      sendRequest: {
+        ...sendRequest,
+        unsubscribe_token: tokenRepair.token,
+      },
+    };
+  }
+
+  if (tokenRepair.status === "suppressed") {
+    await suppressQueueMessage(supabase, queue, msg, tokenRepair.reason);
+    return { status: "suppressed", reason: tokenRepair.reason };
+  }
+
+  return { status: "failed", reason: tokenRepair.reason };
+}
+
+async function moveToDlq(
+  supabase: AppSupabaseClient,
+  queue: string,
+  msg: EmailQueueMessage,
+  reason: string,
+  reasonCode = "queue_processing_error",
+): Promise<void> {
+  const payload = msg.message;
+  await supabase.from("email_send_log").insert({
+    message_id: getString(payload, "message_id"),
+    template_name: getString(payload, "label") ?? queue,
+    recipient_email: getString(payload, "to") ?? "unknown",
     status: "dlq",
     error_message: reason,
+    metadata: { queue, reason: reasonCode },
   });
   const { error } = await supabase.rpc("move_to_dlq", {
     source_queue: queue,
@@ -144,6 +309,7 @@ async function processCycle({
     read: 0,
     failed: 0,
     movedToDlq: 0,
+    suppressed: 0,
     skippedDuplicates: 0,
     cycles: 1,
   };
@@ -236,7 +402,13 @@ async function processCycle({
             queued_at: queuedAt,
             ttl_minutes: ttlMinutes[queue],
           });
-          await moveToDlq(supabase, queue, msg, `TTL exceeded (${ttlMinutes[queue]} minutes)`);
+          await moveToDlq(
+            supabase,
+            queue,
+            msg,
+            `TTL exceeded (${ttlMinutes[queue]} minutes)`,
+            "ttl_exceeded",
+          );
           result.movedToDlq += 1;
           continue;
         }
@@ -248,6 +420,7 @@ async function processCycle({
           queue,
           msg,
           `Max retries (${MAX_RETRIES}) exceeded (attempted ${failedAttempts} times)`,
+          "max_retries_exceeded",
         );
         result.movedToDlq += 1;
         continue;
@@ -267,17 +440,7 @@ async function processCycle({
             msg_id: msg.msg_id,
             message_id: messageId,
           });
-          const { error: dupDelError } = await supabase.rpc("delete_email", {
-            queue_name: queue,
-            message_id: msg.msg_id,
-          });
-          if (dupDelError) {
-            console.error("Failed to delete duplicate message from queue", {
-              queue,
-              msg_id: msg.msg_id,
-              error: dupDelError,
-            });
-          }
+          await deleteQueueMessage(supabase, queue, msg);
           result.skippedDuplicates += 1;
           continue;
         }
@@ -285,13 +448,30 @@ async function processCycle({
 
       const sendRequest = buildSendRequest(payload);
       if (!sendRequest) {
-        await moveToDlq(supabase, queue, msg, "Missing required email payload fields");
+        await moveToDlq(
+          supabase,
+          queue,
+          msg,
+          "Missing required email payload fields",
+          "missing_required_fields",
+        );
+        result.movedToDlq += 1;
+        continue;
+      }
+
+      const prepared = await prepareSendRequest({ supabase, queue, msg, sendRequest });
+      if (prepared.status === "suppressed") {
+        result.suppressed += 1;
+        continue;
+      }
+      if (prepared.status === "failed") {
+        await moveToDlq(supabase, queue, msg, prepared.reason, "unsubscribe_token_repair_failed");
         result.movedToDlq += 1;
         continue;
       }
 
       try {
-        await sendLovableEmail(sendRequest, { apiKey, sendUrl });
+        await sendLovableEmail(prepared.sendRequest, { apiKey, sendUrl });
 
         await supabase.from("email_send_log").insert({
           message_id: messageId,
@@ -300,17 +480,7 @@ async function processCycle({
           status: "sent",
         });
 
-        const { error: delError } = await supabase.rpc("delete_email", {
-          queue_name: queue,
-          message_id: msg.msg_id,
-        });
-        if (delError) {
-          console.error("Failed to delete sent message from queue", {
-            queue,
-            msg_id: msg.msg_id,
-            error: delError,
-          });
-        }
+        await deleteQueueMessage(supabase, queue, msg);
         result.processed += 1;
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
@@ -345,9 +515,15 @@ async function processCycle({
         }
 
         if (isForbidden(error)) {
-          await moveToDlq(supabase, queue, msg, errorMsg.slice(0, 1000));
+          await moveToDlq(supabase, queue, msg, errorMsg.slice(0, 1000), "provider_forbidden");
           result.movedToDlq += 1;
           return { ...result, stopped: "forbidden" };
+        }
+
+        if (isNonRetryableProviderError(error)) {
+          await moveToDlq(supabase, queue, msg, errorMsg.slice(0, 1000), "provider_rejected");
+          result.movedToDlq += 1;
+          continue;
         }
 
         await supabase.from("email_send_log").insert({
@@ -387,6 +563,7 @@ export async function processEmailQueues({
     read: 0,
     failed: 0,
     movedToDlq: 0,
+    suppressed: 0,
     skippedDuplicates: 0,
     cycles: 0,
   };
@@ -397,6 +574,7 @@ export async function processEmailQueues({
     aggregate.read += result.read;
     aggregate.failed += result.failed;
     aggregate.movedToDlq += result.movedToDlq;
+    aggregate.suppressed += result.suppressed;
     aggregate.skippedDuplicates += result.skippedDuplicates;
     aggregate.cycles += 1;
 

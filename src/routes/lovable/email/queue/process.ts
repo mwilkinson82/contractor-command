@@ -34,7 +34,7 @@ export const Route = createFileRoute("/lovable/email/queue/process")({
           supabase,
           apiKey,
           sendUrl: process.env.LOVABLE_SEND_URL,
-          maxCycles: 1,
+          maxCycles: 3,
         });
 
         return Response.json(result);
