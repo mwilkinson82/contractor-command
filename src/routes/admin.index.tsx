@@ -494,7 +494,7 @@ function EmailHealthPanel({
               rows={health?.actionableFailures ?? []}
               empty={
                 health && health.recentFailures.length > 0
-                  ? "No actionable delivery problems. Recent expired queue rows are history."
+                  ? "No actionable delivery problems. Recent expired queue rows and legacy provider rejections are history."
                   : "No failed, bounced, complained, or non-expired DLQ rows in the last 24 hours."
               }
             />

@@ -52,6 +52,15 @@ const EMAIL_LOG_STATUSES = [
 
 type EmailLogStatus = (typeof EMAIL_LOG_STATUSES)[number];
 
+const TERMINAL_EMAIL_LOG_STATUSES = [
+  "sent",
+  "suppressed",
+  "failed",
+  "bounced",
+  "complained",
+  "dlq",
+] as const;
+
 export type EmailDeliveryLogRow = {
   id: string;
   createdAt: string;
@@ -100,6 +109,12 @@ function statusKey(status: string): EmailLogStatus | null {
   return EMAIL_LOG_STATUSES.includes(status as EmailLogStatus) ? (status as EmailLogStatus) : null;
 }
 
+function isTerminalEmailLogStatus(status: string): boolean {
+  return TERMINAL_EMAIL_LOG_STATUSES.includes(
+    status as (typeof TERMINAL_EMAIL_LOG_STATUSES)[number],
+  );
+}
+
 function metadataValue(metadata: unknown, key: "channel" | "reason"): string | null {
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
     return null;
@@ -132,10 +147,20 @@ function mapEmailLogRow(row: {
 }
 
 function isExpiredQueueHistory(row: EmailDeliveryLogRow): boolean {
-  return row.status === "dlq" && row.reason === "ttl_exceeded";
+  return (
+    row.status === "dlq" &&
+    (row.reason === "ttl_exceeded" || row.errorMessage?.startsWith("TTL exceeded") === true)
+  );
+}
+
+function isLegacyProviderFailure(row: EmailDeliveryLogRow): boolean {
+  return row.status === "failed" && row.errorMessage?.includes("missing_unsubscribe") === true;
 }
 
 function isActionableDeliveryProblem(row: EmailDeliveryLogRow): boolean {
+  if (isLegacyProviderFailure(row)) {
+    return false;
+  }
   if (row.status === "dlq") {
     return !isExpiredQueueHistory(row);
   }
@@ -358,16 +383,42 @@ export const getEmailDeliveryHealth = createServerFn({ method: "GET" })
       }
     }
 
-    const sentMessageIds = new Set(
+    const pendingCandidateIds = Array.from(
+      new Set(
+        rows
+          .filter((row) => row.status === "pending" && row.createdAt < staleBefore && row.messageId)
+          .map((row) => row.messageId as string),
+      ),
+    );
+    const terminalMessageIds = new Set(
       rows
-        .filter((row) => row.status === "sent" && row.messageId)
+        .filter((row) => row.messageId && isTerminalEmailLogStatus(row.status))
         .map((row) => row.messageId as string),
     );
+
+    if (pendingCandidateIds.length > 0) {
+      const { data: terminalLogs, error: terminalLogsError } = await supabaseAdmin
+        .from("email_send_log")
+        .select("message_id,status")
+        .in("message_id", pendingCandidateIds)
+        .in("status", [...TERMINAL_EMAIL_LOG_STATUSES]);
+
+      if (terminalLogsError) {
+        console.error("[admin.email-health] terminal log lookup failed", terminalLogsError);
+      }
+
+      for (const terminalLog of terminalLogs ?? []) {
+        if (terminalLog.message_id) {
+          terminalMessageIds.add(terminalLog.message_id);
+        }
+      }
+    }
+
     const stalePending = rows.filter(
       (row) =>
         row.status === "pending" &&
         row.createdAt < staleBefore &&
-        (!row.messageId || !sentMessageIds.has(row.messageId)),
+        (!row.messageId || !terminalMessageIds.has(row.messageId)),
     );
     const recentFailures = rows.filter((row) =>
       ["failed", "bounced", "complained", "dlq"].includes(row.status),
