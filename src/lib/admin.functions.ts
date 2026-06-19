@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import Stripe from "stripe";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { processEmailQueues, type ProcessEmailQueueResult } from "@/lib/email/process-queue.server";
 
 function getStripe(): Stripe | null {
   const secret = process.env.STRIPE_SECRET_KEY;
@@ -126,6 +127,15 @@ function mapEmailLogRow(row: {
     channel: metadataValue(row.metadata, "channel"),
     reason: metadataValue(row.metadata, "reason"),
   };
+}
+
+async function assertAdminUser(userId: string): Promise<void> {
+  const { data: roles } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId);
+  const isAdmin = (roles ?? []).some((r) => r.role === "admin");
+  if (!isAdmin) throw new Error("Forbidden");
 }
 
 export const getAdminMetrics = createServerFn({ method: "GET" })
@@ -378,4 +388,22 @@ export const getEmailDeliveryHealth = createServerFn({ method: "GET" })
         .filter((row) => row.templateName === "login-nudge" && row.channel === "public_magic_link")
         .slice(0, 12),
     };
+  });
+
+export const processEmailQueueNow = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<ProcessEmailQueueResult> => {
+    await assertAdminUser(context.userId);
+
+    const apiKey = process.env.LOVABLE_API_KEY;
+    if (!apiKey) {
+      throw new Error("LOVABLE_API_KEY is not configured in this environment.");
+    }
+
+    return processEmailQueues({
+      supabase: supabaseAdmin,
+      apiKey,
+      sendUrl: process.env.LOVABLE_SEND_URL,
+      maxCycles: 8,
+    });
   });

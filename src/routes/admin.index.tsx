@@ -10,6 +10,7 @@ import { subscribePresence, type PresenceUser } from "@/lib/portal-presence";
 import {
   getAdminMetrics,
   getEmailDeliveryHealth,
+  processEmailQueueNow,
   type AdminMetrics,
   type EmailDeliveryHealth,
   type EmailDeliveryLogRow,
@@ -53,8 +54,37 @@ export const Route = createFileRoute("/admin/")({
 function AdminDashboard() {
   const isAdmin = useIsAdmin();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const fetchMetrics = useServerFn(getAdminMetrics);
   const fetchEmailHealth = useServerFn(getEmailDeliveryHealth);
+  const processEmailQueue = useServerFn(processEmailQueueNow);
+
+  const processEmailQueueMutation = useMutation({
+    mutationFn: () => processEmailQueue(),
+    onSuccess: (result) => {
+      const stopped =
+        result.stopped === "rate_limited"
+          ? "Stopped on provider cooldown."
+          : result.stopped === "forbidden"
+            ? "Stopped on provider authorization."
+            : null;
+      toast.success("Email queue processed.", {
+        description: [
+          `${result.processed} sent`,
+          `${result.movedToDlq} DLQ`,
+          `${result.failed} failed`,
+          `${result.skippedDuplicates} duplicate`,
+          stopped,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      });
+      queryClient.invalidateQueries({ queryKey: ["admin-email-delivery-health"] });
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Could not process email queue.");
+    },
+  });
 
   useEffect(() => {
     if (isAdmin === false) navigate({ to: "/" });
@@ -174,7 +204,12 @@ function AdminDashboard() {
         <IntensiveCard metrics={metrics} loading={isLoading} />
       </div>
 
-      <EmailHealthPanel health={emailHealth} loading={emailHealthLoading} />
+      <EmailHealthPanel
+        health={emailHealth}
+        loading={emailHealthLoading}
+        processingQueue={processEmailQueueMutation.isPending}
+        onProcessQueue={() => processEmailQueueMutation.mutate()}
+      />
 
       {/* Members */}
       <Section title="Membership" icon={Users}>
@@ -311,7 +346,17 @@ function IntensiveCard({ metrics, loading }: { metrics?: AdminMetrics; loading: 
   );
 }
 
-function EmailHealthPanel({ health, loading }: { health?: EmailDeliveryHealth; loading: boolean }) {
+function EmailHealthPanel({
+  health,
+  loading,
+  processingQueue,
+  onProcessQueue,
+}: {
+  health?: EmailDeliveryHealth;
+  loading: boolean;
+  processingQueue: boolean;
+  onProcessQueue: () => void;
+}) {
   const issueCount = health
     ? Number(!health.config.lovableApiConfigured) +
       Number(health.sendState?.rateLimitedNow ?? false) +
@@ -336,23 +381,34 @@ function EmailHealthPanel({ health, loading }: { health?: EmailDeliveryHealth; l
             cooldowns.
           </p>
         </div>
-        <div
-          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12px] ${
-            loading
-              ? "border-border text-muted-foreground"
-              : isHealthy
-                ? "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
-                : "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
-          }`}
-        >
-          {loading ? (
-            <RotateCw className="h-3.5 w-3.5 animate-spin" />
-          ) : isHealthy ? (
-            <CheckCircle2 className="h-3.5 w-3.5" />
-          ) : (
-            <AlertTriangle className="h-3.5 w-3.5" />
-          )}
-          {loading ? "Checking…" : isHealthy ? "Healthy" : "Needs attention"}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={loading || processingQueue || health?.config.lovableApiConfigured === false}
+            onClick={onProcessQueue}
+            className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-[12px] transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <RotateCw className={`h-3.5 w-3.5 ${processingQueue ? "animate-spin" : ""}`} />
+            {processingQueue ? "Processing…" : "Process queue now"}
+          </button>
+          <div
+            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12px] ${
+              loading
+                ? "border-border text-muted-foreground"
+                : isHealthy
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
+                  : "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
+            }`}
+          >
+            {loading ? (
+              <RotateCw className="h-3.5 w-3.5 animate-spin" />
+            ) : isHealthy ? (
+              <CheckCircle2 className="h-3.5 w-3.5" />
+            ) : (
+              <AlertTriangle className="h-3.5 w-3.5" />
+            )}
+            {loading ? "Checking…" : isHealthy ? "Healthy" : "Needs attention"}
+          </div>
         </div>
       </div>
 
