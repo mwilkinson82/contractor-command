@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import * as React from "react";
 import { render } from "@react-email/components";
+import { sendLovableEmail } from "@lovable.dev/email-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { TEMPLATES } from "@/lib/email-templates/registry";
@@ -47,15 +48,11 @@ async function loadRecipients(audience: Audience, testEmail?: string): Promise<R
   // plus subscription rows without a profile yet (paid but never logged in).
   const [{ data: profiles }, { data: subs }, { data: roles }] = await Promise.all([
     supabaseAdmin.from("profiles").select("id,email,full_name"),
-    supabaseAdmin
-      .from("subscriptions")
-      .select("user_id,email,status,is_comped"),
+    supabaseAdmin.from("subscriptions").select("user_id,email,status,is_comped"),
     supabaseAdmin.from("user_roles").select("user_id,role"),
   ]);
 
-  const adminIds = new Set(
-    (roles ?? []).filter((r) => r.role === "admin").map((r) => r.user_id),
-  );
+  const adminIds = new Set((roles ?? []).filter((r) => r.role === "admin").map((r) => r.user_id));
 
   type SubRow = NonNullable<typeof subs>[number];
   const subByUserId = new Map<string, SubRow>();
@@ -77,10 +74,8 @@ async function loadRecipients(audience: Audience, testEmail?: string): Promise<R
   for (const p of profiles ?? []) {
     if (!p.email) continue;
     const key = p.email.toLowerCase();
-    const sub =
-      subByUserId.get(p.id) ?? subByEmail.get(key) ?? undefined;
-    const include =
-      audience === "all_with_login" ? true : hasAccess(sub, p.id);
+    const sub = subByUserId.get(p.id) ?? subByEmail.get(key) ?? undefined;
+    const include = audience === "all_with_login" ? true : hasAccess(sub, p.id);
     if (!include) continue;
     const firstName = (p.full_name ?? "").trim().split(/\s+/)[0] || null;
     out.set(key, { email: p.email, firstName });
@@ -113,9 +108,7 @@ const InputSchema = z.object({
 export const previewMemberAnnouncementAudience = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
-    z
-      .object({ audience: z.enum(["active", "all_with_login"]) })
-      .parse(input),
+    z.object({ audience: z.enum(["active", "all_with_login"]) }).parse(input),
   )
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
@@ -131,7 +124,7 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
 
     const recipients = await loadRecipients(data.audience, data.testEmail);
     if (recipients.length === 0) {
-      return { queued: 0, suppressed: 0, failed: 0, total: 0 };
+      return { queued: 0, sent: 0, suppressed: 0, failed: 0, total: 0 };
     }
 
     // One announcement id ties every send together for idempotency + audit.
@@ -161,13 +154,13 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
       .from("suppressed_emails")
       .select("email")
       .in("email", emails);
-    const suppressedSet = new Set(
-      (suppressedRows ?? []).map((s) => s.email.toLowerCase()),
-    );
+    const suppressedSet = new Set((suppressedRows ?? []).map((s) => s.email.toLowerCase()));
 
     let queued = 0;
+    let sent = 0;
     let suppressed = 0;
     let failed = 0;
+    const directTestSend = data.audience === "test";
 
     for (const r of recipients) {
       const emailLower = r.email.toLowerCase();
@@ -178,7 +171,12 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
           template_name: TEMPLATE_NAME,
           recipient_email: r.email,
           status: "suppressed",
-          metadata: { announcement_id: announcementId },
+          metadata: {
+            announcement_id: announcementId,
+            channel: directTestSend ? "admin_announcement_test" : "admin_announcement",
+            send_method: directTestSend ? "direct_lovable" : "pgmq_transactional",
+            reason: "suppressed_email",
+          },
         });
         continue;
       }
@@ -212,6 +210,19 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
         } else {
           // token already used → email should already be suppressed; skip.
           suppressed += 1;
+          await supabaseAdmin.from("email_send_log").insert({
+            message_id: crypto.randomUUID(),
+            template_name: TEMPLATE_NAME,
+            recipient_email: r.email,
+            status: "suppressed",
+            error_message: "Unsubscribe token used",
+            metadata: {
+              announcement_id: announcementId,
+              channel: directTestSend ? "admin_announcement_test" : "admin_announcement",
+              send_method: directTestSend ? "direct_lovable" : "pgmq_transactional",
+              reason: "unsubscribe_token_used",
+            },
+          });
           continue;
         }
 
@@ -238,29 +249,105 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
           template_name: TEMPLATE_NAME,
           recipient_email: r.email,
           status: "pending",
-          metadata: { announcement_id: announcementId },
+          metadata: {
+            announcement_id: announcementId,
+            channel: directTestSend ? "admin_announcement_test" : "admin_announcement",
+            send_method: directTestSend ? "direct_lovable" : "pgmq_transactional",
+          },
         });
 
-        const { error: enqueueError } = await supabaseAdmin.rpc(
-          "enqueue_email",
-          {
-            queue_name: "transactional_emails",
-            payload: {
+        if (directTestSend) {
+          const apiKey = process.env.LOVABLE_API_KEY;
+
+          if (!apiKey) {
+            failed += 1;
+            await supabaseAdmin.from("email_send_log").insert({
               message_id: messageId,
-              to: r.email,
-              from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
-              sender_domain: SENDER_DOMAIN,
-              subject: data.subject,
-              html,
-              text: plainText,
-              purpose: "transactional",
-              label: TEMPLATE_NAME,
-              idempotency_key: idempotencyKey,
-              unsubscribe_token: unsubscribeToken,
-              queued_at: new Date().toISOString(),
-            },
+              template_name: TEMPLATE_NAME,
+              recipient_email: r.email,
+              status: "failed",
+              error_message: "LOVABLE_API_KEY missing",
+              metadata: {
+                announcement_id: announcementId,
+                channel: "admin_announcement_test",
+                send_method: "direct_lovable",
+                reason: "lovable_api_key_missing",
+              },
+            });
+            continue;
+          }
+
+          try {
+            await sendLovableEmail(
+              {
+                to: r.email,
+                from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
+                sender_domain: SENDER_DOMAIN,
+                subject: data.subject,
+                html,
+                text: plainText,
+                purpose: "transactional",
+                label: TEMPLATE_NAME,
+                idempotency_key: idempotencyKey,
+                unsubscribe_token: unsubscribeToken,
+                message_id: messageId,
+              },
+              { apiKey, sendUrl: process.env.LOVABLE_SEND_URL },
+            );
+
+            await supabaseAdmin.from("email_send_log").insert({
+              message_id: messageId,
+              template_name: TEMPLATE_NAME,
+              recipient_email: r.email,
+              status: "sent",
+              metadata: {
+                announcement_id: announcementId,
+                channel: "admin_announcement_test",
+                send_method: "direct_lovable",
+              },
+            });
+            sent += 1;
+          } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            failed += 1;
+            await supabaseAdmin.from("email_send_log").insert({
+              message_id: messageId,
+              template_name: TEMPLATE_NAME,
+              recipient_email: r.email,
+              status: "failed",
+              error_message: errorMessage.slice(0, 1000),
+              metadata: {
+                announcement_id: announcementId,
+                channel: "admin_announcement_test",
+                send_method: "direct_lovable",
+              },
+            });
+            console.error("announce test send failed", {
+              email: r.email,
+              error: errorMessage,
+            });
+          }
+
+          continue;
+        }
+
+        const { error: enqueueError } = await supabaseAdmin.rpc("enqueue_email", {
+          queue_name: "transactional_emails",
+          payload: {
+            message_id: messageId,
+            to: r.email,
+            from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
+            sender_domain: SENDER_DOMAIN,
+            subject: data.subject,
+            html,
+            text: plainText,
+            purpose: "transactional",
+            label: TEMPLATE_NAME,
+            idempotency_key: idempotencyKey,
+            unsubscribe_token: unsubscribeToken,
+            queued_at: new Date().toISOString(),
           },
-        );
+        });
 
         if (enqueueError) {
           failed += 1;
@@ -270,7 +357,11 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
             recipient_email: r.email,
             status: "failed",
             error_message: enqueueError.message,
-            metadata: { announcement_id: announcementId },
+            metadata: {
+              announcement_id: announcementId,
+              channel: "admin_announcement",
+              send_method: "pgmq_transactional",
+            },
           });
           continue;
         }
@@ -288,6 +379,7 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
     return {
       total: recipients.length,
       queued,
+      sent,
       suppressed,
       failed,
       announcementId,
@@ -309,4 +401,3 @@ export const getLastMemberAnnouncement = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     return { announcement: data ?? null };
   });
-

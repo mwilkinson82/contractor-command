@@ -57,9 +57,7 @@ function AnnouncePage() {
   const [ctaLabel, setCtaLabel] = useState(initial?.ctaLabel ?? "");
   const [ctaUrl, setCtaUrl] = useState(initial?.ctaUrl ?? "");
   const [signoff, setSignoff] = useState(initial?.signoff ?? "— Marshall");
-  const [audience, setAudience] = useState<Audience>(
-    initial?.audience ?? "all_with_login",
-  );
+  const [audience, setAudience] = useState<Audience>(initial?.audience ?? "all_with_login");
   const [confirmText, setConfirmText] = useState("");
   const [hydratedFromServer, setHydratedFromServer] = useState(!!initial);
 
@@ -150,13 +148,18 @@ function AnnouncePage() {
           ctaUrl: ctaUrl || undefined,
           signoff: signoff || undefined,
           audience: vars.mode === "test" ? "test" : audience,
-          testEmail:
-            vars.mode === "test" ? (user?.email ?? undefined) : undefined,
+          testEmail: vars.mode === "test" ? (user?.email ?? undefined) : undefined,
         },
       }),
     onSuccess: (res, vars) => {
       if (vars.mode === "test") {
-        toast.success(`Test queued to ${user?.email}`);
+        if (res.sent > 0) {
+          toast.success(`Test sent to ${user?.email}`);
+        } else if (res.suppressed > 0) {
+          toast.error(`Test was suppressed for ${user?.email}`);
+        } else {
+          toast.error("Test send failed. Check Admin → Email health.");
+        }
       } else {
         toast.success(
           `Queued ${res.queued} of ${res.total}. Suppressed: ${res.suppressed}. Failed: ${res.failed}.`,
@@ -167,10 +170,7 @@ function AnnouncePage() {
     onError: (err: Error) => toast.error(err.message ?? "Send failed"),
   });
 
-  const canSendAll = useMemo(
-    () => confirmText.trim().toUpperCase() === "SEND",
-    [confirmText],
-  );
+  const canSendAll = useMemo(() => confirmText.trim().toUpperCase() === "SEND", [confirmText]);
 
   if (isAdmin === null) {
     return (
@@ -188,16 +188,12 @@ function AnnouncePage() {
           <p className="label-mono inline-flex items-center gap-1.5">
             <Megaphone className="h-3 w-3" /> Admin · Announce
           </p>
-          <h1
-            className="mt-2 font-display text-3xl"
-            style={{ fontFamily: "var(--font-serif)" }}
-          >
+          <h1 className="mt-2 font-display text-3xl" style={{ fontFamily: "var(--font-serif)" }}>
             Send a member-wide announcement
           </h1>
           <p className="mt-2 max-w-xl text-[13px] text-muted-foreground">
-            Composes a one-off branded email and drops one copy per member into
-            the queue. Suppressed addresses are skipped automatically. Always
-            send a test to yourself first.
+            Composes a one-off branded email and drops one copy per member into the queue.
+            Suppressed addresses are skipped automatically. Always send a test to yourself first.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -223,11 +219,7 @@ function AnnouncePage() {
         {/* Composer */}
         <div className="space-y-4">
           <Field label="Subject">
-            <Input
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              maxLength={255}
-            />
+            <Input value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={255} />
           </Field>
           <Field label="Preheader (inbox preview text)">
             <Input
@@ -237,11 +229,7 @@ function AnnouncePage() {
             />
           </Field>
           <Field label="Headline (top of email)">
-            <Input
-              value={headline}
-              onChange={(e) => setHeadline(e.target.value)}
-              maxLength={160}
-            />
+            <Input value={headline} onChange={(e) => setHeadline(e.target.value)} maxLength={160} />
           </Field>
           <Field label="Body (blank lines separate paragraphs)">
             <Textarea
@@ -270,11 +258,7 @@ function AnnouncePage() {
             </Field>
           </div>
           <Field label="Sign-off">
-            <Input
-              value={signoff}
-              onChange={(e) => setSignoff(e.target.value)}
-              maxLength={120}
-            />
+            <Input value={signoff} onChange={(e) => setSignoff(e.target.value)} maxLength={120} />
           </Field>
         </div>
 
@@ -309,9 +293,7 @@ function AnnouncePage() {
                   onChange={() => setAudience("all_with_login")}
                 />
                 <span>
-                  <span className="font-medium">
-                    Everyone in the portal + paid subs
-                  </span>
+                  <span className="font-medium">Everyone in the portal + paid subs</span>
                   <span className="block text-[11px] text-muted-foreground">
                     All profiles plus every Stripe subscription (claimed or not).
                   </span>
@@ -331,13 +313,13 @@ function AnnouncePage() {
           <div className="rounded-2xl border border-border bg-card p-5">
             <p className="label-mono">Send a test first</p>
             <p className="mt-2 text-[12px] text-muted-foreground">
-              Sends one copy to <span className="font-mono">{user?.email}</span>.
+              Sends one direct copy to <span className="font-mono">{user?.email}</span>.
             </p>
             <Button
               type="button"
               variant="outline"
               className="mt-3 w-full"
-              disabled={sendMutation.isPending || !subject || !body}
+              disabled={sendMutation.isPending || !subject || !headline || !body}
               onClick={() => sendMutation.mutate({ mode: "test" })}
             >
               <Send className="mr-2 h-4 w-4" /> Send test to me
@@ -349,8 +331,8 @@ function AnnouncePage() {
               <AlertTriangle className="h-3 w-3" /> Send to everyone
             </p>
             <p className="mt-2 text-[12px] text-muted-foreground">
-              Type <span className="font-mono font-semibold">SEND</span> to
-              confirm. There is no undo.
+              Type <span className="font-mono font-semibold">SEND</span> to confirm. There is no
+              undo.
             </p>
             <Input
               value={confirmText}
@@ -384,13 +366,7 @@ function AnnouncePage() {
   );
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
       <Label className="label-mono">{label}</Label>
