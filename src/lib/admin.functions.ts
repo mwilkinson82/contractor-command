@@ -27,12 +27,106 @@ export type AdminMetrics = {
     intensiveAllTimeCount: number;
     stripeAvailable: boolean;
   };
-  library: { templates: number; templatesPublished: number; replays: number; replaysPublished: number };
+  library: {
+    templates: number;
+    templatesPublished: number;
+    replays: number;
+    replaysPublished: number;
+  };
   topics: { pending: number; selected: number };
   signups: { last7: number; last30: number };
   intensiveLeads: number;
   billingQuestions: number;
 };
+
+const EMAIL_LOG_STATUSES = [
+  "pending",
+  "sent",
+  "suppressed",
+  "failed",
+  "bounced",
+  "complained",
+  "dlq",
+] as const;
+
+type EmailLogStatus = (typeof EMAIL_LOG_STATUSES)[number];
+
+export type EmailDeliveryLogRow = {
+  id: string;
+  createdAt: string;
+  messageId: string | null;
+  templateName: string;
+  recipientEmail: string;
+  status: string;
+  errorMessage: string | null;
+  channel: string | null;
+  reason: string | null;
+};
+
+export type EmailDeliveryHealth = {
+  generatedAt: string;
+  config: {
+    lovableApiConfigured: boolean;
+    customSendUrlConfigured: boolean;
+  };
+  sendState: {
+    retryAfterUntil: string | null;
+    rateLimitedNow: boolean;
+    batchSize: number | null;
+    sendDelayMs: number | null;
+    authEmailTtlMinutes: number | null;
+    transactionalEmailTtlMinutes: number | null;
+  } | null;
+  totalsLast24h: Record<EmailLogStatus, number>;
+  publicMagicLinksLast24h: Record<EmailLogStatus, number>;
+  suppressedAllTime: number;
+  suppressedLast30d: number;
+  stalePending: EmailDeliveryLogRow[];
+  recentFailures: EmailDeliveryLogRow[];
+  recentPublicMagicLinks: EmailDeliveryLogRow[];
+};
+
+function emptyStatusCounts(): Record<EmailLogStatus, number> {
+  return EMAIL_LOG_STATUSES.reduce(
+    (acc, status) => ({ ...acc, [status]: 0 }),
+    {} as Record<EmailLogStatus, number>,
+  );
+}
+
+function statusKey(status: string): EmailLogStatus | null {
+  return EMAIL_LOG_STATUSES.includes(status as EmailLogStatus) ? (status as EmailLogStatus) : null;
+}
+
+function metadataValue(metadata: unknown, key: "channel" | "reason"): string | null {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return null;
+  }
+  const value = (metadata as Record<string, unknown>)[key];
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function mapEmailLogRow(row: {
+  id: string;
+  created_at: string;
+  message_id: string | null;
+  template_name: string;
+  recipient_email: string;
+  status: string;
+  error_message: string | null;
+  metadata: unknown;
+}): EmailDeliveryLogRow {
+  return {
+    id: row.id,
+    createdAt: row.created_at,
+    messageId: row.message_id,
+    templateName: row.template_name,
+    recipientEmail: row.recipient_email,
+    status: row.status,
+    errorMessage: row.error_message,
+    channel: metadataValue(row.metadata, "channel"),
+    reason: metadataValue(row.metadata, "reason"),
+  };
+}
 
 export const getAdminMetrics = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -72,9 +166,7 @@ export const getAdminMetrics = createServerFn({ method: "GET" })
     };
 
     // ----- Topics -----
-    const { data: topics } = await supabaseAdmin
-      .from("call_topics")
-      .select("status");
+    const { data: topics } = await supabaseAdmin.from("call_topics").select("status");
     const topicsCount = {
       pending: (topics ?? []).filter((t) => t.status === "pending").length,
       selected: (topics ?? []).filter((t) => t.status === "selected").length,
@@ -86,14 +178,26 @@ export const getAdminMetrics = createServerFn({ method: "GET" })
     const since7 = new Date(now - 7 * day).toISOString();
     const since30 = new Date(now - 30 * day).toISOString();
     const [{ count: last7 }, { count: last30 }] = await Promise.all([
-      supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }).gte("created_at", since7),
-      supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }).gte("created_at", since30),
+      supabaseAdmin
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", since7),
+      supabaseAdmin
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", since30),
     ]);
 
     // ----- Vault counters -----
     const [{ count: intensiveLeads }, { count: billingQuestions }] = await Promise.all([
-      supabaseAdmin.from("vault_packets").select("id", { count: "exact", head: true }).eq("kind", "intensive_lead"),
-      supabaseAdmin.from("vault_packets").select("id", { count: "exact", head: true }).eq("kind", "billing_question"),
+      supabaseAdmin
+        .from("vault_packets")
+        .select("id", { count: "exact", head: true })
+        .eq("kind", "intensive_lead"),
+      supabaseAdmin
+        .from("vault_packets")
+        .select("id", { count: "exact", head: true })
+        .eq("kind", "billing_question"),
     ]);
 
     // ----- Stripe revenue -----
@@ -171,5 +275,107 @@ export const getAdminMetrics = createServerFn({ method: "GET" })
       signups: { last7: last7 ?? 0, last30: last30 ?? 0 },
       intensiveLeads: intensiveLeads ?? 0,
       billingQuestions: billingQuestions ?? 0,
+    };
+  });
+
+export const getEmailDeliveryHealth = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<EmailDeliveryHealth> => {
+    const { userId } = context;
+    const { data: roles } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+    const isAdmin = (roles ?? []).some((r) => r.role === "admin");
+    if (!isAdmin) throw new Error("Forbidden");
+
+    const now = Date.now();
+    const since24h = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+    const since30d = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const staleBefore = new Date(now - 10 * 60 * 1000).toISOString();
+
+    const [
+      { data: state },
+      { data: recentLogs },
+      { count: suppressedAllTime },
+      { count: suppressedLast30d },
+    ] = await Promise.all([
+      supabaseAdmin
+        .from("email_send_state")
+        .select(
+          "retry_after_until,batch_size,send_delay_ms,auth_email_ttl_minutes,transactional_email_ttl_minutes",
+        )
+        .eq("id", 1)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("email_send_log")
+        .select(
+          "id,created_at,message_id,template_name,recipient_email,status,error_message,metadata",
+        )
+        .gte("created_at", since24h)
+        .order("created_at", { ascending: false })
+        .limit(250),
+      supabaseAdmin.from("suppressed_emails").select("id", { count: "exact", head: true }),
+      supabaseAdmin
+        .from("suppressed_emails")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", since30d),
+    ]);
+
+    const rows = (recentLogs ?? []).map(mapEmailLogRow);
+    const totalsLast24h = emptyStatusCounts();
+    const publicMagicLinksLast24h = emptyStatusCounts();
+
+    for (const row of rows) {
+      const key = statusKey(row.status);
+      if (!key) continue;
+      totalsLast24h[key] += 1;
+      if (row.templateName === "login-nudge" && row.channel === "public_magic_link") {
+        publicMagicLinksLast24h[key] += 1;
+      }
+    }
+
+    const sentMessageIds = new Set(
+      rows
+        .filter((row) => row.status === "sent" && row.messageId)
+        .map((row) => row.messageId as string),
+    );
+
+    return {
+      generatedAt: new Date(now).toISOString(),
+      config: {
+        lovableApiConfigured: Boolean(process.env.LOVABLE_API_KEY),
+        customSendUrlConfigured: Boolean(process.env.LOVABLE_SEND_URL),
+      },
+      sendState: state
+        ? {
+            retryAfterUntil: state.retry_after_until,
+            rateLimitedNow: Boolean(
+              state.retry_after_until && new Date(state.retry_after_until).getTime() > now,
+            ),
+            batchSize: state.batch_size,
+            sendDelayMs: state.send_delay_ms,
+            authEmailTtlMinutes: state.auth_email_ttl_minutes,
+            transactionalEmailTtlMinutes: state.transactional_email_ttl_minutes,
+          }
+        : null,
+      totalsLast24h,
+      publicMagicLinksLast24h,
+      suppressedAllTime: suppressedAllTime ?? 0,
+      suppressedLast30d: suppressedLast30d ?? 0,
+      stalePending: rows
+        .filter(
+          (row) =>
+            row.status === "pending" &&
+            row.createdAt < staleBefore &&
+            (!row.messageId || !sentMessageIds.has(row.messageId)),
+        )
+        .slice(0, 12),
+      recentFailures: rows
+        .filter((row) => ["failed", "bounced", "complained", "dlq"].includes(row.status))
+        .slice(0, 12),
+      recentPublicMagicLinks: rows
+        .filter((row) => row.templateName === "login-nudge" && row.channel === "public_magic_link")
+        .slice(0, 12),
     };
   });

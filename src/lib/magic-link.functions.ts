@@ -22,6 +22,8 @@ const SENDER_DOMAIN = "notify.mail.alpcontractorcircle.com";
 const FROM_DOMAIN = "notify.mail.alpcontractorcircle.com";
 const TEMPLATE_NAME = "login-nudge";
 const RECENT_SEND_WINDOW_MS = 60 * 1000;
+const HOURLY_SEND_WINDOW_MS = 60 * 60 * 1000;
+const MAX_LOGIN_EMAILS_PER_HOUR = 3;
 
 function appOrigin(): string {
   return (
@@ -104,19 +106,34 @@ async function resolveFirstName(email: string): Promise<string | null> {
   return fullName ? fullName.split(/\s+/)[0] : null;
 }
 
-async function hasRecentLoginEmail(email: string): Promise<boolean> {
-  const since = new Date(Date.now() - RECENT_SEND_WINDOW_MS).toISOString();
-  const { data } = await supabaseAdmin
-    .from("email_send_log")
-    .select("id")
-    .ilike("recipient_email", email)
-    .eq("template_name", TEMPLATE_NAME)
-    .in("status", ["pending", "sent"])
-    .gte("created_at", since)
-    .limit(1)
-    .maybeSingle();
+async function getLoginEmailThrottle(
+  email: string,
+): Promise<"ok" | "recent_duplicate" | "hourly_cap"> {
+  const recentSince = new Date(Date.now() - RECENT_SEND_WINDOW_MS).toISOString();
+  const hourlySince = new Date(Date.now() - HOURLY_SEND_WINDOW_MS).toISOString();
 
-  return Boolean(data);
+  const [{ data: recent }, { count: hourlyCount }] = await Promise.all([
+    supabaseAdmin
+      .from("email_send_log")
+      .select("id")
+      .ilike("recipient_email", email)
+      .eq("template_name", TEMPLATE_NAME)
+      .in("status", ["pending", "sent"])
+      .gte("created_at", recentSince)
+      .limit(1)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("email_send_log")
+      .select("id", { count: "exact", head: true })
+      .ilike("recipient_email", email)
+      .eq("template_name", TEMPLATE_NAME)
+      .in("status", ["pending", "sent", "suppressed", "failed"])
+      .gte("created_at", hourlySince),
+  ]);
+
+  if (recent) return "recent_duplicate";
+  if ((hourlyCount ?? 0) >= MAX_LOGIN_EMAILS_PER_HOUR) return "hourly_cap";
+  return "ok";
 }
 
 async function ensureUnsubscribeToken(emailLower: string): Promise<string | null> {
@@ -173,7 +190,12 @@ async function sendLoginNudgeNow({
       template_name: TEMPLATE_NAME,
       recipient_email: email,
       status: "suppressed",
-      metadata: { idempotency_key: idempotencyKey, channel: "public_magic_link" },
+      metadata: {
+        idempotency_key: idempotencyKey,
+        channel: "public_magic_link",
+        reason: "suppressed_email",
+        send_method: "direct_lovable",
+      },
     });
     return "suppressed";
   }
@@ -186,7 +208,12 @@ async function sendLoginNudgeNow({
       recipient_email: email,
       status: "suppressed",
       error_message: "Unsubscribe token used",
-      metadata: { idempotency_key: idempotencyKey, channel: "public_magic_link" },
+      metadata: {
+        idempotency_key: idempotencyKey,
+        channel: "public_magic_link",
+        reason: "unsubscribe_token_used",
+        send_method: "direct_lovable",
+      },
     });
     return "suppressed";
   }
@@ -199,7 +226,12 @@ async function sendLoginNudgeNow({
       recipient_email: email,
       status: "failed",
       error_message: !entry ? "Template not registered" : "LOVABLE_API_KEY missing",
-      metadata: { idempotency_key: idempotencyKey, channel: "public_magic_link" },
+      metadata: {
+        idempotency_key: idempotencyKey,
+        channel: "public_magic_link",
+        reason: !entry ? "template_missing" : "lovable_api_key_missing",
+        send_method: "direct_lovable",
+      },
     });
     return "failed";
   }
@@ -220,7 +252,11 @@ async function sendLoginNudgeNow({
     template_name: TEMPLATE_NAME,
     recipient_email: email,
     status: "pending",
-    metadata: { idempotency_key: idempotencyKey, channel: "public_magic_link" },
+    metadata: {
+      idempotency_key: idempotencyKey,
+      channel: "public_magic_link",
+      send_method: "direct_lovable",
+    },
   });
 
   try {
@@ -246,7 +282,11 @@ async function sendLoginNudgeNow({
       template_name: TEMPLATE_NAME,
       recipient_email: email,
       status: "sent",
-      metadata: { idempotency_key: idempotencyKey, channel: "public_magic_link" },
+      metadata: {
+        idempotency_key: idempotencyKey,
+        channel: "public_magic_link",
+        send_method: "direct_lovable",
+      },
     });
 
     return "sent";
@@ -258,7 +298,11 @@ async function sendLoginNudgeNow({
       recipient_email: email,
       status: "failed",
       error_message: errorMessage.slice(0, 1000),
-      metadata: { idempotency_key: idempotencyKey, channel: "public_magic_link" },
+      metadata: {
+        idempotency_key: idempotencyKey,
+        channel: "public_magic_link",
+        send_method: "direct_lovable",
+      },
     });
     console.error("[magic-link] direct send failed", {
       email: redactEmail(email),
@@ -291,8 +335,13 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
 
     try {
       if (await ensureAuthUserForMember(email)) {
-        if (await hasRecentLoginEmail(email)) {
+        const throttle = await getLoginEmailThrottle(email);
+        if (throttle !== "ok") {
           internalAction = "rate_limited";
+          console.warn("[magic-link] throttled", {
+            email: redactEmail(email),
+            reason: throttle,
+          });
         } else {
           const { data: link, error } = await supabaseAdmin.auth.admin.generateLink({
             type: "magiclink",

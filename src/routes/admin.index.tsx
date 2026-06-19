@@ -7,7 +7,13 @@ import { Container } from "@/components/portal/page-header";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 
 import { subscribePresence, type PresenceUser } from "@/lib/portal-presence";
-import { getAdminMetrics, type AdminMetrics } from "@/lib/admin.functions";
+import {
+  getAdminMetrics,
+  getEmailDeliveryHealth,
+  type AdminMetrics,
+  type EmailDeliveryHealth,
+  type EmailDeliveryLogRow,
+} from "@/lib/admin.functions";
 import {
   listIntensiveLeads,
   setIntensiveLeadStatus,
@@ -34,6 +40,9 @@ import {
   CreditCard,
   Mail,
   Shield,
+  AlertTriangle,
+  CheckCircle2,
+  RotateCw,
 } from "lucide-react";
 
 export const Route = createFileRoute("/admin/")({
@@ -41,12 +50,11 @@ export const Route = createFileRoute("/admin/")({
   component: AdminDashboard,
 });
 
-
-
 function AdminDashboard() {
   const isAdmin = useIsAdmin();
   const navigate = useNavigate();
   const fetchMetrics = useServerFn(getAdminMetrics);
+  const fetchEmailHealth = useServerFn(getEmailDeliveryHealth);
 
   useEffect(() => {
     if (isAdmin === false) navigate({ to: "/" });
@@ -57,6 +65,13 @@ function AdminDashboard() {
     queryFn: () => fetchMetrics(),
     enabled: !!isAdmin,
     refetchInterval: 60_000,
+  });
+
+  const { data: emailHealth, isLoading: emailHealthLoading } = useQuery<EmailDeliveryHealth>({
+    queryKey: ["admin-email-delivery-health"],
+    queryFn: () => fetchEmailHealth(),
+    enabled: !!isAdmin,
+    refetchInterval: 30_000,
   });
 
   // Live presence — read from the shared store populated in __root.tsx,
@@ -81,10 +96,7 @@ function AdminDashboard() {
       <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-6">
         <div>
           <p className="label-mono">Admin · Dashboard</p>
-          <h1
-            className="mt-2 font-display text-3xl"
-            style={{ fontFamily: "var(--font-serif)" }}
-          >
+          <h1 className="mt-2 font-display text-3xl" style={{ fontFamily: "var(--font-serif)" }}>
             Operator's overview
           </h1>
           <p className="mt-2 text-[13px] text-muted-foreground">
@@ -98,6 +110,12 @@ function AdminDashboard() {
           >
             Email approvals
           </Link>
+          <a
+            href="#email-health"
+            className="rounded-md border border-border bg-card px-3 py-1.5 text-[12px] hover:bg-muted"
+          >
+            Email health
+          </a>
           <Link
             to="/admin/announce"
             className="rounded-md border border-border bg-card px-3 py-1.5 text-[12px] hover:bg-muted"
@@ -156,12 +174,24 @@ function AdminDashboard() {
         <IntensiveCard metrics={metrics} loading={isLoading} />
       </div>
 
+      <EmailHealthPanel health={emailHealth} loading={emailHealthLoading} />
+
       {/* Members */}
       <Section title="Membership" icon={Users}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Stat label="Total subscribers" value={metrics?.members.total} loading={isLoading} />
-          <Stat label="Active" value={metrics?.members.active} loading={isLoading} accent="signal" />
-          <Stat label="Founding" value={metrics?.members.founding} loading={isLoading} accent="gold" />
+          <Stat
+            label="Active"
+            value={metrics?.members.active}
+            loading={isLoading}
+            accent="signal"
+          />
+          <Stat
+            label="Founding"
+            value={metrics?.members.founding}
+            loading={isLoading}
+            accent="gold"
+          />
           <Stat label="Comped" value={metrics?.members.comped} loading={isLoading} />
           <Stat label="Trialing" value={metrics?.members.trialing} loading={isLoading} />
           <Stat label="Canceled" value={metrics?.members.canceled} loading={isLoading} />
@@ -230,9 +260,7 @@ function OnlineNowCard({ online }: { online: PresenceUser[] }) {
               {u.email ?? u.user_id.slice(0, 8)}
             </li>
           ))}
-          {online.length > 12 && (
-            <li className="italic">+ {online.length - 12} more</li>
-          )}
+          {online.length > 12 && <li className="italic">+ {online.length - 12} more</li>}
         </ul>
       )}
     </div>
@@ -246,9 +274,7 @@ function MrrCard({ metrics, loading }: { metrics?: AdminMetrics; loading: boolea
       <p className="label-mono inline-flex items-center gap-1.5">
         <CircleDollarSign className="h-3 w-3" /> Monthly recurring revenue
       </p>
-      <p className="mt-3 font-display text-4xl">
-        {loading ? "…" : formatUSD(mrr)}
-      </p>
+      <p className="mt-3 font-display text-4xl">{loading ? "…" : formatUSD(mrr)}</p>
       <p className="mt-1 text-[12px] text-muted-foreground">
         {metrics?.revenue.activeSubscriptionsCount ?? 0} active Stripe subscription
         {metrics?.revenue.activeSubscriptionsCount === 1 ? "" : "s"}
@@ -285,6 +311,227 @@ function IntensiveCard({ metrics, loading }: { metrics?: AdminMetrics; loading: 
   );
 }
 
+function EmailHealthPanel({ health, loading }: { health?: EmailDeliveryHealth; loading: boolean }) {
+  const issueCount = health
+    ? Number(!health.config.lovableApiConfigured) +
+      Number(health.sendState?.rateLimitedNow ?? false) +
+      health.stalePending.length +
+      health.recentFailures.length
+    : 0;
+  const isHealthy = !!health && issueCount === 0;
+
+  return (
+    <section
+      id="email-health"
+      className="mt-6 scroll-mt-24 rounded-2xl border border-border bg-card p-5"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="label-mono inline-flex items-center gap-1.5">
+            <Mail className="h-3 w-3" /> Access email health
+          </p>
+          <h2 className="mt-2 font-display text-2xl">Magic links and outbound delivery</h2>
+          <p className="mt-1 max-w-2xl text-[12px] text-muted-foreground">
+            This is the trust surface: recent sends, failed delivery, suppressions, and provider
+            cooldowns.
+          </p>
+        </div>
+        <div
+          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12px] ${
+            loading
+              ? "border-border text-muted-foreground"
+              : isHealthy
+                ? "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
+                : "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
+          }`}
+        >
+          {loading ? (
+            <RotateCw className="h-3.5 w-3.5 animate-spin" />
+          ) : isHealthy ? (
+            <CheckCircle2 className="h-3.5 w-3.5" />
+          ) : (
+            <AlertTriangle className="h-3.5 w-3.5" />
+          )}
+          {loading ? "Checking…" : isHealthy ? "Healthy" : "Needs attention"}
+        </div>
+      </div>
+
+      {!health && !loading ? (
+        <p className="mt-5 rounded-xl border border-border bg-background p-4 text-sm text-muted-foreground">
+          Email health is unavailable. Check the server logs for the admin health query.
+        </p>
+      ) : (
+        <>
+          <div className="mt-5 grid gap-3 md:grid-cols-4">
+            <HealthStat
+              label="Public magic links · 24h"
+              value={health ? health.publicMagicLinksLast24h.sent : undefined}
+              sub={
+                health
+                  ? `${health.publicMagicLinksLast24h.failed} failed · ${health.publicMagicLinksLast24h.suppressed} suppressed`
+                  : undefined
+              }
+              loading={loading}
+              accent={health && health.publicMagicLinksLast24h.failed > 0 ? "warn" : "ok"}
+            />
+            <HealthStat
+              label="All email sends · 24h"
+              value={health ? health.totalsLast24h.sent : undefined}
+              sub={
+                health
+                  ? `${health.totalsLast24h.failed} failed · ${health.totalsLast24h.dlq} DLQ`
+                  : undefined
+              }
+              loading={loading}
+              accent={
+                health && (health.totalsLast24h.failed > 0 || health.totalsLast24h.dlq > 0)
+                  ? "warn"
+                  : "ok"
+              }
+            />
+            <HealthStat
+              label="Suppressed list"
+              value={health?.suppressedAllTime}
+              sub={health ? `${health.suppressedLast30d} added in last 30 days` : undefined}
+              loading={loading}
+            />
+            <HealthStat
+              label="Provider state"
+              value={health?.sendState?.rateLimitedNow ? 1 : 0}
+              sub={
+                health?.sendState?.rateLimitedNow
+                  ? `Cooling down until ${formatDateTime(health.sendState.retryAfterUntil)}`
+                  : health?.config.lovableApiConfigured
+                    ? "Lovable API key present"
+                    : "Lovable API key missing"
+              }
+              loading={loading}
+              accent={
+                health && (!health.config.lovableApiConfigured || health.sendState?.rateLimitedNow)
+                  ? "warn"
+                  : "ok"
+              }
+            />
+          </div>
+
+          {health && (!health.config.lovableApiConfigured || health.stalePending.length > 0) && (
+            <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-[12px] text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+              {!health.config.lovableApiConfigured && (
+                <p>
+                  LOVABLE_API_KEY is missing in this environment. Access emails cannot send here.
+                </p>
+              )}
+              {health.stalePending.length > 0 && (
+                <p className="mt-1">
+                  {health.stalePending.length} pending email log row
+                  {health.stalePending.length === 1 ? "" : "s"} look stale. Check delivery before
+                  telling a member the link was sent.
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="mt-5 grid gap-4 lg:grid-cols-2">
+            <EmailLogList
+              title="Recent public magic links"
+              rows={health?.recentPublicMagicLinks ?? []}
+              empty="No public magic-link sends in the last 24 hours."
+            />
+            <EmailLogList
+              title="Recent delivery problems"
+              rows={health?.recentFailures ?? []}
+              empty="No failed, bounced, complained, or DLQ rows in the last 24 hours."
+            />
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+function HealthStat({
+  label,
+  value,
+  sub,
+  loading,
+  accent,
+}: {
+  label: string;
+  value: number | undefined;
+  sub?: string;
+  loading?: boolean;
+  accent?: "ok" | "warn";
+}) {
+  const valueClass = accent === "warn" ? "text-amber-700 dark:text-amber-300" : "text-foreground";
+  return (
+    <div className="rounded-xl border border-border bg-background p-4">
+      <p className="label-mono">{label}</p>
+      <p className={`mt-2 font-display text-3xl ${valueClass}`}>{loading ? "…" : (value ?? 0)}</p>
+      {sub && <p className="mt-1 text-[11px] text-muted-foreground">{sub}</p>}
+    </div>
+  );
+}
+
+function EmailLogList({
+  title,
+  rows,
+  empty,
+}: {
+  title: string;
+  rows: EmailDeliveryLogRow[];
+  empty: string;
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-background">
+      <div className="border-b border-border px-4 py-3">
+        <p className="label-mono">{title}</p>
+      </div>
+      {rows.length === 0 ? (
+        <p className="p-4 text-[12px] text-muted-foreground">{empty}</p>
+      ) : (
+        <div className="divide-y divide-border">
+          {rows.map((row) => (
+            <div key={row.id} className="grid gap-2 p-4 text-[12px] sm:grid-cols-[1fr_auto]">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge status={row.status} />
+                  <span className="truncate font-medium">{row.recipientEmail}</span>
+                </div>
+                <p className="mt-1 truncate text-muted-foreground">
+                  {row.templateName}
+                  {row.reason ? ` · ${row.reason}` : ""}
+                  {row.errorMessage ? ` · ${row.errorMessage}` : ""}
+                </p>
+              </div>
+              <time className="text-muted-foreground" dateTime={row.createdAt}>
+                {timeAgo(row.createdAt)}
+              </time>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const warn = ["failed", "bounced", "complained", "dlq"].includes(status);
+  const subdued = ["pending", "suppressed"].includes(status);
+  return (
+    <span
+      className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] ${
+        warn
+          ? "bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-200"
+          : subdued
+            ? "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200"
+            : "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
+      }`}
+    >
+      {status}
+    </span>
+  );
+}
+
 function LibraryCard({ metrics, loading }: { metrics?: AdminMetrics; loading: boolean }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-5">
@@ -303,21 +550,13 @@ function LibraryCard({ metrics, loading }: { metrics?: AdminMetrics; loading: bo
         <Stat
           label="Templates"
           value={metrics?.library.templates}
-          sub={
-            metrics
-              ? `${metrics.library.templatesPublished} published`
-              : undefined
-          }
+          sub={metrics ? `${metrics.library.templatesPublished} published` : undefined}
           loading={loading}
         />
         <Stat
           label="Replays"
           value={metrics?.library.replays}
-          sub={
-            metrics
-              ? `${metrics.library.replaysPublished} published`
-              : undefined
-          }
+          sub={metrics ? `${metrics.library.replaysPublished} published` : undefined}
           loading={loading}
         />
       </div>
@@ -391,17 +630,11 @@ function Stat({
   accent?: "signal" | "gold";
 }) {
   const accentCls =
-    accent === "signal"
-      ? "text-signal"
-      : accent === "gold"
-      ? "text-gold"
-      : "text-foreground";
+    accent === "signal" ? "text-signal" : accent === "gold" ? "text-gold" : "text-foreground";
   return (
     <div className="rounded-xl border border-border bg-background p-4">
       <p className="label-mono">{label}</p>
-      <p className={`mt-2 font-display text-2xl ${accentCls}`}>
-        {loading ? "…" : value ?? 0}
-      </p>
+      <p className={`mt-2 font-display text-2xl ${accentCls}`}>{loading ? "…" : (value ?? 0)}</p>
       {sub && <p className="mt-1 text-[11px] text-muted-foreground">{sub}</p>}
     </div>
   );
@@ -427,13 +660,9 @@ function SignalCard({
       <p className="label-mono inline-flex items-center gap-1.5">
         <Icon className="h-3 w-3" /> {label}
       </p>
-      <p className="mt-3 font-display text-3xl">{loading ? "…" : value ?? 0}</p>
+      <p className="mt-3 font-display text-3xl">{loading ? "…" : (value ?? 0)}</p>
       <p className="mt-1 text-[12px] text-muted-foreground">{note}</p>
-      {href && (
-        <p className="mt-2 text-[11px] text-muted-foreground underline">
-          View list →
-        </p>
-      )}
+      {href && <p className="mt-2 text-[11px] text-muted-foreground underline">View list →</p>}
     </>
   );
   if (href) {
@@ -458,6 +687,20 @@ function formatUSD(cents: number): string {
   });
 }
 
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return "unknown";
+  return new Date(value).toLocaleString();
+}
+
+function timeAgo(value: string): string {
+  const diffMs = Date.now() - new Date(value).getTime();
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  if (diffMs < minute) return "just now";
+  if (diffMs < hour) return `${Math.max(1, Math.round(diffMs / minute))}m ago`;
+  return `${Math.round(diffMs / hour)}h ago`;
+}
+
 /* ----------------- members directory ----------------- */
 
 type FilterKey =
@@ -470,7 +713,6 @@ type FilterKey =
   | "never_signed_in"
   | "not_activated"
   | "no_account";
-
 
 function MembersDirectory({ online }: { online: PresenceUser[] }) {
   const fetchUsers = useServerFn(listAdminUsers);
@@ -485,10 +727,7 @@ function MembersDirectory({ online }: { online: PresenceUser[] }) {
     queryFn: () => fetchUsers(),
   });
 
-  const onlineSet = useMemo(
-    () => new Set(online.map((o) => o.user_id)),
-    [online],
-  );
+  const onlineSet = useMemo(() => new Set(online.map((o) => o.user_id)), [online]);
 
   const mut = useMutation({
     mutationFn: (input: {
@@ -529,13 +768,9 @@ function MembersDirectory({ online }: { online: PresenceUser[] }) {
       if (filter === "not_activated" && (!u.hasAuthAccount || u.emailConfirmedAt)) return false;
       if (filter === "no_account" && u.hasAuthAccount) return false;
       if (!q) return true;
-      return (
-        u.email.toLowerCase().includes(q) ||
-        (u.fullName ?? "").toLowerCase().includes(q)
-      );
+      return u.email.toLowerCase().includes(q) || (u.fullName ?? "").toLowerCase().includes(q);
     });
   }, [users, query, filter]);
-
 
   return (
     <section className="mt-8">
@@ -634,7 +869,6 @@ function MembersDirectory({ online }: { online: PresenceUser[] }) {
                     <StatusPill status={sub?.status ?? null} cancelAtEnd={sub?.cancelAtPeriodEnd} />
                   </div>
 
-
                   <div className="flex justify-end gap-2">
                     <button
                       type="button"
@@ -643,7 +877,9 @@ function MembersDirectory({ online }: { online: PresenceUser[] }) {
                       className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-[11px] transition hover:bg-muted disabled:opacity-50"
                     >
                       <Mail className="h-3 w-3" />
-                      {accessMut.isPending && accessMut.variables === u.email ? "Sending…" : "Access link"}
+                      {accessMut.isPending && accessMut.variables === u.email
+                        ? "Sending…"
+                        : "Access link"}
                     </button>
                     <button
                       type="button"
@@ -672,19 +908,14 @@ function MembersDirectory({ online }: { online: PresenceUser[] }) {
         )}
       </div>
       <p className="mt-2 text-[11px] text-muted-foreground">
-        {filtered.length} member{filtered.length === 1 ? "" : "s"} shown · Paid = recurring Stripe revenue · Comped = free access granted manually.
+        {filtered.length} member{filtered.length === 1 ? "" : "s"} shown · Paid = recurring Stripe
+        revenue · Comped = free access granted manually.
       </p>
     </section>
   );
 }
 
-function FilterPills({
-  value,
-  onChange,
-}: {
-  value: FilterKey;
-  onChange: (v: FilterKey) => void;
-}) {
+function FilterPills({ value, onChange }: { value: FilterKey; onChange: (v: FilterKey) => void }) {
   const opts: { key: FilterKey; label: string }[] = [
     { key: "all", label: "All" },
     { key: "paid", label: "Paid" },
@@ -720,30 +951,24 @@ function FilterPills({
   );
 }
 
-function StatusPill({
-  status,
-  cancelAtEnd,
-}: {
-  status: string | null;
-  cancelAtEnd?: boolean;
-}) {
+function StatusPill({ status, cancelAtEnd }: { status: string | null; cancelAtEnd?: boolean }) {
   if (!status) return <span className="text-muted-foreground">—</span>;
   const tone =
     status === "active"
       ? "bg-signal/10 text-signal"
       : status === "trialing"
-      ? "bg-gold/15 text-gold"
-      : status === "canceled" || status === "past_due"
-      ? "bg-destructive/10 text-destructive"
-      : "bg-foreground/10 text-foreground";
+        ? "bg-gold/15 text-gold"
+        : status === "canceled" || status === "past_due"
+          ? "bg-destructive/10 text-destructive"
+          : "bg-foreground/10 text-foreground";
   return (
     <span className="inline-flex items-center gap-1">
-      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${tone}`}>
+      <span
+        className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${tone}`}
+      >
         {status}
       </span>
-      {cancelAtEnd && (
-        <span className="text-[10px] text-muted-foreground">(ending)</span>
-      )}
+      {cancelAtEnd && <span className="text-[10px] text-muted-foreground">(ending)</span>}
     </span>
   );
 }
@@ -833,14 +1058,13 @@ function IntensiveLeadsInline({ enabled }: { enabled: boolean }) {
   });
 
   const statusMut = useMutation({
-    mutationFn: (vars: { id: string; status: string }) =>
-      updateStatus({ data: vars }),
+    mutationFn: (vars: { id: string; status: string }) => updateStatus({ data: vars }),
     onSuccess: () => {
       toast.success("Status updated");
       qc.invalidateQueries({ queryKey: ["admin-intensive-leads"] });
       qc.invalidateQueries({ queryKey: ["admin-metrics"] });
     },
-    onError: (e: any) => toast.error(e?.message || "Failed"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed"),
   });
 
   return (
@@ -849,14 +1073,10 @@ function IntensiveLeadsInline({ enabled }: { enabled: boolean }) {
         <p className="label-mono inline-flex items-center gap-1.5">
           <Sparkles className="h-3 w-3" /> Intensive leads
         </p>
-        <span className="text-[11px] text-muted-foreground">
-          {leads?.length ?? 0} total
-        </span>
+        <span className="text-[11px] text-muted-foreground">{leads?.length ?? 0} total</span>
       </div>
 
-      {isLoading && (
-        <p className="mt-3 text-[12px] text-muted-foreground">Loading…</p>
-      )}
+      {isLoading && <p className="mt-3 text-[12px] text-muted-foreground">Loading…</p>}
       {!isLoading && (!leads || leads.length === 0) && (
         <p className="mt-3 text-[12px] text-muted-foreground">No leads yet.</p>
       )}
@@ -889,9 +1109,7 @@ function IntensiveLeadsInline({ enabled }: { enabled: boolean }) {
                 {lead.recent_messages.length > 0 && (
                   <p className="mt-2 line-clamp-2 text-[12px] text-foreground/80">
                     {lead.recent_messages[0]?.content?.slice(0, 220)}
-                    {(lead.recent_messages[0]?.content?.length ?? 0) > 220
-                      ? "…"
-                      : ""}
+                    {(lead.recent_messages[0]?.content?.length ?? 0) > 220 ? "…" : ""}
                   </p>
                 )}
               </div>
@@ -900,9 +1118,7 @@ function IntensiveLeadsInline({ enabled }: { enabled: boolean }) {
                   <button
                     key={s}
                     disabled={statusMut.isPending || lead.status === s}
-                    onClick={() =>
-                      statusMut.mutate({ id: lead.id, status: s })
-                    }
+                    onClick={() => statusMut.mutate({ id: lead.id, status: s })}
                     className={`rounded border px-2 py-1 text-[11px] transition disabled:cursor-default ${
                       lead.status === s
                         ? "border-foreground bg-foreground text-background"
@@ -926,5 +1142,3 @@ function IntensiveLeadsInline({ enabled }: { enabled: boolean }) {
     </div>
   );
 }
-
-
