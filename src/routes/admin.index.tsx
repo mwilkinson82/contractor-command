@@ -10,10 +10,13 @@ import { subscribePresence, type PresenceUser } from "@/lib/portal-presence";
 import {
   getAdminMetrics,
   getEmailDeliveryHealth,
+  getEmailQueueAudit,
   processEmailQueueNow,
   type AdminMetrics,
   type EmailDeliveryHealth,
   type EmailDeliveryLogRow,
+  type EmailQueueAudit,
+  type EmailQueueAuditSampleRow,
 } from "@/lib/admin.functions";
 import {
   listIntensiveLeads,
@@ -57,6 +60,7 @@ function AdminDashboard() {
   const queryClient = useQueryClient();
   const fetchMetrics = useServerFn(getAdminMetrics);
   const fetchEmailHealth = useServerFn(getEmailDeliveryHealth);
+  const fetchEmailQueueAudit = useServerFn(getEmailQueueAudit);
   const processEmailQueue = useServerFn(processEmailQueueNow);
 
   const processEmailQueueMutation = useMutation({
@@ -80,6 +84,7 @@ function AdminDashboard() {
           .join(" · "),
       });
       queryClient.invalidateQueries({ queryKey: ["admin-email-delivery-health"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-email-queue-audit"] });
     },
     onError: (err) => {
       toast.error(err instanceof Error ? err.message : "Could not process email queue.");
@@ -100,6 +105,19 @@ function AdminDashboard() {
   const { data: emailHealth, isLoading: emailHealthLoading } = useQuery<EmailDeliveryHealth>({
     queryKey: ["admin-email-delivery-health"],
     queryFn: () => fetchEmailHealth(),
+    enabled: !!isAdmin,
+    refetchInterval: 30_000,
+  });
+
+  const {
+    data: emailQueueAudit,
+    isLoading: emailQueueAuditLoading,
+    isFetching: emailQueueAuditFetching,
+    error: emailQueueAuditError,
+    refetch: refetchEmailQueueAudit,
+  } = useQuery<EmailQueueAudit>({
+    queryKey: ["admin-email-queue-audit"],
+    queryFn: () => fetchEmailQueueAudit(),
     enabled: !!isAdmin,
     refetchInterval: 30_000,
   });
@@ -207,8 +225,32 @@ function AdminDashboard() {
       <EmailHealthPanel
         health={emailHealth}
         loading={emailHealthLoading}
+        queueAudit={emailQueueAudit}
+        queueAuditLoading={emailQueueAuditLoading}
+        queueAuditRefreshing={emailQueueAuditFetching && !emailQueueAuditLoading}
+        queueAuditError={emailQueueAuditError}
         processingQueue={processEmailQueueMutation.isPending}
-        onProcessQueue={() => processEmailQueueMutation.mutate()}
+        onRefreshQueueAudit={() => refetchEmailQueueAudit()}
+        onProcessQueue={() => {
+          if (emailQueueAuditError || !emailQueueAudit) {
+            const shouldContinue = window.confirm(
+              "The queue audit is not available. Processing could send visible queued emails. Continue anyway?",
+            );
+            if (!shouldContinue) return;
+          }
+
+          const wouldSend = emailQueueAudit?.totals.wouldSend ?? 0;
+          if (wouldSend > 0) {
+            const shouldContinue = window.confirm(
+              `The dry run says this will attempt to send ${wouldSend} live email${
+                wouldSend === 1 ? "" : "s"
+              }. Continue?`,
+            );
+            if (!shouldContinue) return;
+          }
+
+          processEmailQueueMutation.mutate();
+        }}
       />
 
       {/* Members */}
@@ -349,12 +391,22 @@ function IntensiveCard({ metrics, loading }: { metrics?: AdminMetrics; loading: 
 function EmailHealthPanel({
   health,
   loading,
+  queueAudit,
+  queueAuditLoading,
+  queueAuditRefreshing,
+  queueAuditError,
   processingQueue,
+  onRefreshQueueAudit,
   onProcessQueue,
 }: {
   health?: EmailDeliveryHealth;
   loading: boolean;
+  queueAudit?: EmailQueueAudit;
+  queueAuditLoading: boolean;
+  queueAuditRefreshing: boolean;
+  queueAuditError: unknown;
   processingQueue: boolean;
+  onRefreshQueueAudit: () => void;
   onProcessQueue: () => void;
 }) {
   const issueCount = health
@@ -483,6 +535,14 @@ function EmailHealthPanel({
             </div>
           )}
 
+          <EmailQueueAuditCard
+            audit={queueAudit}
+            loading={queueAuditLoading}
+            refreshing={queueAuditRefreshing}
+            error={queueAuditError}
+            onRefresh={onRefreshQueueAudit}
+          />
+
           <div className="mt-5 grid gap-4 lg:grid-cols-2">
             <EmailLogList
               title="Recent public magic links"
@@ -526,6 +586,282 @@ function HealthStat({
       {sub && <p className="mt-1 text-[11px] text-muted-foreground">{sub}</p>}
     </div>
   );
+}
+
+function EmailQueueAuditCard({
+  audit,
+  loading,
+  refreshing,
+  error,
+  onRefresh,
+}: {
+  audit?: EmailQueueAudit;
+  loading: boolean;
+  refreshing: boolean;
+  error: unknown;
+  onRefresh: () => void;
+}) {
+  const totals = audit?.totals;
+  const errorMessage =
+    error instanceof Error ? error.message : error ? "Queue audit is unavailable." : null;
+
+  return (
+    <div className="mt-5 overflow-hidden rounded-xl border border-border bg-background">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-3">
+        <div>
+          <p className="label-mono inline-flex items-center gap-1.5">
+            <Shield className="h-3 w-3" /> Queue dry run
+          </p>
+          <p className="mt-1 max-w-2xl text-[12px] text-muted-foreground">
+            Read-only PgMQ audit. This does not send, delete, move, or make messages invisible.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {audit && <AuditRecommendationBadge recommendation={audit.recommendation} />}
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={loading || refreshing}
+            className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-[12px] transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <RotateCw className={`h-3.5 w-3.5 ${loading || refreshing ? "animate-spin" : ""}`} />
+            {loading || refreshing ? "Auditing..." : "Refresh audit"}
+          </button>
+        </div>
+      </div>
+
+      {errorMessage ? (
+        <div className="m-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-[12px] text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          {errorMessage}
+        </div>
+      ) : loading && !audit ? (
+        <p className="p-4 text-[12px] text-muted-foreground">Auditing queued emails...</p>
+      ) : audit && totals ? (
+        <div className="p-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <QueueAuditMetric
+              label="Would send"
+              value={totals.wouldSend}
+              tone={totals.wouldSend > 0 ? "warn" : "ok"}
+            />
+            <QueueAuditMetric label="Move to DLQ" value={totals.wouldMoveToDlq} />
+            <QueueAuditMetric label="Duplicates" value={totals.wouldSkipDuplicate} />
+            <QueueAuditMetric label="Suppressions" value={totals.wouldSuppress} />
+            <QueueAuditMetric
+              label="Visible now"
+              value={totals.visibleNow}
+              sub={`${totals.total} total`}
+            />
+          </div>
+
+          <p className="mt-3 text-[12px] text-muted-foreground">{queueAuditSummaryText(audit)}</p>
+
+          {totals.hiddenUntilVisible > 0 && (
+            <p className="mt-2 rounded-lg border border-border bg-card px-3 py-2 text-[12px] text-muted-foreground">
+              {totals.hiddenUntilVisible} queued message
+              {totals.hiddenUntilVisible === 1 ? " is" : "s are"} still inside a visibility window,
+              so the processor would not touch {totals.hiddenUntilVisible === 1 ? "it" : "them"}{" "}
+              yet.
+            </p>
+          )}
+
+          <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1.2fr]">
+            <QueueTemplateBreakdown audit={audit} />
+            <QueueAuditSamples rows={audit.samples} />
+          </div>
+        </div>
+      ) : (
+        <p className="p-4 text-[12px] text-muted-foreground">No audit data returned.</p>
+      )}
+    </div>
+  );
+}
+
+function AuditRecommendationBadge({
+  recommendation,
+}: {
+  recommendation: EmailQueueAudit["recommendation"];
+}) {
+  const config: Record<EmailQueueAudit["recommendation"], { label: string; className: string }> = {
+    empty: {
+      label: "Queue empty",
+      className:
+        "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
+    },
+    safe_to_drain: {
+      label: "Safe to drain",
+      className:
+        "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
+    },
+    would_send_live_email: {
+      label: "Live sends pending",
+      className:
+        "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200",
+    },
+    waiting_for_visibility: {
+      label: "Waiting",
+      className: "border-border bg-card text-muted-foreground",
+    },
+    needs_review: {
+      label: "Needs review",
+      className:
+        "border-rose-300 bg-rose-50 text-rose-900 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-200",
+    },
+  };
+  const selected = config[recommendation];
+
+  return (
+    <span
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12px] ${selected.className}`}
+    >
+      {recommendation === "would_send_live_email" || recommendation === "needs_review" ? (
+        <AlertTriangle className="h-3.5 w-3.5" />
+      ) : (
+        <CheckCircle2 className="h-3.5 w-3.5" />
+      )}
+      {selected.label}
+    </span>
+  );
+}
+
+function QueueAuditMetric({
+  label,
+  value,
+  sub,
+  tone,
+}: {
+  label: string;
+  value: number;
+  sub?: string;
+  tone?: "ok" | "warn";
+}) {
+  const valueClass = tone === "warn" ? "text-amber-700 dark:text-amber-300" : "text-foreground";
+  return (
+    <div className="rounded-xl border border-border bg-card p-3">
+      <p className="label-mono">{label}</p>
+      <p className={`mt-2 font-display text-3xl ${valueClass}`}>{value}</p>
+      {sub && <p className="mt-1 text-[11px] text-muted-foreground">{sub}</p>}
+    </div>
+  );
+}
+
+function QueueTemplateBreakdown({ audit }: { audit: EmailQueueAudit }) {
+  const rows = audit.templates.slice(0, 6);
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="border-b border-border px-4 py-3">
+        <p className="label-mono">Template breakdown</p>
+      </div>
+      {rows.length === 0 ? (
+        <p className="p-4 text-[12px] text-muted-foreground">No queued templates.</p>
+      ) : (
+        <div className="divide-y divide-border">
+          {rows.map((row) => (
+            <div
+              key={`${row.queueName}-${row.templateName}`}
+              className="grid gap-3 p-4 text-[12px] sm:grid-cols-[1fr_auto]"
+            >
+              <div className="min-w-0">
+                <p className="truncate font-medium">{row.templateName}</p>
+                <p className="mt-1 text-muted-foreground">{row.queueName}</p>
+              </div>
+              <p className="text-muted-foreground">
+                {row.total} total · {row.wouldSend} send · {row.wouldMoveToDlq} DLQ
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QueueAuditSamples({ rows }: { rows: EmailQueueAuditSampleRow[] }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="border-b border-border px-4 py-3">
+        <p className="label-mono">Sample messages</p>
+      </div>
+      {rows.length === 0 ? (
+        <p className="p-4 text-[12px] text-muted-foreground">No queue messages to sample.</p>
+      ) : (
+        <div className="divide-y divide-border">
+          {rows.map((row) => (
+            <div key={`${row.queueName}-${row.msgId}`} className="grid gap-2 p-4 text-[12px]">
+              <div className="flex flex-wrap items-center gap-2">
+                <QueueOutcomeBadge outcome={row.outcome} />
+                <span className="truncate font-medium">{row.recipientEmail ?? "unknown"}</span>
+              </div>
+              <p className="truncate text-muted-foreground">
+                {row.templateName} · {row.queueName}
+                {row.queuedAt ? ` · queued ${timeAgo(row.queuedAt)}` : ""}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QueueOutcomeBadge({ outcome }: { outcome: EmailQueueAuditSampleRow["outcome"] }) {
+  const warn = outcome === "would_send" || outcome === "needs_review";
+  const label = queueOutcomeLabel(outcome);
+  return (
+    <span
+      className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] ${
+        warn
+          ? "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200"
+          : "bg-foreground/10 text-muted-foreground"
+      }`}
+    >
+      {label}
+    </span>
+  );
+}
+
+function queueOutcomeLabel(outcome: EmailQueueAuditSampleRow["outcome"]): string {
+  switch (outcome) {
+    case "would_send":
+      return "would send";
+    case "ttl_expired":
+      return "expired";
+    case "missing_required_fields":
+      return "bad payload";
+    case "max_retries_exceeded":
+      return "max retries";
+    case "already_sent_duplicate":
+      return "duplicate";
+    case "would_suppress":
+      return "suppressed";
+    case "hidden_until_visible":
+      return "waiting";
+    default:
+      return "review";
+  }
+}
+
+function queueAuditSummaryText(audit: EmailQueueAudit): string {
+  const totals = audit.totals;
+  if (audit.recommendation === "empty") {
+    return "The email queues are empty. Processing would do nothing.";
+  }
+  if (totals.wouldSend > 0) {
+    return `If processed now, ${totals.wouldSend} email${
+      totals.wouldSend === 1 ? "" : "s"
+    } would attempt to send. The process button will ask for confirmation before continuing.`;
+  }
+  if (audit.recommendation === "safe_to_drain") {
+    return `Safe drain: no live emails would send. Processing would move ${totals.wouldMoveToDlq} expired or invalid row${
+      totals.wouldMoveToDlq === 1 ? "" : "s"
+    } to DLQ, skip ${totals.wouldSkipDuplicate} duplicate${
+      totals.wouldSkipDuplicate === 1 ? "" : "s"
+    }, and suppress ${totals.wouldSuppress}.`;
+  }
+  if (audit.recommendation === "waiting_for_visibility") {
+    return "The queue only has messages still inside their visibility window. Processing now should not touch them.";
+  }
+  return "The queue has messages that do not fit a clean action bucket. Review the sample rows before processing.";
 }
 
 function EmailLogList({

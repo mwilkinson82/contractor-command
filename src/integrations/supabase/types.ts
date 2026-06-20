@@ -1325,6 +1325,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      audit_email_queues: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       begin_stripe_webhook_event: {
         Args: { _event_id: string; _event_type: string; _object_id: string }
         Returns: string

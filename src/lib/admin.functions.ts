@@ -98,6 +98,70 @@ export type EmailDeliveryHealth = {
   recentPublicMagicLinks: EmailDeliveryLogRow[];
 };
 
+export type EmailQueueAuditTotals = {
+  total: number;
+  visibleNow: number;
+  hiddenUntilVisible: number;
+  wouldSend: number;
+  wouldMoveToDlq: number;
+  wouldSkipDuplicate: number;
+  wouldSuppress: number;
+  missingQueuedAt: number;
+  missingRequiredFields: number;
+  maxRetriesExceeded: number;
+  ttlExpired: number;
+};
+
+export type EmailQueueAuditSummaryRow = {
+  queueName: string;
+  total: number;
+  visibleNow: number;
+  wouldSend: number;
+  wouldMoveToDlq: number;
+  wouldSkipDuplicate: number;
+  wouldSuppress: number;
+};
+
+export type EmailQueueAuditTemplateRow = EmailQueueAuditSummaryRow & {
+  templateName: string;
+};
+
+export type EmailQueueAuditSampleRow = {
+  queueName: string;
+  msgId: number;
+  templateName: string;
+  recipientEmail: string | null;
+  visibleNow: boolean;
+  queuedAt: string | null;
+  outcome:
+    | "would_send"
+    | "ttl_expired"
+    | "missing_required_fields"
+    | "max_retries_exceeded"
+    | "already_sent_duplicate"
+    | "would_suppress"
+    | "hidden_until_visible"
+    | "needs_review";
+};
+
+export type EmailQueueAudit = {
+  generatedAt: string;
+  ttlMinutes: {
+    auth_emails: number;
+    transactional_emails: number;
+  };
+  totals: EmailQueueAuditTotals;
+  queues: EmailQueueAuditSummaryRow[];
+  templates: EmailQueueAuditTemplateRow[];
+  samples: EmailQueueAuditSampleRow[];
+  recommendation:
+    | "empty"
+    | "would_send_live_email"
+    | "safe_to_drain"
+    | "waiting_for_visibility"
+    | "needs_review";
+};
+
 function emptyStatusCounts(): Record<EmailLogStatus, number> {
   return EMAIL_LOG_STATUSES.reduce(
     (acc, status) => ({ ...acc, [status]: 0 }),
@@ -455,6 +519,23 @@ export const getEmailDeliveryHealth = createServerFn({ method: "GET" })
         .filter((row) => row.templateName === "login-nudge" && row.channel === "public_magic_link")
         .slice(0, 12),
     };
+  });
+
+export const getEmailQueueAudit = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<EmailQueueAudit> => {
+    await assertAdminUser(context.userId);
+
+    const { data, error } = await supabaseAdmin.rpc("audit_email_queues");
+    if (error) {
+      console.error("[admin.email-queue-audit] query failed", error);
+      throw new Error("Email queue audit is unavailable. Confirm the latest migration is applied.");
+    }
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+      throw new Error("Email queue audit returned an unexpected payload.");
+    }
+
+    return data as EmailQueueAudit;
   });
 
 export const processEmailQueueNow = createServerFn({ method: "POST" })
