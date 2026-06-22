@@ -16,9 +16,11 @@ export type WeeklyMove = {
   updated_at: string;
 };
 
-
-
+const UpsertSchema = z.object({
+  id: z.string().uuid().optional(),
+  headline: z.string().min(1).max(200),
   body: z.string().min(1).max(2000),
+
   ctaLabel: z.string().min(1).max(60),
   ctaTo: z.string().max(200).nullable().optional(),
   ctaHref: z.string().url().max(500).nullable().optional(),
