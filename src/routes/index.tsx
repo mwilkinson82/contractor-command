@@ -423,7 +423,7 @@ function FeaturedLatestClass() {
             <p className="label-mono">Featured · Latest class</p>
           </div>
           <h2 className="mt-3 font-display text-3xl md:text-4xl leading-tight">
-            Contractor Circle Project Management Methodologies: IOR
+            Contractor Circle Call — June 21, 2026
           </h2>
 
           <div className="mt-6 overflow-hidden rounded-xl border border-border bg-black">
@@ -433,33 +433,12 @@ function FeaturedLatestClass() {
                 frameBorder="0"
                 allowFullScreen
                 style={{ position: "absolute", width: "100%", height: "100%", top: 0, left: 0 }}
-                title="Contractor Circle Project Management Methodologies: IOR"
+                title="Contractor Circle Call — June 21, 2026"
               />
             </div>
           </div>
 
           <article className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-5">
-            <div className="min-w-0 flex-1">
-              <p className="label-mono">Companion template · PDF</p>
-              <h3 className="mt-1 font-display text-[17px] leading-snug">
-                Project Management Methodology: IOR — The Source of Truth
-              </h3>
-              <p className="mt-1 text-[13px] text-muted-foreground">
-                Marshall's IOR methodology — identify risks before they hit profit, centralize tracking, and run the weekly reporting cadence.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => handleDownload(templatePath)}
-              disabled={busy === templatePath}
-              className={`inline-flex shrink-0 items-center gap-1.5 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 ${busy === templatePath ? "opacity-60" : ""}`}
-            >
-              <Download className="h-3.5 w-3.5" />
-              {busy === templatePath ? "Opening…" : "Download PDF"}
-            </button>
-          </article>
-
-          <article className="mt-3 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-5">
             <div className="min-w-0 flex-1">
               <p className="label-mono">Call whiteboard · PDF</p>
               <h3 className="mt-1 font-display text-[17px] leading-snug">
@@ -477,6 +456,27 @@ function FeaturedLatestClass() {
             >
               <Download className="h-3.5 w-3.5" />
               {busy === whiteboardPath ? "Opening…" : "Download PDF"}
+            </button>
+          </article>
+
+          <article className="mt-3 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-5">
+            <div className="min-w-0 flex-1">
+              <p className="label-mono">Companion template · PDF</p>
+              <h3 className="mt-1 font-display text-[17px] leading-snug">
+                Project Management Methodology: IOR — The Source of Truth
+              </h3>
+              <p className="mt-1 text-[13px] text-muted-foreground">
+                Marshall's IOR methodology — identify risks before they hit profit, centralize tracking, and run the weekly reporting cadence.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleDownload(templatePath)}
+              disabled={busy === templatePath}
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 ${busy === templatePath ? "opacity-60" : ""}`}
+            >
+              <Download className="h-3.5 w-3.5" />
+              {busy === templatePath ? "Opening…" : "Download PDF"}
             </button>
           </article>
         </div>
