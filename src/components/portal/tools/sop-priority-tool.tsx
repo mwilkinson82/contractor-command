@@ -636,30 +636,42 @@ function DepartmentMode() {
 
   function savePacket() {
     if (!result) return;
-    const top = result.topSop;
-    const saved = vault.save({
-      kind: "command",
-      source: "SOP Priority Builder",
-      title: `${result.department} · Build "${top.name}" first`,
-      primaryFinding: result.headline,
-      primaryConstraint: `${result.department} seat — ${result.backlog.length} SOPs in backlog`,
-      financialConsequence: result.buildOrderRationale,
-      missingSystem: `${result.department} SOP stack — ${result.backlog.length} SOPs sequenced by dependency`,
-      recommendedAction:
-        `Draft "${top.name}" this week. Trigger: ${top.trigger}. Owner: ${top.owner}. ` +
-        `It's the foundation the next ${Math.min(3, result.backlog.length - 1)} SOPs depend on.`,
-      bringOneIssuePrompt: `What's blocking the ${result.department} seat from owning this stack?`,
-      intensiveRecommended: result.backlog.length >= 10,
-      inputs: {
-        mode: "department",
-        department: result.department,
-        stage: companyStage,
-        seatHeadcount,
-        backlogSize: result.backlog.length,
-        topSop: top.name,
-      },
-    });
-    setSavedId(saved.id);
+    // Save one packet per SOP in the backlog so each one shows up in the
+    // Vault and is individually editable. Each packet stores the backlog
+    // item metadata + department + parent play, so the edit route can
+    // AI-draft the SOP document on first open and persist edits back to
+    // the same packet (no duplicates).
+    const stackId = `stack_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    let firstId: string | null = null;
+    for (const s of result.backlog) {
+      const parent = result.plays.find((p) => p.id === s.playId) ?? null;
+      const saved = vault.save({
+        kind: "command",
+        source: "SOP Builder · Stack item",
+        title: `SOP · ${s.name}`,
+        primaryFinding: s.purpose,
+        primaryConstraint: `${result.department} — ${s.owner}`,
+        financialConsequence: parent ? `Operationalizes ${parent.id} · ${parent.name}` : "",
+        missingSystem: s.name,
+        recommendedAction: `Trigger: ${s.trigger}. Owner: ${s.owner}. ${s.why}`,
+        bringOneIssuePrompt: `What's blocking the ${result.department} seat from owning "${s.name}"?`,
+        intensiveRecommended: false,
+        inputs: {
+          mode: "department-stack-item",
+          department: result.department,
+          stage: companyStage,
+          seatHeadcount,
+          stackId,
+          stackRank: s.rank,
+          stackSize: result.backlog.length,
+          sopBacklogItem: JSON.stringify(s),
+          parentPlay: parent ? JSON.stringify(parent) : "",
+          ownerContext: context,
+        },
+      });
+      if (!firstId) firstId = saved.id;
+    }
+    setSavedId(firstId ?? `stack-${stackId}`);
   }
 
   return (
@@ -918,7 +930,9 @@ function DepartmentMode() {
                 className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 disabled:opacity-70"
               >
                 {savedId ? <Check className="h-3.5 w-3.5 text-signal-success" /> : <Save className="h-3.5 w-3.5" />}
-                {savedId ? "Saved to vault" : "Save backlog to vault"}
+                {savedId
+                  ? `Saved ${result.backlog.length} SOPs to vault`
+                  : `Save stack (${result.backlog.length} SOPs) to vault`}
               </button>
               <CopyBacklogBtn result={result} />
               <Link
