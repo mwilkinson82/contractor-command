@@ -1320,6 +1320,59 @@ export type Database = {
           },
         ]
       }
+      weekly_moves: {
+        Row: {
+          active_from: string
+          active_to: string | null
+          body: string
+          created_at: string
+          created_by: string | null
+          cta_href: string | null
+          cta_label: string
+          cta_to: string | null
+          headline: string
+          id: string
+          source: string | null
+          updated_at: string
+        }
+        Insert: {
+          active_from?: string
+          active_to?: string | null
+          body: string
+          created_at?: string
+          created_by?: string | null
+          cta_href?: string | null
+          cta_label: string
+          cta_to?: string | null
+          headline: string
+          id?: string
+          source?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active_from?: string
+          active_to?: string | null
+          body?: string
+          created_at?: string
+          created_by?: string | null
+          cta_href?: string | null
+          cta_label?: string
+          cta_to?: string | null
+          headline?: string
+          id?: string
+          source?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_moves_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
