@@ -158,7 +158,7 @@ function EditSopPage() {
           <Loader2 className="h-4 w-4 animate-spin text-foreground/70" />
           <p className="text-[13px] text-foreground/80">Loading SOP…</p>
         </div>
-      ) : error || !doc || !packet || !syntheticItem ? (
+      ) : error || !packet || !syntheticItem || (!doc && !backlogItem) ? (
         <div className="mx-auto max-w-xl py-16 text-center">
           <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-signal">
             Can't open this SOP
@@ -182,15 +182,16 @@ function EditSopPage() {
               <ArrowLeft className="h-3.5 w-3.5" /> Back to Vault
             </button>
             <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-              Editing saved SOP
+              {doc ? "Editing saved SOP" : "Drafting SOP from your stack"}
             </p>
           </div>
           <SopDocumentBuilder
             item={syntheticItem}
-            department={doc.department}
-            parentPlay={null}
-            onBack={() => navigate({ to: "/tools", search: { t: "sop-priority" } })}
-            initialDoc={doc}
+            department={doc?.department ?? department ?? ""}
+            parentPlay={parentPlay}
+            ownerContext={ownerContext}
+            onBack={() => navigate({ to: "/vault" })}
+            initialDoc={doc ?? undefined}
             existingPacketId={packetId}
           />
         </>
