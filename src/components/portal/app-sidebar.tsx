@@ -24,6 +24,7 @@ import {
   ArrowUpCircle,
   Flame,
   Lock,
+  Eye,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { useTier, type Tier } from "@/hooks/use-tier";
