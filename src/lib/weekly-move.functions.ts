@@ -16,19 +16,8 @@ export type WeeklyMove = {
   updated_at: string;
 };
 
-async function assertAdmin(
-  supabase: Awaited<ReturnType<typeof requireSupabaseAuth.client>> extends never
-    ? never
-    : Parameters<typeof requireSupabaseAuth.server>[0] extends never
-      ? never
-      : never,
-): Promise<void> {
-  void supabase;
-}
 
-const UpsertSchema = z.object({
-  id: z.string().uuid().optional(),
-  headline: z.string().min(1).max(200),
+
   body: z.string().min(1).max(2000),
   ctaLabel: z.string().min(1).max(60),
   ctaTo: z.string().max(200).nullable().optional(),
