@@ -26,6 +26,8 @@ import { HandbookAnchor } from "@/components/portal/handbook-anchor";
 import { SignalTiles } from "@/components/portal/signal-tiles";
 import { TodaysMove } from "@/components/portal/todays-move";
 import { getAosSnapshot, type AosResult } from "@/lib/aos.functions";
+import { getActiveWeeklyMove } from "@/lib/weekly-move.functions";
+
 import {
   ArrowUpRight,
   Calendar,
@@ -102,6 +104,16 @@ function HomePage() {
       refetchOnWindowFocus: true,
       enabled: !!user,
     });
+
+  // Curated weekly move (admin-pushed). Falls back to auto-derive when null.
+  const fetchWeeklyMove = useServerFn(getActiveWeeklyMove);
+  const { data: weeklyMove } = useQuery({
+    queryKey: ["weekly-move"],
+    queryFn: () => fetchWeeklyMove(),
+    enabled: !!user,
+    staleTime: 5 * 60_000,
+  });
+
 
   const aosLinked = aosData?.ok && aosData.snapshot.linked;
   const aosPreviouslyLinked = aosData?.ok ? aosData.previously_linked : false;
@@ -220,7 +232,21 @@ function HomePage() {
           <div className="flex flex-col gap-5">
             {/* Today's move — hero of the dashboard */}
 
-            <TodaysMove packets={packets} />
+            <TodaysMove
+              packets={packets}
+              curated={
+                weeklyMove
+                  ? {
+                      headline: weeklyMove.headline,
+                      body: weeklyMove.body,
+                      ctaLabel: weeklyMove.cta_label,
+                      ctaTo: weeklyMove.cta_to ?? undefined,
+                      ctaHref: weeklyMove.cta_href ?? undefined,
+                      source: weeklyMove.source ?? undefined,
+                    }
+                  : null
+              }
+            />
 
             {/* Open issues — same width as Today's move */}
             <article className="relative overflow-hidden rounded-2xl border border-dashed border-border bg-card/60 p-6">

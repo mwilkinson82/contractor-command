@@ -165,6 +165,12 @@ function AdminDashboard() {
             Email health
           </a>
           <Link
+            to="/admin/weekly-move"
+            className="rounded-md border border-border bg-card px-3 py-1.5 text-[12px] hover:bg-muted"
+          >
+            Today's move
+          </Link>
+          <Link
             to="/admin/announce"
             className="rounded-md border border-border bg-card px-3 py-1.5 text-[12px] hover:bg-muted"
           >

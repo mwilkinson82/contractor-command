@@ -50,6 +50,7 @@ import { Route as ApiContractScanRouteImport } from './routes/api/contract-scan'
 import { Route as ApiAskRouteImport } from './routes/api/ask'
 import { Route as AosLinkRouteImport } from './routes/aos.link'
 import { Route as AosAddCapacityRouteImport } from './routes/aos.add-capacity'
+import { Route as AdminWeeklyMoveRouteImport } from './routes/admin.weekly-move'
 import { Route as AdminTopicsRouteImport } from './routes/admin.topics'
 import { Route as AdminQaRouteImport } from './routes/admin.qa'
 import { Route as AdminPeopleRouteImport } from './routes/admin.people'
@@ -276,6 +277,11 @@ const AosAddCapacityRoute = AosAddCapacityRouteImport.update({
   path: '/aos/add-capacity',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminWeeklyMoveRoute = AdminWeeklyMoveRouteImport.update({
+  id: '/admin/weekly-move',
+  path: '/admin/weekly-move',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminTopicsRoute = AdminTopicsRouteImport.update({
   id: '/admin/topics',
   path: '/admin/topics',
@@ -416,6 +422,7 @@ export interface FileRoutesByFullPath {
   '/admin/people': typeof AdminPeopleRoute
   '/admin/qa': typeof AdminQaRoute
   '/admin/topics': typeof AdminTopicsRoute
+  '/admin/weekly-move': typeof AdminWeeklyMoveRoute
   '/aos/add-capacity': typeof AosAddCapacityRoute
   '/aos/link': typeof AosLinkRoute
   '/api/ask': typeof ApiAskRoute
@@ -479,6 +486,7 @@ export interface FileRoutesByTo {
   '/admin/people': typeof AdminPeopleRoute
   '/admin/qa': typeof AdminQaRoute
   '/admin/topics': typeof AdminTopicsRoute
+  '/admin/weekly-move': typeof AdminWeeklyMoveRoute
   '/aos/add-capacity': typeof AosAddCapacityRoute
   '/aos/link': typeof AosLinkRoute
   '/api/ask': typeof ApiAskRoute
@@ -543,6 +551,7 @@ export interface FileRoutesById {
   '/admin/people': typeof AdminPeopleRoute
   '/admin/qa': typeof AdminQaRoute
   '/admin/topics': typeof AdminTopicsRoute
+  '/admin/weekly-move': typeof AdminWeeklyMoveRoute
   '/aos/add-capacity': typeof AosAddCapacityRoute
   '/aos/link': typeof AosLinkRoute
   '/api/ask': typeof ApiAskRoute
@@ -608,6 +617,7 @@ export interface FileRouteTypes {
     | '/admin/people'
     | '/admin/qa'
     | '/admin/topics'
+    | '/admin/weekly-move'
     | '/aos/add-capacity'
     | '/aos/link'
     | '/api/ask'
@@ -671,6 +681,7 @@ export interface FileRouteTypes {
     | '/admin/people'
     | '/admin/qa'
     | '/admin/topics'
+    | '/admin/weekly-move'
     | '/aos/add-capacity'
     | '/aos/link'
     | '/api/ask'
@@ -734,6 +745,7 @@ export interface FileRouteTypes {
     | '/admin/people'
     | '/admin/qa'
     | '/admin/topics'
+    | '/admin/weekly-move'
     | '/aos/add-capacity'
     | '/aos/link'
     | '/api/ask'
@@ -798,6 +810,7 @@ export interface RootRouteChildren {
   AdminPeopleRoute: typeof AdminPeopleRoute
   AdminQaRoute: typeof AdminQaRoute
   AdminTopicsRoute: typeof AdminTopicsRoute
+  AdminWeeklyMoveRoute: typeof AdminWeeklyMoveRoute
   AosAddCapacityRoute: typeof AosAddCapacityRoute
   AosLinkRoute: typeof AosLinkRoute
   ApiAskRoute: typeof ApiAskRoute
@@ -1111,6 +1124,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AosAddCapacityRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/weekly-move': {
+      id: '/admin/weekly-move'
+      path: '/admin/weekly-move'
+      fullPath: '/admin/weekly-move'
+      preLoaderRoute: typeof AdminWeeklyMoveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/topics': {
       id: '/admin/topics'
       path: '/admin/topics'
@@ -1316,6 +1336,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminPeopleRoute: AdminPeopleRoute,
   AdminQaRoute: AdminQaRoute,
   AdminTopicsRoute: AdminTopicsRoute,
+  AdminWeeklyMoveRoute: AdminWeeklyMoveRoute,
   AosAddCapacityRoute: AosAddCapacityRoute,
   AosLinkRoute: AosLinkRoute,
   ApiAskRoute: ApiAskRoute,
