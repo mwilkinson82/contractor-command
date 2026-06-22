@@ -508,7 +508,7 @@ function FeaturedWorkbook() {
           <div className="mt-3 grid gap-5 md:grid-cols-[1fr_auto] md:items-center">
             <div className="min-w-0">
               <h2 className="font-display text-2xl md:text-[26px] leading-tight">
-                Owner Dependency Scorecard — Client Facing
+                Owner Dependency Scorecard — Checklist
               </h2>
               <p className="mt-2 text-[13.5px] text-muted-foreground">
                 The print-ready companion to the in-app scorecard. Walk the 12 areas with your leadership team, find your highest-risk bottleneck, and pick the first system to install in 90 days.
