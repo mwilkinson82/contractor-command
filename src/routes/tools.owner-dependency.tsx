@@ -91,6 +91,32 @@ export function OwnerDependencyTool({ embedded = false }: { embedded?: boolean }
           For each area, rate how much the business still depends on the owner.
           <span className="mt-1 block text-xs">0 = owner runs it · 5 = system runs it without the owner</span>
         </p>
+
+        <article className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink/15 bg-[var(--paper-deep)] p-4">
+          <div className="flex items-start gap-3 min-w-0">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-ink/5">
+              <FileText className="h-4 w-4 text-ink/70" />
+            </span>
+            <div className="min-w-0">
+              <p className="label-mono">Companion workbook · PDF</p>
+              <p className="mt-0.5 text-[13px] font-display leading-snug">
+                Owner Dependency Scorecard — print &amp; review
+              </p>
+              <p className="mt-0.5 text-[11.5px] text-muted-foreground">
+                Walk the 12 areas with your team, then come back and lock the score in.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={openWorkbook}
+            disabled={workbookBusy}
+            className={`inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs hover:bg-muted ${workbookBusy ? "opacity-60" : ""}`}
+          >
+            <Download className="h-3 w-3" />
+            {workbookBusy ? "Opening…" : "Open workbook"}
+          </button>
+        </article>
         <div className="mt-6 divide-y divide-border rounded-2xl border border-border bg-card">
           {AREAS.map((a) => (
             <div key={a.key} className="flex items-center justify-between gap-6 px-5 py-3">
