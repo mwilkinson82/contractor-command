@@ -25,6 +25,7 @@ import {
   Flame,
   Lock,
   ShieldCheck,
+  Eye,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { useTier, type Tier } from "@/hooks/use-tier";
