@@ -56,6 +56,10 @@ function EditSopPage() {
   const navigate = useNavigate();
   const [packet, setPacket] = useState<Packet | null>(null);
   const [doc, setDoc] = useState<SopDocument | null>(null);
+  const [backlogItem, setBacklogItem] = useState<SopBacklogItem | null>(null);
+  const [department, setDepartment] = useState<string>("");
+  const [parentPlay, setParentPlay] = useState<Parameters<typeof SopDocumentBuilder>[0]["parentPlay"]>(null);
+  const [ownerContext, setOwnerContext] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -83,15 +87,33 @@ function EditSopPage() {
           setLoading(false);
           return;
         }
-        const raw = (found.inputs?.sopDocument as string | undefined) ?? null;
-        if (!raw) {
-          setError("This packet doesn't have an editable SOP document attached.");
+        const sopRaw = (found.inputs?.sopDocument as string | undefined) ?? null;
+        const backlogRaw = (found.inputs?.sopBacklogItem as string | undefined) ?? null;
+        const dept = (found.inputs?.department as string | undefined) ?? "";
+        const parentRaw = (found.inputs?.parentPlay as string | undefined) ?? "";
+        const ctx = (found.inputs?.ownerContext as string | undefined) ?? "";
+        setDepartment(dept);
+        setOwnerContext(ctx);
+        if (parentRaw) {
+          try { setParentPlay(JSON.parse(parentRaw)); } catch { setParentPlay(null); }
+        }
+        if (sopRaw) {
+          setDoc(JSON.parse(sopRaw) as SopDocument);
+          setPacket(found);
           setLoading(false);
           return;
         }
-        const parsed = JSON.parse(raw) as SopDocument;
-        setPacket(found);
-        setDoc(parsed);
+        if (backlogRaw) {
+          try {
+            setBacklogItem(JSON.parse(backlogRaw) as SopBacklogItem);
+            setPacket(found);
+            setLoading(false);
+            return;
+          } catch {
+            // fall through to error
+          }
+        }
+        setError("This packet doesn't have an editable SOP document attached.");
         setLoading(false);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load SOP.");
@@ -103,10 +125,13 @@ function EditSopPage() {
     };
   }, [packetId]);
 
-  // Synthesize a backlog item so the builder has the metadata it expects.
-  // In edit mode the builder doesn't re-call the AI draft endpoint, so these
-  // fields are only used for labels and the localStorage cache key.
-  const syntheticItem: SopBacklogItem | null = doc
+  // For doc-mode (already drafted), synthesize a backlog item so the
+  // builder has the metadata it expects. In edit mode the builder doesn't
+  // re-call the AI draft endpoint, so these fields are only used for
+  // labels and the localStorage cache key.
+  const syntheticItem: SopBacklogItem | null = backlogItem
+    ? backlogItem
+    : doc
     ? {
         rank: 1,
         playId: "edit",
@@ -119,6 +144,7 @@ function EditSopPage() {
         why: "Editing previously saved SOP.",
       }
     : null;
+
 
   // IMPORTANT: keep a single stable outer wrapper. The root `useGlobalReveal`
   // effect tags `<main>`'s direct children with `data-reveal` + `is-visible`;
