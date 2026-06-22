@@ -487,52 +487,70 @@ function FeaturedLatestClass() {
 }
 
 function FeaturedWorkbook() {
-  const [busy, setBusy] = useState(false);
-  const workbookPath = "leadership/owner-dependency-scorecard-client-facing.pdf";
+  const [busy, setBusy] = useState<string | null>(null);
 
-  async function handleDownload() {
-    setBusy(true);
-    const url = await openTemplateFile(workbookPath);
-    setBusy(false);
+  const workbooks = [
+    {
+      key: "owner",
+      eyebrow: "Featured workbook · Leadership",
+      title: "Owner Dependency Scorecard — Checklist",
+      blurb:
+        "The print-ready companion to the in-app scorecard. Walk the 12 areas with your leadership team, find your highest-risk bottleneck, and pick the first system to install in 90 days.",
+      path: "leadership/owner-dependency-scorecard-client-facing.pdf",
+      cta: { to: "/tools/owner-dependency" as const, label: "Run the scorecard" },
+    },
+    {
+      key: "pm-phase",
+      eyebrow: "Featured workbook · Project Management",
+      title: "Project Management Phase Specialization",
+      blurb:
+        "A model for splitting project management into phase-specialized lanes — pursuit, preconstruction, construction, closeout — so the right PM skill set runs the right phase.",
+      path: "project_management/project-management-phase-specialization.pdf",
+      cta: { to: "/templates" as const, label: "See all templates" },
+    },
+  ];
+
+  async function handleDownload(key: string, path: string) {
+    setBusy(key);
+    const url = await openTemplateFile(path);
+    setBusy(null);
     if (url) window.open(url, "_blank", "noopener,noreferrer");
   }
 
   return (
     <section className="relative px-4 sm:px-6 pb-10">
-      <div className="mx-auto w-full max-w-[1180px]">
-        <div className="rounded-2xl border border-border bg-card p-6 md:p-7">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-3.5 w-3.5 text-gold" />
-            <p className="label-mono">Featured workbook · Leadership</p>
-          </div>
-          <div className="mt-3 grid gap-5 md:grid-cols-[1fr_auto] md:items-center">
-            <div className="min-w-0">
+      <div className="mx-auto w-full max-w-[1180px] grid gap-4 md:grid-cols-2">
+        {workbooks.map((w) => (
+          <div key={w.key} className="rounded-2xl border border-border bg-card p-6 md:p-7">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-3.5 w-3.5 text-gold" />
+              <p className="label-mono">{w.eyebrow}</p>
+            </div>
+            <div className="mt-3">
               <h2 className="font-display text-2xl md:text-[26px] leading-tight">
-                Owner Dependency Scorecard — Checklist
+                {w.title}
               </h2>
-              <p className="mt-2 text-[13.5px] text-muted-foreground">
-                The print-ready companion to the in-app scorecard. Walk the 12 areas with your leadership team, find your highest-risk bottleneck, and pick the first system to install in 90 days.
-              </p>
+              <p className="mt-2 text-[13.5px] text-muted-foreground">{w.blurb}</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={handleDownload}
-                  disabled={busy}
-                  className={`inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12.5px] font-medium text-cream hover:opacity-90 ${busy ? "opacity-60" : ""}`}
+                  onClick={() => handleDownload(w.key, w.path)}
+                  disabled={busy === w.key}
+                  className={`inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12.5px] font-medium text-cream hover:opacity-90 ${busy === w.key ? "opacity-60" : ""}`}
                 >
                   <Download className="h-3 w-3" />
-                  {busy ? "Opening…" : "Download workbook"}
+                  {busy === w.key ? "Opening…" : "Download workbook"}
                 </button>
                 <Link
-                  to="/tools/owner-dependency"
+                  to={w.cta.to}
                   className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-[12.5px] text-foreground/80 hover:bg-muted"
                 >
-                  Run the scorecard <ArrowUpRight className="h-3 w-3" />
+                  {w.cta.label} <ArrowUpRight className="h-3 w-3" />
                 </Link>
               </div>
             </div>
           </div>
-        </div>
+        ))}
       </div>
     </section>
   );
