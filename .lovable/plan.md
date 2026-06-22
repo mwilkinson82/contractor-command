@@ -1,68 +1,70 @@
-## Short answer
+# Today's Move — Curated + Smarter Fallback
 
-Yes — making the scheduler its own Lovable project is a good idea, and it's **much easier than it looks** because of how it's already built. It's essentially a self-contained app sitting inside this portal.
+## Goal
 
-## Why it's a good idea
+Make the **Today's Move** card on `/` show what Marshall wants members focused on this week, with a sensible auto-derived fallback when no curated move is active.
 
-- **Different audience / lifecycle.** The portal is AOS / Contractor Circle (members, vault, SOPs, calls). The scheduler is a Primavera-class CPM tool that stands on its own and could even be sold or trialed independently.
-- **Different velocity.** Scheduler work is heavy (engine2, XER import, baselines, calendars, DCMA, dry-run, etc.). Splitting it stops scheduler churn from destabilizing the portal and vice versa.
-- **Cleaner mental model.** Today the portal sidebar and top-strip already special-case `/scheduler*` routes — that's a signal it wants its own shell.
-- **Future commercial optionality.** Aligns with your "some tools may go free as a funnel" thinking — a standalone scheduler can be gated, trialed, or SSO'd back into AOS later.
+## Part 1 — Curated weekly move (admin-pushed)
 
-## Why it's not hard — the code is already isolated
+### New table: `weekly_moves`
 
-I traced the coupling between the scheduler and the rest of this app. It's remarkably clean:
+| Column        | Type        | Notes                                         |
+| ------------- | ----------- | --------------------------------------------- |
+| `id`          | uuid PK     |                                               |
+| `headline`    | text        | Big bold line on the card                     |
+| `body`        | text        | 1–3 sentence explanation                      |
+| `cta_label`   | text        | Button text (e.g. "Open the SOP builder")     |
+| `cta_to`      | text null   | Internal route (e.g. `/tools/sop-priority`)   |
+| `cta_href`    | text null   | External URL (mutually exclusive with cta_to) |
+| `source`      | text null   | Small "From · …" tag under the button         |
+| `active_from` | timestamptz | When it starts showing                        |
+| `active_to`   | timestamptz null | Optional auto-expiry                     |
+| `created_by`  | uuid        | admin profile id                              |
+| `created_at`  | timestamptz | default now()                                 |
 
-- **No scheduler file imports portal/auth/aos code.** Zero hits for `@/components/portal/*`, `@/hooks/use-auth|tier|company`, `@/lib/aos|vault|program|command-tools|tier-impersonation|growth-constraint|marshall-prompt`.
-- **Nothing outside the scheduler imports scheduler code**, except 3 trivial cosmetic touches: `__root.tsx` lists `/scheduler-preview`, and `app-sidebar.tsx` / `top-strip.tsx` check `pathname.startsWith("/scheduler")` for layout adjustments.
-- **DB schema is already namespaced**: `schedules`, `schedule_tasks`, `schedule_dependencies`, `schedule_baselines`, `schedule_calendars`, `schedule_members`, `wbs_nodes`, `task_activity_codes`. None are shared with portal features.
+RLS: `SELECT` for `authenticated` where `active_from <= now() AND (active_to IS NULL OR active_to > now())`. Full CRUD limited to admins via `has_role(auth.uid(), 'admin')`. Standard GRANTs (`authenticated`, `service_role`).
 
-So the extraction is mostly copy + cleanup, not a refactor.
+### Admin page: `/admin/weekly-move`
 
-## What moves to the new project
+- Lists past moves (most recent first), shows which one is currently active.
+- "New move" form: headline, body, CTA label, CTA route OR URL, source, active_from (defaults to now), active_to (optional).
+- Edit / archive (set `active_to = now()`) on past entries.
+- Linked from the existing admin index page.
 
-```text
-src/lib/scheduler/**                    (engine, engine2, persistence, intel, tests)
-src/components/scheduler/**             (CpmGrid, panels, shell, XER import, etc.)
-src/routes/scheduler.tsx
-src/routes/scheduler.$projectId.tsx
-src/routes/scheduler-portfolio.tsx
-src/routes/scheduler-field.tsx
-src/routes/scheduler-preview.tsx
-src/styles/scheduler-tokens.css
-docs/scheduler-port-notes.md            (already written for exactly this!)
-docs/scheduler-roadmap-checkpoint.md
-.lovable/scheduler-p6-gap-analysis.md
-docs/schedule-intelligence-ai-spec.md
-```
+### Server functions (`src/lib/weekly-move.functions.ts`)
 
-Plus the matching DB tables (recreate via migrations in the new project) and any auth/role conventions the new project needs.
+- `getActiveWeeklyMove()` — public to authenticated members, returns the single currently-active row or null.
+- `listWeeklyMoves()` — admin only.
+- `upsertWeeklyMove(input)` — admin only.
+- `archiveWeeklyMove(id)` — admin only.
 
-## What stays here
+### Wiring on `/`
 
-Everything else: AOS pulse, vault, SOPs, calls, replays, handbook, admin, billing, etc. After extraction we delete the scheduler files from this project and drop the 3 small `/scheduler*` references in the chrome.
+`src/routes/index.tsx` already passes `packets` to `<TodaysMove />`. Add a TanStack Query call to `getActiveWeeklyMove` and pass the result as the `curated` prop. The component already prefers `curated ?? deriveMove(packets)` and already swaps the eyebrow label to "Marshall's move this week" when curated is present — no component-level changes needed for this part.
 
-## Suggested approach
+## Part 2 — Smarter auto-derive fallback
 
-1. **Remix** this project into a new one named e.g. "ALP CPM Workbench".
-2. In the new project, **strip out everything that isn't scheduler** (portal, vault, handbook, AOS, admin, etc.). Keep auth, layout shell, design tokens.
-3. **Recreate the scheduler DB tables** as a single migration in the new project (schema is already documented in `src/integrations/supabase/types.ts`). Either start fresh or, if you want existing data, export/import the rows as CSV (Lovable Cloud only supports CSV export).
-4. Make the new project's `/` route the scheduler home (currently `/scheduler` index).
-5. In this project, **delete the scheduler files** and the 3 chrome references. Drop the scheduler tables in a migration once the new project is live.
-6. Optional: add a link from this portal's sidebar that deep-links into the standalone scheduler.
+Edit `deriveMove()` in `src/components/portal/todays-move.tsx`:
 
-## Effort estimate
+1. **Recency filter.** Ignore any packet older than **14 days**. A stale "Client communication / leverage 60" from two weeks ago should not be today's move.
+2. **Rule re-order.** Current order privileges `intensiveRecommended` above all else, which is why the older SOP Priority packet beats the newer Contract Readiness one. New order:
+   - (a) Newest `command` packet within 14 days that is `intensiveRecommended`.
+   - (b) Newest `command` packet within 14 days (any).
+   - (c) Newest `issue` packet within 14 days.
+   - (d) Cold-start nudge (unchanged).
+3. **Cold-start copy refresh.** Keep pointing at Growth Constraint Map, but soften copy so it doesn't look like a default for someone who's been around a while — add a secondary line: "Already run it? Re-run quarterly — the numbers move."
 
-- Remix + strip non-scheduler: ~1 short session.
-- Re-create DB schema + RLS in new project: ~1 session (mostly mechanical from existing types).
-- Data migration (if any existing schedules matter): depends on row counts; CSV in/out per table.
-- Cleanup in this project: <30 min.
+No schema impact for Part 2.
 
-## Risks / things to decide before we start
+## Out of scope
 
-1. **Existing schedule data** — is there real data in `schedules` etc. that has to come with us, or can the new project start empty?
-2. **Auth model** — standalone login, or SSO/shared session with AOS later? (Affects whether new project reuses the same Supabase project or gets its own.)
-3. **Domain** — own subdomain (e.g. `cpm.alpcontractorcircle.com`) vs path under AOS.
-4. **Naming** — "CPM Workbench" is what the current header uses; confirm the product name for the standalone.
+- Per-tier or per-segment targeting of the curated move (everyone sees the same one for now — matches today's behavior).
+- Scheduling multiple future moves in a queue (admin sets `active_from` manually; only one active at a time is enforced by query, not by constraint).
+- Analytics on CTR for the move card.
 
-If you want, the next step is to answer those four and I'll lay out the concrete extraction plan (file list, migration SQL, and the cleanup PR for this project).
+## Technical notes
+
+- New files: `src/lib/weekly-move.functions.ts`, `src/routes/admin.weekly-move.tsx`.
+- Modified files: `src/routes/index.tsx` (fetch + pass `curated`), `src/components/portal/todays-move.tsx` (smarter `deriveMove`), `src/routes/admin.index.tsx` (add link).
+- One migration: create `weekly_moves` + GRANTs + RLS + policies.
+- The `curated` prop and "Marshall's move this week" label are already in place — no breaking changes to the component contract.
