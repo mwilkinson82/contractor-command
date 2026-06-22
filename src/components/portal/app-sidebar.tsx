@@ -24,6 +24,7 @@ import {
   ArrowUpCircle,
   Flame,
   Lock,
+  Eye,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { useTier, type Tier } from "@/hooks/use-tier";
@@ -115,7 +116,7 @@ export function AppSidebarProvider({ children }: { children: ReactNode }) {
   );
 }
 
-type Item = { to: string; label: string; icon: React.ComponentType<{ className?: string }>; match?: string };
+type Item = { to: string; label: string; icon: React.ComponentType<{ className?: string }>; match?: string; external?: boolean };
 type Group = { label: string; items: Item[] };
 
 // Full nav for Circle members.
@@ -126,6 +127,7 @@ const CIRCLE_GROUPS: Group[] = [
       { to: "/", label: "Home", icon: Home },
       { to: "/ask", label: "Ask Marshall", icon: Megaphone, match: "/ask" },
       { to: "/aos", label: "AOS", icon: Compass },
+      { to: "https://overwatch.alpcontractorcircle.com", label: "IOR", icon: Eye, external: true },
       { to: "/calls", label: "Calls", icon: Radio },
       { to: "/community", label: "Community", icon: MessagesSquare },
     ],
@@ -176,6 +178,7 @@ const BOOK_BUYER_GROUPS: Group[] = [
       { to: "/", label: "Home", icon: Home },
       { to: "/handbook", label: "Handbook", icon: BookOpen },
       { to: "/aos", label: "AOS", icon: Compass },
+      { to: "https://overwatch.alpcontractorcircle.com", label: "IOR", icon: Eye, external: true },
       { to: "/ask", label: "Ask Marshall", icon: Megaphone, match: "/ask" },
     ],
   },
@@ -204,6 +207,7 @@ const INTENSIVE_GROUPS: Group[] = [
       { to: "/", label: "Home", icon: Home },
       { to: "/handbook", label: "Handbook", icon: BookOpen },
       { to: "/aos", label: "AOS", icon: Compass },
+      { to: "https://overwatch.alpcontractorcircle.com", label: "IOR", icon: Eye, external: true },
     ],
   },
   {
@@ -223,6 +227,7 @@ const AOS_ONLY_GROUPS: Group[] = [
     items: [
       { to: "/", label: "Home", icon: Home },
       { to: "/aos", label: "AOS", icon: Compass },
+      { to: "https://overwatch.alpcontractorcircle.com", label: "IOR", icon: Eye, external: true },
     ],
   },
   {
@@ -342,27 +347,36 @@ export function AppSidebar() {
               )}
               <ul className="space-y-0.5">
                 {g.items.map((it) => {
-                  const active = it.match ? pathname.startsWith(it.match) : pathname === it.to;
+                  const active = it.external ? false : it.match ? pathname.startsWith(it.match) : pathname === it.to;
                   const Icon = it.icon;
+                  const className = `group/item relative flex items-center gap-3 rounded-md px-2 py-2 text-[13px] transition-colors ${
+                    active
+                      ? "bg-ink text-cream"
+                      : isTease
+                      ? "text-foreground/35 hover:bg-foreground/5 hover:text-foreground/60"
+                      : "text-foreground/75 hover:bg-foreground/5 hover:text-foreground"
+                  }`;
+                  const titleAttr = collapsed ? (isTease ? `${it.label} — upgrade to unlock` : it.label) : (isTease ? "Daily Power Hour, S&M School, Contractor School. Upgrade to unlock." : undefined);
+                  const inner = (
+                    <>
+                      <Icon className="h-4 w-4 shrink-0" />
+                      {!collapsed && <span className="truncate">{it.label}</span>}
+                      {active && !collapsed && (
+                        <span className="ml-auto h-1 w-1 rounded-full bg-signal" />
+                      )}
+                    </>
+                  );
                   return (
                     <li key={it.to}>
-                      <Link
-                        to={it.to as "/"}
-                        title={collapsed ? (isTease ? `${it.label} — upgrade to unlock` : it.label) : (isTease ? "Daily Power Hour, S&M School, Contractor School. Upgrade to unlock." : undefined)}
-                        className={`group/item relative flex items-center gap-3 rounded-md px-2 py-2 text-[13px] transition-colors ${
-                          active
-                            ? "bg-ink text-cream"
-                            : isTease
-                            ? "text-foreground/35 hover:bg-foreground/5 hover:text-foreground/60"
-                            : "text-foreground/75 hover:bg-foreground/5 hover:text-foreground"
-                        }`}
-                      >
-                        <Icon className="h-4 w-4 shrink-0" />
-                        {!collapsed && <span className="truncate">{it.label}</span>}
-                        {active && !collapsed && (
-                          <span className="ml-auto h-1 w-1 rounded-full bg-signal" />
-                        )}
-                      </Link>
+                      {it.external ? (
+                        <a href={it.to} target="_blank" rel="noopener noreferrer" title={titleAttr} className={className}>
+                          {inner}
+                        </a>
+                      ) : (
+                        <Link to={it.to as "/"} title={titleAttr} className={className}>
+                          {inner}
+                        </Link>
+                      )}
                     </li>
                   );
                 })}
