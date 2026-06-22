@@ -2,7 +2,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { vault } from "@/lib/vault";
 import { PacketCard } from "@/components/portal/packet-card";
-import { ArrowLeft, Check, Save, MessageSquare } from "lucide-react";
+import { ArrowLeft, Check, Save, MessageSquare, Download, FileText } from "lucide-react";
+import { openTemplateFile } from "@/lib/library";
+
+const COMPANION_WORKBOOK_PATH = "leadership/owner-dependency-scorecard-client-facing.pdf";
 
 export const Route = createFileRoute("/tools/owner-dependency")({
   head: () => ({ meta: [{ title: "Owner Dependency Scorecard — ALP Contractor Circle" }] }),
@@ -31,6 +34,14 @@ const DEFAULT: Scores = AREAS.reduce((acc, a) => ({ ...acc, [a.key]: 3 }), {} as
 export function OwnerDependencyTool({ embedded = false }: { embedded?: boolean } = {}) {
   const [scores, setScores] = useState<Scores>(DEFAULT);
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [workbookBusy, setWorkbookBusy] = useState(false);
+
+  async function openWorkbook() {
+    setWorkbookBusy(true);
+    const url = await openTemplateFile(COMPANION_WORKBOOK_PATH);
+    setWorkbookBusy(false);
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+  }
 
   const result = useMemo(() => {
     const total = AREAS.reduce((s, a) => s + scores[a.key], 0);
@@ -80,6 +91,32 @@ export function OwnerDependencyTool({ embedded = false }: { embedded?: boolean }
           For each area, rate how much the business still depends on the owner.
           <span className="mt-1 block text-xs">0 = owner runs it · 5 = system runs it without the owner</span>
         </p>
+
+        <article className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink/15 bg-[var(--paper-deep)] p-4">
+          <div className="flex items-start gap-3 min-w-0">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-ink/5">
+              <FileText className="h-4 w-4 text-ink/70" />
+            </span>
+            <div className="min-w-0">
+              <p className="label-mono">Companion workbook · PDF</p>
+              <p className="mt-0.5 text-[13px] font-display leading-snug">
+                Owner Dependency Scorecard — print &amp; review
+              </p>
+              <p className="mt-0.5 text-[11.5px] text-muted-foreground">
+                Walk the 12 areas with your team, then come back and lock the score in.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={openWorkbook}
+            disabled={workbookBusy}
+            className={`inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs hover:bg-muted ${workbookBusy ? "opacity-60" : ""}`}
+          >
+            <Download className="h-3 w-3" />
+            {workbookBusy ? "Opening…" : "Open workbook"}
+          </button>
+        </article>
         <div className="mt-6 divide-y divide-border rounded-2xl border border-border bg-card">
           {AREAS.map((a) => (
             <div key={a.key} className="flex items-center justify-between gap-6 px-5 py-3">
