@@ -232,7 +232,21 @@ function HomePage() {
           <div className="flex flex-col gap-5">
             {/* Today's move — hero of the dashboard */}
 
-            <TodaysMove packets={packets} />
+            <TodaysMove
+              packets={packets}
+              curated={
+                weeklyMove
+                  ? {
+                      headline: weeklyMove.headline,
+                      body: weeklyMove.body,
+                      ctaLabel: weeklyMove.cta_label,
+                      ctaTo: weeklyMove.cta_to ?? undefined,
+                      ctaHref: weeklyMove.cta_href ?? undefined,
+                      source: weeklyMove.source ?? undefined,
+                    }
+                  : null
+              }
+            />
 
             {/* Open issues — same width as Today's move */}
             <article className="relative overflow-hidden rounded-2xl border border-dashed border-border bg-card/60 p-6">
