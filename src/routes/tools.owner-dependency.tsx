@@ -2,7 +2,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { vault } from "@/lib/vault";
 import { PacketCard } from "@/components/portal/packet-card";
-import { ArrowLeft, Check, Save, MessageSquare } from "lucide-react";
+import { ArrowLeft, Check, Save, MessageSquare, Download, FileText } from "lucide-react";
+import { openTemplateFile } from "@/lib/library";
+
+const COMPANION_WORKBOOK_PATH = "leadership/owner-dependency-scorecard-client-facing.pdf";
 
 export const Route = createFileRoute("/tools/owner-dependency")({
   head: () => ({ meta: [{ title: "Owner Dependency Scorecard — ALP Contractor Circle" }] }),
