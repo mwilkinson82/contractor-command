@@ -155,12 +155,6 @@ function HomePage() {
 
   return (
     <div className="relative">
-      {/* Featured: latest Contractor Circle class — top of page */}
-      <div className="pt-6">
-        <FeaturedLatestClass />
-        <FeaturedWorkbook />
-      </div>
-
       {/* Ask Marshall hero — the front door */}
       <HomeHero
         companyName={companyName}
@@ -177,6 +171,12 @@ function HomePage() {
           | null
           | undefined}
       />
+
+      {/* Featured: latest Contractor Circle class + workbooks */}
+      <div className="pt-6">
+        <FeaturedLatestClass />
+        <FeaturedWorkbook />
+      </div>
 
       {/* Command center band — flows from hero, no hard divider */}
       <section className="relative px-4 sm:px-6 pt-8 pb-2">
