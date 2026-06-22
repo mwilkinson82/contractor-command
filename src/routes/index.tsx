@@ -105,6 +105,16 @@ function HomePage() {
       enabled: !!user,
     });
 
+  // Curated weekly move (admin-pushed). Falls back to auto-derive when null.
+  const fetchWeeklyMove = useServerFn(getActiveWeeklyMove);
+  const { data: weeklyMove } = useQuery({
+    queryKey: ["weekly-move"],
+    queryFn: () => fetchWeeklyMove(),
+    enabled: !!user,
+    staleTime: 5 * 60_000,
+  });
+
+
   const aosLinked = aosData?.ok && aosData.snapshot.linked;
   const aosPreviouslyLinked = aosData?.ok ? aosData.previously_linked : false;
   const aosUnknown = !aosData; // still loading first time
