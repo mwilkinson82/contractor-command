@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { openTemplateFile } from "@/lib/library";
 import { Download, Sparkles } from "lucide-react";
+import bulldozerAsset from "@/assets/bulldozer.png.asset.json";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -418,7 +419,7 @@ function FeaturedLatestClass() {
       <div className="mx-auto w-full max-w-[1180px]">
         <div className="rounded-2xl border border-ink/15 bg-[var(--paper-deep)] p-6 md:p-8 shadow-[0_1px_0_rgba(0,0,0,0.04)]">
           <div className="flex items-center gap-2">
-            <Sparkles className="h-3.5 w-3.5 text-gold" />
+            <img src={bulldozerAsset.url} alt="" className="h-5 w-auto object-contain" />
             <p className="label-mono">Featured · Latest class</p>
           </div>
           <h2 className="mt-3 font-display text-3xl md:text-4xl leading-tight">
