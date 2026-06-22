@@ -128,7 +128,3 @@ export const archiveWeeklyMove = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
-
-// keep these helpers referenced to avoid TS unused warnings in some configs
-void assertAdmin;
-void assertCallerIsAdmin;
