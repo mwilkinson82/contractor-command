@@ -31,12 +31,16 @@ function generateToken(): string {
     .join("");
 }
 
-type Audience = "active" | "all_with_login" | "test";
+type Audience = "active" | "all_with_login" | "circle" | "test";
 
 interface Recipient {
   email: string;
   firstName: string | null;
 }
+
+// Tiers that count as "Contractor Circle membership". Bi-weekly Circle calls
+// are open to circle + hardcore subscribers (hardcore is a strict superset).
+const CIRCLE_TIERS = new Set(["circle", "hardcore"]);
 
 async function loadRecipients(audience: Audience, testEmail?: string): Promise<Recipient[]> {
   if (audience === "test") {
@@ -48,25 +52,42 @@ async function loadRecipients(audience: Audience, testEmail?: string): Promise<R
   // plus subscription rows without a profile yet (paid but never logged in).
   const [{ data: profiles }, { data: subs }, { data: roles }] = await Promise.all([
     supabaseAdmin.from("profiles").select("id,email,full_name"),
-    supabaseAdmin.from("subscriptions").select("user_id,email,status,is_comped"),
+    supabaseAdmin.from("subscriptions").select("user_id,email,status,is_comped,tier"),
     supabaseAdmin.from("user_roles").select("user_id,role"),
   ]);
 
   const adminIds = new Set((roles ?? []).filter((r) => r.role === "admin").map((r) => r.user_id));
 
   type SubRow = NonNullable<typeof subs>[number];
-  const subByUserId = new Map<string, SubRow>();
-  const subByEmail = new Map<string, SubRow>();
+  // A user can have multiple subscription rows (e.g. AOS add-on + Circle).
+  // Track every active sub per identity so the Circle filter sees them all.
+  const subsByUserId = new Map<string, SubRow[]>();
+  const subsByEmail = new Map<string, SubRow[]>();
   for (const s of subs ?? []) {
-    if (s.user_id) subByUserId.set(s.user_id, s);
-    if (s.email) subByEmail.set(s.email.toLowerCase(), s);
+    if (s.user_id) {
+      const list = subsByUserId.get(s.user_id) ?? [];
+      list.push(s);
+      subsByUserId.set(s.user_id, list);
+    }
+    if (s.email) {
+      const key = s.email.toLowerCase();
+      const list = subsByEmail.get(key) ?? [];
+      list.push(s);
+      subsByEmail.set(key, list);
+    }
   }
 
-  const hasAccess = (sub: SubRow | undefined, userId: string | null) => {
+  const isActive = (sub: SubRow) =>
+    sub.is_comped || sub.status === "active" || sub.status === "trialing";
+
+  const hasAccess = (subList: SubRow[], userId: string | null) => {
     if (userId && adminIds.has(userId)) return true;
-    if (!sub) return false;
-    if (sub.is_comped) return true;
-    return sub.status === "active" || sub.status === "trialing";
+    return subList.some(isActive);
+  };
+
+  const hasCircleTier = (subList: SubRow[], userId: string | null) => {
+    if (userId && adminIds.has(userId)) return true;
+    return subList.some((s) => isActive(s) && s.tier && CIRCLE_TIERS.has(s.tier));
   };
 
   const out = new Map<string, Recipient>();
@@ -74,8 +95,14 @@ async function loadRecipients(audience: Audience, testEmail?: string): Promise<R
   for (const p of profiles ?? []) {
     if (!p.email) continue;
     const key = p.email.toLowerCase();
-    const sub = subByUserId.get(p.id) ?? subByEmail.get(key) ?? undefined;
-    const include = audience === "all_with_login" ? true : hasAccess(sub, p.id);
+    const subList = [
+      ...(subsByUserId.get(p.id) ?? []),
+      ...(subsByEmail.get(key) ?? []),
+    ];
+    let include: boolean;
+    if (audience === "all_with_login") include = true;
+    else if (audience === "circle") include = hasCircleTier(subList, p.id);
+    else include = hasAccess(subList, p.id);
     if (!include) continue;
     const firstName = (p.full_name ?? "").trim().split(/\s+/)[0] || null;
     out.set(key, { email: p.email, firstName });
@@ -86,7 +113,9 @@ async function loadRecipients(audience: Audience, testEmail?: string): Promise<R
     if (!s.email) continue;
     const key = s.email.toLowerCase();
     if (out.has(key)) continue;
-    if (audience === "active" && !hasAccess(s, s.user_id ?? null)) continue;
+    const subList = subsByEmail.get(key) ?? [s];
+    if (audience === "active" && !hasAccess(subList, s.user_id ?? null)) continue;
+    if (audience === "circle" && !hasCircleTier(subList, s.user_id ?? null)) continue;
     out.set(key, { email: s.email, firstName: null });
   }
 
@@ -101,14 +130,14 @@ const InputSchema = z.object({
   ctaLabel: z.string().max(60).optional(),
   ctaUrl: z.string().url().max(500).optional(),
   signoff: z.string().max(120).optional(),
-  audience: z.enum(["active", "all_with_login", "test"]),
+  audience: z.enum(["active", "all_with_login", "circle", "test"]),
   testEmail: z.string().email().optional(),
 });
 
 export const previewMemberAnnouncementAudience = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
-    z.object({ audience: z.enum(["active", "all_with_login"]) }).parse(input),
+    z.object({ audience: z.enum(["active", "all_with_login", "circle"]) }).parse(input),
   )
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);

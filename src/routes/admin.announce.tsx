@@ -17,7 +17,7 @@ import {
 } from "@/lib/announce.functions";
 import { Megaphone, Send, Users, AlertTriangle } from "lucide-react";
 
-type Audience = "active" | "all_with_login";
+type Audience = "active" | "all_with_login" | "circle";
 
 const DRAFT_KEY = "admin.announce.draft.v1";
 
@@ -85,7 +85,7 @@ function AnnouncePage() {
     setCtaLabel(a.cta_label ?? "");
     setCtaUrl(a.cta_url ?? "");
     setSignoff(a.signoff ?? "— Marshall");
-    if (a.audience === "active" || a.audience === "all_with_login") {
+    if (a.audience === "active" || a.audience === "all_with_login" || a.audience === "circle") {
       setAudience(a.audience);
     }
     setHydratedFromServer(true);
@@ -104,7 +104,7 @@ function AnnouncePage() {
     setCtaLabel(a.cta_label ?? "");
     setCtaUrl(a.cta_url ?? "");
     setSignoff(a.signoff ?? "— Marshall");
-    if (a.audience === "active" || a.audience === "all_with_login") {
+    if (a.audience === "active" || a.audience === "all_with_login" || a.audience === "circle") {
       setAudience(a.audience);
     }
     toast.success("Loaded most recent announcement");
@@ -289,6 +289,21 @@ function AnnouncePage() {
                   type="radio"
                   name="audience"
                   className="mt-1"
+                  checked={audience === "circle"}
+                  onChange={() => setAudience("circle")}
+                />
+                <span>
+                  <span className="font-medium">Contractor Circle members only</span>
+                  <span className="block text-[11px] text-muted-foreground">
+                    Active Circle or Hardcore subscribers (excludes AOS-only, book buyers, and Intensive).
+                  </span>
+                </span>
+              </label>
+              <label className="flex cursor-pointer items-start gap-2">
+                <input
+                  type="radio"
+                  name="audience"
+                  className="mt-1"
                   checked={audience === "all_with_login"}
                   onChange={() => setAudience("all_with_login")}
                 />
@@ -393,7 +408,9 @@ function readDraft(): Draft | null {
       ctaUrl: parsed.ctaUrl ?? "",
       signoff: parsed.signoff ?? "— Marshall",
       audience:
-        parsed.audience === "active" || parsed.audience === "all_with_login"
+        parsed.audience === "active" ||
+        parsed.audience === "all_with_login" ||
+        parsed.audience === "circle"
           ? parsed.audience
           : "all_with_login",
     };
