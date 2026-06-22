@@ -127,6 +127,7 @@ const CIRCLE_GROUPS: Group[] = [
       { to: "/", label: "Home", icon: Home },
       { to: "/ask", label: "Ask Marshall", icon: Megaphone, match: "/ask" },
       { to: "/aos", label: "AOS", icon: Compass },
+      { to: "https://overwatch.alpcontractorcircle.com", label: "IOR", icon: Eye, external: true },
       { to: "/calls", label: "Calls", icon: Radio },
       { to: "/community", label: "Community", icon: MessagesSquare },
     ],
@@ -177,6 +178,7 @@ const BOOK_BUYER_GROUPS: Group[] = [
       { to: "/", label: "Home", icon: Home },
       { to: "/handbook", label: "Handbook", icon: BookOpen },
       { to: "/aos", label: "AOS", icon: Compass },
+      { to: "https://overwatch.alpcontractorcircle.com", label: "IOR", icon: Eye, external: true },
       { to: "/ask", label: "Ask Marshall", icon: Megaphone, match: "/ask" },
     ],
   },
@@ -205,6 +207,7 @@ const INTENSIVE_GROUPS: Group[] = [
       { to: "/", label: "Home", icon: Home },
       { to: "/handbook", label: "Handbook", icon: BookOpen },
       { to: "/aos", label: "AOS", icon: Compass },
+      { to: "https://overwatch.alpcontractorcircle.com", label: "IOR", icon: Eye, external: true },
     ],
   },
   {
@@ -224,6 +227,7 @@ const AOS_ONLY_GROUPS: Group[] = [
     items: [
       { to: "/", label: "Home", icon: Home },
       { to: "/aos", label: "AOS", icon: Compass },
+      { to: "https://overwatch.alpcontractorcircle.com", label: "IOR", icon: Eye, external: true },
     ],
   },
   {
