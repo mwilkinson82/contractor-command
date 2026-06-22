@@ -402,13 +402,14 @@ function RailRow({
 }
 
 function FeaturedLatestClass() {
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
   const templatePath = "project-management/ior-source-of-truth.pdf";
+  const whiteboardPath = "circle-calls/2026-06-21-ior-whiteboard.pdf";
 
-  async function handleDownload() {
-    setBusy(true);
-    const url = await openTemplateFile(templatePath);
-    setBusy(false);
+  async function handleDownload(path: string) {
+    setBusy(path);
+    const url = await openTemplateFile(path);
+    setBusy(null);
     if (url) window.open(url, "_blank", "noopener,noreferrer");
   }
 
@@ -427,7 +428,7 @@ function FeaturedLatestClass() {
           <div className="mt-6 overflow-hidden rounded-xl border border-border bg-black">
             <div style={{ position: "relative", width: "100%", height: 0, paddingBottom: "56.25%" }}>
               <iframe
-                src="https://us06web.zoom.us/clips/embed/Xz5pycRtQXaogCx_FRwLbw"
+                src="https://us06web.zoom.us/clips/embed/EYG5aRgpQbCdFapJqlkI0w"
                 frameBorder="0"
                 allowFullScreen
                 style={{ position: "absolute", width: "100%", height: "100%", top: 0, left: 0 }}
@@ -448,12 +449,33 @@ function FeaturedLatestClass() {
             </div>
             <button
               type="button"
-              onClick={handleDownload}
-              disabled={busy}
-              className={`inline-flex shrink-0 items-center gap-1.5 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 ${busy ? "opacity-60" : ""}`}
+              onClick={() => handleDownload(templatePath)}
+              disabled={busy === templatePath}
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 ${busy === templatePath ? "opacity-60" : ""}`}
             >
               <Download className="h-3.5 w-3.5" />
-              {busy ? "Opening…" : "Download PDF"}
+              {busy === templatePath ? "Opening…" : "Download PDF"}
+            </button>
+          </article>
+
+          <article className="mt-3 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-5">
+            <div className="min-w-0 flex-1">
+              <p className="label-mono">Call whiteboard · PDF</p>
+              <h3 className="mt-1 font-display text-[17px] leading-snug">
+                Bi-Weekly Call Whiteboard — June 21, 2026
+              </h3>
+              <p className="mt-1 text-[13px] text-muted-foreground">
+                The live whiteboard Marshall worked from during the call — six rules of project delivery and the IOR breakdown.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleDownload(whiteboardPath)}
+              disabled={busy === whiteboardPath}
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 ${busy === whiteboardPath ? "opacity-60" : ""}`}
+            >
+              <Download className="h-3.5 w-3.5" />
+              {busy === whiteboardPath ? "Opening…" : "Download PDF"}
             </button>
           </article>
         </div>
