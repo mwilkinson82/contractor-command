@@ -486,3 +486,56 @@ function FeaturedLatestClass() {
   );
 }
 
+function FeaturedWorkbook() {
+  const [busy, setBusy] = useState(false);
+  const workbookPath = "leadership/owner-dependency-scorecard-client-facing.pdf";
+
+  async function handleDownload() {
+    setBusy(true);
+    const url = await openTemplateFile(workbookPath);
+    setBusy(false);
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  return (
+    <section className="relative px-4 sm:px-6 pb-10">
+      <div className="mx-auto w-full max-w-[1180px]">
+        <div className="rounded-2xl border border-border bg-card p-6 md:p-7">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-3.5 w-3.5 text-gold" />
+            <p className="label-mono">Featured workbook · Leadership</p>
+          </div>
+          <div className="mt-3 grid gap-5 md:grid-cols-[1fr_auto] md:items-center">
+            <div className="min-w-0">
+              <h2 className="font-display text-2xl md:text-[26px] leading-tight">
+                Owner Dependency Scorecard — Client Facing
+              </h2>
+              <p className="mt-2 text-[13.5px] text-muted-foreground">
+                The print-ready companion to the in-app scorecard. Walk the 12 areas with your leadership team, find your highest-risk bottleneck, and pick the first system to install in 90 days.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  disabled={busy}
+                  className={`inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12.5px] font-medium text-cream hover:opacity-90 ${busy ? "opacity-60" : ""}`}
+                >
+                  <Download className="h-3 w-3" />
+                  {busy ? "Opening…" : "Download workbook"}
+                </button>
+                <Link
+                  to="/tools/owner-dependency"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-[12.5px] text-foreground/80 hover:bg-muted"
+                >
+                  Run the scorecard <ArrowUpRight className="h-3 w-3" />
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+
