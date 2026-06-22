@@ -427,7 +427,7 @@ function FeaturedLatestClass() {
           <div className="mt-6 overflow-hidden rounded-xl border border-border bg-black">
             <div style={{ position: "relative", width: "100%", height: 0, paddingBottom: "56.25%" }}>
               <iframe
-                src="https://us06web.zoom.us/clips/embed/Xz5pycRtQXaogCx_FRwLbw"
+                src="https://us06web.zoom.us/clips/embed/EYG5aRgpQbCdFapJqlkI0w"
                 frameBorder="0"
                 allowFullScreen
                 style={{ position: "absolute", width: "100%", height: "100%", top: 0, left: 0 }}
