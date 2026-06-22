@@ -22,6 +22,7 @@ import { Route as SchedulerFieldRouteImport } from './routes/scheduler-field'
 import { Route as SchedulerRouteImport } from './routes/scheduler'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ReplaysRouteImport } from './routes/replays'
+import { Route as OverwatchRouteImport } from './routes/overwatch'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as MagicLinkRouteImport } from './routes/magic-link'
 import { Route as LoginRouteImport } from './routes/login'
@@ -133,6 +134,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const ReplaysRoute = ReplaysRouteImport.update({
   id: '/replays',
   path: '/replays',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OverwatchRoute = OverwatchRouteImport.update({
+  id: '/overwatch',
+  path: '/overwatch',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OnboardingRoute = OnboardingRouteImport.update({
@@ -386,6 +392,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/magic-link': typeof MagicLinkRoute
   '/onboarding': typeof OnboardingRoute
+  '/overwatch': typeof OverwatchRoute
   '/replays': typeof ReplaysRoute
   '/reset-password': typeof ResetPasswordRoute
   '/scheduler': typeof SchedulerRouteWithChildren
@@ -448,6 +455,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/magic-link': typeof MagicLinkRoute
   '/onboarding': typeof OnboardingRoute
+  '/overwatch': typeof OverwatchRoute
   '/replays': typeof ReplaysRoute
   '/reset-password': typeof ResetPasswordRoute
   '/scheduler': typeof SchedulerRouteWithChildren
@@ -511,6 +519,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/magic-link': typeof MagicLinkRoute
   '/onboarding': typeof OnboardingRoute
+  '/overwatch': typeof OverwatchRoute
   '/replays': typeof ReplaysRoute
   '/reset-password': typeof ResetPasswordRoute
   '/scheduler': typeof SchedulerRouteWithChildren
@@ -575,6 +584,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/magic-link'
     | '/onboarding'
+    | '/overwatch'
     | '/replays'
     | '/reset-password'
     | '/scheduler'
@@ -637,6 +647,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/magic-link'
     | '/onboarding'
+    | '/overwatch'
     | '/replays'
     | '/reset-password'
     | '/scheduler'
@@ -699,6 +710,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/magic-link'
     | '/onboarding'
+    | '/overwatch'
     | '/replays'
     | '/reset-password'
     | '/scheduler'
@@ -762,6 +774,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   MagicLinkRoute: typeof MagicLinkRoute
   OnboardingRoute: typeof OnboardingRoute
+  OverwatchRoute: typeof OverwatchRoute
   ReplaysRoute: typeof ReplaysRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SchedulerRoute: typeof SchedulerRouteWithChildren
@@ -900,6 +913,13 @@ declare module '@tanstack/react-router' {
       path: '/replays'
       fullPath: '/replays'
       preLoaderRoute: typeof ReplaysRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/overwatch': {
+      id: '/overwatch'
+      path: '/overwatch'
+      fullPath: '/overwatch'
+      preLoaderRoute: typeof OverwatchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/onboarding': {
@@ -1272,6 +1292,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MagicLinkRoute: MagicLinkRoute,
   OnboardingRoute: OnboardingRoute,
+  OverwatchRoute: OverwatchRoute,
   ReplaysRoute: ReplaysRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SchedulerRoute: SchedulerRouteWithChildren,
@@ -1321,3 +1342,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
