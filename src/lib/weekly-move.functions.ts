@@ -48,13 +48,8 @@ export const getActiveWeeklyMove = createServerFn({ method: "GET" })
     return (data as WeeklyMove | null) ?? null;
   });
 
-async function assertCallerIsAdmin(
-  supabase: ReturnType<typeof requireSupabaseAuth.server> extends infer T ? T : never,
-  userId: string,
-): Promise<void> {
-  void supabase;
-  void userId;
-}
+
+
 
 export const listWeeklyMoves = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
