@@ -84,8 +84,17 @@ export function TodaysMove({
 }
 
 function deriveMove(packets: Packet[]): CuratedMove {
-  // 1. Intensive-flagged packet wins
-  const intensive = packets.find(
+  // Only consider packets from the last 14 days — stale signals shouldn't
+  // run a member's week.
+  const FRESH_MS = 14 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const fresh = packets.filter((p) => {
+    const t = new Date(p.createdAt).getTime();
+    return Number.isFinite(t) && now - t <= FRESH_MS;
+  });
+
+  // 1. Newest intensive-flagged command packet
+  const intensive = fresh.find(
     (p) => p.kind === "command" && p.intensiveRecommended,
   );
   if (intensive && intensive.kind === "command") {
@@ -98,8 +107,8 @@ function deriveMove(packets: Packet[]): CuratedMove {
     };
   }
 
-  // 2. Newest command packet
-  const newestCmd = packets.find((p) => p.kind === "command");
+  // 2. Newest command packet (any)
+  const newestCmd = fresh.find((p) => p.kind === "command");
   if (newestCmd && newestCmd.kind === "command") {
     return {
       headline: newestCmd.primaryConstraint,
@@ -111,7 +120,7 @@ function deriveMove(packets: Packet[]): CuratedMove {
   }
 
   // 3. Newest issue packet
-  const newestIssue = packets.find((p) => p.kind === "issue");
+  const newestIssue = fresh.find((p) => p.kind === "issue");
   if (newestIssue && newestIssue.kind === "issue") {
     return {
       headline: newestIssue.title,
@@ -122,16 +131,21 @@ function deriveMove(packets: Packet[]): CuratedMove {
     };
   }
 
-  // 4. Cold start — point them at the first live tool they haven't run
+  // 4. Cold start — point them at the first live tool
   const firstLive = COMMAND_TOOLS.find((t) => t.status === "live" && t.route);
+  const hasAnyPackets = packets.length > 0;
   return {
-    headline: "Run your first command tool.",
-    body:
-      "The Command Center comes alive as you feed it data. Start with the Growth Constraint Map — four minutes, and you'll know whether your revenue target is actually supportable.",
+    headline: hasAnyPackets
+      ? "Re-run your highest-leverage tool."
+      : "Run your first command tool.",
+    body: hasAnyPackets
+      ? "Nothing fresh in the last two weeks. The Command Center comes alive as you feed it data — re-run the Growth Constraint Map quarterly. The numbers move."
+      : "The Command Center comes alive as you feed it data. Start with the Growth Constraint Map — four minutes, and you'll know whether your revenue target is actually supportable.",
     ctaLabel: firstLive ? `Open ${firstLive.name}` : "Open tools",
     ctaTo: firstLive?.route ?? "/tools/growth-constraint",
   };
 }
+
 
 // Re-export for future curated-move hook
 export type { CuratedMove };
