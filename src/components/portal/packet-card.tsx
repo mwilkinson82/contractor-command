@@ -22,7 +22,11 @@ function isSopPacket(p: Packet): boolean {
 function hasEditableSop(p: Packet): boolean {
   if (p.kind !== "command") return false;
   const sop = p.inputs?.sopDocument;
-  return typeof sop === "string" && sop.length > 0;
+  if (typeof sop === "string" && sop.length > 0) return true;
+  // Stack-item packets carry a backlog item that the edit route AI-drafts
+  // on first open and then persists back to the same packet.
+  const backlog = p.inputs?.sopBacklogItem;
+  return typeof backlog === "string" && backlog.length > 0;
 }
 
 export function PacketCard({
