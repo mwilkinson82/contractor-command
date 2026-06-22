@@ -158,6 +158,7 @@ function HomePage() {
       {/* Featured: latest Contractor Circle class — top of page */}
       <div className="pt-6">
         <FeaturedLatestClass />
+        <FeaturedWorkbook />
       </div>
 
       {/* Ask Marshall hero — the front door */}
