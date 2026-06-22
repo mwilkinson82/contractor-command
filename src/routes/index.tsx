@@ -26,6 +26,8 @@ import { HandbookAnchor } from "@/components/portal/handbook-anchor";
 import { SignalTiles } from "@/components/portal/signal-tiles";
 import { TodaysMove } from "@/components/portal/todays-move";
 import { getAosSnapshot, type AosResult } from "@/lib/aos.functions";
+import { getActiveWeeklyMove } from "@/lib/weekly-move.functions";
+
 import {
   ArrowUpRight,
   Calendar,
