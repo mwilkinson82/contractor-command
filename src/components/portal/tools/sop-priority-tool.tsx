@@ -930,7 +930,9 @@ function DepartmentMode() {
                 className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 disabled:opacity-70"
               >
                 {savedId ? <Check className="h-3.5 w-3.5 text-signal-success" /> : <Save className="h-3.5 w-3.5" />}
-                {savedId ? "Saved to vault" : "Save backlog to vault"}
+                {savedId
+                  ? `Saved ${result.backlog.length} SOPs to vault`
+                  : `Save stack (${result.backlog.length} SOPs) to vault`}
               </button>
               <CopyBacklogBtn result={result} />
               <Link
