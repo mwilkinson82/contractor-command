@@ -34,6 +34,14 @@ const DEFAULT: Scores = AREAS.reduce((acc, a) => ({ ...acc, [a.key]: 3 }), {} as
 export function OwnerDependencyTool({ embedded = false }: { embedded?: boolean } = {}) {
   const [scores, setScores] = useState<Scores>(DEFAULT);
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [workbookBusy, setWorkbookBusy] = useState(false);
+
+  async function openWorkbook() {
+    setWorkbookBusy(true);
+    const url = await openTemplateFile(COMPANION_WORKBOOK_PATH);
+    setWorkbookBusy(false);
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+  }
 
   const result = useMemo(() => {
     const total = AREAS.reduce((s, a) => s + scores[a.key], 0);
