@@ -116,7 +116,7 @@ export function AppSidebarProvider({ children }: { children: ReactNode }) {
   );
 }
 
-type Item = { to: string; label: string; icon: React.ComponentType<{ className?: string }>; match?: string };
+type Item = { to: string; label: string; icon: React.ComponentType<{ className?: string }>; match?: string; external?: boolean };
 type Group = { label: string; items: Item[] };
 
 // Full nav for Circle members.
