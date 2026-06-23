@@ -11,7 +11,6 @@ import {
   Archive,
   Sparkles,
   User,
-
   PanelLeftClose,
   PanelLeft,
   Circle,
@@ -21,6 +20,7 @@ import {
   Library,
   Gauge,
   BookOpen,
+  Map,
   ArrowUpCircle,
   Flame,
   Lock,
@@ -64,7 +64,9 @@ export function AppSidebarProvider({ children }: { children: ReactNode }) {
       const initial = v === "1";
       userPrefRef.current = initial;
       setCollapsed(initial);
-    } catch {}
+    } catch {
+      // Storage can be unavailable in private or restricted browser contexts.
+    }
   }, []);
 
   useEffect(() => {
@@ -88,22 +90,22 @@ export function AppSidebarProvider({ children }: { children: ReactNode }) {
     // On mobile the rail is off-canvas; overlays should use 0.
     const mq = window.matchMedia("(max-width: 767px)");
     const apply = () => {
-      document.documentElement.style.setProperty(
-        "--app-sidebar-w",
-        mq.matches ? "0px" : w,
-      );
+      document.documentElement.style.setProperty("--app-sidebar-w", mq.matches ? "0px" : w);
     };
     apply();
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
   }, [collapsed]);
 
-
   function toggle() {
     setCollapsed((c) => {
       const n = !c;
       userPrefRef.current = n;
-      try { window.localStorage.setItem(STORAGE, n ? "1" : "0"); } catch {}
+      try {
+        window.localStorage.setItem(STORAGE, n ? "1" : "0");
+      } catch {
+        // Storage can be unavailable in private or restricted browser contexts.
+      }
       return n;
     });
   }
@@ -117,7 +119,13 @@ export function AppSidebarProvider({ children }: { children: ReactNode }) {
   );
 }
 
-type Item = { to: string; label: string; icon: React.ComponentType<{ className?: string }>; match?: string; external?: boolean };
+type Item = {
+  to: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  match?: string;
+  external?: boolean;
+};
 type Group = { label: string; items: Item[] };
 
 // Full nav for Circle members.
@@ -126,6 +134,7 @@ const CIRCLE_GROUPS: Group[] = [
     label: "Daily",
     items: [
       { to: "/", label: "Home", icon: Home },
+      { to: "/operating-playbook", label: "Contractor OS", icon: Map },
       { to: "/ask", label: "Ask Marshall", icon: Megaphone, match: "/ask" },
       { to: "/aos", label: "AOS", icon: Compass },
       { to: "/overwatch", label: "Overwatch", icon: ShieldCheck },
@@ -137,7 +146,6 @@ const CIRCLE_GROUPS: Group[] = [
     label: "Library",
     items: [
       { to: "/handbook", label: "Handbook", icon: BookOpen },
-      { to: "/operating-playbook", label: "OS Playbook", icon: FileText },
       { to: "/templates", label: "Templates", icon: FileText },
       { to: "/replays", label: "Replays", icon: Video },
     ],
@@ -300,7 +308,6 @@ export function AppSidebar() {
     navigate({ to: "/login" });
   }
 
-
   return (
     <>
       {/* Mobile backdrop */}
@@ -323,15 +330,26 @@ export function AppSidebar() {
           <Link to="/" className="flex items-center gap-2 overflow-hidden">
             <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-ink text-cream font-display text-[13px] shadow-[inset_0_0_0_1px_rgba(248,244,237,0.12)]">
               {logoUrl ? (
-                <img src={logoUrl} alt={brandName} className="h-full w-full object-cover object-center" />
+                <img
+                  src={logoUrl}
+                  alt={brandName}
+                  className="h-full w-full object-cover object-center"
+                />
               ) : (
                 brandInitial
               )}
             </span>
             {!collapsed && (
               <span className="flex flex-col leading-tight">
-                <span className="truncate font-display text-[13px] tracking-tight" title={brandName}>{brandName}</span>
-                <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Command Center</span>
+                <span
+                  className="truncate font-display text-[13px] tracking-tight"
+                  title={brandName}
+                >
+                  {brandName}
+                </span>
+                <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
+                  Command Center
+                </span>
               </span>
             )}
           </Link>
@@ -341,52 +359,72 @@ export function AppSidebar() {
           {groups.map((g) => {
             const isTease = false;
             return (
-            <div key={g.label} className="mb-4">
-              {!collapsed && (
-                <p
-                  className={isTease ? "eyebrow px-2 pb-1.5" : "eyebrow-signal px-2 pb-1.5"}
-                  style={isTease ? { color: "color-mix(in oklab, var(--foreground) 35%, transparent)" } : undefined}
-                >
-                  {g.label}
-                </p>
-              )}
-              <ul className="space-y-0.5">
-                {g.items.map((it) => {
-                  const active = it.external ? false : it.match ? pathname.startsWith(it.match) : pathname === it.to;
-                  const Icon = it.icon;
-                  const className = `group/item relative flex items-center gap-3 rounded-md px-2 py-2 text-[13px] transition-colors ${
-                    active
-                      ? "bg-ink text-cream"
+              <div key={g.label} className="mb-4">
+                {!collapsed && (
+                  <p
+                    className={isTease ? "eyebrow px-2 pb-1.5" : "eyebrow-signal px-2 pb-1.5"}
+                    style={
+                      isTease
+                        ? { color: "color-mix(in oklab, var(--foreground) 35%, transparent)" }
+                        : undefined
+                    }
+                  >
+                    {g.label}
+                  </p>
+                )}
+                <ul className="space-y-0.5">
+                  {g.items.map((it) => {
+                    const active = it.external
+                      ? false
+                      : it.match
+                        ? pathname.startsWith(it.match)
+                        : pathname === it.to;
+                    const Icon = it.icon;
+                    const className = `group/item relative flex items-center gap-3 rounded-md px-2 py-2 text-[13px] transition-colors ${
+                      active
+                        ? "bg-ink text-cream"
+                        : isTease
+                          ? "text-foreground/35 hover:bg-foreground/5 hover:text-foreground/60"
+                          : "text-foreground/75 hover:bg-foreground/5 hover:text-foreground"
+                    }`;
+                    const titleAttr = collapsed
+                      ? isTease
+                        ? `${it.label} — upgrade to unlock`
+                        : it.label
                       : isTease
-                      ? "text-foreground/35 hover:bg-foreground/5 hover:text-foreground/60"
-                      : "text-foreground/75 hover:bg-foreground/5 hover:text-foreground"
-                  }`;
-                  const titleAttr = collapsed ? (isTease ? `${it.label} — upgrade to unlock` : it.label) : (isTease ? "Daily Power Hour, S&M School, Contractor School. Upgrade to unlock." : undefined);
-                  const inner = (
-                    <>
-                      <Icon className="h-4 w-4 shrink-0" />
-                      {!collapsed && <span className="truncate">{it.label}</span>}
-                      {active && !collapsed && (
-                        <span className="ml-auto h-1 w-1 rounded-full bg-signal" />
-                      )}
-                    </>
-                  );
-                  return (
-                    <li key={it.to}>
-                      {it.external ? (
-                        <a href={it.to} target="_blank" rel="noopener noreferrer" title={titleAttr} className={className}>
-                          {inner}
-                        </a>
-                      ) : (
-                        <Link to={it.to as "/"} title={titleAttr} className={className}>
-                          {inner}
-                        </Link>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
+                        ? "Daily Power Hour, S&M School, Contractor School. Upgrade to unlock."
+                        : undefined;
+                    const inner = (
+                      <>
+                        <Icon className="h-4 w-4 shrink-0" />
+                        {!collapsed && <span className="truncate">{it.label}</span>}
+                        {active && !collapsed && (
+                          <span className="ml-auto h-1 w-1 rounded-full bg-signal" />
+                        )}
+                      </>
+                    );
+                    return (
+                      <li key={it.to}>
+                        {it.external ? (
+                          <a
+                            href={it.to}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={titleAttr}
+                            className={className}
+                          >
+                            {inner}
+                          </a>
+                        ) : (
+                          <Link to={it.to as "/"} title={titleAttr} className={className}>
+                            {inner}
+                          </Link>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
             );
           })}
         </nav>
@@ -397,14 +435,19 @@ export function AppSidebar() {
             <div className="flex items-start gap-2 rounded-md bg-foreground/[0.03] px-2.5 py-2">
               <span className="mt-1 inline-flex h-2 w-2 shrink-0 rounded-full bg-signal animate-signal-pulse" />
               <div className="min-w-0">
-                <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Next session</p>
+                <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">
+                  Next session
+                </p>
                 <p className="mt-0.5 truncate text-[11px] text-foreground/80">
                   {next.kind} · {relativeDay(next.date)}
                 </p>
               </div>
             </div>
           ) : (
-            <div className="grid place-items-center py-2" title={`${next.kind} · ${relativeDay(next.date)}`}>
+            <div
+              className="grid place-items-center py-2"
+              title={`${next.kind} · ${relativeDay(next.date)}`}
+            >
               <Circle className="h-2 w-2 fill-signal text-signal animate-signal-pulse" />
             </div>
           )}
