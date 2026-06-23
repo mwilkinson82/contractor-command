@@ -18,6 +18,7 @@ import { template as adminActivityNoticeTemplate } from './admin-activity-notice
 import { template as loginNudgeTemplate } from './login-nudge'
 import { template as discordNudgeTemplate } from './discord-nudge'
 import { template as circleWelcomeTemplate } from './circle-welcome'
+import { template as magicLinkTemplate } from './magic-link'
 
 export const TEMPLATES: Record<string, TemplateEntry> = {
   'sop-document': sopDocumentTemplate,
@@ -29,4 +30,5 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
   'login-nudge': loginNudgeTemplate,
   'discord-nudge': discordNudgeTemplate,
   'circle-welcome': circleWelcomeTemplate,
+  'magic-link': magicLinkTemplate,
 }
