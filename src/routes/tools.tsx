@@ -15,6 +15,7 @@ import { MarginLeakTool } from "@/components/portal/tools/margin-leak-tool";
 import { SopPriorityTool } from "@/components/portal/tools/sop-priority-tool";
 import { GrowthConstraintTool } from "@/routes/tools.growth-constraint";
 import { OwnerDependencyTool } from "@/routes/tools.owner-dependency";
+import { CosNavigatorTool } from "@/routes/tools.cos-navigator";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +38,7 @@ const STAGE_TOOLS: Record<string, () => ReactElement> = {
   "margin-leak": () => <MarginLeakTool />,
   "growth-constraint": () => <GrowthConstraintTool embedded />,
   "owner-dependency": () => <OwnerDependencyTool embedded />,
+  "cos-navigator": () => <CosNavigatorTool embedded />,
 };
 
 

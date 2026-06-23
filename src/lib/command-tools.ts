@@ -9,6 +9,7 @@ import {
   TrendingUp,
   Activity,
   Calculator,
+  Compass,
   ScissorsLineDashed,
   Network,
   ListChecks,
@@ -79,6 +80,16 @@ export const COMMAND_TOOLS: CommandTool[] = [
   },
 
   // Build the machine
+  {
+    id: "cos-navigator",
+    name: "COS Navigator",
+    blurb: "Diagnose the operating constraint and build the next 90-day roadmap.",
+    group: "Build the machine",
+    status: "live",
+    icon: Compass,
+    route: "/tools/cos-navigator",
+    vaultSource: "COS Navigator",
+  },
   {
     id: "owner-dependency",
     name: "Owner Dependency Scorecard",

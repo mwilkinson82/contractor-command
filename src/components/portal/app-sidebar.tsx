@@ -69,7 +69,7 @@ export function AppSidebarProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (userPrefRef.current === null) return;
-    if (pathname === "/handbook") {
+    if (pathname === "/handbook" || pathname === "/operating-playbook") {
       setCollapsed(true);
     } else {
       setCollapsed(userPrefRef.current);
@@ -137,6 +137,7 @@ const CIRCLE_GROUPS: Group[] = [
     label: "Library",
     items: [
       { to: "/handbook", label: "Handbook", icon: BookOpen },
+      { to: "/operating-playbook", label: "OS Playbook", icon: FileText },
       { to: "/templates", label: "Templates", icon: FileText },
       { to: "/replays", label: "Replays", icon: Video },
     ],

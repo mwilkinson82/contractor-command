@@ -23,6 +23,7 @@ import { Route as SchedulerRouteImport } from './routes/scheduler'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ReplaysRouteImport } from './routes/replays'
 import { Route as OverwatchRouteImport } from './routes/overwatch'
+import { Route as OperatingPlaybookRouteImport } from './routes/operating-playbook'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as MagicLinkRouteImport } from './routes/magic-link'
 import { Route as LoginRouteImport } from './routes/login'
@@ -39,6 +40,7 @@ import { Route as AosIndexRouteImport } from './routes/aos.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as ToolsOwnerDependencyRouteImport } from './routes/tools.owner-dependency'
 import { Route as ToolsGrowthConstraintRouteImport } from './routes/tools.growth-constraint'
+import { Route as ToolsCosNavigatorRouteImport } from './routes/tools.cos-navigator'
 import { Route as SchedulerProjectIdRouteImport } from './routes/scheduler.$projectId'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as AskNewRouteImport } from './routes/ask.new'
@@ -142,6 +144,11 @@ const OverwatchRoute = OverwatchRouteImport.update({
   path: '/overwatch',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OperatingPlaybookRoute = OperatingPlaybookRouteImport.update({
+  id: '/operating-playbook',
+  path: '/operating-playbook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
@@ -220,6 +227,11 @@ const ToolsOwnerDependencyRoute = ToolsOwnerDependencyRouteImport.update({
 const ToolsGrowthConstraintRoute = ToolsGrowthConstraintRouteImport.update({
   id: '/growth-constraint',
   path: '/growth-constraint',
+  getParentRoute: () => ToolsRoute,
+} as any)
+const ToolsCosNavigatorRoute = ToolsCosNavigatorRouteImport.update({
+  id: '/cos-navigator',
+  path: '/cos-navigator',
   getParentRoute: () => ToolsRoute,
 } as any)
 const SchedulerProjectIdRoute = SchedulerProjectIdRouteImport.update({
@@ -398,6 +410,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/magic-link': typeof MagicLinkRoute
   '/onboarding': typeof OnboardingRoute
+  '/operating-playbook': typeof OperatingPlaybookRoute
   '/overwatch': typeof OverwatchRoute
   '/replays': typeof ReplaysRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -434,6 +447,7 @@ export interface FileRoutesByFullPath {
   '/ask/new': typeof AskNewRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/scheduler/$projectId': typeof SchedulerProjectIdRoute
+  '/tools/cos-navigator': typeof ToolsCosNavigatorRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
   '/tools/owner-dependency': typeof ToolsOwnerDependencyRoute
   '/admin/': typeof AdminIndexRoute
@@ -462,6 +476,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/magic-link': typeof MagicLinkRoute
   '/onboarding': typeof OnboardingRoute
+  '/operating-playbook': typeof OperatingPlaybookRoute
   '/overwatch': typeof OverwatchRoute
   '/replays': typeof ReplaysRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -498,6 +513,7 @@ export interface FileRoutesByTo {
   '/ask/new': typeof AskNewRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/scheduler/$projectId': typeof SchedulerProjectIdRoute
+  '/tools/cos-navigator': typeof ToolsCosNavigatorRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
   '/tools/owner-dependency': typeof ToolsOwnerDependencyRoute
   '/admin': typeof AdminIndexRoute
@@ -527,6 +543,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/magic-link': typeof MagicLinkRoute
   '/onboarding': typeof OnboardingRoute
+  '/operating-playbook': typeof OperatingPlaybookRoute
   '/overwatch': typeof OverwatchRoute
   '/replays': typeof ReplaysRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -563,6 +580,7 @@ export interface FileRoutesById {
   '/ask/new': typeof AskNewRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/scheduler/$projectId': typeof SchedulerProjectIdRoute
+  '/tools/cos-navigator': typeof ToolsCosNavigatorRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
   '/tools/owner-dependency': typeof ToolsOwnerDependencyRoute
   '/admin/': typeof AdminIndexRoute
@@ -593,6 +611,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/magic-link'
     | '/onboarding'
+    | '/operating-playbook'
     | '/overwatch'
     | '/replays'
     | '/reset-password'
@@ -629,6 +648,7 @@ export interface FileRouteTypes {
     | '/ask/new'
     | '/email/unsubscribe'
     | '/scheduler/$projectId'
+    | '/tools/cos-navigator'
     | '/tools/growth-constraint'
     | '/tools/owner-dependency'
     | '/admin/'
@@ -657,6 +677,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/magic-link'
     | '/onboarding'
+    | '/operating-playbook'
     | '/overwatch'
     | '/replays'
     | '/reset-password'
@@ -693,6 +714,7 @@ export interface FileRouteTypes {
     | '/ask/new'
     | '/email/unsubscribe'
     | '/scheduler/$projectId'
+    | '/tools/cos-navigator'
     | '/tools/growth-constraint'
     | '/tools/owner-dependency'
     | '/admin'
@@ -721,6 +743,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/magic-link'
     | '/onboarding'
+    | '/operating-playbook'
     | '/overwatch'
     | '/replays'
     | '/reset-password'
@@ -757,6 +780,7 @@ export interface FileRouteTypes {
     | '/ask/new'
     | '/email/unsubscribe'
     | '/scheduler/$projectId'
+    | '/tools/cos-navigator'
     | '/tools/growth-constraint'
     | '/tools/owner-dependency'
     | '/admin/'
@@ -786,6 +810,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   MagicLinkRoute: typeof MagicLinkRoute
   OnboardingRoute: typeof OnboardingRoute
+  OperatingPlaybookRoute: typeof OperatingPlaybookRoute
   OverwatchRoute: typeof OverwatchRoute
   ReplaysRoute: typeof ReplaysRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
@@ -935,6 +960,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OverwatchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/operating-playbook': {
+      id: '/operating-playbook'
+      path: '/operating-playbook'
+      fullPath: '/operating-playbook'
+      preLoaderRoute: typeof OperatingPlaybookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/onboarding': {
       id: '/onboarding'
       path: '/onboarding'
@@ -1045,6 +1077,13 @@ declare module '@tanstack/react-router' {
       path: '/growth-constraint'
       fullPath: '/tools/growth-constraint'
       preLoaderRoute: typeof ToolsGrowthConstraintRouteImport
+      parentRoute: typeof ToolsRoute
+    }
+    '/tools/cos-navigator': {
+      id: '/tools/cos-navigator'
+      path: '/cos-navigator'
+      fullPath: '/tools/cos-navigator'
+      preLoaderRoute: typeof ToolsCosNavigatorRouteImport
       parentRoute: typeof ToolsRoute
     }
     '/scheduler/$projectId': {
@@ -1287,12 +1326,14 @@ const SchedulerRouteWithChildren = SchedulerRoute._addFileChildren(
 )
 
 interface ToolsRouteChildren {
+  ToolsCosNavigatorRoute: typeof ToolsCosNavigatorRoute
   ToolsGrowthConstraintRoute: typeof ToolsGrowthConstraintRoute
   ToolsOwnerDependencyRoute: typeof ToolsOwnerDependencyRoute
   ToolsSopEditPacketIdRoute: typeof ToolsSopEditPacketIdRoute
 }
 
 const ToolsRouteChildren: ToolsRouteChildren = {
+  ToolsCosNavigatorRoute: ToolsCosNavigatorRoute,
   ToolsGrowthConstraintRoute: ToolsGrowthConstraintRoute,
   ToolsOwnerDependencyRoute: ToolsOwnerDependencyRoute,
   ToolsSopEditPacketIdRoute: ToolsSopEditPacketIdRoute,
@@ -1312,6 +1353,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MagicLinkRoute: MagicLinkRoute,
   OnboardingRoute: OnboardingRoute,
+  OperatingPlaybookRoute: OperatingPlaybookRoute,
   OverwatchRoute: OverwatchRoute,
   ReplaysRoute: ReplaysRoute,
   ResetPasswordRoute: ResetPasswordRoute,

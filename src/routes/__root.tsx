@@ -47,6 +47,7 @@ const ONBOARDING_ROUTE = "/onboarding";
 const ROUTE_TIER_GATES: Array<{ prefix: string; min: Tier }> = [
   { prefix: "/vault", min: "book_buyer" },
   { prefix: "/tools", min: "book_buyer" },
+  { prefix: "/operating-playbook", min: "circle" },
   { prefix: "/field-tools", min: "book_buyer" },
   { prefix: "/ask", min: "book_buyer" },
   { prefix: "/community", min: "power_hour" },
