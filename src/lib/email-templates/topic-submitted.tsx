@@ -2,6 +2,7 @@ import React from "react";
 import {
   Body, Container, Head, Heading, Hr, Html, Preview, Section, Text,
 } from "@react-email/components";
+import { emailBrand } from "./_brand";
 import type { TemplateEntry } from "./registry";
 
 interface TopicSubmittedProps {
@@ -75,12 +76,18 @@ export const template = {
   },
 } satisfies TemplateEntry;
 
-const main = { backgroundColor: "#ffffff", fontFamily: "Georgia, 'Times New Roman', serif" };
-const container = { padding: "28px 28px", maxWidth: "620px" };
-const eyebrow = { fontSize: "10px", letterSpacing: "0.22em", color: "#7a7a7a", margin: "0 0 8px", fontWeight: 600 as const, fontFamily: "Arial, sans-serif" };
-const h1 = { fontSize: "22px", color: "#111", margin: "0 0 6px", lineHeight: 1.25 };
-const meta = { fontSize: "13px", color: "#555", margin: 0, fontFamily: "Arial, sans-serif" };
-const hr = { borderColor: "#e6e3dc", margin: "18px 0" };
-const label = { fontSize: "10px", letterSpacing: "0.18em", color: "#7a7a7a", margin: "10px 0 4px", fontWeight: 600 as const, textTransform: "uppercase" as const, fontFamily: "Arial, sans-serif" };
-const body = { fontSize: "14px", color: "#222", margin: "0 0 6px", lineHeight: 1.55 };
-const footer = { fontSize: "12px", color: "#888", margin: 0, fontFamily: "Arial, sans-serif" };
+const main = { backgroundColor: emailBrand.cream, fontFamily: emailBrand.sans, padding: "32px 0" };
+const container = {
+  backgroundColor: emailBrand.workSurface,
+  border: `1px solid ${emailBrand.paperEdge}`,
+  borderRadius: "12px",
+  maxWidth: "620px",
+  padding: "28px 28px",
+};
+const eyebrow = { fontSize: "11px", letterSpacing: "0.18em", color: emailBrand.signal, margin: "0 0 8px", fontWeight: 700 as const, fontFamily: emailBrand.sans, textTransform: "uppercase" as const };
+const h1 = { fontSize: "22px", color: emailBrand.ink, margin: "0 0 6px", lineHeight: 1.25, fontWeight: 650 as const };
+const meta = { fontSize: "13px", color: emailBrand.muted, margin: 0, fontFamily: emailBrand.sans };
+const hr = { borderColor: emailBrand.paperEdge, margin: "18px 0" };
+const label = { fontSize: "11px", letterSpacing: "0.18em", color: emailBrand.muted, margin: "10px 0 4px", fontWeight: 700 as const, textTransform: "uppercase" as const, fontFamily: emailBrand.sans };
+const body = { fontSize: "14px", color: emailBrand.ink, margin: "0 0 6px", lineHeight: 1.55 };
+const footer = { fontSize: "12px", color: emailBrand.muted, margin: 0, fontFamily: emailBrand.sans };

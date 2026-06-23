@@ -2,6 +2,7 @@ import React from "react";
 import {
   Body, Container, Head, Heading, Hr, Html, Preview, Section, Text,
 } from "@react-email/components";
+import { emailBrand, emailStyles } from "./_brand";
 import type { TemplateEntry } from "./registry";
 
 interface VaultPacketProps {
@@ -68,14 +69,20 @@ export const template = {
   },
 } satisfies TemplateEntry;
 
-const main = { backgroundColor: "#ffffff", fontFamily: "Arial, sans-serif" };
-const container = { padding: "28px 28px 36px", maxWidth: "640px" };
-const eyebrow = { fontSize: "10px", letterSpacing: "0.22em", color: "#7a7a7a", margin: "0 0 6px", fontWeight: 600 as const };
-const h1 = { fontSize: "22px", fontWeight: 700 as const, color: "#111111", margin: "0 0 8px", lineHeight: 1.25 };
-const meta = { fontSize: "13px", color: "#555", margin: 0 };
-const noteBox = { marginTop: "16px", padding: "12px 14px", background: "#f6f4ee", borderLeft: "3px solid #111111", borderRadius: "4px" };
-const noteText = { fontSize: "13.5px", color: "#222", margin: 0, lineHeight: 1.5 };
-const hr = { borderColor: "#e6e3dc", margin: "20px 0" };
-const label = { fontSize: "10px", letterSpacing: "0.22em", color: "#7a7a7a", margin: "0 0 8px", fontWeight: 600 as const, textTransform: "uppercase" as const };
-const pre = { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "12.5px", color: "#222", margin: 0, padding: "12px 14px", background: "#fafaf7", border: "1px solid #ececec", borderRadius: "6px", whiteSpace: "pre-wrap" as const, lineHeight: 1.55 };
-const footer = { fontSize: "11px", color: "#888", margin: 0 };
+const main = { backgroundColor: emailBrand.cream, fontFamily: emailBrand.sans, padding: "32px 0" };
+const container = {
+  backgroundColor: emailBrand.workSurface,
+  border: `1px solid ${emailBrand.paperEdge}`,
+  borderRadius: "12px",
+  padding: "28px 28px 36px",
+  maxWidth: "640px",
+};
+const eyebrow = { fontSize: "11px", letterSpacing: "0.18em", color: emailBrand.signal, margin: "0 0 6px", fontWeight: 700 as const, textTransform: "uppercase" as const };
+const h1 = { fontSize: "22px", fontWeight: 650 as const, color: emailBrand.ink, margin: "0 0 8px", lineHeight: 1.25 };
+const meta = { fontSize: "13px", color: emailBrand.muted, margin: 0 };
+const noteBox = emailStyles.inset;
+const noteText = { fontSize: "13.5px", color: emailBrand.ink, margin: 0, lineHeight: 1.5 };
+const hr = { borderColor: emailBrand.paperEdge, margin: "20px 0" };
+const label = { fontSize: "11px", letterSpacing: "0.18em", color: emailBrand.muted, margin: "0 0 8px", fontWeight: 700 as const, textTransform: "uppercase" as const };
+const pre = emailStyles.pre;
+const footer = { fontSize: "11px", color: emailBrand.muted, margin: 0 };

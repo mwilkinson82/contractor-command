@@ -14,8 +14,8 @@ export function PageHeader({
   return (
     <div className="flex flex-col gap-6 border-b border-border/70 pb-10 sm:flex-row sm:items-end sm:justify-between">
       <div className="max-w-3xl">
-        {eyebrow ? <p className="label-mono">{eyebrow}</p> : null}
-        <h1 className="mt-3 font-display text-4xl leading-[1.05] sm:text-5xl">{title}</h1>
+        {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
+        <h1 className="mt-3 page-title">{title}</h1>
         {lede ? <p className="mt-4 text-base text-muted-foreground sm:text-lg">{lede}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}

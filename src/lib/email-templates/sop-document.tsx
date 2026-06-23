@@ -10,6 +10,7 @@ import {
   Section,
   Text,
 } from "@react-email/components";
+import { emailBrand, emailStyles } from "./_brand";
 import type { TemplateEntry } from "./registry";
 
 interface SopStep {
@@ -162,46 +163,47 @@ export const template = {
 
 /* ---------- styles ---------- */
 
-const main = { backgroundColor: "#ffffff", fontFamily: "Arial, sans-serif" };
-const container = { padding: "28px 28px 36px", maxWidth: "640px" };
+const main = { backgroundColor: emailBrand.cream, fontFamily: emailBrand.sans, padding: "32px 0" };
+const container = {
+  backgroundColor: emailBrand.workSurface,
+  border: `1px solid ${emailBrand.paperEdge}`,
+  borderRadius: "12px",
+  padding: "28px 28px 36px",
+  maxWidth: "640px",
+};
 const eyebrow = {
-  fontSize: "10px",
-  letterSpacing: "0.22em",
-  color: "#7a7a7a",
+  fontSize: "11px",
+  letterSpacing: "0.18em",
+  color: emailBrand.signal,
   margin: "0 0 6px",
-  fontWeight: 600 as const,
+  fontWeight: 700 as const,
+  textTransform: "uppercase" as const,
 };
 const h1 = {
   fontSize: "24px",
-  fontWeight: 700 as const,
-  color: "#111111",
+  fontWeight: 650 as const,
+  color: emailBrand.ink,
   margin: "0 0 10px",
   lineHeight: 1.2,
 };
-const metaLine = { fontSize: "13px", color: "#444444", margin: "0 0 8px" };
-const dot = { padding: "0 8px", color: "#bbb" };
-const noteBox = {
-  marginTop: "14px",
-  padding: "12px 14px",
-  background: "#f6f4ee",
-  borderLeft: "3px solid #111111",
-  borderRadius: "4px",
-};
-const noteText = { fontSize: "13px", color: "#222", margin: 0, lineHeight: 1.5 };
+const metaLine = { fontSize: "13px", color: emailBrand.muted, margin: "0 0 8px" };
+const dot = { padding: "0 8px", color: emailBrand.paperEdge };
+const noteBox = emailStyles.inset;
+const noteText = { fontSize: "13px", color: emailBrand.ink, margin: 0, lineHeight: 1.5 };
 const sectionLabel = {
-  fontSize: "10px",
-  letterSpacing: "0.22em",
-  color: "#7a7a7a",
+  fontSize: "11px",
+  letterSpacing: "0.18em",
+  color: emailBrand.muted,
   margin: "0 0 4px",
-  fontWeight: 600 as const,
+  fontWeight: 700 as const,
   textTransform: "uppercase" as const,
 };
-const bodyText = { fontSize: "13.5px", color: "#222222", margin: "0 0 4px", lineHeight: 1.55 };
-const stepAction = { fontSize: "14px", color: "#111111", margin: "0 0 2px", fontWeight: 600 as const };
-const stepDetail = { fontSize: "13px", color: "#555555", margin: "0 0 4px", lineHeight: 1.5 };
+const bodyText = { fontSize: "13.5px", color: emailBrand.ink, margin: "0 0 4px", lineHeight: 1.55 };
+const stepAction = { fontSize: "14px", color: emailBrand.ink, margin: "0 0 2px", fontWeight: 650 as const };
+const stepDetail = { fontSize: "13px", color: emailBrand.muted, margin: "0 0 4px", lineHeight: 1.5 };
 const ol = { paddingLeft: "20px", margin: "8px 0 0" };
 const ul = { paddingLeft: "18px", margin: "6px 0 0" };
 const li = { margin: "0 0 10px" };
 const liPlain = { margin: "0 0 2px" };
-const hr = { borderColor: "#e6e3dc", margin: "22px 0" };
-const footer = { fontSize: "11px", color: "#888", margin: 0 };
+const hr = { borderColor: emailBrand.paperEdge, margin: "22px 0" };
+const footer = { fontSize: "11px", color: emailBrand.muted, margin: 0 };

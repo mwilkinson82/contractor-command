@@ -8,8 +8,10 @@ import {
   Hr,
   Html,
   Preview,
+  Section,
   Text,
 } from "@react-email/components";
+import { emailStyles } from "./_brand";
 import type { TemplateEntry } from "./registry";
 
 interface MemberAnnouncementProps {
@@ -50,29 +52,36 @@ const MemberAnnouncementEmail = ({
     <Html lang="en" dir="ltr">
       <Head />
       <Preview>{preheader}</Preview>
-      <Body style={main}>
-        <Container style={container}>
-          <Text style={eyebrow}>ALP CONTRACTOR CIRCLE</Text>
-          <Heading style={h1}>{headline}</Heading>
+      <Body style={emailStyles.main}>
+        <Container style={emailStyles.container}>
+          <Section style={emailStyles.card}>
+            <Section style={emailStyles.headerBar}>
+              <Text style={emailStyles.brandText}>ALP Contractor Circle</Text>
+            </Section>
+            <Section style={emailStyles.body}>
+              <Text style={emailStyles.eyebrow}>Member note</Text>
+              <Heading style={emailStyles.h1}>{headline}</Heading>
 
-          <Text style={greeting}>
-            {firstName ? `${firstName} —` : "Hey —"}
-          </Text>
+              <Text style={greeting}>
+                {firstName ? `${firstName} —` : "Hey —"}
+              </Text>
 
-          {paragraphs.map((p, i) => (
-            <Text key={i} style={paragraph}>
-              {p}
-            </Text>
-          ))}
+              {paragraphs.map((p, i) => (
+                <Text key={i} style={paragraph}>
+                  {p}
+                </Text>
+              ))}
 
-          {showCta && (
-            <Button href={ctaUrl} style={button}>
-              {ctaLabel}
-            </Button>
-          )}
+              {showCta && (
+                <Button href={ctaUrl} style={emailStyles.button}>
+                  {ctaLabel}
+                </Button>
+              )}
 
-          <Hr style={hr} />
-          <Text style={footer}>{signoff}</Text>
+              <Hr style={emailStyles.hr} />
+              <Text style={emailStyles.footer}>{signoff}</Text>
+            </Section>
+          </Section>
         </Container>
       </Body>
     </Html>
@@ -97,46 +106,16 @@ Your membership is already active on the new system. To get in, set your passwor
   },
 } satisfies TemplateEntry;
 
-/* ---------- styles ---------- */
-const main = { backgroundColor: "#ffffff", fontFamily: "Arial, sans-serif" };
-const container = { padding: "32px 28px 40px", maxWidth: "560px" };
-const eyebrow = {
-  fontSize: "10px",
-  letterSpacing: "0.22em",
-  color: "#7a7a7a",
-  margin: "0 0 12px",
-  fontWeight: 600 as const,
-};
-const h1 = {
-  fontSize: "26px",
-  fontWeight: 700 as const,
-  color: "#111111",
-  margin: "0 0 18px",
-  lineHeight: 1.2,
-};
 const greeting = {
   fontSize: "15px",
-  color: "#111111",
+  color: "#1C1A17",
   margin: "0 0 14px",
   lineHeight: 1.5,
 };
 const paragraph = {
   fontSize: "15px",
-  color: "#222222",
+  color: "#1C1A17",
   margin: "0 0 14px",
   lineHeight: 1.6,
   whiteSpace: "pre-wrap" as const,
 };
-const button = {
-  display: "inline-block",
-  marginTop: "10px",
-  backgroundColor: "#111111",
-  color: "#ffffff",
-  fontSize: "14px",
-  fontWeight: 600 as const,
-  padding: "12px 20px",
-  borderRadius: "8px",
-  textDecoration: "none",
-};
-const hr = { borderColor: "#e6e3dc", margin: "28px 0 16px" };
-const footer = { fontSize: "13px", color: "#555", margin: 0 };

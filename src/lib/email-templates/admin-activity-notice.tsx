@@ -6,8 +6,10 @@ import {
   Heading,
   Html,
   Preview,
+  Section,
   Text,
 } from "@react-email/components";
+import { emailStyles } from "./_brand";
 import type { TemplateEntry } from "./registry";
 
 interface AdminActivityNoticeProps {
@@ -40,17 +42,24 @@ const AdminActivityNoticeEmail = ({
       <Preview>
         {event} — {memberName || memberEmail}
       </Preview>
-      <Body style={main}>
-        <Container style={container}>
-          <Text style={eyebrow}>ALP CONTRACTOR CIRCLE · ADMIN</Text>
-          <Heading style={h1}>{event}</Heading>
-          <Text style={row}>
-            <strong>Who:</strong> {memberName ? `${memberName} ` : ""}
-            &lt;{memberEmail}&gt;
-          </Text>
-          <Text style={row}>
-            <strong>When:</strong> {when}
-          </Text>
+      <Body style={emailStyles.main}>
+        <Container style={emailStyles.container}>
+          <Section style={emailStyles.card}>
+            <Section style={emailStyles.headerBar}>
+              <Text style={emailStyles.brandText}>ALP Contractor Circle</Text>
+            </Section>
+            <Section style={emailStyles.body}>
+              <Text style={emailStyles.eyebrow}>Admin notice</Text>
+              <Heading style={emailStyles.h1}>{event}</Heading>
+              <Text style={row}>
+                <strong>Who:</strong> {memberName ? `${memberName} ` : ""}
+                &lt;{memberEmail}&gt;
+              </Text>
+              <Text style={row}>
+                <strong>When:</strong> {when}
+              </Text>
+            </Section>
+          </Section>
         </Container>
       </Body>
     </Html>
@@ -71,25 +80,9 @@ export const template = {
   },
 } satisfies TemplateEntry;
 
-const main = { backgroundColor: "#ffffff", fontFamily: "Arial, sans-serif" };
-const container = { padding: "32px 28px 40px", maxWidth: "560px" };
-const eyebrow = {
-  fontSize: "10px",
-  letterSpacing: "0.22em",
-  color: "#7a7a7a",
-  margin: "0 0 12px",
-  fontWeight: 600 as const,
-};
-const h1 = {
-  fontSize: "22px",
-  fontWeight: 700 as const,
-  color: "#111111",
-  margin: "0 0 18px",
-  lineHeight: 1.25,
-};
 const row = {
   fontSize: "14px",
-  color: "#222222",
+  color: "#1C1A17",
   margin: "0 0 10px",
   lineHeight: 1.55,
 };

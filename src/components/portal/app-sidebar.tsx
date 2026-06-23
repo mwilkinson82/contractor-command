@@ -320,7 +320,7 @@ export function AppSidebar() {
       >
         <div className="flex h-14 items-center gap-2 border-b border-border/70 px-3">
           <Link to="/" className="flex items-center gap-2 overflow-hidden">
-            <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-md bg-ink text-cream font-display text-[13px]">
+            <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-ink text-cream font-display text-[13px] shadow-[inset_0_0_0_1px_rgba(248,244,237,0.12)]">
               {logoUrl ? (
                 <img src={logoUrl} alt={brandName} className="h-full w-full object-cover object-center" />
               ) : (
@@ -330,7 +330,7 @@ export function AppSidebar() {
             {!collapsed && (
               <span className="flex flex-col leading-tight">
                 <span className="truncate font-display text-[13px] tracking-tight" title={brandName}>{brandName}</span>
-                <span className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Command Center</span>
+                <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Command Center</span>
               </span>
             )}
           </Link>
@@ -342,7 +342,10 @@ export function AppSidebar() {
             return (
             <div key={g.label} className="mb-4">
               {!collapsed && (
-                <p className="px-2 pb-1.5 text-[10px] uppercase tracking-[0.22em] font-semibold" style={{ color: isTease ? "color-mix(in oklab, var(--foreground) 35%, transparent)" : "color-mix(in oklab, var(--signal) 75%, transparent)" }}>
+                <p
+                  className={isTease ? "eyebrow px-2 pb-1.5" : "eyebrow-signal px-2 pb-1.5"}
+                  style={isTease ? { color: "color-mix(in oklab, var(--foreground) 35%, transparent)" } : undefined}
+                >
                   {g.label}
                 </p>
               )}

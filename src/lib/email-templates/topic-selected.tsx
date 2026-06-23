@@ -2,6 +2,7 @@ import React from "react";
 import {
   Body, Container, Head, Heading, Hr, Html, Preview, Text,
 } from "@react-email/components";
+import { emailBrand } from "./_brand";
 import type { TemplateEntry } from "./registry";
 
 interface TopicSelectedProps {
@@ -63,11 +64,17 @@ export const template = {
   },
 } satisfies TemplateEntry;
 
-const main = { backgroundColor: "#ffffff", fontFamily: "Georgia, 'Times New Roman', serif" };
-const container = { padding: "32px 28px", maxWidth: "560px" };
-const eyebrow = { fontSize: "10px", letterSpacing: "0.22em", color: "#E4573D", margin: "0 0 10px", fontWeight: 700 as const, fontFamily: "Arial, sans-serif" };
-const h1 = { fontSize: "26px", color: "#111", margin: "0 0 16px", lineHeight: 1.2 };
-const body = { fontSize: "15px", color: "#222", margin: "0 0 14px", lineHeight: 1.6 };
-const link = { color: "#111", textDecoration: "underline" };
-const hr = { borderColor: "#e6e3dc", margin: "22px 0" };
-const footer = { fontSize: "12px", color: "#888", margin: 0, fontFamily: "Arial, sans-serif" };
+const main = { backgroundColor: emailBrand.cream, fontFamily: emailBrand.sans, padding: "32px 0" };
+const container = {
+  backgroundColor: emailBrand.workSurface,
+  border: `1px solid ${emailBrand.paperEdge}`,
+  borderRadius: "12px",
+  maxWidth: "560px",
+  padding: "32px 28px",
+};
+const eyebrow = { fontSize: "11px", letterSpacing: "0.18em", color: emailBrand.signal, margin: "0 0 10px", fontWeight: 700 as const, fontFamily: emailBrand.sans, textTransform: "uppercase" as const };
+const h1 = { fontSize: "26px", color: emailBrand.ink, margin: "0 0 16px", lineHeight: 1.2, fontWeight: 650 as const };
+const body = { fontSize: "15px", color: emailBrand.ink, margin: "0 0 14px", lineHeight: 1.6 };
+const link = { color: emailBrand.signal, textDecoration: "underline" };
+const hr = { borderColor: emailBrand.paperEdge, margin: "22px 0" };
+const footer = { fontSize: "12px", color: emailBrand.muted, margin: 0, fontFamily: emailBrand.sans };

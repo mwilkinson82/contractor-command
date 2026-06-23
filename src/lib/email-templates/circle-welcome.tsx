@@ -2,6 +2,7 @@ import * as React from 'react'
 import {
   Body, Button, Container, Head, Heading, Html, Link, Preview, Section, Text,
 } from '@react-email/components'
+import { emailBrand } from './_brand'
 import type { TemplateEntry } from './registry'
 import { DISCORD_URL } from '../program'
 
@@ -30,12 +31,7 @@ const CircleWelcomeEmail = ({
   const name = firstName?.trim()
   return (
     <Html lang="en" dir="ltr">
-      <Head>
-        <style>{`
-          @font-face { font-family:'Instrument Serif'; font-style:normal; font-weight:400; font-display:swap; src:url(https://fonts.gstatic.com/s/instrumentserif/v5/jizBRFtNs2ka5fXjeivQ4LroWlx-2zI.ttf) format('truetype'); }
-          @font-face { font-family:'JetBrains Mono'; font-style:normal; font-weight:500; font-display:swap; src:url(https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbY2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8-qxjPQ.ttf) format('truetype'); }
-        `}</style>
-      </Head>
+      <Head />
       <Preview>Welcome to {siteName}. Here's how to step in.</Preview>
       <Body style={main}>
         <Container style={container}>
@@ -112,13 +108,13 @@ export const template = {
   },
 } satisfies TemplateEntry
 
-const sansFamily = '"Helvetica Neue", Helvetica, Arial, sans-serif'
-const serifFamily = '"Instrument Serif", Georgia, serif'
-const monoFamily = '"JetBrains Mono", "SFMono-Regular", Menlo, monospace'
-const INK = '#1A1918', INK_SOFT = '#3a3937', MUTED = '#8E8B82'
-const PAPER = '#F4F3EF', HAIRLINE = '#E2DED6', SIGNAL = '#E4573D'
+const sansFamily = emailBrand.sans
+const serifFamily = emailBrand.sans
+const monoFamily = emailBrand.mono
+const INK = emailBrand.ink, INK_SOFT = emailBrand.inkPanel, MUTED = emailBrand.muted
+const PAPER = emailBrand.workSurface, HAIRLINE = emailBrand.paperEdge, SIGNAL = emailBrand.signal
 
-const main = { backgroundColor: '#ffffff', fontFamily: sansFamily, margin: 0, padding: '32px 0' }
+const main = { backgroundColor: emailBrand.cream, fontFamily: sansFamily, margin: 0, padding: '32px 0' }
 const container = { maxWidth: '560px', margin: '0 auto', padding: '0 16px' }
 const topRule = { height: '2px', background: SIGNAL, width: '100%', marginBottom: '24px' }
 const card = { backgroundColor: PAPER, border: `1px solid ${HAIRLINE}`, borderRadius: '20px', padding: '40px 36px' }
