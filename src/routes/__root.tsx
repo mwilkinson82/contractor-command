@@ -288,6 +288,24 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
   const isPublic = PUBLIC_ROUTES.has(pathname);
   const isOnboarding = pathname === ONBOARDING_ROUTE;
 
+  // Stale / expired magic links generated before we routed to /auth/callback
+  // land back at "/" with an error hash like
+  // "#error=access_denied&error_code=otp_expired". Without intervention the
+  // app shell just shows "Loading workspace…" forever because there is no
+  // session and the user never sees the error. Forward those hits to the
+  // callback page, which shows a friendly "Link expired" screen with a
+  // resend CTA.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (pathname === "/auth/callback") return;
+    const hash = window.location.hash.replace(/^#/, "");
+    if (!hash) return;
+    const params = new URLSearchParams(hash);
+    if (params.get("error") || params.get("error_code")) {
+      navigate({ to: "/auth/callback", replace: true });
+    }
+  }, [pathname, navigate]);
+
   // Invalidate router caches + sync vault when auth changes
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
