@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
 
 async function assertAdmin(userId: string) {
   const { data: roles } = await supabaseAdmin
@@ -342,15 +343,26 @@ export const adminGenerateMagicLink = createServerFn({ method: "POST" })
   .inputValidator((d: { email: string; redirectTo?: string }) => d)
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
+    const fallbackOrigin = "https://app.alpcontractorcircle.com";
+    const origin = (() => {
+      try {
+        return new URL(data.redirectTo ?? fallbackOrigin).origin;
+      } catch {
+        return fallbackOrigin;
+      }
+    })();
     const { data: link, error } = await supabaseAdmin.auth.admin.generateLink({
       type: "magiclink",
       email: data.email,
-      options: { redirectTo: data.redirectTo ?? "https://app.alpcontractorcircle.com/auth/callback" },
+      options: { redirectTo: `${origin}/auth/callback` },
     });
     if (error) throw new Error(error.message);
+    const tokenHash = link.properties?.hashed_token;
     return {
-      actionLink: link.properties?.action_link,
-      hashedToken: link.properties?.hashed_token,
+      actionLink: tokenHash
+        ? buildTokenHashAuthUrl({ origin, tokenHash, type: "magiclink" })
+        : undefined,
+      hashedToken: tokenHash,
       emailOtp: link.properties?.email_otp,
     };
   });
