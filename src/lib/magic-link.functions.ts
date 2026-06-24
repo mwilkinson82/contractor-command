@@ -5,22 +5,16 @@
 // function owns the flow end-to-end: confirm/create the auth user for a live
 // member, mint the one-time link, and send the branded login email directly.
 
-import * as React from "react";
-import { render } from "@react-email/components";
-import { sendLovableEmail } from "@lovable.dev/email-js";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { TEMPLATES } from "@/lib/email-templates/registry";
 import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
+import { sendLoginNudgeNow } from "@/lib/email/send-login-nudge-now";
 
 const Input = z.object({
   email: z.string().trim().toLowerCase().email().max(255),
 });
 
-const SITE_NAME = "Contractor Circle";
-const SENDER_DOMAIN = "notify.mail.alpcontractorcircle.com";
-const FROM_DOMAIN = "notify.mail.alpcontractorcircle.com";
 const TEMPLATE_NAME = "magic-link";
 const RECENT_SEND_WINDOW_MS = 60 * 1000;
 const HOURLY_SEND_WINDOW_MS = 60 * 60 * 1000;
@@ -38,14 +32,6 @@ function redactEmail(email: string): string {
   const [localPart, domain] = email.split("@");
   if (!localPart || !domain) return "***";
   return `${localPart[0]}***@${domain}`;
-}
-
-function generateToken(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
 }
 
 async function findAuthUserByEmail(email: string) {
@@ -137,182 +123,6 @@ async function getLoginEmailThrottle(
   return "ok";
 }
 
-async function ensureUnsubscribeToken(emailLower: string): Promise<string | null> {
-  const { data: existing } = await supabaseAdmin
-    .from("email_unsubscribe_tokens")
-    .select("token,used_at")
-    .eq("email", emailLower)
-    .maybeSingle();
-
-  if (existing && !existing.used_at) return existing.token;
-  if (existing && existing.used_at) return null;
-
-  const newToken = generateToken();
-  await supabaseAdmin
-    .from("email_unsubscribe_tokens")
-    .upsert(
-      { token: newToken, email: emailLower },
-      { onConflict: "email", ignoreDuplicates: true },
-    );
-
-  const { data: stored } = await supabaseAdmin
-    .from("email_unsubscribe_tokens")
-    .select("token")
-    .eq("email", emailLower)
-    .maybeSingle();
-
-  return stored?.token ?? null;
-}
-
-async function sendLoginNudgeNow({
-  email,
-  firstName,
-  confirmationUrl,
-  idempotencyKey,
-}: {
-  email: string;
-  firstName: string | null;
-  confirmationUrl: string;
-  idempotencyKey: string;
-}): Promise<"sent" | "suppressed" | "failed"> {
-  const apiKey = process.env.LOVABLE_API_KEY;
-  const emailLower = email.toLowerCase();
-  const messageId = crypto.randomUUID();
-
-  const { data: suppressed } = await supabaseAdmin
-    .from("suppressed_emails")
-    .select("email")
-    .eq("email", emailLower)
-    .maybeSingle();
-
-  if (suppressed) {
-    await supabaseAdmin.from("email_send_log").insert({
-      message_id: messageId,
-      template_name: TEMPLATE_NAME,
-      recipient_email: email,
-      status: "suppressed",
-      metadata: {
-        idempotency_key: idempotencyKey,
-        channel: "public_magic_link",
-        reason: "suppressed_email",
-        send_method: "direct_lovable",
-      },
-    });
-    return "suppressed";
-  }
-
-  const unsubscribeToken = await ensureUnsubscribeToken(emailLower);
-  if (!unsubscribeToken) {
-    await supabaseAdmin.from("email_send_log").insert({
-      message_id: messageId,
-      template_name: TEMPLATE_NAME,
-      recipient_email: email,
-      status: "suppressed",
-      error_message: "Unsubscribe token used",
-      metadata: {
-        idempotency_key: idempotencyKey,
-        channel: "public_magic_link",
-        reason: "unsubscribe_token_used",
-        send_method: "direct_lovable",
-      },
-    });
-    return "suppressed";
-  }
-
-  const entry = TEMPLATES[TEMPLATE_NAME];
-  if (!entry || !apiKey) {
-    await supabaseAdmin.from("email_send_log").insert({
-      message_id: messageId,
-      template_name: TEMPLATE_NAME,
-      recipient_email: email,
-      status: "failed",
-      error_message: !entry ? "Template not registered" : "LOVABLE_API_KEY missing",
-      metadata: {
-        idempotency_key: idempotencyKey,
-        channel: "public_magic_link",
-        reason: !entry ? "template_missing" : "lovable_api_key_missing",
-        send_method: "direct_lovable",
-      },
-    });
-    return "failed";
-  }
-
-  const props = {
-    firstName: firstName ?? undefined,
-    siteName: SITE_NAME,
-    siteUrl: appOrigin(),
-    confirmationUrl,
-  };
-  const element = React.createElement(entry.component, props);
-  const html = await render(element);
-  const plainText = await render(element, { plainText: true });
-  const subject = typeof entry.subject === "function" ? entry.subject(props) : entry.subject;
-
-  await supabaseAdmin.from("email_send_log").insert({
-    message_id: messageId,
-    template_name: TEMPLATE_NAME,
-    recipient_email: email,
-    status: "pending",
-    metadata: {
-      idempotency_key: idempotencyKey,
-      channel: "public_magic_link",
-      send_method: "direct_lovable",
-    },
-  });
-
-  try {
-    await sendLovableEmail(
-      {
-        to: email,
-        from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
-        sender_domain: SENDER_DOMAIN,
-        subject,
-        html,
-        text: plainText,
-        purpose: "transactional",
-        label: TEMPLATE_NAME,
-        idempotency_key: idempotencyKey,
-        unsubscribe_token: unsubscribeToken,
-        message_id: messageId,
-      },
-      { apiKey, sendUrl: process.env.LOVABLE_SEND_URL },
-    );
-
-    await supabaseAdmin.from("email_send_log").insert({
-      message_id: messageId,
-      template_name: TEMPLATE_NAME,
-      recipient_email: email,
-      status: "sent",
-      metadata: {
-        idempotency_key: idempotencyKey,
-        channel: "public_magic_link",
-        send_method: "direct_lovable",
-      },
-    });
-
-    return "sent";
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    await supabaseAdmin.from("email_send_log").insert({
-      message_id: messageId,
-      template_name: TEMPLATE_NAME,
-      recipient_email: email,
-      status: "failed",
-      error_message: errorMessage.slice(0, 1000),
-      metadata: {
-        idempotency_key: idempotencyKey,
-        channel: "public_magic_link",
-        send_method: "direct_lovable",
-      },
-    });
-    console.error("[magic-link] direct send failed", {
-      email: redactEmail(email),
-      error: errorMessage,
-    });
-    return "failed";
-  }
-}
-
 export type MagicLinkResult = {
   ok: true;
   // Always "sent" to unauthenticated callers. The actual action is logged
@@ -364,16 +174,19 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
               type: "magiclink",
             });
             const firstName = await resolveFirstName(email);
-            const sendStatus = await sendLoginNudgeNow({
+            const sendResult = await sendLoginNudgeNow({
+              supabaseAdmin,
               email,
               firstName,
               confirmationUrl,
               idempotencyKey: `public-signin-${email}-${Date.now()}`,
+              channel: "public_magic_link",
+              siteUrl: origin,
             });
             internalAction =
-              sendStatus === "sent"
+              sendResult.status === "sent"
                 ? "sent"
-                : sendStatus === "suppressed"
+                : sendResult.status === "suppressed"
                   ? "suppressed"
                   : "send_failed";
           }

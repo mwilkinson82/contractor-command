@@ -511,10 +511,9 @@ export const mintSignInLink = createServerFn({ method: "POST" })
     return { url, email: data.email, type: data.type };
   });
 
-// Admin-only: mint a magic-link AND send it through our branded transactional
-// pipeline (same one that delivers welcome emails — usually lands when the
-// raw Supabase Auth email gets quarantined). Subject is friendly ("Your seat
-// is waiting"), not "Sign in" / "Reset password", so spam filters are kinder.
+// Admin-only: mint a magic-link AND send it immediately through our branded
+// transactional sender. Support login emails cannot sit in a queue behind old
+// announcements or require a manual queue drain while a member is waiting.
 export const emailSignInLink = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) =>
@@ -556,16 +555,22 @@ export const emailSignInLink = createServerFn({ method: "POST" })
       if (full) firstName = full.split(/\s+/)[0];
     }
 
-    // 3. Send via the branded transactional pipeline.
-    const { enqueueLoginNudge } = await import("@/lib/email/enqueue-login-nudge");
-    const result = await enqueueLoginNudge({
+    // 3. Send immediately via the branded transactional sender.
+    const { sendLoginNudgeNow } = await import("@/lib/email/send-login-nudge-now");
+    const result = await sendLoginNudgeNow({
       supabaseAdmin,
       email: data.email,
       firstName: firstName ?? null,
       confirmationUrl,
       idempotencyKey: `admin-signin-${data.email}-${Date.now()}`,
+      channel: "admin_people_signin",
+      siteUrl: originRoot(),
     });
 
-    return { ok: true, email: data.email, status: result.status };
+    return {
+      ok: result.status === "sent",
+      email: data.email,
+      status: result.status,
+      reason: "reason" in result ? result.reason : null,
+    };
   });
-

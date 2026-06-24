@@ -38,12 +38,14 @@ function tokenHashOtpType(value: string | null): TokenHashOtpType {
 
 function AuthCallbackPage() {
   const { redirect } = Route.useSearch();
-  const [phase, setPhase] = useState<"checking" | "expired">("checking");
+  const [phase, setPhase] = useState<"checking" | "signed-in" | "expired">("checking");
+  const [continueTo, setContinueTo] = useState(redirect ?? "/");
 
   useEffect(() => {
     let cancelled = false;
     let settled = false;
     let deadlineId: number | undefined;
+    let navigationId: number | undefined;
 
     const hashParams = () =>
       typeof window === "undefined"
@@ -65,6 +67,10 @@ function AuthCallbackPage() {
       if (deadlineId) window.clearTimeout(deadlineId);
     };
 
+    const clearNavigation = () => {
+      if (navigationId) window.clearTimeout(navigationId);
+    };
+
     const clearAuthFragment = () => {
       if (typeof window === "undefined" || !window.location.hash) return;
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
@@ -74,6 +80,7 @@ function AuthCallbackPage() {
       if (cancelled || settled) return;
       settled = true;
       clearDeadline();
+      clearNavigation();
       clearAuthFragment();
       setPhase("expired");
     };
@@ -83,10 +90,14 @@ function AuthCallbackPage() {
       settled = true;
       clearDeadline();
       clearAuthFragment();
+      setContinueTo(destination);
+      setPhase("signed-in");
       // Hard navigation: auth gate, company/tier loaders, and presence all key
       // off the refreshed session. A full reload at the destination guarantees
       // a clean mount with the new session.
-      window.location.replace(destination);
+      navigationId = window.setTimeout(() => {
+        window.location.replace(destination);
+      }, 100);
     };
 
     deadlineId = window.setTimeout(finishExpired, CALLBACK_TIMEOUT_MS);
@@ -96,6 +107,7 @@ function AuthCallbackPage() {
       return () => {
         cancelled = true;
         clearDeadline();
+        clearNavigation();
       };
     }
 
@@ -191,6 +203,7 @@ function AuthCallbackPage() {
     return () => {
       cancelled = true;
       clearDeadline();
+      clearNavigation();
       sub.subscription.unsubscribe();
     };
   }, [redirect]);
@@ -207,6 +220,19 @@ function AuthCallbackPage() {
         >
           Send a fresh sign-in link
         </Link>
+      </AuthCard>
+    );
+  }
+
+  if (phase === "signed-in") {
+    return (
+      <AuthCard title="You're signed in." subtitle="Opening your workspace…">
+        <a
+          href={continueTo}
+          className="inline-flex w-full items-center justify-center rounded-full bg-ink px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-cream transition-opacity hover:opacity-90"
+        >
+          Continue to workspace
+        </a>
       </AuthCard>
     );
   }

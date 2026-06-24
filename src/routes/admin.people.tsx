@@ -417,10 +417,20 @@ function MintLinkButton({ email }: { email: string }) {
   async function emailLink() {
     setBusy("email");
     try {
-      await emailFn({ data: { email } });
-      toast.success("Sign-in email sent", {
-        description: `Branded magic link emailed to ${email}.`,
-      });
+      const res = await emailFn({ data: { email } });
+      if (res.status === "sent") {
+        toast.success("Sign-in email sent now", {
+          description: `Branded magic link delivered to ${email}.`,
+        });
+      } else if (res.status === "suppressed") {
+        toast.warning("Sign-in email was not sent", {
+          description: `${email} is suppressed or unsubscribed. Copy the one-time link instead.`,
+        });
+      } else {
+        toast.error("Couldn't send email", {
+          description: res.reason ?? "The email provider did not accept the message.",
+        });
+      }
     } catch (e: any) {
       toast.error("Couldn't send email", { description: e?.message ?? "Unknown error" });
     } finally {
@@ -444,7 +454,7 @@ function MintLinkButton({ email }: { email: string }) {
           type="button"
           disabled={busy !== null}
           onClick={emailLink}
-          title="Email a branded one-tap sign-in link (uses our delivery pipeline that lands)"
+          title="Send a branded one-tap sign-in link immediately"
           className="inline-flex items-center gap-1.5 rounded-md border border-foreground bg-foreground px-2.5 py-1.5 text-[11px] font-medium text-background hover:opacity-90 disabled:opacity-50"
         >
           {busy === "email" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Mail className="h-3 w-3" />}
@@ -499,10 +509,20 @@ function MintByEmail() {
     if (!target) return;
     setBusy("email");
     try {
-      await emailFn({ data: { email: target } });
-      toast.success("Sign-in email sent", {
-        description: `Branded magic link emailed to ${target}.`,
-      });
+      const res = await emailFn({ data: { email: target } });
+      if (res.status === "sent") {
+        toast.success("Sign-in email sent now", {
+          description: `Branded magic link delivered to ${target}.`,
+        });
+      } else if (res.status === "suppressed") {
+        toast.warning("Sign-in email was not sent", {
+          description: `${target} is suppressed or unsubscribed. Copy the one-time link instead.`,
+        });
+      } else {
+        toast.error("Couldn't send email", {
+          description: res.reason ?? "The email provider did not accept the message.",
+        });
+      }
     } catch (err: any) {
       toast.error("Couldn't send email", { description: err?.message ?? "Unknown error" });
     } finally {
@@ -557,4 +577,3 @@ function MintByEmail() {
     </form>
   );
 }
-
