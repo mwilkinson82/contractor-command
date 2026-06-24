@@ -382,7 +382,7 @@ async function ensureMagicLinkForMember(
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: "magiclink",
       email,
-      options: { redirectTo: `${origin}/` },
+      options: { redirectTo: `${origin}/auth/callback` },
     });
     if (error) throw error;
     return data?.properties?.action_link ?? null;

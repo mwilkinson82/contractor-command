@@ -36,6 +36,26 @@ const PUBLIC_ROUTES = new Set([
 ]);
 const ONBOARDING_ROUTE = "/onboarding";
 
+// Run before the app shell mounts. Auth links can arrive at "/" with tokens in
+// the hash; if the auth gate mounts first, it may send the user to /login and
+// preserve the tokens as inert redirect text. Move those hits to the callback
+// route immediately so the tokens are consumed as a session.
+if (typeof window !== "undefined" && window.location.pathname !== "/auth/callback") {
+  const authHash = window.location.hash.replace(/^#/, "");
+  if (authHash) {
+    const authParams = new URLSearchParams(authHash);
+    if (
+      authParams.get("access_token") ||
+      authParams.get("refresh_token") ||
+      authParams.get("error") ||
+      authParams.get("error_code")
+    ) {
+      const target = authParams.get("type") === "recovery" ? "/reset-password" : "/auth/callback";
+      window.location.replace(`${target}#${authHash}`);
+    }
+  }
+}
+
 // Tier gates per route prefix. Anything not listed is open to every signed-in
 // user. Tiers ranked in src/hooks/use-tier.ts. Hardcore recorded classes are
 // not housed in this hub; /hardcore is only an explanatory notice for bad links.
@@ -277,34 +297,55 @@ function useGlobalReveal() {
   }, [pathname]);
 }
 
+function getAuthHashTarget(pathname: string): { path: "/auth/callback" | "/reset-password"; hash: string } | null {
+  if (typeof window === "undefined") return null;
+  if (pathname === "/auth/callback" || pathname === "/reset-password") return null;
+  const hash = window.location.hash.replace(/^#/, "");
+  if (!hash) return null;
+  const params = new URLSearchParams(hash);
+  const hasAuthHash = params.get("access_token") ||
+    params.get("refresh_token") ||
+    params.get("error") ||
+    params.get("error_code");
+  if (!hasAuthHash) return null;
+  return { path: params.get("type") === "recovery" ? "/reset-password" : "/auth/callback", hash };
+}
+
+function LoadingWorkspace() {
+  return (
+    <div className="grid min-h-screen place-items-center bg-background">
+      <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+        Loading workspace…
+      </p>
+    </div>
+  );
+}
+
 function AuthGate({ children }: { children: (showShell: boolean) => React.ReactNode }) {
   const { session, loading } = useAuth();
   const { needsOnboarding, loading: companyLoading } = useCompany();
   const { tier, loading: tierLoading } = useTier();
   const isAdmin = useIsAdmin();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const authHashTarget = getAuthHashTarget(pathname);
   const navigate = useNavigate();
   const router = useRouter();
   const isPublic = PUBLIC_ROUTES.has(pathname);
   const isOnboarding = pathname === ONBOARDING_ROUTE;
 
-  // Stale / expired magic links generated before we routed to /auth/callback
-  // land back at "/" with an error hash like
-  // "#error=access_denied&error_code=otp_expired". Without intervention the
-  // app shell just shows "Loading workspace…" forever because there is no
-  // session and the user never sees the error. Forward those hits to the
-  // callback page, which shows a friendly "Link expired" screen with a
-  // resend CTA.
+  // Some auth emails still land back at "/" with Supabase tokens in the URL
+  // hash ("#access_token=...&refresh_token=...") or with an expired-link
+  // error hash. The protected app shell cannot consume those reliably, so it
+  // can strand the user on "Loading workspace…". Forward any auth hash to the
+  // dedicated callback page, which can set the session or show the expired
+  // link state.
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (pathname === "/auth/callback") return;
-    const hash = window.location.hash.replace(/^#/, "");
-    if (!hash) return;
-    const params = new URLSearchParams(hash);
-    if (params.get("error") || params.get("error_code")) {
-      window.location.replace(`/auth/callback#${hash}`);
+    if (authHashTarget) {
+      window.location.replace(`${authHashTarget.path}#${authHashTarget.hash}`);
     }
-  }, [pathname, navigate]);
+  }, [pathname, authHashTarget]);
 
   // Invalidate router caches + sync vault when auth changes
   useEffect(() => {
@@ -356,6 +397,7 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
 
   useEffect(() => {
     if (loading) return;
+    if (authHashTarget) return;
     if (!session && !isPublic) {
       const redirectTo =
         typeof window === "undefined"
@@ -389,19 +431,16 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
     tier,
     isAdmin,
     pathname,
+    authHashTarget,
     navigate,
   ]);
+
+  if (authHashTarget) return <LoadingWorkspace />;
 
   if (isPublic) return <>{children(false)}</>;
 
   if (loading) {
-    return (
-      <div className="grid min-h-screen place-items-center bg-background">
-        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-          Loading workspace…
-        </p>
-      </div>
-    );
+    return <LoadingWorkspace />;
   }
 
   if (!session) return null;
