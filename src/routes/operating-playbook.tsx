@@ -715,7 +715,7 @@ function ClientRolloutPath({ onStartMap }: { onStartMap: () => void }) {
             return (
               <Link
                 key={step.label}
-                to={step.to as "/"}
+                to={("to" in step ? step.to : "/") as "/"}
                 search={("search" in step ? step.search : undefined) as never}
                 hash={"hash" in step ? step.hash : undefined}
                 className="text-left"
