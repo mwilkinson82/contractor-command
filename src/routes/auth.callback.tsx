@@ -42,9 +42,7 @@ function AuthCallbackPage() {
       if (cancelled) return;
       if (data.session) {
         navigate({ to: redirect ?? "/", replace: true });
-        return;
       }
-      setPhase("expired");
     };
 
     const timeout = window.setTimeout(() => {
