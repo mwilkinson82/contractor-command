@@ -19,6 +19,24 @@ const RECENT_WINDOW = 6; // last N messages always sent verbatim
 const SUMMARIZE_THRESHOLD = 12; // total msgs before summarization kicks in
 const RESUMMARIZE_EVERY = 6; // re-summarize every N new older messages
 
+const ASK_CONTEXT_SOURCES = [
+  "COS Navigator",
+  "Owner Dependency Scorecard",
+  "Growth Constraint Map",
+  "SOP Priority Builder",
+  "Contract Readiness Scan",
+  "Estimate Throughput Tracker",
+  "Margin Leak Finder",
+];
+
+type VaultContextRow = {
+  source: string;
+  title: string;
+  status: string;
+  created_at: string;
+  payload: Record<string, unknown> | null;
+};
+
 async function getUserId(request: Request): Promise<string | null> {
   const auth = request.headers.get("authorization");
   if (!auth) return null;
@@ -36,6 +54,94 @@ function extractText(message: UIMessage): string {
     .map((p) => (p.type === "text" ? p.text : ""))
     .join("")
     .trim();
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function compactString(value: unknown, max = 260): string | null {
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  if (!text) return null;
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+function formatDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toISOString().slice(0, 10);
+}
+
+function formatInputs(inputs: unknown): string | null {
+  const record = asRecord(inputs);
+  const priority = [
+    "totalScore",
+    "capacityGap",
+    "revenueGoal",
+    "aosScore",
+    "economicsScore",
+    "iorScore",
+    "deliveryScore",
+    "executionScore",
+  ];
+  const parts = priority.flatMap((key) => {
+    const value = record[key];
+    if (typeof value !== "number" && typeof value !== "string") return [];
+    return `${key}: ${value}`;
+  });
+  return parts.length ? parts.join(", ") : null;
+}
+
+function formatVaultContextPacket(row: VaultContextRow): string {
+  const payload = asRecord(row.payload);
+  const lines = [
+    `- ${row.source}: ${row.title} (${row.status}, ${formatDate(row.created_at)})`,
+  ];
+  const fields: Array<[string, string]> = [
+    ["primaryFinding", "finding"],
+    ["primaryConstraint", "constraint"],
+    ["financialConsequence", "financial consequence"],
+    ["missingSystem", "missing system"],
+    ["recommendedAction", "recommended action"],
+    ["bringOneIssuePrompt", "one issue prompt"],
+  ];
+  for (const [key, label] of fields) {
+    const value = compactString(payload[key]);
+    if (value) lines.push(`  - ${label}: ${value}`);
+  }
+  const inputs = formatInputs(payload.inputs);
+  if (inputs) lines.push(`  - inputs: ${inputs}`);
+  return lines.join("\n");
+}
+
+async function loadOperatingContext(userId: string): Promise<string | null> {
+  const { data, error } = await supabaseAdmin
+    .from("vault_packets")
+    .select("source,title,status,created_at,payload")
+    .eq("user_id", userId)
+    .eq("kind", "command")
+    .neq("status", "Archived")
+    .in("source", ASK_CONTEXT_SOURCES)
+    .order("created_at", { ascending: false })
+    .limit(6);
+
+  if (error) {
+    console.error("[ask] vault context failed", error);
+    return null;
+  }
+
+  const rows = (data ?? []) as VaultContextRow[];
+  if (!rows.length) return null;
+
+  return [
+    "Current member operating context from their Vault.",
+    "Use this as prior diagnosis and routing context, not as unquestionable truth. If the member contradicts it or it seems stale, ask one sharp question before prescribing.",
+    "",
+    rows.map(formatVaultContextPacket).join("\n"),
+  ].join("\n");
 }
 
 export const Route = createFileRoute("/api/ask")({
@@ -168,6 +274,13 @@ export const Route = createFileRoute("/api/ask")({
           modelMessages.push({
             role: m.role as "user" | "assistant",
             content: m.content,
+          });
+        }
+        const operatingContext = await loadOperatingContext(userId);
+        if (operatingContext) {
+          modelMessages.unshift({
+            role: "system",
+            content: operatingContext,
           });
         }
 

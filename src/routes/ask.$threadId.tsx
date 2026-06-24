@@ -16,6 +16,7 @@ import { createIntensiveCheckout } from "@/lib/billing.functions";
 import { ArrowUp, Plus, Trash2, MessageCircle, Check, Sparkles, Megaphone, Copy, BookOpen, Brain, Wand2, CheckCircle2, Loader2, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { VaultContextNote } from "@/components/portal/vault-context-note";
 
 export const Route = createFileRoute("/ask/$threadId")({
   head: () => ({
@@ -208,7 +209,8 @@ function ChatPane({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center justify-end gap-2 border-b border-border/70 bg-background/60 px-4 py-2 backdrop-blur-sm sm:px-8">
+      <div className="flex items-center justify-between gap-3 border-b border-border/70 bg-background/60 px-4 py-2 backdrop-blur-sm sm:px-8">
+        <VaultContextNote mode="ask" inline showActions={false} className="max-w-[520px] flex-1" />
         <IntensiveCheckoutButton threadId={threadId} />
       </div>
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-8 sm:px-8">
@@ -222,6 +224,9 @@ function ChatPane({
               <p className="mt-1 text-[13px] text-muted-foreground">
                 Bring one issue. I'll give you the read and a next move.
               </p>
+              <div className="mx-auto mt-5 max-w-[520px] text-left">
+                <VaultContextNote mode="ask" compact />
+              </div>
               <p
                 className="mx-auto mt-5 max-w-[460px] text-[12px] leading-relaxed text-foreground/85"
                 style={{
@@ -455,7 +460,8 @@ function ProcessingSteps({
 
   const steps = [
     { icon: BookOpen, label: "Reading your message", detail: preview || "Parsing the question" },
-    { icon: Brain, label: "Pulling from playbooks", detail: "SOPs, field notes, $2.5B in lessons" },
+    { icon: Brain, label: "Checking Vault context", detail: "Saved tool packets and COS Navigator results" },
+    { icon: BookOpen, label: "Pulling from playbooks", detail: "SOPs, field notes, $2.5B in lessons" },
     { icon: Wand2, label: "Composing the read", detail: "Marshall's voice, your situation" },
   ];
 

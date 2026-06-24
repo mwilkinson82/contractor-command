@@ -1,12 +1,7 @@
 import { createFileRoute, Outlet, Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type ReactElement } from "react";
 import { Archive, ArrowUpRight, LayoutGrid, Lock } from "lucide-react";
-import {
-  COMMAND_TOOLS,
-  TOOL_GROUPS,
-  toolsByGroup,
-  type CommandTool,
-} from "@/lib/command-tools";
+import { COMMAND_TOOLS, type CommandTool } from "@/lib/command-tools";
 import { hasToolDrawer } from "@/components/portal/tool-drawer";
 import { useAppSidebar } from "@/components/portal/app-sidebar";
 import { EstimateThroughputTool } from "@/components/portal/tools/estimate-throughput-tool";
@@ -15,12 +10,8 @@ import { MarginLeakTool } from "@/components/portal/tools/margin-leak-tool";
 import { SopPriorityTool } from "@/components/portal/tools/sop-priority-tool";
 import { GrowthConstraintTool } from "@/routes/tools.growth-constraint";
 import { OwnerDependencyTool } from "@/routes/tools.owner-dependency";
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { CosNavigatorTool } from "@/routes/tools.cos-navigator";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ChevronUp, ChevronDown } from "lucide-react";
 
 export const Route = createFileRoute("/tools")({
@@ -31,30 +22,35 @@ export const Route = createFileRoute("/tools")({
 });
 
 const STAGE_TOOLS: Record<string, () => ReactElement> = {
+  "cos-navigator": () => <CosNavigatorTool embedded />,
   "sop-priority": () => <SopPriorityTool />,
   "contract-readiness": () => <ContractReadinessTool />,
+  "owner-dependency": () => <OwnerDependencyTool embedded />,
+  "growth-constraint": () => <GrowthConstraintTool embedded />,
   "estimate-throughput": () => <EstimateThroughputTool />,
   "margin-leak": () => <MarginLeakTool />,
-  "growth-constraint": () => <GrowthConstraintTool embedded />,
-  "owner-dependency": () => <OwnerDependencyTool embedded />,
 };
 
-
-const DEFAULT_TOOL = "sop-priority";
-const STORAGE_KEY = "alp.cc.workbench.last";
+const DEFAULT_TOOL = "cos-navigator";
+const STORAGE_KEY = "alp.cc.workbench.last.v2";
 
 function readLastTool(): string {
   if (typeof window === "undefined") return DEFAULT_TOOL;
   try {
     const v = window.localStorage.getItem(STORAGE_KEY);
     if (v && v in STAGE_TOOLS) return v;
-  } catch {}
+  } catch {
+    // Storage can be unavailable in private or restricted browser contexts.
+  }
   return DEFAULT_TOOL;
 }
 
 function ToolsLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const search = useRouterState({ select: (s) => s.location.search }) as unknown as Record<string, unknown>;
+  const search = useRouterState({ select: (s) => s.location.search }) as unknown as Record<
+    string,
+    unknown
+  >;
 
   // Child routes (/tools/growth-constraint, /tools/owner-dependency) render
   // their own page chrome — bypass the workbench.
@@ -62,26 +58,36 @@ function ToolsLayout() {
     return <Outlet />;
   }
 
-  return <Workbench searchTool={typeof search?.t === "string" ? (search.t as string) : undefined} />;
+  return (
+    <Workbench searchTool={typeof search?.t === "string" ? (search.t as string) : undefined} />
+  );
 }
 
 function Workbench({ searchTool }: { searchTool?: string }) {
   const { collapsed, toggle } = useAppSidebar();
   const navigate = useNavigate();
-  const [activeId, setActiveId] = useState<string>(DEFAULT_TOOL);
+  const requestedSearchTool = searchTool && searchTool in STAGE_TOOLS ? searchTool : undefined;
+  const [activeId, setActiveId] = useState<string>(() => requestedSearchTool ?? readLastTool());
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  // Hydrate from URL → localStorage → default on mount.
+  // Hydrate from URL → localStorage → default. The URL keeps winning so
+  // dashboard chips and deep links reliably load the intended tool.
   useEffect(() => {
-    const initial =
-      searchTool && searchTool in STAGE_TOOLS ? searchTool : readLastTool();
-    setActiveId(initial);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const next = requestedSearchTool ?? readLastTool();
+    setActiveId((current) => (current === next ? current : next));
+  }, [requestedSearchTool]);
 
   // Keep URL in sync with the active tool.
   useEffect(() => {
-    if (searchTool === activeId) return;
+    if (requestedSearchTool && requestedSearchTool !== activeId) return;
+    if (searchTool === activeId) {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, activeId);
+      } catch {
+        // Storage can be unavailable in private or restricted browser contexts.
+      }
+      return;
+    }
     navigate({
       to: "/tools",
       search: { t: activeId } as never,
@@ -89,7 +95,9 @@ function Workbench({ searchTool }: { searchTool?: string }) {
     });
     try {
       window.localStorage.setItem(STORAGE_KEY, activeId);
-    } catch {}
+    } catch {
+      // Storage can be unavailable in private or restricted browser contexts.
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
@@ -112,10 +120,7 @@ function Workbench({ searchTool }: { searchTool?: string }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const activeTool = useMemo(
-    () => COMMAND_TOOLS.find((t) => t.id === activeId),
-    [activeId],
-  );
+  const activeTool = useMemo(() => COMMAND_TOOLS.find((t) => t.id === activeId), [activeId]);
   const Render = STAGE_TOOLS[activeId];
 
   function pickTool(t: CommandTool) {
@@ -151,9 +156,7 @@ function Workbench({ searchTool }: { searchTool?: string }) {
           onOpenPicker={() => setPickerOpen(true)}
         />
       )}
-      <div className="flex-1">
-        {Render ? <Render /> : <StageFallback />}
-      </div>
+      <div className="flex-1">{Render ? <Render /> : <StageFallback />}</div>
 
       <SwitchToolDialog
         open={pickerOpen}
@@ -212,10 +215,7 @@ function WorkbenchHeader({
   onOpenPicker: () => void;
   onCollapse: () => void;
 }) {
-  const liveCount = useMemo(
-    () => COMMAND_TOOLS.filter((t) => t.status === "live").length,
-    [],
-  );
+  const liveCount = useMemo(() => COMMAND_TOOLS.filter((t) => t.status === "live").length, []);
   const [pulse, setPulse] = useState(false);
   useEffect(() => {
     try {
@@ -225,7 +225,9 @@ function WorkbenchHeader({
         const t = setTimeout(() => setPulse(false), 4800);
         return () => clearTimeout(t);
       }
-    } catch {}
+    } catch {
+      // Session storage is only used for a one-time visual pulse.
+    }
   }, []);
 
   return (
@@ -285,17 +287,8 @@ function WorkbenchHeader({
   );
 }
 
-function ToolRail({
-  activeId,
-  onPick,
-}: {
-  activeId: string;
-  onPick: (t: CommandTool) => void;
-}) {
-  const live = useMemo(
-    () => COMMAND_TOOLS.filter((t) => t.status === "live"),
-    [],
-  );
+function ToolRail({ activeId, onPick }: { activeId: string; onPick: (t: CommandTool) => void }) {
+  const live = useMemo(() => COMMAND_TOOLS.filter((t) => t.status === "live"), []);
   return (
     <div className="border-b border-border bg-card/40">
       <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-1.5 px-6 py-2.5">
@@ -327,19 +320,18 @@ function ToolRail({
   );
 }
 
-
 function StageFallback() {
   return (
     <div className="mx-auto flex max-w-[600px] flex-col items-center px-6 py-24 text-center">
       <p className="label-mono">Empty stage</p>
-      <h2
-        className="mt-3 font-display text-[24px]"
-        style={{ fontFamily: "var(--font-serif)" }}
-      >
+      <h2 className="mt-3 font-display text-[24px]" style={{ fontFamily: "var(--font-serif)" }}>
         Pick a tool to begin.
       </h2>
       <p className="mt-2 text-[13.5px] text-muted-foreground">
-        Press <kbd className="rounded border border-border bg-card px-1.5 py-0.5 font-mono text-[11px]">⌘K</kbd>{" "}
+        Press{" "}
+        <kbd className="rounded border border-border bg-card px-1.5 py-0.5 font-mono text-[11px]">
+          ⌘K
+        </kbd>{" "}
         or use the Switch tool button above.
       </p>
     </div>
@@ -373,72 +365,69 @@ function SwitchToolDialog({
             Every tool you've got.
           </h3>
           <p className="mt-1 text-[12.5px] text-muted-foreground">
-            One per problem. Live tools load straight into the workbench. Others have their own page.
+            One per problem. Live tools load straight into the workbench. Others have their own
+            page.
           </p>
         </div>
         <div className="max-h-[60vh] overflow-y-auto px-2 py-3">
-          {TOOL_GROUPS.map((group, idx) => {
-            const tools = toolsByGroup(group);
-            if (tools.length === 0) return null;
-            const num = String(idx + 1).padStart(2, "0");
-            return (
-              <div key={group} className="px-3 py-2">
-                <p className="px-1 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                  {num} · {group}
-                </p>
-                <ul className="mt-2 space-y-1">
-                  {tools.map((t) => {
-                    const isActive = t.id === activeId;
-                    const Icon = t.icon;
-                    const isStage = t.id in STAGE_TOOLS;
-                    const isRouted = !isStage && !!t.route;
-                    const usable = isStage || isRouted;
-                    return (
-                      <li key={t.id}>
-                        <button
-                          type="button"
-                          onClick={() => usable && onPick(t)}
-                          disabled={!usable}
-                          className={`group flex w-full items-center gap-3 rounded-md border px-3 py-2.5 text-left transition ${
-                            isActive
-                              ? "border-foreground/40 bg-muted"
-                              : usable
-                                ? "border-transparent hover:border-border hover:bg-muted/60"
-                                : "border-transparent opacity-50"
-                          }`}
-                        >
-                          <span className="grid h-8 w-8 place-items-center rounded-md bg-foreground/5 text-foreground/80">
-                            {t.status === "later" || (!usable && !hasToolDrawer(t.id)) ? (
-                              <Lock className="h-3.5 w-3.5" />
-                            ) : (
-                              <Icon className="h-3.5 w-3.5" />
-                            )}
+          <div className="px-3 py-2">
+            <p className="px-1 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+              Operating sequence
+            </p>
+            <ul className="mt-2 space-y-1">
+              {COMMAND_TOOLS.filter((t) => t.status === "live").map((t, idx) => {
+                const isActive = t.id === activeId;
+                const Icon = t.icon;
+                const isStage = t.id in STAGE_TOOLS;
+                const isRouted = !isStage && !!t.route;
+                const usable = isStage || isRouted;
+                return (
+                  <li key={t.id}>
+                    <button
+                      type="button"
+                      onClick={() => usable && onPick(t)}
+                      disabled={!usable}
+                      className={`group flex w-full items-center gap-3 rounded-md border px-3 py-2.5 text-left transition ${
+                        isActive
+                          ? "border-foreground/40 bg-muted"
+                          : usable
+                            ? "border-transparent hover:border-border hover:bg-muted/60"
+                            : "border-transparent opacity-50"
+                      }`}
+                    >
+                      <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-signal">
+                        {String(idx + 1).padStart(2, "0")}
+                      </span>
+                      <span className="grid h-8 w-8 place-items-center rounded-md bg-foreground/5 text-foreground/80">
+                        {!usable && !hasToolDrawer(t.id) ? (
+                          <Lock className="h-3.5 w-3.5" />
+                        ) : (
+                          <Icon className="h-3.5 w-3.5" />
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-2">
+                          <span className="truncate text-[13.5px] font-medium text-foreground">
+                            {t.name}
                           </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="flex items-center gap-2">
-                              <span className="truncate text-[13.5px] font-medium text-foreground">
-                                {t.name}
-                              </span>
-                              {isActive && (
-                                <span className="font-mono text-[9.5px] uppercase tracking-[0.2em] text-signal">
-                                  · loaded
-                                </span>
-                              )}
+                          {isActive && (
+                            <span className="font-mono text-[9.5px] uppercase tracking-[0.2em] text-signal">
+                              · loaded
                             </span>
-                            <span className="mt-0.5 line-clamp-1 block text-[12px] text-muted-foreground">
-                              {t.blurb}
-                            </span>
-                          </span>
-                          <StatusPill status={t.status} routed={isRouted} />
-                          <ArrowUpRight className="h-3.5 w-3.5 text-foreground/40 opacity-0 transition group-hover:opacity-100" />
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            );
-          })}
+                          )}
+                        </span>
+                        <span className="mt-0.5 line-clamp-1 block text-[12px] text-muted-foreground">
+                          {t.blurb}
+                        </span>
+                      </span>
+                      <StatusPill status={t.status} routed={isRouted} />
+                      <ArrowUpRight className="h-3.5 w-3.5 text-foreground/40 opacity-0 transition group-hover:opacity-100" />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

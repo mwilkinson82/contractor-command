@@ -9,6 +9,7 @@ import {
   TrendingUp,
   Activity,
   Calculator,
+  Compass,
   ScissorsLineDashed,
   Network,
   ListChecks,
@@ -38,7 +39,44 @@ export type CommandTool = {
 };
 
 export const COMMAND_TOOLS: CommandTool[] = [
-  // Make more money
+  {
+    id: "cos-navigator",
+    name: "COS Navigator",
+    blurb: "Diagnose the operating constraint and build the next 90-day roadmap.",
+    group: "Build the machine",
+    status: "live",
+    icon: Compass,
+    route: "/tools/cos-navigator",
+    vaultSource: "COS Navigator",
+  },
+  {
+    id: "sop-priority",
+    name: "SOP Priority Builder",
+    blurb: "Rank what to systemize first, or generate a department SOP backlog.",
+    group: "Build the machine",
+    status: "live",
+    icon: ListChecks,
+    vaultSource: "SOP Priority Builder",
+  },
+  {
+    id: "contract-readiness",
+    name: "Contract Readiness Scan",
+    blurb: "Pressure-test a contract for cash, schedule, scope, and margin gaps.",
+    group: "Deliver better projects",
+    status: "live",
+    icon: ShieldCheck,
+    vaultSource: "Contract Readiness Scan",
+  },
+  {
+    id: "owner-dependency",
+    name: "Owner Dependency Scorecard",
+    blurb: "Find where the business still depends on the owner.",
+    group: "Build the machine",
+    status: "live",
+    icon: Network,
+    route: "/tools/owner-dependency",
+    vaultSource: "Owner Dependency Scorecard",
+  },
   {
     id: "growth-constraint",
     name: "Growth Constraint Map",
@@ -59,16 +97,6 @@ export const COMMAND_TOOLS: CommandTool[] = [
     vaultSource: "Estimate Throughput Tracker",
   },
   {
-    id: "pipeline-leak",
-    name: "Pipeline Leak Finder",
-    blurb: "Find where leads die before they become contracts.",
-    group: "Make more money",
-    status: "later",
-    icon: Activity,
-  },
-
-  // Protect margin and cash
-  {
     id: "margin-leak",
     name: "Margin Leak Finder",
     blurb: "Find where gross margin disappears between estimate and closeout.",
@@ -77,37 +105,13 @@ export const COMMAND_TOOLS: CommandTool[] = [
     icon: ScissorsLineDashed,
     vaultSource: "Margin Leak Finder",
   },
-
-  // Build the machine
   {
-    id: "owner-dependency",
-    name: "Owner Dependency Scorecard",
-    blurb: "Find where the business still depends on the owner.",
-    group: "Build the machine",
-    status: "live",
-    icon: Network,
-    route: "/tools/owner-dependency",
-    vaultSource: "Owner Dependency Scorecard",
-  },
-  {
-    id: "sop-priority",
-    name: "SOP Priority Builder",
-    blurb: "Rank what to systemize first, or generate a department SOP backlog.",
-    group: "Build the machine",
-    status: "live",
-    icon: ListChecks,
-    vaultSource: "SOP Priority Builder",
-  },
-
-  // Deliver better projects
-  {
-    id: "contract-readiness",
-    name: "Contract Readiness Scan",
-    blurb: "Pressure-test a contract for cash, schedule, scope, and margin gaps.",
-    group: "Deliver better projects",
-    status: "live",
-    icon: ShieldCheck,
-    vaultSource: "Contract Readiness Scan",
+    id: "pipeline-leak",
+    name: "Pipeline Leak Finder",
+    blurb: "Find where leads die before they become contracts.",
+    group: "Make more money",
+    status: "later",
+    icon: Activity,
   },
 ];
 

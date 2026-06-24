@@ -43,7 +43,9 @@ export const createThread = createServerFn({ method: "POST" })
     z
       .object({
         title: z.string().min(1).max(120).optional(),
-        source: z.enum(["dashboard_hero", "ask_index", "ask_new"]).optional(),
+        source: z
+          .enum(["dashboard_hero", "ask_index", "ask_new", "operating_playbook"])
+          .optional(),
       })
       .parse,
   )

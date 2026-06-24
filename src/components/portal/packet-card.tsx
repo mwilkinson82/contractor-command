@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { sendTransactionalEmail } from "@/lib/email/send";
 import { supabase } from "@/integrations/supabase/client";
 import { downloadSopAsPdf, parseSopFromPacketInputs } from "@/lib/tools/sop-download";
+import { VaultContextNote } from "@/components/portal/vault-context-note";
 
 // All packet kinds share the same internal markers. These are NOTES the
 // operator sets for themselves — they do not notify Marshall or fire any
@@ -114,6 +115,10 @@ export function PacketCard({
           <Row label="Financial consequence" value={packet.financialConsequence} />
           <Row label="What a win looks like" value={packet.winLooksLike} span />
         </dl>
+      )}
+
+      {packet.kind === "command" && (
+        <VaultContextNote mode="packet" compact className="mt-5" />
       )}
 
       <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-border pt-5">

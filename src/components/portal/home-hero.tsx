@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowUp, ChevronDown } from "lucide-react";
+import { ArrowUp, ArrowUpRight, ChevronDown, Map, Route as RouteIcon } from "lucide-react";
 import { createThread } from "@/lib/ask.functions";
 import { GreetingIcon, type GreetingIconKey } from "@/components/portal/greeting-icon";
 
@@ -52,6 +52,42 @@ export function HomeHero({
 
   return (
     <section className="relative flex min-h-[calc(100vh-3.5rem)] flex-col justify-center px-4 sm:px-6 py-10 sm:py-14">
+      <div className="reveal-up mb-8 flex justify-end lg:absolute lg:right-8 lg:top-9 lg:mb-0 xl:right-12">
+        <div className="w-full max-w-[310px] rounded-2xl border border-border bg-card/88 p-3 shadow-[0_18px_45px_-28px_color-mix(in_oklab,var(--ink)_45%,transparent)] backdrop-blur">
+          <div className="flex items-start gap-3">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-ink text-cream">
+              <Map className="h-4 w-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-signal animate-signal-pulse" />
+                <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-signal">
+                  Client beta live
+                </p>
+              </div>
+              <p className="mt-1 text-[12.5px] leading-snug text-foreground/78">
+                Start the Contractor OS install path, then save the Navigator result to Vault.
+              </p>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Link
+              to="/operating-playbook"
+              className="inline-flex items-center justify-center gap-1.5 rounded-md bg-ink px-2.5 py-2 text-[11px] font-medium text-cream hover:opacity-90"
+            >
+              Start path <ArrowUpRight className="h-3 w-3" />
+            </Link>
+            <Link
+              to="/tools"
+              search={{ t: "cos-navigator" } as never}
+              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-2 text-[11px] font-medium text-foreground/78 hover:bg-muted"
+            >
+              Navigator <RouteIcon className="h-3 w-3" />
+            </Link>
+          </div>
+        </div>
+      </div>
+
       <div className="relative mx-auto w-full max-w-[820px]">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <p className="text-[12px] uppercase tracking-[0.18em] text-muted-foreground">

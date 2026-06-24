@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { vault, type Packet } from "@/lib/vault";
 import { PacketCard } from "@/components/portal/packet-card";
 import { Archive, Search, Wrench } from "lucide-react";
+import { VaultContextNote } from "@/components/portal/vault-context-note";
 
 export const Route = createFileRoute("/vault")({
   head: () => ({ meta: [{ title: "Company Vault — ALP Contractor Circle" }] }),
@@ -68,20 +69,7 @@ function VaultPage() {
         />
       </div>
 
-      {/* AOS signal slot (placeholder) */}
-      <div className="mt-3 rounded-xl border border-dashed border-border bg-card/40 px-5 py-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">AOS signal</p>
-            <p className="mt-1 text-[13px] text-foreground/75">
-              Live AOS metrics will surface here — scorecard drift, open issues, rocks at risk.
-            </p>
-          </div>
-          <span className="rounded-full bg-foreground/5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-            Wiring soon
-          </span>
-        </div>
-      </div>
+      <VaultContextNote mode="vault" className="mt-4" />
 
       {/* Filters */}
       <div className="mt-8 flex flex-wrap items-center gap-2">
