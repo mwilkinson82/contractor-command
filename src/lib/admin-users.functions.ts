@@ -345,7 +345,7 @@ export const adminGenerateMagicLink = createServerFn({ method: "POST" })
     const { data: link, error } = await supabaseAdmin.auth.admin.generateLink({
       type: "magiclink",
       email: data.email,
-      options: { redirectTo: data.redirectTo ?? "https://app.alpcontractorcircle.com/" },
+      options: { redirectTo: data.redirectTo ?? "https://app.alpcontractorcircle.com/auth/callback" },
     });
     if (error) throw new Error(error.message);
     return {

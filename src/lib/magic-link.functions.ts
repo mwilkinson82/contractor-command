@@ -346,7 +346,7 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
           const { data: link, error } = await supabaseAdmin.auth.admin.generateLink({
             type: "magiclink",
             email,
-            options: { redirectTo: `${origin}/` },
+            options: { redirectTo: `${origin}/auth/callback` },
           });
 
           const confirmationUrl = link?.properties?.action_link;
