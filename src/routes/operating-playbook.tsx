@@ -495,6 +495,7 @@ function OperatingPlaybookPage() {
   const [activeSectionId, setActiveSectionId] = useState(playbookSections[0].id);
   const activeSection =
     playbookSections.find((section) => section.id === activeSectionId) ?? playbookSections[0];
+  usePlaybookRevealFallback(ready);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setReady(true), 520);
@@ -518,7 +519,7 @@ function OperatingPlaybookPage() {
   if (!ready) return <ExperienceLoader />;
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div data-cos-playbook className="min-h-screen bg-background text-foreground">
       <Hero onStart={() => scrollToSection("client-rollout")} />
 
       <main className="mx-auto w-full max-w-[1520px] space-y-10 px-4 pb-24 pt-6 sm:px-6 lg:px-8">
@@ -538,6 +539,50 @@ function OperatingPlaybookPage() {
       </main>
     </div>
   );
+}
+
+function usePlaybookRevealFallback(ready: boolean) {
+  useEffect(() => {
+    if (!ready || typeof window === "undefined") return;
+
+    let raf = 0;
+    const timers = new Set<number>();
+
+    const revealVisible = () => {
+      const root = document.querySelector<HTMLElement>("[data-cos-playbook]");
+      if (!root) return;
+
+      root.querySelectorAll<HTMLElement>("[data-reveal]:not(.is-visible)").forEach((el) => {
+        const rect = el.getBoundingClientRect();
+        const nearViewport = rect.top < window.innerHeight * 1.15 && rect.bottom > -120;
+        if (nearViewport) el.classList.add("is-visible");
+      });
+    };
+
+    const scheduleReveal = () => {
+      if (raf) return;
+      raf = window.requestAnimationFrame(() => {
+        raf = 0;
+        revealVisible();
+      });
+    };
+
+    scheduleReveal();
+    [220, 700, 1400].forEach((delay) => {
+      const timer = window.setTimeout(revealVisible, delay);
+      timers.add(timer);
+    });
+
+    window.addEventListener("scroll", scheduleReveal, { passive: true });
+    window.addEventListener("resize", scheduleReveal);
+
+    return () => {
+      if (raf) window.cancelAnimationFrame(raf);
+      timers.forEach((timer) => window.clearTimeout(timer));
+      window.removeEventListener("scroll", scheduleReveal);
+      window.removeEventListener("resize", scheduleReveal);
+    };
+  }, [ready]);
 }
 
 function ExperienceLoader() {
