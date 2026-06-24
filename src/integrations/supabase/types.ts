@@ -217,7 +217,6 @@ export type Database = {
           company_id: string | null
           created_at: string
           id: string
-          source: string
           summary: string | null
           summary_message_count: number
           title: string
@@ -228,7 +227,6 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           id?: string
-          source?: string
           summary?: string | null
           summary_message_count?: number
           title?: string
@@ -239,7 +237,6 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           id?: string
-          source?: string
           summary?: string | null
           summary_message_count?: number
           title?: string
