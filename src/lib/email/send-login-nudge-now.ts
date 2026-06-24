@@ -6,8 +6,7 @@ import { TEMPLATES } from "@/lib/email-templates/registry";
 type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
 
 const SITE_NAME = "Contractor Circle";
-const SENDER_DOMAIN = "notify.mail.alpcontractorcircle.com";
-const FROM_DOMAIN = "notify.mail.alpcontractorcircle.com";
+const DEFAULT_SENDER_DOMAIN = "auth.lovable.cloud";
 const TEMPLATE_NAME = "magic-link";
 
 export type DirectLoginNudgeResult =
@@ -35,6 +34,19 @@ function generateToken(): string {
   return Array.from(bytes)
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
+}
+
+function loginEmailSender(): { from: string; senderDomain: string } {
+  const senderDomain = (
+    process.env.LOVABLE_EMAIL_SENDER_DOMAIN || DEFAULT_SENDER_DOMAIN
+  )
+    .trim()
+    .replace(/^@/, "");
+
+  return {
+    from: `${SITE_NAME} <no-reply@${senderDomain}>`,
+    senderDomain,
+  };
 }
 
 async function ensureUnsubscribeToken(
@@ -160,6 +172,7 @@ export async function sendLoginNudgeNow({
   const html = await render(element);
   const plainText = await render(element, { plainText: true });
   const subject = typeof entry.subject === "function" ? entry.subject(props) : entry.subject;
+  const sender = loginEmailSender();
 
   await supabaseAdmin.from("email_send_log").insert({
     message_id: messageId,
@@ -170,6 +183,7 @@ export async function sendLoginNudgeNow({
       idempotency_key: idempotencyKey,
       channel,
       send_method: "direct_lovable",
+      sender_domain: sender.senderDomain,
     },
   });
 
@@ -177,8 +191,8 @@ export async function sendLoginNudgeNow({
     await sendLovableEmail(
       {
         to: email,
-        from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
-        sender_domain: SENDER_DOMAIN,
+        from: sender.from,
+        sender_domain: sender.senderDomain,
         subject,
         html,
         text: plainText,
@@ -200,6 +214,7 @@ export async function sendLoginNudgeNow({
         idempotency_key: idempotencyKey,
         channel,
         send_method: "direct_lovable",
+        sender_domain: sender.senderDomain,
       },
     });
 
@@ -216,6 +231,7 @@ export async function sendLoginNudgeNow({
         idempotency_key: idempotencyKey,
         channel,
         send_method: "direct_lovable",
+        sender_domain: sender.senderDomain,
       },
     });
     console.error("[magic-link] direct send failed", {
