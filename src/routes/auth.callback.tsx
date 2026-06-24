@@ -25,11 +25,20 @@ function AuthCallbackPage() {
   useEffect(() => {
     let cancelled = false;
 
+    const hashParams = () =>
+      typeof window === "undefined"
+        ? new URLSearchParams()
+        : new URLSearchParams(window.location.hash.replace(/^#/, ""));
+
+    const queryParams = () =>
+      typeof window === "undefined"
+        ? new URLSearchParams()
+        : new URLSearchParams(window.location.search);
+
     const urlHasAuthError = () => {
-      if (typeof window === "undefined") return false;
-      const qs = new URLSearchParams(window.location.search);
-      const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-      return Boolean(qs.get("error") || hash.get("error"));
+      const q = queryParams();
+      const h = hashParams();
+      return Boolean(q.get("error") || h.get("error"));
     };
 
     if (urlHasAuthError()) {
@@ -37,12 +46,42 @@ function AuthCallbackPage() {
       return;
     }
 
+    const goHome = () => navigate({ to: redirect ?? "/", replace: true });
+
     const finish = async () => {
+      // Implicit-flow magic links land here as "#access_token=...&refresh_token=...".
+      // The Supabase client is PKCE by default and will not auto-consume those,
+      // so we set the session manually before checking.
+      const h = hashParams();
+      const accessToken = h.get("access_token");
+      const refreshToken = h.get("refresh_token");
+      if (accessToken && refreshToken) {
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (cancelled) return;
+        if (!error) {
+          window.history.replaceState(null, "", window.location.pathname + window.location.search);
+          goHome();
+          return;
+        }
+      }
+
+      // PKCE flow uses "?code=..." in the query string.
+      const code = queryParams().get("code");
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (cancelled) return;
+        if (!error) {
+          goHome();
+          return;
+        }
+      }
+
       const { data } = await supabase.auth.getSession();
       if (cancelled) return;
-      if (data.session) {
-        navigate({ to: redirect ?? "/", replace: true });
-      }
+      if (data.session) goHome();
     };
 
     const timeout = window.setTimeout(() => {
@@ -52,10 +91,12 @@ function AuthCallbackPage() {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       if (cancelled || !session) return;
       window.clearTimeout(timeout);
-      navigate({ to: redirect ?? "/", replace: true });
+      goHome();
     });
 
-    void finish().finally(() => window.clearTimeout(timeout));
+    void finish().finally(() => {
+      // Keep the timeout running until we either navigate or hit the deadline.
+    });
 
     return () => {
       cancelled = true;
