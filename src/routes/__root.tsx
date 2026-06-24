@@ -39,7 +39,7 @@ const APP_ORIGIN = "https://app.alpcontractorcircle.com";
 const DEFAULT_TITLE = "Command Center — ALP Contractor Circle";
 const DEFAULT_DESCRIPTION =
   "The private member portal for Contractor Circle: live calls with Marshall, AOS access, replays, templates, Ask Marshall, and the operating process behind the projects.";
-const SOCIAL_IMAGE_URL = `${APP_ORIGIN}/og-command-center.png`;
+const SOCIAL_IMAGE_URL = `${APP_ORIGIN}/og-command-center-v2.png`;
 
 // Run before the app shell mounts. Auth links can arrive at "/" with tokens in
 // the hash; if the auth gate mounts first, it may send the user to /login and
