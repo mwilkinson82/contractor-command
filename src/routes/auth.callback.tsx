@@ -46,12 +46,20 @@ function AuthCallbackPage() {
       return;
     }
 
-    const goHome = () => navigate({ to: redirect ?? "/", replace: true });
+    // Hard navigation — the auth gate, company/tier loaders, and presence
+    // channel all key off session state. A router-level navigate can race
+    // those subscriptions and strand the user here. A full reload at the
+    // destination guarantees a clean mount with the new session.
+    const goHome = () => {
+      const dest = redirect ?? "/";
+      window.location.replace(dest);
+    };
 
     const finish = async () => {
-      // Implicit-flow magic links land here as "#access_token=...&refresh_token=...".
-      // The Supabase client is PKCE by default and will not auto-consume those,
-      // so we set the session manually before checking.
+      // Implicit-flow magic + recovery links land here as
+      // "#access_token=...&refresh_token=...". Set the session manually
+      // rather than relying on the client's auto-detection (which can race
+      // with our own read of window.location.hash).
       const h = hashParams();
       const accessToken = h.get("access_token");
       const refreshToken = h.get("refresh_token");
@@ -62,7 +70,6 @@ function AuthCallbackPage() {
         });
         if (cancelled) return;
         if (!error) {
-          window.history.replaceState(null, "", window.location.pathname + window.location.search);
           goHome();
           return;
         }
@@ -86,7 +93,7 @@ function AuthCallbackPage() {
 
     const timeout = window.setTimeout(() => {
       if (!cancelled) setPhase("expired");
-    }, 6000);
+    }, 8000);
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       if (cancelled || !session) return;
@@ -94,9 +101,7 @@ function AuthCallbackPage() {
       goHome();
     });
 
-    void finish().finally(() => {
-      // Keep the timeout running until we either navigate or hit the deadline.
-    });
+    void finish();
 
     return () => {
       cancelled = true;
