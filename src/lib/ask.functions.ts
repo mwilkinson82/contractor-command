@@ -58,7 +58,7 @@ export const createThread = createServerFn({ method: "POST" })
     };
     let result = await supabase
       .from("ask_threads")
-      .insert(insert)
+      .insert(insert as never)
       .select("id")
       .single();
 

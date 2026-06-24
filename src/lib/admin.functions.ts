@@ -319,7 +319,7 @@ async function buildAskMarshallMetrics(
       supabaseAdmin
         .from("ask_threads")
         .select("id", { count: "exact", head: true })
-        .eq("source", "dashboard_hero")
+        .eq("source" as never, "dashboard_hero")
         .gte("created_at", since30),
       supabaseAdmin
         .from("ask_messages")
