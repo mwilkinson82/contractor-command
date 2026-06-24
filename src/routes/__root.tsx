@@ -302,7 +302,7 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
     if (!hash) return;
     const params = new URLSearchParams(hash);
     if (params.get("error") || params.get("error_code")) {
-      navigate({ to: "/auth/callback", replace: true });
+      window.location.replace(`/auth/callback#${hash}`);
     }
   }, [pathname, navigate]);
 
