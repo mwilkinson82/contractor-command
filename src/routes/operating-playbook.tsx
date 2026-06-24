@@ -1,7 +1,16 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { ArrowUpRight, CheckCircle2, ClipboardList, Target } from "lucide-react";
+import {
+  ArrowUpRight,
+  CheckCircle2,
+  ClipboardList,
+  Loader2,
+  MessageCircle,
+  Target,
+} from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { createThread } from "@/lib/ask.functions";
 
 import capacityStack from "@/assets/cos-playbook/capacity-constraint-stack.jpg";
 import constraintResolutionPlan from "@/assets/cos-playbook/constraint-resolution-plan.jpg";
@@ -88,6 +97,7 @@ const playbookSections = [
         "The scorecard shows the problem before the owner has to say it.",
         "The same issue does not return without an owner, a due date, and a system change.",
       ],
+      module: "AOS Installation",
       worksheet: "Owner Bottleneck Audit Worksheet",
     },
     tool: "Owner Dependency Scorecard",
@@ -126,6 +136,7 @@ const playbookSections = [
         "The issue list contains root problems, not vague complaints.",
         "The weekly meeting produces decisions, to-dos, owners, and deadlines.",
       ],
+      module: "AOS Installation",
       worksheet: "AOS Baseline Worksheet",
     },
     tool: "AOS",
@@ -163,6 +174,7 @@ const playbookSections = [
         "The revenue goal is compared against current capacity, not hope.",
         "Cash conversion, AR, and change-order velocity are discussed as operating constraints.",
       ],
+      module: "Economics Engine Workshop",
       worksheet: "Economics Snapshot + Capacity Constraint Worksheet",
     },
     tool: "COS Navigator",
@@ -201,6 +213,7 @@ const playbookSections = [
         "Known risks carry dollar values and owners.",
         "The PM can explain how the project gets from current exposure to recovered margin.",
       ],
+      module: "IOR Implementation Sprint",
       worksheet: "IOR Snapshot Worksheet",
     },
     tool: "IOR Application",
@@ -239,6 +252,7 @@ const playbookSections = [
         "At least one risk is eliminated, recovered, offset, or consciously accepted each week.",
         "Holds are updated because risk changed, not because someone feels better.",
       ],
+      module: "IOR Risk Review",
       worksheet: "Top-Five Risk Register",
     },
     tool: "Margin Leak Finder",
@@ -277,6 +291,7 @@ const playbookSections = [
         "Every red metric either has context, an issue, or a to-do.",
         "The following week starts by checking whether owned actions happened.",
       ],
+      module: "Weekly Rhythm Installation",
       worksheet: "Weekly PM Risk Review + L10 Integration Worksheet",
     },
     tool: "AOS Scorecard + L10",
@@ -315,6 +330,7 @@ const playbookSections = [
         "Schedule exposure gets notices, fragments, or escalation before it becomes unrecoverable.",
         "Time-related exposure is translated into dollars through burn rate.",
       ],
+      module: "Delivery Systems Sprint",
       worksheet: "Change Order Velocity Tracker / EOT Checklist / Burn Rate Worksheet",
     },
     tool: "Contract Readiness Scan",
@@ -328,6 +344,7 @@ const fieldManualChapters = playbookSections.map((section) => ({
   title: section.title,
   doctrine: section.doctrine,
   tool: section.tool,
+  module: section.chapter.module,
   worksheet: section.chapter.worksheet,
   sourceTrail: section.chapter.sourceTrail,
 }));
@@ -581,12 +598,18 @@ function FieldManualIndex() {
             <p className="mt-3 border-l-2 border-signal/70 pl-3 text-[13px] leading-[1.55] text-foreground/78">
               {chapter.doctrine}
             </p>
-            <div className="mt-4 grid gap-2 text-[12px] leading-[1.45] text-muted-foreground sm:grid-cols-3">
+            <div className="mt-4 grid gap-2 text-[12px] leading-[1.45] text-muted-foreground sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-md border border-border bg-background p-3">
                 <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-signal">
                   Tool path
                 </p>
                 <p className="mt-1">{chapter.tool}</p>
+              </div>
+              <div className="rounded-md border border-border bg-background p-3">
+                <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-signal">
+                  Module
+                </p>
+                <p className="mt-1">{chapter.module}</p>
               </div>
               <div className="rounded-md border border-border bg-background p-3">
                 <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-signal">
@@ -723,39 +746,7 @@ function PlaybookSection({ section }: { section: PlaybookSectionData }) {
               ))}
             </ul>
           </div>
-          <ManualChapter chapter={section.chapter} />
-          <div className="mt-6 flex flex-wrap gap-3">
-            {"workbenchToolId" in section && section.workbenchToolId ? (
-              <Link
-                to="/tools"
-                search={{ t: section.workbenchToolId } as never}
-                className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.14em] text-cream hover:opacity-90"
-              >
-                Open {section.tool}
-                <ArrowUpRight className="h-4 w-4" />
-              </Link>
-            ) : null}
-            {"route" in section && section.route ? (
-              <Link
-                to={section.route as "/tools"}
-                className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.14em] text-cream hover:opacity-90"
-              >
-                Open {section.tool}
-                <ArrowUpRight className="h-4 w-4" />
-              </Link>
-            ) : null}
-            {"external" in section && section.external ? (
-              <a
-                href={section.external}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.14em] text-cream hover:opacity-90"
-              >
-                Open {section.tool}
-                <ArrowUpRight className="h-4 w-4" />
-              </a>
-            ) : null}
-          </div>
+          <ManualChapter section={section} />
         </div>
         <VisualImage src={section.image} alt={`${section.title} visual`} />
       </div>
@@ -763,7 +754,8 @@ function PlaybookSection({ section }: { section: PlaybookSectionData }) {
   );
 }
 
-function ManualChapter({ chapter }: { chapter: PlaybookSectionData["chapter"] }) {
+function ManualChapter({ section }: { section: PlaybookSectionData }) {
+  const { chapter } = section;
   return (
     <div className="mt-6 rounded-lg border border-border bg-[var(--paper-deep)]/45 p-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -787,13 +779,96 @@ function ManualChapter({ chapter }: { chapter: PlaybookSectionData["chapter"] })
         <ChapterList title="Install this now" items={chapter.install} />
         <ChapterList title="Proof it is working" items={chapter.proof} />
       </div>
-      <div className="mt-4 rounded-md border border-border bg-card p-3">
-        <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-signal">
-          Worksheet to complete
-        </p>
-        <p className="mt-1 text-[13px] leading-[1.5] text-foreground/78">{chapter.worksheet}</p>
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <div className="rounded-md border border-border bg-card p-3">
+          <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-signal">
+            Worksheet to complete
+          </p>
+          <p className="mt-1 text-[13px] leading-[1.5] text-foreground/78">{chapter.worksheet}</p>
+        </div>
+        <div className="rounded-md border border-border bg-card p-3">
+          <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-signal">
+            Contractor Circle focus
+          </p>
+          <p className="mt-1 text-[13px] leading-[1.5] text-foreground/78">{chapter.module}</p>
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <DestinationLink
+          section={section}
+          className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.14em] text-cream hover:opacity-90"
+        >
+          Open {section.tool}
+          <ArrowUpRight className="h-4 w-4" />
+        </DestinationLink>
+        <AskMarshallChapterButton section={section} />
       </div>
     </div>
+  );
+}
+
+function DestinationLink({
+  section,
+  className,
+  children,
+}: {
+  section: PlaybookSectionData;
+  className: string;
+  children: React.ReactNode;
+}) {
+  if ("workbenchToolId" in section && section.workbenchToolId) {
+    return (
+      <Link to="/tools" search={{ t: section.workbenchToolId } as never} className={className}>
+        {children}
+      </Link>
+    );
+  }
+  if ("route" in section && section.route) {
+    return (
+      <Link to={section.route as "/aos"} className={className}>
+        {children}
+      </Link>
+    );
+  }
+  if ("external" in section && section.external) {
+    return (
+      <a href={section.external} target="_blank" rel="noreferrer" className={className}>
+        {children}
+      </a>
+    );
+  }
+  return null;
+}
+
+function AskMarshallChapterButton({ section }: { section: PlaybookSectionData }) {
+  const navigate = useNavigate();
+  const createThreadFn = useServerFn(createThread);
+  const [busy, setBusy] = useState(false);
+
+  async function askMarshall() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const { id } = await createThreadFn({ data: { title: section.title } });
+      const firstMessage = `I'm working through the Contractor Operating System field manual chapter "${section.title}". The doctrine is: "${section.doctrine}". Help me apply this to my company. Start by asking me for the few facts you need, then give me the read and the next move.`;
+      window.history.replaceState({ ...(window.history.state ?? {}), firstMessage }, "");
+      navigate({ to: "/ask/$threadId", params: { threadId: id } });
+    } catch (error) {
+      console.error(error);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={askMarshall}
+      disabled={busy}
+      className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.14em] text-foreground/78 hover:bg-muted disabled:cursor-wait disabled:opacity-60"
+    >
+      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+      Ask Marshall
+    </button>
   );
 }
 
