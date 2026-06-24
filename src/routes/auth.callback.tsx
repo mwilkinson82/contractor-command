@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthCard } from "@/components/auth/auth-card";
@@ -18,7 +18,6 @@ export const Route = createFileRoute("/auth/callback")({
 });
 
 function AuthCallbackPage() {
-  const navigate = useNavigate();
   const { redirect } = Route.useSearch();
   const [phase, setPhase] = useState<"checking" | "expired">("checking");
 
@@ -56,6 +55,28 @@ function AuthCallbackPage() {
     };
 
     const finish = async () => {
+      // Our branded emails now link to this app route with a token hash instead
+      // of linking directly to the backend /verify endpoint. That keeps email
+      // security scanners from burning the one-time link before the member's
+      // browser can finish sign-in.
+      const q = queryParams();
+      const tokenHash = q.get("token_hash");
+      if (tokenHash) {
+        const type = q.get("type") === "recovery" ? "recovery" : "magiclink";
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type,
+        });
+        if (cancelled) return;
+        if (!error) {
+          if (type === "recovery") window.location.replace("/reset-password");
+          else goHome();
+          return;
+        }
+        setPhase("expired");
+        return;
+      }
+
       // Implicit-flow magic + recovery links land here as
       // "#access_token=...&refresh_token=...". Set the session manually
       // rather than relying on the client's auto-detection (which can race
@@ -76,7 +97,7 @@ function AuthCallbackPage() {
       }
 
       // PKCE flow uses "?code=..." in the query string.
-      const code = queryParams().get("code");
+      const code = q.get("code");
       if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
         if (cancelled) return;
@@ -108,7 +129,7 @@ function AuthCallbackPage() {
       window.clearTimeout(timeout);
       sub.subscription.unsubscribe();
     };
-  }, [navigate, redirect]);
+  }, [redirect]);
 
   if (phase === "expired") {
     return (
