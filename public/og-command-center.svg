@@ -16,10 +16,11 @@
     <circle cx="91" cy="91" r="9" fill="#F76A16"/>
   </g>
   <text x="236" y="130" fill="#F76A16" font-family="Helvetica Neue, Arial, sans-serif" font-size="23" font-weight="700" letter-spacing="5">ALP CONTRACTOR CIRCLE</text>
-  <text x="88" y="306" fill="#1C1A17" font-family="Georgia, Times New Roman, serif" font-size="82" letter-spacing="-1">Command Center</text>
-  <text x="88" y="370" fill="#1C1A17" font-family="Helvetica Neue, Arial, sans-serif" font-size="31" font-weight="700">Build the company behind the projects.</text>
-  <text x="88" y="426" fill="#6B655D" font-family="Helvetica Neue, Arial, sans-serif" font-size="25">Live calls, AOS, replays, templates,</text>
-  <text x="88" y="462" fill="#6B655D" font-family="Helvetica Neue, Arial, sans-serif" font-size="25">Ask Marshall, and the operating process.</text>
+  <text x="88" y="268" fill="#1C1A17" font-family="Georgia, Times New Roman, serif" font-size="84">Command</text>
+  <text x="88" y="345" fill="#1C1A17" font-family="Georgia, Times New Roman, serif" font-size="84">Center</text>
+  <text x="88" y="392" fill="#1C1A17" font-family="Helvetica Neue, Arial, sans-serif" font-size="30" font-weight="700">Build the company behind the projects.</text>
+  <text x="88" y="441" fill="#6B655D" font-family="Helvetica Neue, Arial, sans-serif" font-size="24">Live calls, AOS, replays, templates,</text>
+  <text x="88" y="476" fill="#6B655D" font-family="Helvetica Neue, Arial, sans-serif" font-size="24">Ask Marshall, and the operating process.</text>
   <g filter="url(#softShadow)">
     <rect x="844" y="136" width="236" height="332" rx="26" fill="#1C1A17"/>
     <path d="M882 195H1040" stroke="#DCD5C8" stroke-opacity=".18"/>
