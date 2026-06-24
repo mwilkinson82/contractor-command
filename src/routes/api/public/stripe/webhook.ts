@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import Stripe from "stripe";
+import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
 
 type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
 
@@ -385,7 +386,10 @@ async function ensureMagicLinkForMember(
       options: { redirectTo: `${origin}/auth/callback` },
     });
     if (error) throw error;
-    return data?.properties?.action_link ?? null;
+    const tokenHash = data?.properties?.hashed_token;
+    return tokenHash
+      ? buildTokenHashAuthUrl({ origin, tokenHash, type: "magiclink" })
+      : null;
   } catch (err) {
     console.error("ensureMagicLinkForMember failed", { email, err });
     return null;
