@@ -496,7 +496,7 @@ export const mintSignInLink = createServerFn({ method: "POST" })
         redirectTo:
           data.type === "recovery"
             ? `${originRoot()}/reset-password`
-            : `${originRoot()}/`,
+            : `${originRoot()}/auth/callback`,
       },
     });
     if (error) throw new Error(error.message);
@@ -527,7 +527,7 @@ export const emailSignInLink = createServerFn({ method: "POST" })
     const { data: link, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
       type: "magiclink",
       email: data.email,
-      options: { redirectTo: `${originRoot()}/` },
+      options: { redirectTo: `${originRoot()}/auth/callback` },
     });
     if (linkErr) throw new Error(linkErr.message);
     const confirmationUrl = link.properties?.action_link;

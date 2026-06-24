@@ -41,6 +41,7 @@ import { Route as ToolsOwnerDependencyRouteImport } from './routes/tools.owner-d
 import { Route as ToolsGrowthConstraintRouteImport } from './routes/tools.growth-constraint'
 import { Route as SchedulerProjectIdRouteImport } from './routes/scheduler.$projectId'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as AskNewRouteImport } from './routes/ask.new'
 import { Route as AskThreadIdRouteImport } from './routes/ask.$threadId'
 import { Route as ApiSopDraftRouteImport } from './routes/api/sop-draft'
@@ -230,6 +231,11 @@ const SchedulerProjectIdRoute = SchedulerProjectIdRouteImport.update({
 const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
   id: '/email/unsubscribe',
   path: '/email/unsubscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth/callback',
+  path: '/auth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AskNewRoute = AskNewRouteImport.update({
@@ -432,6 +438,7 @@ export interface FileRoutesByFullPath {
   '/api/sop-draft': typeof ApiSopDraftRoute
   '/ask/$threadId': typeof AskThreadIdRoute
   '/ask/new': typeof AskNewRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/scheduler/$projectId': typeof SchedulerProjectIdRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
@@ -496,6 +503,7 @@ export interface FileRoutesByTo {
   '/api/sop-draft': typeof ApiSopDraftRoute
   '/ask/$threadId': typeof AskThreadIdRoute
   '/ask/new': typeof AskNewRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/scheduler/$projectId': typeof SchedulerProjectIdRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
@@ -561,6 +569,7 @@ export interface FileRoutesById {
   '/api/sop-draft': typeof ApiSopDraftRoute
   '/ask/$threadId': typeof AskThreadIdRoute
   '/ask/new': typeof AskNewRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/scheduler/$projectId': typeof SchedulerProjectIdRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
@@ -627,6 +636,7 @@ export interface FileRouteTypes {
     | '/api/sop-draft'
     | '/ask/$threadId'
     | '/ask/new'
+    | '/auth/callback'
     | '/email/unsubscribe'
     | '/scheduler/$projectId'
     | '/tools/growth-constraint'
@@ -691,6 +701,7 @@ export interface FileRouteTypes {
     | '/api/sop-draft'
     | '/ask/$threadId'
     | '/ask/new'
+    | '/auth/callback'
     | '/email/unsubscribe'
     | '/scheduler/$projectId'
     | '/tools/growth-constraint'
@@ -755,6 +766,7 @@ export interface FileRouteTypes {
     | '/api/sop-draft'
     | '/ask/$threadId'
     | '/ask/new'
+    | '/auth/callback'
     | '/email/unsubscribe'
     | '/scheduler/$projectId'
     | '/tools/growth-constraint'
@@ -820,6 +832,7 @@ export interface RootRouteChildren {
   ApiSopDraftRoute: typeof ApiSopDraftRoute
   AskThreadIdRoute: typeof AskThreadIdRoute
   AskNewRoute: typeof AskNewRoute
+  AuthCallbackRoute: typeof AuthCallbackRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AosIndexRoute: typeof AosIndexRoute
@@ -1059,6 +1072,13 @@ declare module '@tanstack/react-router' {
       path: '/email/unsubscribe'
       fullPath: '/email/unsubscribe'
       preLoaderRoute: typeof EmailUnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ask/new': {
@@ -1346,6 +1366,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSopDraftRoute: ApiSopDraftRoute,
   AskThreadIdRoute: AskThreadIdRoute,
   AskNewRoute: AskNewRoute,
+  AuthCallbackRoute: AuthCallbackRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   AdminIndexRoute: AdminIndexRoute,
   AosIndexRoute: AosIndexRoute,

@@ -30,6 +30,7 @@ const PUBLIC_ROUTES = new Set([
   "/signup",
   "/forgot-password",
   "/reset-password",
+  "/auth/callback",
   "/welcome",
   "/scheduler-preview",
 ]);

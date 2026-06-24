@@ -1,6 +1,5 @@
-// Server-side helper to enqueue the login-nudge email with a direct
-// one-tap sign-in URL. Used by the admin "Email sign-in link" action when
-// the raw Supabase Auth emails (reset/magic link) get spam-quarantined.
+// Server-side helper to enqueue the dedicated magic-link sign-in email with a
+// direct one-tap sign-in URL. Used by the admin "Email sign-in link" action.
 
 import * as React from "react";
 import { render } from "@react-email/components";
@@ -11,7 +10,7 @@ type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server"
 const SITE_NAME = "Contractor Circle";
 const SENDER_DOMAIN = "notify.mail.alpcontractorcircle.com";
 const FROM_DOMAIN = "notify.mail.alpcontractorcircle.com";
-const TEMPLATE_NAME = "login-nudge";
+const TEMPLATE_NAME = "magic-link";
 
 function generateToken(): string {
   const bytes = new Uint8Array(32);

@@ -49,8 +49,9 @@ export const MagicLinkEmail = ({
             </Button>
             <Text style={{ ...emailStyles.footer, marginTop: '28px' }}>
               Open this email on the same device and browser you want to sign in
-              with. If you didn't request this link, you can safely ignore this
-              email — no one can access your account without it.
+              with. If you requested more than one link, use the newest email —
+              older links may already be expired. If you didn't request this
+              link, you can safely ignore this email.
             </Text>
           </Section>
         </Section>
