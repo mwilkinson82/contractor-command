@@ -638,7 +638,7 @@ function Hero({ onStart }: { onStart: () => void }) {
               onClick={onStart}
               className="inline-flex items-center gap-2 rounded-md bg-ink px-5 py-3 text-[12px] font-semibold uppercase tracking-[0.14em] text-cream hover:opacity-90"
             >
-              Start client beta path
+              Start Guided Path
               <PlayCircle className="h-4 w-4" />
             </button>
             <Link
@@ -692,7 +692,7 @@ function ClientRolloutPath({ onStartMap }: { onStartMap: () => void }) {
           <div className="inline-flex items-center gap-2 rounded-full border border-cream/15 bg-cream/5 px-3 py-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-signal animate-signal-pulse" />
             <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-cream/70">
-              Client beta live
+              Member path live
             </p>
           </div>
           <h2 className="mt-4 max-w-3xl font-display text-[clamp(2.3rem,4.5vw,4.8rem)] leading-[0.96]">
@@ -1167,10 +1167,14 @@ function DoctrineBank() {
             key={card.title}
             data-reveal
             data-reveal-delay={String(index + 1)}
-            className="hover-lift rounded-lg border border-border bg-background p-4"
+            className="hover-lift flex h-full flex-col rounded-lg border border-border bg-background p-4"
           >
-            <h3 className="font-display text-[1.85rem] leading-none">{card.title}</h3>
-            <p className="mt-3 text-[13px] leading-[1.65] text-muted-foreground">{card.copy}</p>
+            <div className="min-h-[136px]">
+              <h3 className="font-display text-[1.85rem] leading-none">{card.title}</h3>
+              <p className="mt-3 text-[13px] leading-[1.65] text-muted-foreground">
+                {card.copy}
+              </p>
+            </div>
             <div className="mt-4">
               <VisualImage
                 src={card.image}
