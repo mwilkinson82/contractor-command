@@ -62,11 +62,11 @@ export function HomeHero({
               <div className="flex items-center gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-signal animate-signal-pulse" />
                 <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-signal">
-                  Client beta live
+                  Contractor OS path
                 </p>
               </div>
               <p className="mt-1 text-[12.5px] leading-snug text-foreground/78">
-                Start the Contractor OS install path, then save the Navigator result to Vault.
+                Open the Contractor OS path, then save the Navigator result to Vault.
               </p>
             </div>
           </div>
@@ -75,7 +75,7 @@ export function HomeHero({
               to="/operating-playbook"
               className="inline-flex items-center justify-center gap-1.5 rounded-md bg-ink px-2.5 py-2 text-[11px] font-medium text-cream hover:opacity-90"
             >
-              Start path <ArrowUpRight className="h-3 w-3" />
+              Open path <ArrowUpRight className="h-3 w-3" />
             </Link>
             <Link
               to="/tools"
