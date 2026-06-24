@@ -41,7 +41,11 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Command Center — ALP Contractor Circle" },
-      { name: "description", content: "Mission control for your construction business." },
+      {
+        name: "description",
+        content:
+          "The private member portal for Contractor Circle: live calls with Marshall, AOS access, replays, templates, Ask Marshall, and the operating process behind the projects.",
+      },
     ],
   }),
   component: HomePage,

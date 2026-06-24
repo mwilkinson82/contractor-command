@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="ALP Contractor Circle">
+  <rect width="512" height="512" rx="112" fill="#F7F2EA"/>
+  <rect x="44" y="44" width="424" height="424" rx="92" fill="#1C1A17"/>
+  <path d="M256 126c-72.3 0-131 58.7-131 131s58.7 131 131 131c44.8 0 84.3-22.5 107.9-56.8l-54.1-39.1c-11.7 18.3-32.3 30.4-55.8 30.4-36.6 0-66.3-29.7-66.3-66.3s29.7-66.3 66.3-66.3h69.9l-44.1 44.1 39.9 39.9L433 160.6 319.7 47.4l-39.9 39.9 38.8 38.7H256Z" fill="#F8F4ED"/>
+  <circle cx="386" cy="386" r="37" fill="#F76A16"/>
+</svg>

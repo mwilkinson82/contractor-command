@@ -35,6 +35,11 @@ const PUBLIC_ROUTES = new Set([
   "/scheduler-preview",
 ]);
 const ONBOARDING_ROUTE = "/onboarding";
+const APP_ORIGIN = "https://app.alpcontractorcircle.com";
+const DEFAULT_TITLE = "Command Center — ALP Contractor Circle";
+const DEFAULT_DESCRIPTION =
+  "The private member portal for Contractor Circle: live calls with Marshall, AOS access, replays, templates, Ask Marshall, and the operating process behind the projects.";
+const SOCIAL_IMAGE_URL = `${APP_ORIGIN}/og-command-center.png`;
 
 // Run before the app shell mounts. Auth links can arrive at "/" with tokens in
 // the hash; if the auth gate mounts first, it may send the user to /login and
@@ -142,45 +147,60 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "ALP Contractor Circle — Command Center" },
+      { title: DEFAULT_TITLE },
+      { name: "application-name", content: "ALP Contractor Circle" },
+      { name: "apple-mobile-web-app-title", content: "Contractor Circle" },
+      { name: "theme-color", content: "#F7F2EA" },
+      { name: "robots", content: "index, follow" },
       {
         name: "description",
-        content: "The operating environment for serious construction business owners.",
+        content: DEFAULT_DESCRIPTION,
       },
-      { property: "og:title", content: "ALP Contractor Circle — Command Center" },
-      { name: "twitter:title", content: "ALP Contractor Circle — Command Center" },
+      { property: "og:title", content: DEFAULT_TITLE },
+      { property: "og:site_name", content: "ALP Contractor Circle" },
+      { property: "og:url", content: APP_ORIGIN },
+      { name: "twitter:title", content: DEFAULT_TITLE },
       {
         property: "og:description",
-        content: "The operating environment for serious construction business owners.",
+        content: DEFAULT_DESCRIPTION,
       },
       {
         name: "twitter:description",
-        content: "The operating environment for serious construction business owners.",
+        content: DEFAULT_DESCRIPTION,
       },
       {
         property: "og:image",
-        content:
-          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/15a4c1a0-be64-49a7-9625-ccc9acf09437/id-preview-50072c33--362c776b-68ab-4871-bedb-c42cb9843c1b.lovable.app-1779076615220.png",
+        content: SOCIAL_IMAGE_URL,
+      },
+      { property: "og:image:type", content: "image/png" },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      {
+        property: "og:image:alt",
+        content: "ALP Contractor Circle Command Center branded preview.",
       },
       {
         name: "twitter:image",
-        content:
-          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/15a4c1a0-be64-49a7-9625-ccc9acf09437/id-preview-50072c33--362c776b-68ab-4871-bedb-c42cb9843c1b.lovable.app-1779076615220.png",
+        content: SOCIAL_IMAGE_URL,
       },
       { name: "twitter:card", content: "summary_large_image" },
       { property: "og:type", content: "website" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
+      { rel: "canonical", href: APP_ORIGIN },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Caveat:wght@400;600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&display=swap",
       },
+      { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
       { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
       { rel: "icon", type: "image/png", sizes: "32x32", href: "/favicon-32.png" },
-      { rel: "apple-touch-icon", href: "/favicon-256.png" },
+      { rel: "icon", type: "image/png", sizes: "192x192", href: "/app-icon-192.png" },
+      { rel: "apple-touch-icon", sizes: "180x180", href: "/apple-touch-icon.png" },
+      { rel: "manifest", href: "/site.webmanifest" },
     ],
   }),
   shellComponent: RootShell,

@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /auth/
+Disallow: /reset-password
+Disallow: /forgot-password
+Disallow: /onboarding
+
+Sitemap: https://app.alpcontractorcircle.com/sitemap.xml
