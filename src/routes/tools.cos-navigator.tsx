@@ -404,12 +404,14 @@ function capacitySnapshot(inputs: CapacityInputs) {
     inputs.avgMonthlyBilling *
     12 *
     (1 - inputs.downtime / 100);
-  const stack: Array<{ label: CapacityLabel; value: number }> = [
-    { label: "PM capacity", value: pmCapacity },
-    { label: "Admin billing capacity", value: inputs.adminCap },
-    { label: "Bonding capacity", value: inputs.bondingCap },
-    { label: "Cash capacity", value: inputs.cashCap },
-  ].sort((left, right) => left.value - right.value);
+  const stack: Array<{ label: CapacityLabel; value: number }> = (
+    [
+      { label: "PM capacity", value: pmCapacity },
+      { label: "Admin billing capacity", value: inputs.adminCap },
+      { label: "Bonding capacity", value: inputs.bondingCap },
+      { label: "Cash capacity", value: inputs.cashCap },
+    ] satisfies Array<{ label: CapacityLabel; value: number }>
+  ).sort((left, right) => left.value - right.value);
   const limiting = stack[0];
   const gap = inputs.revenueGoal - limiting.value;
   return {
