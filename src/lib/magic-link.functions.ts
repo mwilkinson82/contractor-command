@@ -12,6 +12,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { TEMPLATES } from "@/lib/email-templates/registry";
+import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
 
 const Input = z.object({
   email: z.string().trim().toLowerCase().email().max(255),
@@ -349,14 +350,19 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
             options: { redirectTo: `${origin}/auth/callback` },
           });
 
-          const confirmationUrl = link?.properties?.action_link;
-          if (error || !confirmationUrl) {
+          const tokenHash = link?.properties?.hashed_token;
+          if (error || !tokenHash) {
             internalAction = "link_failed";
             console.error("[magic-link] generateLink failed", {
               email: redactEmail(email),
-              error: error?.message ?? "No action_link returned from Supabase",
+              error: error?.message ?? "No hashed_token returned from Supabase",
             });
           } else {
+            const confirmationUrl = buildTokenHashAuthUrl({
+              origin,
+              tokenHash,
+              type: "magiclink",
+            });
             const firstName = await resolveFirstName(email);
             const sendStatus = await sendLoginNudgeNow({
               email,
