@@ -71,6 +71,7 @@ const doctrineCards = [
     title: "Risk is the job.",
     copy: "The work is not only to identify risk. It is to eliminate, recover, offset, or consciously accept it.",
     image: doctrineRisk,
+    imageClassName: "object-[50%_58%]",
   },
 ];
 
@@ -1157,7 +1158,7 @@ function DoctrineBank() {
           Doctrine bank
         </p>
         <h2 className="mt-2 font-display text-[clamp(2rem,4vw,3.5rem)] leading-none">
-          The four ideas they should remember.
+          The four ideas you must remember.
         </h2>
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -1171,7 +1172,12 @@ function DoctrineBank() {
             <h3 className="font-display text-[1.85rem] leading-none">{card.title}</h3>
             <p className="mt-3 text-[13px] leading-[1.65] text-muted-foreground">{card.copy}</p>
             <div className="mt-4">
-              <VisualImage src={card.image} alt={card.title} compact />
+              <VisualImage
+                src={card.image}
+                alt={card.title}
+                compact
+                imageClassName={card.imageClassName}
+              />
             </div>
           </article>
         ))}
@@ -1402,11 +1408,13 @@ function VisualImage({
   alt,
   compact = false,
   dark = false,
+  imageClassName = "",
 }: {
   src: string;
   alt: string;
   compact?: boolean;
   dark?: boolean;
+  imageClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -1424,7 +1432,7 @@ function VisualImage({
           loading={compact ? "lazy" : "eager"}
           className={`w-full object-cover transition duration-300 group-hover:scale-[1.015] ${
             compact ? "aspect-[16/9]" : "aspect-[16/9]"
-          }`}
+          } ${imageClassName}`}
         />
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
