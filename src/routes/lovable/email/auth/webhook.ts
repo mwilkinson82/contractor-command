@@ -34,7 +34,7 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
 const SITE_NAME = "Contractor Circle"
 const SENDER_DOMAIN = "notify.mail.alpcontractorcircle.com"
 const ROOT_DOMAIN = "mail.alpcontractorcircle.com"
-const FROM_DOMAIN = "mail.alpcontractorcircle.com"
+const FROM_DOMAIN = "notify.mail.alpcontractorcircle.com"
 
 function redactEmail(email: string | null | undefined): string {
   if (!email) return '***'
@@ -149,7 +149,7 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
         const text = await render(element, { plainText: true })
 
         // Enqueue email for async processing by the dispatcher (process-email-queue).
-        const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
         const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
         if (!supabaseUrl || !supabaseServiceKey) {

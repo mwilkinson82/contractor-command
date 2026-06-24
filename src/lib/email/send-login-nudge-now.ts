@@ -6,7 +6,7 @@ import { TEMPLATES } from "@/lib/email-templates/registry";
 type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
 
 const SITE_NAME = "Contractor Circle";
-const DEFAULT_SENDER_DOMAIN = "auth.lovable.cloud";
+const VERIFIED_SENDER_DOMAIN = "notify.mail.alpcontractorcircle.com";
 const TEMPLATE_NAME = "magic-link";
 
 export type DirectLoginNudgeResult =
@@ -37,11 +37,7 @@ function generateToken(): string {
 }
 
 function loginEmailSender(): { from: string; senderDomain: string } {
-  const senderDomain = (
-    process.env.LOVABLE_EMAIL_SENDER_DOMAIN || DEFAULT_SENDER_DOMAIN
-  )
-    .trim()
-    .replace(/^@/, "");
+  const senderDomain = VERIFIED_SENDER_DOMAIN;
 
   return {
     from: `${SITE_NAME} <no-reply@${senderDomain}>`,
