@@ -1,4 +1,4 @@
-type AuthLinkType = "magiclink" | "recovery" | "invite";
+type AuthLinkType = "email" | "magiclink" | "recovery" | "invite";
 
 function cleanOrigin(origin: string): string {
   return origin.replace(/\/$/, "");
@@ -13,7 +13,7 @@ function safeRelativeRedirect(value?: string | null): string | null {
 export function buildTokenHashAuthUrl({
   origin,
   tokenHash,
-  type = "magiclink",
+  type = "email",
   redirect,
 }: {
   origin: string;
@@ -23,7 +23,7 @@ export function buildTokenHashAuthUrl({
 }): string {
   const url = new URL("/auth/callback", cleanOrigin(origin));
   url.searchParams.set("token_hash", tokenHash);
-  url.searchParams.set("type", type);
+  url.searchParams.set("type", type === "magiclink" ? "email" : type);
 
   const redirectTo = safeRelativeRedirect(redirect);
   if (redirectTo) url.searchParams.set("redirect", redirectTo);

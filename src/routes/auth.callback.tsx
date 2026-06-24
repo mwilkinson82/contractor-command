@@ -5,6 +5,7 @@ import { AuthCard } from "@/components/auth/auth-card";
 
 const CALLBACK_TIMEOUT_MS = 10_000;
 const AUTH_STEP_TIMEOUT_MS = 8_000;
+type TokenHashOtpType = "email" | "recovery" | "invite";
 
 function safeRedirect(value: unknown): string {
   if (typeof value !== "string") return "/";
@@ -28,6 +29,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   return Promise.race([promise, timeout]).finally(() => {
     if (timeoutId) window.clearTimeout(timeoutId);
   });
+}
+
+function tokenHashOtpType(value: string | null): TokenHashOtpType {
+  if (value === "recovery" || value === "invite") return value;
+  return "email";
 }
 
 function AuthCallbackPage() {
@@ -102,7 +108,7 @@ function AuthCallbackPage() {
         // browser can finish sign-in.
         const tokenHash = q.get("token_hash");
         if (tokenHash) {
-          const type = q.get("type") === "recovery" ? "recovery" : "magiclink";
+          const type = tokenHashOtpType(q.get("type"));
           const { error } = await withTimeout(
             supabase.auth.verifyOtp({
               token_hash: tokenHash,
