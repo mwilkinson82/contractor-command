@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthCard } from "@/components/auth/auth-card";
 
+const CALLBACK_TIMEOUT_MS = 10_000;
+const AUTH_STEP_TIMEOUT_MS = 8_000;
+
 function safeRedirect(value: unknown): string {
   if (typeof value !== "string") return "/";
   if (!value.startsWith("/") || value.startsWith("//")) return "/";
@@ -17,12 +20,24 @@ export const Route = createFileRoute("/auth/callback")({
   component: AuthCallbackPage,
 });
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timeoutId: number | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error(`${label} timed out`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timeoutId) window.clearTimeout(timeoutId);
+  });
+}
+
 function AuthCallbackPage() {
   const { redirect } = Route.useSearch();
   const [phase, setPhase] = useState<"checking" | "expired">("checking");
 
   useEffect(() => {
     let cancelled = false;
+    let settled = false;
+    let deadlineId: number | undefined;
 
     const hashParams = () =>
       typeof window === "undefined"
@@ -40,93 +55,136 @@ function AuthCallbackPage() {
       return Boolean(q.get("error") || h.get("error"));
     };
 
-    if (urlHasAuthError()) {
+    const clearDeadline = () => {
+      if (deadlineId) window.clearTimeout(deadlineId);
+    };
+
+    const clearAuthFragment = () => {
+      if (typeof window === "undefined" || !window.location.hash) return;
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    };
+
+    const finishExpired = () => {
+      if (cancelled || settled) return;
+      settled = true;
+      clearDeadline();
+      clearAuthFragment();
       setPhase("expired");
-      return;
+    };
+
+    const finishSignedIn = (destination = redirect ?? "/") => {
+      if (cancelled || settled) return;
+      settled = true;
+      clearDeadline();
+      clearAuthFragment();
+      // Hard navigation: auth gate, company/tier loaders, and presence all key
+      // off the refreshed session. A full reload at the destination guarantees
+      // a clean mount with the new session.
+      window.location.replace(destination);
+    };
+
+    deadlineId = window.setTimeout(finishExpired, CALLBACK_TIMEOUT_MS);
+
+    if (urlHasAuthError()) {
+      finishExpired();
+      return () => {
+        cancelled = true;
+        clearDeadline();
+      };
     }
 
-    // Hard navigation — the auth gate, company/tier loaders, and presence
-    // channel all key off session state. A router-level navigate can race
-    // those subscriptions and strand the user here. A full reload at the
-    // destination guarantees a clean mount with the new session.
-    const goHome = () => {
-      const dest = redirect ?? "/";
-      window.location.replace(dest);
-    };
-
     const finish = async () => {
-      // Our branded emails now link to this app route with a token hash instead
-      // of linking directly to the backend /verify endpoint. That keeps email
-      // security scanners from burning the one-time link before the member's
-      // browser can finish sign-in.
-      const q = queryParams();
-      const tokenHash = q.get("token_hash");
-      if (tokenHash) {
-        const type = q.get("type") === "recovery" ? "recovery" : "magiclink";
-        const { error } = await supabase.auth.verifyOtp({
-          token_hash: tokenHash,
-          type,
-        });
-        if (cancelled) return;
-        if (!error) {
-          if (type === "recovery") window.location.replace("/reset-password");
-          else goHome();
+      try {
+        const q = queryParams();
+        // Branded emails link to this app route with a token hash instead of
+        // linking directly to the backend /verify endpoint. That keeps email
+        // security scanners from burning the one-time link before the member's
+        // browser can finish sign-in.
+        const tokenHash = q.get("token_hash");
+        if (tokenHash) {
+          const type = q.get("type") === "recovery" ? "recovery" : "magiclink";
+          const { error } = await withTimeout(
+            supabase.auth.verifyOtp({
+              token_hash: tokenHash,
+              type,
+            }),
+            AUTH_STEP_TIMEOUT_MS,
+            "Magic-link token verification",
+          );
+          if (cancelled) return;
+          if (!error) {
+            finishSignedIn(type === "recovery" ? "/reset-password" : undefined);
+            return;
+          }
+          console.error("[auth/callback] token hash verification failed", error);
+          finishExpired();
           return;
         }
-        setPhase("expired");
-        return;
-      }
 
-      // Implicit-flow magic + recovery links land here as
-      // "#access_token=...&refresh_token=...". Set the session manually
-      // rather than relying on the client's auto-detection (which can race
-      // with our own read of window.location.hash).
-      const h = hashParams();
-      const accessToken = h.get("access_token");
-      const refreshToken = h.get("refresh_token");
-      if (accessToken && refreshToken) {
-        const { error } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
-        if (cancelled) return;
-        if (!error) {
-          goHome();
-          return;
+        // Implicit-flow magic + recovery links land here as
+        // "#access_token=...&refresh_token=...". Make the exchange explicit so
+        // the route works even if auto-detection does not consume the fragment first.
+        const h = hashParams();
+        const accessToken = h.get("access_token");
+        const refreshToken = h.get("refresh_token");
+        if (accessToken && refreshToken) {
+          const { error } = await withTimeout(
+            supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            }),
+            AUTH_STEP_TIMEOUT_MS,
+            "Magic-link session setup",
+          );
+          if (cancelled) return;
+          if (!error) {
+            finishSignedIn();
+            return;
+          }
+          console.error("[auth/callback] implicit session failed", error);
         }
-      }
 
-      // PKCE flow uses "?code=..." in the query string.
-      const code = q.get("code");
-      if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (cancelled) return;
-        if (!error) {
-          goHome();
-          return;
+        // PKCE flow uses "?code=..." in the query string.
+        const code = q.get("code");
+        if (code) {
+          const { error } = await withTimeout(
+            supabase.auth.exchangeCodeForSession(code),
+            AUTH_STEP_TIMEOUT_MS,
+            "Auth code exchange",
+          );
+          if (cancelled) return;
+          if (!error) {
+            finishSignedIn();
+            return;
+          }
+          console.error("[auth/callback] code exchange failed", error);
         }
-      }
 
-      const { data } = await supabase.auth.getSession();
-      if (cancelled) return;
-      if (data.session) goHome();
+        const { data } = await withTimeout(
+          supabase.auth.getSession(),
+          AUTH_STEP_TIMEOUT_MS,
+          "Session check",
+        );
+        if (cancelled) return;
+        if (data.session) finishSignedIn();
+        else finishExpired();
+      } catch (error) {
+        if (cancelled) return;
+        console.error("[auth/callback] sign-in callback failed", error);
+        finishExpired();
+      }
     };
-
-    const timeout = window.setTimeout(() => {
-      if (!cancelled) setPhase("expired");
-    }, 8000);
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       if (cancelled || !session) return;
-      window.clearTimeout(timeout);
-      goHome();
+      finishSignedIn();
     });
 
     void finish();
 
     return () => {
       cancelled = true;
-      window.clearTimeout(timeout);
+      clearDeadline();
       sub.subscription.unsubscribe();
     };
   }, [redirect]);
