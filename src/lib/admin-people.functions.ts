@@ -12,6 +12,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
 
 async function getSupabaseAdmin() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -500,8 +501,13 @@ export const mintSignInLink = createServerFn({ method: "POST" })
       },
     });
     if (error) throw new Error(error.message);
-    const url = link.properties?.action_link;
-    if (!url) throw new Error("No action_link returned from Supabase");
+    const tokenHash = link.properties?.hashed_token;
+    if (!tokenHash) throw new Error("No hashed_token returned from Supabase");
+    const url = buildTokenHashAuthUrl({
+      origin: originRoot(),
+      tokenHash,
+      type: data.type,
+    });
     return { url, email: data.email, type: data.type };
   });
 
@@ -530,8 +536,13 @@ export const emailSignInLink = createServerFn({ method: "POST" })
       options: { redirectTo: `${originRoot()}/auth/callback` },
     });
     if (linkErr) throw new Error(linkErr.message);
-    const confirmationUrl = link.properties?.action_link;
-    if (!confirmationUrl) throw new Error("No action_link returned from Supabase");
+    const tokenHash = link.properties?.hashed_token;
+    if (!tokenHash) throw new Error("No hashed_token returned from Supabase");
+    const confirmationUrl = buildTokenHashAuthUrl({
+      origin: originRoot(),
+      tokenHash,
+      type: "magiclink",
+    });
 
     // 2. Resolve firstName from profile if not provided.
     let firstName = data.firstName;
