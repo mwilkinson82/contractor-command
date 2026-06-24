@@ -164,6 +164,12 @@ function AdminDashboard() {
           >
             Email health
           </a>
+          <a
+            href="#ask-usage"
+            className="rounded-md border border-border bg-card px-3 py-1.5 text-[12px] hover:bg-muted"
+          >
+            Ask usage
+          </a>
           <Link
             to="/admin/weekly-move"
             className="rounded-md border border-border bg-card px-3 py-1.5 text-[12px] hover:bg-muted"
@@ -227,6 +233,8 @@ function AdminDashboard() {
         <MrrCard metrics={metrics} loading={isLoading} />
         <IntensiveCard metrics={metrics} loading={isLoading} />
       </div>
+
+      <AskUsagePanel metrics={metrics?.askMarshall} loading={isLoading} />
 
       <EmailHealthPanel
         health={emailHealth}
@@ -391,6 +399,155 @@ function IntensiveCard({ metrics, loading }: { metrics?: AdminMetrics; loading: 
         · {metrics?.revenue.intensiveAllTimeCount ?? 0} enrolled
       </p>
     </div>
+  );
+}
+
+function AskUsagePanel({
+  metrics,
+  loading,
+}: {
+  metrics?: AdminMetrics["askMarshall"];
+  loading: boolean;
+}) {
+  const activeUsers7d = metrics?.activeUsers7d ?? 0;
+  const messages30d = metrics?.userMessages30d ?? 0;
+  const threads30d = metrics?.threads30d ?? 0;
+  const dashboardThreads30d = metrics?.dashboardThreads30d ?? 0;
+  const dashboardShare =
+    threads30d > 0 ? Math.round((dashboardThreads30d / threads30d) * 100) : 0;
+  const status =
+    !metrics || loading
+      ? "Checking"
+      : activeUsers7d === 0
+        ? "No recent use"
+        : activeUsers7d < 5
+          ? "Low signal"
+          : "Active signal";
+  const statusClass =
+    status === "Active signal"
+      ? "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
+      : status === "Low signal"
+        ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
+        : "border-border bg-background text-muted-foreground";
+
+  return (
+    <section
+      id="ask-usage"
+      className="mt-6 scroll-mt-24 rounded-2xl border border-border bg-card p-5"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="label-mono inline-flex items-center gap-1.5">
+            <MessageSquare className="h-3 w-3" /> Ask Marshall usage
+          </p>
+          <h2 className="mt-2 font-display text-2xl">Does the dashboard prompt earn the room?</h2>
+          <p className="mt-1 max-w-2xl text-[12px] text-muted-foreground">
+            Member prompts are counted from Ask Marshall messages. Dashboard-source tracking starts
+            with this release, so the hero-started thread count becomes more useful over time.
+          </p>
+        </div>
+        <span className={`inline-flex items-center rounded-full border px-3 py-1.5 text-[12px] ${statusClass}`}>
+          {status}
+        </span>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <Stat
+          label="Messages · 7d"
+          value={metrics?.userMessages7d}
+          loading={loading}
+          accent={activeUsers7d > 0 ? "signal" : undefined}
+        />
+        <Stat
+          label="Active users · 7d"
+          value={metrics?.activeUsers7d}
+          loading={loading}
+          accent={activeUsers7d > 0 ? "signal" : undefined}
+        />
+        <Stat
+          label="Messages · 30d"
+          value={metrics?.userMessages30d}
+          loading={loading}
+          sub={metrics ? `${metrics.activeUsers30d} active users` : undefined}
+        />
+        <Stat
+          label="Threads · 30d"
+          value={metrics?.threads30d}
+          loading={loading}
+          sub={metrics ? `${dashboardThreads30d} from dashboard hero` : undefined}
+        />
+        <Stat
+          label="Hero share"
+          value={metrics ? dashboardShare : undefined}
+          loading={loading}
+          sub={metrics ? "of new tracked threads" : undefined}
+          accent={dashboardShare >= 50 && messages30d > 0 ? "gold" : undefined}
+        />
+      </div>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_1.15fr]">
+        <div className="rounded-xl border border-border bg-background p-4">
+          <p className="label-mono">Read</p>
+          <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+            {!metrics || loading
+              ? "Loading Ask usage..."
+              : activeUsers7d === 0
+                ? "If this stays quiet, Ask Marshall should become a compact action instead of owning the first screen."
+                : activeUsers7d < 5
+                  ? "Some members are using it, but the signal is not yet strong enough to justify a full-screen dashboard hero by itself."
+                  : "Members are actively using Ask Marshall. Keep watching whether new threads start from the dashboard hero or elsewhere."}
+          </p>
+          {metrics?.latestUserMessageAt && (
+            <p className="mt-3 text-[11px] text-muted-foreground">
+              Last member prompt: {timeAgo(metrics.latestUserMessageAt)}
+            </p>
+          )}
+          {metrics && (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              All-time: {metrics.userMessagesAllTime} prompts from {metrics.activeUsersAllTime}{" "}
+              member{metrics.activeUsersAllTime === 1 ? "" : "s"}.
+            </p>
+          )}
+        </div>
+
+        <div className="overflow-hidden rounded-xl border border-border bg-background">
+          <div className="border-b border-border px-4 py-3">
+            <p className="label-mono">Top Ask users · 30d</p>
+          </div>
+          <div className="divide-y divide-border">
+            {loading ? (
+              <p className="px-4 py-5 text-[12px] text-muted-foreground">Loading usage...</p>
+            ) : metrics?.topUsers30d.length ? (
+              metrics.topUsers30d.map((user) => (
+                <div
+                  key={user.userId}
+                  className="flex items-center justify-between gap-4 px-4 py-3 text-[12px]"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-foreground">
+                      {user.fullName || user.email || user.userId}
+                    </p>
+                    <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                      {user.email || user.userId}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="font-display text-xl">{user.messages30d}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Last {timeAgo(user.lastMessageAt)}
+                    </p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="px-4 py-5 text-[12px] text-muted-foreground">
+                No member prompts in the last 30 days.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 

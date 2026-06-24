@@ -36,8 +36,31 @@ export type AdminMetrics = {
   };
   topics: { pending: number; selected: number };
   signups: { last7: number; last30: number };
+  askMarshall: AskMarshallMetrics;
   intensiveLeads: number;
   billingQuestions: number;
+};
+
+export type AskMarshallTopUser = {
+  userId: string;
+  email: string | null;
+  fullName: string | null;
+  messages30d: number;
+  lastMessageAt: string;
+};
+
+export type AskMarshallMetrics = {
+  userMessages7d: number;
+  userMessages30d: number;
+  userMessagesAllTime: number;
+  activeUsers7d: number;
+  activeUsers30d: number;
+  activeUsersAllTime: number;
+  threads7d: number;
+  threads30d: number;
+  dashboardThreads30d: number;
+  latestUserMessageAt: string | null;
+  topUsers30d: AskMarshallTopUser[];
 };
 
 const EMAIL_LOG_STATUSES = [
@@ -240,6 +263,167 @@ async function assertAdminUser(userId: string): Promise<void> {
   if (!isAdmin) throw new Error("Forbidden");
 }
 
+function emptyAskMarshallMetrics(): AskMarshallMetrics {
+  return {
+    userMessages7d: 0,
+    userMessages30d: 0,
+    userMessagesAllTime: 0,
+    activeUsers7d: 0,
+    activeUsers30d: 0,
+    activeUsersAllTime: 0,
+    threads7d: 0,
+    threads30d: 0,
+    dashboardThreads30d: 0,
+    latestUserMessageAt: null,
+    topUsers30d: [],
+  };
+}
+
+async function buildAskMarshallMetrics(
+  since7: string,
+  since30: string,
+): Promise<AskMarshallMetrics> {
+  try {
+    const [
+      { count: userMessages7d },
+      { count: userMessages30d },
+      { count: userMessagesAllTime },
+      { count: threads7d },
+      { count: threads30d },
+      { count: dashboardThreads30d, error: dashboardThreadsError },
+      { data: recentMessages, error: recentMessagesError },
+      { data: allUserMessages, error: allUserMessagesError },
+    ] = await Promise.all([
+      supabaseAdmin
+        .from("ask_messages")
+        .select("id", { count: "exact", head: true })
+        .eq("role", "user")
+        .gte("created_at", since7),
+      supabaseAdmin
+        .from("ask_messages")
+        .select("id", { count: "exact", head: true })
+        .eq("role", "user")
+        .gte("created_at", since30),
+      supabaseAdmin
+        .from("ask_messages")
+        .select("id", { count: "exact", head: true })
+        .eq("role", "user"),
+      supabaseAdmin
+        .from("ask_threads")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", since7),
+      supabaseAdmin
+        .from("ask_threads")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", since30),
+      supabaseAdmin
+        .from("ask_threads")
+        .select("id", { count: "exact", head: true })
+        .eq("source", "dashboard_hero")
+        .gte("created_at", since30),
+      supabaseAdmin
+        .from("ask_messages")
+        .select("user_id,created_at")
+        .eq("role", "user")
+        .gte("created_at", since30)
+        .order("created_at", { ascending: false })
+        .range(0, 9999),
+      supabaseAdmin
+        .from("ask_messages")
+        .select("user_id")
+        .eq("role", "user")
+        .range(0, 9999),
+    ]);
+
+    if (recentMessagesError) {
+      console.error("[admin.ask-usage] recent messages lookup failed", recentMessagesError);
+    }
+    if (allUserMessagesError) {
+      console.error("[admin.ask-usage] all-time user lookup failed", allUserMessagesError);
+    }
+    if (dashboardThreadsError) {
+      console.error("[admin.ask-usage] dashboard source lookup failed", dashboardThreadsError);
+    }
+
+    const recentRows = (recentMessages ?? []) as Array<{ user_id: string; created_at: string }>;
+    const allRows = (allUserMessages ?? []) as Array<{ user_id: string }>;
+    const since7Ms = new Date(since7).getTime();
+    const activeUsers7d = new Set(
+      recentRows
+        .filter((row) => new Date(row.created_at).getTime() >= since7Ms)
+        .map((row) => row.user_id),
+    );
+    const activeUsers30d = new Set(recentRows.map((row) => row.user_id));
+    const activeUsersAllTime = new Set(allRows.map((row) => row.user_id));
+    const topCounts = new Map<string, { messages30d: number; lastMessageAt: string }>();
+
+    for (const row of recentRows) {
+      const current = topCounts.get(row.user_id);
+      if (!current) {
+        topCounts.set(row.user_id, { messages30d: 1, lastMessageAt: row.created_at });
+        continue;
+      }
+      current.messages30d += 1;
+      if (new Date(row.created_at).getTime() > new Date(current.lastMessageAt).getTime()) {
+        current.lastMessageAt = row.created_at;
+      }
+    }
+
+    const topUserIds = Array.from(topCounts.entries())
+      .sort((a, b) => {
+        if (b[1].messages30d !== a[1].messages30d) {
+          return b[1].messages30d - a[1].messages30d;
+        }
+        return new Date(b[1].lastMessageAt).getTime() - new Date(a[1].lastMessageAt).getTime();
+      })
+      .slice(0, 5)
+      .map(([userId]) => userId);
+
+    const { data: profiles, error: profilesError } =
+      topUserIds.length > 0
+        ? await supabaseAdmin.from("profiles").select("id,email,full_name").in("id", topUserIds)
+        : { data: [], error: null };
+
+    if (profilesError) {
+      console.error("[admin.ask-usage] profile lookup failed", profilesError);
+    }
+
+    const profileById = new Map(
+      ((profiles ?? []) as Array<{ id: string; email: string | null; full_name: string | null }>).map(
+        (profile) => [profile.id, profile],
+      ),
+    );
+    const topUsers30d = topUserIds.map((userId) => {
+      const usage = topCounts.get(userId)!;
+      const profile = profileById.get(userId);
+      return {
+        userId,
+        email: profile?.email ?? null,
+        fullName: profile?.full_name ?? null,
+        messages30d: usage.messages30d,
+        lastMessageAt: usage.lastMessageAt,
+      };
+    });
+
+    return {
+      userMessages7d: userMessages7d ?? 0,
+      userMessages30d: userMessages30d ?? 0,
+      userMessagesAllTime: userMessagesAllTime ?? 0,
+      activeUsers7d: activeUsers7d.size,
+      activeUsers30d: activeUsers30d.size,
+      activeUsersAllTime: activeUsersAllTime.size,
+      threads7d: threads7d ?? 0,
+      threads30d: threads30d ?? 0,
+      dashboardThreads30d: dashboardThreadsError ? 0 : (dashboardThreads30d ?? 0),
+      latestUserMessageAt: recentRows[0]?.created_at ?? null,
+      topUsers30d,
+    };
+  } catch (error) {
+    console.error("[admin.ask-usage] metrics failed", error);
+    return emptyAskMarshallMetrics();
+  }
+}
+
 export const getAdminMetrics = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<AdminMetrics> => {
@@ -289,7 +473,7 @@ export const getAdminMetrics = createServerFn({ method: "GET" })
     const day = 24 * 60 * 60 * 1000;
     const since7 = new Date(now - 7 * day).toISOString();
     const since30 = new Date(now - 30 * day).toISOString();
-    const [{ count: last7 }, { count: last30 }] = await Promise.all([
+    const [{ count: last7 }, { count: last30 }, askMarshall] = await Promise.all([
       supabaseAdmin
         .from("profiles")
         .select("id", { count: "exact", head: true })
@@ -298,6 +482,7 @@ export const getAdminMetrics = createServerFn({ method: "GET" })
         .from("profiles")
         .select("id", { count: "exact", head: true })
         .gte("created_at", since30),
+      buildAskMarshallMetrics(since7, since30),
     ]);
 
     // ----- Vault counters -----
@@ -385,6 +570,7 @@ export const getAdminMetrics = createServerFn({ method: "GET" })
       library,
       topics: topicsCount,
       signups: { last7: last7 ?? 0, last30: last30 ?? 0 },
+      askMarshall,
       intensiveLeads: intensiveLeads ?? 0,
       billingQuestions: billingQuestions ?? 0,
     };

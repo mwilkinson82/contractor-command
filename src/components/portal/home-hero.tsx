@@ -37,7 +37,7 @@ export function HomeHero({
     if (!message || busy) return;
     setBusy(true);
     try {
-      const { id } = await createThreadFn({ data: {} });
+      const { id } = await createThreadFn({ data: { source: "dashboard_hero" } });
       // Stash first message in history state so the thread page can auto-send.
       window.history.replaceState(
         { ...(window.history.state ?? {}), firstMessage: message },

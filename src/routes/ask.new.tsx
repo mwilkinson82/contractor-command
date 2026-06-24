@@ -3,7 +3,7 @@ import { createThread } from "@/lib/ask.functions";
 
 export const Route = createFileRoute("/ask/new")({
   beforeLoad: async () => {
-    const { id } = await createThread({ data: {} });
+    const { id } = await createThread({ data: { source: "ask_new" } });
     throw redirect({ to: "/ask/$threadId", params: { threadId: id } });
   },
   component: () => null,

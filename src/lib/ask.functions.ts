@@ -16,6 +16,14 @@ export type AskMessage = {
   created_at: string;
 };
 
+function isMissingSourceColumnError(error: { message?: string; code?: string } | null): boolean {
+  if (!error) return false;
+  return (
+    error.code === "PGRST204" ||
+    error.message?.toLowerCase().includes("source") === true
+  );
+}
+
 export const listThreads = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<AskThread[]> => {
@@ -32,15 +40,35 @@ export const listThreads = createServerFn({ method: "GET" })
 export const createThread = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    z.object({ title: z.string().min(1).max(120).optional() }).parse,
+    z
+      .object({
+        title: z.string().min(1).max(120).optional(),
+        source: z.enum(["dashboard_hero", "ask_index", "ask_new"]).optional(),
+      })
+      .parse,
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
     const { supabase, userId } = context;
-    const { data: row, error } = await supabase
+    const insert = {
+      user_id: userId,
+      title: data.title ?? "New conversation",
+      source: data.source ?? "unknown",
+    };
+    let result = await supabase
       .from("ask_threads")
-      .insert({ user_id: userId, title: data.title ?? "New conversation" })
+      .insert(insert)
       .select("id")
       .single();
+
+    if (isMissingSourceColumnError(result.error)) {
+      result = await supabase
+        .from("ask_threads")
+        .insert({ user_id: insert.user_id, title: insert.title })
+        .select("id")
+        .single();
+    }
+
+    const { data: row, error } = result;
     if (error) throw new Error(error.message);
     return { id: row.id as string };
   });
