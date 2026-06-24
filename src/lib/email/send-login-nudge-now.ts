@@ -6,7 +6,7 @@ import { TEMPLATES } from "@/lib/email-templates/registry";
 type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
 
 const SITE_NAME = "Contractor Circle";
-const DEFAULT_SENDER_DOMAIN = "auth.lovable.cloud";
+const DEFAULT_SENDER_DOMAIN = "notify.mail.alpcontractorcircle.com";
 const TEMPLATE_NAME = "magic-link";
 
 export type DirectLoginNudgeResult =

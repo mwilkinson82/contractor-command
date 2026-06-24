@@ -10,6 +10,7 @@ import {
   Preview,
   Text,
 } from '@react-email/components'
+import type { TemplateEntry } from './registry'
 
 interface MagicLinkEmailProps {
   siteName: string
@@ -42,6 +43,18 @@ export const MagicLinkEmail = ({
 )
 
 export default MagicLinkEmail
+
+export const template = {
+  component: MagicLinkEmail,
+  subject: (data: Record<string, any>) =>
+    data?.firstName ? `${data.firstName}, your login link` : 'Your Contractor Circle login link',
+  displayName: 'Magic link',
+  previewData: {
+    firstName: 'Caleb',
+    siteName: 'Contractor Circle',
+    confirmationUrl: 'https://app.alpcontractorcircle.com/auth/callback',
+  },
+} satisfies TemplateEntry
 
 const main = { backgroundColor: '#ffffff', fontFamily: 'Arial, sans-serif' }
 const container = { padding: '20px 25px' }
