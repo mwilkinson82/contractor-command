@@ -684,8 +684,8 @@ function NavigatorSavedPanel({ packetId }: { packetId: string }) {
           </h2>
           <p className="mt-2 text-[13px] leading-[1.6] text-foreground/72">
             This COS Navigator result is now an operating packet in the Vault. When the member asks
-            Marshall what to do next, the saved constraint, financial signal, and recommended action
-            are available as context.
+            from this diagnosis, the saved constraint, financial signal, and recommended action
+            start the conversation.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -701,7 +701,7 @@ function NavigatorSavedPanel({ packetId }: { packetId: string }) {
             search={{ diagnosis: packetId } as never}
             className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-[12px] font-semibold uppercase tracking-[0.12em] text-foreground/78 hover:bg-muted"
           >
-            Ask Marshall
+            Ask from diagnosis
             <MessageCircle className="h-3.5 w-3.5" />
           </Link>
         </div>

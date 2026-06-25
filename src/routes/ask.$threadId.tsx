@@ -13,12 +13,16 @@ import {
   type AskMessage,
 } from "@/lib/ask.functions";
 import { createIntensiveCheckout } from "@/lib/billing.functions";
+import { vault, type Packet } from "@/lib/vault";
 import { ArrowUp, Plus, Trash2, MessageCircle, Check, Sparkles, Megaphone, Copy, BookOpen, Brain, Wand2, CheckCircle2, Loader2, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { VaultContextNote } from "@/components/portal/vault-context-note";
 
 export const Route = createFileRoute("/ask/$threadId")({
+  validateSearch: (search: Record<string, unknown>): { diagnosis?: string } => ({
+    diagnosis: typeof search.diagnosis === "string" ? search.diagnosis : undefined,
+  }),
   head: () => ({
     meta: [{ title: "Ask Marshall" }],
   }),
@@ -35,8 +39,45 @@ function toUIMessages(rows: AskMessage[]): UIMessage[] {
     }));
 }
 
+function diagnosisPrompt(packet: Packet | undefined): string {
+  if (!packet || packet.kind !== "command") {
+    return [
+      "I just saved a COS Navigator result.",
+      "Use my latest Vault context as the starting point and tell me what to do first this week, what to do in the next 30 days, and what to bring to the next Contractor Circle call.",
+    ].join("\n\n");
+  }
+
+  const read = (value: string | undefined, fallback = "Not captured") =>
+    value?.trim() ? value.trim() : fallback;
+
+  return [
+    "Use this saved COS Navigator diagnosis as the starting point.",
+    "",
+    `Primary constraint: ${read(packet.primaryConstraint)}`,
+    `Finding: ${read(packet.primaryFinding)}`,
+    `Financial signal: ${read(packet.financialConsequence)}`,
+    `Missing system: ${read(packet.missingSystem)}`,
+    `Recommended first action: ${read(packet.recommendedAction)}`,
+    `Question to bring forward: ${read(packet.bringOneIssuePrompt)}`,
+    "",
+    "Tell me what to do first this week, what should happen in the next 30 days, and what I should bring to the next Contractor Circle call.",
+  ].join("\n");
+}
+
+function removeDiagnosisSearchParam() {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  url.searchParams.delete("diagnosis");
+  window.history.replaceState(
+    window.history.state ?? {},
+    "",
+    `${url.pathname}${url.search}${url.hash}`,
+  );
+}
+
 function AskThreadPage() {
   const { threadId } = Route.useParams();
+  const { diagnosis } = Route.useSearch();
   const navigate = useNavigate();
 
   const getThreadFn = useServerFn(getThread);
@@ -115,6 +156,7 @@ function AskThreadPage() {
         <ChatPane
           key={threadId}
           threadId={threadId}
+          diagnosisId={diagnosis}
           initialMessages={initialMessages}
           loaded={true}
           onTitleMayHaveChanged={() => refetchThreads()}
@@ -132,11 +174,13 @@ function AskThreadPage() {
 
 function ChatPane({
   threadId,
+  diagnosisId,
   initialMessages,
   loaded,
   onTitleMayHaveChanged,
 }: {
   threadId: string;
+  diagnosisId?: string;
   initialMessages: UIMessage[];
   loaded: boolean;
   onTitleMayHaveChanged: () => void;
@@ -167,7 +211,8 @@ function ChatPane({
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentFirstRef = useRef(false);
 
-  // Auto-send a first message handed over from the home prompt (router state).
+  // Auto-send a first message handed over from the home prompt, playbook, or
+  // a saved Navigator diagnosis.
   useEffect(() => {
     if (!loaded || sentFirstRef.current) return;
     const state = (window.history.state ?? {}) as { firstMessage?: string };
@@ -179,6 +224,23 @@ function ChatPane({
       window.history.replaceState(rest, "");
     }
   }, [loaded, initialMessages.length, sendMessage]);
+
+  useEffect(() => {
+    if (!loaded || sentFirstRef.current || !diagnosisId || initialMessages.length !== 0) return;
+    let cancelled = false;
+    sentFirstRef.current = true;
+
+    void (async () => {
+      const packet = await vault.getById(diagnosisId, { fresh: true });
+      if (cancelled) return;
+      void sendMessage({ text: diagnosisPrompt(packet) });
+      removeDiagnosisSearchParam();
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [diagnosisId, initialMessages.length, loaded, sendMessage]);
 
   // Auto-scroll
   useEffect(() => {
