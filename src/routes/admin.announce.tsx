@@ -17,7 +17,7 @@ import {
 } from "@/lib/announce.functions";
 import { Megaphone, Send, Users, AlertTriangle } from "lucide-react";
 
-type Audience = "active" | "all_with_login" | "circle";
+type Audience = "active" | "all_with_login" | "circle" | "circle_inactive";
 
 const DRAFT_KEY = "admin.announce.draft.v1";
 
@@ -85,7 +85,12 @@ function AnnouncePage() {
     setCtaLabel(a.cta_label ?? "");
     setCtaUrl(a.cta_url ?? "");
     setSignoff(a.signoff ?? "— Marshall");
-    if (a.audience === "active" || a.audience === "all_with_login" || a.audience === "circle") {
+    if (
+      a.audience === "active" ||
+      a.audience === "all_with_login" ||
+      a.audience === "circle" ||
+      a.audience === "circle_inactive"
+    ) {
       setAudience(a.audience);
     }
     setHydratedFromServer(true);
@@ -104,7 +109,12 @@ function AnnouncePage() {
     setCtaLabel(a.cta_label ?? "");
     setCtaUrl(a.cta_url ?? "");
     setSignoff(a.signoff ?? "— Marshall");
-    if (a.audience === "active" || a.audience === "all_with_login" || a.audience === "circle") {
+    if (
+      a.audience === "active" ||
+      a.audience === "all_with_login" ||
+      a.audience === "circle" ||
+      a.audience === "circle_inactive"
+    ) {
       setAudience(a.audience);
     }
     toast.success("Loaded most recent announcement");
@@ -304,6 +314,21 @@ function AnnouncePage() {
                   type="radio"
                   name="audience"
                   className="mt-1"
+                  checked={audience === "circle_inactive"}
+                  onChange={() => setAudience("circle_inactive")}
+                />
+                <span>
+                  <span className="font-medium">Circle members who haven't logged in</span>
+                  <span className="block text-[11px] text-muted-foreground">
+                    Active Circle/Hardcore subscribers with no portal sign-in yet — login nudges.
+                  </span>
+                </span>
+              </label>
+              <label className="flex cursor-pointer items-start gap-2">
+                <input
+                  type="radio"
+                  name="audience"
+                  className="mt-1"
                   checked={audience === "all_with_login"}
                   onChange={() => setAudience("all_with_login")}
                 />
@@ -410,7 +435,8 @@ function readDraft(): Draft | null {
       audience:
         parsed.audience === "active" ||
         parsed.audience === "all_with_login" ||
-        parsed.audience === "circle"
+        parsed.audience === "circle" ||
+        parsed.audience === "circle_inactive"
           ? parsed.audience
           : "all_with_login",
     };

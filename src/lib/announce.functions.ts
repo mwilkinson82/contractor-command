@@ -31,7 +31,7 @@ function generateToken(): string {
     .join("");
 }
 
-type Audience = "active" | "all_with_login" | "circle" | "test";
+type Audience = "active" | "all_with_login" | "circle" | "circle_inactive" | "test";
 
 interface Recipient {
   email: string;
@@ -41,6 +41,25 @@ interface Recipient {
 // Tiers that count as "Contractor Circle membership". Bi-weekly Circle calls
 // are open to circle + hardcore subscribers (hardcore is a strict superset).
 const CIRCLE_TIERS = new Set(["circle", "hardcore"]);
+
+// Returns a Set of lowercased emails for users who have logged in at least once.
+// Used by the "circle_inactive" audience to skip anyone who already signed in.
+async function loadSignedInEmails(): Promise<Set<string>> {
+  const out = new Set<string>();
+  let page = 1;
+  // perPage max is 1000 in supabase-js admin.listUsers.
+  while (true) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) throw new Error(error.message);
+    for (const u of data.users) {
+      if (u.last_sign_in_at && u.email) out.add(u.email.toLowerCase());
+    }
+    if (data.users.length < 1000) break;
+    page += 1;
+    if (page > 20) break; // safety cap
+  }
+  return out;
+}
 
 async function loadRecipients(audience: Audience, testEmail?: string): Promise<Recipient[]> {
   if (audience === "test") {
@@ -90,6 +109,11 @@ async function loadRecipients(audience: Audience, testEmail?: string): Promise<R
     return subList.some((s) => isActive(s) && s.tier && CIRCLE_TIERS.has(s.tier));
   };
 
+  // For "circle_inactive" we need the set of emails that have logged in at
+  // least once, so we can EXCLUDE them.
+  const signedInEmails =
+    audience === "circle_inactive" ? await loadSignedInEmails() : null;
+
   const out = new Map<string, Recipient>();
 
   for (const p of profiles ?? []) {
@@ -102,6 +126,8 @@ async function loadRecipients(audience: Audience, testEmail?: string): Promise<R
     let include: boolean;
     if (audience === "all_with_login") include = true;
     else if (audience === "circle") include = hasCircleTier(subList, p.id);
+    else if (audience === "circle_inactive")
+      include = hasCircleTier(subList, p.id) && !signedInEmails!.has(key);
     else include = hasAccess(subList, p.id);
     if (!include) continue;
     const firstName = (p.full_name ?? "").trim().split(/\s+/)[0] || null;
@@ -116,6 +142,10 @@ async function loadRecipients(audience: Audience, testEmail?: string): Promise<R
     const subList = subsByEmail.get(key) ?? [s];
     if (audience === "active" && !hasAccess(subList, s.user_id ?? null)) continue;
     if (audience === "circle" && !hasCircleTier(subList, s.user_id ?? null)) continue;
+    if (audience === "circle_inactive") {
+      if (!hasCircleTier(subList, s.user_id ?? null)) continue;
+      if (signedInEmails!.has(key)) continue;
+    }
     out.set(key, { email: s.email, firstName: null });
   }
 
@@ -130,14 +160,14 @@ const InputSchema = z.object({
   ctaLabel: z.string().max(60).optional(),
   ctaUrl: z.string().url().max(500).optional(),
   signoff: z.string().max(120).optional(),
-  audience: z.enum(["active", "all_with_login", "circle", "test"]),
+  audience: z.enum(["active", "all_with_login", "circle", "circle_inactive", "test"]),
   testEmail: z.string().email().optional(),
 });
 
 export const previewMemberAnnouncementAudience = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
-    z.object({ audience: z.enum(["active", "all_with_login", "circle"]) }).parse(input),
+    z.object({ audience: z.enum(["active", "all_with_login", "circle", "circle_inactive"]) }).parse(input),
   )
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
