@@ -314,6 +314,21 @@ function AnnouncePage() {
                   type="radio"
                   name="audience"
                   className="mt-1"
+                  checked={audience === "circle_inactive"}
+                  onChange={() => setAudience("circle_inactive")}
+                />
+                <span>
+                  <span className="font-medium">Circle members who haven't logged in</span>
+                  <span className="block text-[11px] text-muted-foreground">
+                    Active Circle/Hardcore subscribers with no portal sign-in yet — login nudges.
+                  </span>
+                </span>
+              </label>
+              <label className="flex cursor-pointer items-start gap-2">
+                <input
+                  type="radio"
+                  name="audience"
+                  className="mt-1"
                   checked={audience === "all_with_login"}
                   onChange={() => setAudience("all_with_login")}
                 />
