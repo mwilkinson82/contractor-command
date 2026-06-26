@@ -31,7 +31,7 @@ function generateToken(): string {
     .join("");
 }
 
-type Audience = "active" | "all_with_login" | "circle" | "test";
+type Audience = "active" | "all_with_login" | "circle" | "circle_inactive" | "test";
 
 interface Recipient {
   email: string;
@@ -41,6 +41,25 @@ interface Recipient {
 // Tiers that count as "Contractor Circle membership". Bi-weekly Circle calls
 // are open to circle + hardcore subscribers (hardcore is a strict superset).
 const CIRCLE_TIERS = new Set(["circle", "hardcore"]);
+
+// Returns a Set of lowercased emails for users who have logged in at least once.
+// Used by the "circle_inactive" audience to skip anyone who already signed in.
+async function loadSignedInEmails(): Promise<Set<string>> {
+  const out = new Set<string>();
+  let page = 1;
+  // perPage max is 1000 in supabase-js admin.listUsers.
+  while (true) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) throw new Error(error.message);
+    for (const u of data.users) {
+      if (u.last_sign_in_at && u.email) out.add(u.email.toLowerCase());
+    }
+    if (data.users.length < 1000) break;
+    page += 1;
+    if (page > 20) break; // safety cap
+  }
+  return out;
+}
 
 async function loadRecipients(audience: Audience, testEmail?: string): Promise<Recipient[]> {
   if (audience === "test") {
