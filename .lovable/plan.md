@@ -1,70 +1,85 @@
-# Today's Move — Curated + Smarter Fallback
+## Where the bug actually lives
 
-## Goal
+The misleading admin notice ("This purchase didn't match a known product. No welcome email was sent to the customer.") is **not** emitted from this portal. It comes from the separate **[ALP Site](/projects/d5d995bb-85ad-4c1b-b601-a214c4a121a0)** project, in `supabase/functions/stripe-webhook/index.ts` (the "Unrecognized product" branch around lines 388–422).
 
-Make the **Today's Move** card on `/` show what Marshall wants members focused on this week, with a sensible auto-derived fallback when no curated move is active.
+Cross-project tooling here is read-only, so this plan has to be applied inside the ALP Site project. Open that project and ask Lovable to apply the change below — I can hand it over verbatim.
 
-## Part 1 — Curated weekly move (admin-pushed)
+## Root cause
 
-### New table: `weekly_moves`
+That webhook only knows about marketing-site SKUs (Power Hour, Contractor School, S&M School, ALP University, etc.). Contractor Circle subscriptions are sold/managed by this portal, so their Stripe price IDs aren't in `PRODUCT_MAP` / `PRICE_ID_MAP`. When a Circle purchase fires `checkout.session.completed` on the shared Stripe account, `getProductFromSession()` returns `null`, the webhook drops into the "Custom / Ad-Hoc" branch, and Marshall gets the scary admin email — even though the **portal's** Stripe webhook (`src/routes/api/public/stripe/webhook.ts`) successfully enqueued the Circle welcome (`circle-welcome-<sub_id>` in `email_send_log`).
 
-| Column        | Type        | Notes                                         |
-| ------------- | ----------- | --------------------------------------------- |
-| `id`          | uuid PK     |                                               |
-| `headline`    | text        | Big bold line on the card                     |
-| `body`        | text        | 1–3 sentence explanation                      |
-| `cta_label`   | text        | Button text (e.g. "Open the SOP builder")     |
-| `cta_to`      | text null   | Internal route (e.g. `/tools/sop-priority`)   |
-| `cta_href`    | text null   | External URL (mutually exclusive with cta_to) |
-| `source`      | text null   | Small "From · …" tag under the button         |
-| `active_from` | timestamptz | When it starts showing                        |
-| `active_to`   | timestamptz null | Optional auto-expiry                     |
-| `created_by`  | uuid        | admin profile id                              |
-| `created_at`  | timestamptz | default now()                                 |
+The three Circle price IDs currently in use (pulled from `subscriptions`):
 
-RLS: `SELECT` for `authenticated` where `active_from <= now() AND (active_to IS NULL OR active_to > now())`. Full CRUD limited to admins via `has_role(auth.uid(), 'admin')`. Standard GRANTs (`authenticated`, `service_role`).
+```
+price_1TDR3aJdDAUSVXbNWVzFLblo   circle
+price_1TDR3aJdDAUSVXbNZOY6EXF3   circle
+price_1TVh3TJdDAUSVXbNJRsYFTbp   circle
+```
 
-### Admin page: `/admin/weekly-move`
+## Fix (applied in the ALP Site project)
 
-- Lists past moves (most recent first), shows which one is currently active.
-- "New move" form: headline, body, CTA label, CTA route OR URL, source, active_from (defaults to now), active_to (optional).
-- Edit / archive (set `active_to = now()`) on past entries.
-- Linked from the existing admin index page.
+Edit `supabase/functions/stripe-webhook/index.ts`:
 
-### Server functions (`src/lib/weekly-move.functions.ts`)
+1. Add a set of "handled-by-portal" price IDs near the top, alongside `PRICE_ID_MAP`:
 
-- `getActiveWeeklyMove()` — public to authenticated members, returns the single currently-active row or null.
-- `listWeeklyMoves()` — admin only.
-- `upsertWeeklyMove(input)` — admin only.
-- `archiveWeeklyMove(id)` — admin only.
+   ```ts
+   // Contractor Circle prices are handled end-to-end by the portal app
+   // (app.alpcontractorcircle.com). The portal's Stripe webhook sends the
+   // Circle welcome + magic link. We just acknowledge and log here.
+   const PORTAL_HANDLED_PRICE_IDS = new Set<string>([
+     "price_1TDR3aJdDAUSVXbNWVzFLblo",
+     "price_1TDR3aJdDAUSVXbNZOY6EXF3",
+     "price_1TVh3TJdDAUSVXbNJRsYFTbp",
+   ]);
 
-### Wiring on `/`
+   function sessionIsPortalHandled(session: any): boolean {
+     if (session.metadata?.kind === "circle" || session.metadata?.product === "circle") return true;
+     const items = session.line_items?.data ?? [];
+     for (const item of items) {
+       const priceId = typeof item.price === "string" ? item.price : item.price?.id;
+       if (priceId && PORTAL_HANDLED_PRICE_IDS.has(priceId)) return true;
+     }
+     return false;
+   }
+   ```
 
-`src/routes/index.tsx` already passes `packets` to `<TodaysMove />`. Add a TanStack Query call to `getActiveWeeklyMove` and pass the result as the `curated` prop. The component already prefers `curated ?? deriveMove(packets)` and already swaps the eyebrow label to "Marshall's move this week" when curated is present — no component-level changes needed for this part.
+2. In `handler`, **before** the `getProductFromSession` lookup (just after we have `customerEmail`), short-circuit Circle purchases:
 
-## Part 2 — Smarter auto-derive fallback
+   ```ts
+   if (sessionIsPortalHandled(session)) {
+     console.log("Circle purchase — handled by portal app, skipping marketing-site flow");
+     await supabase.from("purchase_log").insert({
+       customer_name: customerName,
+       customer_email: customerEmail,
+       product_name: "Contractor Circle (handled by portal)",
+       stripe_session_id: session.id,
+       amount_cents: session.amount_total,
+       welcome_email_sent: true,        // portal sent it
+       kajabi_provisioned: false,       // intentional — Circle doesn't use Kajabi
+     });
+     return new Response(JSON.stringify({ received: true, handled_by: "portal" }), {
+       status: 200,
+       headers: { "Content-Type": "application/json", ...corsHeaders },
+     });
+   }
+   ```
 
-Edit `deriveMove()` in `src/components/portal/todays-move.tsx`:
+   No admin email is sent in this branch — the portal already handles confirmation + delivery + its own admin signal.
 
-1. **Recency filter.** Ignore any packet older than **14 days**. A stale "Client communication / leverage 60" from two weeks ago should not be today's move.
-2. **Rule re-order.** Current order privileges `intensiveRecommended` above all else, which is why the older SOP Priority packet beats the newer Contract Readiness one. New order:
-   - (a) Newest `command` packet within 14 days that is `intensiveRecommended`.
-   - (b) Newest `command` packet within 14 days (any).
-   - (c) Newest `issue` packet within 14 days.
-   - (d) Cold-start nudge (unchanged).
-3. **Cold-start copy refresh.** Keep pointing at Growth Constraint Map, but soften copy so it doesn't look like a default for someone who's been around a while — add a secondary line: "Already run it? Re-run quarterly — the numbers move."
+3. Leave the existing "Unrecognized product" branch untouched so genuinely unknown SKUs still page Marshall.
 
-No schema impact for Part 2.
+## Why this is the right shape
+
+- Uses both `session.metadata.kind/product === "circle"` (the portal's checkout sets this) **and** an explicit Circle price-ID allowlist, so it's robust whether Stripe sends metadata, line items, or both.
+- Keeps the marketing-site webhook authoritative for marketing-site products — only carves out Circle.
+- New Circle price IDs in the future: add to `PORTAL_HANDLED_PRICE_IDS`. No other moving parts.
 
 ## Out of scope
 
-- Per-tier or per-segment targeting of the curated move (everyone sees the same one for now — matches today's behavior).
-- Scheduling multiple future moves in a queue (admin sets `active_from` manually; only one active at a time is enforced by query, not by constraint).
-- Analytics on CTR for the move card.
+- No changes in this portal project — its webhook already does the right thing.
+- No changes to Kajabi, Resend, or `purchase_log` schema.
+- No retroactive email cleanup; existing false-alarm notices stay in your inbox.
 
-## Technical notes
+## Hand-off
 
-- New files: `src/lib/weekly-move.functions.ts`, `src/routes/admin.weekly-move.tsx`.
-- Modified files: `src/routes/index.tsx` (fetch + pass `curated`), `src/components/portal/todays-move.tsx` (smarter `deriveMove`), `src/routes/admin.index.tsx` (add link).
-- One migration: create `weekly_moves` + GRANTs + RLS + policies.
-- The `curated` prop and "Marshall's move this week" label are already in place — no breaking changes to the component contract.
+Open [ALP Site](/projects/d5d995bb-85ad-4c1b-b601-a214c4a121a0) and paste the change request above. The edit is localized to `supabase/functions/stripe-webhook/index.ts` and a redeploy of that one edge function.
