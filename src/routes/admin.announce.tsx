@@ -435,7 +435,8 @@ function readDraft(): Draft | null {
       audience:
         parsed.audience === "active" ||
         parsed.audience === "all_with_login" ||
-        parsed.audience === "circle"
+        parsed.audience === "circle" ||
+        parsed.audience === "circle_inactive"
           ? parsed.audience
           : "all_with_login",
     };
