@@ -109,6 +109,11 @@ async function loadRecipients(audience: Audience, testEmail?: string): Promise<R
     return subList.some((s) => isActive(s) && s.tier && CIRCLE_TIERS.has(s.tier));
   };
 
+  // For "circle_inactive" we need the set of emails that have logged in at
+  // least once, so we can EXCLUDE them.
+  const signedInEmails =
+    audience === "circle_inactive" ? await loadSignedInEmails() : null;
+
   const out = new Map<string, Recipient>();
 
   for (const p of profiles ?? []) {
@@ -121,6 +126,8 @@ async function loadRecipients(audience: Audience, testEmail?: string): Promise<R
     let include: boolean;
     if (audience === "all_with_login") include = true;
     else if (audience === "circle") include = hasCircleTier(subList, p.id);
+    else if (audience === "circle_inactive")
+      include = hasCircleTier(subList, p.id) && !signedInEmails!.has(key);
     else include = hasAccess(subList, p.id);
     if (!include) continue;
     const firstName = (p.full_name ?? "").trim().split(/\s+/)[0] || null;
@@ -135,6 +142,10 @@ async function loadRecipients(audience: Audience, testEmail?: string): Promise<R
     const subList = subsByEmail.get(key) ?? [s];
     if (audience === "active" && !hasAccess(subList, s.user_id ?? null)) continue;
     if (audience === "circle" && !hasCircleTier(subList, s.user_id ?? null)) continue;
+    if (audience === "circle_inactive") {
+      if (!hasCircleTier(subList, s.user_id ?? null)) continue;
+      if (signedInEmails!.has(key)) continue;
+    }
     out.set(key, { email: s.email, firstName: null });
   }
 
@@ -149,14 +160,14 @@ const InputSchema = z.object({
   ctaLabel: z.string().max(60).optional(),
   ctaUrl: z.string().url().max(500).optional(),
   signoff: z.string().max(120).optional(),
-  audience: z.enum(["active", "all_with_login", "circle", "test"]),
+  audience: z.enum(["active", "all_with_login", "circle", "circle_inactive", "test"]),
   testEmail: z.string().email().optional(),
 });
 
 export const previewMemberAnnouncementAudience = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
-    z.object({ audience: z.enum(["active", "all_with_login", "circle"]) }).parse(input),
+    z.object({ audience: z.enum(["active", "all_with_login", "circle", "circle_inactive"]) }).parse(input),
   )
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
