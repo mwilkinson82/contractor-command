@@ -454,17 +454,21 @@ function FeaturedLatestClass() {
             <p className="label-mono">Featured · Latest class</p>
           </div>
           <h2 className="mt-3 font-display text-3xl md:text-4xl leading-tight">
-            Contractor Circle Call — June 21, 2026
+            Contractor Circle Call — June 25, 2026
           </h2>
+          <p className="mt-2 text-[13.5px] text-muted-foreground max-w-[760px]">
+            IOR case study on Caleb's Orchard Street project — how an 11-point gross profit erosion and 31-week schedule variance trace back to assumption monitoring and exposure-vs-contingency discipline.
+          </p>
 
           <div className="mt-6 overflow-hidden rounded-xl border border-border bg-black">
             <div style={{ position: "relative", width: "100%", height: 0, paddingBottom: "56.25%" }}>
               <iframe
-                src="https://us06web.zoom.us/clips/embed/EYG5aRgpQbCdFapJqlkI0w"
+                src="https://us06web.zoom.us/clips/embed/7PNWwb2sR--E0bMFq_1opw"
                 frameBorder="0"
                 allowFullScreen
+                allow="autoplay; picture-in-picture; fullscreen"
                 style={{ position: "absolute", width: "100%", height: "100%", top: 0, left: 0 }}
-                title="Contractor Circle Call — June 21, 2026"
+                title="Contractor Circle Call — June 25, 2026"
               />
             </div>
           </div>
