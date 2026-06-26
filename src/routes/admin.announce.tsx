@@ -17,7 +17,7 @@ import {
 } from "@/lib/announce.functions";
 import { Megaphone, Send, Users, AlertTriangle } from "lucide-react";
 
-type Audience = "active" | "all_with_login" | "circle";
+type Audience = "active" | "all_with_login" | "circle" | "circle_inactive";
 
 const DRAFT_KEY = "admin.announce.draft.v1";
 
@@ -85,7 +85,12 @@ function AnnouncePage() {
     setCtaLabel(a.cta_label ?? "");
     setCtaUrl(a.cta_url ?? "");
     setSignoff(a.signoff ?? "— Marshall");
-    if (a.audience === "active" || a.audience === "all_with_login" || a.audience === "circle") {
+    if (
+      a.audience === "active" ||
+      a.audience === "all_with_login" ||
+      a.audience === "circle" ||
+      a.audience === "circle_inactive"
+    ) {
       setAudience(a.audience);
     }
     setHydratedFromServer(true);
@@ -104,7 +109,12 @@ function AnnouncePage() {
     setCtaLabel(a.cta_label ?? "");
     setCtaUrl(a.cta_url ?? "");
     setSignoff(a.signoff ?? "— Marshall");
-    if (a.audience === "active" || a.audience === "all_with_login" || a.audience === "circle") {
+    if (
+      a.audience === "active" ||
+      a.audience === "all_with_login" ||
+      a.audience === "circle" ||
+      a.audience === "circle_inactive"
+    ) {
       setAudience(a.audience);
     }
     toast.success("Loaded most recent announcement");
