@@ -6,6 +6,7 @@
 // member, mint the one-time link, and send the branded login email directly.
 
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
 
@@ -20,12 +21,49 @@ const RECENT_SEND_WINDOW_MS = 20 * 1000;
 const HOURLY_SEND_WINDOW_MS = 60 * 60 * 1000;
 const MAX_LOGIN_EMAILS_PER_HOUR = 12;
 
-function appOrigin(): string {
+function fallbackAppOrigin(): string {
   return (
     process.env.PUBLIC_APP_ORIGIN ||
     process.env.APP_ORIGIN ||
     "https://app.alpcontractorcircle.com"
   ).replace(/\/$/, "");
+}
+
+function allowedRequestOrigin(origin: string | null): string | null {
+  if (!origin) return null;
+  try {
+    const url = new URL(origin);
+    const host = url.hostname.toLowerCase();
+    const allowed =
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "app.alpcontractorcircle.com" ||
+      host === "contractor-command.lovable.app" ||
+      (host.endsWith(".lovable.app") && host.startsWith("id-preview--"));
+
+    return allowed ? url.origin : null;
+  } catch {
+    return null;
+  }
+}
+
+function originFromUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+function appOrigin(): string {
+  const request = getRequest();
+  const requestOrigin =
+    allowedRequestOrigin(request?.headers.get("origin")) ||
+    allowedRequestOrigin(originFromUrl(request?.headers.get("referer"))) ||
+    allowedRequestOrigin(originFromUrl(request?.url));
+
+  return requestOrigin ?? fallbackAppOrigin();
 }
 
 function redactEmail(email: string): string {
