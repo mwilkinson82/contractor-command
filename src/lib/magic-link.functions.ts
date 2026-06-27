@@ -47,12 +47,21 @@ function allowedRequestOrigin(origin: string | null): string | null {
   }
 }
 
+function originFromUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
 function appOrigin(): string {
   const request = getRequest();
   const requestOrigin =
     allowedRequestOrigin(request?.headers.get("origin")) ||
-    allowedRequestOrigin(request?.headers.get("referer") ? new URL(request.headers.get("referer")!).origin : null) ||
-    allowedRequestOrigin(request?.url ? new URL(request.url).origin : null);
+    allowedRequestOrigin(originFromUrl(request?.headers.get("referer"))) ||
+    allowedRequestOrigin(originFromUrl(request?.url));
 
   return requestOrigin ?? fallbackAppOrigin();
 }
