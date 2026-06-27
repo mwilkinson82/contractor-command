@@ -7,9 +7,9 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
-import { sendLoginNudgeNow } from "@/lib/email/send-login-nudge-now";
+
+type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
 
 const Input = z.object({
   email: z.string().trim().toLowerCase().email().max(255),
@@ -34,7 +34,7 @@ function redactEmail(email: string): string {
   return `${localPart[0]}***@${domain}`;
 }
 
-async function findAuthUserByEmail(email: string) {
+async function findAuthUserByEmail(supabaseAdmin: SupabaseAdminClient, email: string) {
   const perPage = 200;
   for (let page = 1; page <= 25; page++) {
     const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
@@ -47,7 +47,10 @@ async function findAuthUserByEmail(email: string) {
   return null;
 }
 
-async function hasLiveSubscription(email: string): Promise<boolean> {
+async function hasLiveSubscription(
+  supabaseAdmin: SupabaseAdminClient,
+  email: string,
+): Promise<boolean> {
   const { data, error } = await supabaseAdmin
     .from("subscriptions")
     .select("id,status,is_comped")
@@ -60,11 +63,14 @@ async function hasLiveSubscription(email: string): Promise<boolean> {
   return Boolean(data);
 }
 
-async function ensureAuthUserForMember(email: string): Promise<boolean> {
-  const existing = await findAuthUserByEmail(email);
+async function ensureAuthUserForMember(
+  supabaseAdmin: SupabaseAdminClient,
+  email: string,
+): Promise<boolean> {
+  const existing = await findAuthUserByEmail(supabaseAdmin, email);
   if (existing) return true;
 
-  if (!(await hasLiveSubscription(email))) return false;
+  if (!(await hasLiveSubscription(supabaseAdmin, email))) return false;
 
   const { error } = await supabaseAdmin.auth.admin.createUser({
     email,
@@ -82,7 +88,10 @@ async function ensureAuthUserForMember(email: string): Promise<boolean> {
   return true;
 }
 
-async function resolveFirstName(email: string): Promise<string | null> {
+async function resolveFirstName(
+  supabaseAdmin: SupabaseAdminClient,
+  email: string,
+): Promise<string | null> {
   const { data } = await supabaseAdmin
     .from("profiles")
     .select("full_name")
@@ -94,6 +103,7 @@ async function resolveFirstName(email: string): Promise<string | null> {
 }
 
 async function getLoginEmailThrottle(
+  supabaseAdmin: SupabaseAdminClient,
   email: string,
 ): Promise<"ok" | "recent_duplicate" | "hourly_cap"> {
   const recentSince = new Date(Date.now() - RECENT_SEND_WINDOW_MS).toISOString();
@@ -145,8 +155,10 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
       | "link_failed" = "not_a_live_member";
 
     try {
-      if (await ensureAuthUserForMember(email)) {
-        const throttle = await getLoginEmailThrottle(email);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+      if (await ensureAuthUserForMember(supabaseAdmin, email)) {
+        const throttle = await getLoginEmailThrottle(supabaseAdmin, email);
         if (throttle !== "ok") {
           internalAction = "rate_limited";
           console.warn("[magic-link] throttled", {
@@ -173,7 +185,8 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
               tokenHash,
               type: "magiclink",
             });
-            const firstName = await resolveFirstName(email);
+            const firstName = await resolveFirstName(supabaseAdmin, email);
+            const { sendLoginNudgeNow } = await import("@/lib/email/send-login-nudge-now");
             const sendResult = await sendLoginNudgeNow({
               supabaseAdmin,
               email,
