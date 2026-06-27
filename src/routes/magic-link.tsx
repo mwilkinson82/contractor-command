@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { requestMemberMagicLink } from "@/lib/magic-link.functions";
 
 export const Route = createFileRoute("/magic-link")({
@@ -22,9 +22,15 @@ function MagicLinkPage() {
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (busy || !isHydrated) return;
     setBusy(true);
     setErr(null);
     try {
@@ -78,10 +84,10 @@ function MagicLinkPage() {
             {err && <p className="text-sm text-destructive">{err}</p>}
             <button
               type="submit"
-              disabled={busy}
+              disabled={busy || !isHydrated}
               className="w-full rounded-md bg-primary px-4 py-2 text-primary-foreground disabled:opacity-60"
             >
-              {busy ? "Sending..." : "Send magic link"}
+              {busy ? "Sending..." : isHydrated ? "Send magic link" : "Loading"}
             </button>
             <p className="text-center text-xs text-muted-foreground">
               Prefer a password?{" "}

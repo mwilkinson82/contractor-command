@@ -16,9 +16,9 @@ const Input = z.object({
 });
 
 const TEMPLATE_NAME = "magic-link";
-const RECENT_SEND_WINDOW_MS = 60 * 1000;
+const RECENT_SEND_WINDOW_MS = 20 * 1000;
 const HOURLY_SEND_WINDOW_MS = 60 * 60 * 1000;
-const MAX_LOGIN_EMAILS_PER_HOUR = 3;
+const MAX_LOGIN_EMAILS_PER_HOUR = 12;
 
 function appOrigin(): string {
   return (
