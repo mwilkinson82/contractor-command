@@ -37,6 +37,11 @@ function LoginPage() {
   const [err, setErr] = useState<string | null>(null);
   const [mode, setMode] = useState<"magic" | "password">("magic");
   const [magicSent, setMagicSent] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_, s) => {
@@ -50,6 +55,7 @@ function LoginPage() {
 
   async function onMagicSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (busy || !isHydrated) return;
     setBusy(true);
     setErr(null);
     try {
@@ -64,6 +70,7 @@ function LoginPage() {
 
   async function onPasswordSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (busy || !isHydrated) return;
     setBusy(true);
     setErr(null);
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -145,10 +152,10 @@ function LoginPage() {
 
                   <button
                     type="submit"
-                    disabled={busy}
+                    disabled={busy || !isHydrated}
                     className="mt-2 inline-flex w-full items-center justify-center rounded-full bg-ink px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-cream transition-opacity hover:opacity-90 disabled:opacity-50"
                   >
-                    {busy ? "Sending" : "Email sign-in link"}
+                    {busy ? "Sending" : isHydrated ? "Email sign-in link" : "Loading"}
                   </button>
 
                   <button
@@ -197,10 +204,10 @@ function LoginPage() {
 
                   <button
                     type="submit"
-                    disabled={busy}
+                    disabled={busy || !isHydrated}
                     className="mt-2 inline-flex w-full items-center justify-center rounded-full bg-ink px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-cream transition-opacity hover:opacity-90 disabled:opacity-50"
                   >
-                    {busy ? "Entering" : "Enter"}
+                    {busy ? "Entering" : isHydrated ? "Enter" : "Loading"}
                   </button>
 
                   <button
