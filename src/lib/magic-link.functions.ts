@@ -8,7 +8,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
-import { sendLoginNudgeNow } from "@/lib/email/send-login-nudge-now";
 
 type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
 
@@ -187,6 +186,7 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
               type: "magiclink",
             });
             const firstName = await resolveFirstName(supabaseAdmin, email);
+            const { sendLoginNudgeNow } = await import("@/lib/email/send-login-nudge-now");
             const sendResult = await sendLoginNudgeNow({
               supabaseAdmin,
               email,
