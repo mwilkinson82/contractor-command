@@ -39,6 +39,20 @@ function LoginPage() {
   const [magicSent, setMagicSent] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
 
+  function requestMagicLinkWithTimeout(emailAddress: string) {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(
+        () => reject(new Error("That took too long. Please try again.")),
+        18_000,
+      );
+    });
+
+    return Promise.race([requestMagicLink({ data: { email: emailAddress } }), timeout]).finally(() => {
+      if (timeoutId) clearTimeout(timeoutId);
+    });
+  }
+
   useEffect(() => {
     setIsHydrated(true);
   }, []);
@@ -59,7 +73,7 @@ function LoginPage() {
     setBusy(true);
     setErr(null);
     try {
-      await requestMagicLink({ data: { email: email.trim() } });
+      await requestMagicLinkWithTimeout(email.trim());
       setMagicSent(true);
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "Something went wrong");

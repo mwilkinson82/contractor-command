@@ -16,11 +16,6 @@ const Input = z.object({
   email: z.string().trim().toLowerCase().email().max(255),
 });
 
-const TEMPLATE_NAME = "magic-link";
-const RECENT_SEND_WINDOW_MS = 20 * 1000;
-const HOURLY_SEND_WINDOW_MS = 60 * 60 * 1000;
-const MAX_LOGIN_EMAILS_PER_HOUR = 12;
-
 function fallbackAppOrigin(): string {
   return (
     process.env.PUBLIC_APP_ORIGIN ||
@@ -140,37 +135,6 @@ async function resolveFirstName(
   return fullName ? fullName.split(/\s+/)[0] : null;
 }
 
-async function getLoginEmailThrottle(
-  supabaseAdmin: SupabaseAdminClient,
-  email: string,
-): Promise<"ok" | "recent_duplicate" | "hourly_cap"> {
-  const recentSince = new Date(Date.now() - RECENT_SEND_WINDOW_MS).toISOString();
-  const hourlySince = new Date(Date.now() - HOURLY_SEND_WINDOW_MS).toISOString();
-
-  const [{ data: recent }, { count: hourlyCount }] = await Promise.all([
-    supabaseAdmin
-      .from("email_send_log")
-      .select("id")
-      .ilike("recipient_email", email)
-      .eq("template_name", TEMPLATE_NAME)
-      .in("status", ["pending", "sent"])
-      .gte("created_at", recentSince)
-      .limit(1)
-      .maybeSingle(),
-    supabaseAdmin
-      .from("email_send_log")
-      .select("id", { count: "exact", head: true })
-      .ilike("recipient_email", email)
-      .eq("template_name", TEMPLATE_NAME)
-      .in("status", ["pending", "sent", "suppressed", "failed"])
-      .gte("created_at", hourlySince),
-  ]);
-
-  if (recent) return "recent_duplicate";
-  if ((hourlyCount ?? 0) >= MAX_LOGIN_EMAILS_PER_HOUR) return "hourly_cap";
-  return "ok";
-}
-
 export type MagicLinkResult = {
   ok: true;
   // Always "sent" to unauthenticated callers. The actual action is logged
@@ -186,7 +150,6 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
     const minDelay = new Promise((resolve) => setTimeout(resolve, 600));
     let internalAction:
       | "sent"
-      | "rate_limited"
       | "suppressed"
       | "send_failed"
       | "not_a_live_member"
@@ -196,51 +159,42 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
       if (await ensureAuthUserForMember(supabaseAdmin, email)) {
-        const throttle = await getLoginEmailThrottle(supabaseAdmin, email);
-        if (throttle !== "ok") {
-          internalAction = "rate_limited";
-          console.warn("[magic-link] throttled", {
+        const { data: link, error } = await supabaseAdmin.auth.admin.generateLink({
+          type: "magiclink",
+          email,
+          options: { redirectTo: `${origin}/auth/callback` },
+        });
+
+        const tokenHash = link?.properties?.hashed_token;
+        if (error || !tokenHash) {
+          internalAction = "link_failed";
+          console.error("[magic-link] generateLink failed", {
             email: redactEmail(email),
-            reason: throttle,
+            error: error?.message ?? "No hashed_token returned from Supabase",
           });
         } else {
-          const { data: link, error } = await supabaseAdmin.auth.admin.generateLink({
+          const confirmationUrl = buildTokenHashAuthUrl({
+            origin,
+            tokenHash,
             type: "magiclink",
-            email,
-            options: { redirectTo: `${origin}/auth/callback` },
           });
-
-          const tokenHash = link?.properties?.hashed_token;
-          if (error || !tokenHash) {
-            internalAction = "link_failed";
-            console.error("[magic-link] generateLink failed", {
-              email: redactEmail(email),
-              error: error?.message ?? "No hashed_token returned from Supabase",
-            });
-          } else {
-            const confirmationUrl = buildTokenHashAuthUrl({
-              origin,
-              tokenHash,
-              type: "magiclink",
-            });
-            const firstName = await resolveFirstName(supabaseAdmin, email);
-            const { sendLoginNudgeNow } = await import("@/lib/email/send-login-nudge-now");
-            const sendResult = await sendLoginNudgeNow({
-              supabaseAdmin,
-              email,
-              firstName,
-              confirmationUrl,
-              idempotencyKey: `public-signin-${email}-${Date.now()}`,
-              channel: "public_magic_link",
-              siteUrl: origin,
-            });
-            internalAction =
-              sendResult.status === "sent"
-                ? "sent"
-                : sendResult.status === "suppressed"
-                  ? "suppressed"
-                  : "send_failed";
-          }
+          const firstName = await resolveFirstName(supabaseAdmin, email);
+          const { sendLoginNudgeNow } = await import("@/lib/email/send-login-nudge-now");
+          const sendResult = await sendLoginNudgeNow({
+            supabaseAdmin,
+            email,
+            firstName,
+            confirmationUrl,
+            idempotencyKey: `public-signin-${email}-${Date.now()}`,
+            channel: "public_magic_link",
+            siteUrl: origin,
+          });
+          internalAction =
+            sendResult.status === "sent"
+              ? "sent"
+              : sendResult.status === "suppressed"
+                ? "suppressed"
+                : "send_failed";
         }
       }
     } catch (err) {
