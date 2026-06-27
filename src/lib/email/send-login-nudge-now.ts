@@ -45,6 +45,19 @@ function loginEmailSender(): { from: string; senderDomain: string } {
   };
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(`${label} timed out`)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 async function ensureUnsubscribeToken(
   supabaseAdmin: SupabaseAdminClient,
   emailLower: string,
@@ -184,21 +197,25 @@ export async function sendLoginNudgeNow({
   });
 
   try {
-    await sendLovableEmail(
-      {
-        to: email,
-        from: sender.from,
-        sender_domain: sender.senderDomain,
-        subject,
-        html,
-        text: plainText,
-        purpose: "transactional",
-        label: TEMPLATE_NAME,
-        idempotency_key: idempotencyKey,
-        unsubscribe_token: unsubscribeToken,
-        message_id: messageId,
-      },
-      { apiKey, sendUrl: process.env.LOVABLE_SEND_URL },
+    await withTimeout(
+      sendLovableEmail(
+        {
+          to: email,
+          from: sender.from,
+          sender_domain: sender.senderDomain,
+          subject,
+          html,
+          text: plainText,
+          purpose: "transactional",
+          label: TEMPLATE_NAME,
+          idempotency_key: idempotencyKey,
+          unsubscribe_token: unsubscribeToken,
+          message_id: messageId,
+        },
+        { apiKey, sendUrl: process.env.LOVABLE_SEND_URL },
+      ),
+      12_000,
+      "Magic-link email send",
     );
 
     await supabaseAdmin.from("email_send_log").insert({
