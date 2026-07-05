@@ -10,7 +10,9 @@ import {
   formatSessionDate,
   greeting,
   nextAny,
+  nextOfKind,
   relativeDay,
+  type Session,
 } from "@/lib/program";
 import { supabase } from "@/integrations/supabase/client";
 import { vault, type Packet } from "@/lib/vault";
@@ -18,7 +20,14 @@ import { useCompany } from "@/hooks/use-company";
 import { isAllowedReturnTo, RETURN_TO_STORAGE_KEY } from "@/lib/return-to";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
+import { tierAtLeast, useTier } from "@/hooks/use-tier";
 import { AosPulse } from "@/components/portal/aos-pulse";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 import { AosHero } from "@/components/portal/aos-hero";
 import { HomeHero } from "@/components/portal/home-hero";
@@ -36,6 +45,11 @@ import {
   MessagesSquare,
   FileText,
 } from "lucide-react";
+
+const CALL_ANNOUNCEMENT_ID = "contractor-circle-call-2026-07-05-5pm-est";
+const CALL_ANNOUNCEMENT_DISMISSED_KEY = `alp.cc.dismissed.${CALL_ANNOUNCEMENT_ID}`;
+const CALL_ANNOUNCEMENT_START_AT = "2026-07-05T21:00:00.000Z";
+const CALL_ANNOUNCEMENT_EXPIRES_AT = "2026-07-06T03:00:00.000Z";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -55,9 +69,17 @@ const COMPANY_KEY = "aos.company_id";
 
 function HomePage() {
   const session = nextAny();
+  const standardCallSession = nextOfKind("Biweekly Call") ?? session;
+  const callSession = {
+    ...standardCallSession,
+    title: "Contractor Circle Call",
+    date: CALL_ANNOUNCEMENT_START_AT,
+  };
   const [latestReplay, setLatestReplay] = useState<{ title: string; recorded_at: string } | null>(null);
   const { company } = useCompany();
   const { user } = useAuth();
+  const { tier, loading: tierLoading } = useTier();
+  const [callAnnouncementOpen, setCallAnnouncementOpen] = useState(false);
 
   const [hello, setHello] = useState<string>("Welcome");
   const [today, setToday] = useState<string>("");
@@ -71,6 +93,7 @@ function HomePage() {
     user?.email?.split("@")[0] ||
     "there";
   const companyName = company?.name?.trim() || "Your Command Center";
+  const shouldSeeCallAnnouncement = !tierLoading && tierAtLeast(tier, "circle");
 
   // Hydrate company id from localStorage (avoids SSR mismatch)
   useEffect(() => {
@@ -140,6 +163,21 @@ function HomePage() {
   }, [aosData, companyId]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!user || !shouldSeeCallAnnouncement) return;
+    if (Date.now() > new Date(CALL_ANNOUNCEMENT_EXPIRES_AT).getTime()) return;
+    if (window.sessionStorage.getItem(CALL_ANNOUNCEMENT_DISMISSED_KEY) === "1") return;
+    setCallAnnouncementOpen(true);
+  }, [shouldSeeCallAnnouncement, user]);
+
+  function handleCallAnnouncementOpenChange(open: boolean) {
+    setCallAnnouncementOpen(open);
+    if (!open && typeof window !== "undefined") {
+      window.sessionStorage.setItem(CALL_ANNOUNCEMENT_DISMISSED_KEY, "1");
+    }
+  }
+
+  useEffect(() => {
     setHello(greeting());
     setToday(
       new Date().toLocaleDateString(undefined, {
@@ -171,6 +209,12 @@ function HomePage() {
 
   return (
     <div className="relative">
+      <ContractorCircleCallAnnouncement
+        open={callAnnouncementOpen}
+        onOpenChange={handleCallAnnouncementOpenChange}
+        session={callSession}
+      />
+
       {/* Ask Marshall hero — the front door */}
       <HomeHero
         companyName={companyName}
@@ -387,6 +431,94 @@ function HomePage() {
   );
 }
 
+function ContractorCircleCallAnnouncement({
+  open,
+  onOpenChange,
+  session,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  session: Session;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[92vh] max-w-[640px] overflow-hidden border-ink/15 bg-[var(--work-surface)] p-0 shadow-[var(--shadow-focus)] sm:rounded-2xl">
+        <div className="grid gap-0 md:grid-cols-[1fr_220px]">
+          <div className="p-6 sm:p-8">
+            <p className="label-mono text-signal">Contractor Circle Call</p>
+            <DialogTitle className="mt-3 font-display text-4xl font-normal leading-[0.95] tracking-tight text-ink sm:text-5xl">
+              Tonight at 5:00 PM EST.
+            </DialogTitle>
+            <DialogDescription className="mt-4 text-[14px] leading-relaxed text-muted-foreground">
+              Use the standard Contractor Circle link. We will work the room, take questions,
+              and keep moving the company behind the projects.
+            </DialogDescription>
+
+            <div className="mt-6 rounded-xl border border-border bg-card p-4">
+              <p className="label-mono">Standard link</p>
+              <a
+                href={session.zoomUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 block break-all font-mono text-[12px] leading-relaxed text-foreground underline decoration-signal/40 underline-offset-4 hover:text-signal"
+              >
+                {session.zoomUrl}
+              </a>
+              <p className="mt-3 font-mono text-[11px] text-muted-foreground">
+                Zoom ID · {session.zoomId ?? "standard room"}
+                {session.passcode ? <> · Passcode · {session.passcode}</> : null}
+              </p>
+            </div>
+
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+              <a
+                href={session.zoomUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-ink px-4 py-3 text-[13px] font-medium text-cream hover:opacity-90"
+              >
+                Join the call <ArrowUpRight className="h-3.5 w-3.5" />
+              </a>
+              <a
+                href={addToCalendarUrl(session)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-3 text-[13px] text-foreground/80 hover:bg-muted"
+              >
+                <Calendar className="h-3.5 w-3.5" /> Add to calendar
+              </a>
+            </div>
+          </div>
+
+          <div className="border-t border-border bg-[var(--paper-deep)] p-6 md:border-l md:border-t-0">
+            <p className="label-mono">Tonight</p>
+            <div className="mt-4 space-y-4">
+              <div>
+                <p className="font-display text-[20px] leading-none">Live room</p>
+                <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                  Bring the issue that needs pressure before the week starts.
+                </p>
+              </div>
+              <div className="border-t border-border pt-4">
+                <p className="font-display text-[20px] leading-none">Questions</p>
+                <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                  AOS, IOR, contract risk, project delivery risk, and the next move.
+                </p>
+              </div>
+              <div className="border-t border-border pt-4">
+                <p className="font-display text-[20px] leading-none">Replay later</p>
+                <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                  Replays will live in the Hub, but the room is where the pressure happens.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function RailRow({
   to,
   extHref,
@@ -589,5 +721,3 @@ function FeaturedWorkbook() {
     </section>
   );
 }
-
-
