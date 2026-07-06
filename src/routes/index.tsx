@@ -573,7 +573,6 @@ function RailRow({
 function FeaturedLatestClass() {
   const [busy, setBusy] = useState<string | null>(null);
   const templatePath = "project-management/ior-source-of-truth.pdf";
-  const whiteboardPath = "circle-calls/2026-06-21-ior-whiteboard.pdf";
 
   async function handleDownload(path: string) {
     setBusy(path);
@@ -591,47 +590,26 @@ function FeaturedLatestClass() {
             <p className="label-mono">Featured · Latest class</p>
           </div>
           <h2 className="mt-3 font-display text-3xl md:text-4xl leading-tight">
-            Contractor Circle Call — June 25, 2026
+            Contractor Circle Call — July 5, 2026
           </h2>
           <p className="mt-2 text-[13.5px] text-muted-foreground max-w-[760px]">
-            IOR case study on Caleb's Orchard Street project — how an 11-point gross profit erosion and 31-week schedule variance trace back to assumption monitoring and exposure-vs-contingency discipline.
+            AOS, IOR, and daily field tracking — how real-time sundown reporting protects margin, exposes risk early, and keeps project decisions out of gut feel.
           </p>
 
           <div className="mt-6 overflow-hidden rounded-xl border border-border bg-black">
             <div style={{ position: "relative", width: "100%", height: 0, paddingBottom: "56.25%" }}>
               <iframe
-                src="https://us06web.zoom.us/clips/embed/7PNWwb2sR--E0bMFq_1opw"
+                src="https://us06web.zoom.us/clips/embed/odZsV2TBSj2uTvbaUp1OIg"
                 frameBorder="0"
                 allowFullScreen
                 allow="autoplay; picture-in-picture; fullscreen"
                 style={{ position: "absolute", width: "100%", height: "100%", top: 0, left: 0 }}
-                title="Contractor Circle Call — June 25, 2026"
+                title="Contractor Circle Call — July 5, 2026"
               />
             </div>
           </div>
 
           <article className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-5">
-            <div className="min-w-0 flex-1">
-              <p className="label-mono">Call whiteboard · PDF</p>
-              <h3 className="mt-1 font-display text-[17px] leading-snug">
-                Bi-Weekly Call Whiteboard — June 21, 2026
-              </h3>
-              <p className="mt-1 text-[13px] text-muted-foreground">
-                The live whiteboard Marshall worked from during the call — six rules of project delivery and the IOR breakdown.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => handleDownload(whiteboardPath)}
-              disabled={busy === whiteboardPath}
-              className={`inline-flex shrink-0 items-center gap-1.5 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 ${busy === whiteboardPath ? "opacity-60" : ""}`}
-            >
-              <Download className="h-3.5 w-3.5" />
-              {busy === whiteboardPath ? "Opening…" : "Download PDF"}
-            </button>
-          </article>
-
-          <article className="mt-3 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-5">
             <div className="min-w-0 flex-1">
               <p className="label-mono">Companion template · PDF</p>
               <h3 className="mt-1 font-display text-[17px] leading-snug">
