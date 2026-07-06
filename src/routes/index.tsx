@@ -165,7 +165,12 @@ function HomePage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!user || !shouldSeeCallAnnouncement) return;
-    if (Date.now() > new Date(CALL_ANNOUNCEMENT_EXPIRES_AT).getTime()) return;
+    const now = Date.now();
+    const startAt = new Date(CALL_ANNOUNCEMENT_START_AT).getTime();
+    const expiresAt = new Date(CALL_ANNOUNCEMENT_EXPIRES_AT).getTime();
+    // Only show on the day of the call (from 8 hours before start until expiry).
+    const showFrom = startAt - 8 * 60 * 60 * 1000;
+    if (now < showFrom || now > expiresAt) return;
     if (window.sessionStorage.getItem(CALL_ANNOUNCEMENT_DISMISSED_KEY) === "1") return;
     setCallAnnouncementOpen(true);
   }, [shouldSeeCallAnnouncement, user]);
