@@ -630,6 +630,27 @@ function FeaturedLatestClass() {
               {busy === templatePath ? "Opening…" : "Download PDF"}
             </button>
           </article>
+
+          <article className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-5">
+            <div className="min-w-0 flex-1">
+              <p className="label-mono">Call whiteboard · PDF</p>
+              <h3 className="mt-1 font-display text-[17px] leading-snug">
+                July 5, 2026 — AOS / IOR Whiteboard
+              </h3>
+              <p className="mt-1 text-[13px] text-muted-foreground">
+                Marshall's live whiteboard from the call — the sundown method, IOR loop, and margin-protection flow diagrammed out.
+              </p>
+            </div>
+            <a
+              href={july5WhiteboardAsset.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Open whiteboard
+            </a>
+          </article>
         </div>
       </div>
     </section>
