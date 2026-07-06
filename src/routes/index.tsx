@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { openTemplateFile } from "@/lib/library";
 import { Download, Sparkles } from "lucide-react";
 import bulldozerAsset from "@/assets/bulldozer.png.asset.json";
+import july5WhiteboardAsset from "@/assets/2026-07-05-aos-ior-whiteboard.pdf.asset.json";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
