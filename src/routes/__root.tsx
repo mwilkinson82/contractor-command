@@ -150,7 +150,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: DEFAULT_TITLE },
       { name: "application-name", content: "ALP Contractor Circle" },
       { name: "apple-mobile-web-app-title", content: "Contractor Circle" },
-      { name: "theme-color", content: "#F7F2EA" },
+      { name: "theme-color", content: "#FAF7F0" },
       { name: "robots", content: "index, follow" },
       {
         name: "description",

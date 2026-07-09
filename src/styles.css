@@ -94,11 +94,15 @@
 :root {
   --radius: 1.25rem; /* 20px control radius — matches reference */
 
-  --cream: #F7F2EA;
-  --paper-deep: #ECE5D8;
-  --work-surface: #F8F4ED;
-  --page-gutter: #F7F2EA;
-  --paper-edge: #DCD5C8;
+  /* ===== PRODUCT / APP tier (design system §2) — this is an app you log into
+     and operate, so it runs the warm-WHITE tier (claude.ai brightness league),
+     not the deeper marketing cream. Only these four grounds differ from the
+     marketing tier; every token below is shared. ===== */
+  --cream: #FAF7F0;         /* app ground (warm white) */
+  --paper-deep: #F2EEE5;    /* subtle inset fills, chips, hover rows (a touch below ground) */
+  --work-surface: #FFFFFF;  /* raised panels/cards sit white ABOVE the ground */
+  --page-gutter: #FAF7F0;
+  --paper-edge: #E7E1D6;    /* hairline borders & rules (warm; reads on both ground & white) */
   --ink: #1C1A17;
   --ink-panel: #2C2A26;
   --muted-foreground: #6B655D;
