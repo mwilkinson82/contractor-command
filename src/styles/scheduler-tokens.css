@@ -19,45 +19,51 @@
  * values here. Do not add hex literals in components — extend this file.
  * ============================================================================ */
 
+/* REMAPPED onto the ALP house palette (design system §0: one house skin, no
+ * second brand accent). Token NAMES are preserved so no component changes are
+ * needed — only the values move from the old cool-slate + brass system to the
+ * shared warm grounds, warm ink text, and the house accent/semantic tokens.
+ * The old "brass" accent is retired in favor of --clay/--signal so the
+ * scheduler reads as the same company as the rest of the portal. */
 :root {
-  /* Critical (red) — sacred. True critical path / danger only. */
-  --sched-critical: oklch(0.555 0.205 27);            /* deep signal red */
-  --sched-critical-soft: oklch(0.962 0.028 22);       /* faint red wash */
+  /* Critical (red) — sacred. True critical path / danger only. → house --crit */
+  --sched-critical: var(--crit);                      /* #B5432E off-goal / danger */
+  --sched-critical-soft: oklch(0.962 0.026 30);       /* faint warm-red wash */
 
-  /* Near-critical (amber) — needs review / assumptions / AI-drafted. */
-  --sched-near-critical: oklch(0.715 0.158 65);       /* warm amber */
+  /* Near-critical (amber) — needs review / assumptions / AI-drafted. → house --warn */
+  --sched-near-critical: var(--warn);                 /* #C69A3C caution */
   --sched-near-critical-soft: oklch(0.965 0.045 85);  /* pale amber wash */
 
-  /* Validated (green) — complete / on track / validated. */
-  --sched-validated: oklch(0.555 0.118 155);          /* confident green */
-  --sched-validated-soft: oklch(0.960 0.038 155);     /* pale validated wash */
+  /* Validated (green) — complete / on track / validated. → house --good */
+  --sched-validated: var(--good);                     /* #2FA98C on-goal / success */
+  --sched-validated-soft: oklch(0.958 0.034 165);     /* pale validated wash */
 
-  /* Graphite — cool slate. Neutral text, bars, grid, command surfaces. */
-  --sched-graphite-strong: oklch(0.225 0.012 250);    /* near-black slate, command */
-  --sched-graphite: oklch(0.455 0.014 248);           /* primary body text */
-  --sched-graphite-soft: oklch(0.665 0.014 248);      /* secondary / muted text */
+  /* Neutral text/bars/grid — warm ink now, not cool slate. */
+  --sched-graphite-strong: var(--ink);                /* command surfaces / near-black warm */
+  --sched-graphite: #4A443C;                           /* primary body text (warm graphite) */
+  --sched-graphite-soft: var(--muted-foreground);     /* #6B655D secondary / muted */
 
-  /* Brass — Build Mode + Intelligence accent ONLY. Sparing use. */
-  --sched-brass: oklch(0.755 0.111 84);               /* brass accent */
-  --sched-brass-deep: oklch(0.652 0.098 78);          /* pressed / deep brass */
-  --sched-brass-soft: oklch(0.955 0.052 88);          /* faint brass wash */
+  /* Accent — was "brass", a forbidden second brand accent. Now the house warm
+     accent: clay for the general Build/Intelligence accent, signal for pressed
+     emphasis, so orange stays rationed. */
+  --sched-brass: var(--clay);                          /* #D97757 warm accent */
+  --sched-brass-deep: var(--signal);                   /* #F76A16 pressed / emphasis */
+  --sched-brass-soft: var(--gold-soft);                /* #F7EDE0 faint warm wash */
 
-  /* Shell + surfaces — cool intelligence base (no beige, no tan).
-     Pushed cooler + brighter so the schedule reads as a technical
-     instrument rather than a paper-stock admin panel. */
-  --sched-ivory: oklch(0.978 0.005 248);              /* outer shell wash (cool, near-white) */
-  --sched-surface: oklch(1 0 0);                      /* primary work surface (pure white) */
-  --sched-surface-deep: oklch(0.965 0.008 248);       /* recessed band / panel rail */
-  --sched-surface-rule: oklch(0.880 0.012 248);       /* crisper blue-gray hairline */
-  --sched-surface-rule-soft: oklch(0.935 0.010 248);  /* softest hairline */
+  /* Shell + surfaces — the warm-white product tier (shared house grounds). */
+  --sched-ivory: var(--page-gutter);                   /* outer shell wash = app ground */
+  --sched-surface: var(--work-surface);                /* primary work surface (white) */
+  --sched-surface-deep: var(--paper-deep);             /* recessed band / panel rail */
+  --sched-surface-rule: var(--paper-edge);             /* warm hairline */
+  --sched-surface-rule-soft: color-mix(in oklab, var(--paper-edge) 55%, var(--work-surface)); /* softest hairline */
 
-  /* Overlay (popovers, hover cards, tooltips). */
-  --sched-overlay: oklch(0.995 0.002 250);
-  --sched-overlay-rule: oklch(0.225 0.012 250 / 0.14);
-  --sched-overlay-shadow: 0 8px 24px oklch(0.225 0.012 250 / 0.14);
+  /* Overlay (popovers, hover cards, tooltips) — warm ink-based. */
+  --sched-overlay: var(--work-surface);
+  --sched-overlay-rule: color-mix(in oklab, var(--ink) 14%, transparent);
+  --sched-overlay-shadow: 0 8px 24px color-mix(in oklab, var(--ink) 14%, transparent);
 
   /* Elevation presets reused across scheduler surfaces. */
   --sched-elevation-1: 0 1px 0 oklch(0 0 0 / 0.04);
   --sched-elevation-2: 0 2px 0 oklch(0 0 0 / 0.05),
-                       0 14px 28px -12px oklch(0.225 0.012 250 / 0.22);
+                       0 14px 28px -12px color-mix(in oklab, var(--ink) 20%, transparent);
 }

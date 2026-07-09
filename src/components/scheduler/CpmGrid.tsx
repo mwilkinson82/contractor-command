@@ -753,7 +753,7 @@ export function CpmGrid({
                           cx={x + w + 4}
                           cy={y + rowH / 2}
                           r={3.5}
-                          fill="var(--sched-brass-deep, #b08a3e)"
+                          fill="var(--sched-brass-deep, #F76A16)"
                           stroke="white"
                           strokeWidth={1}
                           opacity={link?.fromId === t.id ? 1 : 0.55}
@@ -773,7 +773,7 @@ export function CpmGrid({
                           width={w + 2}
                           height={rowH - 5}
                           fill="none"
-                          stroke="var(--sched-validated, #2f7d4f)"
+                          stroke="var(--sched-validated, #2FA98C)"
                           strokeWidth={1.5}
                           strokeDasharray="3 2"
                           pointerEvents="none"
@@ -1054,7 +1054,7 @@ export function CpmGrid({
                   y1={link.fromY}
                   x2={link.curX}
                   y2={link.curY}
-                  stroke="var(--sched-brass-deep, #b08a3e)"
+                  stroke="var(--sched-brass-deep, #F76A16)"
                   strokeWidth={1.5}
                   strokeDasharray="4 3"
                 />
@@ -1062,7 +1062,7 @@ export function CpmGrid({
                   cx={link.curX}
                   cy={link.curY}
                   r={3}
-                  fill={link.hoverTargetId ? "var(--sched-validated, #2f7d4f)" : "var(--sched-brass-deep, #b08a3e)"}
+                  fill={link.hoverTargetId ? "var(--sched-validated, #2FA98C)" : "var(--sched-brass-deep, #F76A16)"}
                 />
               </g>
             ) : null}
