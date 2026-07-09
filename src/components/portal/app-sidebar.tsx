@@ -321,14 +321,14 @@ export function AppSidebar() {
       <aside
         data-collapsed={collapsed || undefined}
         data-mobile-open={mobileOpen || undefined}
-        className={`group/sidebar fixed inset-y-0 left-0 z-50 flex flex-col border-r border-border/70 bg-background transition-[width,transform] duration-300 ease-[cubic-bezier(.2,.7,.2,1)] ${
+        className={`ink-rail group/sidebar fixed inset-y-0 left-0 z-50 flex flex-col border-r border-border/70 bg-ink text-foreground transition-[width,transform] duration-300 ease-[cubic-bezier(.2,.7,.2,1)] ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0`}
         style={{ width: collapsed ? "60px" : "216px" }}
       >
         <div className="flex h-14 items-center gap-2 border-b border-border/70 px-3">
           <Link to="/" className="flex items-center gap-2 overflow-hidden">
-            <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-ink text-cream font-display text-[13px] shadow-[inset_0_0_0_1px_rgba(248,244,237,0.12)]">
+            <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-cream text-ink font-display text-[13px] shadow-[inset_0_0_0_1px_rgba(28,26,23,0.12)]">
               {logoUrl ? (
                 <img
                   src={logoUrl}
@@ -382,10 +382,10 @@ export function AppSidebar() {
                     const Icon = it.icon;
                     const className = `group/item relative flex items-center gap-3 rounded-md px-2 py-2 text-[13px] transition-colors ${
                       active
-                        ? "bg-clay/10 text-foreground rounded-l-none before:content-[''] before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[2.5px] before:rounded-r-sm before:bg-clay"
+                        ? "bg-cream/[0.08] text-foreground"
                         : isTease
                           ? "text-foreground/35 hover:bg-foreground/5 hover:text-foreground/60"
-                          : "text-foreground/75 hover:bg-foreground/5 hover:text-foreground"
+                          : "text-foreground/70 hover:bg-foreground/5 hover:text-foreground"
                     }`;
                     const titleAttr = collapsed
                       ? isTease
@@ -396,8 +396,11 @@ export function AppSidebar() {
                         : undefined;
                     const inner = (
                       <>
-                        <Icon className={`h-4 w-4 shrink-0 ${active ? "text-clay" : ""}`} />
+                        <Icon className="h-4 w-4 shrink-0" />
                         {!collapsed && <span className="truncate">{it.label}</span>}
+                        {active && !collapsed && (
+                          <span className="ml-auto h-1.5 w-1.5 rounded-full bg-clay" />
+                        )}
                       </>
                     );
                     return (

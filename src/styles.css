@@ -651,3 +651,14 @@
  * ============================================================================ */
 :root { --app-sidebar-w: 216px; }
 @media (max-width: 767px) { :root { --app-sidebar-w: 0px; } }
+
+/* Warm ink rail (sidebar option D). The app runs in light mode, so the
+   semantic tokens point at dark ink text on light grounds. Scoping these three
+   overrides to the rail flips every child that reads them (foreground text,
+   muted labels/eyebrows, hairlines) to cream-on-ink — no per-element edits. */
+.ink-rail {
+  --background: var(--ink);
+  --foreground: var(--cream);
+  --muted-foreground: color-mix(in oklab, var(--cream) 58%, var(--ink));
+  --border: color-mix(in oklab, var(--cream) 15%, transparent);
+}
