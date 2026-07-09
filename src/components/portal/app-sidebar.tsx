@@ -85,7 +85,8 @@ export function AppSidebarProvider({ children }: { children: ReactNode }) {
   // can leave room for the left rail and never overlap its content.
   useEffect(() => {
     if (typeof document === "undefined") return;
-    const w = collapsed ? "60px" : "216px";
+    // Floating rail: 12px left margin + panel width + 12px gap before content.
+    const w = collapsed ? "84px" : "240px";
     document.documentElement.style.setProperty("--app-sidebar-w", w);
     // On mobile the rail is off-canvas; overlays should use 0.
     const mq = window.matchMedia("(max-width: 767px)");
@@ -321,7 +322,7 @@ export function AppSidebar() {
       <aside
         data-collapsed={collapsed || undefined}
         data-mobile-open={mobileOpen || undefined}
-        className={`ink-rail group/sidebar fixed inset-y-0 left-0 z-50 flex flex-col border-r border-border/70 bg-ink text-foreground transition-[width,transform] duration-300 ease-[cubic-bezier(.2,.7,.2,1)] ${
+        className={`ink-rail group/sidebar fixed inset-y-0 left-0 z-50 flex flex-col bg-ink-panel text-foreground shadow-[0_20px_44px_-24px_rgb(18_13_8/0.5)] transition-[width,transform] duration-300 ease-[cubic-bezier(.2,.7,.2,1)] md:inset-y-3 md:left-3 md:rounded-[20px] md:shadow-[0_24px_50px_-24px_rgb(18_13_8/0.55),inset_0_1px_0_rgb(255_255_255/0.06)] ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0`}
         style={{ width: collapsed ? "60px" : "216px" }}
@@ -382,7 +383,7 @@ export function AppSidebar() {
                     const Icon = it.icon;
                     const className = `group/item relative flex items-center gap-3 rounded-md px-2 py-2 text-[13px] transition-colors ${
                       active
-                        ? "bg-cream/[0.08] text-foreground"
+                        ? "bg-clay/[0.18] text-foreground"
                         : isTease
                           ? "text-foreground/35 hover:bg-foreground/5 hover:text-foreground/60"
                           : "text-foreground/70 hover:bg-foreground/5 hover:text-foreground"
@@ -396,11 +397,8 @@ export function AppSidebar() {
                         : undefined;
                     const inner = (
                       <>
-                        <Icon className="h-4 w-4 shrink-0" />
+                        <Icon className={`h-4 w-4 shrink-0 ${active ? "text-clay" : ""}`} />
                         {!collapsed && <span className="truncate">{it.label}</span>}
-                        {active && !collapsed && (
-                          <span className="ml-auto h-1.5 w-1.5 rounded-full bg-clay" />
-                        )}
                       </>
                     );
                     return (
@@ -482,7 +480,7 @@ export function SidebarInset({ children }: { children: ReactNode }) {
       className="min-h-screen transition-[padding] duration-300 ease-[cubic-bezier(.2,.7,.2,1)] md:!pl-[var(--sb-w)]"
       style={
         {
-          ["--sb-w" as string]: collapsed ? "60px" : "216px",
+          ["--sb-w" as string]: collapsed ? "84px" : "240px",
           paddingLeft: 0,
         } as React.CSSProperties
       }
