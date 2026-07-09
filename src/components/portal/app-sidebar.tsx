@@ -362,7 +362,7 @@ export function AppSidebar() {
               <div key={g.label} className="mb-4">
                 {!collapsed && (
                   <p
-                    className={isTease ? "eyebrow px-2 pb-1.5" : "eyebrow-signal px-2 pb-1.5"}
+                    className="eyebrow px-2 pb-1.5"
                     style={
                       isTease
                         ? { color: "color-mix(in oklab, var(--foreground) 35%, transparent)" }
@@ -433,7 +433,7 @@ export function AppSidebar() {
           {isAdmin && <TierImpersonator collapsed={collapsed} />}
           {!collapsed ? (
             <div className="flex items-start gap-2 rounded-md bg-foreground/[0.03] px-2.5 py-2">
-              <span className="mt-1 inline-flex h-2 w-2 shrink-0 rounded-full bg-signal animate-signal-pulse" />
+              <span className="mt-1 inline-flex h-2 w-2 shrink-0 rounded-full bg-good text-good animate-live-pulse" />
               <div className="min-w-0">
                 <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">
                   Next session
@@ -448,7 +448,7 @@ export function AppSidebar() {
               className="grid place-items-center py-2"
               title={`${next.kind} · ${relativeDay(next.date)}`}
             >
-              <Circle className="h-2 w-2 fill-signal text-signal animate-signal-pulse" />
+              <Circle className="h-2 w-2 fill-good text-good animate-live-pulse" />
             </div>
           )}
           {collapsed && (

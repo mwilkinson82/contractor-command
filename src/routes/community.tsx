@@ -36,26 +36,25 @@ function CommunityPage() {
         lede="Live calls are biweekly. Discord is where members post wins, debate pricing, and tee up the issues that earn time in the next room."
       />
 
-      {/* Brand hero card */}
-      <section
-        className="relative mt-10 overflow-hidden rounded-3xl text-white shadow-[var(--shadow-focus)]"
-        style={{ backgroundColor: DISCORD_BLURPLE }}
-      >
+      {/* Product-media hero — house dark panel (dark used deliberately as focal
+          contrast); Discord identity carried by its logo mark, not a blurple
+          brand fill. */}
+      <section className="relative mt-10 overflow-hidden rounded-3xl bg-ink text-white shadow-[var(--shadow-focus)]">
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.12]"
+          className="pointer-events-none absolute inset-0 opacity-[0.10]"
           style={{
             backgroundImage:
               "radial-gradient(circle at 1px 1px, #fff 1px, transparent 0)",
             backgroundSize: "22px 22px",
           }}
         />
-        <DiscordMark className="pointer-events-none absolute -right-10 -bottom-16 h-72 w-72 text-white/15" />
+        <DiscordMark className="pointer-events-none absolute -right-10 -bottom-16 h-72 w-72 text-white/[0.06]" />
 
         <div className="relative grid gap-8 px-6 py-10 sm:px-10 sm:py-12 lg:grid-cols-12 lg:gap-10">
           <div className="lg:col-span-7">
             <div className="flex items-center gap-3">
-              <DiscordMark className="h-7 w-auto text-white" />
+              <DiscordMark className="h-7 w-auto" style={{ color: DISCORD_BLURPLE }} />
               <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-white/70">
                 Hosted on Discord
               </span>
@@ -74,8 +73,7 @@ function CommunityPage() {
                 href={DISCORD_URL}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-md bg-white px-5 py-3 text-[14px] font-medium text-[color:var(--discord)] hover:opacity-95"
-                style={{ ["--discord" as string]: DISCORD_BLURPLE }}
+                className="inline-flex items-center gap-2 rounded-[11px] bg-signal px-5 py-3 text-[14px] font-medium text-white shadow-[0_8px_20px_-8px_rgb(247_106_22_/_0.6)] transition hover:-translate-y-px hover:bg-signal/90"
               >
                 <DiscordMark className="h-4 w-auto" />
                 Join the server
@@ -123,7 +121,7 @@ function CommunityPage() {
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           {DISCORD_CHANNELS.map((c) => (
             <div key={c.name} className="rounded-2xl border border-border bg-card p-6">
-              <p className="font-mono text-sm" style={{ color: DISCORD_BLURPLE }}>{c.name}</p>
+              <p className="font-mono text-sm text-clay">{c.name}</p>
               <p className="mt-2 text-sm text-muted-foreground">{c.purpose}</p>
             </div>
           ))}
@@ -176,7 +174,7 @@ function Stat({ icon, label, body }: { icon: React.ReactNode; label: string; bod
 function Etiquette({ n, title, body }: { n: string; title: string; body: string }) {
   return (
     <div>
-      <span className="font-mono text-xs" style={{ color: DISCORD_BLURPLE }}>{n}</span>
+      <span className="font-mono text-xs text-clay">{n}</span>
       <h4 className="mt-1 font-display text-lg">{title}</h4>
       <p className="mt-1 text-sm text-muted-foreground">{body}</p>
     </div>

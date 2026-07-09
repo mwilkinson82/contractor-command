@@ -596,7 +596,7 @@ function ExperienceLoader() {
             <span className="h-2.5 w-2.5 rounded-full bg-signal" />
           </div>
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-signal">
+            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-clay">
               Building the path
             </p>
             <p className="mt-1 font-display text-3xl leading-none">Map. Manual. Advisor.</p>
@@ -622,7 +622,7 @@ function Hero({ onStart }: { onStart: () => void }) {
     <section data-reveal className="border-b border-border bg-[var(--paper-deep)]/45">
       <div className="mx-auto grid w-full max-w-[1520px] gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1fr)_430px] lg:px-8 lg:py-14">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-signal">
+          <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-clay">
             Contractor Circle Member Playbook
           </p>
           <h1 className="mt-4 max-w-4xl font-display text-[clamp(2.8rem,6vw,6.2rem)] leading-[0.94] text-foreground">
@@ -653,7 +653,7 @@ function Hero({ onStart }: { onStart: () => void }) {
         </div>
 
         <div className="rounded-lg border border-border bg-card p-4">
-          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-signal">
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-clay">
             What this page does
           </p>
           <div className="mt-4 space-y-3">
@@ -664,7 +664,7 @@ function Hero({ onStart }: { onStart: () => void }) {
                 data-reveal-delay={String(index + 1)}
                 className="rounded-md border border-border bg-background p-3"
               >
-                <div className="flex items-center gap-2 text-signal">
+                <div className="flex items-center gap-2 text-clay">
                   {card.icon}
                   <h2 className="font-mono text-[10px] uppercase tracking-[0.18em]">
                     {card.title}
@@ -731,10 +731,10 @@ function ClientRolloutPath({ onStartMap }: { onStartMap: () => void }) {
                 className="group h-full rounded-lg border border-cream/12 bg-cream/[0.045] p-4 transition hover:border-signal/55 hover:bg-cream/[0.07]"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-signal">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-clay">
                     {step.label}
                   </p>
-                  <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-cream/40 group-hover:text-signal">
+                  <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-cream/40 group-hover:text-clay">
                     {step.action}
                   </span>
                 </div>
@@ -780,7 +780,7 @@ function ClientRolloutPath({ onStartMap }: { onStartMap: () => void }) {
             ["Call prep", "They bring one diagnosed issue instead of a broad status update."],
           ].map(([label, copy]) => (
             <div key={label} className="rounded-md border border-cream/10 bg-ink/30 p-3">
-              <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-signal">
+              <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-clay">
                 {label}
               </p>
               <p className="mt-2 text-[12.5px] leading-[1.55] text-cream/68">{copy}</p>
@@ -797,7 +797,7 @@ function MemberOrientation() {
     <section data-reveal className="rounded-lg border border-border bg-card p-5 sm:p-6">
       <div className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-signal">
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-clay">
             Start here
           </p>
           <h2 className="mt-2 max-w-2xl font-display text-[clamp(2.25rem,4vw,4.25rem)] leading-none">
@@ -820,7 +820,7 @@ function MemberOrientation() {
               data-reveal-delay={String(index + 1)}
               className="rounded-lg border border-border bg-background p-4"
             >
-              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-signal">
+              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-clay">
                 {label}
               </p>
               <p className="mt-2 text-[14px] leading-[1.55] text-foreground/78">{copy}</p>
@@ -847,7 +847,7 @@ function SequenceBand({
     >
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-signal">
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-clay">
             Chapter sequence
           </p>
           <h2 className="mt-2 font-display text-[clamp(2rem,4vw,3.65rem)] leading-none">
@@ -887,7 +887,7 @@ function SequenceBand({
             >
               <span
                 className={`font-mono text-[9px] uppercase tracking-[0.18em] ${
-                  active ? "text-background/65" : "text-signal"
+                  active ? "text-background/65" : "text-clay"
                 }`}
               >
                 {number}
@@ -919,7 +919,7 @@ function OperatingMap() {
     >
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-signal">
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-clay">
             System map
           </p>
           <h2 className="mt-2 font-display text-[clamp(2rem,4vw,3.5rem)] leading-none">
@@ -945,7 +945,7 @@ function ConstraintEngine() {
     >
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-signal">
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-clay">
             Navigator bridge
           </p>
           <h2 className="mt-2 font-display text-[clamp(2rem,4vw,3.8rem)] leading-none">
@@ -969,7 +969,7 @@ function ConstraintEngine() {
               "Which module, worksheet, and app should be used?",
             ].map((item) => (
               <li key={item} className="flex gap-2">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-signal" />
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-clay" />
                 <span>{item}</span>
               </li>
             ))}
@@ -1005,7 +1005,7 @@ function GuidedChapterReader({
     >
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-signal">
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-clay">
             Field manual
           </p>
           <h2 className="mt-2 font-display text-[clamp(2.2rem,4vw,4.25rem)] leading-none">
@@ -1022,7 +1022,7 @@ function GuidedChapterReader({
         <article className="rounded-lg border border-border bg-card p-4 sm:p-5">
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(380px,0.72fr)]">
             <div className="min-w-0">
-              <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-signal">
+              <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-clay">
                 {activeSection.eyebrow}
               </p>
               <h3 className="mt-2 font-display text-[clamp(2.4rem,4.5vw,4.6rem)] leading-[0.96]">
@@ -1049,7 +1049,7 @@ function GuidedChapterReader({
             <div className="space-y-3">
               <VisualImage src={activeSection.image} alt={`${activeSection.title} visual`} />
               <div className="rounded-lg border border-border bg-background p-4">
-                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-signal">
+                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-clay">
                   Tool path
                 </p>
                 <p className="mt-2 font-display text-3xl leading-none">{activeSection.tool}</p>
@@ -1062,20 +1062,20 @@ function GuidedChapterReader({
 
           <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
             <div className="rounded-lg border border-border bg-background p-4">
-              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-signal">
+              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-clay">
                 Proof it is working
               </p>
               <ul className="mt-3 space-y-3 text-[14px] leading-[1.6] text-muted-foreground">
                 {activeSection.chapter.proof.map((item) => (
                   <li key={item} className="flex gap-2">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-signal" />
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-clay" />
                     <span>{item}</span>
                   </li>
                 ))}
               </ul>
             </div>
             <div className="rounded-lg border border-border bg-background p-4">
-              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-signal">
+              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-clay">
                 Worksheet
               </p>
               <p className="mt-2 text-[14px] leading-[1.55] text-foreground/80">
@@ -1095,7 +1095,7 @@ function GuidedChapterReader({
           </div>
 
           <section className="mt-5 rounded-lg border border-border bg-background p-4">
-            <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-signal">
+            <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-clay">
               <BookOpen className="h-4 w-4" />
               Deeper chapter notes
             </div>
@@ -1103,13 +1103,13 @@ function GuidedChapterReader({
               <ChapterList title="What this teaches" items={activeSection.chapter.teaches} />
               <ChapterList title="Install this now" items={activeSection.chapter.install} />
               <div className="rounded-md border border-border bg-card p-4">
-                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-signal">
+                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-clay">
                   Source trail
                 </p>
                 <p className="mt-3 text-[13px] leading-[1.55] text-muted-foreground">
                   {activeSection.chapter.sourceTrail}
                 </p>
-                <p className="mt-5 font-mono text-[10px] uppercase tracking-[0.2em] text-signal">
+                <p className="mt-5 font-mono text-[10px] uppercase tracking-[0.2em] text-clay">
                   Deeper dive
                 </p>
                 <ul className="mt-3 space-y-3 text-[13px] leading-[1.55] text-muted-foreground">
@@ -1126,7 +1126,7 @@ function GuidedChapterReader({
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-[var(--paper-deep)]/45 p-4">
             <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-signal">
+              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-clay">
                 Next chapter
               </p>
               <p className="mt-1 text-[14px] text-foreground/80">{nextSection.title}</p>
@@ -1154,7 +1154,7 @@ function DoctrineBank() {
       id="doctrine"
     >
       <div>
-        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-signal">
+        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-clay">
           Doctrine bank
         </p>
         <h2 className="mt-2 font-display text-[clamp(2rem,4vw,3.5rem)] leading-none">
@@ -1199,7 +1199,7 @@ function ToolLaunchpad() {
     >
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-signal">
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-clay">
             Operator's Workbench
           </p>
           <h2 className="mt-2 font-display text-[clamp(2.2rem,4vw,4rem)] leading-none">
@@ -1232,7 +1232,7 @@ function ToolLaunchpad() {
             <div className="flex items-start justify-between gap-3">
               <p
                 className={`font-mono text-[10px] uppercase tracking-[0.2em] ${
-                  index === 0 ? "text-background/65" : "text-signal"
+                  index === 0 ? "text-background/65" : "text-clay"
                 }`}
               >
                 {String(index + 1).padStart(2, "0")}
@@ -1241,7 +1241,7 @@ function ToolLaunchpad() {
                 className={`h-4 w-4 shrink-0 transition ${
                   index === 0
                     ? "text-background/65"
-                    : "text-foreground/35 group-hover:text-signal"
+                    : "text-foreground/35 group-hover:text-clay"
                 }`}
               />
             </div>
@@ -1269,7 +1269,7 @@ function InstallationPlan() {
     >
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-signal">
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-clay">
             30-day installation
           </p>
           <h2 className="mt-2 font-display text-[clamp(2.2rem,4vw,4rem)] leading-none">
@@ -1293,7 +1293,7 @@ function InstallationPlan() {
             data-reveal-delay={String(index + 1)}
             className="hover-lift rounded-lg border border-border bg-background p-4"
           >
-            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-signal">
+            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-clay">
               {phase.week}
             </p>
             <h3 className="mt-2 font-display text-3xl leading-none">{phase.title}</h3>
@@ -1382,7 +1382,7 @@ function AskMarshallChapterButton({ section }: { section: PlaybookSectionData })
 function ChapterList({ title, items }: { title: string; items: string[] }) {
   return (
     <div className="rounded-md border border-border bg-card p-4">
-      <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-signal">{title}</p>
+      <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-clay">{title}</p>
       <ul className="mt-3 space-y-3 text-[13px] leading-[1.55] text-muted-foreground">
         {items.map((item) => (
           <li key={item} className="flex gap-2">
@@ -1398,7 +1398,7 @@ function ChapterList({ title, items }: { title: string; items: string[] }) {
 function InfoBlock({ title, copy, icon }: { title: string; copy: string; icon: ReactNode }) {
   return (
     <div className="rounded-lg border border-border bg-background p-4">
-      <div className="flex items-center gap-2 text-signal">
+      <div className="flex items-center gap-2 text-clay">
         {icon}
         <h4 className="font-mono text-[10px] uppercase tracking-[0.2em]">{title}</h4>
       </div>

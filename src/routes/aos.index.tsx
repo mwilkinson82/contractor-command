@@ -124,13 +124,13 @@ function AosGateway() {
               <Compass className="h-6 w-6 text-ink" />
             </div>
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.34em] text-signal">
+              <p className="text-[11px] font-mono font-semibold uppercase tracking-[0.34em] text-clay">
                 Opening the door
               </p>
               <p className="mt-4 font-display text-[clamp(2rem,5vw,3rem)] leading-[0.95] tracking-[-0.02em] text-ink">
                 Opening AOS<br />in a new tab.
               </p>
-              <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.28em] text-[#8e877c]">
+              <p className="mt-4 text-[11px] font-mono font-semibold uppercase tracking-[0.28em] text-muted-foreground">
                 Signing you in{linkedEmail ? ` as ${linkedEmail}` : ""}
               </p>
             </div>
@@ -144,15 +144,15 @@ function AosGateway() {
             {/* Top eyebrow row */}
             <div className="flex items-start justify-between gap-6 lg:col-span-2">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.34em] text-signal">
-                  <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-signal align-middle" />
+                <p className="text-[11px] font-mono font-semibold uppercase tracking-[0.34em] text-clay">
+                  <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-clay align-middle" />
                   Step 02 · Cross the threshold
                 </p>
-                <p className="mt-4 max-w-[18rem] text-[10px] font-bold uppercase leading-[1.65] tracking-[0.32em] text-[#8e877c]">
+                <p className="mt-4 max-w-[18rem] text-[10px] font-mono font-semibold uppercase leading-[1.65] tracking-[0.32em] text-muted-foreground">
                   Vision / People / Data / Issues / Process / Traction
                 </p>
               </div>
-              <p className="hidden max-w-[14rem] text-right text-[10px] font-bold uppercase leading-[1.7] tracking-[0.32em] text-[#8e877c] sm:block">
+              <p className="hidden max-w-[14rem] text-right text-[10px] font-mono font-semibold uppercase leading-[1.7] tracking-[0.32em] text-muted-foreground sm:block">
                 One cadence.
                 <br />
                 Every Monday.
@@ -165,7 +165,7 @@ function AosGateway() {
                 {headline}
               </h1>
 
-              <p className="mt-7 max-w-xl text-[15px] leading-relaxed text-[#4d463f] sm:text-[16px]">
+              <p className="mt-7 max-w-xl text-[15px] leading-relaxed text-foreground/75 sm:text-[16px]">
                 {sub}
               </p>
 
@@ -176,7 +176,7 @@ function AosGateway() {
                   disabled={
                     authLoading || !user || phase === "minting" || (!limitsLoading && !hasAccess)
                   }
-                  className="inline-flex h-12 items-center justify-center gap-3 bg-ink px-8 text-[11px] font-bold uppercase tracking-[0.24em] text-cream transition-colors hover:bg-ink-panel disabled:opacity-50"
+                  className="inline-flex h-12 items-center justify-center gap-3 bg-ink px-8 text-[11px] font-mono font-semibold uppercase tracking-[0.24em] text-cream transition-colors hover:bg-ink-panel disabled:opacity-50"
                 >
                   {phase === "minting" ? (
                     <>
@@ -197,21 +197,21 @@ function AosGateway() {
                 </button>
                 <Link
                   to="/aos/link"
-                  className="inline-flex h-12 items-center justify-center border border-ink bg-transparent px-8 text-[11px] font-bold uppercase tracking-[0.24em] text-ink transition-colors hover:bg-paper-deep"
+                  className="inline-flex h-12 items-center justify-center border border-ink bg-transparent px-8 text-[11px] font-mono font-semibold uppercase tracking-[0.24em] text-ink transition-colors hover:bg-paper-deep"
                 >
                   Link existing account
                 </Link>
               </div>
 
               {/* Status row */}
-              <div className="mt-6 flex flex-col gap-2 text-[12px] text-[#5b554d]">
+              <div className="mt-6 flex flex-col gap-2 text-[12px] text-muted-foreground">
                 {phase === "opened" && (
-                  <p className="text-[12px] font-bold uppercase tracking-[0.24em] text-signal">
+                  <p className="text-[12px] font-mono font-semibold uppercase tracking-[0.24em] text-clay">
                     AOS opened in a new tab — Circle stays right here.
                   </p>
                 )}
                 {limits && hasAccess && (
-                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-bold uppercase tracking-[0.28em] text-[#8e877c]">
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-mono font-semibold uppercase tracking-[0.28em] text-muted-foreground">
                     <span>
                       {isUnlimited
                         ? "Unlimited workspaces · Unlimited seats"
@@ -242,7 +242,7 @@ function AosGateway() {
                   </p>
                 )}
                 {reassurance && hasAccess && (
-                  <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[#8e877c]">
+                  <p className="text-[11px] font-mono font-semibold uppercase tracking-[0.24em] text-muted-foreground">
                     {reassurance}
                   </p>
                 )}
@@ -258,7 +258,7 @@ function AosGateway() {
                     </button>
                   </p>
                 )}
-                <p className="pt-1 text-[12px] text-[#5b554d]">
+                <p className="pt-1 text-[12px] text-muted-foreground">
                   Different email on AOS already?{" "}
                   <Link to="/aos/link" className="text-ink underline-offset-4 hover:underline">
                     Link your existing account →
@@ -273,17 +273,17 @@ function AosGateway() {
 
             {/* Right column — scorecard paper */}
             <figure className="relative mt-12 lg:mt-0 lg:min-h-0">
-              <div className="relative mx-auto w-full max-w-[24rem] rotate-[-1.5deg] border border-[#cfc6b8] bg-[#fdfaf3] p-5 shadow-[0_28px_60px_-38px_rgba(17,17,17,0.72)] lg:absolute lg:inset-x-0 lg:right-0 lg:bottom-4 lg:left-auto lg:max-w-[21.25rem] xl:max-w-[23rem]">
-                <div className="flex items-start justify-between border-b border-[#d7d0c4] pb-4">
+              <div className="relative mx-auto w-full max-w-[24rem] rotate-[-1.5deg] border border-paper-edge bg-work-surface p-5 shadow-[0_28px_60px_-38px_rgba(17,17,17,0.72)] lg:absolute lg:inset-x-0 lg:right-0 lg:bottom-4 lg:left-auto lg:max-w-[21.25rem] xl:max-w-[23rem]">
+                <div className="flex items-start justify-between border-b border-paper-edge pb-4">
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-ink">
+                    <p className="text-[10px] font-mono font-semibold uppercase tracking-[0.28em] text-ink">
                       AOS
                     </p>
                     <p className="mt-2 font-display text-2xl leading-none text-ink">
                       13-week Scorecard
                     </p>
                   </div>
-                  <p className="text-right text-[9px] font-bold uppercase leading-[1.5] tracking-[0.24em] text-[#8e877c]">
+                  <p className="text-right text-[9px] font-mono font-semibold uppercase leading-[1.5] tracking-[0.24em] text-muted-foreground">
                     Monday
                     <br />
                     7:00 AM
@@ -291,7 +291,7 @@ function AosGateway() {
                 </div>
 
                 <div className="relative mt-5">
-                  <div className="grid grid-cols-[1fr_5rem_4.5rem] border-b border-[#d7d0c4] pb-2 text-[9px] font-bold uppercase tracking-[0.24em] text-[#8e877c]">
+                  <div className="grid grid-cols-[1fr_5rem_4.5rem] border-b border-paper-edge pb-2 text-[9px] font-mono font-semibold uppercase tracking-[0.24em] text-muted-foreground">
                     <span>Number</span>
                     <span>Target</span>
                     <span>Status</span>
@@ -299,24 +299,24 @@ function AosGateway() {
                   {scoreRows.map(([name, target, status]) => (
                     <div
                       key={name}
-                      className="grid grid-cols-[1fr_5rem_4.5rem] border-b border-[#ded7cc] py-3 text-sm text-ink"
+                      className="grid grid-cols-[1fr_5rem_4.5rem] border-b border-paper-edge py-3 text-sm text-ink"
                     >
                       <span className="font-semibold">{name}</span>
-                      <span className="font-display -mt-1 -rotate-2 text-[1.45rem] leading-none text-[#2f2a25]">
+                      <span className="font-display -mt-1 -rotate-2 text-[1.45rem] leading-none text-ink">
                         {target}
                       </span>
-                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#5b554d]">
+                      <span className="text-[10px] font-mono font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                         {status}
                       </span>
                     </div>
                   ))}
                 </div>
 
-                <div className="mt-5 border-t border-[#d7d0c4] pt-4">
+                <div className="mt-5 border-t border-paper-edge pt-4">
                   <p className="font-display text-[1.4rem] leading-[1.05] text-ink">
                     Owner memory is not a system.
                   </p>
-                  <p className="mt-3 text-[10px] font-bold uppercase leading-[1.6] tracking-[0.24em] text-signal">
+                  <p className="mt-3 text-[10px] font-mono font-semibold uppercase leading-[1.6] tracking-[0.24em] text-clay">
                     Mark it. Measure it. Run it weekly.
                   </p>
                 </div>
@@ -329,13 +329,13 @@ function AosGateway() {
                 {proofLines.map((line) => (
                   <p
                     key={line}
-                    className="font-display text-base leading-[1.1] text-[#4d463f] sm:px-5 sm:text-center"
+                    className="font-display text-base leading-[1.1] text-foreground/75 sm:px-5 sm:text-center"
                   >
                     {line}
                   </p>
                 ))}
               </div>
-              <p className="shrink-0 text-[10px] font-bold uppercase tracking-[0.32em] text-[#8e877c]">
+              <p className="shrink-0 text-[10px] font-mono font-semibold uppercase tracking-[0.32em] text-muted-foreground">
                 An ALP Contractor Circle Instrument
               </p>
             </div>

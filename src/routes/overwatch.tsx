@@ -26,9 +26,9 @@ const OVERWATCH_LOGIN_URL = "https://overwatch.alpcontractorcircle.com/auth";
 
 const signals = [
   { label: "GP at risk", value: "$231,750", tone: "text-signal" },
-  { label: "E-Hold", value: "$62,500", tone: "text-[#bf3f2d]" },
-  { label: "C-Hold", value: "$65,000", tone: "text-[#3a7a55]" },
-  { label: "Schedule", value: "+8 wk", tone: "text-signal" },
+  { label: "E-Hold", value: "$62,500", tone: "text-crit" },
+  { label: "C-Hold", value: "$65,000", tone: "text-good" },
+  { label: "Schedule", value: "+8 wk", tone: "text-ink" },
 ];
 
 const flow = [
@@ -64,14 +64,14 @@ function OverwatchGateway() {
         <div className="overflow-hidden border border-paper-edge bg-card">
           <div className="grid gap-0 lg:grid-cols-[minmax(0,0.58fr)_minmax(25rem,0.42fr)]">
             <div className="px-6 py-8 sm:px-10 sm:py-10 lg:px-14 lg:py-14 xl:px-16">
-              <p className="text-[11px] font-bold uppercase tracking-[0.34em] text-signal">
-                <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-signal align-middle" />
+              <p className="text-[11px] font-mono font-semibold uppercase tracking-[0.34em] text-clay">
+                <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-clay align-middle" />
                 Overwatch / Indicated Outcome Reports
               </p>
               <h1 className="mt-8 max-w-3xl font-display text-[clamp(3.25rem,8vw,6.4rem)] font-normal leading-[0.92] tracking-[-0.02em]">
                 Run the job through the money.
               </h1>
-              <p className="mt-7 max-w-2xl text-[15px] leading-relaxed text-[#4d463f] sm:text-[16px]">
+              <p className="mt-7 max-w-2xl text-[15px] leading-relaxed text-foreground/75 sm:text-[16px]">
                 Overwatch is the project operating record for IOR. It pulls the schedule of values,
                 schedule movement, risk holds, billing posture, and indicated gross profit into one
                 place so the meeting starts with what the job is actually telling you.
@@ -82,12 +82,12 @@ function OverwatchGateway() {
                   href={OVERWATCH_LOGIN_URL}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex h-12 items-center justify-center gap-3 bg-ink px-8 text-[11px] font-bold uppercase tracking-[0.24em] text-cream transition-colors hover:bg-ink-panel"
+                  className="inline-flex h-12 items-center justify-center gap-3 bg-ink px-8 text-[11px] font-mono font-semibold uppercase tracking-[0.24em] text-cream transition-colors hover:bg-ink-panel"
                 >
                   Open Overwatch
                   <ArrowUpRight className="h-4 w-4" />
                 </a>
-                <p className="flex max-w-sm items-center text-[12px] leading-relaxed text-[#6b6259]">
+                <p className="flex max-w-sm items-center text-[12px] leading-relaxed text-muted-foreground">
                   Use your Contractor Circle email. Overwatch will send the magic link from there.
                 </p>
               </div>
@@ -96,7 +96,7 @@ function OverwatchGateway() {
             <div className="border-t border-paper-edge bg-paper-deep/55 p-5 sm:p-7 lg:border-l lg:border-t-0 lg:p-8">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-signal">
+                  <p className="text-[10px] font-mono font-semibold uppercase tracking-[0.28em] text-good">
                     Live IOR reading
                   </p>
                   <h2 className="mt-3 font-display text-[2.15rem] leading-none">Margin at risk</h2>
@@ -109,7 +109,7 @@ function OverwatchGateway() {
               <div className="mt-7 grid grid-cols-2 gap-3">
                 {signals.map((signal) => (
                   <div key={signal.label} className="border border-paper-edge bg-card px-4 py-3">
-                    <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-[#8e877c]">
+                    <p className="text-[9px] font-mono font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                       {signal.label}
                     </p>
                     <p className={`mt-2 font-display text-[1.65rem] leading-none ${signal.tone}`}>
@@ -120,7 +120,7 @@ function OverwatchGateway() {
               </div>
 
               <div className="mt-5 border border-paper-edge bg-card">
-                <div className="grid grid-cols-[1fr_5.5rem] border-b border-paper-edge bg-cream/60 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.22em] text-[#8e877c]">
+                <div className="grid grid-cols-[1fr_5.5rem] border-b border-paper-edge bg-cream/60 px-4 py-3 text-[10px] font-mono font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                   <span>Financial path</span>
                   <span className="text-right">Value</span>
                 </div>
@@ -129,17 +129,17 @@ function OverwatchGateway() {
                     key={label}
                     className="grid grid-cols-[1fr_5.5rem] border-b border-paper-edge px-4 py-3 text-[13px] last:border-b-0"
                   >
-                    <span className="text-[#5b554d]">{label}</span>
+                    <span className="text-muted-foreground">{label}</span>
                     <span className="text-right font-semibold text-ink">{value}</span>
                   </div>
                 ))}
               </div>
 
-              <div className="mt-5 border border-signal/30 bg-[#fff3ee] px-4 py-3">
-                <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-signal">
+              <div className="mt-5 border border-clay/30 bg-clay/[0.07] px-4 py-3">
+                <p className="text-[10px] font-mono font-semibold uppercase tracking-[0.22em] text-clay">
                   Meeting question
                 </p>
-                <p className="mt-2 text-[13px] leading-relaxed text-[#4d463f]">
+                <p className="mt-2 text-[13px] leading-relaxed text-foreground/75">
                   What has to happen this week to release dollars back into gross profit?
                 </p>
               </div>
@@ -155,12 +155,12 @@ function OverwatchGateway() {
                   className="border-b border-paper-edge px-6 py-6 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0 lg:px-8"
                 >
                   <div className="flex items-start gap-4">
-                    <span className="mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center border border-signal/25 bg-[#fff3ee] text-signal">
+                    <span className="mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center border border-clay/25 bg-clay/[0.07] text-clay">
                       <Icon className="h-4 w-4" />
                     </span>
                     <div>
                       <h3 className="font-display text-[1.55rem] leading-none">{item.title}</h3>
-                      <p className="mt-3 text-[13px] leading-relaxed text-[#5b554d]">{item.body}</p>
+                      <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">{item.body}</p>
                     </div>
                   </div>
                 </div>
@@ -171,7 +171,7 @@ function OverwatchGateway() {
 
         <div className="mt-5 grid gap-4 lg:grid-cols-[0.64fr_0.36fr]">
           <div className="border border-paper-edge bg-card px-6 py-6 sm:px-8">
-            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-signal">
+            <p className="text-[10px] font-mono font-semibold uppercase tracking-[0.28em] text-clay">
               Start here
             </p>
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
@@ -187,7 +187,7 @@ function OverwatchGateway() {
                   <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-ink/15 text-[11px] font-semibold">
                     {step}
                   </span>
-                  <span className="text-[13px] font-medium text-[#3e3832]">{label}</span>
+                  <span className="text-[13px] font-medium text-foreground/80">{label}</span>
                 </div>
               ))}
             </div>
@@ -195,8 +195,8 @@ function OverwatchGateway() {
 
           <div className="border border-paper-edge bg-card px-6 py-6 sm:px-8">
             <div className="flex items-start gap-3">
-              <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-signal" />
-              <p className="text-[13px] leading-relaxed text-[#4d463f]">
+              <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-good" />
+              <p className="text-[13px] leading-relaxed text-foreground/75">
                 Overwatch is separate from the Hub. The Hub gives members the door; Overwatch
                 handles the project records, reports, and login.
               </p>

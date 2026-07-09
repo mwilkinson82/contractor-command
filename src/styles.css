@@ -57,6 +57,10 @@
   --color-signal: var(--signal);
   --color-signal-green: var(--signal-green);
   --color-signal-success: var(--signal-success);
+  --color-clay: var(--clay);          /* warm terracotta — eyebrows & small accents (keeps orange rationed) */
+  --color-crit: var(--crit);          /* semantic: off-goal / failure / danger */
+  --color-good: var(--good);          /* semantic: on-goal / success / live */
+  --color-warn: var(--warn);          /* semantic: caution */
   --color-paper-edge: var(--paper-edge);
   --color-paper-deep: var(--paper-deep);
   --color-work-surface: var(--work-surface);
@@ -69,10 +73,10 @@
   --color-parable-bg: hsl(35 20% 93%);
   --color-parable-border: hsl(30 10% 25%);
   --color-media-placeholder: hsl(35 12% 90%);
-  --color-brand-accent: hsl(24 95% 53%);
+  --color-brand-accent: hsl(22 93% 53%);          /* = --signal #F76A16 (consolidated from a brighter orange) */
   --color-identity-parable-bg: hsl(30 40% 95%);
-  --color-identity-parable-border: hsl(24 95% 53%);
-  --color-identity-parable-accent: hsl(24 80% 50%);
+  --color-identity-parable-border: hsl(22 93% 53%);
+  --color-identity-parable-accent: hsl(22 90% 47%);
 
   --shadow-elegant: 0 10px 40px -20px oklch(0.18 0.005 60 / 0.25);
   --shadow-soft:
@@ -90,17 +94,26 @@
 :root {
   --radius: 1.25rem; /* 20px control radius — matches reference */
 
-  --cream: #F7F2EA;
-  --paper-deep: #ECE5D8;
-  --work-surface: #F8F4ED;
-  --page-gutter: #F7F2EA;
-  --paper-edge: #DCD5C8;
+  /* ===== PRODUCT / APP tier (design system §2) — this is an app you log into
+     and operate, so it runs the warm-WHITE tier (claude.ai brightness league),
+     not the deeper marketing cream. Only these four grounds differ from the
+     marketing tier; every token below is shared. ===== */
+  --cream: #FAF7F0;         /* app ground (warm white) */
+  --paper-deep: #F2EEE5;    /* subtle inset fills, chips, hover rows (a touch below ground) */
+  --work-surface: #FFFFFF;  /* raised panels/cards sit white ABOVE the ground */
+  --page-gutter: #FAF7F0;
+  --paper-edge: #E7E1D6;    /* hairline borders & rules (warm; reads on both ground & white) */
   --ink: #1C1A17;
   --ink-panel: #2C2A26;
   --muted-foreground: #6B655D;
   --signal: #F76A16;
+  --clay: #D97757;                           /* warm terracotta — eyebrows & small warm accents (= claude.ai clay) */
   --signal-green: oklch(0.78 0.14 165);      /* #34D399 */
   --signal-success: oklch(0.72 0.17 148);    /* Manus "task completed" green */
+  /* semantic state tokens (separate from the brand accent — don't count against the one-orange rule) */
+  --crit: #B5432E;                           /* off-goal / failure / danger */
+  --good: #2FA98C;                           /* on-goal / success / live */
+  --warn: #C69A3C;                           /* caution */
   --gold: var(--signal);                     /* alias → signal (legacy name) */
   --rail-active: var(--signal);
   --gold-soft: #F7EDE0;
@@ -145,6 +158,10 @@
   --ink: oklch(0.94 0.012 80);
   --ink-panel: oklch(0.16 0.012 80);
   --muted-foreground: oklch(0.74 0.018 80);
+  --clay: #E0967B;                           /* clay lifted slightly for contrast on dark */
+  --crit: #EF8A7A;                           /* lighter red reads on dark panels (per design system) */
+  --good: #3FBFA0;
+  --warn: #D8B45A;
 
   --background: var(--cream);
   --foreground: var(--ink);
@@ -232,6 +249,18 @@
   }
   .eyebrow-signal {
     color: var(--signal);
+  }
+  /* Warm terracotta eyebrow — the rationed accent eyebrow. Use this instead of
+     orange (.eyebrow-signal) for section eyebrows that want warmth, so the one
+     orange stays reserved for the primary CTA / true emphasis. */
+  .eyebrow-clay {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    line-height: 1.25;
+    text-transform: uppercase;
+    color: var(--clay);
   }
   .label-mono {
     font-family: var(--font-serif);
@@ -366,6 +395,14 @@
 }
 .animate-signal-pulse { animation: signal-pulse 2.4s ease-in-out infinite; }
 
+/* Color-agnostic "live" pulse — ring inherits currentColor, so it works for
+   the semantic teal (--good) live/next-session dots without baking in orange. */
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 color-mix(in oklab, currentColor 45%, transparent); }
+  50%      { opacity: 0.75; transform: scale(1.05); box-shadow: 0 0 0 6px color-mix(in oklab, currentColor 0%, transparent); }
+}
+.animate-live-pulse { animation: live-pulse 2.4s ease-in-out infinite; }
+
 @keyframes cursor-blink {
   0%, 49% { opacity: 1; }
   50%, 100% { opacity: 0; }
@@ -465,6 +502,7 @@
     transition: none !important;
   }
   .animate-signal-pulse,
+  .animate-live-pulse,
   .animate-cursor-blink,
   .grid-field-glow,
   .compute-line,
