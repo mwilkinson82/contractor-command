@@ -321,7 +321,7 @@ export function AppSidebar() {
       <aside
         data-collapsed={collapsed || undefined}
         data-mobile-open={mobileOpen || undefined}
-        className={`group/sidebar fixed inset-y-0 left-0 z-50 flex flex-col border-r border-border/70 bg-[var(--paper-deep)] transition-[width,transform] duration-300 ease-[cubic-bezier(.2,.7,.2,1)] ${
+        className={`group/sidebar fixed inset-y-0 left-0 z-50 flex flex-col border-r border-border/70 bg-[var(--work-surface)] transition-[width,transform] duration-300 ease-[cubic-bezier(.2,.7,.2,1)] ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0`}
         style={{ width: collapsed ? "60px" : "216px" }}
