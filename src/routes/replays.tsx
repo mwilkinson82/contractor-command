@@ -225,14 +225,21 @@ function ReplaysPage() {
                       )}
                     </div>
                     {isPlaying && isEmbeddable && r.video_url && (
-                      <div className="aspect-video w-full border-t border-border bg-black">
-                        <iframe
-                          src={r.video_url}
-                          className="h-full w-full"
-                          allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                          allowFullScreen
-                          title={r.title}
-                        />
+                      /* Product media is the hero — AOS bracket-corner frame (design system §5/§6) */
+                      <div className="tech-frame bracket-corners w-full border-t border-border bg-black p-5 sm:p-6">
+                        <span className="bc-tl" aria-hidden />
+                        <span className="bc-tr" aria-hidden />
+                        <span className="bc-bl" aria-hidden />
+                        <span className="bc-br" aria-hidden />
+                        <div className="aspect-video w-full overflow-hidden rounded-lg">
+                          <iframe
+                            src={r.video_url}
+                            className="h-full w-full"
+                            allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                            allowFullScreen
+                            title={r.title}
+                          />
+                        </div>
                       </div>
                     )}
                   </article>
