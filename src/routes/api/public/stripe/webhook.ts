@@ -376,8 +376,22 @@ async function ensureMagicLinkForMember(
         email_confirm: true,
         user_metadata: { source: "stripe_purchase", invited_at: new Date().toISOString() },
       });
-      if (createErr && !/already|registered|exists/i.test(createErr.message ?? "")) {
-        throw createErr;
+      // The existence scan above pages through listUsers and can MISS a real
+      // user (past its paging window, or on a race). When it does, createUser
+      // hits a duplicate-email DB constraint and returns a GENERIC
+      // "Database error creating new user" — which contains none of
+      // already/registered/exists. Do NOT throw on it: any failure here just
+      // means we couldn't create the user, and if they already exist,
+      // generateLink below still succeeds and issues their login link.
+      // (Previously this threw, so a paying member got no one-click link and a
+      // link-less welcome email.) generateLink is the real source of truth.
+      if (createErr) {
+        console.warn("createUser during welcome-link failed; proceeding to generateLink", {
+          email,
+          message: createErr.message,
+          status: (createErr as { status?: number }).status,
+          code: (createErr as { code?: string }).code,
+        });
       }
     }
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
