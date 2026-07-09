@@ -18,10 +18,10 @@
   --hb-parable-bg: 35 20% 93%;
   --hb-parable-border: 30 10% 25%;
   --hb-media-placeholder: 35 12% 90%;
-  --hb-brand-accent: 24 95% 53%;
+  --hb-brand-accent: 22 93% 53%;          /* = --signal #F76A16 (consolidated from a brighter orange) */
   --hb-identity-bg: 30 40% 95%;
-  --hb-identity-border: 24 95% 53%;
-  --hb-identity-accent: 24 80% 50%;
+  --hb-identity-border: 22 93% 53%;
+  --hb-identity-accent: 22 90% 47%;
 
   background-color: hsl(var(--hb-bg));
   color: hsl(var(--hb-fg));
@@ -69,7 +69,7 @@
 @media (min-width: 1024px) { .handbook-scope .handbook-title { font-size: 6rem; } }
 
 .handbook-scope .handbook-subtitle {
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 0.75rem;
   font-weight: 500;
   text-transform: uppercase;
@@ -152,7 +152,7 @@
    ============================================================ */
 
 .handbook-scope .eyebrow {
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 0.6875rem;
   font-weight: 500;
   text-transform: uppercase;
@@ -201,7 +201,7 @@
 }
 
 .handbook-scope .parable-label {
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.28em;
@@ -333,7 +333,7 @@
 }
 
 .handbook-scope .toc-part {
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 0.75rem;
   font-weight: 500;
   text-transform: uppercase;
