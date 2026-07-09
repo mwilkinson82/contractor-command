@@ -321,7 +321,7 @@ export function AppSidebar() {
       <aside
         data-collapsed={collapsed || undefined}
         data-mobile-open={mobileOpen || undefined}
-        className={`group/sidebar fixed inset-y-0 left-0 z-50 flex flex-col border-r border-border/70 bg-[var(--work-surface)] transition-[width,transform] duration-300 ease-[cubic-bezier(.2,.7,.2,1)] ${
+        className={`group/sidebar fixed inset-y-0 left-0 z-50 flex flex-col border-r border-border/70 bg-background transition-[width,transform] duration-300 ease-[cubic-bezier(.2,.7,.2,1)] ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0`}
         style={{ width: collapsed ? "60px" : "216px" }}
@@ -382,7 +382,7 @@ export function AppSidebar() {
                     const Icon = it.icon;
                     const className = `group/item relative flex items-center gap-3 rounded-md px-2 py-2 text-[13px] transition-colors ${
                       active
-                        ? "bg-ink text-cream"
+                        ? "bg-clay/10 text-foreground rounded-l-none before:content-[''] before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[2.5px] before:rounded-r-sm before:bg-clay"
                         : isTease
                           ? "text-foreground/35 hover:bg-foreground/5 hover:text-foreground/60"
                           : "text-foreground/75 hover:bg-foreground/5 hover:text-foreground"
@@ -396,11 +396,8 @@ export function AppSidebar() {
                         : undefined;
                     const inner = (
                       <>
-                        <Icon className="h-4 w-4 shrink-0" />
+                        <Icon className={`h-4 w-4 shrink-0 ${active ? "text-clay" : ""}`} />
                         {!collapsed && <span className="truncate">{it.label}</span>}
-                        {active && !collapsed && (
-                          <span className="ml-auto h-1 w-1 rounded-full bg-signal" />
-                        )}
                       </>
                     );
                     return (
