@@ -199,7 +199,7 @@ function AOSBand({ items }: { items: TemplateRow[] }) {
   return (
     <section className="mt-12 rounded-2xl border border-border bg-card p-8 md:p-10">
       <div className="flex items-center gap-2">
-        <span className="h-1.5 w-1.5 rounded-full bg-gold" />
+        <span className="h-1.5 w-1.5 rounded-full bg-clay" />
         <p className="label-mono">The Operating System</p>
       </div>
       <h2 className="mt-3 font-display text-3xl md:text-4xl leading-tight">
@@ -232,7 +232,7 @@ function FeaturedBand({ items }: { items: TemplateRow[] }) {
   return (
     <section className="mt-10">
       <div className="flex items-center gap-2">
-        <Sparkles className="h-3.5 w-3.5 text-gold" />
+        <Sparkles className="h-3.5 w-3.5 text-clay" />
         <p className="label-mono">Featured</p>
       </div>
       <div className="mt-3 grid gap-4 md:grid-cols-2">
@@ -253,7 +253,7 @@ function FeaturedBand({ items }: { items: TemplateRow[] }) {
             >
               <div className="absolute right-5 top-5 flex items-center gap-1.5">
                 {it.badge && (
-                  <span className="rounded-full bg-gold/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.18em] text-gold">
+                  <span className="rounded-full bg-clay/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.18em] text-clay">
                     {it.badge}
                   </span>
                 )}

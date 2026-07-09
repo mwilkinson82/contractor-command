@@ -219,7 +219,7 @@ function UpsellCardView({
         <Icon className="h-3.5 w-3.5" />
         {card.eyebrow}
         {primary && (
-          <span className="ml-auto rounded-full bg-signal/15 px-2 py-0.5 text-[9px] tracking-[0.18em] text-signal">
+          <span className="ml-auto rounded-full bg-clay/15 px-2 py-0.5 text-[9px] tracking-[0.18em] text-clay">
             Recommended
           </span>
         )}
@@ -250,7 +250,7 @@ function UpsellCardView({
         </span>
       </div>
       {activePlan.badge && (
-        <p className="mt-1 text-[10px] uppercase tracking-[0.22em] text-signal">{activePlan.badge}</p>
+        <p className="mt-1 text-[10px] uppercase tracking-[0.22em] text-clay">{activePlan.badge}</p>
       )}
 
       <p className="mt-3 text-[15px] leading-snug">{card.title}</p>
@@ -258,7 +258,7 @@ function UpsellCardView({
       <ul className="mt-5 space-y-2">
         {card.bullets.map((b) => (
           <li key={b} className="flex items-start gap-2 text-[13px] text-foreground/80">
-            <Check className="mt-[3px] h-3.5 w-3.5 shrink-0 text-signal" />
+            <Check className="mt-[3px] h-3.5 w-3.5 shrink-0 text-good" />
             <span>{b}</span>
           </li>
         ))}
@@ -267,9 +267,9 @@ function UpsellCardView({
         <button
           onClick={() => onPurchase(activePlan)}
           disabled={busy || requested}
-          className={`inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-[12px] uppercase tracking-[0.22em] transition-opacity disabled:opacity-60 ${
+          className={`inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-[12px] uppercase tracking-[0.22em] transition disabled:opacity-60 ${
             primary
-              ? "bg-ink text-cream hover:opacity-90"
+              ? "bg-signal text-white shadow-[0_8px_20px_-8px_rgb(247_106_22_/_0.6)] hover:-translate-y-px hover:bg-signal/90"
               : "border border-ink/20 bg-transparent text-ink hover:bg-ink/5"
           }`}
         >

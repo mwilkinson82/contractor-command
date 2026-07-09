@@ -303,7 +303,7 @@ function HomePage() {
             />
 
             {/* Open issues — same width as Today's move */}
-            <article className="relative overflow-hidden rounded-2xl border border-dashed border-border bg-card/60 p-6">
+            <article className="relative overflow-hidden rounded-2xl border border-border bg-card/60 p-6">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="max-w-[520px]">
                   <p className="label-mono">Open issues — your queue for the room</p>
@@ -339,7 +339,7 @@ function HomePage() {
             <article className="relative overflow-hidden rounded-2xl border border-border bg-card p-5">
               <p className="label-mono">Next {session.kind === "Biweekly Call" ? "bi-weekly call" : "bootcamp"}</p>
               <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-signal align-middle mr-2 animate-signal-pulse" />
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-good text-good align-middle mr-2 animate-live-pulse" />
                 {relativeDay(session.date)}
               </p>
               <h3 className="mt-2 font-display text-[16px] leading-snug">{session.title}</h3>
@@ -451,7 +451,7 @@ function ContractorCircleCallAnnouncement({
       <DialogContent className="max-h-[92vh] max-w-[640px] overflow-hidden border-ink/15 bg-[var(--work-surface)] p-0 shadow-[var(--shadow-focus)] sm:rounded-2xl">
         <div className="grid gap-0 md:grid-cols-[1fr_220px]">
           <div className="p-6 sm:p-8">
-            <p className="label-mono text-signal">Contractor Circle Call</p>
+            <p className="label-mono text-clay">Contractor Circle Call</p>
             <DialogTitle className="mt-3 font-display text-4xl font-normal leading-[0.95] tracking-tight text-ink sm:text-5xl">
               Tonight at 5:00 PM EST.
             </DialogTitle>
@@ -545,7 +545,7 @@ function RailRow({
       <Link to={to as "/"} className="flex items-center gap-3 min-w-0 flex-1 overflow-hidden">
         <span
           className={`grid h-7 w-7 shrink-0 place-items-center rounded-md ${
-            accent ? "bg-[#5865F2] text-white" : "bg-foreground/5"
+            accent ? "bg-ink text-cream" : "bg-foreground/5"
           }`}
         >
           {icon}
@@ -694,7 +694,7 @@ function FeaturedWorkbook() {
         {workbooks.map((w) => (
           <div key={w.key} className="rounded-2xl border border-border bg-card p-6 md:p-7">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-3.5 w-3.5 text-gold" />
+              <Sparkles className="h-3.5 w-3.5 text-clay" />
               <p className="label-mono">{w.eyebrow}</p>
             </div>
             <div className="mt-3">

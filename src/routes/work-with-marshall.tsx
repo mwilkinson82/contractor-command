@@ -173,9 +173,7 @@ function WorkPage() {
                       isPrimary ? "text-cream/80" : "text-foreground/80"
                     }`}
                   >
-                    <CheckCircle2 className={`mt-[3px] h-3.5 w-3.5 shrink-0 ${
-                      isPrimary ? "text-gold" : "text-signal"
-                    }`} />
+                    <CheckCircle2 className="mt-[3px] h-3.5 w-3.5 shrink-0 text-good" />
                     <span>{b}</span>
                   </li>
                 ))}

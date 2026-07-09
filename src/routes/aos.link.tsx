@@ -94,7 +94,7 @@ function AosLinkPage() {
           </div>
 
           {error && (
-            <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-[13px] text-rose-700">
+            <p className="rounded-md border border-crit/25 bg-crit/10 px-3 py-2 text-[13px] text-crit">
               {error}
             </p>
           )}
@@ -129,7 +129,7 @@ function AosLinkPage() {
         </form>
       ) : (
         <div className="mt-8 rounded-2xl border border-border bg-card p-6">
-          <p className="flex items-center gap-2 text-[13px] text-emerald-700">
+          <p className="flex items-center gap-2 text-[13px] text-good">
             <Check className="h-4 w-4" /> Linked
           </p>
           <p className="mt-3 font-display text-xl">

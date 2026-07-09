@@ -197,7 +197,7 @@ function CollapsedBar({
         <button
           type="button"
           onClick={onOpenPicker}
-          className="inline-flex items-center gap-1.5 rounded-md bg-signal px-3 py-1.5 text-[12px] font-semibold text-cream hover:bg-signal/90"
+          className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] font-semibold text-cream hover:opacity-90"
         >
           <LayoutGrid className="h-3.5 w-3.5" /> Switch tool
         </button>
@@ -244,7 +244,7 @@ function WorkbenchHeader({
             Operator's Workbench
           </h1>
           <p className="mt-2 font-mono text-[10.5px] uppercase tracking-[0.22em] text-muted-foreground">
-            <span className="text-signal">● Now loaded</span>
+            <span className="text-good">● Now loaded</span>
             <span className="mx-2 text-muted-foreground/40">·</span>
             <span>{activeTool?.group ?? "—"}</span>
             <span className="mx-2 text-muted-foreground/40">·</span>
@@ -395,7 +395,7 @@ function SwitchToolDialog({
                             : "border-transparent opacity-50"
                       }`}
                     >
-                      <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-signal">
+                      <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-clay">
                         {String(idx + 1).padStart(2, "0")}
                       </span>
                       <span className="grid h-8 w-8 place-items-center rounded-md bg-foreground/5 text-foreground/80">
@@ -451,7 +451,7 @@ function StatusPill({ status, routed }: { status: CommandTool["status"]; routed:
   }
   return (
     <span className="inline-flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-[0.22em] text-muted-foreground">
-      <span className="inline-block h-1.5 w-1.5 rounded-full bg-signal" /> Live
+      <span className="inline-block h-1.5 w-1.5 rounded-full bg-good" /> Live
     </span>
   );
 }
