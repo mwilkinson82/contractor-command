@@ -97,7 +97,7 @@ export function TopStrip() {
             className="hidden sm:block text-[14px] text-muted-foreground truncate"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            <span className="text-signal">●</span> Live · Contractor Circle
+            <span className="text-good">●</span> Live · Contractor Circle
           </p>
         )}
       </div>

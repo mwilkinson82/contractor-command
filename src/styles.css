@@ -395,6 +395,14 @@
 }
 .animate-signal-pulse { animation: signal-pulse 2.4s ease-in-out infinite; }
 
+/* Color-agnostic "live" pulse — ring inherits currentColor, so it works for
+   the semantic teal (--good) live/next-session dots without baking in orange. */
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 color-mix(in oklab, currentColor 45%, transparent); }
+  50%      { opacity: 0.75; transform: scale(1.05); box-shadow: 0 0 0 6px color-mix(in oklab, currentColor 0%, transparent); }
+}
+.animate-live-pulse { animation: live-pulse 2.4s ease-in-out infinite; }
+
 @keyframes cursor-blink {
   0%, 49% { opacity: 1; }
   50%, 100% { opacity: 0; }
@@ -494,6 +502,7 @@
     transition: none !important;
   }
   .animate-signal-pulse,
+  .animate-live-pulse,
   .animate-cursor-blink,
   .grid-field-glow,
   .compute-line,
