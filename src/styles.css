@@ -649,7 +649,7 @@
  * ActivityInspectorPanel) from briefly covering the left rail on first
  * paint before JS hydrates.
  * ============================================================================ */
-:root { --app-sidebar-w: 216px; }
+:root { --app-sidebar-w: 240px; } /* floating rail: 12 margin + 216 panel + 12 gap */
 @media (max-width: 767px) { :root { --app-sidebar-w: 0px; } }
 
 /* Warm ink rail (sidebar option D). The app runs in light mode, so the
