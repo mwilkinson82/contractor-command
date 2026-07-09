@@ -37,7 +37,7 @@ export function AosAddonsModal({ open, onOpenChange, trigger, className }: Props
           <DialogTitle className="font-display text-2xl tracking-tight text-ink">
             Add capacity
           </DialogTitle>
-          <DialogDescription className="text-[13px] text-[#5b554d]">
+          <DialogDescription className="text-[13px] text-muted-foreground">
             Extra seats and workspaces are monthly add-ons. Cancel anytime from
             the billing portal.
           </DialogDescription>

@@ -67,12 +67,12 @@ export function AosAddonsPanel() {
   }
 
   return (
-    <div className="rounded-2xl border border-[#cfc6b8] bg-[#fdfaf3] p-5">
+    <div className="rounded-2xl border border-paper-edge bg-work-surface p-5">
       <div className="flex items-baseline justify-between gap-3">
         <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-ink">
           Need more capacity?
         </p>
-        <p className="text-[11px] text-[#8e877c]">Monthly · cancel anytime</p>
+        <p className="text-[11px] text-muted-foreground">Monthly · cancel anytime</p>
       </div>
 
       <div className="mt-4 grid gap-3">
@@ -98,7 +98,7 @@ export function AosAddonsPanel() {
         />
       </div>
 
-      <p className="mt-4 border-t border-[#d7d0c4] pt-3 text-[11px] text-[#5b554d]">
+      <p className="mt-4 border-t border-paper-edge pt-3 text-[11px] text-muted-foreground">
         New purchase preview: +{seatQty} seat{seatQty === 1 ? "" : "s"} · +{wsQty} workspace
         {wsQty === 1 ? "" : "s"} ={" "}
         <span className="font-bold text-ink">${total.toFixed(2)} / month</span>
@@ -127,10 +127,10 @@ function Row({
   ctaLabel: string;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-[#e0d8c8] bg-white/60 px-3 py-2.5">
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-paper-edge bg-white/60 px-3 py-2.5">
       <div className="min-w-0 flex-1">
         <p className="text-[13px] font-medium text-ink">{label}</p>
-        <p className="text-[11px] text-[#8e877c]">
+        <p className="text-[11px] text-muted-foreground">
           {subLabel}
           {owned > 0 && (
             <>
@@ -140,11 +140,11 @@ function Row({
           )}
         </p>
       </div>
-      <div className="inline-flex items-center rounded-md border border-[#d7d0c4] bg-white">
+      <div className="inline-flex items-center rounded-md border border-paper-edge bg-white">
         <button
           type="button"
           aria-label={`Decrease ${label}`}
-          className="grid h-7 w-7 place-items-center text-[#5b554d] hover:bg-[#f5efe3] disabled:opacity-40"
+          className="grid h-7 w-7 place-items-center text-muted-foreground hover:bg-paper-deep disabled:opacity-40"
           onClick={() => onChange(Math.max(1, qty - 1))}
           disabled={qty <= 1}
         >
@@ -154,7 +154,7 @@ function Row({
         <button
           type="button"
           aria-label={`Increase ${label}`}
-          className="grid h-7 w-7 place-items-center text-[#5b554d] hover:bg-[#f5efe3]"
+          className="grid h-7 w-7 place-items-center text-muted-foreground hover:bg-paper-deep"
           onClick={() => onChange(Math.min(50, qty + 1))}
         >
           <Plus className="h-3.5 w-3.5" />

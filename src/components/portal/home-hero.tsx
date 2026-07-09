@@ -90,10 +90,10 @@ export function HomeHero({
 
       <div className="relative mx-auto w-full max-w-[820px]">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <p className="text-[12px] uppercase tracking-[0.18em] text-muted-foreground">
+          <p className="font-mono text-[12px] uppercase tracking-[0.18em] text-muted-foreground">
             · Ask Marshall · {today || "\u00A0"}
           </p>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
             v4
           </p>
         </div>

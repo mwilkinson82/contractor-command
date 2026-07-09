@@ -66,18 +66,14 @@ export function AosFeatureSubmit() {
   };
 
   return (
-    <article className="relative overflow-hidden rounded-2xl border-2 border-ink/80 bg-gradient-to-br from-ink via-ink to-ink/90 p-6 text-cream shadow-[0_10px_40px_-12px_rgba(0,0,0,0.4)]">
-      {/* Featured ribbon */}
+    <article className="relative overflow-hidden rounded-2xl border border-ink/60 bg-ink p-6 text-cream shadow-[var(--shadow-elegant)]">
+      {/* Featured ribbon — the one orange on this dark panel */}
       <div className="absolute right-0 top-0 z-10">
         <div className="flex items-center gap-1.5 rounded-bl-xl bg-signal px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-ink">
           <Sparkles className="h-3 w-3" />
           Featured this call
         </div>
       </div>
-
-      {/* Decorative glow */}
-      <div className="pointer-events-none absolute -left-16 -top-16 h-48 w-48 rounded-full bg-signal/20 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-20 -right-10 h-56 w-56 rounded-full bg-signal/10 blur-3xl" />
 
       <div className="relative flex flex-wrap items-end justify-between gap-5">
         <div className="max-w-[580px]">
