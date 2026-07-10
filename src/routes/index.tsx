@@ -597,8 +597,16 @@ function FeaturedLatestClass() {
             AOS, IOR, and daily field tracking — how real-time sundown reporting protects margin, exposes risk early, and keeps project decisions out of gut feel.
           </p>
 
-          <div className="mt-6 overflow-hidden rounded-xl border border-border bg-black">
-            <div style={{ position: "relative", width: "100%", height: 0, paddingBottom: "56.25%" }}>
+          {/* Product media is the hero — wrap it in the AOS bracket-corner frame (design system §5/§6) */}
+          <div className="tech-frame bracket-corners mt-6 rounded-xl border border-border bg-black p-5 sm:p-6">
+            <span className="bc-tl" aria-hidden />
+            <span className="bc-tr" aria-hidden />
+            <span className="bc-bl" aria-hidden />
+            <span className="bc-br" aria-hidden />
+            <div
+              className="relative overflow-hidden rounded-lg"
+              style={{ width: "100%", height: 0, paddingBottom: "56.25%" }}
+            >
               <iframe
                 src="https://us06web.zoom.us/clips/embed/odZsV2TBSj2uTvbaUp1OIg"
                 frameBorder="0"
