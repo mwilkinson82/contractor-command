@@ -7,10 +7,12 @@ import { Container } from "@/components/portal/page-header";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { useAuth } from "@/hooks/use-auth";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { AnnouncementEditor } from "@/components/admin/announcement-editor";
+import { supabase } from "@/integrations/supabase/client";
 import {
+  createAnnouncementMediaUpload,
   sendMemberAnnouncement,
   previewMemberAnnouncementAudience,
   getLastMemberAnnouncement,
@@ -64,6 +66,22 @@ function AnnouncePage() {
   const previewFn = useServerFn(previewMemberAnnouncementAudience);
   const sendFn = useServerFn(sendMemberAnnouncement);
   const lastFn = useServerFn(getLastMemberAnnouncement);
+  const createMediaUploadFn = useServerFn(createAnnouncementMediaUpload);
+
+  const uploadAnnouncementImage = async (file: File) => {
+    const upload = await createMediaUploadFn({
+      data: {
+        fileName: file.name,
+        contentType: file.type as "image/jpeg" | "image/png" | "image/webp" | "image/gif",
+        fileSize: file.size,
+      },
+    });
+    const { error } = await supabase.storage
+      .from(upload.bucket)
+      .uploadToSignedUrl(upload.path, upload.token, file, { contentType: file.type });
+    if (error) throw new Error(`Image upload failed: ${error.message}`);
+    return upload.publicUrl;
+  };
 
   // Always fetch the most recent saved announcement so the user can pull it
   // back into the form on demand, even if a stale local draft is in the way.
@@ -241,13 +259,12 @@ function AnnouncePage() {
           <Field label="Headline (top of email)">
             <Input value={headline} onChange={(e) => setHeadline(e.target.value)} maxLength={160} />
           </Field>
-          <Field label="Body (blank lines separate paragraphs)">
-            <Textarea
+          <Field label="Message">
+            <AnnouncementEditor
               value={body}
-              onChange={(e) => setBody(e.target.value)}
-              rows={14}
-              maxLength={8000}
-              className="font-mono text-[13px]"
+              onChange={setBody}
+              onUploadImage={uploadAnnouncementImage}
+              maxLength={20_000}
             />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -305,7 +322,8 @@ function AnnouncePage() {
                 <span>
                   <span className="font-medium">Contractor Circle members only</span>
                   <span className="block text-[11px] text-muted-foreground">
-                    Active Circle or Hardcore subscribers (excludes AOS-only, book buyers, and Intensive).
+                    Active Circle or Hardcore subscribers (excludes AOS-only, book buyers, and
+                    Intensive).
                   </span>
                 </span>
               </label>

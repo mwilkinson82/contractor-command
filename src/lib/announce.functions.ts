@@ -13,6 +13,14 @@ const SITE_NAME = "Contractor Circle";
 const SENDER_DOMAIN = "notify.mail.alpcontractorcircle.com";
 const FROM_DOMAIN = "notify.mail.alpcontractorcircle.com";
 const TEMPLATE_NAME = "member-announcement";
+const ANNOUNCEMENT_MEDIA_BUCKET = "email-assets";
+const MAX_ANNOUNCEMENT_MEDIA_BYTES = 8 * 1024 * 1024;
+const ANNOUNCEMENT_MEDIA_EXTENSIONS: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+};
 
 async function assertAdmin(userId: string) {
   const { data: roles } = await supabaseAdmin
@@ -111,18 +119,14 @@ async function loadRecipients(audience: Audience, testEmail?: string): Promise<R
 
   // For "circle_inactive" we need the set of emails that have logged in at
   // least once, so we can EXCLUDE them.
-  const signedInEmails =
-    audience === "circle_inactive" ? await loadSignedInEmails() : null;
+  const signedInEmails = audience === "circle_inactive" ? await loadSignedInEmails() : null;
 
   const out = new Map<string, Recipient>();
 
   for (const p of profiles ?? []) {
     if (!p.email) continue;
     const key = p.email.toLowerCase();
-    const subList = [
-      ...(subsByUserId.get(p.id) ?? []),
-      ...(subsByEmail.get(key) ?? []),
-    ];
+    const subList = [...(subsByUserId.get(p.id) ?? []), ...(subsByEmail.get(key) ?? [])];
     let include: boolean;
     if (audience === "all_with_login") include = true;
     else if (audience === "circle") include = hasCircleTier(subList, p.id);
@@ -156,7 +160,7 @@ const InputSchema = z.object({
   subject: z.string().min(1).max(255),
   headline: z.string().min(1).max(160),
   preheader: z.string().max(200).optional(),
-  body: z.string().min(1).max(8000),
+  body: z.string().min(1).max(20000),
   ctaLabel: z.string().max(60).optional(),
   ctaUrl: z.string().url().max(500).optional(),
   signoff: z.string().max(120).optional(),
@@ -164,10 +168,44 @@ const InputSchema = z.object({
   testEmail: z.string().email().optional(),
 });
 
+const MediaUploadSchema = z.object({
+  fileName: z.string().min(1).max(255),
+  contentType: z.enum(["image/jpeg", "image/png", "image/webp", "image/gif"]),
+  fileSize: z.number().int().positive().max(MAX_ANNOUNCEMENT_MEDIA_BYTES),
+});
+
+export const createAnnouncementMediaUpload = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => MediaUploadSchema.parse(input))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.userId);
+
+    const extension = ANNOUNCEMENT_MEDIA_EXTENSIONS[data.contentType];
+    const path = `announcements/${context.userId}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+    const { data: signedUpload, error } = await supabaseAdmin.storage
+      .from(ANNOUNCEMENT_MEDIA_BUCKET)
+      .createSignedUploadUrl(path);
+
+    if (error) throw new Error(`Could not prepare image upload: ${error.message}`);
+
+    const { data: publicAsset } = supabaseAdmin.storage
+      .from(ANNOUNCEMENT_MEDIA_BUCKET)
+      .getPublicUrl(path);
+
+    return {
+      bucket: ANNOUNCEMENT_MEDIA_BUCKET,
+      path,
+      token: signedUpload.token,
+      publicUrl: publicAsset.publicUrl,
+    };
+  });
+
 export const previewMemberAnnouncementAudience = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
-    z.object({ audience: z.enum(["active", "all_with_login", "circle", "circle_inactive"]) }).parse(input),
+    z
+      .object({ audience: z.enum(["active", "all_with_login", "circle", "circle_inactive"]) })
+      .parse(input),
   )
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
