@@ -111,64 +111,93 @@ export function HomeHero({
             </p>
           </div>
 
-          <div className="rounded-xl border border-border bg-card p-4 shadow-[0_18px_50px_-38px_color-mix(in_oklab,var(--ink)_38%,transparent)]">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="label-mono text-clay">Ask Marshall</p>
-                <p className="mt-1 text-[12px] text-muted-foreground">
-                  Bring one issue. Get the read and the next move.
-                </p>
+          <div className="space-y-3">
+            <article className="overflow-hidden rounded-xl border border-ink/15 bg-ink shadow-[0_18px_50px_-38px_color-mix(in_oklab,var(--ink)_55%,transparent)]">
+              <div className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-good">
+                    <span
+                      className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-good"
+                      aria-hidden="true"
+                    />
+                    Thursday Contractor Circle Call
+                  </p>
+                  <h2 className="mt-1 font-display text-[20px] leading-tight text-cream">
+                    Daily Project WIP Implementation
+                  </h2>
+                </div>
               </div>
-              <Link
-                to="/ask"
-                className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-foreground/75 hover:text-foreground"
-              >
-                History <ArrowUpRight className="h-3 w-3" />
-              </Link>
-            </div>
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                void send(input);
-              }}
-              className="mt-4"
-            >
-              <div className="flex items-end gap-2 rounded-lg border border-border bg-background p-1.5 focus-within:border-foreground/35">
-                <textarea
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      void send(input);
-                    }
-                  }}
-                  placeholder="Ask about the move in front of you…"
-                  rows={2}
-                  className="max-h-28 min-h-[52px] flex-1 resize-none bg-transparent px-2 py-2 text-[13px] leading-relaxed outline-none placeholder:text-muted-foreground"
+              <div className="relative h-0 bg-black pb-[53.7927%]">
+                <iframe
+                  src="https://www.loom.com/embed/22d11e96c7084343b7160092a53575b9"
+                  title="Daily Project WIP Implementation — Thursday Contractor Circle Call"
+                  allow="autoplay; fullscreen; picture-in-picture"
+                  allowFullScreen
+                  loading="lazy"
+                  className="absolute inset-0 h-full w-full"
                 />
-                <button
-                  type="submit"
-                  disabled={busy || !input.trim()}
-                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-ink text-cream disabled:opacity-35"
-                  aria-label="Send to Ask Marshall"
-                >
-                  <ArrowUp className="h-3.5 w-3.5" />
-                </button>
               </div>
-            </form>
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {STARTERS.map((starter) => (
-                <button
-                  key={starter}
-                  type="button"
-                  onClick={() => void send(starter)}
-                  disabled={busy}
-                  className="rounded-full border border-border px-2.5 py-1 text-[10px] text-foreground/70 hover:bg-muted disabled:opacity-40"
+            </article>
+
+            <div className="rounded-xl border border-border bg-card p-4 shadow-[0_18px_50px_-38px_color-mix(in_oklab,var(--ink)_38%,transparent)]">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="label-mono text-clay">Ask Marshall</p>
+                  <p className="mt-1 text-[12px] text-muted-foreground">
+                    Bring one issue. Get the read and the next move.
+                  </p>
+                </div>
+                <Link
+                  to="/ask"
+                  className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-foreground/75 hover:text-foreground"
                 >
-                  {starter}
-                </button>
-              ))}
+                  History <ArrowUpRight className="h-3 w-3" />
+                </Link>
+              </div>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void send(input);
+                }}
+                className="mt-4"
+              >
+                <div className="flex items-end gap-2 rounded-lg border border-border bg-background p-1.5 focus-within:border-foreground/35">
+                  <textarea
+                    value={input}
+                    onChange={(event) => setInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+                        void send(input);
+                      }
+                    }}
+                    placeholder="Ask about the move in front of you…"
+                    rows={2}
+                    className="max-h-28 min-h-[52px] flex-1 resize-none bg-transparent px-2 py-2 text-[13px] leading-relaxed outline-none placeholder:text-muted-foreground"
+                  />
+                  <button
+                    type="submit"
+                    disabled={busy || !input.trim()}
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-ink text-cream disabled:opacity-35"
+                    aria-label="Send to Ask Marshall"
+                  >
+                    <ArrowUp className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </form>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {STARTERS.map((starter) => (
+                  <button
+                    key={starter}
+                    type="button"
+                    onClick={() => void send(starter)}
+                    disabled={busy}
+                    className="rounded-full border border-border px-2.5 py-1 text-[10px] text-foreground/70 hover:bg-muted disabled:opacity-40"
+                  >
+                    {starter}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
