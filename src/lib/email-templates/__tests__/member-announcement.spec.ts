@@ -15,6 +15,18 @@ async function renderAnnouncement(body: string) {
 }
 
 describe("member announcement email", () => {
+  it("uses the ALP app-tier narrative and wordmark structure", async () => {
+    const html = await renderAnnouncement("The member update goes here.");
+
+    expect(html).toContain("Member operating brief");
+    expect(html).toContain("Contractor Circle / Member note");
+    expect(html).toContain("ALP Contractor Circle");
+    expect(html).toContain("— an ALP product");
+    expect(html).toContain("Build the company behind the projects.");
+    expect(html).toContain("background-color:#FAF9F5");
+    expect(html).toContain("border-left:3px solid #D97757");
+  });
+
   it("renders formatted text, lists, links, and hosted images", async () => {
     const html = await renderAnnouncement(`
 ## Daily Project WIP
