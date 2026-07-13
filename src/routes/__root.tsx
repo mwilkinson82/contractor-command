@@ -150,7 +150,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: DEFAULT_TITLE },
       { name: "application-name", content: "ALP Contractor Circle" },
       { name: "apple-mobile-web-app-title", content: "Contractor Circle" },
-      { name: "theme-color", content: "#FAF7F0" },
+      { name: "theme-color", content: "#FAF9F5" },
       { name: "robots", content: "index, follow" },
       {
         name: "description",
@@ -193,7 +193,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Caveat:wght@400;600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Caveat:wght@400;600&family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap",
       },
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
       { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
@@ -317,13 +317,16 @@ function useGlobalReveal() {
   }, [pathname]);
 }
 
-function getAuthHashTarget(pathname: string): { path: "/auth/callback" | "/reset-password"; hash: string } | null {
+function getAuthHashTarget(
+  pathname: string,
+): { path: "/auth/callback" | "/reset-password"; hash: string } | null {
   if (typeof window === "undefined") return null;
   if (pathname === "/auth/callback" || pathname === "/reset-password") return null;
   const hash = window.location.hash.replace(/^#/, "");
   if (!hash) return null;
   const params = new URLSearchParams(hash);
-  const hasAuthHash = params.get("access_token") ||
+  const hasAuthHash =
+    params.get("access_token") ||
     params.get("refresh_token") ||
     params.get("error") ||
     params.get("error_code");

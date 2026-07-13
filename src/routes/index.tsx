@@ -23,29 +23,17 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { tierAtLeast, useTier } from "@/hooks/use-tier";
 import { AosPulse } from "@/components/portal/aos-pulse";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 
 import { AosHero } from "@/components/portal/aos-hero";
 import { HomeHero } from "@/components/portal/home-hero";
+import { WhatNeedsMove, type DashboardMove } from "@/components/portal/dashboard-moves";
 import { HandbookAnchor } from "@/components/portal/handbook-anchor";
 import { SignalTiles } from "@/components/portal/signal-tiles";
-import { TodaysMove } from "@/components/portal/todays-move";
-import { getAosSnapshot, type AosResult } from "@/lib/aos.functions";
-import { getActiveWeeklyMove } from "@/lib/weekly-move.functions";
+import { getAosSnapshot, type AosResult, type AosSnapshot } from "@/lib/aos.functions";
+import { getActiveWeeklyMove, type WeeklyMove } from "@/lib/weekly-move.functions";
 
-import {
-  ArrowUpRight,
-  Calendar,
-  Video,
-  Archive,
-  MessagesSquare,
-  FileText,
-} from "lucide-react";
+import { ArrowUpRight, Calendar, Video, Archive, MessagesSquare, FileText } from "lucide-react";
 
 const CALL_ANNOUNCEMENT_ID = "contractor-circle-call-2026-07-05-5pm-est";
 const CALL_ANNOUNCEMENT_DISMISSED_KEY = `alp.cc.dismissed.${CALL_ANNOUNCEMENT_ID}`;
@@ -76,7 +64,9 @@ function HomePage() {
     title: "Contractor Circle Call",
     date: CALL_ANNOUNCEMENT_START_AT,
   };
-  const [latestReplay, setLatestReplay] = useState<{ title: string; recorded_at: string } | null>(null);
+  const [latestReplay, setLatestReplay] = useState<{ title: string; recorded_at: string } | null>(
+    null,
+  );
   const { company } = useCompany();
   const { user } = useAuth();
   const { tier, loading: tierLoading } = useTier();
@@ -100,7 +90,10 @@ function HomePage() {
   useEffect(() => {
     try {
       setCompanyId(window.localStorage.getItem(COMPANY_KEY));
-    } catch {}
+    } catch (error) {
+      void error;
+      setCompanyId(null);
+    }
   }, []);
 
   // If we just bounced back from a Stripe upgrade started by AOS,
@@ -115,7 +108,10 @@ function HomePage() {
         (fromUrl && isAllowedReturnTo(fromUrl)) ||
         isAllowedReturnTo(window.sessionStorage.getItem(RETURN_TO_STORAGE_KEY));
       window.sessionStorage.removeItem(RETURN_TO_STORAGE_KEY);
-    } catch {}
+    } catch (error) {
+      void error;
+      target = null;
+    }
     if (target) {
       toast.success("Welcome — sending you back to AOS…");
       window.setTimeout(() => window.location.replace(target!), 600);
@@ -124,14 +120,17 @@ function HomePage() {
 
   // AOS query — shares cache key with <AosPulse /> so they dedupe automatically.
   const aosFn = useServerFn(getAosSnapshot);
-  const { data: aosData, refetch: refetchAos, isFetching: aosFetching } =
-    useQuery<AosResult>({
-      queryKey: ["aos-snapshot", companyId],
-      queryFn: () => aosFn({ data: { companyId: companyId ?? undefined } }),
-      staleTime: 60_000,
-      refetchOnWindowFocus: true,
-      enabled: !!user,
-    });
+  const {
+    data: aosData,
+    refetch: refetchAos,
+    isFetching: aosFetching,
+  } = useQuery<AosResult>({
+    queryKey: ["aos-snapshot", companyId],
+    queryFn: () => aosFn({ data: { companyId: companyId ?? undefined } }),
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
+    enabled: !!user,
+  });
 
   // Curated weekly move (admin-pushed). Falls back to auto-derive when null.
   const fetchWeeklyMove = useServerFn(getActiveWeeklyMove);
@@ -142,15 +141,20 @@ function HomePage() {
     staleTime: 5 * 60_000,
   });
 
-
-  const aosLinked = aosData?.ok && aosData.snapshot.linked;
+  const aosLinked = Boolean(aosData?.ok && aosData.snapshot.linked);
   const aosPreviouslyLinked = aosData?.ok ? aosData.previously_linked : false;
   const aosUnknown = !aosData; // still loading first time
   const aosCompanies =
-    aosData?.ok && !aosData.snapshot.linked ? aosData.snapshot.companies ?? [] : [];
+    aosData?.ok && !aosData.snapshot.linked ? (aosData.snapshot.companies ?? []) : [];
+  const linkedSnapshot = aosData?.ok && aosData.snapshot.linked ? aosData.snapshot : null;
+  const dashboardMoves = buildDashboardMoves(linkedSnapshot, packets, weeklyMove);
 
   const pickCompany = (id: string) => {
-    try { window.localStorage.setItem(COMPANY_KEY, id); } catch {}
+    try {
+      window.localStorage.setItem(COMPANY_KEY, id);
+    } catch (error) {
+      void error;
+    }
     setCompanyId(id);
     // Query will refire because the key includes companyId
   };
@@ -159,7 +163,11 @@ function HomePage() {
     if (!aosData?.ok || !aosData.snapshot.linked) return;
     const liveCompanyId = aosData.snapshot.company_id;
     if (!liveCompanyId || liveCompanyId === companyId) return;
-    try { window.localStorage.setItem(COMPANY_KEY, liveCompanyId); } catch {}
+    try {
+      window.localStorage.setItem(COMPANY_KEY, liveCompanyId);
+    } catch (error) {
+      void error;
+    }
     setCompanyId(liveCompanyId);
   }, [aosData, companyId]);
 
@@ -227,30 +235,36 @@ function HomePage() {
         greeting={hello}
         firstName={firstName}
         today={today}
-        greetingIcon={company?.greeting_icon as
-          | "wave"
-          | "crane"
-          | "bulldozer"
-          | "hammer"
-          | "scale"
-          | "brick"
-          | null
-          | undefined}
+        moves={dashboardMoves}
+        aosLinked={aosLinked}
+        greetingIcon={
+          company?.greeting_icon as
+            "wave" | "crane" | "bulldozer" | "hammer" | "scale" | "brick" | null | undefined
+        }
       />
 
-      {/* Featured: latest Contractor Circle class + workbooks */}
-      <div className="pt-6">
-        <FeaturedLatestClass />
-        <FeaturedWorkbook />
-      </div>
+      {/* Decision queue + the next live Contractor Circle session */}
+      <section className="relative px-4 pb-12 sm:px-6">
+        <div className="mx-auto grid w-full max-w-[1180px] overflow-hidden rounded-xl border border-border shadow-[0_24px_70px_-55px_color-mix(in_oklab,var(--ink)_45%,transparent)] lg:grid-cols-[minmax(0,1fr)_360px]">
+          <WhatNeedsMove moves={dashboardMoves} />
+          <NextCallCard
+            session={session}
+            sessionWhen={sessionWhen}
+            latestReplay={latestReplay}
+            replayDate={replayDate}
+          />
+        </div>
+      </section>
 
-      {/* Command center band — flows from hero, no hard divider */}
-      <section className="relative px-4 sm:px-6 pt-8 pb-2">
+      {/* Corporate operating-system read: connected and disconnected stay distinct. */}
+      <section className="relative px-4 pb-3 sm:px-6">
         <div className="relative mx-auto w-full max-w-[1180px]">
-          <p className="label-mono">Your command center</p>
-          <h2 className="mt-2 font-display text-[1.75rem] leading-tight">
-            {companyName}
-          </h2>
+          <p className="label-mono">Corporate operating system</p>
+          <h2 className="mt-2 font-display text-[2rem] leading-tight">AOS Pulse</h2>
+          <p className="mt-2 max-w-[650px] text-[13px] leading-relaxed text-muted-foreground">
+            A separate read from your company operating system. Connect AOS to add its scorecard,
+            rocks, issues, and to-dos to the Hub signals above.
+          </p>
         </div>
       </section>
 
@@ -271,133 +285,18 @@ function HomePage() {
 
       {/* AOS Pulse first — anchor of the dashboard */}
       {aosLinked && (
-        <section className="relative px-4 sm:px-6 pb-6">
+        <section className="relative px-4 pb-12 sm:px-6">
           <div className="mx-auto w-full max-w-[1180px]">
             <AosPulse />
           </div>
         </section>
       )}
 
-
-      {/* Centered spine + right rail (Perplexity-style) */}
-      <section className="relative px-4 sm:px-6 pb-10">
-        <div className="mx-auto grid w-full max-w-[1180px] gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-          {/* LEFT — symmetrical center column */}
-          <div className="flex flex-col gap-5">
-            {/* Today's move — hero of the dashboard */}
-
-            <TodaysMove
-              packets={packets}
-              curated={
-                weeklyMove
-                  ? {
-                      headline: weeklyMove.headline,
-                      body: weeklyMove.body,
-                      ctaLabel: weeklyMove.cta_label,
-                      ctaTo: weeklyMove.cta_to ?? undefined,
-                      ctaHref: weeklyMove.cta_href ?? undefined,
-                      source: weeklyMove.source ?? undefined,
-                    }
-                  : null
-              }
-            />
-
-            {/* Open issues — same width as Today's move */}
-            <article className="relative overflow-hidden rounded-2xl border border-border bg-card/60 p-6">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div className="max-w-[520px]">
-                  <p className="label-mono">Open issues — your queue for the room</p>
-                  <h3 className="mt-2 font-display text-[18px] leading-snug">
-                    Submit a topic for the bi-weekly call or bootcamp.
-                  </h3>
-                  <p className="mt-2 text-[13px] text-muted-foreground">
-                    Bring one issue that's stuck. Marshall picks two or three per call to work live. Anything you submit also feeds the bootcamp shortlist.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Link
-                    to="/calls"
-                    hash="submit-topic"
-                    className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90"
-                  >
-                    Submit a topic <ArrowUpRight className="h-3 w-3" />
-                  </Link>
-                  <Link
-                    to="/calls"
-                    className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/70 px-3 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
-                  >
-                    See submitted
-                  </Link>
-                </div>
-              </div>
-            </article>
-          </div>
-
-          {/* RIGHT RAIL — odd-shaped/secondary cards */}
-          <aside className="flex flex-col gap-4">
-            {/* Next call */}
-            <article className="relative overflow-hidden rounded-2xl border border-border bg-card p-5">
-              <p className="label-mono">Next {session.kind === "Biweekly Call" ? "bi-weekly call" : "bootcamp"}</p>
-              <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-good text-good align-middle mr-2 animate-live-pulse" />
-                {relativeDay(session.date)}
-              </p>
-              <h3 className="mt-2 font-display text-[16px] leading-snug">{session.title}</h3>
-              <p className="mt-1 text-[12px] text-muted-foreground">{sessionWhen || "\u00A0"}</p>
-
-              {session.agenda && session.agenda.length > 0 && (
-                <ul className="mt-3 space-y-1.5">
-                  {session.agenda.slice(0, 3).map((item, i) => (
-                    <li key={i} className="flex gap-2 text-[12px] text-foreground/85 leading-snug">
-                      <span className="font-mono text-[10px] text-muted-foreground mt-0.5">{String(i + 1).padStart(2, "0")}</span>
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                <a
-                  href={session.zoomUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-cream hover:opacity-90"
-                >
-                  <Video className="h-3 w-3" /> Join
-                </a>
-                <a
-                  href={addToCalendarUrl(session)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground/80 hover:bg-muted"
-                >
-                  <Calendar className="h-3 w-3" /> Add
-                </a>
-              </div>
-            </article>
-
-            <RailRow
-              to="/replays"
-              icon={<Video className="h-3.5 w-3.5" />}
-              title="Latest replay"
-              desc={`${latestReplay?.title ?? "No replays yet"}${replayDate ? ` · ${replayDate}` : ""}`}
-            />
-            <RailRow
-              to="/templates"
-              icon={<FileText className="h-3.5 w-3.5" />}
-              title="Templates"
-              desc="Sell · Estimate · Contract · Launch · Bill"
-            />
-            <RailRow
-              to="/community"
-              icon={<MessagesSquare className="h-3.5 w-3.5" />}
-              title="The room"
-              desc="Discord community · open in app"
-              accent
-            />
-          </aside>
-        </div>
-      </section>
+      {/* Current class and working files remain on the dashboard, below the live reads. */}
+      <div>
+        <FeaturedLatestClass />
+        <FeaturedWorkbook />
+      </div>
 
       {/* Command tools — single editorial grid */}
       <section className="relative px-4 sm:px-6 pb-16">
@@ -405,7 +304,10 @@ function HomePage() {
           <div className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
             <div className="max-w-xl">
               <p className="label-mono">Instrument panel</p>
-              <h2 className="mt-2 font-display text-[1.75rem] leading-tight" style={{ fontFamily: "var(--font-serif)" }}>
+              <h2
+                className="mt-2 font-display text-[1.75rem] leading-tight"
+                style={{ fontFamily: "var(--font-serif)" }}
+              >
                 Command tools
               </h2>
               <p className="mt-2 text-[13.5px] leading-relaxed text-muted-foreground">
@@ -456,8 +358,8 @@ function ContractorCircleCallAnnouncement({
               Tonight at 5:00 PM EST.
             </DialogTitle>
             <DialogDescription className="mt-4 text-[14px] leading-relaxed text-muted-foreground">
-              Use the standard Contractor Circle link. We will work the room, take questions,
-              and keep moving the company behind the projects.
+              Use the standard Contractor Circle link. We will work the room, take questions, and
+              keep moving the company behind the projects.
             </DialogDescription>
 
             <div className="mt-6 rounded-xl border border-border bg-card p-4">
@@ -525,49 +427,105 @@ function ContractorCircleCallAnnouncement({
   );
 }
 
-function RailRow({
-  to,
-  extHref,
-  icon,
-  title,
-  desc,
-  accent,
+function NextCallCard({
+  session,
+  sessionWhen,
+  latestReplay,
+  replayDate,
 }: {
-  to: string;
-  extHref?: string;
-  icon: React.ReactNode;
-  title: string;
-  desc: string;
-  accent?: boolean;
+  session: Session;
+  sessionWhen: string;
+  latestReplay: { title: string; recorded_at: string } | null;
+  replayDate: string;
 }) {
   return (
-    <div className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:bg-muted/50 min-w-0 overflow-hidden">
-      <Link to={to as "/"} className="flex items-center gap-3 min-w-0 flex-1 overflow-hidden">
-        <span
-          className={`grid h-7 w-7 shrink-0 place-items-center rounded-md ${
-            accent ? "bg-ink text-cream" : "bg-foreground/5"
-          }`}
-        >
-          {icon}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-display text-[13px]">{title}</p>
-          <p className="truncate text-[11px] text-muted-foreground">{desc}</p>
-        </div>
-      </Link>
-      {extHref ? (
+    <aside className="flex min-h-full flex-col bg-ink-panel p-6 text-cream">
+      <div className="flex items-center justify-between gap-3">
+        <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-cream/60">
+          Contractor Circle Call
+        </p>
+        <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-cream/65">
+          <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-good align-middle animate-live-pulse" />
+          {relativeDay(session.date)}
+        </p>
+      </div>
+
+      <h2 className="mt-7 font-display text-[2.35rem] leading-[0.98] tracking-[-0.025em] text-cream">
+        {session.title}
+      </h2>
+      <p className="mt-3 text-[12px] text-cream/65">{sessionWhen || "\u00A0"}</p>
+
+      {session.agenda && session.agenda.length > 0 ? (
+        <ol className="mt-6 space-y-3 border-y border-cream/15 py-5">
+          {session.agenda.slice(0, 3).map((item, index) => (
+            <li
+              key={`${index}-${item}`}
+              className="flex gap-3 text-[12px] leading-snug text-cream/82"
+            >
+              <span className="font-mono text-[9px] text-cream/40">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <span>{item}</span>
+            </li>
+          ))}
+        </ol>
+      ) : null}
+
+      <div className="mt-5 flex flex-wrap gap-2">
         <a
-          href={extHref}
+          href={session.zoomUrl}
           target="_blank"
           rel="noreferrer"
-          className="rounded-md border border-border bg-background px-2 py-1 text-[10px] text-muted-foreground hover:bg-muted"
+          className="inline-flex items-center gap-1.5 rounded-md bg-cream px-3 py-2 text-[11px] font-semibold text-ink hover:opacity-90"
         >
-          Open
+          <Video className="h-3 w-3" /> Join session
         </a>
-      ) : (
-        <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-      )}
-    </div>
+        <a
+          href={addToCalendarUrl(session)}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 rounded-md border border-cream/25 px-3 py-2 text-[11px] text-cream/85 hover:bg-cream/10"
+        >
+          <Calendar className="h-3 w-3" /> Add
+        </a>
+      </div>
+
+      <div className="mt-auto pt-7">
+        <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-cream/45">Keep moving</p>
+        <div className="mt-3 divide-y divide-cream/12 border-y border-cream/12">
+          <Link
+            to="/replays"
+            className="group flex items-center gap-3 py-3 text-cream/78 hover:text-cream"
+          >
+            <Video className="h-3.5 w-3.5 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-medium">Latest replay</p>
+              <p className="mt-0.5 truncate text-[10px] text-cream/45">
+                {latestReplay?.title ?? "No replays yet"}
+                {replayDate ? ` · ${replayDate}` : ""}
+              </p>
+            </div>
+            <ArrowUpRight className="h-3 w-3 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+          </Link>
+          <Link
+            to="/templates"
+            className="group flex items-center gap-3 py-3 text-cream/78 hover:text-cream"
+          >
+            <FileText className="h-3.5 w-3.5" />
+            <span className="flex-1 text-[11px]">Templates · Sell through bill</span>
+            <ArrowUpRight className="h-3 w-3 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+          </Link>
+          <Link
+            to="/community"
+            className="group flex items-center gap-3 py-3 text-cream/78 hover:text-cream"
+          >
+            <MessagesSquare className="h-3.5 w-3.5" />
+            <span className="flex-1 text-[11px]">The room · Discord community</span>
+            <ArrowUpRight className="h-3 w-3 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+          </Link>
+        </div>
+      </div>
+    </aside>
   );
 }
 
@@ -583,74 +541,76 @@ function FeaturedLatestClass() {
   }
 
   return (
-    <section className="relative px-4 sm:px-6 pb-10">
+    <section className="relative px-4 pb-10 sm:px-6">
       <div className="mx-auto w-full max-w-[1180px]">
-        <div className="rounded-2xl border border-ink/15 bg-[var(--paper-deep)] p-6 md:p-8 shadow-[0_1px_0_rgba(0,0,0,0.04)]">
-          <div className="flex items-center gap-2">
-            <img src={bulldozerAsset.url} alt="" className="h-5 w-auto object-contain" />
-            <p className="label-mono">Featured · Latest class</p>
-          </div>
-          <h2 className="mt-3 font-display text-3xl md:text-4xl leading-tight">
-            Contractor Circle Call — July 5, 2026
+        <div className="mb-5 border-b border-border pb-4">
+          <p className="label-mono">Latest working session</p>
+          <h2 className="mt-2 font-display text-[2rem] leading-none">
+            The class, whiteboard, and field file.
           </h2>
-          <p className="mt-2 text-[13.5px] text-muted-foreground max-w-[760px]">
-            AOS, IOR, and daily field tracking — how real-time sundown reporting protects margin, exposes risk early, and keeps project decisions out of gut feel.
-          </p>
-
-          <div className="mt-6 overflow-hidden rounded-xl border border-border bg-black">
-            <div style={{ position: "relative", width: "100%", height: 0, paddingBottom: "56.25%" }}>
-              <iframe
-                src="https://us06web.zoom.us/clips/embed/odZsV2TBSj2uTvbaUp1OIg"
-                frameBorder="0"
-                allowFullScreen
-                allow="autoplay; picture-in-picture; fullscreen"
-                style={{ position: "absolute", width: "100%", height: "100%", top: 0, left: 0 }}
-                title="Contractor Circle Call — July 5, 2026"
-              />
+        </div>
+        <div className="grid overflow-hidden rounded-xl border border-border bg-card lg:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.55fr)]">
+          <div className="bg-ink-panel p-3 sm:p-5">
+            <div className="overflow-hidden rounded-lg border border-white/10 bg-black">
+              <div className="relative h-0 w-full pb-[56.25%]">
+                <iframe
+                  src="https://us06web.zoom.us/clips/embed/odZsV2TBSj2uTvbaUp1OIg"
+                  frameBorder="0"
+                  allowFullScreen
+                  allow="autoplay; picture-in-picture; fullscreen"
+                  className="absolute left-0 top-0 h-full w-full"
+                  title="Contractor Circle Call — July 5, 2026"
+                />
+              </div>
             </div>
           </div>
 
-          <article className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-5">
-            <div className="min-w-0 flex-1">
-              <p className="label-mono">Call whiteboard · PDF</p>
-              <h3 className="mt-1 font-display text-[17px] leading-snug">
-                July 5, 2026 — AOS / IOR Whiteboard
-              </h3>
-              <p className="mt-1 text-[13px] text-muted-foreground">
-                Marshall's live whiteboard from the call — the sundown method, IOR loop, and margin-protection flow diagrammed out.
-              </p>
+          <div className="flex flex-col p-6 sm:p-7">
+            <div className="flex items-center gap-2">
+              <img src={bulldozerAsset.url} alt="" className="h-5 w-auto object-contain" />
+              <p className="label-mono">Featured · Latest class</p>
             </div>
-            <a
-              href={july5WhiteboardAsset.url}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Open whiteboard
-            </a>
-          </article>
+            <h3 className="mt-4 font-display text-[2rem] leading-[1.02] tracking-[-0.02em]">
+              Contractor Circle Call — July 5, 2026
+            </h3>
+            <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">
+              AOS, IOR, and daily field tracking — how real-time sundown reporting protects margin,
+              exposes risk early, and keeps project decisions out of gut feel.
+            </p>
 
-          <article className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-5">
-            <div className="min-w-0 flex-1">
-              <p className="label-mono">Companion template · PDF</p>
-              <h3 className="mt-1 font-display text-[17px] leading-snug">
-                Project Management Methodology: IOR — The Source of Truth
-              </h3>
-              <p className="mt-1 text-[13px] text-muted-foreground">
-                Marshall's IOR methodology — identify risks before they hit profit, centralize tracking, and run the weekly reporting cadence.
-              </p>
+            <div className="mt-6 divide-y divide-border border-y border-border">
+              <a
+                href={july5WhiteboardAsset.url}
+                target="_blank"
+                rel="noreferrer"
+                className="group flex items-center gap-3 py-4 hover:text-signal"
+              >
+                <Download className="h-3.5 w-3.5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12px] font-semibold">AOS / IOR Whiteboard</p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">
+                    Sundown method and margin-protection flow
+                  </p>
+                </div>
+                <ArrowUpRight className="h-3.5 w-3.5" />
+              </a>
+              <button
+                type="button"
+                onClick={() => handleDownload(templatePath)}
+                disabled={busy === templatePath}
+                className="group flex w-full items-center gap-3 py-4 text-left hover:text-signal disabled:opacity-60"
+              >
+                <FileText className="h-3.5 w-3.5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12px] font-semibold">IOR — The Source of Truth</p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">
+                    Companion methodology · PDF
+                  </p>
+                </div>
+                <ArrowUpRight className="h-3.5 w-3.5" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => handleDownload(templatePath)}
-              disabled={busy === templatePath}
-              className={`inline-flex shrink-0 items-center gap-1.5 rounded-md bg-ink px-4 py-2 text-[13px] font-medium text-cream hover:opacity-90 ${busy === templatePath ? "opacity-60" : ""}`}
-            >
-              <Download className="h-3.5 w-3.5" />
-              {busy === templatePath ? "Opening…" : "Download PDF"}
-            </button>
-          </article>
+          </div>
         </div>
       </div>
     </section>
@@ -698,9 +658,7 @@ function FeaturedWorkbook() {
               <p className="label-mono">{w.eyebrow}</p>
             </div>
             <div className="mt-3">
-              <h2 className="font-display text-2xl md:text-[26px] leading-tight">
-                {w.title}
-              </h2>
+              <h2 className="font-display text-2xl md:text-[26px] leading-tight">{w.title}</h2>
               <p className="mt-2 text-[13.5px] text-muted-foreground">{w.blurb}</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
@@ -725,4 +683,153 @@ function FeaturedWorkbook() {
       </div>
     </section>
   );
+}
+
+type LinkedAosSnapshot = Extract<AosSnapshot, { linked: true }>;
+
+function buildDashboardMoves(
+  snapshot: LinkedAosSnapshot | null,
+  packets: Packet[],
+  weeklyMove: WeeklyMove | null | undefined,
+): DashboardMove[] {
+  const moves: DashboardMove[] = [];
+  const seen = new Set<string>();
+
+  const add = (move: DashboardMove) => {
+    const key = move.title.trim().toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    moves.push(move);
+  };
+
+  if (weeklyMove) {
+    add({
+      id: `weekly-${weeklyMove.id}`,
+      title: weeklyMove.headline,
+      detail: weeklyMove.body,
+      source: weeklyMove.source || "Weekly move",
+      status: "This week",
+      to: weeklyMove.cta_to || undefined,
+      href: weeklyMove.cta_href || undefined,
+      tone: "signal",
+    });
+  }
+
+  if (snapshot) {
+    const offTrackRock = snapshot.rocks.find((rock) => rock.status === "off-track");
+    if (offTrackRock) {
+      add({
+        id: `aos-rock-${offTrackRock.id}`,
+        title: offTrackRock.title,
+        detail: `Quarterly rock is ${Math.round(offTrackRock.percent_complete)}% complete and currently off track.`,
+        source: "AOS",
+        status: "Off track",
+        owner: offTrackRock.owner,
+        to: "/aos",
+        tone: "critical",
+      });
+    }
+
+    const datedTodos = [...snapshot.todos_due_this_week].sort((a, b) =>
+      (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999"),
+    );
+    const todo = datedTodos[0];
+    if (todo) {
+      const isOverdue = todo.due_date ? new Date(todo.due_date).getTime() < Date.now() : false;
+      add({
+        id: `aos-todo-${todo.id}`,
+        title: todo.title,
+        detail: todo.due_date
+          ? `${isOverdue ? "Past due" : "Due"} ${formatShortDate(todo.due_date)} in the company operating system.`
+          : "Due this week in the company operating system.",
+        source: "AOS",
+        status: isOverdue ? "Overdue" : "Due this week",
+        owner: todo.owner,
+        to: "/aos",
+        tone: isOverdue ? "critical" : "neutral",
+      });
+    }
+
+    const issue = snapshot.issues_open[0];
+    if (issue) {
+      add({
+        id: `aos-issue-${issue.id}`,
+        title: issue.title,
+        detail: "An open company issue waiting to be identified, discussed, and solved.",
+        source: "AOS",
+        status: "Open issue",
+        owner: issue.owner,
+        to: "/aos",
+        tone: "neutral",
+      });
+    }
+  }
+
+  for (const packet of packets.filter((item) => item.status !== "Archived")) {
+    if (moves.length >= 4) break;
+    if (packet.kind === "command") {
+      add({
+        id: `packet-${packet.id}`,
+        title: packet.recommendedAction || packet.title,
+        detail: packet.primaryFinding || packet.primaryConstraint,
+        source: packet.source,
+        status: packet.status,
+        to: "/vault",
+        tone: "neutral",
+      });
+    } else {
+      add({
+        id: `packet-${packet.id}`,
+        title: packet.title,
+        detail: packet.needsPressure || packet.winLooksLike,
+        source: "Bring One Issue",
+        status: packet.status,
+        to: "/vault",
+        tone: "neutral",
+      });
+    }
+  }
+
+  const readyMoves: DashboardMove[] = [
+    {
+      id: "ready-cos-navigator",
+      title: "Run the COS Navigator",
+      detail: "Name the current operating constraint and save the result to your Company Vault.",
+      source: "Contractor Circle tool",
+      status: "Ready · ~8 min",
+      to: "/tools/cos-navigator",
+      tone: "signal",
+    },
+    {
+      id: "ready-bring-one-issue",
+      title: "Bring one issue to the room",
+      detail: "Submit the issue that needs pressure before the next working session.",
+      source: "Contractor Circle Call",
+      status: "Ready",
+      to: "/calls",
+      tone: "neutral",
+    },
+    {
+      id: "ready-os-path",
+      title: "Open the Contractor OS path",
+      detail: "Use the path to decide which system the company needs next.",
+      source: "Contractor OS",
+      status: "Ready",
+      to: "/operating-playbook",
+      tone: "neutral",
+    },
+  ];
+
+  for (const move of readyMoves) {
+    if (moves.length >= 3) break;
+    add(move);
+  }
+
+  return moves.slice(0, 4);
+}
+
+function formatShortDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
