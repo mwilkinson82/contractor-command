@@ -954,10 +954,15 @@ function Roadmap({ model }: { model: CosModel }) {
   return (
     <section className="rounded-2xl border border-border bg-card p-5">
       <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-        Operating roadmap
+        State of Control result
       </p>
-      <h2 className="mt-2 font-display text-3xl">{model.primary.category.title}</h2>
-      <p className="mt-2 text-sm text-muted-foreground">{model.primary.category.narrative}</p>
+      <h2 className="mt-2 font-display text-3xl">Your 90-Day Roadmap</h2>
+      <p className="mt-2 text-sm text-muted-foreground">
+        <span className="font-medium text-foreground/80">
+          Primary constraint: {model.primary.category.title}.
+        </span>{" "}
+        {model.primary.category.narrative}
+      </p>
       <div className="mt-5 grid gap-3">
         {model.ranked.slice(0, 3).map((item, index) => {
           const resolution = getResolution(item.category.id, model.snapshot);
