@@ -26,6 +26,7 @@ import {
   Lock,
   ShieldCheck,
   Eye,
+  CirclePlay,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { useTier, type Tier } from "@/hooks/use-tier";
@@ -135,6 +136,7 @@ const CIRCLE_GROUPS: Group[] = [
     label: "Daily",
     items: [
       { to: "/", label: "Home", icon: Home },
+      { to: "/start-here", label: "Start Here", icon: CirclePlay },
       { to: "/operating-playbook", label: "Contractor OS", icon: Map },
       { to: "/ask", label: "Ask Marshall", icon: Megaphone, match: "/ask" },
       { to: "/aos", label: "AOS", icon: Compass },
