@@ -22,20 +22,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { createThread } from "@/lib/ask.functions";
-
-import capacityStack from "@/assets/cos-playbook/capacity-constraint-stack.jpg";
-import constraintResolutionPlan from "@/assets/cos-playbook/constraint-resolution-plan.jpg";
-import cosMap from "@/assets/cos-playbook/cos-map.jpg";
-import doctrineBudget from "@/assets/cos-playbook/doctrine-budget-not-truth.jpg";
-import doctrineCapacity from "@/assets/cos-playbook/doctrine-gap-capacity.jpg";
-import doctrineProject from "@/assets/cos-playbook/doctrine-project-not-business.jpg";
-import doctrineRisk from "@/assets/cos-playbook/doctrine-risk-is-job.jpg";
-import economicsEngine from "@/assets/cos-playbook/economics-engine.jpg";
-import iorFormula from "@/assets/cos-playbook/ior-formula.jpg";
-import ownerBottleneck from "@/assets/cos-playbook/owner-bottleneck.jpg";
-import riskActionFunnel from "@/assets/cos-playbook/risk-action-funnel.jpg";
-import teachingLayers from "@/assets/cos-playbook/three-teaching-layers.jpg";
-import weeklyRhythm from "@/assets/cos-playbook/weekly-rhythm.jpg";
+import {
+  PlaybookVisual,
+  type PlaybookVisualId,
+} from "@/components/portal/playbook-visual";
 
 export const Route = createFileRoute("/operating-playbook")({
   component: OperatingPlaybookPage,
@@ -55,23 +45,22 @@ const doctrineCards = [
   {
     title: "The project is not the business.",
     copy: "The company is the machine that repeatedly finds, sells, staffs, finances, controls, and completes projects.",
-    image: doctrineProject,
+    visual: "doctrine-project" as PlaybookVisualId,
   },
   {
     title: "The gap is capacity.",
     copy: "Revenue goals do not create throughput. Capacity, cash conversion, billing velocity, and PM bandwidth do.",
-    image: doctrineCapacity,
+    visual: "doctrine-capacity" as PlaybookVisualId,
   },
   {
     title: "The budget is not truth.",
     copy: "The budget is the original plan. IOR is the current financial truth of where the project is indicating it will land.",
-    image: doctrineBudget,
+    visual: "doctrine-budget" as PlaybookVisualId,
   },
   {
     title: "Risk is the job.",
     copy: "The work is not only to identify risk. It is to eliminate, recover, offset, or consciously accept it.",
-    image: doctrineRisk,
-    imageClassName: "object-[50%_58%]",
+    visual: "doctrine-risk" as PlaybookVisualId,
   },
 ];
 
@@ -80,7 +69,7 @@ const playbookSections = [
     id: "owner-bottleneck",
     eyebrow: "01 / Diagnose",
     title: "Remove The Owner Bottleneck",
-    image: ownerBottleneck,
+    visual: "owner-bottleneck" as PlaybookVisualId,
     doctrine: "If everything flows back to the owner, the owner is still the operating system.",
     problem:
       "The company depends on the owner for decisions, client context, risk interpretation, financial judgment, process memory, and problem solving.",
@@ -119,7 +108,7 @@ const playbookSections = [
     id: "aos",
     eyebrow: "02 / Structure",
     title: "Build The Company Machine",
-    image: teachingLayers,
+    visual: "control-levels" as PlaybookVisualId,
     doctrine: "AOS installs accountability so the company can stop operating from memory.",
     problem:
       "Most contractors have people, habits, spreadsheets, meetings, and instincts. That is not a company machine until ownership, numbers, issues, process, and cadence are visible.",
@@ -158,7 +147,7 @@ const playbookSections = [
     id: "economics",
     eyebrow: "03 / Capacity",
     title: "Install The Economics Engine",
-    image: economicsEngine,
+    visual: "economics-engine" as PlaybookVisualId,
     doctrine: "Revenue is not the same as capacity. Profit is not the same as cash.",
     problem:
       "A contractor can want a larger company while the current operating capacity, billing velocity, cash conversion, bonding, or PM bandwidth cannot carry the target.",
@@ -189,14 +178,14 @@ const playbookSections = [
       module: "Economics Engine Workshop",
       worksheet: "Economics Snapshot + Capacity Constraint Worksheet",
     },
-    tool: "COS Navigator",
+    tool: "State of Control",
     workbenchToolId: "cos-navigator",
   },
   {
     id: "ior",
     eyebrow: "04 / Truth",
     title: "Install Project Financial Truth",
-    image: iorFormula,
+    visual: "ior-formula" as PlaybookVisualId,
     doctrine: "The budget is the original plan. IOR is where the project is actually going.",
     problem:
       "Projects lose money slowly before accounting confirms the loss. If risk is not converted into dollars early, the team is only managing noise.",
@@ -232,10 +221,49 @@ const playbookSections = [
     external: "https://overwatch.alpcontractorcircle.com",
   },
   {
+    id: "field-control",
+    eyebrow: "05 / Field truth",
+    title: "Install Daily Project WIP",
+    visual: "field-control" as PlaybookVisualId,
+    doctrine: "Month-end should confirm the trend. It should not reveal it.",
+    problem:
+      "Daily logs often describe activity without connecting installed quantities, actual cost, earned value, schedule movement, and billing position. By month-end, the opportunity for low-cost correction has already passed.",
+    move: "Choose one active project and reconcile one meaningful SOV activity every day: installed quantity, earned value, labor, material, equipment, subcontractor cost, and the resulting production variance.",
+    deepDive: [
+      "The daily log is the source record for field truth. It must identify what happened, who performed it, what quantity was installed, and what affected production.",
+      "Daily Project WIP translates that field record into money by comparing earned value against the actual cost required to produce it.",
+      "The trend updates schedule, billing, subcontractor management, and IOR before accounting closes the period.",
+    ],
+    chapter: {
+      sourceTrail: "Professional Contractor Control Loop, Daily Project WIP teaching, OverWatch field workflow",
+      standard:
+        "Field control exists when installed work, earned value, actual cost, and production variance are visible daily and change project decisions before month-end.",
+      teaches: [
+        "Work in place starts with the physical quantity installed, not the invoice created at the end of the billing cycle.",
+        "Self-performers use daily WIP to learn actual production rates. General contractors use it to understand subcontractor production, buyout quality, billing position, and schedule performance.",
+        "Daily variance is not an accounting exercise. It is a management signal that should change manpower, sequencing, procurement, subcontractor pressure, billing, or forecast decisions.",
+      ],
+      install: [
+        "Select the SOV activities that deserve daily production measurement on one pilot project.",
+        "Capture installed quantity and same-day labor, material, equipment, and subcontractor cost in the daily log.",
+        "Review earned-versus-spent variance daily and roll the trend into the weekly IOR and PM risk review.",
+      ],
+      proof: [
+        "The PM can explain yesterday's production variance in dollars and units.",
+        "The billing and schedule forecast moves because field production changed, not because month-end arrived.",
+        "Recurring production misses create an owned recovery action before they become a permanent margin loss.",
+      ],
+      module: "Field Control Installation",
+      worksheet: "Daily Project WIP Implementation",
+    },
+    tool: "OverWatch Daily Logs + Daily Project WIP",
+    external: "https://overwatch.alpcontractorcircle.com",
+  },
+  {
     id: "risk",
-    eyebrow: "05 / Action",
+    eyebrow: "06 / Action",
     title: "Make Risk Visible And Owned",
-    image: riskActionFunnel,
+    visual: "risk-action" as PlaybookVisualId,
     doctrine: "Probability x Impact creates a useful enough risk value to change behavior.",
     problem:
       "Most PM meetings report activity instead of surfacing financial exposure, recovery paths, escalation needs, and risk actions.",
@@ -272,9 +300,9 @@ const playbookSections = [
   },
   {
     id: "weekly-rhythm",
-    eyebrow: "06 / Cadence",
+    eyebrow: "07 / Cadence",
     title: "Run The Weekly Rhythm",
-    image: weeklyRhythm,
+    visual: "weekly-rhythm" as PlaybookVisualId,
     doctrine: "Information only creates control when it enters a rhythm.",
     problem:
       "A company can have the right facts and still fail to act because risk never reaches the L10, the scorecard, the issue board, or owned to-dos.",
@@ -311,9 +339,9 @@ const playbookSections = [
   },
   {
     id: "delivery",
-    eyebrow: "07 / Systems",
+    eyebrow: "08 / Systems",
     title: "Standardize Delivery Systems",
-    image: capacityStack,
+    visual: "delivery-systems" as PlaybookVisualId,
     doctrine: "Project profit is protected by small delivery systems that repeat across jobs.",
     problem:
       "Selections, change orders, EOT, acceleration, and burn rate create margin exposure when they depend on personality instead of process.",
@@ -368,17 +396,17 @@ const installPlan = [
       "Clean up accountability seats.",
       "Build the first scorecard.",
       "Identify the current capacity constraint.",
-      "Build the first project IOR and top-five risks.",
+      "Build the first project IOR and Daily Project WIP baseline.",
     ],
   },
   {
     week: "Week 3",
     title: "Run",
     items: [
+      "Run the first daily earned-versus-spent field review.",
       "Run the first Monday PM risk review.",
       "Run the L10 with scorecard and issue board.",
       "Move project risk into company issues.",
-      "Assign owners and to-dos.",
     ],
   },
   {
@@ -387,7 +415,7 @@ const installPlan = [
     items: [
       "Review what broke in the first three weeks.",
       "Pick one delivery system to document.",
-      "Update the scorecard and IOR.",
+      "Update Daily Project WIP, the scorecard, and IOR.",
       "Decide the next project to add.",
     ],
   },
@@ -397,12 +425,12 @@ const orientationCards = [
   {
     icon: <Compass className="h-4 w-4" />,
     title: "Understand the system",
-    copy: "See how owner dependence, AOS, economics, IOR, risk, rhythm, and delivery fit together.",
+    copy: "See how AOS, economics, IOR, Daily Project WIP, risk, rhythm, and delivery fit together.",
   },
   {
     icon: <Target className="h-4 w-4" />,
     title: "Find the constraint",
-    copy: "Use the Navigator to identify what is actually limiting the company right now.",
+    copy: "Use the State of Control to identify what is limiting company, project, or field control right now.",
   },
   {
     icon: <RouteIcon className="h-4 w-4" />,
@@ -414,8 +442,8 @@ const orientationCards = [
 const toolLaunchpad = [
   {
     id: "cos-navigator",
-    title: "COS Navigator",
-    copy: "Diagnose the company, rank the constraint, and generate the operating roadmap.",
+    title: "State of Control",
+    copy: "Assess company, project, and field control, rank the constraint, and generate the operating roadmap.",
   },
   {
     id: "sop-priority",
@@ -453,22 +481,22 @@ const clientRolloutSteps = [
   {
     label: "01",
     title: "See the operating map",
-    copy: "Do not start with every chapter. First see how owner dependence, AOS, economics, IOR, risk, cadence, and delivery connect.",
+    copy: "Do not start with every chapter. First see how AOS, economics, IOR, daily field truth, risk, cadence, and delivery connect.",
     action: "Open map",
     kind: "map",
   },
   {
     label: "02",
-    title: "Run the COS Navigator",
-    copy: "Answer the assessment and capacity questions so the system can rank the active constraint instead of giving generic advice.",
-    action: "Run Navigator",
+    title: "Get your State of Control",
+    copy: "Answer the assessment and capacity questions so the system can rank the active company, project, or field constraint.",
+    action: "Run assessment",
     to: "/tools",
     search: { t: "cos-navigator" },
   },
   {
     label: "03",
     title: "Save the diagnosis",
-    copy: "Save the Navigator output to the Vault. That packet becomes operating context for Ask Marshall and future review.",
+    copy: "Save the State of Control output to the Vault. That packet becomes operating context for Ask Marshall and future review.",
     action: "Open Vault",
     to: "/vault",
   },
@@ -629,8 +657,9 @@ function Hero({ onStart }: { onStart: () => void }) {
             Contractor Operating System
           </h1>
           <p className="mt-5 max-w-3xl text-[18px] leading-[1.65] text-foreground/76">
-            This is the guided field manual for learning how AOS and IOR work together, finding the
-            constraint, and choosing the next operating move inside Contractor Circle.
+            This is the guided field manual for learning how AOS, IOR, and Daily Project WIP work
+            together, finding the constraint, and choosing the next operating move inside
+            Contractor Circle.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <button
@@ -646,7 +675,7 @@ function Hero({ onStart }: { onStart: () => void }) {
               search={{ t: "cos-navigator" } as never}
               className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-5 py-3 text-[12px] font-semibold uppercase tracking-[0.14em] text-foreground/80 hover:bg-muted"
             >
-              Run COS Navigator
+              Get State of Control
               <ArrowUpRight className="h-4 w-4" />
             </Link>
           </div>
@@ -700,7 +729,7 @@ function ClientRolloutPath({ onStartMap }: { onStartMap: () => void }) {
           </h2>
           <p className="mt-4 max-w-2xl text-[15px] leading-[1.75] text-cream/72">
             This is the first Contractor OS path inside Contractor Circle. Members should not try
-            to learn every idea at once. The job is to run the Navigator, save the diagnosis, ask
+            to learn every idea at once. The job is to get your State of Control, save the diagnosis, ask
             Marshall from that context, and bring one constraint to the next call.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
@@ -709,7 +738,7 @@ function ClientRolloutPath({ onStartMap }: { onStartMap: () => void }) {
               search={{ t: "cos-navigator" } as never}
               className="inline-flex items-center gap-2 rounded-md bg-signal px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.14em] text-ink hover:bg-signal/90"
             >
-              Run COS Navigator
+              Get State of Control
               <ArrowUpRight className="h-4 w-4" />
             </Link>
             <Link
@@ -776,7 +805,7 @@ function ClientRolloutPath({ onStartMap }: { onStartMap: () => void }) {
         <div className="grid gap-3 md:grid-cols-3">
           {[
             ["Member outcome", "They know the biggest constraint and the next operating move."],
-            ["Vault context", "Saved Navigator packets become context for Ask Marshall."],
+            ["Vault context", "Saved State of Control packets become context for Ask Marshall."],
             ["Call prep", "They bring one diagnosed issue instead of a broad status update."],
           ].map(([label, copy]) => (
             <div key={label} className="rounded-md border border-cream/10 bg-ink/30 p-3">
@@ -811,7 +840,7 @@ function MemberOrientation() {
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-1">
           {[
             ["First", "See the whole operating system map so the parts are not floating ideas."],
-            ["Second", "Understand that the Navigator turns the map into a decision and a route."],
+            ["Second", "Understand that State of Control turns the map into a decision and a route."],
             ["Third", "Work the field manual chapter that matches the next operating constraint."],
           ].map(([label, copy], index) => (
             <div
@@ -863,7 +892,7 @@ function SequenceBand({
           search={{ t: "cos-navigator" } as never}
           className="inline-flex items-center gap-2 rounded-md bg-signal px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.14em] text-cream hover:bg-signal/90"
         >
-          Run Navigator
+          Get State of Control
           <ArrowUpRight className="h-4 w-4" />
         </Link>
       </div>
@@ -931,7 +960,7 @@ function OperatingMap() {
           decision at a time.
         </p>
       </div>
-      <VisualImage src={cosMap} alt="Contractor Operating System map" />
+      <VisualImage visual="system-map" alt="Professional Contractor Control operating map" />
     </section>
   );
 }
@@ -946,13 +975,13 @@ function ConstraintEngine() {
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-clay">
-            Navigator bridge
+            State of Control bridge
           </p>
           <h2 className="mt-2 font-display text-[clamp(2rem,4vw,3.8rem)] leading-none">
             The assessment ends with a decision.
           </h2>
           <p className="mt-4 max-w-3xl text-[14px] leading-[1.7] text-cream/70">
-            The manual teaches the doctrine. The COS Navigator turns it into constraint ranking,
+            The manual teaches the doctrine. State of Control turns it into constraint ranking,
             impact weighting, a 90-day sequence, and the first 30-day route.
           </p>
         </div>
@@ -977,7 +1006,7 @@ function ConstraintEngine() {
         </div>
       </div>
       <VisualImage
-        src={constraintResolutionPlan}
+        visual="constraint-plan"
         alt="Constraint Resolution Plan decision engine"
         dark
       />
@@ -1047,7 +1076,7 @@ function GuidedChapterReader({
             </div>
 
             <div className="space-y-3">
-              <VisualImage src={activeSection.image} alt={`${activeSection.title} visual`} />
+              <VisualImage visual={activeSection.visual} alt={`${activeSection.title} visual`} />
               <div className="rounded-lg border border-border bg-background p-4">
                 <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-clay">
                   Tool path
@@ -1177,10 +1206,9 @@ function DoctrineBank() {
             </div>
             <div className="mt-4">
               <VisualImage
-                src={card.image}
+                visual={card.visual}
                 alt={card.title}
                 compact
-                imageClassName={card.imageClassName}
               />
             </div>
           </article>
@@ -1408,17 +1436,15 @@ function InfoBlock({ title, copy, icon }: { title: string; copy: string; icon: R
 }
 
 function VisualImage({
-  src,
+  visual,
   alt,
   compact = false,
   dark = false,
-  imageClassName = "",
 }: {
-  src: string;
+  visual: PlaybookVisualId;
   alt: string;
   compact?: boolean;
   dark?: boolean;
-  imageClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -1430,13 +1456,9 @@ function VisualImage({
           dark ? "border-cream/15 bg-cream/5" : "border-border bg-background"
         }`}
       >
-        <img
-          src={src}
-          alt={alt}
-          loading={compact ? "lazy" : "eager"}
-          className={`w-full object-cover transition duration-300 group-hover:scale-[1.015] ${
-            compact ? "aspect-[16/9]" : "aspect-[16/9]"
-          } ${imageClassName}`}
+        <PlaybookVisual
+          id={visual}
+          className={`transition duration-300 group-hover:scale-[1.008] ${compact ? "" : ""}`}
         />
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -1455,7 +1477,7 @@ function VisualImage({
               </button>
             </DialogClose>
           </div>
-          <img src={src} alt={alt} className="h-auto w-full rounded-md" />
+          <PlaybookVisual id={visual} className="rounded-md" />
         </DialogContent>
       </Dialog>
     </>

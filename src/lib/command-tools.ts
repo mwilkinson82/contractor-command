@@ -41,8 +41,8 @@ export type CommandTool = {
 export const COMMAND_TOOLS: CommandTool[] = [
   {
     id: "cos-navigator",
-    name: "COS Navigator",
-    blurb: "Diagnose the operating constraint and build the next 90-day roadmap.",
+    name: "State of Control",
+    blurb: "Assess company, project, and field control, then build the next 90-day roadmap.",
     group: "Build the machine",
     status: "live",
     icon: Compass,

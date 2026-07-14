@@ -15,12 +15,12 @@ import { PacketCard } from "@/components/portal/packet-card";
 
 export const Route = createFileRoute("/tools/cos-navigator")({
   head: () => ({
-    meta: [{ title: "COS Navigator - ALP Contractor Circle" }],
+    meta: [{ title: "State of Control - ALP Contractor Circle" }],
   }),
   component: () => <CosNavigatorTool />,
 });
 
-type CategoryId = "aos" | "economics" | "ior" | "delivery" | "execution";
+type CategoryId = "aos" | "economics" | "ior" | "field" | "delivery" | "execution";
 type Scores = Record<CategoryId, number[]>;
 type CapacityLabel =
   | "Cash capacity"
@@ -137,6 +137,24 @@ const categories: Category[] = [
     ],
   },
   {
+    id: "field",
+    title: "Field Control",
+    narrative: "Install daily production and cost truth where the work happens.",
+    doctrine: "Field Truth Starts Daily",
+    playbookSection: "Daily Logs + Daily Project WIP",
+    worksheet: "Daily Project WIP Implementation",
+    module: "Field Control Installation",
+    application: "OverWatch Daily Logs + Daily Project WIP",
+    why: "The monthly WIP report is too late to change the work. Daily installed quantities, earned value, and actual cost reveal the trend while the team can still act.",
+    questions: [
+      "Daily logs are completed accurately on the same day the work occurs.",
+      "Installed quantities are tied to the correct SOV activity or work item.",
+      "Daily labor, material, equipment, and subcontractor costs are captured against that work.",
+      "The team can compare daily earned value against daily actual cost and explain the variance.",
+      "Field production trends update project schedule, billing, and IOR decisions before month-end.",
+    ],
+  },
+  {
     id: "delivery",
     title: "Delivery",
     narrative: "Standardize the workflows that protect margin.",
@@ -202,7 +220,7 @@ const maturityLevels = [
   {
     max: 100,
     title: "Category-Grade Operator",
-    copy: "Accountability, economics, project truth, and delivery are visible.",
+    copy: "Accountability, economics, project truth, field production, and delivery are visible.",
   },
 ];
 
@@ -266,6 +284,26 @@ const baseResolution: Record<CategoryId, Omit<ResolutionPlan, "key">> = {
     module: "IOR Implementation Sprint",
     application: "IOR Application",
     playbookSection: "IOR",
+  },
+  field: {
+    title: "Daily Field Truth Constraint",
+    symptoms: [
+      "Daily logs describe activity but do not quantify installed work.",
+      "Production quantities, earned value, and actual cost are reconciled after the fact.",
+      "Schedule, billing, and IOR forecasts move without a daily field signal.",
+    ],
+    financialImpact:
+      "The company discovers production loss, billing drift, and subcontractor underperformance after the opportunity for low-cost correction has passed.",
+    actions: [
+      "Choose one active project and define the SOV activities that require daily production tracking.",
+      "Require same-day logs with installed quantities and actual labor, material, equipment, and subcontractor cost.",
+      "Compare daily earned value against actual cost and name the variance before the next shift.",
+      "Roll the trend into the weekly IOR, schedule, billing, and subcontractor review.",
+    ],
+    worksheet: "Daily Project WIP Implementation",
+    module: "Field Control Installation",
+    application: "OverWatch Daily Logs + Daily Project WIP",
+    playbookSection: "Daily Logs + Daily Project WIP",
   },
   delivery: {
     title: "Delivery Systems Constraint",
@@ -438,6 +476,9 @@ function getImpact(
   if (category.id === "ior") {
     return `${scoreGap}/20 visibility gap. Project margin exposure may not be visible soon enough.`;
   }
+  if (category.id === "field") {
+    return `${scoreGap}/20 daily-control gap. Production, cost, billing, and schedule drift may be reaching management too late.`;
+  }
   if (category.id === "delivery") {
     return `${scoreGap}/20 control gap. Delivery leakage can show up in change orders, delays, and burn rate.`;
   }
@@ -501,7 +542,8 @@ export function CosNavigatorTool({ embedded = false }: { embedded?: boolean } = 
         categories.findIndex((c) => c.id === right.category.id)
       );
     });
-    const total = categoryRows.reduce((sum, row) => sum + row.score, 0);
+    const rawTotal = categoryRows.reduce((sum, row) => sum + row.score, 0);
+    const total = Math.round((rawTotal / (categories.length * 20)) * 100);
     const maturity =
       maturityLevels.find((level) => total <= level.max) ??
       maturityLevels[maturityLevels.length - 1];
@@ -541,8 +583,8 @@ export function CosNavigatorTool({ embedded = false }: { embedded?: boolean } = 
       const p = await vault.saveAndPersist({
         kind: "command",
         source: "COS Navigator",
-        title: `${model.primary.category.title}: ${model.resolution.title}`,
-        primaryFinding: `${model.total}/100 COS score. Primary constraint: ${model.primary.category.title}. ${model.primary.impact}`,
+        title: `State of Control: ${model.resolution.title}`,
+        primaryFinding: `${model.total}/100 State of Control score. Primary constraint: ${model.primary.category.title}. ${model.primary.impact}`,
         primaryConstraint: model.resolution.title,
         financialConsequence:
           model.primary.category.id === "economics"
@@ -597,12 +639,12 @@ export function CosNavigatorTool({ embedded = false }: { embedded?: boolean } = 
             </Link>
           )}
           <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
-            Contractor Operating System
+            Professional Contractor Control
           </p>
-          <h1 className="mt-2 font-display text-4xl leading-none sm:text-5xl">COS Navigator</h1>
+          <h1 className="mt-2 font-display text-4xl leading-none sm:text-5xl">State of Control</h1>
           <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
-            Diagnose the operating constraint, weigh the business impact, and route the member to
-            the right doctrine, worksheet, module, and application.
+            Assess company, project, and field control; identify the active constraint; and build
+            the next 90-day implementation route across AOS and OverWatch.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -683,7 +725,7 @@ function NavigatorSavedPanel({ packetId }: { packetId: string }) {
             Ask Marshall can now use this diagnosis.
           </h2>
           <p className="mt-2 text-[13px] leading-[1.6] text-foreground/72">
-            This COS Navigator result is now an operating packet in the Vault. When the member asks
+            This State of Control result is now an operating packet in the Vault. When the member asks
             from this diagnosis, the saved constraint, financial signal, and recommended action
             start the conversation.
           </p>
@@ -715,7 +757,7 @@ function ScoreSummary({ model }: { model: CosModel }) {
     <section className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
       <article className="rounded-2xl border border-border bg-card p-5">
         <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-          COS score
+          Control score
         </p>
         <div className="mt-4 flex items-end gap-2">
           <span className="font-display text-6xl leading-none">{model.total}</span>

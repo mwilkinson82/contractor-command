@@ -793,8 +793,8 @@ function buildDashboardMoves(
   const readyMoves: DashboardMove[] = [
     {
       id: "ready-cos-navigator",
-      title: "Run the COS Navigator",
-      detail: "Name the current operating constraint and save the result to your Company Vault.",
+      title: "Get your State of Control",
+      detail: "Assess company, project, and field control, then save the 90-day route to your Company Vault.",
       source: "Contractor Circle tool",
       status: "Ready · ~8 min",
       to: "/tools/cos-navigator",
