@@ -15,6 +15,7 @@ import { Route as VaultRouteImport } from './routes/vault'
 import { Route as UpgradeRouteImport } from './routes/upgrade'
 import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as TemplatesRouteImport } from './routes/templates'
+import { Route as StartHereRouteImport } from './routes/start-here'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SchedulerPreviewRouteImport } from './routes/scheduler-preview'
 import { Route as SchedulerPortfolioRouteImport } from './routes/scheduler-portfolio'
@@ -103,6 +104,11 @@ const ToolsRoute = ToolsRouteImport.update({
 const TemplatesRoute = TemplatesRouteImport.update({
   id: '/templates',
   path: '/templates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StartHereRoute = StartHereRouteImport.update({
+  id: '/start-here',
+  path: '/start-here',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignupRoute = SignupRouteImport.update({
@@ -425,6 +431,7 @@ export interface FileRoutesByFullPath {
   '/scheduler-portfolio': typeof SchedulerPortfolioRoute
   '/scheduler-preview': typeof SchedulerPreviewRoute
   '/signup': typeof SignupRoute
+  '/start-here': typeof StartHereRoute
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
   '/upgrade': typeof UpgradeRoute
@@ -492,6 +499,7 @@ export interface FileRoutesByTo {
   '/scheduler-portfolio': typeof SchedulerPortfolioRoute
   '/scheduler-preview': typeof SchedulerPreviewRoute
   '/signup': typeof SignupRoute
+  '/start-here': typeof StartHereRoute
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
   '/upgrade': typeof UpgradeRoute
@@ -560,6 +568,7 @@ export interface FileRoutesById {
   '/scheduler-portfolio': typeof SchedulerPortfolioRoute
   '/scheduler-preview': typeof SchedulerPreviewRoute
   '/signup': typeof SignupRoute
+  '/start-here': typeof StartHereRoute
   '/templates': typeof TemplatesRoute
   '/tools': typeof ToolsRouteWithChildren
   '/upgrade': typeof UpgradeRoute
@@ -629,6 +638,7 @@ export interface FileRouteTypes {
     | '/scheduler-portfolio'
     | '/scheduler-preview'
     | '/signup'
+    | '/start-here'
     | '/templates'
     | '/tools'
     | '/upgrade'
@@ -696,6 +706,7 @@ export interface FileRouteTypes {
     | '/scheduler-portfolio'
     | '/scheduler-preview'
     | '/signup'
+    | '/start-here'
     | '/templates'
     | '/tools'
     | '/upgrade'
@@ -763,6 +774,7 @@ export interface FileRouteTypes {
     | '/scheduler-portfolio'
     | '/scheduler-preview'
     | '/signup'
+    | '/start-here'
     | '/templates'
     | '/tools'
     | '/upgrade'
@@ -831,6 +843,7 @@ export interface RootRouteChildren {
   SchedulerPortfolioRoute: typeof SchedulerPortfolioRoute
   SchedulerPreviewRoute: typeof SchedulerPreviewRoute
   SignupRoute: typeof SignupRoute
+  StartHereRoute: typeof StartHereRoute
   TemplatesRoute: typeof TemplatesRoute
   ToolsRoute: typeof ToolsRouteWithChildren
   UpgradeRoute: typeof UpgradeRoute
@@ -915,6 +928,13 @@ declare module '@tanstack/react-router' {
       path: '/templates'
       fullPath: '/templates'
       preLoaderRoute: typeof TemplatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/start-here': {
+      id: '/start-here'
+      path: '/start-here'
+      fullPath: '/start-here'
+      preLoaderRoute: typeof StartHereRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/signup': {
@@ -1382,6 +1402,7 @@ const rootRouteChildren: RootRouteChildren = {
   SchedulerPortfolioRoute: SchedulerPortfolioRoute,
   SchedulerPreviewRoute: SchedulerPreviewRoute,
   SignupRoute: SignupRoute,
+  StartHereRoute: StartHereRoute,
   TemplatesRoute: TemplatesRoute,
   ToolsRoute: ToolsRouteWithChildren,
   UpgradeRoute: UpgradeRoute,

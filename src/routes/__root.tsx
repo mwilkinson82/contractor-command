@@ -76,6 +76,7 @@ const ROUTE_TIER_GATES: Array<{ prefix: string; min: Tier }> = [
   { prefix: "/field-tools", min: "book_buyer" },
   { prefix: "/ask", min: "book_buyer" },
   { prefix: "/community", min: "power_hour" },
+  { prefix: "/start-here", min: "circle" },
   { prefix: "/templates", min: "circle" },
   { prefix: "/calls", min: "circle" },
   { prefix: "/overwatch", min: "circle" },
