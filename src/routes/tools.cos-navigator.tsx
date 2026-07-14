@@ -4,7 +4,9 @@ import {
   ArrowLeft,
   ArrowUpRight,
   Check,
+  Download,
   Loader2,
+  Mail,
   MessageCircle,
   Printer,
   RotateCcw,
@@ -12,6 +14,20 @@ import {
 } from "lucide-react";
 import { vault } from "@/lib/vault";
 import { PacketCard } from "@/components/portal/packet-card";
+import {
+  StateOfControlPrintReport,
+  type StateOfControlReportData,
+} from "@/components/portal/state-of-control-report";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { sendTransactionalEmail } from "@/lib/email/send";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/tools/cos-navigator")({
   head: () => ({
@@ -23,10 +39,7 @@ export const Route = createFileRoute("/tools/cos-navigator")({
 type CategoryId = "aos" | "economics" | "ior" | "field" | "delivery" | "execution";
 type Scores = Record<CategoryId, number[]>;
 type CapacityLabel =
-  | "Cash capacity"
-  | "PM capacity"
-  | "Admin billing capacity"
-  | "Bonding capacity";
+  "Cash capacity" | "PM capacity" | "Admin billing capacity" | "Bonding capacity";
 
 type Category = {
   id: CategoryId;
@@ -516,12 +529,57 @@ function getResolution(
   return { ...baseResolution[categoryId], key: categoryId };
 }
 
+function buildReportData(model: CosModel, capacity: CapacityInputs): StateOfControlReportData {
+  return {
+    generatedAt: new Intl.DateTimeFormat("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    }).format(new Date()),
+    total: model.total,
+    maturityTitle: model.maturity.title,
+    maturityCopy: model.maturity.copy,
+    primaryCategory: model.primary.category.title,
+    primaryConstraint: model.resolution.title,
+    primaryImpact: model.primary.impact,
+    capacityGap: fmtMoney(model.snapshot.gapToShow),
+    annualCapacity: fmtMoney(model.snapshot.limiting.value),
+    revenueGoal: fmtMoney(capacity.revenueGoal),
+    limitingCapacity: model.snapshot.limiting.label,
+    categories: model.categoryRows.map((row) => ({
+      title: row.category.title,
+      score: row.score,
+      impact: row.impact,
+    })),
+    roadmap: model.ranked.slice(0, 3).map((row, index) => {
+      const resolution = getResolution(row.category.id, model.snapshot);
+      return {
+        period: `Month ${index + 1}`,
+        title: row.category.title,
+        impact: row.impact,
+        playbook: resolution.playbookSection,
+        worksheet: resolution.worksheet,
+      };
+    }),
+    symptoms: model.resolution.symptoms,
+    financialImpact: model.resolution.financialImpact,
+    actions: model.resolution.actions,
+    routing: [
+      { label: "Playbook", value: model.resolution.playbookSection },
+      { label: "Worksheet", value: model.resolution.worksheet },
+      { label: "Module", value: model.resolution.module },
+      { label: "Application", value: model.resolution.application },
+    ],
+  };
+}
+
 export function CosNavigatorTool({ embedded = false }: { embedded?: boolean } = {}) {
   const [scores, setScores] = useState<Scores>(defaultScores);
   const [capacity, setCapacity] = useState<CapacityInputs>(defaultCapacity);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const model = useMemo(() => {
     const snapshot = capacitySnapshot(capacity);
@@ -551,6 +609,8 @@ export function CosNavigatorTool({ embedded = false }: { embedded?: boolean } = 
     const resolution = getResolution(primary.category.id, snapshot);
     return { snapshot, categoryRows, ranked, total, maturity, primary, resolution };
   }, [scores, capacity]);
+
+  const reportData = useMemo(() => buildReportData(model, capacity), [model, capacity]);
 
   function updateScore(categoryId: CategoryId, index: number, value: number) {
     setScores((prev) => ({
@@ -596,8 +656,19 @@ export function CosNavigatorTool({ embedded = false }: { embedded?: boolean } = 
         intensiveRecommended: model.total < 60 || model.snapshot.gapToShow > 2_000_000,
         inputs: {
           totalScore: model.total,
+          maturity: model.maturity.title,
+          primaryCategory: model.primary.category.title,
+          primaryConstraint: model.resolution.title,
           revenueGoal: capacity.revenueGoal,
           capacityGap: model.snapshot.gapToShow,
+          pmCount: capacity.pmCount,
+          projectsPerPm: capacity.projectsPerPm,
+          avgMonthlyBilling: capacity.avgMonthlyBilling,
+          downtime: capacity.downtime,
+          adminCap: capacity.adminCap,
+          bondingCap: capacity.bondingCap,
+          cashCap: capacity.cashCap,
+          limitingCapacity: model.snapshot.limiting.label,
           ...Object.fromEntries(
             model.categoryRows.map((row) => [`${row.category.id}Score`, row.score]),
           ),
@@ -621,95 +692,118 @@ export function CosNavigatorTool({ embedded = false }: { embedded?: boolean } = 
   }
 
   return (
-    <div
-      className={
-        embedded
-          ? "mx-auto w-full max-w-[1440px] px-6 py-8"
-          : "mx-auto w-full max-w-[1440px] px-6 py-8 sm:py-10"
-      }
-    >
-      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border/70 pb-5">
-        <div>
-          {!embedded && (
-            <Link
-              to="/tools"
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-[11px] text-foreground/70 hover:bg-muted"
-            >
-              <ArrowLeft className="h-3 w-3" /> All tools
-            </Link>
-          )}
-          <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
-            Professional Contractor Control
-          </p>
-          <h1 className="mt-2 font-display text-4xl leading-none sm:text-5xl">State of Control</h1>
-          <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
-            Assess company, project, and field control; identify the active constraint; and build
-            the next 90-day implementation route across AOS and OverWatch.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={reset}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-[12.5px] hover:bg-muted"
-          >
-            <RotateCcw className="h-3.5 w-3.5" /> Reset
-          </button>
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-[12.5px] hover:bg-muted"
-          >
-            <Printer className="h-3.5 w-3.5" /> Print
-          </button>
-          <button
-            type="button"
-            onClick={savePacket}
-            disabled={saving || !!savedId}
-            className="inline-flex items-center gap-1.5 rounded-md bg-signal px-4 py-2 text-[12.5px] font-semibold text-ink hover:opacity-90 disabled:opacity-70"
-          >
-            {saving ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving
-              </>
-            ) : savedId ? (
-              <>
-                <Check className="h-3.5 w-3.5" /> Saved
-              </>
-            ) : (
-              <>
-                <Save className="h-3.5 w-3.5" /> Save to vault
-              </>
+    <>
+      <div
+        className={
+          embedded
+            ? "soc-screen mx-auto w-full max-w-[1440px] px-6 py-8"
+            : "soc-screen mx-auto w-full max-w-[1440px] px-6 py-8 sm:py-10"
+        }
+      >
+        <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border/70 pb-5">
+          <div>
+            {!embedded && (
+              <Link
+                to="/tools"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-[11px] text-foreground/70 hover:bg-muted"
+              >
+                <ArrowLeft className="h-3 w-3" /> All tools
+              </Link>
             )}
-          </button>
+            <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+              Professional Contractor Control
+            </p>
+            <h1 className="mt-2 font-display text-4xl leading-none sm:text-5xl">
+              State of Control
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-[1.6] text-muted-foreground">
+              Establish the current operating baseline, expose the active constraint, and turn the
+              result into a 90-day route across AOS and OverWatch.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={reset}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-[12.5px] hover:bg-muted"
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> Reset
+            </button>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-[12.5px] hover:bg-muted"
+            >
+              <Download className="h-3.5 w-3.5" /> Save PDF
+            </button>
+            <button
+              type="button"
+              onClick={() => setShareOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-[12.5px] hover:bg-muted"
+            >
+              <Mail className="h-3.5 w-3.5" /> Email report
+            </button>
+            <button
+              type="button"
+              onClick={savePacket}
+              disabled={saving || !!savedId}
+              className="inline-flex items-center gap-1.5 rounded-md bg-signal px-4 py-2 text-[12.5px] font-semibold text-ink hover:opacity-90 disabled:opacity-70"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving
+                </>
+              ) : savedId ? (
+                <>
+                  <Check className="h-3.5 w-3.5" /> Saved
+                </>
+              ) : (
+                <>
+                  <Save className="h-3.5 w-3.5" /> Save baseline
+                </>
+              )}
+            </button>
+          </div>
         </div>
-      </div>
-      {saveError ? (
-        <p className="mt-3 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-[12.5px] text-destructive">
-          {saveError}
-        </p>
-      ) : null}
-      {savedId ? <NavigatorSavedPanel packetId={savedId} /> : null}
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
-        <div className="space-y-6">
+        <ExperienceSteps />
+
+        {saveError ? (
+          <p className="mt-3 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-[12.5px] text-destructive">
+            {saveError}
+          </p>
+        ) : null}
+        {savedId ? <NavigatorSavedPanel packetId={savedId} /> : null}
+
+        <div className="mt-8 space-y-8">
           <ScoreSummary model={model} />
-          <Assessment scores={scores} onChange={updateScore} />
+          <Assessment model={model} scores={scores} onChange={updateScore} />
           <CapacityCalculator
             capacity={capacity}
             snapshot={model.snapshot}
             onChange={updateCapacity}
           />
-        </div>
-
-        <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
+          <Interpretation model={model} />
           <Roadmap model={model} />
-          <ResolutionCard resolution={model.resolution} />
-          <NextActions actions={model.resolution.actions} />
+          <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+            <ResolutionCard resolution={model.resolution} />
+            <NextActions actions={model.resolution.actions} />
+          </div>
+          <ActionCenter
+            model={model}
+            saving={saving}
+            saved={!!savedId}
+            onSave={savePacket}
+            onPrint={() => window.print()}
+            onEmail={() => setShareOpen(true)}
+          />
           {savedId ? <PacketCard packet={vault.get(savedId)!} /> : null}
-        </aside>
+        </div>
       </div>
-    </div>
+
+      <StateOfControlPrintReport data={reportData} />
+      <StateOfControlShareDialog open={shareOpen} onOpenChange={setShareOpen} report={reportData} />
+    </>
   );
 }
 
@@ -725,8 +819,8 @@ function NavigatorSavedPanel({ packetId }: { packetId: string }) {
             Ask Marshall can now use this diagnosis.
           </h2>
           <p className="mt-2 text-[13px] leading-[1.6] text-foreground/72">
-            This State of Control result is now an operating packet in the Vault. When the member asks
-            from this diagnosis, the saved constraint, financial signal, and recommended action
+            This State of Control result is now an operating packet in the Vault. When the member
+            asks from this diagnosis, the saved constraint, financial signal, and recommended action
             start the conversation.
           </p>
         </div>
@@ -752,100 +846,188 @@ function NavigatorSavedPanel({ packetId }: { packetId: string }) {
   );
 }
 
+function ExperienceSteps() {
+  const steps = [
+    ["01", "Assess", "Score six control domains"],
+    ["02", "Understand", "Identify the active constraint"],
+    ["03", "Act", "Build the next 90 days"],
+    ["04", "Share", "Save, print, and align the team"],
+  ];
+  return (
+    <nav
+      aria-label="State of Control workflow"
+      className="mt-5 grid gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-4"
+    >
+      {steps.map(([number, title, copy]) => (
+        <div key={number} className="bg-card px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[9px] text-signal">{number}</span>
+            <strong className="text-[12px] uppercase tracking-[0.08em]">{title}</strong>
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground">{copy}</p>
+        </div>
+      ))}
+    </nav>
+  );
+}
+
 function ScoreSummary({ model }: { model: CosModel }) {
   return (
-    <section className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
-      <article className="rounded-2xl border border-border bg-card p-5">
-        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-          Control score
-        </p>
-        <div className="mt-4 flex items-end gap-2">
-          <span className="font-display text-6xl leading-none">{model.total}</span>
-          <span className="pb-2 font-mono text-xs text-muted-foreground">/100</span>
-        </div>
-        <h2 className="mt-3 font-display text-2xl">{model.maturity.title}</h2>
-        <p className="mt-2 text-sm text-muted-foreground">{model.maturity.copy}</p>
-      </article>
+    <section className="overflow-hidden rounded-2xl border border-border bg-card">
+      <div className="grid lg:grid-cols-[260px_minmax(0,1fr)_minmax(280px,0.8fr)]">
+        <article className="bg-ink p-6 text-cream">
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            Control score
+          </p>
+          <div className="mt-4 flex items-end gap-2">
+            <span className="font-display text-6xl leading-none">{model.total}</span>
+            <span className="pb-2 font-mono text-xs text-cream/45">/100</span>
+          </div>
+          <h2 className="mt-3 font-display text-2xl">{model.maturity.title}</h2>
+          <p className="mt-2 text-sm text-cream/60">{model.maturity.copy}</p>
+        </article>
 
-      <article className="rounded-2xl border border-border bg-card p-5">
-        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-          Financial signal
-        </p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <Metric label="Capacity gap" value={fmtMoney(model.snapshot.gapToShow)} highlight />
-          <Metric label="Annual capacity" value={fmtMoney(model.snapshot.limiting.value)} />
-          <Metric label="Economic constraint" value={model.snapshot.limiting.label} />
-        </div>
-        <p className="mt-4 text-sm text-muted-foreground">
-          {model.snapshot.gap > 0
-            ? `The revenue goal exceeds current annual billing capacity by ${fmtMoney(model.snapshot.gap)}.`
-            : `The current model supports the stated revenue goal by ${fmtMoney(Math.abs(model.snapshot.gap))}.`}
-        </p>
-      </article>
+        <article className="border-t border-border p-6 lg:border-l lg:border-t-0">
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            Active constraint
+          </p>
+          <h2 className="mt-3 font-display text-3xl leading-tight">{model.resolution.title}</h2>
+          <p className="mt-3 text-sm leading-[1.6] text-muted-foreground">
+            {model.resolution.financialImpact}
+          </p>
+          <p className="mt-4 border-l-2 border-signal pl-3 text-[12px] font-medium text-foreground/75">
+            Start here: {model.resolution.actions[0]}
+          </p>
+        </article>
+
+        <article className="border-t border-border p-6 lg:border-l lg:border-t-0">
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            Financial signal
+          </p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
+            <Metric
+              label="Capacity gap"
+              value={fmtMoney(model.snapshot.gapToShow)}
+              highlight
+              compact
+            />
+            <Metric
+              label="Annual capacity"
+              value={fmtMoney(model.snapshot.limiting.value)}
+              compact
+            />
+            <Metric label="Limiting capacity" value={model.snapshot.limiting.label} compact />
+          </div>
+        </article>
+      </div>
+      <div className="grid gap-px border-t border-border bg-border sm:grid-cols-3 lg:grid-cols-6">
+        {model.categoryRows.map((row) => (
+          <div key={row.category.id} className="bg-background px-4 py-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[12px] font-medium">{row.category.title}</span>
+              <span className="font-mono text-[10px] text-signal">{row.score}/20</span>
+            </div>
+            <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full bg-ink" style={{ width: `${row.score * 5}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }
 
 function Assessment({
+  model,
   scores,
   onChange,
 }: {
+  model: CosModel;
   scores: Scores;
   onChange: (categoryId: CategoryId, index: number, value: number) => void;
 }) {
   return (
-    <section className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+    <section>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
             Assessment
           </p>
-          <h2 className="mt-1 font-display text-3xl">Score the operating system.</h2>
+          <h2 className="mt-1 font-display text-4xl">Score the operating system.</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-[1.6] text-muted-foreground">
+            Each domain is a separate layer of control. Score what is true today—not what is
+            intended or being discussed.
+          </p>
         </div>
         <p className="max-w-md text-xs text-muted-foreground">
           0 = not in place. 4 = measured, owned, and reviewed on rhythm.
         </p>
       </div>
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        {categories.map((category) => (
-          <article
-            key={category.id}
-            className="overflow-hidden rounded-xl border border-border bg-background"
-          >
-            <div className="flex items-center justify-between gap-3 border-b border-border bg-card/70 px-4 py-3">
-              <h3 className="font-display text-xl">{category.title}</h3>
-              <span className="font-mono text-sm text-signal">
-                {categoryScore(scores, category.id)} / 20
-              </span>
-            </div>
-            <div className="divide-y divide-border">
-              {category.questions.map((question, index) => (
-                <div
-                  key={question}
-                  className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-                >
-                  <p className="text-[13px] leading-snug text-foreground/85">{question}</p>
-                  <div className="flex gap-1">
-                    {[0, 1, 2, 3, 4].map((value) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => onChange(category.id, index, value)}
-                        className={`h-7 w-7 rounded-md text-xs tabular-nums ${
-                          scores[category.id][index] === value
-                            ? "bg-ink text-cream"
-                            : "border border-border bg-card text-muted-foreground hover:bg-muted"
-                        }`}
-                      >
-                        {value}
-                      </button>
-                    ))}
+      <div className="mt-6 space-y-4">
+        {model.categoryRows.map((row, categoryIndex) => {
+          const category = row.category;
+          return (
+            <article
+              key={category.id}
+              className="overflow-hidden rounded-2xl border border-border bg-card"
+            >
+              <div className="grid lg:grid-cols-[300px_minmax(0,1fr)]">
+                <div className="border-b border-border bg-background p-5 lg:border-b-0 lg:border-r lg:p-6">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-mono text-[10px] text-signal">
+                      {String(categoryIndex + 1).padStart(2, "0")}
+                    </span>
+                    <span className="font-mono text-sm text-signal">{row.score} / 20</span>
                   </div>
+                  <h3 className="mt-5 font-display text-3xl">{category.title}</h3>
+                  <p className="mt-2 text-[13px] font-medium text-foreground/75">
+                    {category.doctrine}
+                  </p>
+                  <p className="mt-4 text-[12px] leading-[1.6] text-muted-foreground">
+                    {category.why}
+                  </p>
+                  <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-signal"
+                      style={{ width: `${row.score * 5}%` }}
+                    />
+                  </div>
+                  <p className="mt-3 text-[11px] leading-[1.5] text-muted-foreground">
+                    {row.impact}
+                  </p>
                 </div>
-              ))}
-            </div>
-          </article>
-        ))}
+                <div className="divide-y divide-border">
+                  {category.questions.map((question, index) => (
+                    <div
+                      key={question}
+                      className="grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                    >
+                      <p className="text-[13px] leading-[1.45] text-foreground/85">{question}</p>
+                      <div className="flex gap-1">
+                        {[0, 1, 2, 3, 4].map((value) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => onChange(category.id, index, value)}
+                            aria-label={`${category.title}: ${question} - score ${value}`}
+                            aria-pressed={scores[category.id][index] === value}
+                            className={`h-8 w-8 rounded-md text-xs tabular-nums transition-colors ${
+                              scores[category.id][index] === value
+                                ? "bg-ink text-cream"
+                                : "border border-border bg-card text-muted-foreground hover:bg-muted"
+                            }`}
+                          >
+                            {value}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </article>
+          );
+        })}
       </div>
     </section>
   );
@@ -949,41 +1131,119 @@ function CapacityCalculator({
   );
 }
 
+function Interpretation({ model }: { model: CosModel }) {
+  const uses = [
+    {
+      number: "01",
+      title: "Create an operating baseline",
+      copy: "Agree on what is actually installed today so leadership is solving the same problem from the same facts.",
+    },
+    {
+      number: "02",
+      title: "Expose the active constraint",
+      copy: `Focus first on ${model.resolution.title} instead of spreading effort across every weakness at once.`,
+    },
+    {
+      number: "03",
+      title: "Route the work",
+      copy: `Move the diagnosis into ${model.resolution.application} using ${model.resolution.worksheet}.`,
+    },
+    {
+      number: "04",
+      title: "Manage the change",
+      copy: "Assign ownership, review the signal weekly, and remeasure in 90 days to confirm the system is improving.",
+    },
+  ];
+  return (
+    <section className="overflow-hidden rounded-2xl border border-border bg-ink text-cream">
+      <div className="grid lg:grid-cols-[0.85fr_1.15fr]">
+        <div className="p-6 sm:p-8">
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-signal">
+            Interpretation
+          </p>
+          <h2 className="mt-3 font-display text-4xl leading-[1.05]">
+            What this data allows you to do.
+          </h2>
+          <p className="mt-4 max-w-xl text-sm leading-[1.7] text-cream/60">
+            The assessment is useful only when it changes management behavior. Use the result to
+            establish truth, concentrate effort, and create a repeatable review rhythm.
+          </p>
+        </div>
+        <div className="grid border-t border-cream/10 sm:grid-cols-2 lg:border-l lg:border-t-0">
+          {uses.map((item) => (
+            <article
+              key={item.number}
+              className="border-b border-cream/10 p-5 last:border-b-0 sm:border-r sm:odd:border-r sm:even:border-r-0 sm:[&:nth-last-child(-n+2)]:border-b-0"
+            >
+              <span className="font-mono text-[9px] text-signal">{item.number}</span>
+              <h3 className="mt-3 font-display text-xl">{item.title}</h3>
+              <p className="mt-2 text-[12px] leading-[1.6] text-cream/55">{item.copy}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Roadmap({ model }: { model: CosModel }) {
   const months = ["Month 1", "Month 2", "Month 3"];
   return (
-    <section className="rounded-2xl border border-border bg-card p-5">
+    <section>
       <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-        State of Control result
+        Implementation route
       </p>
-      <h2 className="mt-2 font-display text-3xl">Your 90-Day Roadmap</h2>
-      <p className="mt-2 text-sm text-muted-foreground">
+      <h2 className="mt-2 font-display text-4xl">Your 90-Day Roadmap</h2>
+      <p className="mt-2 max-w-2xl text-sm leading-[1.6] text-muted-foreground">
         <span className="font-medium text-foreground/80">
           Primary constraint: {model.primary.category.title}.
         </span>{" "}
         {model.primary.category.narrative}
       </p>
-      <div className="mt-5 grid gap-3">
+      <div className="mt-6 grid gap-4 lg:grid-cols-3">
         {model.ranked.slice(0, 3).map((item, index) => {
           const resolution = getResolution(item.category.id, model.snapshot);
           return (
             <article
               key={item.category.id}
-              className="rounded-xl border border-border bg-background p-4"
+              className={`overflow-hidden rounded-2xl border border-border ${index === 0 ? "bg-ink text-cream" : "bg-card"}`}
             >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                    {months[index]}
-                  </p>
-                  <h3 className="mt-1 font-display text-xl">{item.category.title}</h3>
-                  <p className="mt-1 text-xs text-muted-foreground">{item.impact}</p>
+              <div className="p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p
+                      className={`font-mono text-[10px] uppercase tracking-[0.22em] ${index === 0 ? "text-signal" : "text-muted-foreground"}`}
+                    >
+                      {months[index]}
+                    </p>
+                    <h3 className="mt-3 font-display text-3xl">{item.category.title}</h3>
+                  </div>
+                  <span
+                    className={`font-display text-4xl leading-none ${index === 0 ? "text-cream/20" : "text-foreground/10"}`}
+                  >
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
                 </div>
-                <span className="font-mono text-xs text-signal">{item.priority}</span>
+                <p
+                  className={`mt-4 min-h-12 text-[12px] leading-[1.55] ${index === 0 ? "text-cream/60" : "text-muted-foreground"}`}
+                >
+                  {item.impact}
+                </p>
               </div>
-              <p className="mt-3 text-[12px] text-foreground/80">
-                {resolution.playbookSection} {"->"} {resolution.worksheet}
-              </p>
+              <div
+                className={`border-t px-5 py-4 ${index === 0 ? "border-cream/10 bg-cream/[0.04]" : "border-border bg-background"}`}
+              >
+                <p
+                  className={`font-mono text-[8px] uppercase tracking-[0.18em] ${index === 0 ? "text-cream/40" : "text-muted-foreground"}`}
+                >
+                  Route
+                </p>
+                <p
+                  className={`mt-2 text-[11px] leading-[1.5] ${index === 0 ? "text-cream/75" : "text-foreground/75"}`}
+                >
+                  {resolution.playbookSection} {"->"} {resolution.worksheet}
+                </p>
+              </div>
             </article>
           );
         })}
@@ -1020,14 +1280,22 @@ function ResolutionCard({ resolution }: { resolution: ResolutionPlan }) {
 
 function NextActions({ actions }: { actions: string[] }) {
   return (
-    <section className="rounded-2xl border border-border bg-card p-5">
+    <section className="rounded-2xl border border-border bg-card p-5 sm:p-6">
       <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
         Next 30 days
       </p>
-      <ol className="mt-4 space-y-3">
+      <h2 className="mt-2 font-display text-3xl">Make the first move visible.</h2>
+      <p className="mt-2 text-[12px] leading-[1.6] text-muted-foreground">
+        Assign one owner and one due date to every action. Review these weekly until the constraint
+        changes.
+      </p>
+      <ol className="mt-5 space-y-4">
         {actions.map((action, index) => (
-          <li key={action} className="flex gap-3 text-sm">
-            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-signal/10 font-mono text-[10px] text-signal">
+          <li
+            key={action}
+            className="flex gap-3 border-t border-border pt-4 text-sm first:border-t-0 first:pt-0"
+          >
+            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-signal/10 font-mono text-[10px] text-signal">
               {String(index + 1).padStart(2, "0")}
             </span>
             <span>{action}</span>
@@ -1038,21 +1306,234 @@ function NextActions({ actions }: { actions: string[] }) {
   );
 }
 
+function ActionCenter({
+  model,
+  saving,
+  saved,
+  onSave,
+  onPrint,
+  onEmail,
+}: {
+  model: CosModel;
+  saving: boolean;
+  saved: boolean;
+  onSave: () => void;
+  onPrint: () => void;
+  onEmail: () => void;
+}) {
+  return (
+    <section className="rounded-2xl border border-signal/35 bg-signal/10 p-6 sm:p-8">
+      <div className="grid items-center gap-6 lg:grid-cols-[1fr_auto]">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-signal">
+            Put the report to work
+          </p>
+          <h2 className="mt-2 font-display text-4xl leading-[1.05]">
+            Align the team around the same truth.
+          </h2>
+          <p className="mt-3 max-w-3xl text-sm leading-[1.65] text-foreground/65">
+            Preserve the {model.total}/100 baseline in the Vault, share the management report with
+            the people responsible for the work, and return in 90 days to measure whether the
+            constraint moved.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 lg:max-w-[360px] lg:justify-end">
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving || saved}
+            className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2.5 text-[12px] font-semibold text-cream disabled:opacity-60"
+          >
+            {saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+            {saved ? "Baseline saved" : saving ? "Saving…" : "Save baseline"}
+          </button>
+          <button
+            type="button"
+            onClick={onPrint}
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2.5 text-[12px] font-semibold hover:bg-muted"
+          >
+            <Printer className="h-4 w-4" /> Print / save PDF
+          </button>
+          <button
+            type="button"
+            onClick={onEmail}
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2.5 text-[12px] font-semibold hover:bg-muted"
+          >
+            <Mail className="h-4 w-4" /> Email report
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function StateOfControlShareDialog({
+  open,
+  onOpenChange,
+  report,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  report: StateOfControlReportData;
+}) {
+  const [recipient, setRecipient] = useState("");
+  const [note, setNote] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function sendReport() {
+    const to = recipient.trim();
+    setError(null);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+      setError("Enter a valid email address.");
+      return;
+    }
+    setSending(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const { data: profile } = user
+        ? await supabase.from("profiles").select("full_name,email").eq("id", user.id).maybeSingle()
+        : { data: null as { full_name: string | null; email: string } | null };
+
+      await sendTransactionalEmail({
+        templateName: "state-of-control-report",
+        recipientEmail: to,
+        idempotencyKey: `state-of-control-${user?.id ?? "member"}-${Date.now()}`,
+        templateData: {
+          senderName: profile?.full_name ?? undefined,
+          senderEmail: profile?.email ?? user?.email ?? undefined,
+          note: note.trim() || undefined,
+          ...report,
+          roadmap: report.roadmap.map((item) => ({
+            period: item.period,
+            title: item.title,
+            impact: item.impact,
+            route: `${item.playbook} -> ${item.worksheet}`,
+          })),
+        },
+      });
+      setSent(true);
+      setTimeout(() => {
+        onOpenChange(false);
+        setSent(false);
+        setRecipient("");
+        setNote("");
+      }, 1400);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send the report.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle>Email the State of Control report</DialogTitle>
+          <DialogDescription>
+            Sends a branded management report with the score, constraint, domain results, 90-day
+            roadmap, and next actions.
+          </DialogDescription>
+        </DialogHeader>
+        {sent ? (
+          <div className="flex items-center gap-2 py-8 text-sm">
+            <Check className="h-4 w-4 text-signal" /> Report sent.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-border bg-muted/40 p-4">
+              <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">
+                Report summary
+              </p>
+              <div className="mt-2 flex items-end justify-between gap-4">
+                <div>
+                  <strong className="font-display text-2xl">{report.total}/100</strong>
+                  <p className="mt-1 text-xs text-muted-foreground">{report.maturityTitle}</p>
+                </div>
+                <p className="max-w-[230px] text-right text-xs text-foreground/70">
+                  {report.primaryConstraint}
+                </p>
+              </div>
+            </div>
+            <label className="block">
+              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                Recipient email
+              </span>
+              <input
+                type="email"
+                value={recipient}
+                onChange={(event) => setRecipient(event.target.value)}
+                placeholder="you@company.com"
+                className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] outline-none focus:border-ink"
+              />
+            </label>
+            <label className="block">
+              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                Note <span className="opacity-60">· optional</span>
+              </span>
+              <textarea
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                rows={3}
+                placeholder="Why you are sharing this report…"
+                className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] outline-none focus:border-ink"
+              />
+            </label>
+            {error ? <p className="text-[12px] text-destructive">{error}</p> : null}
+          </div>
+        )}
+        {!sent ? (
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="rounded-md border border-border bg-background px-3 py-2 text-[12px] hover:bg-muted"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={sendReport}
+              disabled={sending || !recipient.trim()}
+              className="inline-flex items-center gap-2 rounded-md bg-ink px-3 py-2 text-[12px] font-semibold text-cream disabled:opacity-50"
+            >
+              {sending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Mail className="h-3.5 w-3.5" />
+              )}
+              {sending ? "Sending…" : "Send report"}
+            </button>
+          </DialogFooter>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function Metric({
   label,
   value,
   highlight = false,
+  compact = false,
 }: {
   label: string;
   value: string;
   highlight?: boolean;
+  compact?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-background p-4">
+    <div className={`rounded-xl border border-border bg-background ${compact ? "p-3" : "p-4"}`}>
       <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
         {label}
       </p>
-      <p className={`mt-2 text-lg font-semibold ${highlight ? "text-signal" : "text-foreground"}`}>
+      <p
+        className={`${compact ? "mt-1 text-sm" : "mt-2 text-lg"} font-semibold ${highlight ? "text-signal" : "text-foreground"}`}
+      >
         {value}
       </p>
     </div>
