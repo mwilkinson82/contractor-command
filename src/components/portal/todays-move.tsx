@@ -139,8 +139,8 @@ function deriveMove(packets: Packet[]): CuratedMove {
       ? "Re-run your highest-leverage tool."
       : "Run your first command tool.",
     body: hasAnyPackets
-      ? "Nothing fresh in the last two weeks. The Command Center comes alive as you feed it data — re-run the COS Navigator and update the current operating constraint."
-      : "The Command Center comes alive as you feed it data. Start with the COS Navigator — a few minutes, and you'll know which system needs attention first.",
+      ? "Nothing fresh in the last two weeks. Re-run your State of Control and update the current operating constraint."
+      : "Start with your State of Control. In a few minutes, you'll know whether company, project, or field control needs attention first.",
     ctaLabel: firstLive ? `Open ${firstLive.name}` : "Open tools",
     ctaTo: firstLive?.route ?? "/tools/growth-constraint",
   };

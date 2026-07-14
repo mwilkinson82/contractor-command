@@ -6,6 +6,7 @@ import {
   CalendarDays,
   Download,
   FileText,
+  Gauge,
   MessageSquare,
   PlayCircle,
   Video,
@@ -133,6 +134,29 @@ function StartHerePage() {
             Month-end should confirm the trend - not reveal it.
           </p>
         </aside>
+      </section>
+
+      <section className="mt-16 grid gap-6 rounded-3xl border border-border bg-card p-7 shadow-[var(--shadow-soft)] sm:p-9 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div className="max-w-3xl">
+          <p className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-clay">
+            <Gauge className="h-3.5 w-3.5" /> Your operating baseline
+          </p>
+          <h2 className="mt-3 font-display text-3xl leading-tight sm:text-4xl">
+            Get your State of Control.
+          </h2>
+          <p className="mt-3 text-[14px] leading-relaxed text-muted-foreground">
+            Assess company control through AOS, project control through IOR, and field control
+            through Daily Logs and Daily Project WIP. You will leave with the active constraint and
+            a focused 90-day implementation route.
+          </p>
+        </div>
+        <Link
+          to="/tools"
+          search={{ t: "cos-navigator" } as never}
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-signal px-5 py-3 text-[13px] font-semibold text-ink hover:opacity-90"
+        >
+          Run the assessment <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
       </section>
 
       <section className="mt-16 border-t border-border pt-12">
