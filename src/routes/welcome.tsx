@@ -14,9 +14,7 @@ export const Route = createFileRoute("/welcome")({
 
 function WelcomePage() {
   const navigate = useNavigate();
-  const [phase, setPhase] = useState<"checking" | "set-password" | "no-session">(
-    "checking",
-  );
+  const [phase, setPhase] = useState<"checking" | "set-password" | "no-session">("checking");
   const [email, setEmail] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -85,19 +83,19 @@ function WelcomePage() {
         subtitle="This invite link may have expired or already been used."
       >
         <p className="text-[13px] leading-relaxed text-ink/65">
-          If you've already set up your account, sign in. Otherwise reach out
-          and we'll resend the invite.
+          If you've already set up your account, sign in. Otherwise reach out and we'll resend the
+          invite.
         </p>
         <div className="mt-8 flex gap-3">
           <Link
             to="/login"
-            className="inline-flex flex-1 items-center justify-center rounded-full bg-ink px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-cream transition-opacity hover:opacity-90"
+            className="inline-flex h-11 flex-1 items-center justify-center rounded-lg bg-signal px-5 text-[13px] font-semibold text-ink transition-opacity hover:opacity-90"
           >
-            Sign in
+            Sign in →
           </Link>
           <Link
             to="/signup"
-            className="inline-flex flex-1 items-center justify-center rounded-full border border-ink/15 bg-transparent px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-ink transition-colors hover:border-ink/40"
+            className="inline-flex h-11 flex-1 items-center justify-center rounded-lg border border-border bg-transparent px-5 text-[13px] font-semibold text-foreground transition-colors hover:border-foreground/40"
           >
             Create account
           </Link>
@@ -136,7 +134,7 @@ function WelcomePage() {
           required
         />
         {err && <p className="text-[12px] text-[color:var(--danger-warm)]">{err}</p>}
-        <AuthSubmit busy={busy} label="Enter the portal" busyLabel="Saving" />
+        <AuthSubmit busy={busy} label="Enter the command center" busyLabel="Saving" />
       </form>
       <p className="mt-6 text-[11px] leading-relaxed text-ink/45">
         By continuing you're confirming this is your account.

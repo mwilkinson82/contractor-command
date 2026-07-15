@@ -27,8 +27,8 @@ function ForgotPasswordPage() {
       toast.success("Reset link requested", {
         description: "If that email has access, the link is on its way.",
       });
-    } catch (e: any) {
-      const msg = e?.message || "Something went wrong";
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Something went wrong";
       setErr(msg);
       toast.error("Reset email failed", { description: msg });
     } finally {
@@ -43,15 +43,15 @@ function ForgotPasswordPage() {
         subtitle={`If an account exists for ${email}, a reset link is on its way.`}
       >
         <p className="text-[13px] leading-relaxed text-ink/65">
-          The link expires in one hour. If you don't see it in a few minutes,
-          check your spam folder.
+          The link expires in one hour. If you don't see it in a few minutes, check your spam
+          folder.
         </p>
         <div className="mt-8">
           <Link
             to="/login"
-            className="inline-flex w-full items-center justify-center rounded-full bg-ink px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-cream transition-opacity hover:opacity-90"
+            className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-signal px-5 text-[13px] font-semibold text-ink transition-opacity hover:opacity-90"
           >
-            Back to sign in
+            Back to sign in →
           </Link>
         </div>
       </AuthCard>

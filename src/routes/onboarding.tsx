@@ -82,18 +82,16 @@ function OnboardingPage() {
     }
     setSaving(true);
     setErr(null);
-    const { error } = await supabase
-      .from("companies")
-      .upsert(
-        {
-          owner_user_id: user.id,
-          name: trimmed,
-          address: address.trim() || null,
-          logo_path: logoPath,
-          greeting_icon: greetingIcon,
-        },
-        { onConflict: "owner_user_id" },
-      );
+    const { error } = await supabase.from("companies").upsert(
+      {
+        owner_user_id: user.id,
+        name: trimmed,
+        address: address.trim() || null,
+        logo_path: logoPath,
+        greeting_icon: greetingIcon,
+      },
+      { onConflict: "owner_user_id" },
+    );
     if (error) {
       setErr(error.message);
       setSaving(false);
@@ -110,133 +108,187 @@ function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background px-4 py-12">
-      <div className="mx-auto w-full max-w-xl">
-        <p className="label-mono">Step 01 · Set up</p>
-        <h1 className="mt-3 font-display text-[2rem] leading-tight sm:text-[2.5rem]">
-          Let's set up your command center.
-        </h1>
-        <p className="mt-3 max-w-md text-[14px] text-muted-foreground">
-          This becomes the frame around everything you see — your company's
-          name, address, and logo. You can change it later in Account.
-        </p>
-
-        <form onSubmit={save} className="mt-10 space-y-6">
-          <div>
-            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-              Company name
-            </label>
-            <div className="relative mt-2">
-              <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                autoFocus
-                placeholder="ACME Construction Co."
-                className="w-full rounded-md border border-border bg-card pl-10 pr-3 py-2.5 text-[14px] focus:border-ink focus:outline-none"
-              />
-            </div>
+    <main className="min-h-screen bg-background px-4 py-5 text-foreground sm:px-6 sm:py-8 lg:px-10">
+      <div className="mx-auto w-full max-w-[1120px]">
+        <header className="flex items-center justify-between border-b border-border pb-4">
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 place-items-center rounded-full bg-[var(--ink-panel)] font-display text-[12px] text-background">
+              ALP
+            </span>
+            <span>
+              <strong className="block text-[14px] font-semibold leading-tight">
+                ALP Contractor Circle
+              </strong>
+              <span className="mt-1 block font-mono text-[9px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                First-run setup
+              </span>
+            </span>
           </div>
+          <span className="hidden font-display text-[21px] sm:block">
+            The Contractor Circle Hub
+          </span>
+        </header>
 
-          <div>
-            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-              Address <span className="text-muted-foreground/60">· optional</span>
-            </label>
-            <input
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="123 Main St, Vancouver, BC"
-              className="mt-2 w-full rounded-md border border-border bg-card px-3 py-2.5 text-[14px] focus:border-ink focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-              Logo <span className="text-muted-foreground/60">· optional</span>
-            </label>
-            <div className="mt-2 flex items-center gap-4">
-              <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-xl border border-border bg-card">
-                {logoPreview ? (
-                  // Square-crop, center-fit — preview matches how the logo renders in the sidebar.
-                  <img src={logoPreview} alt="Logo preview" className="h-full w-full object-cover object-center" />
-                ) : (
-                  <ImageIcon className="h-6 w-6 text-muted-foreground/50" />
-                )}
-              </div>
-              <div className="flex-1">
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={onFile}
-                  className="hidden"
-                />
-                <button
-                  type="button"
-                  onClick={() => fileRef.current?.click()}
-                  disabled={uploading}
-                  className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-[12px] hover:bg-muted disabled:opacity-50"
-                >
-                  {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                  {logoPath ? "Replace logo" : "Upload logo"}
-                </button>
-                <p className="mt-1.5 text-[11px] text-muted-foreground">
-                  PNG, JPG, or SVG. Under 2MB. We center-crop to a square — upload tight to the mark for best results.
+        <section className="mt-5 overflow-hidden rounded-2xl border border-border bg-[var(--paper-deep)] shadow-[var(--shadow-soft)]">
+          <div className="grid lg:grid-cols-[0.82fr_1.18fr]">
+            <aside className="border-b border-border p-7 sm:p-10 lg:border-b-0 lg:border-r lg:p-12">
+              <p className="eyebrow-clay">Step 01 · Set up</p>
+              <h1 className="mt-5 font-display text-[42px] leading-[0.98] tracking-[-0.03em] sm:text-[52px]">
+                Set up the command center.
+              </h1>
+              <p className="mt-5 max-w-md text-[14px] leading-7 text-muted-foreground">
+                Add the company identity that will frame your Hub, tools, and connected operating
+                applications. You can change it later in Account.
+              </p>
+              <div className="mt-8 rounded-xl border border-border bg-card/70 p-5">
+                <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.18em] text-clay">
+                  One company record
+                </p>
+                <p className="mt-2 text-[12px] leading-6 text-muted-foreground">
+                  Your name, mark, and greeting carry the company into its working environment.
                 </p>
               </div>
-            </div>
-          </div>
+            </aside>
 
-          <div>
-            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-              Greeting icon
-            </label>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              Pick the icon Marshall greets you with on your dashboard.
-            </p>
-            <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
-              {GREETING_ICONS.map(({ key, label, Icon }) => {
-                const active = greetingIcon === key;
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setGreetingIcon(key)}
-                    className={`group flex flex-col items-center gap-1.5 rounded-xl border px-2 py-3 transition-all ${
-                      active
-                        ? "border-ink bg-ink text-cream shadow-sm"
-                        : "border-border bg-card text-foreground/70 hover:border-foreground/40 hover:bg-muted"
-                    }`}
-                    aria-pressed={active}
-                    aria-label={label}
-                  >
-                    <Icon className="text-[1.75rem]" />
-                    <span className="font-mono text-[9px] uppercase tracking-[0.18em]">
-                      {label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+            <form onSubmit={save} className="space-y-6 bg-card p-7 sm:p-10 lg:p-12">
+              <div>
+                <label
+                  htmlFor="company-name"
+                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground"
+                >
+                  Company name
+                </label>
+                <div className="relative mt-2">
+                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <input
+                    id="company-name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    autoFocus
+                    placeholder="ACME Construction Co."
+                    className="w-full rounded-md border border-border bg-card pl-10 pr-3 py-2.5 text-[14px] focus:border-ink focus:outline-none"
+                  />
+                </div>
+              </div>
 
-          {err && <p className="text-[12px] text-[color:var(--danger-warm)]">{err}</p>}
+              <div>
+                <label
+                  htmlFor="company-address"
+                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground"
+                >
+                  Address <span className="text-muted-foreground/60">· optional</span>
+                </label>
+                <input
+                  id="company-address"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="123 Main St, Vancouver, BC"
+                  className="mt-2 w-full rounded-md border border-border bg-card px-3 py-2.5 text-[14px] focus:border-ink focus:outline-none"
+                />
+              </div>
 
-          <div className="flex flex-wrap items-center gap-3 border-t border-border pt-6">
-            <button
-              type="submit"
-              disabled={saving || uploading}
-              className="inline-flex items-center gap-2 rounded-md bg-ink px-5 py-2.5 text-[13px] font-medium text-cream hover:opacity-90 disabled:opacity-50"
-            >
-              {saving ? "Saving…" : "Enter the Command Center"}
-            </button>
-            <p className="text-[11px] text-muted-foreground">
-              You can edit any of this later in Account → Company.
-            </p>
+              <div>
+                <label
+                  htmlFor="company-logo"
+                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground"
+                >
+                  Logo <span className="text-muted-foreground/60">· optional</span>
+                </label>
+                <div className="mt-2 flex items-center gap-4">
+                  <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-xl border border-border bg-card">
+                    {logoPreview ? (
+                      // Square-crop, center-fit — preview matches how the logo renders in the sidebar.
+                      <img
+                        src={logoPreview}
+                        alt="Logo preview"
+                        className="h-full w-full object-cover object-center"
+                      />
+                    ) : (
+                      <ImageIcon className="h-6 w-6 text-muted-foreground/50" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <input
+                      id="company-logo"
+                      ref={fileRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={onFile}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileRef.current?.click()}
+                      disabled={uploading}
+                      className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-[12px] hover:bg-muted disabled:opacity-50"
+                    >
+                      {uploading ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Upload className="h-3.5 w-3.5" />
+                      )}
+                      {logoPath ? "Replace logo" : "Upload logo"}
+                    </button>
+                    <p className="mt-1.5 text-[11px] text-muted-foreground">
+                      PNG, JPG, or SVG. Under 2MB. We center-crop to a square — upload tight to the
+                      mark for best results.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+                  Greeting icon
+                </label>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Pick the icon Marshall greets you with on your dashboard.
+                </p>
+                <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
+                  {GREETING_ICONS.map(({ key, label, Icon }) => {
+                    const active = greetingIcon === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setGreetingIcon(key)}
+                        className={`group flex flex-col items-center gap-1.5 rounded-xl border px-2 py-3 transition-all ${
+                          active
+                            ? "border-clay bg-clay text-background shadow-sm"
+                            : "border-border bg-card text-foreground/70 hover:border-foreground/40 hover:bg-muted"
+                        }`}
+                        aria-pressed={active}
+                        aria-label={label}
+                      >
+                        <Icon className="text-[1.75rem]" />
+                        <span className="font-mono text-[9px] uppercase tracking-[0.18em]">
+                          {label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {err && <p className="text-[12px] text-[color:var(--danger-warm)]">{err}</p>}
+
+              <div className="flex flex-wrap items-center gap-3 border-t border-border pt-6">
+                <button
+                  type="submit"
+                  disabled={saving || uploading}
+                  className="inline-flex h-11 items-center gap-2 rounded-lg bg-signal px-5 text-[13px] font-semibold text-ink hover:opacity-90 disabled:opacity-50"
+                >
+                  {saving ? "Saving…" : "Enter the command center →"}
+                </button>
+                <p className="text-[11px] text-muted-foreground">
+                  You can edit any of this later in Account → Company.
+                </p>
+              </div>
+            </form>
           </div>
-        </form>
+        </section>
       </div>
-    </div>
+    </main>
   );
 }
