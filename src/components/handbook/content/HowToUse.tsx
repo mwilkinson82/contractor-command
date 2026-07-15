@@ -39,7 +39,10 @@ const HowToUse: React.FC = () => {
           <strong>Part II</strong> gives you the operating system: how the company moves from owner dependency into accountability, scorecards, roles, priorities, issue solving, process, and weekly execution.
         </p>
         <p>
-          The business-system sections show how that operating system applies to marketing, sales, estimating, operations, documentation, scheduling, finance, general conditions, notices, change orders, leadership, and scale.
+          <strong>Part III</strong> gives you the Professional Contractor Field Guide: how AOS, IOR in OverWatch, and Daily Logs plus Daily Project WIP operate as one company-to-field control loop.
+        </p>
+        <p>
+          The remaining business-system sections show how that operating system applies to marketing, sales, estimating, operations, documentation, scheduling, finance, general conditions, notices, change orders, leadership, and scale.
         </p>
         <p>Do not treat each chapter as a separate idea.</p>
         <p>The chapters connect.</p>
