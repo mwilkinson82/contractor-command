@@ -3,8 +3,11 @@ import { useEffect, type ReactNode } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
+  BookOpen,
   CalendarDays,
+  Compass,
   Download,
+  Eye,
   FileText,
   Gauge,
   MessageSquare,
@@ -14,6 +17,8 @@ import {
 import { Container, PageHeader } from "@/components/portal/page-header";
 import { DISCORD_URL } from "@/lib/program";
 import { markControlProgress } from "@/lib/control-progress";
+import { useTier } from "@/hooks/use-tier";
+import { startHereExperience } from "@/lib/start-here-access";
 
 const LOOM_EMBED_URL = "https://www.loom.com/embed/440cd1dfa22c4f87b6f6df2c950f6ee5";
 const CONTROL_LOOP_IMAGE_URL = "/images/professional-contractor-control-loop.png";
@@ -26,7 +31,7 @@ export const Route = createFileRoute("/start-here")({
       {
         name: "description",
         content:
-          "Contractor Circle member orientation: the operating model, community, calls, replays, resources, AOS, and OverWatch.",
+          "Professional contractor orientation connecting the ALP Handbook, AOS, IOR, field discipline, and Contractor Circle.",
       },
     ],
   }),
@@ -34,25 +39,67 @@ export const Route = createFileRoute("/start-here")({
 });
 
 function StartHerePage() {
+  const { tier, loading: tierLoading } = useTier();
+  const isCircleExperience = startHereExperience(tier) === "circle";
+
   useEffect(() => {
     void markControlProgress({ orientation_opened_at: new Date().toISOString() });
   }, []);
 
+  if (tierLoading) {
+    return (
+      <Container>
+        <section
+          aria-label="Loading your orientation"
+          className="mt-8 animate-pulse rounded-3xl border border-border bg-card p-7 sm:p-10"
+        >
+          <div className="h-3 w-48 rounded bg-muted" />
+          <div className="mt-6 h-12 max-w-xl rounded bg-muted" />
+          <div className="mt-4 h-16 max-w-3xl rounded bg-muted" />
+          <div className="mt-10 aspect-video w-full rounded-2xl bg-ink/10" />
+        </section>
+      </Container>
+    );
+  }
+
   return (
     <Container>
       <PageHeader
-        eyebrow="Member orientation / Start here"
-        title={<>Welcome to Contractor Circle.</>}
-        lede="Watch this first. It explains how the community, the teaching, AOS, OverWatch, and the work happening in the field operate as one professional contracting system."
+        eyebrow={
+          isCircleExperience
+            ? "Member orientation / Start here"
+            : "Professional contractor orientation / Start here"
+        }
+        title={
+          isCircleExperience ? (
+            <>Welcome to Contractor Circle.</>
+          ) : (
+            <>Start with the control loop.</>
+          )
+        }
+        lede={
+          isCircleExperience
+            ? "Watch this first. It explains how the community, the teaching, AOS, OverWatch, and the work happening in the field operate as one professional contracting system."
+            : "Watch this first. It connects the ALP Handbook, AOS, IOR, and daily field discipline into one professional contracting system you can begin installing now."
+        }
         actions={
-          <a
-            href={DISCORD_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2.5 text-[13px] font-medium text-cream hover:opacity-90"
-          >
-            Join Discord <ArrowUpRight className="h-3.5 w-3.5" />
-          </a>
+          isCircleExperience ? (
+            <a
+              href={DISCORD_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2.5 text-[13px] font-medium text-cream hover:opacity-90"
+            >
+              Join Discord <ArrowUpRight className="h-3.5 w-3.5" />
+            </a>
+          ) : (
+            <Link
+              to="/upgrade"
+              className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2.5 text-[13px] font-medium text-cream hover:opacity-90"
+            >
+              Explore Contractor Circle <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          )
         }
       />
 
@@ -166,64 +213,107 @@ function StartHerePage() {
       <section className="mt-16 border-t border-border pt-12">
         <div className="max-w-3xl">
           <p className="label-mono">Your first moves</p>
-          <h2 className="mt-2 font-display text-3xl">Do these four things next.</h2>
+          <h2 className="mt-2 font-display text-3xl">
+            {isCircleExperience ? "Do these four things next." : "Put the system to work."}
+          </h2>
           <p className="mt-3 text-[14px] leading-relaxed text-muted-foreground">
-            Contractor Circle becomes more valuable when you participate. Get connected, catch up,
-            and bring the real issues from your company into the room.
+            {isCircleExperience
+              ? "Contractor Circle becomes more valuable when you participate. Get connected, catch up, and bring the real issues from your company into the room."
+              : "Use the doctrine, establish the baseline, and begin running the company and projects through the connected applications."}
           </p>
         </div>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <FirstMove
-            icon={<MessageSquare className="h-4 w-4" />}
-            step="01"
-            title="Join Discord"
-            body="Introduce yourself and use the daily conversations, guidance, and shared experience."
-            href={DISCORD_URL}
-            external
-          />
-          <FirstMove
-            icon={<Video className="h-4 w-4" />}
-            step="02"
-            title="Catch the replays"
-            body="Review the recent calls so the language, lessons, and current conversations are familiar."
-            href="/replays"
-          />
-          <FirstMove
-            icon={<CalendarDays className="h-4 w-4" />}
-            step="03"
-            title="Make the calls"
-            body="Put the live sessions on your calendar and bring one specific issue that needs pressure."
-            href="/calls"
-          />
-          <FirstMove
-            icon={<FileText className="h-4 w-4" />}
-            step="04"
-            title="Use the resources"
-            body="Open the playbook and templates when you are ready to install the method in your company."
-            href="/operating-playbook"
-          />
+          {isCircleExperience ? (
+            <>
+              <FirstMove
+                icon={<MessageSquare className="h-4 w-4" />}
+                step="01"
+                title="Join Discord"
+                body="Introduce yourself and use the daily conversations, guidance, and shared experience."
+                href={DISCORD_URL}
+                external
+              />
+              <FirstMove
+                icon={<Video className="h-4 w-4" />}
+                step="02"
+                title="Catch the replays"
+                body="Review the recent calls so the language, lessons, and current conversations are familiar."
+                href="/replays"
+              />
+              <FirstMove
+                icon={<CalendarDays className="h-4 w-4" />}
+                step="03"
+                title="Make the calls"
+                body="Put the live sessions on your calendar and bring one specific issue that needs pressure."
+                href="/calls"
+              />
+              <FirstMove
+                icon={<FileText className="h-4 w-4" />}
+                step="04"
+                title="Use the resources"
+                body="Open the playbook and templates when you are ready to install the method in your company."
+                href="/operating-playbook"
+              />
+            </>
+          ) : (
+            <>
+              <FirstMove
+                icon={<BookOpen className="h-4 w-4" />}
+                step="01"
+                title="Read the Handbook"
+                body="Use the field manual to understand the doctrine behind the operating system."
+                href="/handbook"
+              />
+              <FirstMove
+                icon={<Gauge className="h-4 w-4" />}
+                step="02"
+                title="Get your State of Control"
+                body="Find the active constraint and build the first focused 90-day implementation route."
+                href="/tools/cos-navigator"
+              />
+              <FirstMove
+                icon={<Compass className="h-4 w-4" />}
+                step="03"
+                title="Open AOS"
+                body="Turn company direction, accountability, scorecards, issues, and execution into rhythm."
+                href="/aos"
+              />
+              <FirstMove
+                icon={<Eye className="h-4 w-4" />}
+                step="04"
+                title="Open IOR"
+                body="Manage project forecast, schedule, billing, cost, and risk while the outcome can change."
+                href="https://overwatch.alpcontractorcircle.com"
+                external
+              />
+            </>
+          )}
         </div>
       </section>
 
       <section className="mt-16 flex flex-col gap-6 rounded-3xl bg-ink px-7 py-8 text-cream sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-10">
         <div className="max-w-2xl">
           <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-signal">
-            The standard
+            {isCircleExperience ? "The standard" : "Your next level"}
           </p>
           <h2 className="mt-3 font-display text-2xl text-cream sm:text-3xl">
-            Teach top-down. Install bottom-up. Run it as one loop.
+            {isCircleExperience
+              ? "Teach top-down. Install bottom-up. Run it as one loop."
+              : "Use the system now. Join the room when you want pressure."}
           </h2>
           <p className="mt-3 text-[14px] leading-relaxed text-cream/70">
-            The ALP Handbook teaches the doctrine. Contractor Circle installs it. AOS runs the
-            company. OverWatch controls the projects.
+            {isCircleExperience
+              ? "The ALP Handbook teaches the doctrine. Contractor Circle installs it. AOS runs the company. OverWatch controls the projects."
+              : "The ALP Handbook teaches the doctrine. AOS runs the company. IOR controls the projects. Contractor Circle adds the calls, community, and direct pressure to install it faster."}
           </p>
         </div>
         <Link
-          to="/operating-playbook"
+          to={isCircleExperience ? "/operating-playbook" : "/upgrade"}
           className="inline-flex shrink-0 items-center gap-2 self-start rounded-md bg-cream px-5 py-3 text-[13px] font-medium text-ink hover:opacity-90 sm:self-auto"
         >
-          Open the operating playbook <ArrowRight className="h-3.5 w-3.5" />
+          {isCircleExperience ? "Open the operating playbook" : "Explore Contractor Circle"}{" "}
+          <ArrowRight className="h-3.5 w-3.5" />
         </Link>
       </section>
     </Container>

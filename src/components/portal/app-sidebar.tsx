@@ -197,13 +197,14 @@ const HARDCORE_REAL: Group = {
   items: [{ to: "/hardcore", label: "Hardcore Room", icon: Flame }],
 };
 
-// Book Buyer (ALP Handbook tier): Handbook + AOS + Ask Marshall + Tools + Vault.
+// Book Buyer (ALP Handbook tier): Start Here + Handbook + AOS + IOR + Ask + Tools + Vault.
 // Locked out of Circle calls, templates, replays, community, hardcore.
 const BOOK_BUYER_GROUPS: Group[] = [
   {
     label: "Daily",
     items: [
       { to: "/", label: "Home", icon: Home },
+      { to: "/start-here", label: "Start Here", icon: CirclePlay },
       { to: "/handbook", label: "Handbook", icon: BookOpen },
       {
         to: "/tools/cos-navigator",
@@ -239,6 +240,7 @@ const INTENSIVE_GROUPS: Group[] = [
     label: "Your tools",
     items: [
       { to: "/", label: "Home", icon: Home },
+      { to: "/start-here", label: "Start Here", icon: CirclePlay },
       { to: "/handbook", label: "Handbook", icon: BookOpen },
       {
         to: "/tools/cos-navigator",
