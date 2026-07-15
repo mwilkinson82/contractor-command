@@ -41,7 +41,11 @@ const tocData: TocSection[] = [
       { id: "volume-2-intro", title: "Why the Operating System" },
       { id: "chapter-27", chapter: "4", title: "A Contracting Company Cannot Run on the Owner" },
       { id: "chapter-28", chapter: "5", title: "Hierarchy Is Not Accountability" },
-      { id: "chapter-29", chapter: "6", title: "The Six Components of a Contracting Operating System" },
+      {
+        id: "chapter-29",
+        chapter: "6",
+        title: "The Six Components of a Contracting Operating System",
+      },
       { id: "chapter-30", chapter: "7", title: "Weekly Execution Is Where the Company Is Won" },
       { id: "chapter-31", chapter: "8", title: "Systems Remove Personality from the Business" },
       { id: "chapter-32", chapter: "9", title: "Why AOS Belongs in an Application" },
@@ -49,6 +53,18 @@ const tocData: TocSection[] = [
   },
   {
     part: "III",
+    title: "The Professional Contractor Field Guide",
+    eyebrow: "New",
+    items: [
+      {
+        id: "professional-contractor-field-guide",
+        title: "The Professional Contractor Control Loop",
+        badge: "New",
+      },
+    ],
+  },
+  {
+    part: "IV",
     title: "The Business Systems",
     eyebrow: "Reorganized in V2",
     items: [
@@ -60,31 +76,43 @@ const tocData: TocSection[] = [
     ],
   },
   {
-    part: "IV",
+    part: "V",
     title: "Time, Money, and Commercial Control",
     eyebrow: "Reorganized in V2",
     items: [
       { id: "chapter-12", chapter: "15", title: "Documentation, Entitlement, and Proof" },
       { id: "chapter-13", chapter: "16", title: "Notices & Playing Offense" },
-      { id: "chapter-14", chapter: "17", title: "Scheduling, Start–Stop Work, and the Cost of Disorder" },
-      { id: "chapter-8", chapter: "18", title: "General Conditions: From Invisible Cost to Profit Center" },
+      {
+        id: "chapter-14",
+        chapter: "17",
+        title: "Scheduling, Start–Stop Work, and the Cost of Disorder",
+      },
+      {
+        id: "chapter-8",
+        chapter: "18",
+        title: "General Conditions: From Invisible Cost to Profit Center",
+      },
       { id: "chapter-19", chapter: "19", title: "Change Order Velocity and Monetizing Disruption" },
       { id: "chapter-16", chapter: "20", title: "Financial Command and Financial Authority" },
       { id: "chapter-9", chapter: "21", title: "The ALP Decision Matrix" },
     ],
   },
   {
-    part: "V",
+    part: "VI",
     title: "Identity, Leadership, and Scale",
     eyebrow: "Reorganized in V2",
     items: [
-      { id: "chapter-23", chapter: "22", title: "Identity, Pressure, and the Entrepreneur's Responsibility" },
+      {
+        id: "chapter-23",
+        chapter: "22",
+        title: "Identity, Pressure, and the Entrepreneur's Responsibility",
+      },
       { id: "chapter-26", chapter: "23", title: "Leadership, Standards, and Cultural Enforcement" },
       { id: "chapter-25", chapter: "24", title: "Scaling Without Losing Control" },
     ],
   },
   {
-    part: "VI",
+    part: "VII",
     title: "Real-Time Application & Commitment",
     eyebrow: "Reorganized in V2",
     items: [
@@ -115,7 +143,9 @@ const TableOfContents: React.FC<TableOfContentsProps> = ({ onNavigate }) => {
           <div key={sectionIndex} className="mb-2">
             {section.part ? (
               <div className="toc-part flex items-baseline gap-3 flex-wrap">
-                <span>Part {section.part} — {section.title}</span>
+                <span>
+                  Part {section.part} — {section.title}
+                </span>
                 {section.eyebrow && (
                   <Eyebrow accent bare className="text-[10px]">
                     {section.eyebrow}

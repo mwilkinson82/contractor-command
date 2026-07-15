@@ -1,36 +1,51 @@
-import React from 'react';
-import bulldozer from '@/assets/handbook/bulldozer-hero.webp';
-import Eyebrow from '@/components/editorial/Eyebrow';
+import React from "react";
+import bulldozer from "@/assets/handbook/bulldozer-hero.webp";
+import Eyebrow from "@/components/editorial/Eyebrow";
 
 type Jump = { id: string; chapter?: string; title: string; featured?: boolean };
 
 const newInV2: Jump[] = [
-  { id: 'volume-2-intro', chapter: 'Start', title: 'Why the Operating System', featured: true },
-  { id: 'chapter-27', chapter: '4', title: 'A Contracting Company Cannot Run on the Owner' },
-  { id: 'chapter-28', chapter: '5', title: 'Hierarchy Is Not Accountability' },
-  { id: 'chapter-29', chapter: '6', title: 'The Six Components of a Contracting Operating System' },
-  { id: 'chapter-30', chapter: '7', title: 'Weekly Execution Is Where the Company Is Won' },
-  { id: 'chapter-31', chapter: '8', title: 'Systems Remove Personality from the Business' },
-  { id: 'chapter-32', chapter: '9', title: 'Why AOS Belongs in an Application' },
+  { id: "volume-2-intro", chapter: "Start", title: "Why the Operating System", featured: true },
+  { id: "chapter-27", chapter: "4", title: "A Contracting Company Cannot Run on the Owner" },
+  { id: "chapter-28", chapter: "5", title: "Hierarchy Is Not Accountability" },
+  { id: "chapter-29", chapter: "6", title: "The Six Components of a Contracting Operating System" },
+  { id: "chapter-30", chapter: "7", title: "Weekly Execution Is Where the Company Is Won" },
+  { id: "chapter-31", chapter: "8", title: "Systems Remove Personality from the Business" },
+  { id: "chapter-32", chapter: "9", title: "Why AOS Belongs in an Application" },
 ];
 
+const professionalContractorFieldGuide: Jump = {
+  id: "professional-contractor-field-guide",
+  chapter: "New",
+  title: "The Professional Contractor Control Loop",
+  featured: true,
+};
+
 const reorganized: Jump[] = [
-  { id: 'chapter-7', chapter: '13', title: 'Operations as Margin Protection' },
-  { id: 'chapter-13', chapter: '16', title: 'Notices & Playing Offense' },
-  { id: 'chapter-14', chapter: '17', title: 'Scheduling, Start–Stop Work, and the Cost of Disorder' },
-  { id: 'chapter-8', chapter: '18', title: 'General Conditions: From Invisible Cost to Profit Center' },
-  { id: 'chapter-16', chapter: '20', title: 'Financial Command and Financial Authority' },
-  { id: 'chapter-9', chapter: '21', title: 'The ALP Decision Matrix' },
+  { id: "chapter-7", chapter: "13", title: "Operations as Margin Protection" },
+  { id: "chapter-13", chapter: "16", title: "Notices & Playing Offense" },
+  {
+    id: "chapter-14",
+    chapter: "17",
+    title: "Scheduling, Start–Stop Work, and the Cost of Disorder",
+  },
+  {
+    id: "chapter-8",
+    chapter: "18",
+    title: "General Conditions: From Invisible Cost to Profit Center",
+  },
+  { id: "chapter-16", chapter: "20", title: "Financial Command and Financial Authority" },
+  { id: "chapter-9", chapter: "21", title: "The ALP Decision Matrix" },
 ];
 
 const updated: Jump[] = [
-  { id: 'foreword', title: 'Foreword / Author\u2019s Note' },
-  { id: 'how-to-use', title: 'How to Use This Handbook' },
+  { id: "foreword", title: "Foreword / Author\u2019s Note" },
+  { id: "how-to-use", title: "How to Use This Handbook" },
 ];
 
 const scrollTo = (id: string) => {
   const el = document.getElementById(id);
-  if (el) el.scrollIntoView({ behavior: 'smooth' });
+  if (el) el.scrollIntoView({ behavior: "smooth" });
 };
 
 const JumpButton: React.FC<{ item: Jump }> = ({ item }) => (
@@ -52,7 +67,14 @@ const JumpButton: React.FC<{ item: Jump }> = ({ item }) => (
           }
         >
           {item.featured ? (
-            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+            >
               <path d="M12 2l2.39 7.36H22l-6.18 4.49L18.18 21 12 16.5 5.82 21l2.36-7.15L2 9.36h7.61z" />
             </svg>
           ) : (
@@ -89,7 +111,7 @@ const HeroSection: React.FC = () => {
             fetchPriority="high"
             decoding="async"
             className="block ml-auto h-auto w-full max-w-[560px] md:max-w-[640px] lg:max-w-[720px] select-none pointer-events-none"
-            style={{ mixBlendMode: 'multiply' }}
+            style={{ mixBlendMode: "multiply" }}
           />
         </div>
 
@@ -98,11 +120,12 @@ const HeroSection: React.FC = () => {
           className="mt-10 md:mt-12 font-serif leading-[0.95]"
           style={{
             fontWeight: 400,
-            letterSpacing: '-0.03em',
-            fontSize: 'clamp(2.75rem, 7.5vw, 5.75rem)',
+            letterSpacing: "-0.03em",
+            fontSize: "clamp(2.75rem, 7.5vw, 5.75rem)",
           }}
         >
-          Build the company<br />
+          Build the company
+          <br />
           behind the projects.
         </h1>
 
@@ -140,7 +163,7 @@ const HeroSection: React.FC = () => {
             The ALP Handbook
           </span>
           <span className="font-mono text-[10px] uppercase tracking-[0.32em] opacity-50">
-            Second Edition · AOS
+            Second Edition · AOS + OverWatch
           </span>
         </div>
       </section>
@@ -148,16 +171,35 @@ const HeroSection: React.FC = () => {
       {/* === Quick-read updates === */}
       <section className="mt-28">
         <div className="flex items-baseline justify-between gap-6 flex-wrap mb-2">
+          <Eyebrow accent>New — Professional Contractor Field Guide</Eyebrow>
+          <span className="font-mono text-[10px] uppercase tracking-[0.25em] opacity-50">
+            Part III
+          </span>
+        </div>
+        <p className="body-text max-w-2xl opacity-75 mb-8">
+          See how AOS, OverWatch / IOR, Daily Logs, and Daily Project WIP operate as one
+          company-to-field control loop.
+        </p>
+        <div className="max-w-2xl">
+          <JumpButton item={professionalContractorFieldGuide} />
+        </div>
+      </section>
+
+      <section className="mt-16">
+        <div className="flex items-baseline justify-between gap-6 flex-wrap mb-2">
           <Eyebrow accent>New in V2 — The Operating System</Eyebrow>
           <span className="font-mono text-[10px] uppercase tracking-[0.25em] opacity-50">
             Part II · 7 entries
           </span>
         </div>
         <p className="body-text max-w-2xl opacity-75 mb-8">
-          Volume 2 introduces <strong>AOS</strong> — the operating system a contracting company runs on once it outgrows the owner. Jump straight to what's new.
+          Volume 2 introduces <strong>AOS</strong> — the operating system a contracting company runs
+          on once it outgrows the owner. Jump straight to what's new.
         </p>
         <div className="grid sm:grid-cols-2 gap-3">
-          {newInV2.map((item) => <JumpButton key={item.id} item={item} />)}
+          {newInV2.map((item) => (
+            <JumpButton key={item.id} item={item} />
+          ))}
         </div>
       </section>
 
@@ -169,19 +211,33 @@ const HeroSection: React.FC = () => {
           </span>
         </div>
         <div className="grid sm:grid-cols-2 gap-3">
-          {reorganized.map((item) => <JumpButton key={item.id} item={item} />)}
+          {reorganized.map((item) => (
+            <JumpButton key={item.id} item={item} />
+          ))}
         </div>
       </section>
 
       <section className="mt-16">
         <Eyebrow className="mb-6">Updated front matter</Eyebrow>
         <div className="grid sm:grid-cols-2 gap-3">
-          {updated.map((item) => <JumpButton key={item.id} item={item} />)}
+          {updated.map((item) => (
+            <JumpButton key={item.id} item={item} />
+          ))}
         </div>
       </section>
 
       <div className="mt-20 flex justify-center animate-bounce opacity-30">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <path d="M12 5v14M19 12l-7 7-7-7" />
         </svg>
       </div>
