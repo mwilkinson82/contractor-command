@@ -236,11 +236,11 @@ function RootComponent() {
           {(showShell) =>
             showShell ? (
               <AppSidebarProvider>
-                <div className="bg-background text-foreground">
+                <div className="min-w-0 max-w-full overflow-x-clip bg-background text-foreground">
                   <AppSidebar />
                   <SidebarInset>
                     <TopStrip />
-                    <main>
+                    <main className="min-w-0 max-w-full overflow-x-clip">
                       <Outlet />
                     </main>
                   </SidebarInset>

@@ -508,7 +508,7 @@ export function SidebarInset({ children }: { children: ReactNode }) {
   const { collapsed } = useAppSidebar();
   return (
     <div
-      className="min-h-screen transition-[padding] duration-300 ease-[cubic-bezier(.2,.7,.2,1)] md:!pl-[var(--sb-w)]"
+      className="min-h-screen min-w-0 w-full max-w-full overflow-x-clip transition-[padding] duration-300 ease-[cubic-bezier(.2,.7,.2,1)] md:!pl-[var(--sb-w)]"
       style={
         {
           ["--sb-w" as string]: collapsed ? "84px" : "240px",

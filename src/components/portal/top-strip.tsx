@@ -28,7 +28,7 @@ export function TopStrip() {
   const isScheduler = pathname.startsWith("/scheduler");
 
   const rightCluster = (
-    <div className="flex items-center gap-1.5 sm:gap-2">
+    <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
       <Link
         to="/ask"
         className="group inline-flex items-center gap-1.5 rounded-full bg-ink px-3 sm:px-3.5 py-1.5 text-cream shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md"
@@ -52,10 +52,7 @@ export function TopStrip() {
           {remaining ?? "—"}
           <span className="text-muted-foreground">/{limit}</span>
         </span>
-        <span
-          className="italic text-muted-foreground"
-          style={{ fontFamily: "var(--font-serif)" }}
-        >
+        <span className="italic text-muted-foreground" style={{ fontFamily: "var(--font-serif)" }}>
           today
         </span>
       </Link>
@@ -64,14 +61,16 @@ export function TopStrip() {
         to="/account"
         className="flex items-center gap-2 rounded-full border border-border bg-card px-2 sm:px-2.5 py-1 text-[11px] hover:bg-muted"
       >
-        <span className="grid h-6 w-6 place-items-center rounded-full bg-ink text-[10px] font-medium text-cream">M</span>
+        <span className="grid h-6 w-6 place-items-center rounded-full bg-ink text-[10px] font-medium text-cream">
+          M
+        </span>
         <span className="hidden sm:inline text-foreground/80">Marshall</span>
       </Link>
     </div>
   );
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 sm:gap-4 border-b border-border bg-background px-3 sm:px-6">
+    <header className="sticky top-0 z-30 flex h-14 min-w-0 max-w-full items-center justify-between gap-2 overflow-hidden border-b border-border bg-background px-3 sm:gap-4 sm:px-6">
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         {/* Mobile menu */}
         <button

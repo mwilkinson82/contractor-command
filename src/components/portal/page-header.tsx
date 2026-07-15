@@ -23,6 +23,18 @@ export function PageHeader({
   );
 }
 
-export function Container({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`mx-auto w-full max-w-[1180px] px-6 py-12 sm:py-16 ${className}`}>{children}</div>;
+export function Container({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`mx-auto min-w-0 w-full max-w-[1180px] px-4 py-12 sm:px-6 sm:py-16 ${className}`}
+    >
+      {children}
+    </div>
+  );
 }

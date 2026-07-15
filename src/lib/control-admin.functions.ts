@@ -28,6 +28,7 @@ export type MemberControlRow = {
   assessmentStartedAt: string | null;
   baselineSavedAt: string | null;
   latestBaselineId: string | null;
+  baselineState: "missing" | "needs_refresh" | "current";
   score: number | null;
   primaryCategory: string | null;
   primaryConstraint: string | null;
@@ -131,6 +132,11 @@ export const listMemberControl = createServerFn({ method: "GET" })
         const payload = (packet?.payload ?? {}) as Record<string, unknown>;
         const inputs = (payload.inputs ?? {}) as Record<string, unknown>;
         const plan = payload.controlPlan as ControlPlan | undefined;
+        const baselineState: MemberControlRow["baselineState"] = plan
+          ? "current"
+          : packet || progress?.baseline_saved_at
+            ? "needs_refresh"
+            : "missing";
         const planProgress = controlPlanProgress(plan);
         const weeklyReview = latestWeeklyControlReview(plan);
         const planStartedAt = progress?.plan_started_at ?? null;
@@ -143,6 +149,7 @@ export const listMemberControl = createServerFn({ method: "GET" })
           assessmentStartedAt: progress?.assessment_started_at ?? null,
           baselineSavedAt: progress?.baseline_saved_at ?? packet?.created_at ?? null,
           latestBaselineId: progress?.latest_baseline_id ?? packet?.id ?? null,
+          baselineState,
           score:
             progress?.latest_score ??
             (typeof inputs.totalScore === "number" ? inputs.totalScore : null),
@@ -175,15 +182,19 @@ export const listMemberControl = createServerFn({ method: "GET" })
       .filter((row): row is MemberControlRow => row !== null)
       .sort((left, right) => {
         const leftAttention =
-          Number(left.weeklyNeedsPressure) * 4 +
-          Number(left.weeklyBlocked) * 3 +
-          Number(left.reassessmentDue) * 2 +
-          Number(Boolean(left.planStartedAt) && !left.weeklyCurrent);
+          Number(left.weeklyNeedsPressure) * 8 +
+          Number(left.weeklyBlocked) * 7 +
+          Number(left.reassessmentDue) * 6 +
+          Number(Boolean(left.planStartedAt) && !left.weeklyCurrent) * 5 +
+          Number(left.baselineState !== "current") * 4 +
+          Number(left.baselineState === "current" && !left.planStartedAt) * 3;
         const rightAttention =
-          Number(right.weeklyNeedsPressure) * 4 +
-          Number(right.weeklyBlocked) * 3 +
-          Number(right.reassessmentDue) * 2 +
-          Number(Boolean(right.planStartedAt) && !right.weeklyCurrent);
+          Number(right.weeklyNeedsPressure) * 8 +
+          Number(right.weeklyBlocked) * 7 +
+          Number(right.reassessmentDue) * 6 +
+          Number(Boolean(right.planStartedAt) && !right.weeklyCurrent) * 5 +
+          Number(right.baselineState !== "current") * 4 +
+          Number(right.baselineState === "current" && !right.planStartedAt) * 3;
         if (leftAttention !== rightAttention) return rightAttention - leftAttention;
         const leftAt = left.planUpdatedAt ?? left.baselineSavedAt ?? left.assessmentStartedAt ?? "";
         const rightAt =
