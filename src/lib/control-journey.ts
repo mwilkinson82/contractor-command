@@ -37,6 +37,7 @@ export type ControlJourneyAction = {
 
 export type ControlJourney = {
   phase: string;
+  legacyBaseline: boolean;
   completedControls: number;
   totalControls: number;
   score: number | null;
@@ -75,10 +76,12 @@ export function buildControlJourney(
   progress: MemberControlProgress | null | undefined,
   plan: ControlPlan | undefined,
   now = new Date(),
+  legacyBaselineAt?: string | null,
 ): ControlJourney {
   const orientationComplete = Boolean(progress?.orientation_opened_at);
   const assessmentComplete = Boolean(progress?.assessment_started_at);
   const baselineComplete = Boolean(progress?.baseline_saved_at);
+  const legacyBaseline = Boolean(legacyBaselineAt && !baselineComplete);
   const planStarted = Boolean(progress?.plan_started_at && progress.latest_baseline_id && plan);
   const weeklyCurrent = planStarted && isCurrentWeeklyUpdate(progress?.plan_updated_at, now);
   const reviewDate = plan?.reviewDate ?? null;
@@ -101,6 +104,14 @@ export function buildControlJourney(
       label: "Start orientation",
       detail: "Watch the Professional Contractor Control Loop, then establish the baseline.",
       destination: { route: "orientation" },
+    };
+  } else if (legacyBaseline && !assessmentComplete) {
+    phase = "Baseline needs refresh";
+    nextAction = {
+      label: "Refresh State of Control",
+      detail:
+        "Your earlier assessment predates the live 90-day plan. Rerun it to establish the current baseline and route.",
+      destination: { route: "assessment" },
     };
   } else if (!assessmentComplete) {
     phase = "Baseline not started";
@@ -156,6 +167,7 @@ export function buildControlJourney(
 
   return {
     phase,
+    legacyBaseline,
     completedControls,
     totalControls: 5,
     score: progress?.latest_score ?? null,
@@ -177,9 +189,17 @@ export function buildControlJourney(
       {
         id: "assessment",
         title: "State of Control",
-        detail: "Score what is true now and expose the active constraint.",
+        detail: legacyBaseline
+          ? "Refresh the earlier assessment and generate the live 90-day route."
+          : "Score what is true now and expose the active constraint.",
         status: status(assessmentComplete, orientationComplete),
-        statusLabel: assessmentComplete ? "Started" : orientationComplete ? "Next" : "Pending",
+        statusLabel: assessmentComplete
+          ? "Started"
+          : legacyBaseline && orientationComplete
+            ? "Refresh"
+            : orientationComplete
+              ? "Next"
+              : "Pending",
       },
       {
         id: "baseline",
