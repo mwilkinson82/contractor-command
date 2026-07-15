@@ -13,10 +13,20 @@ export const Route = createFileRoute("/admin/control")({
   component: MemberControlPage,
 });
 
-type ControlFilter = "all" | "current" | "stale" | "blocked" | "pressure" | "reassess";
+type ControlFilter =
+  | "all"
+  | "baseline"
+  | "plan_not_started"
+  | "current"
+  | "stale"
+  | "blocked"
+  | "pressure"
+  | "reassess";
 
 const filterLabels: Record<ControlFilter, string> = {
   all: "All members",
+  baseline: "Needs baseline",
+  plan_not_started: "Plan not started",
   current: "Current",
   stale: "Weekly review due",
   blocked: "Blocked",
@@ -64,6 +74,10 @@ function MemberControlPage() {
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(needle));
       if (!matchesQuery) return false;
+      if (filter === "baseline") return row.baselineState !== "current";
+      if (filter === "plan_not_started") {
+        return row.baselineState === "current" && !row.planStartedAt;
+      }
       if (filter === "current") return row.weeklyCurrent;
       if (filter === "stale") return Boolean(row.planStartedAt) && !row.weeklyCurrent;
       if (filter === "blocked") return row.weeklyBlocked || row.planState === "blocked";
@@ -75,6 +89,9 @@ function MemberControlPage() {
 
   const metrics = useMemo(
     () => ({
+      baseline: rows.filter((row) => row.baselineState !== "current").length,
+      planNotStarted: rows.filter((row) => row.baselineState === "current" && !row.planStartedAt)
+        .length,
       current: rows.filter((row) => row.weeklyCurrent).length,
       stale: rows.filter((row) => row.planStartedAt && !row.weeklyCurrent).length,
       blocked: rows.filter((row) => row.weeklyBlocked || row.planState === "blocked").length,
@@ -92,7 +109,7 @@ function MemberControlPage() {
   if (isAdmin === false) return null;
 
   return (
-    <Container className="py-10">
+    <Container className="py-8 sm:py-10">
       <Link
         to="/admin"
         className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
@@ -102,44 +119,66 @@ function MemberControlPage() {
       <div className="mt-5 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-6">
         <div>
           <p className="label-mono">Admin · Professional Contractor Control</p>
-          <h1 className="mt-2 font-display text-4xl">Weekly Control Room</h1>
+          <h1 className="mt-2 font-display text-3xl sm:text-4xl">Weekly Control Room</h1>
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
             See who is on rhythm, what is blocked, which constraints need pressure, and who is due
-            to establish the next 90-day baseline. {rows.length} eligible members are in view.
+            to establish the next 90-day baseline.{" "}
+            {isLoading
+              ? "Loading eligible members…"
+              : `${rows.length} eligible members are in view.`}
           </p>
         </div>
         <ShieldCheck className="h-8 w-8 text-clay" />
       </div>
 
-      <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        <Metric
+          label="Needs baseline"
+          value={isLoading ? null : metrics.baseline}
+          active={filter === "baseline"}
+          disabled={isLoading}
+          onClick={() => setFilter(filter === "baseline" ? "all" : "baseline")}
+        />
+        <Metric
+          label="Plan not started"
+          value={isLoading ? null : metrics.planNotStarted}
+          active={filter === "plan_not_started"}
+          disabled={isLoading}
+          onClick={() => setFilter(filter === "plan_not_started" ? "all" : "plan_not_started")}
+        />
         <Metric
           label="Current this week"
-          value={metrics.current}
+          value={isLoading ? null : metrics.current}
           active={filter === "current"}
+          disabled={isLoading}
           onClick={() => setFilter(filter === "current" ? "all" : "current")}
         />
         <Metric
           label="Weekly review due"
-          value={metrics.stale}
+          value={isLoading ? null : metrics.stale}
           active={filter === "stale"}
+          disabled={isLoading}
           onClick={() => setFilter(filter === "stale" ? "all" : "stale")}
         />
         <Metric
           label="Blocked"
-          value={metrics.blocked}
+          value={isLoading ? null : metrics.blocked}
           active={filter === "blocked"}
+          disabled={isLoading}
           onClick={() => setFilter(filter === "blocked" ? "all" : "blocked")}
         />
         <Metric
           label="Needs pressure"
-          value={metrics.pressure}
+          value={isLoading ? null : metrics.pressure}
           active={filter === "pressure"}
+          disabled={isLoading}
           onClick={() => setFilter(filter === "pressure" ? "all" : "pressure")}
         />
         <Metric
           label="Reassessment due"
-          value={metrics.reassess}
+          value={isLoading ? null : metrics.reassess}
           active={filter === "reassess"}
+          disabled={isLoading}
           onClick={() => setFilter(filter === "reassess" ? "all" : "reassess")}
         />
       </section>
@@ -154,7 +193,9 @@ function MemberControlPage() {
           </div>
           <span className="text-xs text-cream/45">Latest member reviews</span>
         </div>
-        {pressureList.length ? (
+        {isLoading ? (
+          <p className="p-5 text-sm text-cream/55">Loading weekly review signals…</p>
+        ) : pressureList.length ? (
           <div className="grid divide-y divide-cream/10 lg:grid-cols-2 lg:divide-x lg:divide-y-0">
             {pressureList.map((row) => (
               <div key={row.userId} className="flex items-start justify-between gap-4 p-5">
@@ -218,28 +259,38 @@ function MemberControlPage() {
           </p>
         ) : null}
         {!isLoading && !error ? (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1100px] text-left text-xs">
-              <thead className="bg-muted/50 text-muted-foreground">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Member</th>
-                  <th className="px-4 py-3 font-medium">State of Control</th>
-                  <th className="px-4 py-3 font-medium">90-day plan</th>
-                  <th className="px-4 py-3 font-medium">Weekly control</th>
-                  <th className="px-4 py-3 font-medium">Next owned action</th>
-                  <th className="px-4 py-3 font-medium">Follow-up</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filtered.map((row) => (
-                  <MemberRow key={row.userId} row={row} />
-                ))}
-              </tbody>
-            </table>
-            {!filtered.length ? (
-              <p className="p-6 text-sm text-muted-foreground">No members match this view.</p>
-            ) : null}
-          </div>
+          <>
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[1100px] text-left text-xs">
+                <thead className="bg-muted/50 text-muted-foreground">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Member</th>
+                    <th className="px-4 py-3 font-medium">State of Control</th>
+                    <th className="px-4 py-3 font-medium">90-day plan</th>
+                    <th className="px-4 py-3 font-medium">Weekly control</th>
+                    <th className="px-4 py-3 font-medium">Next owned action</th>
+                    <th className="px-4 py-3 font-medium">Follow-up</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filtered.map((row) => (
+                    <MemberRow key={row.userId} row={row} />
+                  ))}
+                </tbody>
+              </table>
+              {!filtered.length ? (
+                <p className="p-6 text-sm text-muted-foreground">No members match this view.</p>
+              ) : null}
+            </div>
+            <div className="divide-y divide-border md:hidden">
+              {filtered.map((row) => (
+                <MemberCard key={row.userId} row={row} />
+              ))}
+              {!filtered.length ? (
+                <p className="p-5 text-sm text-muted-foreground">No members match this view.</p>
+              ) : null}
+            </div>
+          </>
         ) : null}
       </section>
     </Container>
@@ -250,24 +301,27 @@ function Metric({
   label,
   value,
   active,
+  disabled,
   onClick,
 }: {
   label: string;
-  value: number;
+  value: number | null;
   active: boolean;
+  disabled: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       aria-pressed={active}
+      disabled={disabled}
       onClick={onClick}
-      className={`rounded-2xl border p-4 text-left transition-colors ${
+      className={`rounded-2xl border p-4 text-left transition-colors disabled:cursor-wait disabled:opacity-65 ${
         active ? "border-ink bg-ink text-cream" : "border-border bg-card hover:border-foreground/25"
       }`}
     >
       <p className={active ? "label-mono text-cream/55" : "label-mono"}>{label}</p>
-      <p className="mt-3 font-display text-3xl">{value}</p>
+      <p className="mt-3 font-display text-3xl">{value ?? "—"}</p>
     </button>
   );
 }
@@ -281,12 +335,15 @@ function MemberRow({ row }: { row: MemberControlRow }) {
         <p className="mt-1 capitalize text-muted-foreground">{row.tier.replaceAll("_", " ")}</p>
       </td>
       <td className="px-4 py-4">
-        {row.score === null ? (
+        {row.baselineState === "missing" ? (
           <span className="text-muted-foreground">No baseline</span>
         ) : (
           <>
-            <p className="font-display text-xl">{row.score}/100</p>
+            <p className="font-display text-xl">{row.score === null ? "—" : `${row.score}/100`}</p>
             <p className="mt-1 max-w-48 text-muted-foreground">{row.primaryConstraint}</p>
+            {row.baselineState === "needs_refresh" ? (
+              <StatusBadge label="Refresh baseline" tone="attention" />
+            ) : null}
           </>
         )}
       </td>
@@ -328,6 +385,62 @@ function MemberRow({ row }: { row: MemberControlRow }) {
         <CopyNudgeButton row={row} />
       </td>
     </tr>
+  );
+}
+
+function MemberCard({ row }: { row: MemberControlRow }) {
+  const baselineLabel =
+    row.baselineState === "missing"
+      ? "No baseline"
+      : row.baselineState === "needs_refresh"
+        ? "Refresh baseline"
+        : row.score === null
+          ? "Current baseline"
+          : `${row.score}/100`;
+  return (
+    <article className="p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="truncate text-sm font-medium">{row.fullName || row.email}</h3>
+          <p className="mt-1 truncate text-xs text-muted-foreground">{row.email}</p>
+        </div>
+        <span className="shrink-0 text-[10px] capitalize text-muted-foreground">
+          {row.tier.replaceAll("_", " ")}
+        </span>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+        <MobileSignal label="Baseline" value={baselineLabel} />
+        <MobileSignal
+          label="90-day plan"
+          value={`${row.planState.replaceAll("_", " ")} · ${row.planPercent}%`}
+        />
+        <MobileSignal
+          label="Weekly control"
+          value={row.weeklyCurrent ? "Current" : row.planStartedAt ? "Due" : "Not started"}
+        />
+        <MobileSignal label="Next owner" value={row.weeklyNextOwner || "Not established"} />
+      </div>
+      {row.primaryConstraint ? (
+        <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+          Constraint: {row.primaryConstraint}
+        </p>
+      ) : null}
+      {row.weeklyNextAction ? (
+        <p className="mt-2 text-xs leading-relaxed">Next: {row.weeklyNextAction}</p>
+      ) : null}
+      <div className="mt-4">
+        <CopyNudgeButton row={row} />
+      </div>
+    </article>
+  );
+}
+
+function MobileSignal({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-muted/60 p-3">
+      <p className="label-mono">{label}</p>
+      <p className="mt-1.5 capitalize leading-snug text-foreground">{value}</p>
+    </div>
   );
 }
 
@@ -389,8 +502,14 @@ function buildNudge(row: MemberControlRow) {
   if (row.planStartedAt && !row.weeklyCurrent) {
     return `Hey ${name} — your Weekly Control Review is due in the Hub. Take five minutes to record what moved, what is blocked, the next owned action, and any pressure you need from the group.`;
   }
-  if (!row.baselineSavedAt) {
+  if (row.baselineState === "missing") {
     return `Hey ${name} — your State of Control baseline is still open. Run the assessment in Start Here so the Hub can build your personalized 90-day control plan.`;
+  }
+  if (row.baselineState === "needs_refresh") {
+    return `Hey ${name} — your earlier State of Control baseline predates the live 90-day plan. Rerun the assessment in Start Here so the Hub can build your current implementation route.`;
+  }
+  if (!row.planStartedAt) {
+    return `Hey ${name} — your 90-day control plan is ready in the Hub but has not been started. Open it, confirm the first owned action, and establish this week's control rhythm.`;
   }
   return `Hey ${name} — your Control Journey is current. Keep pressure on ${row.primaryConstraint || "the active constraint"} and update the next owned action in this week’s review.${next}`;
 }
