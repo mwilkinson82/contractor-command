@@ -41,6 +41,7 @@ export const Route = createFileRoute("/start-here")({
 function StartHerePage() {
   const { tier, loading: tierLoading } = useTier();
   const isCircleExperience = startHereExperience(tier) === "circle";
+  const isBookBuyer = tier === "book_buyer";
 
   useEffect(() => {
     void markControlProgress({ orientation_opened_at: new Date().toISOString() });
@@ -282,10 +283,13 @@ function StartHerePage() {
               <FirstMove
                 icon={<Eye className="h-4 w-4" />}
                 step="04"
-                title="Open IOR"
-                body="Manage project forecast, schedule, billing, cost, and risk while the outcome can change."
-                href="https://overwatch.alpcontractorcircle.com"
-                external
+                title={isBookBuyer ? "Open OverWatch Free" : "Open OverWatch"}
+                body={
+                  isBookBuyer
+                    ? "Handbook buyers can use OverWatch Free to manage one real project through forecast, schedule, billing, cost, and risk."
+                    : "Manage project forecast, schedule, billing, cost, and risk while the outcome can change."
+                }
+                href="/overwatch"
               />
             </>
           )}

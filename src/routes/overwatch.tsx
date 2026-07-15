@@ -7,15 +7,17 @@ import {
   ClipboardList,
   ShieldCheck,
 } from "lucide-react";
+import { useTier } from "@/hooks/use-tier";
+import { startHereExperience } from "@/lib/start-here-access";
 
 export const Route = createFileRoute("/overwatch")({
   head: () => ({
     meta: [
-      { title: "Overwatch - IOR for Contractor Circle" },
+      { title: "OverWatch - IOR Project Control" },
       {
         name: "description",
         content:
-          "Open Overwatch, the IOR operating record for schedule, risk, billing, and indicated gross profit.",
+          "Open OverWatch Free or included Contractor Circle access for schedule, risk, billing, and indicated gross profit.",
       },
     ],
   }),
@@ -58,6 +60,9 @@ const ledgerRows = [
 ];
 
 function OverwatchGateway() {
+  const { tier } = useTier();
+  const isCircleExperience = startHereExperience(tier) === "circle";
+
   return (
     <main className="-m-4 min-h-[calc(100svh-4rem)] overflow-x-hidden bg-cream text-ink sm:-m-6 md:-m-8">
       <section className="mx-auto w-full max-w-[1500px] px-5 py-6 sm:px-8 sm:py-8">
@@ -66,7 +71,9 @@ function OverwatchGateway() {
             <div className="px-6 py-8 sm:px-10 sm:py-10 lg:px-14 lg:py-14 xl:px-16">
               <p className="text-[11px] font-mono font-semibold uppercase tracking-[0.34em] text-clay">
                 <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-clay align-middle" />
-                Overwatch / Indicated Outcome Reports
+                {isCircleExperience
+                  ? "OverWatch / Indicated Outcome Reports"
+                  : "OverWatch Free / Indicated Outcome Reports"}
               </p>
               <h1 className="mt-8 max-w-3xl font-display text-[clamp(3.25rem,8vw,6.4rem)] font-normal leading-[0.92] tracking-[-0.02em]">
                 Run the job through the money.
@@ -77,6 +84,12 @@ function OverwatchGateway() {
                 place so the meeting starts with what the job is actually telling you.
               </p>
 
+              <p className="mt-5 max-w-2xl border-l-2 border-clay pl-4 text-[13px] leading-relaxed text-foreground/70">
+                {isCircleExperience
+                  ? "Contractor Circle and Hardcore members receive OverWatch Pro access with membership."
+                  : "Handbook buyers can use OverWatch Free on one real project, with two internal seats, before deciding whether to upgrade."}
+              </p>
+
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <a
                   href={OVERWATCH_LOGIN_URL}
@@ -84,11 +97,11 @@ function OverwatchGateway() {
                   rel="noreferrer"
                   className="inline-flex h-12 items-center justify-center gap-3 bg-ink px-8 text-[11px] font-mono font-semibold uppercase tracking-[0.24em] text-cream transition-colors hover:bg-ink-panel"
                 >
-                  Open Overwatch
+                  {isCircleExperience ? "Open OverWatch" : "Open OverWatch Free"}
                   <ArrowUpRight className="h-4 w-4" />
                 </a>
                 <p className="flex max-w-sm items-center text-[12px] leading-relaxed text-muted-foreground">
-                  Use your Contractor Circle email. Overwatch will send the magic link from there.
+                  Use the same email you use for the Hub. OverWatch will send a secure magic link.
                 </p>
               </div>
             </div>
@@ -160,7 +173,9 @@ function OverwatchGateway() {
                     </span>
                     <div>
                       <h3 className="font-display text-[1.55rem] leading-none">{item.title}</h3>
-                      <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">{item.body}</p>
+                      <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">
+                        {item.body}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -176,7 +191,7 @@ function OverwatchGateway() {
             </p>
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
               {[
-                ["1", "Open Overwatch"],
+                ["1", isCircleExperience ? "Open OverWatch" : "Open OverWatch Free"],
                 ["2", "Confirm the magic link"],
                 ["3", "Create a project and load the SOV"],
               ].map(([step, label]) => (
@@ -197,8 +212,8 @@ function OverwatchGateway() {
             <div className="flex items-start gap-3">
               <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-good" />
               <p className="text-[13px] leading-relaxed text-foreground/75">
-                Overwatch is separate from the Hub. The Hub gives members the door; Overwatch
-                handles the project records, reports, and login.
+                OverWatch is separate from the Hub. The Hub explains your access and sends you to
+                OverWatch for the project records, reports, and secure login.
               </p>
             </div>
           </div>

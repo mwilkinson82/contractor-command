@@ -66,11 +66,11 @@ if (typeof window !== "undefined" && window.location.pathname !== "/auth/callbac
 // user. Tiers ranked in src/hooks/use-tier.ts. Hardcore recorded classes are
 // not housed in this hub; /hardcore is only an explanatory notice for bad links.
 //
-// ALP Handbook buyers (book_buyer) get: Start Here + Handbook + AOS + Ask + Tools + Vault.
-// - Start Here / Ask / Vault / Tools / Field tools → book_buyer and up (handbook entitlement)
+// ALP Handbook buyers (book_buyer) get: Start Here + Handbook + AOS + OverWatch Free + Ask + Tools + Vault.
+// - Start Here / OverWatch Free / Ask / Vault / Tools / Field tools → book_buyer and up (handbook entitlement)
 // - Community → power_hour and up (room is for paying members)
 // - Replays → book_buyer and up (per-category gating happens in the page + RLS)
-// - Templates / Calls / Overwatch → Circle and up
+// - Templates / Calls → Circle and up
 const ROUTE_TIER_GATES: Array<{ prefix: string; min: Tier }> = [
   { prefix: "/vault", min: "book_buyer" },
   { prefix: "/tools", min: "book_buyer" },
@@ -81,7 +81,7 @@ const ROUTE_TIER_GATES: Array<{ prefix: string; min: Tier }> = [
   { prefix: "/start-here", min: START_HERE_MIN_TIER },
   { prefix: "/templates", min: "circle" },
   { prefix: "/calls", min: "circle" },
-  { prefix: "/overwatch", min: "circle" },
+  { prefix: "/overwatch", min: "book_buyer" },
 ];
 
 function gateFor(pathname: string): Tier | null {

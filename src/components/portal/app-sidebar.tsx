@@ -213,7 +213,7 @@ const BOOK_BUYER_GROUPS: Group[] = [
         match: ["/tools/cos-navigator", "/control-plan"],
       },
       { to: "/aos", label: "AOS", icon: Compass },
-      { to: "https://overwatch.alpcontractorcircle.com", label: "IOR", icon: Eye, external: true },
+      { to: "/overwatch", label: "OverWatch Free", icon: Eye },
       { to: "/ask", label: "Ask Marshall", icon: Megaphone, match: "/ask" },
     ],
   },
