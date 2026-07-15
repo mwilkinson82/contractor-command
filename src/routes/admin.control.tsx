@@ -7,6 +7,9 @@ import { toast } from "sonner";
 import { Container } from "@/components/portal/page-header";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import {
+  baselineOutreachLabel,
+  baselineOutreachNeedsAttention,
+  baselineOutreachState,
   buildControlNudge,
   buildControlRoomCsv,
   controlRoomExportFilename,
@@ -27,7 +30,12 @@ type ControlFilter =
   | "stale"
   | "blocked"
   | "pressure"
-  | "reassess";
+  | "reassess"
+  | "outreach_not_contacted"
+  | "outreach_queued"
+  | "outreach_sent"
+  | "outreach_activated"
+  | "outreach_attention";
 
 const filterLabels: Record<ControlFilter, string> = {
   all: "All members",
@@ -38,6 +46,11 @@ const filterLabels: Record<ControlFilter, string> = {
   blocked: "Blocked",
   pressure: "Needs pressure",
   reassess: "Reassessment due",
+  outreach_not_contacted: "Not contacted",
+  outreach_queued: "Outreach queued",
+  outreach_sent: "Outreach sent",
+  outreach_activated: "Activated after outreach",
+  outreach_attention: "Outreach needs attention",
 };
 
 function MemberControlPage() {
@@ -76,6 +89,7 @@ function MemberControlPage() {
           row.weeklyBlocker,
           row.weeklyNextAction,
           row.weeklyPressureNote,
+          baselineOutreachLabel(row),
         ]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(needle));
@@ -89,6 +103,13 @@ function MemberControlPage() {
       if (filter === "blocked") return row.weeklyBlocked || row.planState === "blocked";
       if (filter === "pressure") return row.weeklyNeedsPressure;
       if (filter === "reassess") return row.reassessmentDue;
+      if (filter === "outreach_not_contacted") {
+        return baselineOutreachState(row) === "not_contacted";
+      }
+      if (filter === "outreach_queued") return baselineOutreachState(row) === "queued";
+      if (filter === "outreach_sent") return baselineOutreachState(row) === "sent";
+      if (filter === "outreach_activated") return baselineOutreachState(row) === "activated";
+      if (filter === "outreach_attention") return baselineOutreachNeedsAttention(row);
       return true;
     });
   }, [filter, query, rows]);
@@ -103,6 +124,17 @@ function MemberControlPage() {
       blocked: rows.filter((row) => row.weeklyBlocked || row.planState === "blocked").length,
       pressure: rows.filter((row) => row.weeklyNeedsPressure).length,
       reassess: rows.filter((row) => row.reassessmentDue).length,
+    }),
+    [rows],
+  );
+
+  const outreachMetrics = useMemo(
+    () => ({
+      notContacted: rows.filter((row) => baselineOutreachState(row) === "not_contacted").length,
+      queued: rows.filter((row) => baselineOutreachState(row) === "queued").length,
+      sent: rows.filter((row) => baselineOutreachState(row) === "sent").length,
+      activated: rows.filter((row) => baselineOutreachState(row) === "activated").length,
+      attention: rows.filter(baselineOutreachNeedsAttention).length,
     }),
     [rows],
   );
@@ -216,6 +248,62 @@ function MemberControlPage() {
         />
       </section>
 
+      <section className="mt-6 rounded-2xl border border-border bg-card p-4 sm:p-5">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <p className="label-mono">Baseline outreach</p>
+            <h2 className="mt-1 font-display text-2xl">Close the activation loop</h2>
+          </div>
+          <p className="max-w-xl text-xs leading-relaxed text-muted-foreground">
+            Track the real State of Control campaign from queue through delivery, then see who
+            established a baseline after receiving it.
+          </p>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <Metric
+            label="Not contacted"
+            value={isLoading ? null : outreachMetrics.notContacted}
+            active={filter === "outreach_not_contacted"}
+            disabled={isLoading}
+            onClick={() =>
+              setFilter(filter === "outreach_not_contacted" ? "all" : "outreach_not_contacted")
+            }
+          />
+          <Metric
+            label="Queued"
+            value={isLoading ? null : outreachMetrics.queued}
+            active={filter === "outreach_queued"}
+            disabled={isLoading}
+            onClick={() => setFilter(filter === "outreach_queued" ? "all" : "outreach_queued")}
+          />
+          <Metric
+            label="Sent"
+            value={isLoading ? null : outreachMetrics.sent}
+            active={filter === "outreach_sent"}
+            disabled={isLoading}
+            onClick={() => setFilter(filter === "outreach_sent" ? "all" : "outreach_sent")}
+          />
+          <Metric
+            label="Activated"
+            value={isLoading ? null : outreachMetrics.activated}
+            active={filter === "outreach_activated"}
+            disabled={isLoading}
+            onClick={() =>
+              setFilter(filter === "outreach_activated" ? "all" : "outreach_activated")
+            }
+          />
+          <Metric
+            label="Needs attention"
+            value={isLoading ? null : outreachMetrics.attention}
+            active={filter === "outreach_attention"}
+            disabled={isLoading}
+            onClick={() =>
+              setFilter(filter === "outreach_attention" ? "all" : "outreach_attention")
+            }
+          />
+        </div>
+      </section>
+
       <section className="mt-6 overflow-hidden rounded-2xl border border-border bg-ink text-cream">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-cream/10 px-5 py-4">
           <div>
@@ -320,7 +408,7 @@ function MemberControlPage() {
         {!isLoading && !error ? (
           <>
             <div className="hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[1100px] text-left text-xs">
+              <table className="w-full min-w-[1220px] text-left text-xs">
                 <thead className="bg-muted/50 text-muted-foreground">
                   <tr>
                     <th className="px-4 py-3 font-medium">Member</th>
@@ -328,6 +416,7 @@ function MemberControlPage() {
                     <th className="px-4 py-3 font-medium">90-day plan</th>
                     <th className="px-4 py-3 font-medium">Weekly control</th>
                     <th className="px-4 py-3 font-medium">Next owned action</th>
+                    <th className="px-4 py-3 font-medium">Baseline outreach</th>
                     <th className="px-4 py-3 font-medium">Follow-up</th>
                   </tr>
                 </thead>
@@ -441,6 +530,9 @@ function MemberRow({ row }: { row: MemberControlRow }) {
         )}
       </td>
       <td className="px-4 py-4">
+        <OutreachStatus row={row} />
+      </td>
+      <td className="px-4 py-4">
         <CopyNudgeButton row={row} />
       </td>
     </tr>
@@ -477,7 +569,12 @@ function MemberCard({ row }: { row: MemberControlRow }) {
           label="Weekly control"
           value={row.weeklyCurrent ? "Current" : row.planStartedAt ? "Due" : "Not started"}
         />
-        <MobileSignal label="Next owner" value={row.weeklyNextOwner || "Not established"} />
+        <MobileSignal label="Outreach" value={baselineOutreachLabel(row)} />
+        <MobileSignal
+          label="Next owner"
+          value={row.weeklyNextOwner || "Not established"}
+          className="col-span-2"
+        />
       </div>
       {row.primaryConstraint ? (
         <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
@@ -494,9 +591,35 @@ function MemberCard({ row }: { row: MemberControlRow }) {
   );
 }
 
-function MobileSignal({ label, value }: { label: string; value: string }) {
+function OutreachStatus({ row }: { row: MemberControlRow }) {
+  const state = baselineOutreachState(row);
+  const tone =
+    state === "sent" || state === "activated"
+      ? "good"
+      : baselineOutreachNeedsAttention(row)
+        ? "attention"
+        : "neutral";
   return (
-    <div className="rounded-xl bg-muted/60 p-3">
+    <div>
+      <StatusBadge label={baselineOutreachLabel(row)} tone={tone} />
+      {row.baselineOutreachAt ? (
+        <p className="mt-2 text-muted-foreground">{formatWhen(row.baselineOutreachAt)}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function MobileSignal({
+  label,
+  value,
+  className = "",
+}: {
+  label: string;
+  value: string;
+  className?: string;
+}) {
+  return (
+    <div className={`rounded-xl bg-muted/60 p-3 ${className}`}>
       <p className="label-mono">{label}</p>
       <p className="mt-1.5 capitalize leading-snug text-foreground">{value}</p>
     </div>
