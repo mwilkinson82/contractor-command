@@ -324,9 +324,9 @@ function AnnouncePage() {
                   onChange={() => setAudience("control_baseline")}
                 />
                 <span>
-                  <span className="font-medium">Needs a State of Control baseline</span>
+                  <span className="font-medium">Circle/Hardcore needs a baseline</span>
                   <span className="block text-[11px] text-muted-foreground">
-                    The live Control Room segment: eligible members with no current 90-day plan.
+                    Active Circle and Hardcore members without a current 90-day plan.
                   </span>
                 </span>
               </label>
