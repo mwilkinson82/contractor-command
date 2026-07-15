@@ -7,6 +7,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { TEMPLATES } from "@/lib/email-templates/registry";
 import { loadMemberControlRowsForAdmin } from "@/lib/control-admin.functions";
+import { isCircleBaselineRecipient, isCircleMemberTier } from "@/lib/announcement-audience";
 
 // Must match SENDER_DOMAIN / FROM_DOMAIN in
 // src/routes/lovable/email/transactional/send.ts
@@ -48,10 +49,6 @@ interface Recipient {
   firstName: string | null;
 }
 
-// Tiers that count as "Contractor Circle membership". Bi-weekly Circle calls
-// are open to circle + hardcore subscribers (hardcore is a strict superset).
-const CIRCLE_TIERS = new Set(["circle", "hardcore"]);
-
 // Returns a Set of lowercased emails for users who have logged in at least once.
 // Used by the "circle_inactive" audience to skip anyone who already signed in.
 async function loadSignedInEmails(): Promise<Set<string>> {
@@ -86,7 +83,7 @@ async function loadRecipients(
     const rows = await loadMemberControlRowsForAdmin(adminUserId);
     const recipients = new Map<string, Recipient>();
     for (const row of rows) {
-      if (row.baselineState === "current") continue;
+      if (!isCircleBaselineRecipient(row)) continue;
       const emailKey = row.email.toLowerCase();
       recipients.set(emailKey, {
         email: row.email,
@@ -135,7 +132,7 @@ async function loadRecipients(
 
   const hasCircleTier = (subList: SubRow[], userId: string | null) => {
     if (userId && adminIds.has(userId)) return true;
-    return subList.some((s) => isActive(s) && s.tier && CIRCLE_TIERS.has(s.tier));
+    return subList.some((s) => isActive(s) && isCircleMemberTier(s.tier));
   };
 
   // For "circle_inactive" we need the set of emails that have logged in at
