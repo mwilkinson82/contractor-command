@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
+import { AuthCard, AuthField, AuthSubmit } from "@/components/auth/auth-card";
 import { requestMemberMagicLink } from "@/lib/magic-link.functions";
 
 export const Route = createFileRoute("/magic-link")({
@@ -33,86 +34,81 @@ function MagicLinkPage() {
       );
     });
 
-    return Promise.race([requestMagicLink({ data: { email: emailAddress } }), timeout]).finally(() => {
-      if (timeoutId) clearTimeout(timeoutId);
-    });
+    return Promise.race([requestMagicLink({ data: { email: emailAddress } }), timeout]).finally(
+      () => {
+        if (timeoutId) clearTimeout(timeoutId);
+      },
+    );
   }
 
   useEffect(() => {
     setIsHydrated(true);
   }, []);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function onSubmit(event: React.FormEvent) {
+    event.preventDefault();
     if (busy || !isHydrated) return;
     setBusy(true);
     setErr(null);
     try {
       await requestMagicLinkWithTimeout(email.trim());
       setSent(true);
-    } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : "Something went wrong");
+    } catch (error: unknown) {
+      setErr(error instanceof Error ? error.message : "Something went wrong");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-background px-4 py-12">
-      <div className="w-full max-w-md space-y-6">
-        <header className="space-y-2 text-center">
-          <h1 className="text-3xl font-serif tracking-tight">Send me a magic link</h1>
-          <p className="text-sm text-muted-foreground">
-            We'll email you a one-click sign-in link. No password needed.
-          </p>
-        </header>
-
-        {sent ? (
-          <div className="rounded-lg border bg-card p-6 text-center space-y-3">
-            <p className="text-base">
-              If <strong>{email}</strong> is an active member, a sign-in link is on its way. Check
-              your inbox and spam folder.
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Didn't get it after a minute?{" "}
-              <button type="button" className="underline" onClick={() => setSent(false)}>
-                Try again
-              </button>
-              .
-            </p>
+    <AuthCard
+      title={sent ? "Check your inbox." : "Email me a secure link."}
+      subtitle={
+        sent
+          ? `If ${email} is attached to active access, the newest sign-in link is on its way.`
+          : "Use the email attached to your Hub, Handbook, AOS, or OverWatch access."
+      }
+    >
+      {sent ? (
+        <div>
+          <div className="rounded-xl border border-border bg-muted/45 p-5 text-[13px] leading-relaxed text-foreground/75">
+            Check your inbox and spam folder. Open the newest email only; each secure link works
+            once.
           </div>
-        ) : (
-          <form onSubmit={onSubmit} className="space-y-4 rounded-lg border bg-card p-6">
-            <label className="block space-y-1.5">
-              <span className="text-sm font-medium">Email</span>
-              <input
-                type="email"
-                required
-                autoFocus
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-            </label>
-            {err && <p className="text-sm text-destructive">{err}</p>}
-            <button
-              type="submit"
-              disabled={busy || !isHydrated}
-              className="w-full rounded-md bg-primary px-4 py-2 text-primary-foreground disabled:opacity-60"
-            >
-              {busy ? "Sending..." : isHydrated ? "Send magic link" : "Loading"}
-            </button>
-            <p className="text-center text-xs text-muted-foreground">
-              Prefer a password?{" "}
-              <Link to="/login" className="underline">
-                Sign in here
-              </Link>
-              .
-            </p>
-          </form>
-        )}
-      </div>
-    </main>
+          <button
+            type="button"
+            className="mx-auto mt-5 block text-[12px] font-medium text-clay hover:underline"
+            onClick={() => setSent(false)}
+          >
+            Try again
+          </button>
+        </div>
+      ) : (
+        <form onSubmit={onSubmit} className="space-y-5">
+          <AuthField
+            id="magic-email"
+            label="Work email"
+            type="email"
+            required
+            autoFocus
+            value={email}
+            onChange={setEmail}
+            placeholder="name@company.com"
+          />
+          {err && <p className="text-[12px] text-[color:var(--danger-warm)]">{err}</p>}
+          <AuthSubmit
+            busy={busy || !isHydrated}
+            label={isHydrated ? "Email my secure link" : "Loading"}
+            busyLabel={isHydrated ? "Sending secure link" : "Loading"}
+          />
+          <p className="text-center text-[12px] text-muted-foreground">
+            Prefer a password?{" "}
+            <Link to="/login" className="font-medium text-foreground hover:underline">
+              Sign in here
+            </Link>
+          </p>
+        </form>
+      )}
+    </AuthCard>
   );
 }

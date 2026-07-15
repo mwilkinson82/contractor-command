@@ -44,8 +44,7 @@ function AuthCallbackPage() {
   useEffect(() => {
     let cancelled = false;
     let settled = false;
-    let deadlineId: number | undefined;
-    let navigationId: number | undefined;
+    const timerIds: { deadline?: number; navigation?: number } = {};
 
     const hashParams = () =>
       typeof window === "undefined"
@@ -64,11 +63,11 @@ function AuthCallbackPage() {
     };
 
     const clearDeadline = () => {
-      if (deadlineId) window.clearTimeout(deadlineId);
+      if (timerIds.deadline) window.clearTimeout(timerIds.deadline);
     };
 
     const clearNavigation = () => {
-      if (navigationId) window.clearTimeout(navigationId);
+      if (timerIds.navigation) window.clearTimeout(timerIds.navigation);
     };
 
     const clearAuthFragment = () => {
@@ -95,12 +94,12 @@ function AuthCallbackPage() {
       // Hard navigation: auth gate, company/tier loaders, and presence all key
       // off the refreshed session. A full reload at the destination guarantees
       // a clean mount with the new session.
-      navigationId = window.setTimeout(() => {
+      timerIds.navigation = window.setTimeout(() => {
         window.location.replace(destination);
       }, 100);
     };
 
-    deadlineId = window.setTimeout(finishExpired, CALLBACK_TIMEOUT_MS);
+    timerIds.deadline = window.setTimeout(finishExpired, CALLBACK_TIMEOUT_MS);
 
     if (urlHasAuthError()) {
       finishExpired();
@@ -216,9 +215,9 @@ function AuthCallbackPage() {
       >
         <Link
           to="/login"
-          className="inline-flex w-full items-center justify-center rounded-full bg-ink px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-cream transition-opacity hover:opacity-90"
+          className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-signal px-5 text-[13px] font-semibold text-ink transition-opacity hover:opacity-90"
         >
-          Send a fresh sign-in link
+          Send a fresh sign-in link →
         </Link>
       </AuthCard>
     );
@@ -229,9 +228,9 @@ function AuthCallbackPage() {
       <AuthCard title="You're signed in." subtitle="Opening your workspace…">
         <a
           href={continueTo}
-          className="inline-flex w-full items-center justify-center rounded-full bg-ink px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-cream transition-opacity hover:opacity-90"
+          className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-signal px-5 text-[13px] font-semibold text-ink transition-opacity hover:opacity-90"
         >
-          Continue to workspace
+          Continue to command center →
         </a>
       </AuthCard>
     );

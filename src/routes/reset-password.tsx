@@ -11,9 +11,7 @@ export const Route = createFileRoute("/reset-password")({
 
 function ResetPasswordPage() {
   const navigate = useNavigate();
-  const [phase, setPhase] = useState<"checking" | "ready" | "no-session" | "done">(
-    "checking",
-  );
+  const [phase, setPhase] = useState<"checking" | "ready" | "no-session" | "done">("checking");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
@@ -89,6 +87,8 @@ function ResetPasswordPage() {
     }
     if (data?.user) {
       const u = data.user;
+      const metadata = u.user_metadata as { full_name?: unknown };
+      const fullName = typeof metadata.full_name === "string" ? metadata.full_name : undefined;
       void sendTransactionalEmail({
         templateName: "admin-activity-notice",
         recipientEmail: "wilkinson.marshall@gmail.com",
@@ -96,7 +96,7 @@ function ResetPasswordPage() {
         templateData: {
           event: "Member set a new password",
           memberEmail: u.email,
-          memberName: (u.user_metadata as any)?.full_name,
+          memberName: fullName,
           occurredAt: new Date().toISOString(),
         },
       }).catch((e) => console.warn("admin notify (password set) failed", e));
@@ -121,9 +121,9 @@ function ResetPasswordPage() {
       >
         <Link
           to="/forgot-password"
-          className="inline-flex w-full items-center justify-center rounded-full bg-ink px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-cream transition-opacity hover:opacity-90"
+          className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-signal px-5 text-[13px] font-semibold text-ink transition-opacity hover:opacity-90"
         >
-          Send a new link
+          Send a new link →
         </Link>
       </AuthCard>
     );

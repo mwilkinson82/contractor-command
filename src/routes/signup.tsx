@@ -49,19 +49,16 @@ function SignupPage() {
 
   if (pending) {
     return (
-      <AuthCard
-        title="Check your inbox."
-        subtitle={`We sent a confirmation link to ${email}.`}
-      >
+      <AuthCard title="Check your inbox." subtitle={`We sent a confirmation link to ${email}.`}>
         <p className="text-[13px] leading-relaxed text-ink/65">
           Click the link to verify your email, then come back and sign in.
         </p>
         <div className="mt-8">
           <Link
             to="/login"
-            className="inline-flex w-full items-center justify-center rounded-full bg-ink px-6 py-3.5 text-[13px] uppercase tracking-[0.22em] text-cream transition-opacity hover:opacity-90"
+            className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-signal px-5 text-[13px] font-semibold text-ink transition-opacity hover:opacity-90"
           >
-            Back to sign in
+            Back to sign in →
           </Link>
         </div>
       </AuthCard>
@@ -69,10 +66,7 @@ function SignupPage() {
   }
 
   return (
-    <AuthCard
-      title="Create account."
-      subtitle="Use the email tied to your membership."
-    >
+    <AuthCard title="Create account." subtitle="Use the email tied to your membership.">
       <form onSubmit={onSubmit} className="space-y-6">
         <AuthField
           id="fullName"
