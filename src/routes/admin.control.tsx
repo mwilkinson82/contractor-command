@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Copy, Download, Mail, Search, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Copy, Download, Mail, Megaphone, Search, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Container } from "@/components/portal/page-header";
 import { useIsAdmin } from "@/hooks/use-is-admin";
@@ -262,11 +262,17 @@ function MemberControlPage() {
               Viewing {filterLabels[filter]} · {memberCountLabel(filtered.length)}
             </p>
             <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">
-              Filter the room, then copy a BCC-ready email list or export a working CSV with each
-              member’s suggested follow-up.
+              Filter the room, copy a BCC-ready list, export individualized follow-up, or open the
+              tracked campaign composer.
             </p>
           </div>
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            <Link
+              to="/admin/announce"
+              className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-2 text-xs text-cream hover:bg-ink/90"
+            >
+              <Megaphone className="h-3.5 w-3.5" /> Compose campaign
+            </Link>
             <button
               type="button"
               disabled={isLoading || !filtered.length}
