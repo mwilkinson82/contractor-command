@@ -126,6 +126,7 @@ type Item = {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   match?: string;
+  exact?: boolean;
   external?: boolean;
 };
 type Group = { label: string; items: Item[] };
@@ -138,6 +139,7 @@ const CIRCLE_GROUPS: Group[] = [
       { to: "/", label: "Home", icon: Home },
       { to: "/start-here", label: "Start Here", icon: CirclePlay },
       { to: "/operating-playbook", label: "Contractor OS", icon: Map },
+      { to: "/tools/cos-navigator", label: "State of Control", icon: Gauge },
       { to: "/ask", label: "Ask Marshall", icon: Megaphone, match: "/ask" },
       { to: "/aos", label: "AOS", icon: Compass },
       { to: "/overwatch", label: "Overwatch", icon: ShieldCheck },
@@ -156,7 +158,7 @@ const CIRCLE_GROUPS: Group[] = [
   {
     label: "Command",
     items: [
-      { to: "/tools", label: "Tools", icon: Wrench, match: "/tools" },
+      { to: "/tools", label: "Tools", icon: Wrench, exact: true },
       { to: "/vault", label: "Vault", icon: Archive },
     ],
   },
@@ -190,6 +192,7 @@ const BOOK_BUYER_GROUPS: Group[] = [
     items: [
       { to: "/", label: "Home", icon: Home },
       { to: "/handbook", label: "Handbook", icon: BookOpen },
+      { to: "/tools/cos-navigator", label: "State of Control", icon: Gauge },
       { to: "/aos", label: "AOS", icon: Compass },
       { to: "https://overwatch.alpcontractorcircle.com", label: "IOR", icon: Eye, external: true },
       { to: "/ask", label: "Ask Marshall", icon: Megaphone, match: "/ask" },
@@ -198,7 +201,7 @@ const BOOK_BUYER_GROUPS: Group[] = [
   {
     label: "Command",
     items: [
-      { to: "/tools", label: "Tools", icon: Wrench, match: "/tools" },
+      { to: "/tools", label: "Tools", icon: Wrench, exact: true },
       { to: "/vault", label: "Vault", icon: Archive },
     ],
   },
@@ -219,6 +222,7 @@ const INTENSIVE_GROUPS: Group[] = [
     items: [
       { to: "/", label: "Home", icon: Home },
       { to: "/handbook", label: "Handbook", icon: BookOpen },
+      { to: "/tools/cos-navigator", label: "State of Control", icon: Gauge },
       { to: "/aos", label: "AOS", icon: Compass },
       { to: "https://overwatch.alpcontractorcircle.com", label: "IOR", icon: Eye, external: true },
     ],
@@ -291,6 +295,12 @@ export function AppSidebar() {
           label: "Admin",
           items: [
             { to: "/admin", label: "Dashboard", icon: Gauge },
+            {
+              to: "/admin/control",
+              label: "Member Control",
+              icon: ShieldCheck,
+              match: "/admin/control",
+            },
             { to: "/admin/topics", label: "Topics", icon: Inbox, match: "/admin/topics" },
             { to: "/admin/library", label: "Library", icon: Library, match: "/admin/library" },
           ],
@@ -379,9 +389,11 @@ export function AppSidebar() {
                   {g.items.map((it) => {
                     const active = it.external
                       ? false
-                      : it.match
-                        ? pathname.startsWith(it.match)
-                        : pathname === it.to;
+                      : it.exact
+                        ? pathname === it.to
+                        : it.match
+                          ? pathname.startsWith(it.match)
+                          : pathname === it.to;
                     const Icon = it.icon;
                     const className = `group/item relative flex items-center gap-3 rounded-md px-2 py-2 text-[13px] transition-colors ${
                       active

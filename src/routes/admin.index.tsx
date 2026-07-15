@@ -183,6 +183,12 @@ function AdminDashboard() {
             Announce
           </Link>
           <Link
+            to="/admin/control"
+            className="rounded-md border border-border bg-card px-3 py-1.5 text-[12px] hover:bg-muted"
+          >
+            Member control
+          </Link>
+          <Link
             to="/admin/topics"
             className="rounded-md border border-border bg-card px-3 py-1.5 text-[12px] hover:bg-muted"
           >
@@ -413,8 +419,7 @@ function AskUsagePanel({
   const messages30d = metrics?.userMessages30d ?? 0;
   const threads30d = metrics?.threads30d ?? 0;
   const dashboardThreads30d = metrics?.dashboardThreads30d ?? 0;
-  const dashboardShare =
-    threads30d > 0 ? Math.round((dashboardThreads30d / threads30d) * 100) : 0;
+  const dashboardShare = threads30d > 0 ? Math.round((dashboardThreads30d / threads30d) * 100) : 0;
   const status =
     !metrics || loading
       ? "Checking"
@@ -446,7 +451,9 @@ function AskUsagePanel({
             with this release, so the hero-started thread count becomes more useful over time.
           </p>
         </div>
-        <span className={`inline-flex items-center rounded-full border px-3 py-1.5 text-[12px] ${statusClass}`}>
+        <span
+          className={`inline-flex items-center rounded-full border px-3 py-1.5 text-[12px] ${statusClass}`}
+        >
           {status}
         </span>
       </div>

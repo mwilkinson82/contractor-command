@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -28,6 +28,8 @@ import {
 } from "@/components/ui/dialog";
 import { sendTransactionalEmail } from "@/lib/email/send";
 import { supabase } from "@/integrations/supabase/client";
+import { createControlPlan } from "@/lib/control-plan";
+import { markControlProgress } from "@/lib/control-progress";
 
 export const Route = createFileRoute("/tools/cos-navigator")({
   head: () => ({
@@ -580,6 +582,7 @@ export function CosNavigatorTool({ embedded = false }: { embedded?: boolean } = 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  const markedAssessmentStart = useRef(false);
 
   const model = useMemo(() => {
     const snapshot = capacitySnapshot(capacity);
@@ -613,6 +616,7 @@ export function CosNavigatorTool({ embedded = false }: { embedded?: boolean } = 
   const reportData = useMemo(() => buildReportData(model, capacity), [model, capacity]);
 
   function updateScore(categoryId: CategoryId, index: number, value: number) {
+    markAssessmentStarted();
     setScores((prev) => ({
       ...prev,
       [categoryId]: prev[categoryId].map((score, i) => (i === index ? value : score)),
@@ -622,6 +626,7 @@ export function CosNavigatorTool({ embedded = false }: { embedded?: boolean } = 
   }
 
   function updateCapacity<K extends keyof CapacityInputs>(key: K, raw: string) {
+    markAssessmentStarted();
     const value = Number(raw.replace(/[,$]/g, ""));
     setCapacity((prev) => ({ ...prev, [key]: Number.isFinite(value) ? value : 0 }));
     setSavedId(null);
@@ -635,11 +640,30 @@ export function CosNavigatorTool({ embedded = false }: { embedded?: boolean } = 
     setSaveError(null);
   }
 
+  function markAssessmentStarted() {
+    if (markedAssessmentStart.current) return;
+    markedAssessmentStart.current = true;
+    void markControlProgress({ assessment_started_at: new Date().toISOString() });
+  }
+
   async function savePacket() {
     if (saving || savedId) return;
     setSaving(true);
     setSaveError(null);
     try {
+      const controlPlan = createControlPlan(
+        model.ranked.slice(0, 3).map((row, index) => {
+          const resolution = getResolution(row.category.id, model.snapshot);
+          return {
+            period: `Month ${index + 1}`,
+            title: row.category.title,
+            impact: row.impact,
+            playbook: resolution.playbookSection,
+            worksheet: resolution.worksheet,
+            actions: resolution.actions,
+          };
+        }),
+      );
       const p = await vault.saveAndPersist({
         kind: "command",
         source: "COS Navigator",
@@ -673,6 +697,7 @@ export function CosNavigatorTool({ embedded = false }: { embedded?: boolean } = 
             model.categoryRows.map((row) => [`${row.category.id}Score`, row.score]),
           ),
         },
+        controlPlan,
       });
       if (!p) {
         setSaveError(
@@ -681,6 +706,14 @@ export function CosNavigatorTool({ embedded = false }: { embedded?: boolean } = 
         return;
       }
       setSavedId(p.id);
+      const savedAt = new Date().toISOString();
+      void markControlProgress({
+        baseline_saved_at: savedAt,
+        latest_baseline_id: p.id,
+        latest_score: model.total,
+        primary_category: model.primary.category.title,
+        primary_constraint: model.resolution.title,
+      });
     } catch (error) {
       console.error(error);
       setSaveError(
@@ -825,6 +858,14 @@ function NavigatorSavedPanel({ packetId }: { packetId: string }) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link
+            to="/control-plan/$packetId"
+            params={{ packetId }}
+            className="inline-flex items-center gap-1.5 rounded-md bg-signal px-3 py-2 text-[12px] font-semibold uppercase tracking-[0.12em] text-ink hover:opacity-90"
+          >
+            Start 90-day plan
+            <ArrowUpRight className="h-3.5 w-3.5" />
+          </Link>
           <Link
             to="/vault"
             className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-2 text-[12px] font-semibold uppercase tracking-[0.12em] text-cream hover:opacity-90"

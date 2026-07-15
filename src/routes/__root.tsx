@@ -73,6 +73,7 @@ if (typeof window !== "undefined" && window.location.pathname !== "/auth/callbac
 const ROUTE_TIER_GATES: Array<{ prefix: string; min: Tier }> = [
   { prefix: "/vault", min: "book_buyer" },
   { prefix: "/tools", min: "book_buyer" },
+  { prefix: "/control-plan", min: "book_buyer" },
   { prefix: "/field-tools", min: "book_buyer" },
   { prefix: "/ask", min: "book_buyer" },
   { prefix: "/community", min: "power_hour" },
