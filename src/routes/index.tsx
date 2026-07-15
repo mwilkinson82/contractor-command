@@ -27,11 +27,14 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 
 import { AosHero } from "@/components/portal/aos-hero";
 import { HomeHero } from "@/components/portal/home-hero";
+import { ControlJourneyPanel } from "@/components/portal/control-journey";
 import { WhatNeedsMove, type DashboardMove } from "@/components/portal/dashboard-moves";
 import { HandbookAnchor } from "@/components/portal/handbook-anchor";
 import { SignalTiles } from "@/components/portal/signal-tiles";
 import { getAosSnapshot, type AosResult, type AosSnapshot } from "@/lib/aos.functions";
 import { getActiveWeeklyMove, type WeeklyMove } from "@/lib/weekly-move.functions";
+import { useControlJourney } from "@/hooks/use-control-journey";
+import type { ControlJourney } from "@/lib/control-journey";
 
 import { ArrowUpRight, Calendar, Video, Archive, MessagesSquare, FileText } from "lucide-react";
 
@@ -71,6 +74,12 @@ function HomePage() {
   const { user } = useAuth();
   const { tier, loading: tierLoading } = useTier();
   const [callAnnouncementOpen, setCallAnnouncementOpen] = useState(false);
+  const controlJourneyEnabled = !tierLoading && tierAtLeast(tier, "book_buyer");
+  const {
+    data: controlJourney,
+    isLoading: controlJourneyLoading,
+    isError: controlJourneyFailed,
+  } = useControlJourney(controlJourneyEnabled);
 
   const [hello, setHello] = useState<string>("Welcome");
   const [today, setToday] = useState<string>("");
@@ -147,7 +156,7 @@ function HomePage() {
   const aosCompanies =
     aosData?.ok && !aosData.snapshot.linked ? (aosData.snapshot.companies ?? []) : [];
   const linkedSnapshot = aosData?.ok && aosData.snapshot.linked ? aosData.snapshot : null;
-  const dashboardMoves = buildDashboardMoves(linkedSnapshot, packets, weeklyMove);
+  const dashboardMoves = buildDashboardMoves(linkedSnapshot, packets, weeklyMove, controlJourney);
 
   const pickCompany = (id: string) => {
     try {
@@ -242,6 +251,14 @@ function HomePage() {
             "wave" | "crane" | "bulldozer" | "hammer" | "scale" | "brick" | null | undefined
         }
       />
+
+      {controlJourneyEnabled ? (
+        <ControlJourneyPanel
+          journey={controlJourney}
+          loading={controlJourneyLoading}
+          failed={controlJourneyFailed}
+        />
+      ) : null}
 
       {/* Decision queue + the next live Contractor Circle session */}
       <section className="relative px-4 pb-12 sm:px-6">
@@ -691,6 +708,7 @@ function buildDashboardMoves(
   snapshot: LinkedAosSnapshot | null,
   packets: Packet[],
   weeklyMove: WeeklyMove | null | undefined,
+  controlJourney?: ControlJourney,
 ): DashboardMove[] {
   const moves: DashboardMove[] = [];
   const seen = new Set<string>();
@@ -790,16 +808,24 @@ function buildDashboardMoves(
     }
   }
 
+  const hasSavedControlBaseline =
+    controlJourney?.steps.some((step) => step.id === "baseline" && step.status === "complete") ??
+    false;
   const readyMoves: DashboardMove[] = [
-    {
-      id: "ready-cos-navigator",
-      title: "Get your State of Control",
-      detail: "Assess company, project, and field control, then save the 90-day route to your Company Vault.",
-      source: "Contractor Circle tool",
-      status: "Ready · ~8 min",
-      to: "/tools/cos-navigator",
-      tone: "signal",
-    },
+    ...(!hasSavedControlBaseline
+      ? [
+          {
+            id: "ready-cos-navigator",
+            title: "Get your State of Control",
+            detail:
+              "Assess company, project, and field control, then save the 90-day route to your Company Vault.",
+            source: "Contractor Circle tool",
+            status: "Ready · ~8 min",
+            to: "/tools/cos-navigator" as const,
+            tone: "signal" as const,
+          },
+        ]
+      : []),
     {
       id: "ready-bring-one-issue",
       title: "Bring one issue to the room",
