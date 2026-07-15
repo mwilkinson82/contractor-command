@@ -46,6 +46,7 @@ const MemberAnnouncementEmail = ({
   signoff = "— Marshall",
 }: MemberAnnouncementProps) => {
   const showCta = !!(ctaLabel && ctaUrl);
+  const greetingName = firstName?.trim();
 
   return (
     <Html lang="en" dir="ltr">
@@ -71,7 +72,7 @@ const MemberAnnouncementEmail = ({
                 <Heading style={layout.headline}>{headline}</Heading>
               </Section>
 
-              <Text style={greeting}>{firstName ? `${firstName} —` : "Hey —"}</Text>
+              <Text style={greeting}>{greetingName ? `${greetingName} —` : "Hi there —"}</Text>
 
               <ReactMarkdown
                 allowedElements={ANNOUNCEMENT_MARKDOWN_ELEMENTS}

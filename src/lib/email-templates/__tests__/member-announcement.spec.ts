@@ -15,6 +15,18 @@ async function renderAnnouncement(body: string) {
 }
 
 describe("member announcement email", () => {
+  it("uses a natural greeting when a member name is unavailable", async () => {
+    const html = await render(
+      React.createElement(template.component, {
+        headline: "Thursday field note",
+        body: "The member update goes here.",
+      }),
+    );
+
+    expect(html).toContain("Hi there —");
+    expect(html).not.toContain("Hey —");
+  });
+
   it("uses the ALP app-tier narrative and wordmark structure", async () => {
     const html = await renderAnnouncement("The member update goes here.");
 
