@@ -3,6 +3,10 @@ import {
   controlPlanProgress,
   controlPlanState,
   createControlPlan,
+  createWeeklyControlReview,
+  isControlPlanReviewDue,
+  isWeeklyControlReviewCurrent,
+  latestWeeklyControlReview,
   type ControlPlan,
 } from "@/lib/control-plan";
 
@@ -46,5 +50,47 @@ describe("control plan", () => {
     plan.milestones[0].actions[0].complete = true;
     plan.milestones[1].status = "blocked";
     expect(controlPlanState(plan)).toBe("blocked");
+  });
+
+  it("creates a trimmed weekly review and identifies the latest control signal", () => {
+    const plan = createControlPlan(seeds);
+    const older = createWeeklyControlReview(
+      {
+        movement: "  Closed the billing gap.  ",
+        constraintTrend: "shrinking",
+        blocked: false,
+        blocker: "",
+        nextAction: "  Submit the revised pay app. ",
+        nextOwner: "  Morgan ",
+        needsPressure: false,
+        pressureNote: "",
+      },
+      new Date("2026-07-08T12:00:00.000Z"),
+    );
+    const latest = createWeeklyControlReview(
+      {
+        movement: "Collected the receivable.",
+        constraintTrend: "resolved",
+        blocked: false,
+        blocker: "",
+        nextAction: "Reset the cash target.",
+        nextOwner: "Marshall",
+        needsPressure: false,
+        pressureNote: "",
+      },
+      new Date("2026-07-15T12:00:00.000Z"),
+    );
+    plan.weeklyReviews = [older, latest];
+
+    expect(older.movement).toBe("Closed the billing gap.");
+    expect(older.nextOwner).toBe("Morgan");
+    expect(latestWeeklyControlReview(plan)).toEqual(latest);
+    expect(isWeeklyControlReviewCurrent(latest, new Date("2026-07-21T12:00:00.000Z"))).toBe(true);
+    expect(isWeeklyControlReviewCurrent(latest, new Date("2026-07-23T12:00:00.000Z"))).toBe(false);
+  });
+
+  it("marks the 90-day review due after the end of its scheduled date", () => {
+    expect(isControlPlanReviewDue("2026-07-15", new Date("2026-07-15T12:00:00.000Z"))).toBe(false);
+    expect(isControlPlanReviewDue("2026-07-15", new Date("2026-07-16T12:00:00.000Z"))).toBe(true);
   });
 });

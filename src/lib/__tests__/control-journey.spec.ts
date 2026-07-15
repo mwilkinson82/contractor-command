@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createControlPlan } from "@/lib/control-plan";
+import { createControlPlan, createWeeklyControlReview } from "@/lib/control-plan";
 import { buildControlJourney, type MemberControlProgress } from "@/lib/control-journey";
 
 const now = new Date("2026-07-15T12:00:00.000Z");
@@ -113,6 +113,21 @@ describe("member Control Journey", () => {
   it("keeps a recently updated plan on rhythm", () => {
     const currentPlan = structuredClone(plan);
     currentPlan.milestones[0].actions[0].complete = true;
+    currentPlan.weeklyReviews = [
+      createWeeklyControlReview(
+        {
+          movement: "The first action moved.",
+          constraintTrend: "shrinking",
+          blocked: false,
+          blocker: "",
+          nextAction: "Complete the second action.",
+          nextOwner: "Marshall",
+          needsPressure: false,
+          pressureNote: "",
+        },
+        new Date("2026-07-14T11:00:00.000Z"),
+      ),
+    ];
     const journey = buildControlJourney(
       {
         ...emptyProgress,
