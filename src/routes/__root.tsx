@@ -19,6 +19,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useCompany } from "@/hooks/use-company";
 import { useTier, tierAtLeast, type Tier } from "@/hooks/use-tier";
+import { START_HERE_MIN_TIER } from "@/lib/start-here-access";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { supabase } from "@/integrations/supabase/client";
 import { vault } from "@/lib/vault";
@@ -65,8 +66,8 @@ if (typeof window !== "undefined" && window.location.pathname !== "/auth/callbac
 // user. Tiers ranked in src/hooks/use-tier.ts. Hardcore recorded classes are
 // not housed in this hub; /hardcore is only an explanatory notice for bad links.
 //
-// ALP Handbook buyers (book_buyer) get: Handbook + AOS + Ask + Tools + Vault.
-// - Ask / Vault / Tools / Field tools → book_buyer and up (handbook entitlement)
+// ALP Handbook buyers (book_buyer) get: Start Here + Handbook + AOS + Ask + Tools + Vault.
+// - Start Here / Ask / Vault / Tools / Field tools → book_buyer and up (handbook entitlement)
 // - Community → power_hour and up (room is for paying members)
 // - Replays → book_buyer and up (per-category gating happens in the page + RLS)
 // - Templates / Calls / Overwatch → Circle and up
@@ -77,7 +78,7 @@ const ROUTE_TIER_GATES: Array<{ prefix: string; min: Tier }> = [
   { prefix: "/field-tools", min: "book_buyer" },
   { prefix: "/ask", min: "book_buyer" },
   { prefix: "/community", min: "power_hour" },
-  { prefix: "/start-here", min: "circle" },
+  { prefix: "/start-here", min: START_HERE_MIN_TIER },
   { prefix: "/templates", min: "circle" },
   { prefix: "/calls", min: "circle" },
   { prefix: "/overwatch", min: "circle" },
