@@ -41,6 +41,7 @@ import Chapter29 from "@/components/handbook/content/Chapter29";
 import Chapter30 from "@/components/handbook/content/Chapter30";
 import Chapter31 from "@/components/handbook/content/Chapter31";
 import Chapter32 from "@/components/handbook/content/Chapter32";
+import ProfessionalContractorFieldGuide from "@/components/handbook/content/ProfessionalContractorFieldGuide";
 import FinalChapter from "@/components/handbook/content/FinalChapter";
 import ReadingProgress from "@/components/handbook/ReadingProgress";
 import FloatingTOC from "@/components/handbook/FloatingTOC";
@@ -56,9 +57,7 @@ export const Route = createFileRoute("/handbook")({
           "The operating manual behind ALP — Altitude, Logic, Pressure. Read the full handbook inside the portal.",
       },
     ],
-    links: [
-      { rel: "preload", as: "image", href: bulldozerHero, fetchpriority: "high" },
-    ],
+    links: [{ rel: "preload", as: "image", href: bulldozerHero, fetchpriority: "high" }],
   }),
   component: HandbookPage,
 });
@@ -94,8 +93,12 @@ function HandbookPage() {
         <Chapter31 />
         <Chapter32 />
 
-        {/* Part III — The Business Systems */}
-        <PartHeader number="III" title="The Business Systems" eyebrow="Reorganized in V2" />
+        {/* Part III — The Professional Contractor Field Guide */}
+        <PartHeader number="III" title="The Professional Contractor Field Guide" eyebrow="New" />
+        <ProfessionalContractorFieldGuide />
+
+        {/* Part IV — The Business Systems */}
+        <PartHeader number="IV" title="The Business Systems" eyebrow="Reorganized in V2" />
         <Chapter4 />
         <Chapter5 />
         <Chapter6 />
@@ -104,8 +107,12 @@ function HandbookPage() {
         <Chapter11 />
         <Chapter10 />
 
-        {/* Part IV — Time, Money, and Commercial Control */}
-        <PartHeader number="IV" title="Time, Money, and Commercial Control" eyebrow="Reorganized in V2" />
+        {/* Part V — Time, Money, and Commercial Control */}
+        <PartHeader
+          number="V"
+          title="Time, Money, and Commercial Control"
+          eyebrow="Reorganized in V2"
+        />
         {/* #15 Documentation */}
         <Chapter12 />
         {/* #16 Notices + absorbed Ch 20 (Notices/Docs/Offense at Scale) */}
@@ -127,19 +134,33 @@ function HandbookPage() {
         <Chapter9 />
         <Chapter22 />
 
-        {/* Part V — Identity, Leadership, and Scale */}
-        <PartHeader number="V" title="Identity, Leadership, and Scale" eyebrow="Reorganized in V2" />
+        {/* Part VI — Identity, Leadership, and Scale */}
+        <PartHeader
+          number="VI"
+          title="Identity, Leadership, and Scale"
+          eyebrow="Reorganized in V2"
+        />
         <Chapter23 />
         <Chapter26 />
         <Chapter25 />
 
-        {/* Part VI — Real-Time Application & Commitment */}
-        <PartHeader number="VI" title="Real-Time Application & Commitment" eyebrow="Reorganized in V2" />
+        {/* Part VII — Real-Time Application & Commitment */}
+        <PartHeader
+          number="VII"
+          title="Real-Time Application & Commitment"
+          eyebrow="Reorganized in V2"
+        />
         <Chapter24 />
         <FinalChapter />
 
-        <footer className="py-32 text-center" style={{ borderTop: "1px solid hsl(var(--hb-chapter-divider))" }}>
-          <p className="text-sm uppercase tracking-widest opacity-40" style={{ letterSpacing: "0.2em" }}>
+        <footer
+          className="py-32 text-center"
+          style={{ borderTop: "1px solid hsl(var(--hb-chapter-divider))" }}
+        >
+          <p
+            className="text-sm uppercase tracking-widest opacity-40"
+            style={{ letterSpacing: "0.2em" }}
+          >
             The ALP Handbook
           </p>
           <p className="text-sm opacity-30 mt-4">© Marshall Wilkinson</p>

@@ -1,0 +1,58 @@
+name: Sync ALP Handbook
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 10 * * *"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Contractor Circle Hub
+        uses: actions/checkout@v4
+
+      - name: Check out canonical ALP Handbook
+        uses: actions/checkout@v4
+        with:
+          repository: mwilkinson82/alp-hand-book
+          ref: main
+          path: .handbook-source
+          persist-credentials: false
+
+      - name: Pull canonical Handbook content
+        run: node scripts/sync-alp-handbook.mjs --source .handbook-source
+
+      - name: Detect synchronized changes
+        id: changes
+        run: |
+          if git diff --quiet -- src/components/handbook/content src/assets/professional-contractor-control-loop.png; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open a Hub synchronization pull request
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          branch="automation/sync-alp-handbook"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin "$branch:refs/remotes/origin/$branch" || true
+          git switch -C "$branch"
+          git add src/components/handbook/content src/assets/professional-contractor-control-loop.png
+          git commit -m "Sync ALP Handbook content"
+          git push --force-with-lease --set-upstream origin "$branch"
+          if ! gh pr list --head "$branch" --state open --json number --jq 'length > 0' | grep -q true; then
+            gh pr create \
+              --base main \
+              --head "$branch" \
+              --title "Sync ALP Handbook content" \
+              --body "Pulls the latest canonical Handbook chapter content and shared Field Guide asset from mwilkinson82/alp-hand-book. Review and merge this PR before the next Contractor Circle Hub deployment."
+          fi
