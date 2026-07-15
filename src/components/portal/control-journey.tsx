@@ -21,7 +21,9 @@ export function ControlJourneyPanel({
   const progressPercent = Math.round((journey.completedControls / journey.totalControls) * 100);
   const context = journey.primaryConstraint
     ? `${journey.primaryConstraint}${journey.primaryCategory ? ` · ${journey.primaryCategory}` : ""}`
-    : "Establish the current company, project, and field-control baseline.";
+    : journey.legacyBaseline
+      ? "Your earlier State of Control is preserved, but it predates the live 90-day implementation plan."
+      : "Establish the current company, project, and field-control baseline.";
 
   return (
     <section className="relative px-4 pb-10 sm:px-6" aria-labelledby="control-journey-title">
@@ -95,7 +97,7 @@ export function ControlJourneyPanel({
             </div>
           </div>
 
-          <div className="p-5 sm:p-7">
+          <div className="flex min-h-0 flex-col p-5 sm:p-7">
             <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
               <div>
                 <p className="label-mono">The implementation path</p>
@@ -108,7 +110,7 @@ export function ControlJourneyPanel({
               </p>
             </div>
 
-            <ol className="mt-1 grid sm:grid-cols-2 xl:grid-cols-3">
+            <ol className="mt-1 grid flex-1 sm:grid-cols-2 xl:grid-cols-3 xl:grid-rows-2">
               {journey.steps.map((step, index) => (
                 <JourneyStep key={step.id} step={step} index={index} />
               ))}

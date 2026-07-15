@@ -53,6 +53,23 @@ describe("member Control Journey", () => {
     expect(journey.steps[1]).toMatchObject({ status: "active", statusLabel: "Next" });
   });
 
+  it("asks an existing member to refresh a baseline that predates the live plan", () => {
+    const journey = buildControlJourney(
+      { ...emptyProgress, orientation_opened_at: "2026-07-15T10:00:00.000Z" },
+      undefined,
+      now,
+      "2026-06-30T10:00:00.000Z",
+    );
+
+    expect(journey.phase).toBe("Baseline needs refresh");
+    expect(journey.legacyBaseline).toBe(true);
+    expect(journey.nextAction).toMatchObject({
+      label: "Refresh State of Control",
+      destination: { route: "assessment" },
+    });
+    expect(journey.steps[1]).toMatchObject({ status: "active", statusLabel: "Refresh" });
+  });
+
   it("asks a member to save an assessment that is already in progress", () => {
     const journey = buildControlJourney(
       {
