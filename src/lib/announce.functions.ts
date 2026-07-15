@@ -6,6 +6,7 @@ import { sendLovableEmail } from "@lovable.dev/email-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { TEMPLATES } from "@/lib/email-templates/registry";
+import { loadMemberControlRowsForAdmin } from "@/lib/control-admin.functions";
 
 // Must match SENDER_DOMAIN / FROM_DOMAIN in
 // src/routes/lovable/email/transactional/send.ts
@@ -39,7 +40,8 @@ function generateToken(): string {
     .join("");
 }
 
-type Audience = "active" | "all_with_login" | "circle" | "circle_inactive" | "test";
+type Audience =
+  "active" | "all_with_login" | "circle" | "circle_inactive" | "control_baseline" | "test";
 
 interface Recipient {
   email: string;
@@ -69,10 +71,29 @@ async function loadSignedInEmails(): Promise<Set<string>> {
   return out;
 }
 
-async function loadRecipients(audience: Audience, testEmail?: string): Promise<Recipient[]> {
+async function loadRecipients(
+  audience: Audience,
+  testEmail?: string,
+  adminUserId?: string,
+): Promise<Recipient[]> {
   if (audience === "test") {
     if (!testEmail) throw new Error("testEmail required");
     return [{ email: testEmail, firstName: null }];
+  }
+
+  if (audience === "control_baseline") {
+    if (!adminUserId) throw new Error("adminUserId required");
+    const rows = await loadMemberControlRowsForAdmin(adminUserId);
+    const recipients = new Map<string, Recipient>();
+    for (const row of rows) {
+      if (row.baselineState === "current") continue;
+      const emailKey = row.email.toLowerCase();
+      recipients.set(emailKey, {
+        email: row.email,
+        firstName: row.fullName?.trim().split(/\s+/)[0] || null,
+      });
+    }
+    return [...recipients.values()];
   }
 
   // Pull profiles + subscriptions; keep anyone with a portal account (profile),
@@ -164,7 +185,14 @@ const InputSchema = z.object({
   ctaLabel: z.string().max(60).optional(),
   ctaUrl: z.string().url().max(500).optional(),
   signoff: z.string().max(120).optional(),
-  audience: z.enum(["active", "all_with_login", "circle", "circle_inactive", "test"]),
+  audience: z.enum([
+    "active",
+    "all_with_login",
+    "circle",
+    "circle_inactive",
+    "control_baseline",
+    "test",
+  ]),
   testEmail: z.string().email().optional(),
 });
 
@@ -204,12 +232,20 @@ export const previewMemberAnnouncementAudience = createServerFn({ method: "GET" 
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
     z
-      .object({ audience: z.enum(["active", "all_with_login", "circle", "circle_inactive"]) })
+      .object({
+        audience: z.enum([
+          "active",
+          "all_with_login",
+          "circle",
+          "circle_inactive",
+          "control_baseline",
+        ]),
+      })
       .parse(input),
   )
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
-    const recipients = await loadRecipients(data.audience);
+    const recipients = await loadRecipients(data.audience, undefined, context.userId);
     return { count: recipients.length };
   });
 
@@ -219,7 +255,7 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
 
-    const recipients = await loadRecipients(data.audience, data.testEmail);
+    const recipients = await loadRecipients(data.audience, data.testEmail, context.userId);
     if (recipients.length === 0) {
       return { queued: 0, sent: 0, suppressed: 0, failed: 0, total: 0 };
     }

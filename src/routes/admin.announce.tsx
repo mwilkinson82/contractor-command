@@ -17,9 +17,10 @@ import {
   previewMemberAnnouncementAudience,
   getLastMemberAnnouncement,
 } from "@/lib/announce.functions";
+import { CONTROL_BASELINE_CAMPAIGN } from "@/lib/control-activation-campaign";
 import { Megaphone, Send, Users, AlertTriangle } from "lucide-react";
 
-type Audience = "active" | "all_with_login" | "circle" | "circle_inactive";
+type Audience = "active" | "all_with_login" | "circle" | "circle_inactive" | "control_baseline";
 
 const DRAFT_KEY = "admin.announce.draft.v1";
 
@@ -107,7 +108,8 @@ function AnnouncePage() {
       a.audience === "active" ||
       a.audience === "all_with_login" ||
       a.audience === "circle" ||
-      a.audience === "circle_inactive"
+      a.audience === "circle_inactive" ||
+      a.audience === "control_baseline"
     ) {
       setAudience(a.audience);
     }
@@ -131,11 +133,25 @@ function AnnouncePage() {
       a.audience === "active" ||
       a.audience === "all_with_login" ||
       a.audience === "circle" ||
-      a.audience === "circle_inactive"
+      a.audience === "circle_inactive" ||
+      a.audience === "control_baseline"
     ) {
       setAudience(a.audience);
     }
     toast.success("Loaded most recent announcement");
+  };
+
+  const loadControlBaselineCampaign = () => {
+    setSubject(CONTROL_BASELINE_CAMPAIGN.subject);
+    setHeadline(CONTROL_BASELINE_CAMPAIGN.headline);
+    setPreheader(CONTROL_BASELINE_CAMPAIGN.preheader);
+    setBody(CONTROL_BASELINE_CAMPAIGN.body);
+    setCtaLabel(CONTROL_BASELINE_CAMPAIGN.ctaLabel);
+    setCtaUrl(CONTROL_BASELINE_CAMPAIGN.ctaUrl);
+    setSignoff(CONTROL_BASELINE_CAMPAIGN.signoff);
+    setAudience(CONTROL_BASELINE_CAMPAIGN.audience);
+    setConfirmText("");
+    toast.success("Loaded the State of Control activation campaign.");
   };
 
   // Autosave the draft on every change so nothing is ever lost again.
@@ -224,7 +240,10 @@ function AnnouncePage() {
             Suppressed addresses are skipped automatically. Always send a test to yourself first.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button type="button" size="sm" onClick={loadControlBaselineCampaign}>
+            Load baseline campaign
+          </Button>
           <Button
             type="button"
             variant="outline"
@@ -296,6 +315,21 @@ function AnnouncePage() {
               <Users className="h-3 w-3" /> Audience
             </p>
             <div className="mt-3 space-y-2 text-[13px]">
+              <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-clay/25 bg-clay/5 p-3">
+                <input
+                  type="radio"
+                  name="audience"
+                  className="mt-1"
+                  checked={audience === "control_baseline"}
+                  onChange={() => setAudience("control_baseline")}
+                />
+                <span>
+                  <span className="font-medium">Needs a State of Control baseline</span>
+                  <span className="block text-[11px] text-muted-foreground">
+                    The live Control Room segment: eligible members with no current 90-day plan.
+                  </span>
+                </span>
+              </label>
               <label className="flex cursor-pointer items-start gap-2">
                 <input
                   type="radio"
@@ -454,7 +488,8 @@ function readDraft(): Draft | null {
         parsed.audience === "active" ||
         parsed.audience === "all_with_login" ||
         parsed.audience === "circle" ||
-        parsed.audience === "circle_inactive"
+        parsed.audience === "circle_inactive" ||
+        parsed.audience === "control_baseline"
           ? parsed.audience
           : "all_with_login",
     };
