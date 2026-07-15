@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  baselineOutreachLabel,
+  baselineOutreachNeedsAttention,
+  baselineOutreachState,
   buildControlNudge,
   buildControlRoomCsv,
   controlActivationState,
@@ -39,6 +42,8 @@ const baseRow: MemberControlRow = {
   weeklyNextOwner: null,
   weeklyNeedsPressure: false,
   weeklyPressureNote: null,
+  baselineOutreachStatus: null,
+  baselineOutreachAt: null,
 };
 
 describe("Control Room outreach", () => {
@@ -58,6 +63,24 @@ describe("Control Room outreach", () => {
     );
   });
 
+  it("distinguishes baseline campaign delivery and subsequent activation", () => {
+    expect(baselineOutreachState(baseRow)).toBe("not_contacted");
+    expect(baselineOutreachLabel({ ...baseRow, baselineOutreachStatus: "pending" })).toBe("Queued");
+    expect(baselineOutreachLabel({ ...baseRow, baselineOutreachStatus: "sent" })).toBe("Sent");
+    expect(
+      baselineOutreachState({
+        ...baseRow,
+        baselineState: "current",
+        baselineSavedAt: "2026-07-16T12:00:00.000Z",
+        baselineOutreachStatus: "sent",
+        baselineOutreachAt: "2026-07-15T12:00:00.000Z",
+      }),
+    ).toBe("activated");
+    expect(baselineOutreachNeedsAttention({ ...baseRow, baselineOutreachStatus: "bounced" })).toBe(
+      true,
+    );
+  });
+
   it("exports a segmented, CSV-safe outreach record", () => {
     const csv = buildControlRoomCsv([
       {
@@ -71,6 +94,8 @@ describe("Control Room outreach", () => {
     expect(csv).toContain('"Marshall ""MW"" Wilkinson"');
     expect(csv).toContain('"Cash, capacity"');
     expect(csv).toContain("Suggested nudge");
+    expect(csv).toContain("Baseline outreach");
+    expect(csv).toContain("Not contacted");
   });
 
   it("neutralizes spreadsheet formulas in member-controlled fields", () => {

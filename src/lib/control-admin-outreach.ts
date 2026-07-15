@@ -1,4 +1,5 @@
 import type { MemberControlRow } from "@/lib/control-admin.functions";
+import { isBaselineOutreachAttentionStatus } from "@/lib/control-admin-campaigns";
 
 const CSV_COLUMNS = [
   "Name",
@@ -12,8 +13,22 @@ const CSV_COLUMNS = [
   "Weekly control",
   "Next action",
   "Next owner",
+  "Baseline outreach",
+  "Last outreach",
   "Suggested nudge",
 ] as const;
+
+export type BaselineOutreachState =
+  | "not_needed"
+  | "not_contacted"
+  | "queued"
+  | "sent"
+  | "activated"
+  | "suppressed"
+  | "failed"
+  | "bounced"
+  | "complained"
+  | "dlq";
 
 export function memberCountLabel(count: number) {
   return `${count} ${count === 1 ? "member" : "members"}`;
@@ -28,6 +43,42 @@ export function controlActivationState(row: MemberControlRow) {
   if (row.baselineState === "needs_refresh") return "Refresh baseline";
   if (!row.planStartedAt) return "Plan not started";
   return "Current";
+}
+
+export function baselineOutreachState(row: MemberControlRow): BaselineOutreachState {
+  if (
+    row.baselineState === "current" &&
+    row.baselineSavedAt &&
+    row.baselineOutreachAt &&
+    row.baselineSavedAt >= row.baselineOutreachAt
+  ) {
+    return "activated";
+  }
+  if (!row.baselineOutreachStatus) {
+    return row.baselineState === "current" ? "not_needed" : "not_contacted";
+  }
+  if (row.baselineOutreachStatus === "pending") return "queued";
+  return row.baselineOutreachStatus;
+}
+
+export function baselineOutreachLabel(row: MemberControlRow) {
+  const labels: Record<BaselineOutreachState, string> = {
+    not_needed: "No outreach needed",
+    not_contacted: "Not contacted",
+    queued: "Queued",
+    sent: "Sent",
+    activated: "Activated",
+    suppressed: "Suppressed",
+    failed: "Failed",
+    bounced: "Bounced",
+    complained: "Complaint",
+    dlq: "Dead letter",
+  };
+  return labels[baselineOutreachState(row)];
+}
+
+export function baselineOutreachNeedsAttention(row: MemberControlRow) {
+  return isBaselineOutreachAttentionStatus(row.baselineOutreachStatus);
 }
 
 export function buildControlNudge(row: MemberControlRow) {
@@ -72,6 +123,8 @@ export function buildControlRoomCsv(rows: MemberControlRow[]) {
     row.weeklyCurrent ? "Current" : row.planStartedAt ? "Due" : "Not started",
     row.weeklyNextAction ?? "",
     row.weeklyNextOwner ?? "",
+    baselineOutreachLabel(row),
+    row.baselineOutreachAt ?? "",
     buildControlNudge(row),
   ]);
 
