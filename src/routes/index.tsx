@@ -36,7 +36,15 @@ import { getActiveWeeklyMove, type WeeklyMove } from "@/lib/weekly-move.function
 import { useControlJourney } from "@/hooks/use-control-journey";
 import type { ControlJourney } from "@/lib/control-journey";
 
-import { ArrowUpRight, Calendar, Video, Archive, MessagesSquare, FileText } from "lucide-react";
+import {
+  ArrowUpRight,
+  Calendar,
+  Video,
+  Archive,
+  MessagesSquare,
+  FileText,
+  Lock,
+} from "lucide-react";
 
 const CALL_ANNOUNCEMENT_ID = "contractor-circle-call-2026-07-05-5pm-est";
 const CALL_ANNOUNCEMENT_DISMISSED_KEY = `alp.cc.dismissed.${CALL_ANNOUNCEMENT_ID}`;
@@ -94,6 +102,7 @@ function HomePage() {
     "there";
   const companyName = company?.name?.trim() || "Your Command Center";
   const shouldSeeCallAnnouncement = !tierLoading && tierAtLeast(tier, "circle");
+  const hasCircleAccess = !tierLoading && tierAtLeast(tier, "circle");
 
   // Hydrate company id from localStorage (avoids SSR mismatch)
   useEffect(() => {
@@ -156,7 +165,13 @@ function HomePage() {
   const aosCompanies =
     aosData?.ok && !aosData.snapshot.linked ? (aosData.snapshot.companies ?? []) : [];
   const linkedSnapshot = aosData?.ok && aosData.snapshot.linked ? aosData.snapshot : null;
-  const dashboardMoves = buildDashboardMoves(linkedSnapshot, packets, weeklyMove, controlJourney);
+  const dashboardMoves = buildDashboardMoves(
+    linkedSnapshot,
+    packets,
+    weeklyMove,
+    controlJourney,
+    hasCircleAccess,
+  );
 
   const pickCompany = (id: string) => {
     try {
@@ -219,6 +234,10 @@ function HomePage() {
 
   // Load latest replay from DB
   useEffect(() => {
+    if (!hasCircleAccess) {
+      setLatestReplay(null);
+      return;
+    }
     (async () => {
       const { data } = await supabase
         .from("replays")
@@ -228,7 +247,7 @@ function HomePage() {
         .maybeSingle();
       if (data) setLatestReplay(data);
     })();
-  }, []);
+  }, [hasCircleAccess]);
 
   return (
     <div className="relative">
@@ -269,6 +288,7 @@ function HomePage() {
             sessionWhen={sessionWhen}
             latestReplay={latestReplay}
             replayDate={replayDate}
+            locked={!hasCircleAccess}
           />
         </div>
       </section>
@@ -311,8 +331,14 @@ function HomePage() {
 
       {/* Current class and working files remain on the dashboard, below the live reads. */}
       <div>
-        <FeaturedLatestClass />
-        <FeaturedWorkbook />
+        {hasCircleAccess ? (
+          <>
+            <FeaturedLatestClass />
+            <FeaturedWorkbook />
+          </>
+        ) : (
+          <LockedCircleEducation />
+        )}
       </div>
 
       {/* Command tools — single editorial grid */}
@@ -449,12 +475,16 @@ function NextCallCard({
   sessionWhen,
   latestReplay,
   replayDate,
+  locked,
 }: {
   session: Session;
   sessionWhen: string;
   latestReplay: { title: string; recorded_at: string } | null;
   replayDate: string;
+  locked: boolean;
 }) {
+  if (locked) return <LockedNextCallCard />;
+
   return (
     <aside className="flex min-h-full flex-col bg-ink-panel p-6 text-cream">
       <div className="flex items-center justify-between gap-3">
@@ -541,6 +571,43 @@ function NextCallCard({
             <ArrowUpRight className="h-3 w-3 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
           </Link>
         </div>
+      </div>
+    </aside>
+  );
+}
+
+function LockedNextCallCard() {
+  return (
+    <aside className="relative flex min-h-full flex-col overflow-hidden bg-ink-panel p-6 text-cream">
+      <div className="absolute inset-0 opacity-25 blur-[1.5px]" aria-hidden>
+        <div className="space-y-4 p-6">
+          <div className="h-3 w-1/2 rounded bg-cream/25" />
+          <div className="h-12 w-4/5 rounded bg-cream/20" />
+          <div className="h-3 w-2/3 rounded bg-cream/15" />
+          <div className="mt-8 space-y-3 border-y border-cream/15 py-5">
+            <div className="h-3 w-full rounded bg-cream/15" />
+            <div className="h-3 w-5/6 rounded bg-cream/15" />
+            <div className="h-3 w-3/4 rounded bg-cream/15" />
+          </div>
+        </div>
+      </div>
+      <div className="relative my-auto rounded-2xl border border-cream/12 bg-ink/88 p-6 text-center backdrop-blur">
+        <span className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-cream text-ink">
+          <Lock className="h-4 w-4" />
+        </span>
+        <p className="mt-4 font-mono text-[9px] uppercase tracking-[0.22em] text-signal">
+          Contractor Circle member benefit
+        </p>
+        <h2 className="mt-3 font-display text-2xl text-cream">The live working room.</h2>
+        <p className="mt-2 text-[12px] leading-relaxed text-cream/65">
+          Members get the calls, bootcamps, replay archive, templates, and private community.
+        </p>
+        <Link
+          to="/ecosystem"
+          className="mt-5 inline-flex items-center gap-2 rounded-md bg-cream px-4 py-2.5 text-[11px] font-semibold text-ink hover:opacity-90"
+        >
+          See what membership unlocks <ArrowUpRight className="h-3 w-3" />
+        </Link>
       </div>
     </aside>
   );
@@ -702,6 +769,78 @@ function FeaturedWorkbook() {
   );
 }
 
+function LockedCircleEducation() {
+  return (
+    <section className="relative px-4 pb-10 sm:px-6">
+      <div className="mx-auto w-full max-w-[1180px]">
+        <div className="mb-5 border-b border-border pb-4">
+          <p className="label-mono">Inside Contractor Circle</p>
+          <h2 className="mt-2 font-display text-[2rem] leading-none">
+            The teaching and working files stay visible.
+          </h2>
+          <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-muted-foreground">
+            See the implementation layer available to members without exposing the member-only
+            replay, download links, or live-room details.
+          </p>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <LockedEducationCard
+            eyebrow="Replay archive"
+            title="The class, whiteboard, and field file."
+            body="Every working session connects the teaching to a real company or project move."
+            to="/replays"
+          />
+          <LockedEducationCard
+            eyebrow="Implementation Vault"
+            title="Templates that install the missing system."
+            body="The worksheets, checklists, and operating files follow the current Contractor Circle teaching."
+            to="/templates"
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function LockedEducationCard({
+  eyebrow,
+  title,
+  body,
+  to,
+}: {
+  eyebrow: string;
+  title: string;
+  body: string;
+  to: "/replays" | "/templates";
+}) {
+  return (
+    <Link
+      to={to}
+      className="group relative min-h-[270px] overflow-hidden rounded-2xl border border-border bg-card p-7 transition hover:border-foreground/25 hover:shadow-[var(--shadow-soft)]"
+    >
+      <div
+        className="absolute inset-x-7 bottom-7 top-20 grid gap-3 opacity-30 blur-[1.5px]"
+        aria-hidden
+      >
+        <div className="rounded-xl border border-border bg-muted/50" />
+        <div className="rounded-xl border border-border bg-muted/50" />
+      </div>
+      <div className="relative flex items-center justify-between">
+        <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-clay">{eyebrow}</p>
+        <Lock className="h-3.5 w-3.5 text-clay" />
+      </div>
+      <div className="relative mt-9 max-w-sm rounded-xl border border-border bg-cream/95 p-5 shadow-[var(--shadow-soft)]">
+        <p className="font-mono text-[8px] uppercase tracking-[0.2em] text-clay">
+          Available to Contractor Circle members
+        </p>
+        <h3 className="mt-2 font-display text-2xl leading-tight">{title}</h3>
+        <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{body}</p>
+      </div>
+    </Link>
+  );
+}
+
 type LinkedAosSnapshot = Extract<AosSnapshot, { linked: true }>;
 
 function buildDashboardMoves(
@@ -709,6 +848,7 @@ function buildDashboardMoves(
   packets: Packet[],
   weeklyMove: WeeklyMove | null | undefined,
   controlJourney?: ControlJourney,
+  hasCircleAccess = false,
 ): DashboardMove[] {
   const moves: DashboardMove[] = [];
   const seen = new Set<string>();
@@ -819,31 +959,46 @@ function buildDashboardMoves(
             title: "Get your State of Control",
             detail:
               "Assess company, project, and field control, then save the 90-day route to your Company Vault.",
-            source: "Contractor Circle tool",
+            source: "Included Hub tool",
             status: "Ready · ~8 min",
             to: "/tools/cos-navigator" as const,
             tone: "signal" as const,
           },
         ]
       : []),
-    {
-      id: "ready-bring-one-issue",
-      title: "Bring one issue to the room",
-      detail: "Submit the issue that needs pressure before the next working session.",
-      source: "Contractor Circle Call",
-      status: "Ready",
-      to: "/calls",
-      tone: "neutral",
-    },
-    {
-      id: "ready-os-path",
-      title: "Open the Contractor OS path",
-      detail: "Use the path to decide which system the company needs next.",
-      source: "Contractor OS",
-      status: "Ready",
-      to: "/operating-playbook",
-      tone: "neutral",
-    },
+    ...(hasCircleAccess
+      ? [
+          {
+            id: "ready-bring-one-issue",
+            title: "Bring one issue to the room",
+            detail: "Submit the issue that needs pressure before the next working session.",
+            source: "Contractor Circle Call",
+            status: "Ready",
+            to: "/calls" as const,
+            tone: "neutral" as const,
+          },
+          {
+            id: "ready-os-path",
+            title: "Open the Contractor OS path",
+            detail: "Use the path to decide which system the company needs next.",
+            source: "Contractor OS",
+            status: "Ready",
+            to: "/operating-playbook" as const,
+            tone: "neutral" as const,
+          },
+        ]
+      : [
+          {
+            id: "ready-ecosystem",
+            title: "Map your next level of support",
+            detail:
+              "See what the Handbook, applications, Contractor Circle, and private work each add.",
+            source: "ALP Ecosystem",
+            status: "Explore",
+            to: "/ecosystem" as const,
+            tone: "neutral" as const,
+          },
+        ]),
   ];
 
   for (const move of readyMoves) {

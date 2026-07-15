@@ -32,6 +32,7 @@ import { Route as HardcoreRouteImport } from './routes/hardcore'
 import { Route as HandbookRouteImport } from './routes/handbook'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as FieldToolsRouteImport } from './routes/field-tools'
+import { Route as EcosystemRouteImport } from './routes/ecosystem'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as CallsRouteImport } from './routes/calls'
 import { Route as AccountRouteImport } from './routes/account'
@@ -192,6 +193,11 @@ const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
 const FieldToolsRoute = FieldToolsRouteImport.update({
   id: '/field-tools',
   path: '/field-tools',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EcosystemRoute = EcosystemRouteImport.update({
+  id: '/ecosystem',
+  path: '/ecosystem',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CommunityRoute = CommunityRouteImport.update({
@@ -434,6 +440,7 @@ export interface FileRoutesByFullPath {
   '/account': typeof AccountRoute
   '/calls': typeof CallsRoute
   '/community': typeof CommunityRoute
+  '/ecosystem': typeof EcosystemRoute
   '/field-tools': typeof FieldToolsRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/handbook': typeof HandbookRoute
@@ -505,6 +512,7 @@ export interface FileRoutesByTo {
   '/account': typeof AccountRoute
   '/calls': typeof CallsRoute
   '/community': typeof CommunityRoute
+  '/ecosystem': typeof EcosystemRoute
   '/field-tools': typeof FieldToolsRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/handbook': typeof HandbookRoute
@@ -577,6 +585,7 @@ export interface FileRoutesById {
   '/account': typeof AccountRoute
   '/calls': typeof CallsRoute
   '/community': typeof CommunityRoute
+  '/ecosystem': typeof EcosystemRoute
   '/field-tools': typeof FieldToolsRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/handbook': typeof HandbookRoute
@@ -650,6 +659,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/calls'
     | '/community'
+    | '/ecosystem'
     | '/field-tools'
     | '/forgot-password'
     | '/handbook'
@@ -721,6 +731,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/calls'
     | '/community'
+    | '/ecosystem'
     | '/field-tools'
     | '/forgot-password'
     | '/handbook'
@@ -792,6 +803,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/calls'
     | '/community'
+    | '/ecosystem'
     | '/field-tools'
     | '/forgot-password'
     | '/handbook'
@@ -864,6 +876,7 @@ export interface RootRouteChildren {
   AccountRoute: typeof AccountRoute
   CallsRoute: typeof CallsRoute
   CommunityRoute: typeof CommunityRoute
+  EcosystemRoute: typeof EcosystemRoute
   FieldToolsRoute: typeof FieldToolsRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   HandbookRoute: typeof HandbookRoute
@@ -1087,6 +1100,13 @@ declare module '@tanstack/react-router' {
       path: '/field-tools'
       fullPath: '/field-tools'
       preLoaderRoute: typeof FieldToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ecosystem': {
+      id: '/ecosystem'
+      path: '/ecosystem'
+      fullPath: '/ecosystem'
+      preLoaderRoute: typeof EcosystemRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/community': {
@@ -1447,6 +1467,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountRoute: AccountRoute,
   CallsRoute: CallsRoute,
   CommunityRoute: CommunityRoute,
+  EcosystemRoute: EcosystemRoute,
   FieldToolsRoute: FieldToolsRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   HandbookRoute: HandbookRoute,

@@ -121,25 +121,30 @@ function UpgradePage() {
           {tier === "hardcore"
             ? "You're at the top of the room."
             : tier === "circle"
-            ? "Stack the room on top of the room."
-            : tier === "book_buyer"
-            ? "You've got the playbook. Now run it with Marshall."
-            : "Go deeper."}
+              ? "Stack the room on top of the room."
+              : tier === "book_buyer"
+                ? "You've got the playbook. Now run it with Marshall."
+                : "Go deeper."}
         </h1>
         <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">
           {tier === "hardcore"
             ? "Direct private sessions when you need them — beyond the daily room."
             : tier === "circle"
-            ? "Add the daily classes, or buy private time with Marshall."
-            : "Pick the depth you need. Membership for the room, private calls for the hard inflection points."}
+              ? "Add the daily classes, or buy private time with Marshall."
+              : "Pick the depth you need. Membership for the room, private calls for the hard inflection points."}
         </p>
         {tier === "book_buyer" && (
           <p className="mt-5 text-[13px] text-foreground/70">
-            Already in AOS?{" "}
-            <AosAddonsTriggerLink onClick={() => setAddonsOpen(true)} />{" "}
-            without changing your membership.
+            Already in AOS? <AosAddonsTriggerLink onClick={() => setAddonsOpen(true)} /> without
+            changing your membership.
           </p>
         )}
+        <p className="mt-5 text-[13px] text-foreground/70">
+          Not sure which level fits?{" "}
+          <Link to="/ecosystem" className="font-medium underline underline-offset-4">
+            See the complete ALP ecosystem.
+          </Link>
+        </p>
       </div>
 
       {cancelled && (
@@ -170,9 +175,7 @@ function UpgradePage() {
         </div>
       )}
 
-      {tier === "book_buyer" && (
-        <AosAddonsModal open={addonsOpen} onOpenChange={setAddonsOpen} />
-      )}
+      {tier === "book_buyer" && <AosAddonsModal open={addonsOpen} onOpenChange={setAddonsOpen} />}
 
       {tier === "circle" || tier === "hardcore" ? (
         <p className="mt-10 text-[13px] text-muted-foreground">

@@ -29,7 +29,7 @@ import {
   CirclePlay,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-is-admin";
-import { useTier, type Tier } from "@/hooks/use-tier";
+import { tierAtLeast, useTier, type Tier } from "@/hooks/use-tier";
 import { nextAny, relativeDay } from "@/lib/program";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/use-company";
@@ -128,6 +128,7 @@ type Item = {
   match?: string | readonly string[];
   exact?: boolean;
   external?: boolean;
+  minTier?: Tier;
 };
 type Group = { label: string; items: Item[] };
 
@@ -146,7 +147,13 @@ const CIRCLE_GROUPS: Group[] = [
     items: [
       { to: "/", label: "Home", icon: Home },
       { to: "/start-here", label: "Start Here", icon: CirclePlay },
-      { to: "/operating-playbook", label: "Contractor OS", icon: Map },
+      { to: "/ecosystem", label: "ALP Ecosystem", icon: Map },
+      {
+        to: "/operating-playbook",
+        label: "Contractor OS",
+        icon: FileText,
+        minTier: "circle",
+      },
       {
         to: "/tools/cos-navigator",
         label: "State of Control",
@@ -156,16 +163,16 @@ const CIRCLE_GROUPS: Group[] = [
       { to: "/ask", label: "Ask Marshall", icon: Megaphone, match: "/ask" },
       { to: "/aos", label: "AOS", icon: Compass },
       { to: "/overwatch", label: "Overwatch", icon: ShieldCheck },
-      { to: "/calls", label: "Calls", icon: Radio },
-      { to: "/community", label: "Community", icon: MessagesSquare },
+      { to: "/calls", label: "Calls", icon: Radio, minTier: "circle" },
+      { to: "/community", label: "Community", icon: MessagesSquare, minTier: "circle" },
     ],
   },
   {
     label: "Library",
     items: [
       { to: "/handbook", label: "Handbook", icon: BookOpen },
-      { to: "/templates", label: "Templates", icon: FileText },
-      { to: "/replays", label: "Replays", icon: Video },
+      { to: "/templates", label: "Templates", icon: FileText, minTier: "circle" },
+      { to: "/replays", label: "Replays", icon: Video, minTier: "circle" },
     ],
   },
   {
@@ -197,15 +204,21 @@ const HARDCORE_REAL: Group = {
   items: [{ to: "/hardcore", label: "Hardcore Room", icon: Flame }],
 };
 
-// Book Buyer (ALP Handbook tier): Start Here + Handbook + AOS + IOR + Ask + Tools + Vault.
-// Locked out of Circle calls, templates, replays, community, hardcore.
+// Book Buyer (ALP Handbook tier): show the complete ecosystem. Included
+// surfaces are live; Contractor Circle surfaces stay visible as locked previews.
 const BOOK_BUYER_GROUPS: Group[] = [
   {
     label: "Daily",
     items: [
       { to: "/", label: "Home", icon: Home },
       { to: "/start-here", label: "Start Here", icon: CirclePlay },
-      { to: "/handbook", label: "Handbook", icon: BookOpen },
+      { to: "/ecosystem", label: "ALP Ecosystem", icon: Map },
+      {
+        to: "/operating-playbook",
+        label: "Contractor OS",
+        icon: FileText,
+        minTier: "circle",
+      },
       {
         to: "/tools/cos-navigator",
         label: "State of Control",
@@ -215,6 +228,16 @@ const BOOK_BUYER_GROUPS: Group[] = [
       { to: "/aos", label: "AOS", icon: Compass },
       { to: "/overwatch", label: "OverWatch Free", icon: Eye },
       { to: "/ask", label: "Ask Marshall", icon: Megaphone, match: "/ask" },
+      { to: "/calls", label: "Calls", icon: Radio, minTier: "circle" },
+      { to: "/community", label: "Community", icon: MessagesSquare, minTier: "circle" },
+    ],
+  },
+  {
+    label: "Library",
+    items: [
+      { to: "/handbook", label: "Handbook", icon: BookOpen },
+      { to: "/templates", label: "Templates", icon: FileText, minTier: "circle" },
+      { to: "/replays", label: "Replays", icon: Video, minTier: "circle" },
     ],
   },
   {
@@ -227,6 +250,7 @@ const BOOK_BUYER_GROUPS: Group[] = [
   {
     label: "Go further",
     items: [
+      { to: "/work-with-marshall", label: "Work with Marshall", icon: Sparkles },
       { to: "/upgrade", label: "Upgrade", icon: ArrowUpCircle },
       { to: "/account", label: "Account", icon: User },
     ],
@@ -241,6 +265,7 @@ const INTENSIVE_GROUPS: Group[] = [
     items: [
       { to: "/", label: "Home", icon: Home },
       { to: "/start-here", label: "Start Here", icon: CirclePlay },
+      { to: "/ecosystem", label: "ALP Ecosystem", icon: Map },
       { to: "/handbook", label: "Handbook", icon: BookOpen },
       {
         to: "/tools/cos-navigator",
@@ -250,6 +275,9 @@ const INTENSIVE_GROUPS: Group[] = [
       },
       { to: "/aos", label: "AOS", icon: Compass },
       { to: "https://overwatch.alpcontractorcircle.com", label: "IOR", icon: Eye, external: true },
+      { to: "/calls", label: "Calls", icon: Radio, minTier: "circle" },
+      { to: "/templates", label: "Templates", icon: FileText, minTier: "circle" },
+      { to: "/replays", label: "Replays", icon: Video, minTier: "circle" },
     ],
   },
   {
@@ -268,6 +296,7 @@ const AOS_ONLY_GROUPS: Group[] = [
     label: "Your tools",
     items: [
       { to: "/", label: "Home", icon: Home },
+      { to: "/ecosystem", label: "ALP Ecosystem", icon: Map },
       { to: "/aos", label: "AOS", icon: Compass },
       { to: "https://overwatch.alpcontractorcircle.com", label: "IOR", icon: Eye, external: true },
     ],
@@ -413,25 +442,40 @@ export function AppSidebar() {
                 <ul className="space-y-0.5">
                   {g.items.map((it) => {
                     const active = isItemActive(it, pathname);
+                    const locked = Boolean(it.minTier && !tierAtLeast(tier, it.minTier));
                     const Icon = it.icon;
                     const className = `group/item relative flex items-center gap-3 rounded-md px-2 py-2 text-[13px] transition-colors ${
                       active
                         ? "bg-clay/[0.18] text-foreground"
-                        : isTease
+                        : locked || isTease
                           ? "text-foreground/35 hover:bg-foreground/5 hover:text-foreground/60"
                           : "text-foreground/70 hover:bg-foreground/5 hover:text-foreground"
                     }`;
                     const titleAttr = collapsed
-                      ? isTease
-                        ? `${it.label} — upgrade to unlock`
-                        : it.label
-                      : isTease
-                        ? "Daily Power Hour, S&M School, Contractor School. Upgrade to unlock."
-                        : undefined;
+                      ? locked
+                        ? `${it.label} — available to Contractor Circle members`
+                        : isTease
+                          ? `${it.label} — upgrade to unlock`
+                          : it.label
+                      : locked
+                        ? `${it.label} — available to Contractor Circle members`
+                        : isTease
+                          ? "Daily Power Hour, S&M School, Contractor School. Upgrade to unlock."
+                          : undefined;
                     const inner = (
                       <>
                         <Icon className={`h-4 w-4 shrink-0 ${active ? "text-clay" : ""}`} />
-                        {!collapsed && <span className="truncate">{it.label}</span>}
+                        {!collapsed && (
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate">{it.label}</span>
+                            {locked && (
+                              <span className="mt-0.5 block truncate font-mono text-[7px] uppercase tracking-[0.16em] text-clay/75">
+                                Contractor Circle
+                              </span>
+                            )}
+                          </span>
+                        )}
+                        {locked && <Lock className="h-3 w-3 shrink-0 text-clay/75" />}
                       </>
                     );
                     return (
