@@ -1,5 +1,20 @@
 export type ControlPlanStatus = "not_started" | "in_progress" | "blocked" | "complete";
 
+export type ConstraintTrend = "growing" | "unchanged" | "shrinking" | "resolved";
+
+export type WeeklyControlReview = {
+  id: string;
+  reviewedAt: string;
+  movement: string;
+  constraintTrend: ConstraintTrend;
+  blocked: boolean;
+  blocker: string;
+  nextAction: string;
+  nextOwner: string;
+  needsPressure: boolean;
+  pressureNote: string;
+};
+
 export type ControlPlanAction = {
   id: string;
   title: string;
@@ -26,7 +41,10 @@ export type ControlPlan = {
   updatedAt: string;
   reviewDate: string;
   milestones: ControlPlanMilestone[];
+  weeklyReviews?: WeeklyControlReview[];
 };
+
+export type WeeklyControlReviewInput = Omit<WeeklyControlReview, "id" | "reviewedAt">;
 
 export type ControlPlanSeed = {
   period: string;
@@ -53,6 +71,7 @@ export function createControlPlan(seeds: ControlPlanSeed[], now = new Date()): C
     createdAt,
     updatedAt: createdAt,
     reviewDate: dateAfter(now, 90),
+    weeklyReviews: [],
     milestones: seeds.slice(0, 3).map((seed, index) => ({
       id: `month-${index + 1}`,
       period: seed.period,
@@ -71,6 +90,45 @@ export function createControlPlan(seeds: ControlPlanSeed[], now = new Date()): C
       })),
     })),
   };
+}
+
+export function createWeeklyControlReview(
+  input: WeeklyControlReviewInput,
+  now = new Date(),
+): WeeklyControlReview {
+  const reviewedAt = now.toISOString();
+  return {
+    ...input,
+    id: `weekly-${reviewedAt}`,
+    reviewedAt,
+    movement: input.movement.trim(),
+    blocker: input.blocker.trim(),
+    nextAction: input.nextAction.trim(),
+    nextOwner: input.nextOwner.trim(),
+    pressureNote: input.pressureNote.trim(),
+  };
+}
+
+export function latestWeeklyControlReview(plan: Pick<ControlPlan, "weeklyReviews"> | undefined) {
+  return plan?.weeklyReviews?.reduce<WeeklyControlReview | undefined>((latest, review) => {
+    if (!latest) return review;
+    return review.reviewedAt > latest.reviewedAt ? review : latest;
+  }, undefined);
+}
+
+export function isWeeklyControlReviewCurrent(
+  review: WeeklyControlReview | undefined,
+  now = new Date(),
+) {
+  if (!review) return false;
+  const reviewedAt = new Date(review.reviewedAt).getTime();
+  return !Number.isNaN(reviewedAt) && now.getTime() - reviewedAt <= 7 * 24 * 60 * 60 * 1000;
+}
+
+export function isControlPlanReviewDue(reviewDate: string | undefined, now = new Date()) {
+  if (!reviewDate) return false;
+  const dueAt = new Date(`${reviewDate}T23:59:59`).getTime();
+  return !Number.isNaN(dueAt) && now.getTime() > dueAt;
 }
 
 export function controlPlanProgress(plan: ControlPlan | undefined) {

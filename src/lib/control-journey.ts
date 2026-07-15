@@ -1,4 +1,10 @@
-import { controlPlanProgress, type ControlPlan } from "@/lib/control-plan";
+import {
+  controlPlanProgress,
+  isControlPlanReviewDue,
+  isWeeklyControlReviewCurrent,
+  latestWeeklyControlReview,
+  type ControlPlan,
+} from "@/lib/control-plan";
 
 export type MemberControlProgress = {
   orientation_opened_at: string | null;
@@ -52,21 +58,6 @@ export type ControlJourney = {
   nextAction: ControlJourneyAction;
 };
 
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-
-function isCurrentWeeklyUpdate(value: string | null | undefined, now: Date) {
-  if (!value) return false;
-  const updatedAt = new Date(value).getTime();
-  if (Number.isNaN(updatedAt)) return false;
-  return now.getTime() - updatedAt <= WEEK_MS;
-}
-
-function isReviewDue(reviewDate: string | undefined, now: Date) {
-  if (!reviewDate) return false;
-  const dueAt = new Date(`${reviewDate}T23:59:59`).getTime();
-  return !Number.isNaN(dueAt) && now.getTime() > dueAt;
-}
-
 function status(complete: boolean, active: boolean): ControlJourneyStepStatus {
   if (complete) return "complete";
   return active ? "active" : "pending";
@@ -83,9 +74,10 @@ export function buildControlJourney(
   const baselineComplete = Boolean(progress?.baseline_saved_at);
   const legacyBaseline = Boolean(legacyBaselineAt && !baselineComplete);
   const planStarted = Boolean(progress?.plan_started_at && progress.latest_baseline_id && plan);
-  const weeklyCurrent = planStarted && isCurrentWeeklyUpdate(progress?.plan_updated_at, now);
+  const weeklyCurrent =
+    planStarted && isWeeklyControlReviewCurrent(latestWeeklyControlReview(plan), now);
   const reviewDate = plan?.reviewDate ?? null;
-  const reviewDue = planStarted && isReviewDue(plan?.reviewDate, now);
+  const reviewDue = planStarted && isControlPlanReviewDue(plan?.reviewDate, now);
   const planProgress = controlPlanProgress(plan);
 
   const completedControls = [
@@ -151,9 +143,9 @@ export function buildControlJourney(
   } else if (!weeklyCurrent) {
     phase = "Weekly update due";
     nextAction = {
-      label: "Update the 90-day plan",
+      label: "Complete the weekly review",
       detail:
-        "Record movement, name the blocker, and keep the active constraint in the weekly rhythm.",
+        "Record movement, constraint trend, the next owner, and any pressure needed from the room.",
       destination: { route: "plan", packetId: progress.latest_baseline_id },
     };
   } else {

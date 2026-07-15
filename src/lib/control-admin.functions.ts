@@ -1,7 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { controlPlanProgress, controlPlanState, type ControlPlan } from "@/lib/control-plan";
+import {
+  controlPlanProgress,
+  controlPlanState,
+  isControlPlanReviewDue,
+  isWeeklyControlReviewCurrent,
+  latestWeeklyControlReview,
+  type ConstraintTrend,
+  type ControlPlan,
+} from "@/lib/control-plan";
 
 async function assertAdmin(userId: string) {
   const { data: roles } = await supabaseAdmin
@@ -30,6 +38,17 @@ export type MemberControlRow = {
   planState: "not_started" | "in_progress" | "blocked" | "complete";
   planActionsCompleted: number;
   planActionsTotal: number;
+  reviewDate: string | null;
+  reassessmentDue: boolean;
+  weeklyReviewedAt: string | null;
+  weeklyCurrent: boolean;
+  constraintTrend: ConstraintTrend | null;
+  weeklyBlocked: boolean;
+  weeklyBlocker: string | null;
+  weeklyNextAction: string | null;
+  weeklyNextOwner: string | null;
+  weeklyNeedsPressure: boolean;
+  weeklyPressureNote: string | null;
 };
 
 const tierRank: Record<string, number> = {
@@ -100,6 +119,7 @@ export const listMemberControl = createServerFn({ method: "GET" })
     for (const packet of packets ?? []) {
       if (!latestPacketByUser.has(packet.user_id)) latestPacketByUser.set(packet.user_id, packet);
     }
+    const now = new Date();
 
     return (profiles ?? [])
       .map((profile) => {
@@ -112,6 +132,8 @@ export const listMemberControl = createServerFn({ method: "GET" })
         const inputs = (payload.inputs ?? {}) as Record<string, unknown>;
         const plan = payload.controlPlan as ControlPlan | undefined;
         const planProgress = controlPlanProgress(plan);
+        const weeklyReview = latestWeeklyControlReview(plan);
+        const planStartedAt = progress?.plan_started_at ?? null;
         return {
           userId: profile.id,
           email: profile.email,
@@ -130,17 +152,39 @@ export const listMemberControl = createServerFn({ method: "GET" })
           primaryConstraint:
             progress?.primary_constraint ??
             (typeof payload.primaryConstraint === "string" ? payload.primaryConstraint : null),
-          planStartedAt: progress?.plan_started_at ?? null,
+          planStartedAt,
           planUpdatedAt: progress?.plan_updated_at ?? null,
           planCompletedAt: progress?.plan_completed_at ?? null,
           planPercent: planProgress.percent,
           planState: controlPlanState(plan),
           planActionsCompleted: planProgress.completed,
           planActionsTotal: planProgress.total,
+          reviewDate: plan?.reviewDate ?? null,
+          reassessmentDue: Boolean(planStartedAt && isControlPlanReviewDue(plan?.reviewDate, now)),
+          weeklyReviewedAt: weeklyReview?.reviewedAt ?? null,
+          weeklyCurrent: Boolean(planStartedAt && isWeeklyControlReviewCurrent(weeklyReview, now)),
+          constraintTrend: weeklyReview?.constraintTrend ?? null,
+          weeklyBlocked: weeklyReview?.blocked ?? false,
+          weeklyBlocker: weeklyReview?.blocker || null,
+          weeklyNextAction: weeklyReview?.nextAction || null,
+          weeklyNextOwner: weeklyReview?.nextOwner || null,
+          weeklyNeedsPressure: weeklyReview?.needsPressure ?? false,
+          weeklyPressureNote: weeklyReview?.pressureNote || null,
         } satisfies MemberControlRow;
       })
       .filter((row): row is MemberControlRow => row !== null)
       .sort((left, right) => {
+        const leftAttention =
+          Number(left.weeklyNeedsPressure) * 4 +
+          Number(left.weeklyBlocked) * 3 +
+          Number(left.reassessmentDue) * 2 +
+          Number(Boolean(left.planStartedAt) && !left.weeklyCurrent);
+        const rightAttention =
+          Number(right.weeklyNeedsPressure) * 4 +
+          Number(right.weeklyBlocked) * 3 +
+          Number(right.reassessmentDue) * 2 +
+          Number(Boolean(right.planStartedAt) && !right.weeklyCurrent);
+        if (leftAttention !== rightAttention) return rightAttention - leftAttention;
         const leftAt = left.planUpdatedAt ?? left.baselineSavedAt ?? left.assessmentStartedAt ?? "";
         const rightAt =
           right.planUpdatedAt ?? right.baselineSavedAt ?? right.assessmentStartedAt ?? "";
