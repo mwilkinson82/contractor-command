@@ -2,10 +2,16 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Copy, Search, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Copy, Download, Mail, Search, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Container } from "@/components/portal/page-header";
 import { useIsAdmin } from "@/hooks/use-is-admin";
+import {
+  buildControlNudge,
+  buildControlRoomCsv,
+  controlRoomExportFilename,
+  memberCountLabel,
+} from "@/lib/control-admin-outreach";
 import { listMemberControl, type MemberControlRow } from "@/lib/control-admin.functions";
 
 export const Route = createFileRoute("/admin/control")({
@@ -106,6 +112,31 @@ function MemberControlPage() {
     [rows],
   );
 
+  async function copyFilteredEmails() {
+    const emails = [...new Set(filtered.map((row) => row.email.trim().toLowerCase()))];
+    if (!emails.length) return;
+    try {
+      await navigator.clipboard.writeText(emails.join(", "));
+      toast.success(`${memberCountLabel(emails.length)} copied for outreach.`);
+    } catch {
+      toast.error("The email list could not be copied.");
+    }
+  }
+
+  function exportFilteredRows() {
+    if (!filtered.length) return;
+    const blob = new Blob([buildControlRoomCsv(filtered)], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = controlRoomExportFilename(filterLabels[filter]);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    toast.success(`${memberCountLabel(filtered.length)} exported for follow-up.`);
+  }
+
   if (isAdmin === false) return null;
 
   return (
@@ -125,7 +156,9 @@ function MemberControlPage() {
             to establish the next 90-day baseline.{" "}
             {isLoading
               ? "Loading eligible members…"
-              : `${rows.length} eligible members are in view.`}
+              : rows.length === 1
+                ? "1 eligible member is in view."
+                : `${rows.length} eligible members are in view.`}
           </p>
         </div>
         <ShieldCheck className="h-8 w-8 text-clay" />
@@ -224,12 +257,32 @@ function MemberControlPage() {
       <section className="mt-6 overflow-hidden rounded-2xl border border-border bg-card">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
           <div>
-            <p className="label-mono">Member operating rhythm</p>
+            <p className="label-mono">Activation and member rhythm</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Viewing {filterLabels[filter]} · {filtered.length} members
+              Viewing {filterLabels[filter]} · {memberCountLabel(filtered.length)}
+            </p>
+            <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">
+              Filter the room, then copy a BCC-ready email list or export a working CSV with each
+              member’s suggested follow-up.
             </p>
           </div>
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            <button
+              type="button"
+              disabled={isLoading || !filtered.length}
+              onClick={copyFilteredEmails}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Mail className="h-3.5 w-3.5" /> Copy emails
+            </button>
+            <button
+              type="button"
+              disabled={isLoading || !filtered.length}
+              onClick={exportFilteredRows}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Download className="h-3.5 w-3.5" /> Export CSV
+            </button>
             {filter !== "all" ? (
               <button
                 type="button"
@@ -459,7 +512,7 @@ function StatusBadge({ label, tone }: { label: string; tone: "good" | "attention
 function CopyNudgeButton({ row, dark = false }: { row: MemberControlRow; dark?: boolean }) {
   async function copyNudge() {
     try {
-      await navigator.clipboard.writeText(buildNudge(row));
+      await navigator.clipboard.writeText(buildControlNudge(row));
       toast.success(`Nudge copied for ${firstName(row)}.`);
     } catch {
       toast.error("The nudge could not be copied.");
@@ -483,35 +536,6 @@ function CopyNudgeButton({ row, dark = false }: { row: MemberControlRow; dark?: 
 
 function firstName(row: MemberControlRow) {
   return row.fullName?.trim().split(/\s+/)[0] || "there";
-}
-
-function buildNudge(row: MemberControlRow) {
-  const name = firstName(row);
-  const next = row.weeklyNextAction
-    ? ` Your next owned action is “${row.weeklyNextAction}”${row.weeklyNextOwner ? ` with ${row.weeklyNextOwner}` : ""}.`
-    : "";
-  if (row.weeklyNeedsPressure) {
-    return `Hey ${name} — I saw your Weekly Control Review. You flagged: “${row.weeklyPressureNote || row.weeklyBlocker || row.primaryConstraint}.” Bring that into Discord or the next call and we’ll pressure-test it together.${next}`;
-  }
-  if (row.weeklyBlocked || row.planState === "blocked") {
-    return `Hey ${name} — your control plan is showing a blocker: “${row.weeklyBlocker || row.primaryConstraint}.” Let’s get it into Discord or the next call before it costs another week.${next}`;
-  }
-  if (row.reassessmentDue) {
-    return `Hey ${name} — your 90-day State of Control reassessment is due. Rerun it in the Hub so we can compare the new baseline, confirm what moved, and identify the next constraint.`;
-  }
-  if (row.planStartedAt && !row.weeklyCurrent) {
-    return `Hey ${name} — your Weekly Control Review is due in the Hub. Take five minutes to record what moved, what is blocked, the next owned action, and any pressure you need from the group.`;
-  }
-  if (row.baselineState === "missing") {
-    return `Hey ${name} — your State of Control baseline is still open. Run the assessment in Start Here so the Hub can build your personalized 90-day control plan.`;
-  }
-  if (row.baselineState === "needs_refresh") {
-    return `Hey ${name} — your earlier State of Control baseline predates the live 90-day plan. Rerun the assessment in Start Here so the Hub can build your current implementation route.`;
-  }
-  if (!row.planStartedAt) {
-    return `Hey ${name} — your 90-day control plan is ready in the Hub but has not been started. Open it, confirm the first owned action, and establish this week's control rhythm.`;
-  }
-  return `Hey ${name} — your Control Journey is current. Keep pressure on ${row.primaryConstraint || "the active constraint"} and update the next owned action in this week’s review.${next}`;
 }
 
 function formatWhen(value: string) {
