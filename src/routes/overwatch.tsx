@@ -86,7 +86,7 @@ function OverwatchGateway() {
 
               <p className="mt-5 max-w-2xl border-l-2 border-clay pl-4 text-[13px] leading-relaxed text-foreground/70">
                 {isCircleExperience
-                  ? "Contractor Circle and Hardcore members receive OverWatch Pro access with membership."
+                  ? "Contractor Circle and Hardcore members receive the OverWatch Contractor Circle tier with membership."
                   : "Handbook buyers can use OverWatch Free on one real project, with two internal seats, before deciding whether to upgrade."}
               </p>
 

@@ -77,7 +77,7 @@ function EcosystemPage() {
             description="AOS runs the company. OverWatch runs IOR, project control, and Daily Project WIP."
             access={
               hasCircle
-                ? "Full application tiers included"
+                ? "Highest application tiers included"
                 : hasHandbook
                   ? "Free application tiers included"
                   : "Start with the Handbook"
@@ -151,7 +151,7 @@ function EcosystemPage() {
               "Complete replay archive",
               "Templates and implementation files",
               "Ask Marshall and live issue pressure",
-              "Unlimited AOS + OverWatch Pro",
+              "Unlimited AOS + OverWatch Contractor Circle",
             ].map((item) => (
               <div key={item} className="flex items-start gap-3 rounded-xl bg-muted/45 p-4">
                 {hasCircle ? (
