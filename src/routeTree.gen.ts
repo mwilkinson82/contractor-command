@@ -74,6 +74,7 @@ import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/e
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api/public/stripe/webhook'
+import { Route as ApiPublicOverwatchTierLookupRouteImport } from './routes/api/public/overwatch/tier-lookup'
 import { Route as ApiPublicAosTierLookupRouteImport } from './routes/api/public/aos/tier-lookup'
 
 const WorkWithMarshallRoute = WorkWithMarshallRouteImport.update({
@@ -404,6 +405,12 @@ const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
   path: '/api/public/stripe/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicOverwatchTierLookupRoute =
+  ApiPublicOverwatchTierLookupRouteImport.update({
+    id: '/api/public/overwatch/tier-lookup',
+    path: '/api/public/overwatch/tier-lookup',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicAosTierLookupRoute = ApiPublicAosTierLookupRouteImport.update({
   id: '/api/public/aos/tier-lookup',
   path: '/api/public/aos/tier-lookup',
@@ -471,6 +478,7 @@ export interface FileRoutesByFullPath {
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
+  '/api/public/overwatch/tier-lookup': typeof ApiPublicOverwatchTierLookupRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -539,6 +547,7 @@ export interface FileRoutesByTo {
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
+  '/api/public/overwatch/tier-lookup': typeof ApiPublicOverwatchTierLookupRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -608,6 +617,7 @@ export interface FileRoutesById {
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
+  '/api/public/overwatch/tier-lookup': typeof ApiPublicOverwatchTierLookupRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -678,6 +688,7 @@ export interface FileRouteTypes {
     | '/lovable/email/suppression'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
+    | '/api/public/overwatch/tier-lookup'
     | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -746,6 +757,7 @@ export interface FileRouteTypes {
     | '/lovable/email/suppression'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
+    | '/api/public/overwatch/tier-lookup'
     | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -814,6 +826,7 @@ export interface FileRouteTypes {
     | '/lovable/email/suppression'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
+    | '/api/public/overwatch/tier-lookup'
     | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -878,6 +891,7 @@ export interface RootRouteChildren {
   ApiPublicAosFpRoute: typeof ApiPublicAosFpRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiPublicAosTierLookupRoute: typeof ApiPublicAosTierLookupRoute
+  ApiPublicOverwatchTierLookupRoute: typeof ApiPublicOverwatchTierLookupRoute
   ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
@@ -1343,6 +1357,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/overwatch/tier-lookup': {
+      id: '/api/public/overwatch/tier-lookup'
+      path: '/api/public/overwatch/tier-lookup'
+      fullPath: '/api/public/overwatch/tier-lookup'
+      preLoaderRoute: typeof ApiPublicOverwatchTierLookupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/aos/tier-lookup': {
       id: '/api/public/aos/tier-lookup'
       path: '/api/public/aos/tier-lookup'
@@ -1437,6 +1458,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAosFpRoute: ApiPublicAosFpRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiPublicAosTierLookupRoute: ApiPublicAosTierLookupRoute,
+  ApiPublicOverwatchTierLookupRoute: ApiPublicOverwatchTierLookupRoute,
   ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
