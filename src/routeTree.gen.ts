@@ -44,6 +44,7 @@ import { Route as ToolsGrowthConstraintRouteImport } from './routes/tools.growth
 import { Route as ToolsCosNavigatorRouteImport } from './routes/tools.cos-navigator'
 import { Route as SchedulerProjectIdRouteImport } from './routes/scheduler.$projectId'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
+import { Route as ControlPlanPacketIdRouteImport } from './routes/control-plan.$packetId'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as AskNewRouteImport } from './routes/ask.new'
 import { Route as AskThreadIdRouteImport } from './routes/ask.$threadId'
@@ -63,6 +64,7 @@ import { Route as AdminLibraryRouteImport } from './routes/admin.library'
 import { Route as AdminIntensiveLeadsRouteImport } from './routes/admin.intensive-leads'
 import { Route as AdminHandbookRouteImport } from './routes/admin.handbook'
 import { Route as AdminEmailApprovalsRouteImport } from './routes/admin.email-approvals'
+import { Route as AdminControlRouteImport } from './routes/admin.control'
 import { Route as AdminBackfillRouteImport } from './routes/admin.backfill'
 import { Route as AdminAnnounceRouteImport } from './routes/admin.announce'
 import { Route as ToolsSopEditPacketIdRouteImport } from './routes/tools.sop-edit.$packetId'
@@ -252,6 +254,11 @@ const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
   path: '/email/unsubscribe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ControlPlanPacketIdRoute = ControlPlanPacketIdRouteImport.update({
+  id: '/control-plan/$packetId',
+  path: '/control-plan/$packetId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthCallbackRoute = AuthCallbackRouteImport.update({
   id: '/auth/callback',
   path: '/auth/callback',
@@ -345,6 +352,11 @@ const AdminHandbookRoute = AdminHandbookRouteImport.update({
 const AdminEmailApprovalsRoute = AdminEmailApprovalsRouteImport.update({
   id: '/admin/email-approvals',
   path: '/admin/email-approvals',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminControlRoute = AdminControlRouteImport.update({
+  id: '/admin/control',
+  path: '/admin/control',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminBackfillRoute = AdminBackfillRouteImport.update({
@@ -447,6 +459,7 @@ export interface FileRoutesByFullPath {
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/admin/announce': typeof AdminAnnounceRoute
   '/admin/backfill': typeof AdminBackfillRoute
+  '/admin/control': typeof AdminControlRoute
   '/admin/email-approvals': typeof AdminEmailApprovalsRoute
   '/admin/handbook': typeof AdminHandbookRoute
   '/admin/intensive-leads': typeof AdminIntensiveLeadsRoute
@@ -466,6 +479,7 @@ export interface FileRoutesByFullPath {
   '/ask/$threadId': typeof AskThreadIdRoute
   '/ask/new': typeof AskNewRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/control-plan/$packetId': typeof ControlPlanPacketIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/scheduler/$projectId': typeof SchedulerProjectIdRoute
   '/tools/cos-navigator': typeof ToolsCosNavigatorRoute
@@ -516,6 +530,7 @@ export interface FileRoutesByTo {
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/admin/announce': typeof AdminAnnounceRoute
   '/admin/backfill': typeof AdminBackfillRoute
+  '/admin/control': typeof AdminControlRoute
   '/admin/email-approvals': typeof AdminEmailApprovalsRoute
   '/admin/handbook': typeof AdminHandbookRoute
   '/admin/intensive-leads': typeof AdminIntensiveLeadsRoute
@@ -535,6 +550,7 @@ export interface FileRoutesByTo {
   '/ask/$threadId': typeof AskThreadIdRoute
   '/ask/new': typeof AskNewRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/control-plan/$packetId': typeof ControlPlanPacketIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/scheduler/$projectId': typeof SchedulerProjectIdRoute
   '/tools/cos-navigator': typeof ToolsCosNavigatorRoute
@@ -586,6 +602,7 @@ export interface FileRoutesById {
   '/work-with-marshall': typeof WorkWithMarshallRoute
   '/admin/announce': typeof AdminAnnounceRoute
   '/admin/backfill': typeof AdminBackfillRoute
+  '/admin/control': typeof AdminControlRoute
   '/admin/email-approvals': typeof AdminEmailApprovalsRoute
   '/admin/handbook': typeof AdminHandbookRoute
   '/admin/intensive-leads': typeof AdminIntensiveLeadsRoute
@@ -605,6 +622,7 @@ export interface FileRoutesById {
   '/ask/$threadId': typeof AskThreadIdRoute
   '/ask/new': typeof AskNewRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/control-plan/$packetId': typeof ControlPlanPacketIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/scheduler/$projectId': typeof SchedulerProjectIdRoute
   '/tools/cos-navigator': typeof ToolsCosNavigatorRoute
@@ -657,6 +675,7 @@ export interface FileRouteTypes {
     | '/work-with-marshall'
     | '/admin/announce'
     | '/admin/backfill'
+    | '/admin/control'
     | '/admin/email-approvals'
     | '/admin/handbook'
     | '/admin/intensive-leads'
@@ -676,6 +695,7 @@ export interface FileRouteTypes {
     | '/ask/$threadId'
     | '/ask/new'
     | '/auth/callback'
+    | '/control-plan/$packetId'
     | '/email/unsubscribe'
     | '/scheduler/$projectId'
     | '/tools/cos-navigator'
@@ -726,6 +746,7 @@ export interface FileRouteTypes {
     | '/work-with-marshall'
     | '/admin/announce'
     | '/admin/backfill'
+    | '/admin/control'
     | '/admin/email-approvals'
     | '/admin/handbook'
     | '/admin/intensive-leads'
@@ -745,6 +766,7 @@ export interface FileRouteTypes {
     | '/ask/$threadId'
     | '/ask/new'
     | '/auth/callback'
+    | '/control-plan/$packetId'
     | '/email/unsubscribe'
     | '/scheduler/$projectId'
     | '/tools/cos-navigator'
@@ -795,6 +817,7 @@ export interface FileRouteTypes {
     | '/work-with-marshall'
     | '/admin/announce'
     | '/admin/backfill'
+    | '/admin/control'
     | '/admin/email-approvals'
     | '/admin/handbook'
     | '/admin/intensive-leads'
@@ -814,6 +837,7 @@ export interface FileRouteTypes {
     | '/ask/$threadId'
     | '/ask/new'
     | '/auth/callback'
+    | '/control-plan/$packetId'
     | '/email/unsubscribe'
     | '/scheduler/$projectId'
     | '/tools/cos-navigator'
@@ -865,6 +889,7 @@ export interface RootRouteChildren {
   WorkWithMarshallRoute: typeof WorkWithMarshallRoute
   AdminAnnounceRoute: typeof AdminAnnounceRoute
   AdminBackfillRoute: typeof AdminBackfillRoute
+  AdminControlRoute: typeof AdminControlRoute
   AdminEmailApprovalsRoute: typeof AdminEmailApprovalsRoute
   AdminHandbookRoute: typeof AdminHandbookRoute
   AdminIntensiveLeadsRoute: typeof AdminIntensiveLeadsRoute
@@ -884,6 +909,7 @@ export interface RootRouteChildren {
   AskThreadIdRoute: typeof AskThreadIdRoute
   AskNewRoute: typeof AskNewRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
+  ControlPlanPacketIdRoute: typeof ControlPlanPacketIdRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AosIndexRoute: typeof AosIndexRoute
@@ -1147,6 +1173,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmailUnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/control-plan/$packetId': {
+      id: '/control-plan/$packetId'
+      path: '/control-plan/$packetId'
+      fullPath: '/control-plan/$packetId'
+      preLoaderRoute: typeof ControlPlanPacketIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth/callback': {
       id: '/auth/callback'
       path: '/auth/callback'
@@ -1278,6 +1311,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/email-approvals'
       fullPath: '/admin/email-approvals'
       preLoaderRoute: typeof AdminEmailApprovalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/control': {
+      id: '/admin/control'
+      path: '/admin/control'
+      fullPath: '/admin/control'
+      preLoaderRoute: typeof AdminControlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/backfill': {
@@ -1432,6 +1472,7 @@ const rootRouteChildren: RootRouteChildren = {
   WorkWithMarshallRoute: WorkWithMarshallRoute,
   AdminAnnounceRoute: AdminAnnounceRoute,
   AdminBackfillRoute: AdminBackfillRoute,
+  AdminControlRoute: AdminControlRoute,
   AdminEmailApprovalsRoute: AdminEmailApprovalsRoute,
   AdminHandbookRoute: AdminHandbookRoute,
   AdminIntensiveLeadsRoute: AdminIntensiveLeadsRoute,
@@ -1451,6 +1492,7 @@ const rootRouteChildren: RootRouteChildren = {
   AskThreadIdRoute: AskThreadIdRoute,
   AskNewRoute: AskNewRoute,
   AuthCallbackRoute: AuthCallbackRoute,
+  ControlPlanPacketIdRoute: ControlPlanPacketIdRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   AdminIndexRoute: AdminIndexRoute,
   AosIndexRoute: AosIndexRoute,

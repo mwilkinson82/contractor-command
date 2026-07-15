@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Container, PageHeader } from "@/components/portal/page-header";
 import { DISCORD_URL } from "@/lib/program";
+import { markControlProgress } from "@/lib/control-progress";
 
 const LOOM_EMBED_URL = "https://www.loom.com/embed/440cd1dfa22c4f87b6f6df2c950f6ee5";
 const CONTROL_LOOP_IMAGE_URL = "/images/professional-contractor-control-loop.png";
@@ -33,6 +34,10 @@ export const Route = createFileRoute("/start-here")({
 });
 
 function StartHerePage() {
+  useEffect(() => {
+    void markControlProgress({ orientation_opened_at: new Date().toISOString() });
+  }, []);
+
   return (
     <Container>
       <PageHeader

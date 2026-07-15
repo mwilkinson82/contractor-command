@@ -611,6 +611,62 @@ export type Database = {
         }
         Relationships: []
       }
+      member_control_progress: {
+        Row: {
+          assessment_started_at: string | null
+          baseline_saved_at: string | null
+          created_at: string
+          latest_baseline_id: string | null
+          latest_score: number | null
+          orientation_opened_at: string | null
+          plan_completed_at: string | null
+          plan_started_at: string | null
+          plan_updated_at: string | null
+          primary_category: string | null
+          primary_constraint: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assessment_started_at?: string | null
+          baseline_saved_at?: string | null
+          created_at?: string
+          latest_baseline_id?: string | null
+          latest_score?: number | null
+          orientation_opened_at?: string | null
+          plan_completed_at?: string | null
+          plan_started_at?: string | null
+          plan_updated_at?: string | null
+          primary_category?: string | null
+          primary_constraint?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assessment_started_at?: string | null
+          baseline_saved_at?: string | null
+          created_at?: string
+          latest_baseline_id?: string | null
+          latest_score?: number | null
+          orientation_opened_at?: string | null
+          plan_completed_at?: string | null
+          plan_started_at?: string | null
+          plan_updated_at?: string | null
+          primary_category?: string | null
+          primary_constraint?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_control_progress_latest_baseline_id_fkey"
+            columns: ["latest_baseline_id"]
+            isOneToOne: false
+            referencedRelation: "vault_packets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string

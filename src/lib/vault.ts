@@ -4,6 +4,7 @@
 // synchronous read API used across the UI.
 
 import { supabase } from "@/integrations/supabase/client";
+import type { ControlPlan } from "@/lib/control-plan";
 
 export type PacketStatus = "Open" | "Brought to Session" | "Carried into AOS" | "Archived";
 
@@ -22,6 +23,7 @@ export type CommandPacket = {
   bringOneIssuePrompt: string;
   intensiveRecommended: boolean;
   inputs: Record<string, number | string>;
+  controlPlan?: ControlPlan;
   status: PacketStatus;
 };
 
