@@ -5,14 +5,20 @@ import { FileText, Search, ExternalLink, Download, X, Sparkles } from "lucide-re
 import { PageHeader, Container } from "@/components/portal/page-header";
 import { openTemplateFile, type TemplateRow } from "@/lib/library";
 import { templatesQueryOptions } from "@/lib/library-queries";
+import { FeatureAccessBoundary } from "@/components/portal/feature-access";
 
 export const Route = createFileRoute("/templates")({
   head: () => ({ meta: [{ title: "Templates — ALP Contractor Circle" }] }),
-  loader: ({ context }) => {
-    context.queryClient.prefetchQuery(templatesQueryOptions());
-  },
-  component: TemplatesPage,
+  component: TemplatesRoute,
 });
+
+function TemplatesRoute() {
+  return (
+    <FeatureAccessBoundary feature="templates">
+      <TemplatesPage />
+    </FeatureAccessBoundary>
+  );
+}
 
 const AOS_CATEGORY = "AOS";
 type SortMode = "newest" | "az";
@@ -23,11 +29,7 @@ function TemplatesPage() {
   const [cat, setCat] = useState<string>("All");
   const [sort, setSort] = useState<SortMode>("newest");
 
-
-  const aosItems = useMemo(
-    () => (rows ?? []).filter((r) => r.category === AOS_CATEGORY),
-    [rows],
-  );
+  const aosItems = useMemo(() => (rows ?? []).filter((r) => r.category === AOS_CATEGORY), [rows]);
 
   const featuredItems = useMemo(
     () => (rows ?? []).filter((r) => r.featured && r.category !== AOS_CATEGORY),
@@ -79,7 +81,13 @@ function TemplatesPage() {
     <Container>
       <PageHeader
         eyebrow="Implementation assets"
-        title={<>Templates that install<br/>the missing system.</>}
+        title={
+          <>
+            Templates that install
+            <br />
+            the missing system.
+          </>
+        }
         lede="Every template here answers one question: what operating problem does this help solve? Organized by where it belongs in the business, not by file type."
       />
 
@@ -89,7 +97,6 @@ function TemplatesPage() {
             <div key={i} className="h-14 animate-pulse rounded-md bg-muted/40" />
           ))}
         </div>
-
       ) : (
         <>
           {aosItems.length > 0 && <AOSBand items={aosItems} />}
@@ -159,7 +166,10 @@ function TemplatesPage() {
                     <p>No templates match &ldquo;{q}&rdquo;.</p>
                     <button
                       type="button"
-                      onClick={() => { setQ(""); setCat("All"); }}
+                      onClick={() => {
+                        setQ("");
+                        setCat("All");
+                      }}
                       className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs hover:bg-muted"
                     >
                       <X className="h-3 w-3" /> Clear
@@ -174,7 +184,9 @@ function TemplatesPage() {
                 {grouped.map(([group, items]) => (
                   <section key={group}>
                     <div className="flex items-baseline justify-between border-b border-border pb-2">
-                      <h3 className="font-display text-xl md:text-2xl text-foreground capitalize">{group.replace(/_/g, " ")}</h3>
+                      <h3 className="font-display text-xl md:text-2xl text-foreground capitalize">
+                        {group.replace(/_/g, " ")}
+                      </h3>
                       <span className="text-[11px] text-muted-foreground">
                         {items.length} {items.length === 1 ? "item" : "items"}
                       </span>
@@ -238,7 +250,11 @@ function FeaturedBand({ items }: { items: TemplateRow[] }) {
       <div className="mt-3 grid gap-4 md:grid-cols-2">
         {items.map((it) => {
           const added = it.created_at
-            ? new Date(it.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+            ? new Date(it.created_at).toLocaleDateString(undefined, {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })
             : null;
           const metaBits = [
             it.file_type?.toUpperCase(),
@@ -276,9 +292,7 @@ function FeaturedBand({ items }: { items: TemplateRow[] }) {
                 </ul>
               )}
               <div className="mt-5 flex items-center justify-between gap-4 border-t border-border pt-4">
-                <p className="text-[11px] text-muted-foreground">
-                  {metaBits.join(" · ")}
-                </p>
+                <p className="text-[11px] text-muted-foreground">{metaBits.join(" · ")}</p>
                 <OpenButton template={it} />
               </div>
             </article>
@@ -291,7 +305,11 @@ function FeaturedBand({ items }: { items: TemplateRow[] }) {
 
 function TemplateListRow({ template }: { template: TemplateRow }) {
   const added = template.created_at
-    ? new Date(template.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+    ? new Date(template.created_at).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
     : null;
   const metaBits = [
     template.file_type?.toUpperCase(),
@@ -305,7 +323,9 @@ function TemplateListRow({ template }: { template: TemplateRow }) {
         <p className="font-display text-[15px] leading-snug">{template.title}</p>
         <p className="mt-1 truncate text-xs text-muted-foreground">
           {template.description}
-          {metaBits.length > 0 && <span className="ml-2 text-muted-foreground/70">· {metaBits.join(" · ")}</span>}
+          {metaBits.length > 0 && (
+            <span className="ml-2 text-muted-foreground/70">· {metaBits.join(" · ")}</span>
+          )}
         </p>
       </div>
       <OpenButton template={template} compact />

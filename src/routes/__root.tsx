@@ -68,19 +68,17 @@ if (typeof window !== "undefined" && window.location.pathname !== "/auth/callbac
 //
 // ALP Handbook buyers (book_buyer) get: Start Here + Handbook + AOS + OverWatch Free + Ask + Tools + Vault.
 // - Start Here / OverWatch Free / Ask / Vault / Tools / Field tools → book_buyer and up (handbook entitlement)
-// - Community → power_hour and up (room is for paying members)
-// - Replays → book_buyer and up (per-category gating happens in the page + RLS)
-// - Templates / Calls → Circle and up
+// Circle-only teaching surfaces (Contractor OS, Calls, Community, Templates,
+// and Replays) intentionally remain routable. Their route components render a
+// designed locked preview for lower tiers instead of disappearing or bouncing
+// immediately to checkout.
 const ROUTE_TIER_GATES: Array<{ prefix: string; min: Tier }> = [
   { prefix: "/vault", min: "book_buyer" },
   { prefix: "/tools", min: "book_buyer" },
   { prefix: "/control-plan", min: "book_buyer" },
   { prefix: "/field-tools", min: "book_buyer" },
   { prefix: "/ask", min: "book_buyer" },
-  { prefix: "/community", min: "power_hour" },
   { prefix: "/start-here", min: START_HERE_MIN_TIER },
-  { prefix: "/templates", min: "circle" },
-  { prefix: "/calls", min: "circle" },
   { prefix: "/overwatch", min: "book_buyer" },
 ];
 

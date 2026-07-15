@@ -10,8 +10,10 @@ import {
   Eye,
   FileText,
   Gauge,
+  Lock,
   MessageSquare,
   PlayCircle,
+  Users,
   Video,
 } from "lucide-react";
 import { Container, PageHeader } from "@/components/portal/page-header";
@@ -296,6 +298,59 @@ function StartHerePage() {
         </div>
       </section>
 
+      {!isCircleExperience && (
+        <section className="mt-16 overflow-hidden rounded-3xl border border-border bg-card shadow-[var(--shadow-soft)]">
+          <div className="grid gap-0 lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)]">
+            <div className="bg-[var(--paper-deep)] p-7 sm:p-9">
+              <p className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-clay">
+                <Users className="h-3.5 w-3.5" /> Contractor Circle
+              </p>
+              <h2 className="mt-4 font-display text-3xl leading-tight">
+                See the implementation layer before you join it.
+              </h2>
+              <p className="mt-4 text-[14px] leading-relaxed text-muted-foreground">
+                Your Handbook, State of Control, AOS, OverWatch Free, and included tools stay
+                available. Contractor Circle adds the room, the teaching archive, and the working
+                assets that help install the system faster.
+              </p>
+              <Link
+                to="/ecosystem"
+                className="mt-7 inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2.5 text-[13px] font-medium hover:bg-muted"
+              >
+                Map the ALP ecosystem <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+
+            <div className="grid gap-3 p-5 sm:grid-cols-2 sm:p-7">
+              <LockedCircleCard
+                icon={<CalendarDays className="h-4 w-4" />}
+                title="Live calls + bootcamps"
+                body="Bring the real issue into the room and pressure-test the next move."
+                href="/calls"
+              />
+              <LockedCircleCard
+                icon={<MessageSquare className="h-4 w-4" />}
+                title="Private community"
+                body="Stay in the daily operator conversations between working sessions."
+                href="/community"
+              />
+              <LockedCircleCard
+                icon={<Video className="h-4 w-4" />}
+                title="Replay archive"
+                body="Return to the teaching when the company is ready to install it."
+                href="/replays"
+              />
+              <LockedCircleCard
+                icon={<FileText className="h-4 w-4" />}
+                title="Templates + Contractor OS"
+                body="Use the working files and complete implementation playbook."
+                href="/templates"
+              />
+            </div>
+          </div>
+        </section>
+      )}
+
       <section className="mt-16 flex flex-col gap-6 rounded-3xl bg-ink px-7 py-8 text-cream sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-10">
         <div className="max-w-2xl">
           <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-signal">
@@ -312,13 +367,23 @@ function StartHerePage() {
               : "The ALP Handbook teaches the doctrine. AOS runs the company. IOR controls the projects. Contractor Circle adds the calls, community, and direct pressure to install it faster."}
           </p>
         </div>
-        <Link
-          to={isCircleExperience ? "/operating-playbook" : "/upgrade"}
-          className="inline-flex shrink-0 items-center gap-2 self-start rounded-md bg-cream px-5 py-3 text-[13px] font-medium text-ink hover:opacity-90 sm:self-auto"
-        >
-          {isCircleExperience ? "Open the operating playbook" : "Explore Contractor Circle"}{" "}
-          <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
+        <div className="flex shrink-0 flex-wrap gap-2 self-start sm:self-auto">
+          {!isCircleExperience && (
+            <Link
+              to="/ecosystem"
+              className="inline-flex items-center gap-2 rounded-md border border-cream/25 px-5 py-3 text-[13px] font-medium text-cream hover:bg-cream/10"
+            >
+              See the ecosystem
+            </Link>
+          )}
+          <Link
+            to={isCircleExperience ? "/operating-playbook" : "/upgrade"}
+            className="inline-flex items-center gap-2 rounded-md bg-cream px-5 py-3 text-[13px] font-medium text-ink hover:opacity-90"
+          >
+            {isCircleExperience ? "Open the operating playbook" : "Explore Contractor Circle"}{" "}
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
       </section>
     </Container>
   );
@@ -374,6 +439,36 @@ function FirstMove({ icon, step, title, body, href, external = false }: FirstMov
   return (
     <Link to={href} className={className}>
       {content}
+    </Link>
+  );
+}
+
+function LockedCircleCard({
+  icon,
+  title,
+  body,
+  href,
+}: {
+  icon: ReactNode;
+  title: string;
+  body: string;
+  href: "/calls" | "/community" | "/replays" | "/templates";
+}) {
+  return (
+    <Link
+      to={href}
+      className="group relative min-h-[190px] overflow-hidden rounded-2xl border border-border bg-[var(--paper-deep)] p-5 transition hover:border-foreground/25 hover:shadow-[var(--shadow-soft)]"
+    >
+      <div className="absolute -right-5 -top-5 h-20 w-20 rounded-full bg-clay/8 blur-2xl" />
+      <div className="relative flex items-center justify-between text-clay">
+        {icon}
+        <Lock className="h-3.5 w-3.5" />
+      </div>
+      <p className="relative mt-7 font-mono text-[8px] uppercase tracking-[0.2em] text-clay">
+        Available to Contractor Circle members
+      </p>
+      <h3 className="relative mt-2 font-display text-xl">{title}</h3>
+      <p className="relative mt-2 text-[12px] leading-relaxed text-muted-foreground">{body}</p>
     </Link>
   );
 }

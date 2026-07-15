@@ -11,16 +11,29 @@ import {
 } from "@/lib/program";
 import { submitCallTopic } from "@/lib/topics.functions";
 import { ArrowUpRight, Calendar, Check, Loader2, Video } from "lucide-react";
+import { FeatureAccessBoundary } from "@/components/portal/feature-access";
 
 export const Route = createFileRoute("/calls")({
   head: () => ({
     meta: [
       { title: "Calls & Replays — ALP Contractor Circle" },
-      { name: "description", content: "Next biweekly call, next monthly bootcamp, topic submission, and the full replay library." },
+      {
+        name: "description",
+        content:
+          "Next biweekly call, next monthly bootcamp, topic submission, and the full replay library.",
+      },
     ],
   }),
-  component: CallsPage,
+  component: CallsRoute,
 });
+
+function CallsRoute() {
+  return (
+    <FeatureAccessBoundary feature="calls">
+      <CallsPage />
+    </FeatureAccessBoundary>
+  );
+}
 
 function CallsPage() {
   const biweekly = nextOfKind("Biweekly Call");
@@ -84,13 +97,17 @@ function SessionCard({ session, primary = false }: { session: Session; primary?:
       <h3 className={`mt-4 font-display text-2xl leading-snug ${primary ? "text-cream" : ""}`}>
         {session.title}
       </h3>
-      <div className={`mt-5 flex items-center gap-2 text-sm ${primary ? "text-cream/75" : "text-muted-foreground"}`}>
+      <div
+        className={`mt-5 flex items-center gap-2 text-sm ${primary ? "text-cream/75" : "text-muted-foreground"}`}
+      >
         <Calendar className="h-4 w-4" />
         <span>{formatSessionDate(session.date)}</span>
         <span className={primary ? "text-cream/30" : "text-muted-foreground/40"}>·</span>
         <span>{session.durationMin} min</span>
       </div>
-      <p className={`mt-5 text-sm leading-relaxed ${primary ? "text-cream/75" : "text-muted-foreground"}`}>
+      <p
+        className={`mt-5 text-sm leading-relaxed ${primary ? "text-cream/75" : "text-muted-foreground"}`}
+      >
         {session.description}
       </p>
       <div className="mt-7 flex flex-wrap gap-2">
@@ -130,9 +147,11 @@ function SessionCard({ session, primary = false }: { session: Session; primary?:
         </a>
       </div>
       {session.zoomId ? (
-        <p className={`mt-6 border-t pt-4 font-mono text-xs ${primary ? "border-cream/10 text-cream/50" : "border-border text-muted-foreground"}`}>
+        <p
+          className={`mt-6 border-t pt-4 font-mono text-xs ${primary ? "border-cream/10 text-cream/50" : "border-border text-muted-foreground"}`}
+        >
           Zoom ID · {session.zoomId}
-          {session.passcode ? <>  ·  Passcode · {session.passcode}</> : null}
+          {session.passcode ? <> · Passcode · {session.passcode}</> : null}
         </p>
       ) : null}
     </article>
@@ -140,11 +159,31 @@ function SessionCard({ session, primary = false }: { session: Session; primary?:
 }
 
 const QUESTIONS = [
-  { key: "needsPressure", label: "What needs pressure?", placeholder: "Name the specific friction. One sentence." },
-  { key: "alreadyTried", label: "What have you already tried?", placeholder: "What you've attempted and what happened." },
-  { key: "decisionAvoided", label: "What decision are you avoiding?", placeholder: "The call you keep putting off." },
-  { key: "financialConsequence", label: "What is the financial consequence?", placeholder: "Dollars, time, or risk if this stays stuck." },
-  { key: "winLooksLike", label: "What would make this a win?", placeholder: "Specific. Measurable. Honest." },
+  {
+    key: "needsPressure",
+    label: "What needs pressure?",
+    placeholder: "Name the specific friction. One sentence.",
+  },
+  {
+    key: "alreadyTried",
+    label: "What have you already tried?",
+    placeholder: "What you've attempted and what happened.",
+  },
+  {
+    key: "decisionAvoided",
+    label: "What decision are you avoiding?",
+    placeholder: "The call you keep putting off.",
+  },
+  {
+    key: "financialConsequence",
+    label: "What is the financial consequence?",
+    placeholder: "Dollars, time, or risk if this stays stuck.",
+  },
+  {
+    key: "winLooksLike",
+    label: "What would make this a win?",
+    placeholder: "Specific. Measurable. Honest.",
+  },
 ] as const;
 
 type Form = Record<(typeof QUESTIONS)[number]["key"], string> & { title: string };
@@ -209,13 +248,18 @@ function TopicSubmit({ defaultKind }: { defaultKind: Session["kind"] }) {
           Pressure-test one issue before the room sees it.
         </h2>
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-          Five questions. The prep is the value — the answers force the issue to become specific enough to learn from. Marshall reviews submissions before each session and pulls the ones that earn live time.
+          Five questions. The prep is the value — the answers force the issue to become specific
+          enough to learn from. Marshall reviews submissions before each session and pulls the ones
+          that earn live time.
         </p>
         <div className="mt-6 inline-flex rounded-lg border border-border bg-card p-1">
           {(["Biweekly Call", "Monthly Bootcamp"] as const).map((k) => (
             <button
               key={k}
-              onClick={() => { setKind(k); setSavedId(null); }}
+              onClick={() => {
+                setKind(k);
+                setSavedId(null);
+              }}
               className={`rounded-md px-3 py-1.5 text-xs transition-colors ${
                 kind === k ? "bg-ink text-cream" : "text-foreground/70 hover:bg-muted"
               }`}
@@ -232,18 +276,26 @@ function TopicSubmit({ defaultKind }: { defaultKind: Session["kind"] }) {
             <span className="label-mono">Title</span>
             <input
               value={form.title}
-              onChange={(e) => { setForm({ ...form, title: e.target.value }); setSavedId(null); }}
+              onChange={(e) => {
+                setForm({ ...form, title: e.target.value });
+                setSavedId(null);
+              }}
               placeholder="One short name for this topic"
               className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:border-ink focus:outline-none"
             />
           </label>
           {QUESTIONS.map((q, i) => (
             <label key={q.key} className="block">
-              <span className="label-mono">{i + 1}. {q.label}</span>
+              <span className="label-mono">
+                {i + 1}. {q.label}
+              </span>
               <textarea
                 rows={2}
                 value={form[q.key]}
-                onChange={(e) => { setForm({ ...form, [q.key]: e.target.value }); setSavedId(null); }}
+                onChange={(e) => {
+                  setForm({ ...form, [q.key]: e.target.value });
+                  setSavedId(null);
+                }}
                 placeholder={q.placeholder}
                 className="mt-2 w-full resize-none rounded-lg border border-border bg-background px-3 py-2.5 text-sm leading-relaxed focus:border-ink focus:outline-none"
               />
@@ -256,23 +308,26 @@ function TopicSubmit({ defaultKind }: { defaultKind: Session["kind"] }) {
               className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-4 py-2.5 text-sm text-cream hover:opacity-90 disabled:opacity-60"
             >
               {submitting ? (
-                <><Loader2 className="h-4 w-4 animate-spin" /> Submitting…</>
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Submitting…
+                </>
               ) : savedId ? (
-                <><Check className="h-4 w-4" /> Submitted</>
+                <>
+                  <Check className="h-4 w-4" /> Submitted
+                </>
               ) : (
                 "Submit topic"
               )}
             </button>
             {savedId ? (
-              <span className="text-xs text-muted-foreground">Sent to Marshall — you'll get an email if it's picked for the next {kind}.</span>
+              <span className="text-xs text-muted-foreground">
+                Sent to Marshall — you'll get an email if it's picked for the next {kind}.
+              </span>
             ) : null}
-            {error ? (
-              <span className="text-xs text-destructive">{error}</span>
-            ) : null}
+            {error ? <span className="text-xs text-destructive">{error}</span> : null}
           </div>
         </div>
       </div>
     </div>
   );
 }
-

@@ -22,13 +22,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { createThread } from "@/lib/ask.functions";
-import {
-  PlaybookVisual,
-  type PlaybookVisualId,
-} from "@/components/portal/playbook-visual";
+import { PlaybookVisual, type PlaybookVisualId } from "@/components/portal/playbook-visual";
+import { FeatureAccessBoundary } from "@/components/portal/feature-access";
 
 export const Route = createFileRoute("/operating-playbook")({
-  component: OperatingPlaybookPage,
+  component: OperatingPlaybookRoute,
   head: () => ({
     meta: [
       { title: "Contractor Operating System Playbook - Contractor Circle" },
@@ -40,6 +38,14 @@ export const Route = createFileRoute("/operating-playbook")({
     ],
   }),
 });
+
+function OperatingPlaybookRoute() {
+  return (
+    <FeatureAccessBoundary feature="contractor-os">
+      <OperatingPlaybookPage />
+    </FeatureAccessBoundary>
+  );
+}
 
 const doctrineCards = [
   {
@@ -235,7 +241,8 @@ const playbookSections = [
       "The trend updates schedule, billing, subcontractor management, and IOR before accounting closes the period.",
     ],
     chapter: {
-      sourceTrail: "Professional Contractor Control Loop, Daily Project WIP teaching, OverWatch field workflow",
+      sourceTrail:
+        "Professional Contractor Control Loop, Daily Project WIP teaching, OverWatch field workflow",
       standard:
         "Field control exists when installed work, earned value, actual cost, and production variance are visible daily and change project decisions before month-end.",
       teaches: [
@@ -658,8 +665,8 @@ function Hero({ onStart }: { onStart: () => void }) {
           </h1>
           <p className="mt-5 max-w-3xl text-[18px] leading-[1.65] text-foreground/76">
             This is the guided field manual for learning how AOS, IOR, and Daily Project WIP work
-            together, finding the constraint, and choosing the next operating move inside
-            Contractor Circle.
+            together, finding the constraint, and choosing the next operating move inside Contractor
+            Circle.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <button
@@ -728,9 +735,9 @@ function ClientRolloutPath({ onStartMap }: { onStartMap: () => void }) {
             Install the first operating route this week.
           </h2>
           <p className="mt-4 max-w-2xl text-[15px] leading-[1.75] text-cream/72">
-            This is the first Contractor OS path inside Contractor Circle. Members should not try
-            to learn every idea at once. The job is to get your State of Control, save the diagnosis, ask
-            Marshall from that context, and bring one constraint to the next call.
+            This is the first Contractor OS path inside Contractor Circle. Members should not try to
+            learn every idea at once. The job is to get your State of Control, save the diagnosis,
+            ask Marshall from that context, and bring one constraint to the next call.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
@@ -767,9 +774,7 @@ function ClientRolloutPath({ onStartMap }: { onStartMap: () => void }) {
                     {step.action}
                   </span>
                 </div>
-                <h3 className="mt-3 font-display text-3xl leading-none text-cream">
-                  {step.title}
-                </h3>
+                <h3 className="mt-3 font-display text-3xl leading-none text-cream">{step.title}</h3>
                 <p className="mt-3 text-[13px] leading-[1.6] text-cream/68">{step.copy}</p>
               </div>
             );
@@ -809,9 +814,7 @@ function ClientRolloutPath({ onStartMap }: { onStartMap: () => void }) {
             ["Call prep", "They bring one diagnosed issue instead of a broad status update."],
           ].map(([label, copy]) => (
             <div key={label} className="rounded-md border border-cream/10 bg-ink/30 p-3">
-              <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-clay">
-                {label}
-              </p>
+              <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-clay">{label}</p>
               <p className="mt-2 text-[12.5px] leading-[1.55] text-cream/68">{copy}</p>
             </div>
           ))}
@@ -826,9 +829,7 @@ function MemberOrientation() {
     <section data-reveal className="rounded-lg border border-border bg-card p-5 sm:p-6">
       <div className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-clay">
-            Start here
-          </p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-clay">Start here</p>
           <h2 className="mt-2 max-w-2xl font-display text-[clamp(2.25rem,4vw,4.25rem)] leading-none">
             You are here to get one answer.
           </h2>
@@ -840,7 +841,10 @@ function MemberOrientation() {
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-1">
           {[
             ["First", "See the whole operating system map so the parts are not floating ideas."],
-            ["Second", "Understand that State of Control turns the map into a decision and a route."],
+            [
+              "Second",
+              "Understand that State of Control turns the map into a decision and a route.",
+            ],
             ["Third", "Work the field manual chapter that matches the next operating constraint."],
           ].map(([label, copy], index) => (
             <div
@@ -849,9 +853,7 @@ function MemberOrientation() {
               data-reveal-delay={String(index + 1)}
               className="rounded-lg border border-border bg-background p-4"
             >
-              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-clay">
-                {label}
-              </p>
+              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-clay">{label}</p>
               <p className="mt-2 text-[14px] leading-[1.55] text-foreground/78">{copy}</p>
             </div>
           ))}
@@ -948,9 +950,7 @@ function OperatingMap() {
     >
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-clay">
-            System map
-          </p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-clay">System map</p>
           <h2 className="mt-2 font-display text-[clamp(2rem,4vw,3.5rem)] leading-none">
             See the whole machine once.
           </h2>
@@ -1005,11 +1005,7 @@ function ConstraintEngine() {
           </ul>
         </div>
       </div>
-      <VisualImage
-        visual="constraint-plan"
-        alt="Constraint Resolution Plan decision engine"
-        dark
-      />
+      <VisualImage visual="constraint-plan" alt="Constraint Resolution Plan decision engine" dark />
     </section>
   );
 }
@@ -1183,9 +1179,7 @@ function DoctrineBank() {
       id="doctrine"
     >
       <div>
-        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-clay">
-          Doctrine bank
-        </p>
+        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-clay">Doctrine bank</p>
         <h2 className="mt-2 font-display text-[clamp(2rem,4vw,3.5rem)] leading-none">
           The four ideas you must remember.
         </h2>
@@ -1200,16 +1194,10 @@ function DoctrineBank() {
           >
             <div className="min-h-[136px]">
               <h3 className="font-display text-[1.85rem] leading-none">{card.title}</h3>
-              <p className="mt-3 text-[13px] leading-[1.65] text-muted-foreground">
-                {card.copy}
-              </p>
+              <p className="mt-3 text-[13px] leading-[1.65] text-muted-foreground">{card.copy}</p>
             </div>
             <div className="mt-4">
-              <VisualImage
-                visual={card.visual}
-                alt={card.title}
-                compact
-              />
+              <VisualImage visual={card.visual} alt={card.title} compact />
             </div>
           </article>
         ))}
@@ -1267,9 +1255,7 @@ function ToolLaunchpad() {
               </p>
               <ArrowUpRight
                 className={`h-4 w-4 shrink-0 transition ${
-                  index === 0
-                    ? "text-background/65"
-                    : "text-foreground/35 group-hover:text-clay"
+                  index === 0 ? "text-background/65" : "text-foreground/35 group-hover:text-clay"
                 }`}
               />
             </div>
@@ -1401,7 +1387,11 @@ function AskMarshallChapterButton({ section }: { section: PlaybookSectionData })
       disabled={busy}
       className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground/78 hover:bg-muted disabled:cursor-wait disabled:opacity-60"
     >
-      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MessageCircle className="h-3.5 w-3.5" />}
+      {busy ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <MessageCircle className="h-3.5 w-3.5" />
+      )}
       Ask Marshall
     </button>
   );

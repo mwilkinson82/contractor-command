@@ -2,16 +2,28 @@ import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader, Container } from "@/components/portal/page-header";
 import { DISCORD_CHANNELS, DISCORD_URL } from "@/lib/program";
 import { ArrowUpRight, Clock, Users, Zap } from "lucide-react";
+import { FeatureAccessBoundary } from "@/components/portal/feature-access";
 
 export const Route = createFileRoute("/community")({
   head: () => ({
     meta: [
       { title: "Community — ALP Contractor Circle" },
-      { name: "description", content: "How members use the Contractor Circle Discord between live sessions." },
+      {
+        name: "description",
+        content: "How members use the Contractor Circle Discord between live sessions.",
+      },
     ],
   }),
-  component: CommunityPage,
+  component: CommunityRoute,
 });
+
+function CommunityRoute() {
+  return (
+    <FeatureAccessBoundary feature="community">
+      <CommunityPage />
+    </FeatureAccessBoundary>
+  );
+}
 
 // Official Discord wordmark + logo (Discord brand "Blurple" #5865F2)
 const DISCORD_BLURPLE = "#5865F2";
@@ -32,7 +44,13 @@ function CommunityPage() {
     <Container>
       <PageHeader
         eyebrow="The room between sessions"
-        title={<>Discord is where the<br/>real work continues.</>}
+        title={
+          <>
+            Discord is where the
+            <br />
+            real work continues.
+          </>
+        }
         lede="Live calls are biweekly. Discord is where members post wins, debate pricing, and tee up the issues that earn time in the next room."
       />
 
@@ -44,8 +62,7 @@ function CommunityPage() {
           aria-hidden
           className="pointer-events-none absolute inset-0 opacity-[0.10]"
           style={{
-            backgroundImage:
-              "radial-gradient(circle at 1px 1px, #fff 1px, transparent 0)",
+            backgroundImage: "radial-gradient(circle at 1px 1px, #fff 1px, transparent 0)",
             backgroundSize: "22px 22px",
           }}
         />
@@ -63,9 +80,9 @@ function CommunityPage() {
               The Contractor Circle server.
             </h2>
             <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-white/80">
-              One server. Members only. Voice rooms for office hours, threads for every
-              issue you bring, an archive of every fix that's already been worked. Free
-              app, two minutes to join.
+              One server. Members only. Voice rooms for office hours, threads for every issue you
+              bring, an archive of every fix that's already been worked. Free app, two minutes to
+              join.
             </p>
 
             <div className="mt-7 flex flex-wrap items-center gap-3">
@@ -132,9 +149,21 @@ function CommunityPage() {
       <section className="mt-14 rounded-3xl border border-border bg-card p-8 sm:p-10">
         <p className="label-mono">How we post</p>
         <div className="mt-5 grid gap-6 sm:grid-cols-3">
-          <Etiquette n="01" title="Specifics over vibes." body="Numbers, names, dollar amounts. Vague posts get vague help." />
-          <Etiquette n="02" title="One issue per thread." body="If you're stuck on three things, post three threads." />
-          <Etiquette n="03" title="Close the loop." body="When you act on advice, post what happened. The next member learns from it." />
+          <Etiquette
+            n="01"
+            title="Specifics over vibes."
+            body="Numbers, names, dollar amounts. Vague posts get vague help."
+          />
+          <Etiquette
+            n="02"
+            title="One issue per thread."
+            body="If you're stuck on three things, post three threads."
+          />
+          <Etiquette
+            n="03"
+            title="Close the loop."
+            body="When you act on advice, post what happened. The next member learns from it."
+          />
         </div>
       </section>
 
@@ -143,7 +172,8 @@ function CommunityPage() {
         <div className="flex items-center gap-3">
           <DiscordMark className="h-6 w-auto" style={{ color: DISCORD_BLURPLE }} />
           <p className="text-sm text-muted-foreground">
-            Not in the server yet? You're missing the half of the program that happens between calls.
+            Not in the server yet? You're missing the half of the program that happens between
+            calls.
           </p>
         </div>
         <a
