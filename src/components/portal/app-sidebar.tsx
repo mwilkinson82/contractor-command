@@ -125,11 +125,19 @@ type Item = {
   to: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  match?: string;
+  match?: string | readonly string[];
   exact?: boolean;
   external?: boolean;
 };
 type Group = { label: string; items: Item[] };
+
+function isItemActive(item: Item, pathname: string) {
+  if (item.external) return false;
+  if (item.exact) return pathname === item.to;
+  if (typeof item.match === "string") return pathname.startsWith(item.match);
+  if (item.match) return item.match.some((prefix) => pathname.startsWith(prefix));
+  return pathname === item.to;
+}
 
 // Full nav for Circle members.
 const CIRCLE_GROUPS: Group[] = [
@@ -139,7 +147,12 @@ const CIRCLE_GROUPS: Group[] = [
       { to: "/", label: "Home", icon: Home },
       { to: "/start-here", label: "Start Here", icon: CirclePlay },
       { to: "/operating-playbook", label: "Contractor OS", icon: Map },
-      { to: "/tools/cos-navigator", label: "State of Control", icon: Gauge },
+      {
+        to: "/tools/cos-navigator",
+        label: "State of Control",
+        icon: Gauge,
+        match: ["/tools/cos-navigator", "/control-plan"],
+      },
       { to: "/ask", label: "Ask Marshall", icon: Megaphone, match: "/ask" },
       { to: "/aos", label: "AOS", icon: Compass },
       { to: "/overwatch", label: "Overwatch", icon: ShieldCheck },
@@ -192,7 +205,12 @@ const BOOK_BUYER_GROUPS: Group[] = [
     items: [
       { to: "/", label: "Home", icon: Home },
       { to: "/handbook", label: "Handbook", icon: BookOpen },
-      { to: "/tools/cos-navigator", label: "State of Control", icon: Gauge },
+      {
+        to: "/tools/cos-navigator",
+        label: "State of Control",
+        icon: Gauge,
+        match: ["/tools/cos-navigator", "/control-plan"],
+      },
       { to: "/aos", label: "AOS", icon: Compass },
       { to: "https://overwatch.alpcontractorcircle.com", label: "IOR", icon: Eye, external: true },
       { to: "/ask", label: "Ask Marshall", icon: Megaphone, match: "/ask" },
@@ -222,7 +240,12 @@ const INTENSIVE_GROUPS: Group[] = [
     items: [
       { to: "/", label: "Home", icon: Home },
       { to: "/handbook", label: "Handbook", icon: BookOpen },
-      { to: "/tools/cos-navigator", label: "State of Control", icon: Gauge },
+      {
+        to: "/tools/cos-navigator",
+        label: "State of Control",
+        icon: Gauge,
+        match: ["/tools/cos-navigator", "/control-plan"],
+      },
       { to: "/aos", label: "AOS", icon: Compass },
       { to: "https://overwatch.alpcontractorcircle.com", label: "IOR", icon: Eye, external: true },
     ],
@@ -387,13 +410,7 @@ export function AppSidebar() {
                 )}
                 <ul className="space-y-0.5">
                   {g.items.map((it) => {
-                    const active = it.external
-                      ? false
-                      : it.exact
-                        ? pathname === it.to
-                        : it.match
-                          ? pathname.startsWith(it.match)
-                          : pathname === it.to;
+                    const active = isItemActive(it, pathname);
                     const Icon = it.icon;
                     const className = `group/item relative flex items-center gap-3 rounded-md px-2 py-2 text-[13px] transition-colors ${
                       active

@@ -156,8 +156,7 @@ function StartHerePage() {
           </p>
         </div>
         <Link
-          to="/tools"
-          search={{ t: "cos-navigator" } as never}
+          to="/tools/cos-navigator"
           className="inline-flex items-center justify-center gap-2 rounded-md bg-signal px-5 py-3 text-[13px] font-semibold text-ink hover:opacity-90"
         >
           Run the assessment <ArrowRight className="h-3.5 w-3.5" />
