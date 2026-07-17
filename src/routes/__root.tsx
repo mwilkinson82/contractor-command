@@ -37,10 +37,10 @@ const PUBLIC_ROUTES = new Set([
 ]);
 const ONBOARDING_ROUTE = "/onboarding";
 const APP_ORIGIN = "https://app.alpcontractorcircle.com";
-const DEFAULT_TITLE = "Command Center — ALP Contractor Circle";
+const DEFAULT_TITLE = "Command Center — Contractor Circle";
 const DEFAULT_DESCRIPTION =
   "The private member portal for Contractor Circle: live calls with Marshall, AOS access, replays, templates, Ask Marshall, and the operating process behind the projects.";
-const SOCIAL_IMAGE_URL = `${APP_ORIGIN}/og-command-center-v2.png`;
+const SOCIAL_IMAGE_URL = `${APP_ORIGIN}/og-contractor-circle.png`;
 
 // Run before the app shell mounts. Auth links can arrive at "/" with tokens in
 // the hash; if the auth gate mounts first, it may send the user to /login and
@@ -149,7 +149,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: DEFAULT_TITLE },
-      { name: "application-name", content: "ALP Contractor Circle" },
+      { name: "application-name", content: "Contractor Circle Command Center" },
       { name: "apple-mobile-web-app-title", content: "Contractor Circle" },
       { name: "theme-color", content: "#FAF9F5" },
       { name: "robots", content: "index, follow" },
@@ -158,7 +158,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content: DEFAULT_DESCRIPTION,
       },
       { property: "og:title", content: DEFAULT_TITLE },
-      { property: "og:site_name", content: "ALP Contractor Circle" },
+      { property: "og:site_name", content: "Contractor Circle" },
       { property: "og:url", content: APP_ORIGIN },
       { name: "twitter:title", content: DEFAULT_TITLE },
       {
@@ -178,7 +178,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:image:height", content: "630" },
       {
         property: "og:image:alt",
-        content: "ALP Contractor Circle Command Center branded preview.",
+        content: "Contractor Circle Command Center branded preview.",
       },
       {
         name: "twitter:image",
@@ -196,7 +196,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Caveat:wght@400;600&family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap",
       },
-      { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
       { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
       { rel: "icon", type: "image/png", sizes: "32x32", href: "/favicon-32.png" },
       { rel: "icon", type: "image/png", sizes: "192x192", href: "/app-icon-192.png" },

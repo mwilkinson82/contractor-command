@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useCompany, logoPublicUrl } from "@/hooks/use-company";
 import { Building2, Upload, Loader2, Image as ImageIcon } from "lucide-react";
 import { GREETING_ICONS, type GreetingIconKey } from "@/components/portal/greeting-icon";
+import { ContractorCircleBrand } from "@/components/brand/contractor-circle-brand";
 
 export const Route = createFileRoute("/onboarding")({
   head: () => ({ meta: [{ title: "Set up your Command Center" }] }),
@@ -111,19 +112,7 @@ function OnboardingPage() {
     <main className="min-h-screen bg-background px-4 py-5 text-foreground sm:px-6 sm:py-8 lg:px-10">
       <div className="mx-auto w-full max-w-[1120px]">
         <header className="flex items-center justify-between border-b border-border pb-4">
-          <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-full bg-[var(--ink-panel)] font-display text-[12px] text-background">
-              ALP
-            </span>
-            <span>
-              <strong className="block text-[14px] font-semibold leading-tight">
-                ALP Contractor Circle
-              </strong>
-              <span className="mt-1 block font-mono text-[9px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                First-run setup
-              </span>
-            </span>
-          </div>
+          <ContractorCircleBrand context="First-run setup" markClassName="h-10 w-10" />
           <span className="hidden font-display text-[21px] sm:block">
             The Contractor Circle Hub
           </span>

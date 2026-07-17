@@ -1,19 +1,17 @@
 import type { CSSProperties } from "react";
 
 export const emailBrand = {
-  cream: "#F7F2EA",
-  paperDeep: "#ECE5D8",
-  workSurface: "#F8F4ED",
-  paperEdge: "#DCD5C8",
-  goldSoft: "#F7EDE0",
+  cream: "#FAF7F0",
+  paperDeep: "#EDE7DC",
+  workSurface: "#FFFFFF",
+  paperEdge: "#D8D0C4",
+  goldSoft: "#F2E4D8",
   ink: "#1C1A17",
-  inkPanel: "#2C2A26",
+  inkPanel: "#171310",
   muted: "#6B655D",
-  signal: "#F76A16",
-  sans:
-    '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
-  mono:
-    '"JetBrains Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace',
+  signal: "#C36E4F",
+  sans: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
+  mono: '"JetBrains Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace',
 } as const;
 
 export const emailStyles = {

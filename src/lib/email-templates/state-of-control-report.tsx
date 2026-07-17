@@ -12,6 +12,7 @@ import {
 } from "@react-email/components";
 import { emailBrand, emailStyles } from "./_brand";
 import type { TemplateEntry } from "./registry";
+import { ContractorCircleEmailFooter, ContractorCircleEmailHeader } from "./_brand-components";
 
 type DomainResult = { title: string; score: number; impact: string };
 type RoadmapResult = { period: string; title: string; impact: string; route: string };
@@ -58,6 +59,7 @@ const StateOfControlReportEmail = ({
     <Preview>{`${total}/100 State of Control - ${primaryConstraint}`}</Preview>
     <Body style={main}>
       <Container style={container}>
+        <ContractorCircleEmailHeader label="Operating report" />
         <Text style={eyebrow}>Professional contractor control</Text>
         <Heading style={h1}>State of Control</Heading>
         <Text style={intro}>
@@ -165,6 +167,7 @@ const StateOfControlReportEmail = ({
           Generated in the ALP Contractor Circle Operator&apos;s Workbench. The State of Control is
           a management diagnosis, not an accounting statement.
         </Text>
+        <ContractorCircleEmailFooter />
       </Container>
     </Body>
   </Html>

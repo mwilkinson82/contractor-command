@@ -2,14 +2,12 @@ import React from "react";
 import {
   Body,
   Button,
-  Column,
   Container,
   Head,
   Heading,
   Hr,
   Html,
   Preview,
-  Row,
   Section,
   Text,
 } from "@react-email/components";
@@ -19,6 +17,7 @@ import {
   ANNOUNCEMENT_MARKDOWN_ELEMENTS,
   announcementUrlTransform,
 } from "@/lib/announcement-markdown";
+import { ContractorCircleEmailFooter, ContractorCircleEmailHeader } from "./_brand-components";
 
 interface MemberAnnouncementProps {
   /** First name, used in greeting. Falls back gracefully when missing. */
@@ -38,7 +37,7 @@ interface MemberAnnouncementProps {
 
 const MemberAnnouncementEmail = ({
   firstName,
-  preheader = "An update from the ALP Contractor Circle",
+  preheader = "An update from Contractor Circle",
   headline = "An update from the Contractor Circle",
   body = "",
   ctaLabel,
@@ -55,16 +54,7 @@ const MemberAnnouncementEmail = ({
       <Body style={layout.main}>
         <Container style={layout.container}>
           <Section style={layout.shell}>
-            <Section style={layout.header}>
-              <Row>
-                <Column>
-                  <Text style={layout.brand}>ALP Contractor Circle</Text>
-                </Column>
-                <Column align="right">
-                  <Text style={layout.headerLabel}>Member operating brief</Text>
-                </Column>
-              </Row>
-            </Section>
+            <ContractorCircleEmailHeader label="Member operating brief" />
 
             <Section style={layout.body}>
               <Section style={layout.verdictBand}>
@@ -92,19 +82,7 @@ const MemberAnnouncementEmail = ({
               <Text style={layout.signoff}>{signoff}</Text>
             </Section>
 
-            <Section style={layout.footer}>
-              <Row>
-                <Column style={layout.footerWordmarkColumn}>
-                  <Text style={layout.footerWordmark}>
-                    ALP Contractor Circle <span style={layout.claySquare}>■</span>
-                  </Text>
-                </Column>
-                <Column align="right">
-                  <Text style={layout.productMark}>— an ALP product</Text>
-                  <Text style={layout.productLine}>Build the company behind the projects.</Text>
-                </Column>
-              </Row>
-            </Section>
+            <ContractorCircleEmailFooter />
           </Section>
 
           <Text style={layout.deliveryNote}>
@@ -119,7 +97,7 @@ const MemberAnnouncementEmail = ({
 export const template = {
   component: MemberAnnouncementEmail,
   subject: (d: Record<string, unknown>) =>
-    (d?.subject as string) || "An update from the ALP Contractor Circle",
+    (d?.subject as string) || "An update from Contractor Circle",
   displayName: "Member announcement",
   previewData: {
     firstName: "Sam",

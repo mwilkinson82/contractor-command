@@ -34,6 +34,7 @@ import { nextAny, relativeDay } from "@/lib/program";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/use-company";
 import { TierImpersonator } from "@/components/portal/tier-impersonator";
+import { ContractorCircleBrand } from "@/components/brand/contractor-circle-brand";
 
 type Ctx = {
   collapsed: boolean;
@@ -335,8 +336,8 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const next = nextAny();
   const { company, logoUrl } = useCompany();
-  const brandName = company?.name?.trim() || "Contractor Circle";
-  const brandInitial = brandName.charAt(0).toUpperCase();
+  const companyName = company?.name?.trim() || "Your company";
+  const companyInitial = companyName.charAt(0).toUpperCase();
   const isAdmin = useIsAdmin();
   const { tier } = useTier();
 
@@ -393,33 +394,38 @@ export function AppSidebar() {
         } md:translate-x-0`}
         style={{ width: collapsed ? "60px" : "216px" }}
       >
-        <div className="flex h-14 items-center gap-2 border-b border-border/70 px-3">
-          <Link to="/" className="flex items-center gap-2 overflow-hidden">
-            <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-cream text-ink font-display text-[13px] shadow-[inset_0_0_0_1px_rgba(28,26,23,0.12)]">
-              {logoUrl ? (
-                <img
-                  src={logoUrl}
-                  alt={brandName}
-                  className="h-full w-full object-cover object-center"
-                />
-              ) : (
-                brandInitial
-              )}
-            </span>
-            {!collapsed && (
-              <span className="flex flex-col leading-tight">
-                <span
-                  className="truncate font-display text-[13px] tracking-tight"
-                  title={brandName}
-                >
-                  {brandName}
+        <div className="border-b border-border/70 px-3 py-2.5">
+          <Link
+            to="/"
+            aria-label="Contractor Circle Command Center"
+            className="block overflow-hidden"
+          >
+            <ContractorCircleBrand inverse compact={collapsed} markClassName="h-9 w-9" />
+          </Link>
+
+          {!collapsed && (
+            <div className="mt-2.5 flex items-center gap-2 rounded-lg border border-cream/10 bg-cream/[0.045] px-2 py-2">
+              <span className="grid h-7 w-7 shrink-0 place-items-center overflow-hidden rounded-md bg-cream text-ink font-display text-[11px]">
+                {logoUrl ? (
+                  <img
+                    src={logoUrl}
+                    alt={`${companyName} logo`}
+                    className="h-full w-full object-cover object-center"
+                  />
+                ) : (
+                  companyInitial
+                )}
+              </span>
+              <span className="min-w-0">
+                <span className="block font-mono text-[7px] font-semibold uppercase tracking-[0.2em] text-cream/40">
+                  Workspace
                 </span>
-                <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
-                  Command Center
+                <span className="block truncate text-[11px] text-cream/80" title={companyName}>
+                  {companyName}
                 </span>
               </span>
-            )}
-          </Link>
+            </div>
+          )}
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 py-4">

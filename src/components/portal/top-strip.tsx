@@ -92,12 +92,23 @@ export function TopStrip() {
         {isScheduler ? (
           rightCluster
         ) : (
-          <p
-            className="hidden sm:block text-[14px] text-muted-foreground truncate"
-            style={{ fontFamily: "var(--font-serif)" }}
-          >
-            <span className="text-good">●</span> Live · Contractor Circle
-          </p>
+          <div className="flex min-w-0 items-center gap-2">
+            <img
+              src="/brand/contractor-circle-mark.png"
+              alt=""
+              aria-hidden="true"
+              className="h-5 w-5 shrink-0 object-contain sm:hidden"
+            />
+            <p
+              className="hidden truncate text-[14px] text-muted-foreground sm:block"
+              style={{ fontFamily: "var(--font-serif)" }}
+            >
+              <span className="text-good">●</span> Live · Contractor Circle
+            </p>
+            <span className="truncate text-[12px] font-medium text-foreground/75 sm:hidden">
+              Contractor Circle
+            </span>
+          </div>
         )}
       </div>
       {isScheduler ? <div aria-hidden /> : rightCluster}

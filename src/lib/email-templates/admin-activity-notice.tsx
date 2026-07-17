@@ -11,6 +11,7 @@ import {
 } from "@react-email/components";
 import { emailStyles } from "./_brand";
 import type { TemplateEntry } from "./registry";
+import { ContractorCircleEmailFooter, ContractorCircleEmailHeader } from "./_brand-components";
 
 interface AdminActivityNoticeProps {
   /** Short event label, e.g. "Member signed in" or "Password set". */
@@ -45,9 +46,7 @@ const AdminActivityNoticeEmail = ({
       <Body style={emailStyles.main}>
         <Container style={emailStyles.container}>
           <Section style={emailStyles.card}>
-            <Section style={emailStyles.headerBar}>
-              <Text style={emailStyles.brandText}>ALP Contractor Circle</Text>
-            </Section>
+            <ContractorCircleEmailHeader label="Admin notice" />
             <Section style={emailStyles.body}>
               <Text style={emailStyles.eyebrow}>Admin notice</Text>
               <Heading style={emailStyles.h1}>{event}</Heading>
@@ -59,6 +58,9 @@ const AdminActivityNoticeEmail = ({
                 <strong>When:</strong> {when}
               </Text>
             </Section>
+            <ContractorCircleEmailFooter>
+              Private Command Center notification.
+            </ContractorCircleEmailFooter>
           </Section>
         </Container>
       </Body>
@@ -68,8 +70,14 @@ const AdminActivityNoticeEmail = ({
 
 export const template = {
   component: AdminActivityNoticeEmail,
-  subject: (d: Record<string, any>) =>
-    `${d?.event || "Member activity"} — ${d?.memberName || d?.memberEmail || "member"}`,
+  subject: (d: Record<string, unknown>) =>
+    `${typeof d?.event === "string" ? d.event : "Member activity"} — ${
+      typeof d?.memberName === "string"
+        ? d.memberName
+        : typeof d?.memberEmail === "string"
+          ? d.memberEmail
+          : "member"
+    }`,
   displayName: "Admin activity notice",
   to: "wilkinson.marshall@gmail.com",
   previewData: {

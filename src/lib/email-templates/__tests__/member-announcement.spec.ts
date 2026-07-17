@@ -27,13 +27,13 @@ describe("member announcement email", () => {
     expect(html).not.toContain("Hey —");
   });
 
-  it("uses the ALP app-tier narrative and wordmark structure", async () => {
+  it("uses the Contractor Circle identity and member-note structure", async () => {
     const html = await renderAnnouncement("The member update goes here.");
 
     expect(html).toContain("Member operating brief");
     expect(html).toContain("Contractor Circle / Member note");
-    expect(html).toContain("ALP Contractor Circle");
-    expect(html).toContain("— an ALP product");
+    expect(html).toContain("contractor-circle-horizontal.png");
+    expect(html).toContain("AN ALP COMMUNITY");
     expect(html).toContain("Build the company behind the projects.");
     expect(html).toContain("background-color:#FAF9F5");
     expect(html).toContain("border-left:3px solid #D97757");
