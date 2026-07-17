@@ -181,6 +181,9 @@ function ReplaysPage() {
                   filtered.map((r) => {
                     const isPlaying = !!playing[r.id];
                     const isEmbeddable = isEmbeddableReplayUrl(r.video_url);
+                    const availableResources = r.resources.filter(
+                      (resource) => resource.template.download_url,
+                    );
                     return (
                       <article
                         key={r.id}
@@ -229,11 +232,11 @@ function ReplaysPage() {
                               </span>
                             )}
                           </div>
-                          {r.resources.length > 0 ? (
+                          {availableResources.length > 0 ? (
                             <div className="mt-5 border-t border-border pt-4">
                               <p className="label-mono">Companion resources</p>
                               <div className="mt-2 flex flex-wrap gap-2">
-                                {r.resources.map((resource) => (
+                                {availableResources.map((resource) => (
                                   <ReplayResourceDownload key={resource.id} resource={resource} />
                                 ))}
                               </div>
