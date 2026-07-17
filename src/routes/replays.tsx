@@ -1,11 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Play, ExternalLink, Lock, ArrowRight } from "lucide-react";
+import { Search, Play, ExternalLink, Lock, ArrowRight, Download } from "lucide-react";
 import { PageHeader, Container } from "@/components/portal/page-header";
 import { replaysQueryOptions } from "@/lib/library-queries";
 import { useTier } from "@/hooks/use-tier";
-import type { ReplayCategory } from "@/lib/library";
+import {
+  isEmbeddableReplayUrl,
+  openTemplateFile,
+  type ReplayCategory,
+  type ReplayResource,
+} from "@/lib/library";
 import { FeatureAccessBoundary } from "@/components/portal/feature-access";
 
 export const Route = createFileRoute("/replays")({
@@ -112,7 +117,7 @@ function ReplaysPage() {
       <PageHeader
         eyebrow="Replay library"
         title={<>Every call, on demand.</>}
-        lede="Each shelf shows the classes you're enrolled in. Locked shelves show what you're missing."
+        lede="Watch the working sessions, then take the field guides and implementation files into the company."
       />
 
       {tierLoading ? (
@@ -175,10 +180,7 @@ function ReplaysPage() {
                 ) : (
                   filtered.map((r) => {
                     const isPlaying = !!playing[r.id];
-                    const isEmbeddable =
-                      !!r.video_url &&
-                      (r.video_url.includes("iframe.videodelivery.net") ||
-                        r.video_url.includes("zoom.us/clips/embed"));
+                    const isEmbeddable = isEmbeddableReplayUrl(r.video_url);
                     return (
                       <article
                         key={r.id}
@@ -213,7 +215,7 @@ function ReplaysPage() {
                                 </button>
                               ) : (
                                 <a
-                                  href={r.video_url}
+                                  href={r.share_url ?? r.video_url}
                                   target="_blank"
                                   rel="noreferrer"
                                   className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2 text-sm text-cream hover:opacity-90"
@@ -227,6 +229,16 @@ function ReplaysPage() {
                               </span>
                             )}
                           </div>
+                          {r.resources.length > 0 ? (
+                            <div className="mt-5 border-t border-border pt-4">
+                              <p className="label-mono">Companion resources</p>
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {r.resources.map((resource) => (
+                                  <ReplayResourceDownload key={resource.id} resource={resource} />
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
                           {r.tags.length > 0 && (
                             <div className="mt-5 flex flex-wrap gap-1.5 border-t border-border pt-4">
                               {r.tags.map((t) => (
@@ -245,8 +257,9 @@ function ReplaysPage() {
                             <iframe
                               src={r.video_url}
                               className="h-full w-full"
-                              allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                              allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
                               allowFullScreen
+                              loading="lazy"
                               title={r.title}
                             />
                           </div>
@@ -261,6 +274,34 @@ function ReplaysPage() {
         </>
       )}
     </Container>
+  );
+}
+
+function ReplayResourceDownload({ resource }: { resource: ReplayResource }) {
+  const [busy, setBusy] = useState(false);
+
+  async function openResource() {
+    setBusy(true);
+    const url = await openTemplateFile(resource.template.download_url);
+    setBusy(false);
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => void openResource()}
+      disabled={busy || !resource.template.download_url}
+      className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-left text-xs hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <Download className="h-3.5 w-3.5 shrink-0" />
+      <span>
+        <span className="font-medium">{busy ? "Opening…" : resource.template.title}</span>
+        {resource.template.pages ? (
+          <span className="ml-1 text-muted-foreground">· {resource.template.pages}</span>
+        ) : null}
+      </span>
+    </button>
   );
 }
 

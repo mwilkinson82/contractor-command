@@ -1,10 +1,19 @@
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowRight, ArrowUp, ArrowUpRight, Map, Route as RouteIcon } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowUp,
+  ArrowUpRight,
+  Download,
+  ExternalLink,
+  Map,
+  Route as RouteIcon,
+} from "lucide-react";
 import { createThread } from "@/lib/ask.functions";
 import { GreetingIcon, type GreetingIconKey } from "@/components/portal/greeting-icon";
 import type { DashboardMove } from "@/components/portal/dashboard-moves";
+import { openTemplateFile, type ReplayWithResources } from "@/lib/library";
 
 const STARTERS = ["Pricing is too slow", "Cash is tight", "I need to hire a #2"];
 
@@ -16,6 +25,7 @@ export function HomeHero({
   greetingIcon,
   moves,
   aosLinked,
+  featuredTraining,
 }: {
   companyName: string;
   greeting: string;
@@ -24,6 +34,7 @@ export function HomeHero({
   greetingIcon?: GreetingIconKey | null;
   moves: DashboardMove[];
   aosLinked: boolean;
+  featuredTraining: ReplayWithResources | null;
 }) {
   const navigate = useNavigate();
   const createThreadFn = useServerFn(createThread);
@@ -112,32 +123,7 @@ export function HomeHero({
           </div>
 
           <div className="space-y-3">
-            <article className="overflow-hidden rounded-xl border border-ink/15 bg-ink shadow-[0_18px_50px_-38px_color-mix(in_oklab,var(--ink)_55%,transparent)]">
-              <div className="flex items-center justify-between gap-3 px-4 py-3">
-                <div className="min-w-0">
-                  <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-good">
-                    <span
-                      className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-good"
-                      aria-hidden="true"
-                    />
-                    Thursday Contractor Circle Call
-                  </p>
-                  <h2 className="mt-1 font-display text-[20px] leading-tight text-cream">
-                    Daily Project WIP Implementation
-                  </h2>
-                </div>
-              </div>
-              <div className="relative h-0 bg-black pb-[53.7927%]">
-                <iframe
-                  src="https://www.loom.com/embed/22d11e96c7084343b7160092a53575b9"
-                  title="Daily Project WIP Implementation — Thursday Contractor Circle Call"
-                  allow="autoplay; fullscreen; picture-in-picture"
-                  allowFullScreen
-                  loading="lazy"
-                  className="absolute inset-0 h-full w-full"
-                />
-              </div>
-            </article>
+            {featuredTraining ? <FeaturedTrainingCard training={featuredTraining} /> : null}
 
             <div className="rounded-xl border border-border bg-card p-4 shadow-[0_18px_50px_-38px_color-mix(in_oklab,var(--ink)_38%,transparent)]">
               <div className="flex items-center justify-between gap-3">
@@ -249,5 +235,85 @@ export function HomeHero({
         </div>
       </div>
     </section>
+  );
+}
+
+function FeaturedTrainingCard({ training }: { training: ReplayWithResources }) {
+  const [busyResourceId, setBusyResourceId] = useState<string | null>(null);
+  const resources = training.resources.filter((resource) => resource.template.download_url);
+
+  async function openResource(resource: ReplayWithResources["resources"][number]) {
+    setBusyResourceId(resource.id);
+    const url = await openTemplateFile(resource.template.download_url);
+    setBusyResourceId(null);
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  return (
+    <article className="overflow-hidden rounded-xl border border-ink/15 bg-ink shadow-[0_18px_50px_-38px_color-mix(in_oklab,var(--ink)_55%,transparent)]">
+      <div className="flex items-start justify-between gap-3 px-4 py-3">
+        <div className="min-w-0">
+          <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-good">
+            <span
+              className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-good"
+              aria-hidden="true"
+            />
+            New training · Contractor Circle
+            {training.duration_minutes ? ` · ${training.duration_minutes} min` : ""}
+          </p>
+          <h2 className="mt-1 font-display text-[20px] leading-tight text-cream">
+            {training.title}
+          </h2>
+        </div>
+        {training.share_url ? (
+          <a
+            href={training.share_url}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-cream/15 text-cream/70 hover:bg-cream/10 hover:text-cream"
+            aria-label={`Open ${training.title} in a new tab`}
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        ) : null}
+      </div>
+      {training.video_url ? (
+        <div className="relative h-0 bg-black pb-[53.7927%]">
+          <iframe
+            src={training.video_url}
+            title={`${training.title} — Contractor Circle training`}
+            allow="autoplay; fullscreen; picture-in-picture"
+            allowFullScreen
+            loading="lazy"
+            className="absolute inset-0 h-full w-full"
+          />
+        </div>
+      ) : null}
+      {resources.length > 0 ? (
+        <div className="grid gap-1.5 border-t border-cream/10 p-2 sm:grid-cols-2">
+          {resources.map((resource) => {
+            const label = resource.template.title.includes("Field Guide")
+              ? "Field Guide"
+              : resource.template.title.includes("Deck")
+                ? "Teaching Deck"
+                : resource.template.title;
+            return (
+              <button
+                key={resource.id}
+                type="button"
+                onClick={() => void openResource(resource)}
+                disabled={busyResourceId === resource.id}
+                className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-md border border-cream/15 px-2.5 py-2 text-[10px] font-medium text-cream/80 hover:bg-cream/10 hover:text-cream disabled:opacity-50"
+              >
+                <Download className="h-3 w-3 shrink-0" />
+                <span className="truncate">
+                  {busyResourceId === resource.id ? "Opening…" : label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </article>
   );
 }
