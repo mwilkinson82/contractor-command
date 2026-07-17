@@ -1,21 +1,9 @@
 import { useState } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
-import {
-  ArrowRight,
-  ArrowUp,
-  ArrowUpRight,
-  Download,
-  ExternalLink,
-  Map,
-  Route as RouteIcon,
-} from "lucide-react";
-import { createThread } from "@/lib/ask.functions";
+import { Link } from "@tanstack/react-router";
+import { ArrowRight, Download, ExternalLink, Map, Route as RouteIcon } from "lucide-react";
 import { GreetingIcon, type GreetingIconKey } from "@/components/portal/greeting-icon";
 import type { DashboardMove } from "@/components/portal/dashboard-moves";
 import { openTemplateFile, type ReplayWithResources } from "@/lib/library";
-
-const STARTERS = ["Pricing is too slow", "Cash is tight", "I need to hire a #2"];
 
 export function HomeHero({
   companyName,
@@ -36,25 +24,6 @@ export function HomeHero({
   aosLinked: boolean;
   featuredTraining: ReplayWithResources | null;
 }) {
-  const navigate = useNavigate();
-  const createThreadFn = useServerFn(createThread);
-  const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const send = async (text: string) => {
-    const message = text.trim();
-    if (!message || busy) return;
-    setBusy(true);
-    try {
-      const { id } = await createThreadFn({ data: { source: "dashboard_hero" } });
-      window.history.replaceState({ ...(window.history.state ?? {}), firstMessage: message }, "");
-      navigate({ to: "/ask/$threadId", params: { threadId: id } });
-    } catch (error) {
-      console.error(error);
-      setBusy(false);
-    }
-  };
-
   const primaryMove = moves[0];
   const ownerMove = moves.find((move) => move.owner);
   const commandMove = moves.find((move) => move.source !== "AOS");
@@ -91,7 +60,7 @@ export function HomeHero({
   return (
     <section className="relative px-4 pb-8 pt-10 sm:px-6 sm:pb-10 sm:pt-14">
       <div className="mx-auto w-full max-w-[1180px]">
-        <div className="grid gap-6 border-b border-border pb-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)] lg:items-end">
+        <div className="grid gap-6 border-b border-border pb-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)] lg:items-start">
           <div className="max-w-[760px]">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <span className="h-8 w-[3px] rounded-full bg-signal" aria-hidden="true" />
@@ -122,70 +91,7 @@ export function HomeHero({
             </p>
           </div>
 
-          <div className="space-y-3">
-            {featuredTraining ? <FeaturedTrainingCard training={featuredTraining} /> : null}
-
-            <div className="rounded-xl border border-border bg-card p-4 shadow-[0_18px_50px_-38px_color-mix(in_oklab,var(--ink)_38%,transparent)]">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="label-mono text-clay">Ask Marshall</p>
-                  <p className="mt-1 text-[12px] text-muted-foreground">
-                    Bring one issue. Get the read and the next move.
-                  </p>
-                </div>
-                <Link
-                  to="/ask"
-                  className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-foreground/75 hover:text-foreground"
-                >
-                  History <ArrowUpRight className="h-3 w-3" />
-                </Link>
-              </div>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void send(input);
-                }}
-                className="mt-4"
-              >
-                <div className="flex items-end gap-2 rounded-lg border border-border bg-background p-1.5 focus-within:border-foreground/35">
-                  <textarea
-                    value={input}
-                    onChange={(event) => setInput(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" && !event.shiftKey) {
-                        event.preventDefault();
-                        void send(input);
-                      }
-                    }}
-                    placeholder="Ask about the move in front of you…"
-                    rows={2}
-                    className="max-h-28 min-h-[52px] flex-1 resize-none bg-transparent px-2 py-2 text-[13px] leading-relaxed outline-none placeholder:text-muted-foreground"
-                  />
-                  <button
-                    type="submit"
-                    disabled={busy || !input.trim()}
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-ink text-cream disabled:opacity-35"
-                    aria-label="Send to Ask Marshall"
-                  >
-                    <ArrowUp className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </form>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {STARTERS.map((starter) => (
-                  <button
-                    key={starter}
-                    type="button"
-                    onClick={() => void send(starter)}
-                    disabled={busy}
-                    className="rounded-full border border-border px-2.5 py-1 text-[10px] text-foreground/70 hover:bg-muted disabled:opacity-40"
-                  >
-                    {starter}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+          {featuredTraining ? <FeaturedTrainingCard training={featuredTraining} /> : null}
         </div>
 
         <div className="grid border-b border-border sm:grid-cols-5">
