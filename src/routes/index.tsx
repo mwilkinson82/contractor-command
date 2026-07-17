@@ -35,6 +35,7 @@ import { getAosSnapshot, type AosResult, type AosSnapshot } from "@/lib/aos.func
 import { getActiveWeeklyMove, type WeeklyMove } from "@/lib/weekly-move.functions";
 import { useControlJourney } from "@/hooks/use-control-journey";
 import type { ControlJourney } from "@/lib/control-journey";
+import { featuredReplayQueryOptions } from "@/lib/library-queries";
 
 import {
   ArrowUpRight,
@@ -103,6 +104,10 @@ function HomePage() {
   const companyName = company?.name?.trim() || "Your Command Center";
   const shouldSeeCallAnnouncement = !tierLoading && tierAtLeast(tier, "circle");
   const hasCircleAccess = !tierLoading && tierAtLeast(tier, "circle");
+  const { data: featuredTraining } = useQuery({
+    ...featuredReplayQueryOptions(),
+    enabled: hasCircleAccess,
+  });
 
   // Hydrate company id from localStorage (avoids SSR mismatch)
   useEffect(() => {
@@ -265,6 +270,7 @@ function HomePage() {
         today={today}
         moves={dashboardMoves}
         aosLinked={aosLinked}
+        featuredTraining={featuredTraining ?? null}
         greetingIcon={
           company?.greeting_icon as
             "wave" | "crane" | "bulldozer" | "hammer" | "scale" | "brick" | null | undefined

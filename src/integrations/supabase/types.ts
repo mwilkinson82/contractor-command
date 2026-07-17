@@ -697,9 +697,11 @@ export type Database = {
           created_at: string
           description: string | null
           duration_minutes: number | null
+          featured: boolean
           id: string
           published: boolean
           recorded_at: string
+          share_url: string | null
           tags: string[]
           thumbnail_url: string | null
           title: string
@@ -710,9 +712,11 @@ export type Database = {
           created_at?: string
           description?: string | null
           duration_minutes?: number | null
+          featured?: boolean
           id?: string
           published?: boolean
           recorded_at?: string
+          share_url?: string | null
           tags?: string[]
           thumbnail_url?: string | null
           title: string
@@ -723,15 +727,56 @@ export type Database = {
           created_at?: string
           description?: string | null
           duration_minutes?: number | null
+          featured?: boolean
           id?: string
           published?: boolean
           recorded_at?: string
+          share_url?: string | null
           tags?: string[]
           thumbnail_url?: string | null
           title?: string
           video_url?: string | null
         }
         Relationships: []
+      }
+      replay_resources: {
+        Row: {
+          created_at: string
+          id: string
+          replay_id: string
+          sort_order: number
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          replay_id: string
+          sort_order?: number
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          replay_id?: string
+          sort_order?: number
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "replay_resources_replay_id_fkey"
+            columns: ["replay_id"]
+            isOneToOne: false
+            referencedRelation: "replays"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "replay_resources_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       schedule_baselines: {
         Row: {

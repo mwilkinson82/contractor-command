@@ -16,25 +16,48 @@ export type TemplateRow = {
   created_at: string;
 };
 
-export type ReplayCategory =
-  | "circle_call"
-  | "power_hour"
-  | "sm_school"
-  | "contractor_school";
+export type ReplayCategory = "circle_call" | "power_hour" | "sm_school" | "contractor_school";
 
 export type ReplayRow = {
   id: string;
   title: string;
   description: string | null;
   video_url: string | null;
+  share_url: string | null;
   thumbnail_url: string | null;
   duration_minutes: number | null;
   recorded_at: string;
   published: boolean;
+  featured: boolean;
   tags: string[];
   category: ReplayCategory;
   created_at: string;
 };
+
+export type ReplayResource = {
+  id: string;
+  replay_id: string;
+  template_id: string;
+  sort_order: number;
+  template: Pick<
+    TemplateRow,
+    "id" | "title" | "description" | "download_url" | "file_type" | "pages" | "badge"
+  >;
+};
+
+export type ReplayWithResources = ReplayRow & {
+  resources: ReplayResource[];
+};
+
+export function isEmbeddableReplayUrl(url: string | null): boolean {
+  if (!url) return false;
+  return [
+    "iframe.videodelivery.net",
+    "zoom.us/clips/embed",
+    "loom.com/embed/",
+    "tella.tv/video/",
+  ].some((needle) => url.includes(needle));
+}
 
 export const TEMPLATE_BUCKET = "template-files";
 
