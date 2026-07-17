@@ -159,9 +159,9 @@ function FeaturedTrainingCard({ training }: { training: ReplayWithResources }) {
     <article className="overflow-hidden rounded-xl border border-ink/15 bg-ink shadow-[0_18px_50px_-38px_color-mix(in_oklab,var(--ink)_55%,transparent)]">
       <div className="flex items-start justify-between gap-3 px-4 py-3">
         <div className="min-w-0">
-          <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-good">
+          <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-clay">
             <span
-              className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-good"
+              className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-clay"
               aria-hidden="true"
             />
             New training · Contractor Circle
