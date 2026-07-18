@@ -3,7 +3,6 @@ import { Column, Img, Row, Section, Text } from "@react-email/components";
 import { emailBrand } from "./_brand";
 
 const APP_ORIGIN = "https://app.alpcontractorcircle.com";
-const HORIZONTAL_LOGO_URL = `${APP_ORIGIN}/email/contractor-circle-horizontal.png`;
 const MARK_LOGO_URL = `${APP_ORIGIN}/email/contractor-circle-mark.png`;
 
 interface ContractorCircleEmailHeaderProps {
@@ -16,17 +15,12 @@ export function ContractorCircleEmailHeader({
   return (
     <Section style={styles.header}>
       <Row>
-        <Column>
-          <Img
-            src={HORIZONTAL_LOGO_URL}
-            width="224"
-            height="80"
-            alt="Contractor Circle"
-            style={styles.wordmark}
-          />
+        <Column style={styles.headerMarkColumn}>
+          <Img src={MARK_LOGO_URL} width="42" height="42" alt="" style={styles.mark} />
         </Column>
-        <Column align="right" style={styles.labelColumn}>
-          <Text style={styles.label}>{label}</Text>
+        <Column>
+          <Text style={styles.headerBrand}>Contractor Circle</Text>
+          <Text style={styles.headerLabel}>{label}</Text>
         </Column>
       </Row>
     </Section>
@@ -60,26 +54,27 @@ export function ContractorCircleEmailFooter({ children }: ContractorCircleEmailF
 
 const styles = {
   header: {
-    backgroundColor: "#EDE7DC",
-    borderBottom: `1px solid ${emailBrand.paperEdge}`,
-    padding: "12px 24px",
+    backgroundColor: "#171310",
+    borderBottom: `3px solid ${emailBrand.signal}`,
+    padding: "18px 24px",
   },
-  wordmark: {
-    display: "block",
-    height: "80px",
-    objectFit: "contain" as const,
-    width: "224px",
+  headerMarkColumn: {
+    width: "54px",
   },
-  labelColumn: {
-    paddingLeft: "12px",
-    width: "170px",
+  headerBrand: {
+    color: "#FAF7F0",
+    fontFamily: 'Georgia, "Times New Roman", serif',
+    fontSize: "17px",
+    fontWeight: 600,
+    lineHeight: 1.2,
+    margin: "0 0 4px",
   },
-  label: {
-    color: emailBrand.muted,
+  headerLabel: {
+    color: "#B7AFA3",
     fontFamily: emailBrand.mono,
-    fontSize: "8px",
+    fontSize: "7.5px",
     fontWeight: 700,
-    letterSpacing: "0.16em",
+    letterSpacing: "0.14em",
     lineHeight: 1.4,
     margin: 0,
     textTransform: "uppercase" as const,

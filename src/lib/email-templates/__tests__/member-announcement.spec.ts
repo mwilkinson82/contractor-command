@@ -32,9 +32,11 @@ describe("member announcement email", () => {
 
     expect(html).toContain("Member operating brief");
     expect(html).toContain("Contractor Circle / Member note");
-    expect(html).toContain("contractor-circle-horizontal.png");
+    expect(html).toContain("contractor-circle-mark.png");
+    expect(html).not.toContain("contractor-circle-horizontal.png");
     expect(html).toContain("AN ALP COMMUNITY");
     expect(html).toContain("Build the company behind the projects.");
+    expect(html).toContain("background-color:#171310");
     expect(html).toContain("background-color:#FAF9F5");
     expect(html).toContain("border-left:3px solid #D97757");
   });
