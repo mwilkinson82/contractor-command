@@ -51,12 +51,14 @@ export type ReplayWithResources = ReplayRow & {
 
 export function isEmbeddableReplayUrl(url: string | null): boolean {
   if (!url) return false;
-  return [
+  const supportedProvider = [
     "iframe.videodelivery.net",
     "zoom.us/clips/embed",
     "loom.com/embed/",
     "tella.tv/video/",
   ].some((needle) => url.includes(needle));
+  const googleDrivePreview = url.includes("drive.google.com/file/d/") && url.includes("/preview");
+  return supportedProvider || googleDrivePreview;
 }
 
 export const TEMPLATE_BUCKET = "template-files";
