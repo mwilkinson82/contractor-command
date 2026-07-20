@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isEmbeddableReplayUrl } from "@/lib/library";
+import { isEmbeddableReplayUrl, isGoogleDrivePreviewUrl } from "@/lib/library";
 
 describe("isEmbeddableReplayUrl", () => {
   it.each([
@@ -24,5 +24,13 @@ describe("isEmbeddableReplayUrl", () => {
     expect(isEmbeddableReplayUrl("https://drive.google.com/file/d/example/view?usp=sharing")).toBe(
       false,
     );
+  });
+
+  it("identifies Google Drive preview players that need the taller dashboard viewport", () => {
+    expect(isGoogleDrivePreviewUrl("https://drive.google.com/file/d/example/preview")).toBe(true);
+    expect(
+      isGoogleDrivePreviewUrl("https://drive.google.com/file/d/example/view?usp=sharing"),
+    ).toBe(false);
+    expect(isGoogleDrivePreviewUrl("https://www.tella.tv/video/vid_example/embed")).toBe(false);
   });
 });

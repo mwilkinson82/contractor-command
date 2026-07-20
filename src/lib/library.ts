@@ -49,6 +49,10 @@ export type ReplayWithResources = ReplayRow & {
   resources: ReplayResource[];
 };
 
+export function isGoogleDrivePreviewUrl(url: string | null): boolean {
+  return Boolean(url && url.includes("drive.google.com/file/d/") && url.includes("/preview"));
+}
+
 export function isEmbeddableReplayUrl(url: string | null): boolean {
   if (!url) return false;
   const supportedProvider = [
@@ -57,8 +61,7 @@ export function isEmbeddableReplayUrl(url: string | null): boolean {
     "loom.com/embed/",
     "tella.tv/video/",
   ].some((needle) => url.includes(needle));
-  const googleDrivePreview = url.includes("drive.google.com/file/d/") && url.includes("/preview");
-  return supportedProvider || googleDrivePreview;
+  return supportedProvider || isGoogleDrivePreviewUrl(url);
 }
 
 export const TEMPLATE_BUCKET = "template-files";

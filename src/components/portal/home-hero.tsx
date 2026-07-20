@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowRight, Download, ExternalLink, Map, Route as RouteIcon } from "lucide-react";
 import { GreetingIcon, type GreetingIconKey } from "@/components/portal/greeting-icon";
 import type { DashboardMove } from "@/components/portal/dashboard-moves";
-import { openTemplateFile, type ReplayWithResources } from "@/lib/library";
+import { isGoogleDrivePreviewUrl, openTemplateFile, type ReplayWithResources } from "@/lib/library";
 
 export function HomeHero({
   companyName,
@@ -147,6 +147,7 @@ export function HomeHero({
 function FeaturedTrainingCard({ training }: { training: ReplayWithResources }) {
   const [busyResourceId, setBusyResourceId] = useState<string | null>(null);
   const resources = training.resources.filter((resource) => resource.template.download_url);
+  const isGoogleDrivePreview = isGoogleDrivePreviewUrl(training.video_url);
 
   async function openResource(resource: ReplayWithResources["resources"][number]) {
     setBusyResourceId(resource.id);
@@ -184,14 +185,20 @@ function FeaturedTrainingCard({ training }: { training: ReplayWithResources }) {
         ) : null}
       </div>
       {training.video_url ? (
-        <div className="relative h-0 bg-black pb-[53.7927%]">
+        <div
+          className={
+            isGoogleDrivePreview
+              ? "relative aspect-[4/3] overflow-hidden bg-black"
+              : "relative h-0 overflow-hidden bg-black pb-[53.7927%]"
+          }
+        >
           <iframe
             src={training.video_url}
             title={`${training.title} — Contractor Circle training`}
             allow="autoplay; fullscreen; picture-in-picture"
             allowFullScreen
             loading="lazy"
-            className="absolute inset-0 h-full w-full"
+            className="absolute inset-0 block h-full w-full border-0"
           />
         </div>
       ) : null}
