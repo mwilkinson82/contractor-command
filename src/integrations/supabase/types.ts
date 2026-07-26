@@ -569,48 +569,6 @@ export type Database = {
         }
         Relationships: []
       }
-      pending_claims: {
-        Row: {
-          claimed_at: string | null
-          claimed_by: string | null
-          created_at: string
-          current_period_end: string | null
-          email: string
-          id: string
-          metadata: Json
-          price_id: string | null
-          status: string
-          stripe_customer_id: string | null
-          stripe_subscription_id: string | null
-        }
-        Insert: {
-          claimed_at?: string | null
-          claimed_by?: string | null
-          created_at?: string
-          current_period_end?: string | null
-          email: string
-          id?: string
-          metadata?: Json
-          price_id?: string | null
-          status: string
-          stripe_customer_id?: string | null
-          stripe_subscription_id?: string | null
-        }
-        Update: {
-          claimed_at?: string | null
-          claimed_by?: string | null
-          created_at?: string
-          current_period_end?: string | null
-          email?: string
-          id?: string
-          metadata?: Json
-          price_id?: string | null
-          status?: string
-          stripe_customer_id?: string | null
-          stripe_subscription_id?: string | null
-        }
-        Relationships: []
-      }
       member_control_progress: {
         Row: {
           assessment_started_at: string | null
@@ -667,6 +625,48 @@ export type Database = {
           },
         ]
       }
+      pending_claims: {
+        Row: {
+          claimed_at: string | null
+          claimed_by: string | null
+          created_at: string
+          current_period_end: string | null
+          email: string
+          id: string
+          metadata: Json
+          price_id: string | null
+          status: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+        }
+        Insert: {
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string
+          current_period_end?: string | null
+          email: string
+          id?: string
+          metadata?: Json
+          price_id?: string | null
+          status: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+        }
+        Update: {
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string
+          current_period_end?: string | null
+          email?: string
+          id?: string
+          metadata?: Json
+          price_id?: string | null
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -690,6 +690,45 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      replay_resources: {
+        Row: {
+          created_at: string
+          id: string
+          replay_id: string
+          sort_order: number
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          replay_id: string
+          sort_order?: number
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          replay_id?: string
+          sort_order?: number
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "replay_resources_replay_id_fkey"
+            columns: ["replay_id"]
+            isOneToOne: false
+            referencedRelation: "replays"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "replay_resources_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       replays: {
         Row: {
@@ -738,45 +777,6 @@ export type Database = {
           video_url?: string | null
         }
         Relationships: []
-      }
-      replay_resources: {
-        Row: {
-          created_at: string
-          id: string
-          replay_id: string
-          sort_order: number
-          template_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          replay_id: string
-          sort_order?: number
-          template_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          replay_id?: string
-          sort_order?: number
-          template_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "replay_resources_replay_id_fkey"
-            columns: ["replay_id"]
-            isOneToOne: false
-            referencedRelation: "replays"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "replay_resources_template_id_fkey"
-            columns: ["template_id"]
-            isOneToOne: false
-            referencedRelation: "templates"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       schedule_baselines: {
         Row: {
