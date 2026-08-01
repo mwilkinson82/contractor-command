@@ -43,7 +43,7 @@ function CallsPage() {
       <PageHeader
         eyebrow="The room"
         title={<>Calls and bootcamps.</>}
-        lede="One Zoom for the bi-weekly working sessions and the monthly bootcamps — every other Sunday. Submit the topic you want pressured before the room sees it."
+        lede="One live room for the bi-weekly working sessions and monthly bootcamps — every other Sunday. Submit the topic you want pressured before the room sees it."
       />
 
       {/* Single unified session card */}
@@ -121,7 +121,7 @@ function SessionCard({ session, primary = false }: { session: Session; primary?:
               : "inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-cream hover:opacity-90"
           }
         >
-          Join Zoom <ArrowUpRight className="h-3.5 w-3.5" />
+          Join Google Meet <ArrowUpRight className="h-3.5 w-3.5" />
         </a>
         <a
           href={addToCalendarUrl(session)}
@@ -150,7 +150,7 @@ function SessionCard({ session, primary = false }: { session: Session; primary?:
         <p
           className={`mt-6 border-t pt-4 font-mono text-xs ${primary ? "border-cream/10 text-cream/50" : "border-border text-muted-foreground"}`}
         >
-          Zoom ID · {session.zoomId}
+          Meeting ID · {session.zoomId}
           {session.passcode ? <> · Passcode · {session.passcode}</> : null}
         </p>
       ) : null}

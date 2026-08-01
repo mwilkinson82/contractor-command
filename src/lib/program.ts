@@ -39,9 +39,7 @@ export const UPCOMING: Session[] = [
     title: "Bi-weekly working session",
     date: nextBiweeklyFromAnchor().date,
     durationMin: 90,
-    zoomUrl: "https://us06web.zoom.us/j/83215167292?pwd=Mtt970HFCPStqSw62btyyta2Wxo0Pr.1",
-    zoomId: "832 1516 7292",
-    passcode: "321266",
+    zoomUrl: "https://meet.google.com/nch-ncyd-xis",
     description:
       "Open-room session. Members bring one specific business issue. We work two or three of them live.",
     agenda: [
@@ -55,9 +53,7 @@ export const UPCOMING: Session[] = [
     title: "Owner dependency — installing the first system.",
     date: "2026-07-09T17:00:00.000Z", // Thu Jul 9, 10:00 AM PT
     durationMin: 120,
-    zoomUrl: "https://us06web.zoom.us/j/83215167292?pwd=Mtt970HFCPStqSw62btyyta2Wxo0Pr.1",
-    zoomId: "832 1516 7292",
-    passcode: "321266",
+    zoomUrl: "https://meet.google.com/nch-ncyd-xis",
     description:
       "Workshop format. We pick one owner bottleneck per member and write the first version of the system that pulls the owner out.",
   },
@@ -110,7 +106,7 @@ export function addToCalendarUrl(s: Session): string {
     action: "TEMPLATE",
     text: `${s.kind} — ${s.title}`,
     dates: `${fmt(start)}/${fmt(end)}`,
-    details: `${s.description}\n\nZoom: ${s.zoomUrl}`,
+    details: `${s.description}\n\nMeeting link: ${s.zoomUrl}`,
     location: s.zoomUrl,
   });
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
