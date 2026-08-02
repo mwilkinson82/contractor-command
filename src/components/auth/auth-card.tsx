@@ -54,8 +54,8 @@ export function AuthCard({
             className="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(90deg,transparent_49.8%,var(--border)_50%,transparent_50.2%),linear-gradient(transparent_49.8%,var(--border)_50%,transparent_50.2%)] [background-size:120px_120px]"
           />
 
-          <div className="relative grid min-h-[650px] gap-8 p-4 sm:p-7 lg:grid-cols-[minmax(0,1fr)_440px] lg:items-center lg:gap-12 lg:p-12 xl:px-16">
-            <div className="px-2 py-8 sm:px-5 lg:py-10">
+          <div className="relative grid min-h-[650px] gap-8 p-4 sm:p-7 lg:grid-cols-[minmax(0,1fr)_440px] lg:grid-rows-[auto_auto] lg:items-center lg:gap-x-12 lg:gap-y-8 lg:p-12 xl:px-16">
+            <div className="px-2 pt-8 sm:px-5 lg:col-start-1 lg:row-start-1 lg:self-end lg:pt-10">
               <p className="eyebrow-clay">The Contractor Circle Hub</p>
               <h1 className="mt-5 max-w-[700px] font-display text-[48px] leading-[0.98] tracking-[-0.035em] sm:text-[62px] xl:text-[72px]">
                 One login. The whole operating system.
@@ -64,23 +64,9 @@ export function AuthCard({
                 The Hub is the command center for the entire system—method, applications, tools,
                 templates, announcements, and community in one place.
               </p>
-
-              <div className="mt-8 grid max-w-[660px] gap-2.5 sm:grid-cols-2">
-                {GATEWAY_SECTIONS.map((section) => (
-                  <article
-                    key={section.title}
-                    className="rounded-xl border border-border bg-card/80 p-4 backdrop-blur-sm"
-                  >
-                    <h2 className="font-display text-[18px] leading-tight">{section.title}</h2>
-                    <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground">
-                      {section.detail}
-                    </p>
-                  </article>
-                ))}
-              </div>
             </div>
 
-            <section className="rounded-2xl border border-border bg-card p-7 shadow-[var(--shadow-elegant)] sm:p-9">
+            <section className="rounded-2xl border border-border bg-card p-7 shadow-[var(--shadow-elegant)] sm:p-9 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-center">
               <div className="flex items-start justify-between gap-4">
                 <p className="eyebrow-clay">Contractor Circle Hub</p>
                 <a
@@ -105,6 +91,20 @@ export function AuthCard({
                 <span>an ALP product</span>
               </div>
             </section>
+
+            <div className="grid max-w-[660px] gap-2.5 px-2 pb-8 sm:grid-cols-2 sm:px-5 lg:col-start-1 lg:row-start-2 lg:self-start lg:pb-10">
+              {GATEWAY_SECTIONS.map((section) => (
+                <article
+                  key={section.title}
+                  className="rounded-xl border border-border bg-card/80 p-4 backdrop-blur-sm"
+                >
+                  <h2 className="font-display text-[18px] leading-tight">{section.title}</h2>
+                  <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground">
+                    {section.detail}
+                  </p>
+                </article>
+              ))}
+            </div>
           </div>
         </section>
       </div>
