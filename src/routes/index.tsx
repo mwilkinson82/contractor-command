@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { openTemplateFile } from "@/lib/library";
 import { Download, Sparkles } from "lucide-react";
 import bulldozerAsset from "@/assets/bulldozer.png.asset.json";
-import july5WhiteboardAsset from "@/assets/2026-07-05-aos-ior-whiteboard.pdf.asset.json";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -621,7 +620,7 @@ function LockedNextCallCard() {
 
 function FeaturedLatestClass() {
   const [busy, setBusy] = useState<string | null>(null);
-  const templatePath = "project-management/ior-source-of-truth.pdf";
+  const templatePath = "c2c899d5-e0c1-4c59-b69a-e481a5f2438b/1785755107679.pdf";
 
   async function handleDownload(path: string) {
     setBusy(path);
@@ -644,12 +643,12 @@ function FeaturedLatestClass() {
             <div className="overflow-hidden rounded-lg border border-white/10 bg-black">
               <div className="relative h-0 w-full pb-[56.25%]">
                 <iframe
-                  src="https://us06web.zoom.us/clips/embed/odZsV2TBSj2uTvbaUp1OIg"
+                  src="https://drive.google.com/file/d/1jy94fLlOJ5Kx-mlX2hIUJszyn_gicneC/preview"
                   frameBorder="0"
                   allowFullScreen
                   allow="autoplay; picture-in-picture; fullscreen"
                   className="absolute left-0 top-0 h-full w-full"
-                  title="Contractor Circle Call — July 5, 2026"
+                  title="Contractor Circle Call — August 2, 2026"
                 />
               </div>
             </div>
@@ -661,44 +660,44 @@ function FeaturedLatestClass() {
               <p className="label-mono">Featured · Latest class</p>
             </div>
             <h3 className="mt-4 font-display text-[2rem] leading-[1.02] tracking-[-0.02em]">
-              Contractor Circle Call — July 5, 2026
+              Contractor Circle Call — August 2, 2026
             </h3>
             <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">
-              AOS, IOR, and daily field tracking — how real-time sundown reporting protects margin,
-              exposes risk early, and keeps project decisions out of gut feel.
+              CPM in the field — using the critical path as a live project operating system that
+              connects execution, production, time, margin, entitlement, and management control.
             </p>
 
             <div className="mt-6 divide-y divide-border border-y border-border">
-              <a
-                href={july5WhiteboardAsset.url}
-                target="_blank"
-                rel="noreferrer"
-                className="group flex items-center gap-3 py-4 hover:text-signal"
-              >
-                <Download className="h-3.5 w-3.5 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[12px] font-semibold">AOS / IOR Whiteboard</p>
-                  <p className="mt-0.5 text-[10px] text-muted-foreground">
-                    Sundown method and margin-protection flow
-                  </p>
-                </div>
-                <ArrowUpRight className="h-3.5 w-3.5" />
-              </a>
               <button
                 type="button"
                 onClick={() => handleDownload(templatePath)}
                 disabled={busy === templatePath}
                 className="group flex w-full items-center gap-3 py-4 text-left hover:text-signal disabled:opacity-60"
               >
-                <FileText className="h-3.5 w-3.5 shrink-0" />
+                <Download className="h-3.5 w-3.5 shrink-0" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-[12px] font-semibold">IOR — The Source of Truth</p>
+                  <p className="text-[12px] font-semibold">
+                    CPM for Owners — Project Operating System
+                  </p>
                   <p className="mt-0.5 text-[10px] text-muted-foreground">
-                    Companion methodology · PDF
+                    Companion field deck · 22 slides
                   </p>
                 </div>
                 <ArrowUpRight className="h-3.5 w-3.5" />
               </button>
+              <Link
+                to="/replays"
+                className="group flex w-full items-center gap-3 py-4 text-left hover:text-signal"
+              >
+                <FileText className="h-3.5 w-3.5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12px] font-semibold">Open in the Replay Library</p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">
+                    Replay, resources, and past working sessions
+                  </p>
+                </div>
+                <ArrowUpRight className="h-3.5 w-3.5" />
+              </Link>
             </div>
           </div>
         </div>
