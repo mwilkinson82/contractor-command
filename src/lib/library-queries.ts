@@ -20,6 +20,40 @@ const LEGACY_FEATURED_TRAINING: ReplayWithResources = {
   resources: [],
 };
 
+const LATEST_CIRCLE_CALL_FALLBACK: ReplayWithResources = {
+  id: "legacy-circle-call-2026-08-02",
+  title: "Contractor Circle Call — August 2, 2026",
+  description:
+    "CPM in the field: using Critical Path Method as a live project operating system—not merely a schedule—to connect field execution, production, time, margin, entitlement, and management control.",
+  video_url: "https://drive.google.com/file/d/1jy94fLlOJ5Kx-mlX2hIUJszyn_gicneC/preview",
+  share_url: "https://drive.google.com/file/d/1jy94fLlOJ5Kx-mlX2hIUJszyn_gicneC/view?usp=sharing",
+  thumbnail_url: null,
+  duration_minutes: null,
+  recorded_at: "2026-08-03T11:06:12.623Z",
+  published: true,
+  featured: false,
+  tags: ["Biweekly Call", "CPM", "Field Operations", "Project Controls", "OverWatch"],
+  category: "circle_call",
+  created_at: "2026-08-03T11:06:12.963Z",
+  resources: [
+    {
+      id: "legacy-cpm-for-owners-resource",
+      replay_id: "legacy-circle-call-2026-08-02",
+      template_id: "c2c899d5-e0c1-4c59-b69a-e481a5f2438b",
+      sort_order: 0,
+      template: {
+        id: "c2c899d5-e0c1-4c59-b69a-e481a5f2438b",
+        title: "CPM for Owners — Project Operating System",
+        description: "The 22-slide companion deck from the August 2 Contractor Circle call.",
+        download_url: "c2c899d5-e0c1-4c59-b69a-e481a5f2438b/1785755107679.pdf",
+        file_type: "pdf",
+        pages: "22 slides",
+        badge: "NEW",
+      },
+    },
+  ],
+};
+
 async function loadReplayResources(replayIds: string[]): Promise<ReplayResource[]> {
   if (replayIds.length === 0) return [];
   const { data, error } = await supabase
@@ -95,5 +129,28 @@ export const featuredReplayQueryOptions = () =>
       }
       const [featured] = await attachResources([data as ReplayRow]);
       return featured ?? LEGACY_FEATURED_TRAINING;
+    },
+  });
+
+export const latestCircleCallQueryOptions = () =>
+  queryOptions({
+    queryKey: ["replays", "latest-circle-call"],
+    staleTime: 60_000,
+    queryFn: async (): Promise<ReplayWithResources> => {
+      const { data, error } = await supabase
+        .from("replays")
+        .select("*")
+        .eq("published", true)
+        .eq("category", "circle_call")
+        .ilike("title", "Contractor Circle Call%")
+        .order("recorded_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error || !data) {
+        if (error) console.warn("[library] latest Circle call unavailable", error.message);
+        return LATEST_CIRCLE_CALL_FALLBACK;
+      }
+      const [latest] = await attachResources([data as ReplayRow]);
+      return latest ?? LATEST_CIRCLE_CALL_FALLBACK;
     },
   });

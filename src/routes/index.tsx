@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { openTemplateFile } from "@/lib/library";
+import { isEmbeddableReplayUrl, openTemplateFile } from "@/lib/library";
 import { Download, Sparkles } from "lucide-react";
 import bulldozerAsset from "@/assets/bulldozer.png.asset.json";
 import { useQuery } from "@tanstack/react-query";
@@ -34,7 +34,7 @@ import { getAosSnapshot, type AosResult, type AosSnapshot } from "@/lib/aos.func
 import { getActiveWeeklyMove, type WeeklyMove } from "@/lib/weekly-move.functions";
 import { useControlJourney } from "@/hooks/use-control-journey";
 import type { ControlJourney } from "@/lib/control-journey";
-import { featuredReplayQueryOptions } from "@/lib/library-queries";
+import { featuredReplayQueryOptions, latestCircleCallQueryOptions } from "@/lib/library-queries";
 
 import {
   ArrowUpRight,
@@ -620,7 +620,10 @@ function LockedNextCallCard() {
 
 function FeaturedLatestClass() {
   const [busy, setBusy] = useState<string | null>(null);
-  const templatePath = "c2c899d5-e0c1-4c59-b69a-e481a5f2438b/1785755107679.pdf";
+  const { data: latestClass } = useQuery(latestCircleCallQueryOptions());
+  const resources = latestClass?.resources ?? [];
+
+  if (!latestClass) return null;
 
   async function handleDownload(path: string) {
     setBusy(path);
@@ -642,14 +645,25 @@ function FeaturedLatestClass() {
           <div className="bg-ink-panel p-3 sm:p-5">
             <div className="overflow-hidden rounded-lg border border-white/10 bg-black">
               <div className="relative h-0 w-full pb-[56.25%]">
-                <iframe
-                  src="https://drive.google.com/file/d/1jy94fLlOJ5Kx-mlX2hIUJszyn_gicneC/preview"
-                  frameBorder="0"
-                  allowFullScreen
-                  allow="autoplay; picture-in-picture; fullscreen"
-                  className="absolute left-0 top-0 h-full w-full"
-                  title="Contractor Circle Call — August 2, 2026"
-                />
+                {isEmbeddableReplayUrl(latestClass.video_url) ? (
+                  <iframe
+                    src={latestClass.video_url ?? undefined}
+                    frameBorder="0"
+                    allowFullScreen
+                    allow="autoplay; picture-in-picture; fullscreen"
+                    className="absolute left-0 top-0 h-full w-full"
+                    title={latestClass.title}
+                  />
+                ) : (
+                  <a
+                    href={latestClass.share_url ?? latestClass.video_url ?? "/replays"}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="absolute inset-0 grid place-items-center px-6 text-center text-sm text-cream hover:text-signal"
+                  >
+                    Open the latest replay
+                  </a>
+                )}
               </div>
             </div>
           </div>
@@ -660,31 +674,35 @@ function FeaturedLatestClass() {
               <p className="label-mono">Featured · Latest class</p>
             </div>
             <h3 className="mt-4 font-display text-[2rem] leading-[1.02] tracking-[-0.02em]">
-              Contractor Circle Call — August 2, 2026
+              {latestClass.title}
             </h3>
             <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">
-              CPM in the field — using the critical path as a live project operating system that
-              connects execution, production, time, margin, entitlement, and management control.
+              {latestClass.description}
             </p>
 
             <div className="mt-6 divide-y divide-border border-y border-border">
-              <button
-                type="button"
-                onClick={() => handleDownload(templatePath)}
-                disabled={busy === templatePath}
-                className="group flex w-full items-center gap-3 py-4 text-left hover:text-signal disabled:opacity-60"
-              >
-                <Download className="h-3.5 w-3.5 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[12px] font-semibold">
-                    CPM for Owners — Project Operating System
-                  </p>
-                  <p className="mt-0.5 text-[10px] text-muted-foreground">
-                    Companion field deck · 22 slides
-                  </p>
-                </div>
-                <ArrowUpRight className="h-3.5 w-3.5" />
-              </button>
+              {resources.map((resource) => {
+                const path = resource.template.download_url;
+                return (
+                  <button
+                    key={resource.id}
+                    type="button"
+                    onClick={() => path && handleDownload(path)}
+                    disabled={!path || busy === path}
+                    className="group flex w-full items-center gap-3 py-4 text-left hover:text-signal disabled:opacity-60"
+                  >
+                    <Download className="h-3.5 w-3.5 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[12px] font-semibold">{resource.template.title}</p>
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">
+                        Companion field file
+                        {resource.template.pages ? ` · ${resource.template.pages}` : ""}
+                      </p>
+                    </div>
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                  </button>
+                );
+              })}
               <Link
                 to="/replays"
                 className="group flex w-full items-center gap-3 py-4 text-left hover:text-signal"
