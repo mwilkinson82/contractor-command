@@ -8,6 +8,7 @@ export type Session = {
   date: string; // ISO datetime with tz offset
   durationMin: number;
   zoomUrl: string;
+  meetingProvider: "Google Meet" | "Zoom";
   zoomId?: string;
   passcode?: string;
   description: string;
@@ -16,32 +17,15 @@ export type Session = {
 
 // Replays moved to the `replays` database table — see src/routes/replays.tsx.
 
-
-// Biweekly cadence: every other Sunday, 5:00 PM Eastern.
-// Anchor: 2026-05-24 17:00 ET (EDT = UTC-4) → 2026-05-24T21:00:00.000Z.
-const BIWEEKLY_ANCHOR_UTC = "2026-05-24T21:00:00.000Z";
-
-function nextBiweeklyFromAnchor(): { date: string } {
-  const anchor = new Date(BIWEEKLY_ANCHOR_UTC).getTime();
-  const now = Date.now();
-  const period = 14 * 86_400_000;
-  let t = anchor;
-  // If we're past the start of the anchor day's call, roll forward by 14d
-  // until the next future call. Always returns a date >= now.
-  while (t < now) t += period;
-  return { date: new Date(t).toISOString() };
-}
-
 // --- Upcoming sessions (edit these as the calendar moves) ---
 export const UPCOMING: Session[] = [
   {
     kind: "Biweekly Call",
-    title: "Bi-weekly working session",
-    date: nextBiweeklyFromAnchor().date,
-    durationMin: 90,
-    zoomUrl: "https://us06web.zoom.us/j/83215167292?pwd=Mtt970HFCPStqSw62btyyta2Wxo0Pr.1",
-    zoomId: "832 1516 7292",
-    passcode: "321266",
+    title: "Contractor Circle — Sunday, August 16",
+    date: "2026-08-16T21:00:00.000Z",
+    durationMin: 60,
+    zoomUrl: "https://meet.google.com/qej-dnzf-vvs",
+    meetingProvider: "Google Meet",
     description:
       "Open-room session. Members bring one specific business issue. We work two or three of them live.",
     agenda: [
@@ -56,6 +40,7 @@ export const UPCOMING: Session[] = [
     date: "2026-07-09T17:00:00.000Z", // Thu Jul 9, 10:00 AM PT
     durationMin: 120,
     zoomUrl: "https://us06web.zoom.us/j/83215167292?pwd=Mtt970HFCPStqSw62btyyta2Wxo0Pr.1",
+    meetingProvider: "Zoom",
     zoomId: "832 1516 7292",
     passcode: "321266",
     description:
@@ -65,17 +50,18 @@ export const UPCOMING: Session[] = [
 
 export function nextOfKind(kind: Session["kind"]): Session | undefined {
   const now = Date.now();
-  return UPCOMING
-    .filter((s) => s.kind === kind && new Date(s.date).getTime() > now)
-    .sort((a, b) => +new Date(a.date) - +new Date(b.date))[0]
-    ?? UPCOMING.find((s) => s.kind === kind);
+  return (
+    UPCOMING.filter((s) => s.kind === kind && new Date(s.date).getTime() > now).sort(
+      (a, b) => +new Date(a.date) - +new Date(b.date),
+    )[0] ?? UPCOMING.find((s) => s.kind === kind)
+  );
 }
 
 export function nextAny(): Session {
   const now = Date.now();
-  const upcoming = UPCOMING
-    .filter((s) => new Date(s.date).getTime() > now)
-    .sort((a, b) => +new Date(a.date) - +new Date(b.date));
+  const upcoming = UPCOMING.filter((s) => new Date(s.date).getTime() > now).sort(
+    (a, b) => +new Date(a.date) - +new Date(b.date),
+  );
   return upcoming[0] ?? UPCOMING[0];
 }
 
@@ -105,12 +91,15 @@ export function addToCalendarUrl(s: Session): string {
   const start = new Date(s.date);
   const end = new Date(start.getTime() + s.durationMin * 60_000);
   const fmt = (d: Date) =>
-    d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+    d
+      .toISOString()
+      .replace(/[-:]/g, "")
+      .replace(/\.\d{3}/, "");
   const params = new URLSearchParams({
     action: "TEMPLATE",
     text: `${s.kind} — ${s.title}`,
     dates: `${fmt(start)}/${fmt(end)}`,
-    details: `${s.description}\n\nZoom: ${s.zoomUrl}`,
+    details: `${s.description}\n\n${s.meetingProvider}: ${s.zoomUrl}`,
     location: s.zoomUrl,
   });
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
@@ -127,7 +116,6 @@ export function greeting(): string {
 
 // Replay library now lives in the `replays` database table.
 
-
 // --- External links ---
 export const AOS_URL = "https://alpos.alpcontractorcircle.com";
 export const DISCORD_URL = "https://discord.gg/yvVN2N3qvN";
@@ -137,9 +125,15 @@ export const INTENSIVE_EMAIL = "hello@alpcontractorcircle.com";
 // --- Community surface ---
 export const DISCORD_CHANNELS = [
   { name: "#announcements", purpose: "Marshall posts session prep, replays, and shifts here." },
-  { name: "#bring-one-issue", purpose: "Post the issue you want pressure on before the next call." },
+  {
+    name: "#bring-one-issue",
+    purpose: "Post the issue you want pressure on before the next call.",
+  },
   { name: "#wins", purpose: "Closed contracts, hires, installed systems. Specifics only." },
   { name: "#estimating", purpose: "Pricing assumptions, qualification debates, scope traps." },
-  { name: "#field-leadership", purpose: "PM oversight, foreman, and crew leadership conversations." },
+  {
+    name: "#field-leadership",
+    purpose: "PM oversight, foreman, and crew leadership conversations.",
+  },
   { name: "#numbers", purpose: "Cash, billing, collections, and scorecard discipline." },
 ];

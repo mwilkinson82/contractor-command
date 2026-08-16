@@ -121,7 +121,7 @@ function SessionCard({ session, primary = false }: { session: Session; primary?:
               : "inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-cream hover:opacity-90"
           }
         >
-          Join Zoom <ArrowUpRight className="h-3.5 w-3.5" />
+          Join {session.meetingProvider} <ArrowUpRight className="h-3.5 w-3.5" />
         </a>
         <a
           href={addToCalendarUrl(session)}
@@ -150,7 +150,7 @@ function SessionCard({ session, primary = false }: { session: Session; primary?:
         <p
           className={`mt-6 border-t pt-4 font-mono text-xs ${primary ? "border-cream/10 text-cream/50" : "border-border text-muted-foreground"}`}
         >
-          Zoom ID · {session.zoomId}
+          {session.meetingProvider} ID · {session.zoomId}
           {session.passcode ? <> · Passcode · {session.passcode}</> : null}
         </p>
       ) : null}

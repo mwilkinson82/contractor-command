@@ -421,7 +421,7 @@ function ContractorCircleCallAnnouncement({
                 {session.zoomUrl}
               </a>
               <p className="mt-3 font-mono text-[11px] text-muted-foreground">
-                Zoom ID · {session.zoomId ?? "standard room"}
+                {session.meetingProvider} · {session.zoomId ?? "Open the link to join"}
                 {session.passcode ? <> · Passcode · {session.passcode}</> : null}
               </p>
             </div>
