@@ -43,7 +43,7 @@ function CallsPage() {
       <PageHeader
         eyebrow="The room"
         title={<>Calls and bootcamps.</>}
-        lede="One Zoom for the bi-weekly working sessions and the monthly bootcamps — every other Sunday. Submit the topic you want pressured before the room sees it."
+        lede="The live working room for bi-weekly sessions and monthly bootcamps. Submit the topic you want pressured before the room sees it."
       />
 
       {/* Single unified session card */}
