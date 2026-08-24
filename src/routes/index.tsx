@@ -26,6 +26,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 
 import { AosHero } from "@/components/portal/aos-hero";
 import { HomeHero } from "@/components/portal/home-hero";
+import { DelayIntensiveOffer } from "@/components/portal/delay-intensive-offer";
 import { ControlJourneyPanel } from "@/components/portal/control-journey";
 import { WhatNeedsMove, type DashboardMove } from "@/components/portal/dashboard-moves";
 import { HandbookAnchor } from "@/components/portal/handbook-anchor";
@@ -272,9 +273,18 @@ function HomePage() {
         featuredTraining={featuredTraining ?? null}
         greetingIcon={
           company?.greeting_icon as
-            "wave" | "crane" | "bulldozer" | "hammer" | "scale" | "brick" | null | undefined
+            | "wave"
+            | "crane"
+            | "bulldozer"
+            | "hammer"
+            | "scale"
+            | "brick"
+            | null
+            | undefined
         }
       />
+
+      {hasCircleAccess ? <DelayIntensiveOffer /> : null}
 
       {controlJourneyEnabled ? (
         <ControlJourneyPanel
