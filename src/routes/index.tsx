@@ -20,6 +20,7 @@ import { useCompany } from "@/hooks/use-company";
 import { isAllowedReturnTo, RETURN_TO_STORAGE_KEY } from "@/lib/return-to";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 import { tierAtLeast, useTier } from "@/hooks/use-tier";
 import { AosPulse } from "@/components/portal/aos-pulse";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -81,6 +82,7 @@ function HomePage() {
   );
   const { company } = useCompany();
   const { user } = useAuth();
+  const isAdmin = useIsAdmin();
   const { tier, loading: tierLoading } = useTier();
   const [callAnnouncementOpen, setCallAnnouncementOpen] = useState(false);
   const controlJourneyEnabled = !tierLoading && tierAtLeast(tier, "book_buyer");
@@ -102,8 +104,9 @@ function HomePage() {
     user?.email?.split("@")[0] ||
     "there";
   const companyName = company?.name?.trim() || "Your Command Center";
-  const shouldSeeCallAnnouncement = !tierLoading && tierAtLeast(tier, "circle");
-  const hasCircleAccess = !tierLoading && tierAtLeast(tier, "circle");
+  const shouldSeeCallAnnouncement =
+    isAdmin === true || (!tierLoading && tierAtLeast(tier, "circle"));
+  const hasCircleAccess = isAdmin === true || (!tierLoading && tierAtLeast(tier, "circle"));
   const { data: featuredTraining } = useQuery({
     ...featuredReplayQueryOptions(),
     enabled: hasCircleAccess,

@@ -27,6 +27,7 @@ import {
   ShieldCheck,
   Eye,
   CirclePlay,
+  TicketCheck,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { tierAtLeast, useTier, type Tier } from "@/hooks/use-tier";
@@ -186,6 +187,13 @@ const CIRCLE_GROUPS: Group[] = [
   {
     label: "Program",
     items: [
+      {
+        to: "https://alpcontractorcircle.com/delay-intensive/member?utm_source=contractor_circle_hub&utm_medium=member_sidebar&utm_campaign=delay_intensive_2026",
+        label: "Delay Intensive",
+        icon: TicketCheck,
+        external: true,
+        minTier: "circle",
+      },
       { to: "/work-with-marshall", label: "Work with Marshall", icon: Sparkles },
       { to: "/upgrade", label: "Add-ons", icon: ArrowUpCircle },
       { to: "/account", label: "Account", icon: User },
