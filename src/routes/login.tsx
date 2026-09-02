@@ -13,7 +13,13 @@ function safeRedirect(value: unknown): string {
 }
 
 export const Route = createFileRoute("/login")({
-  head: () => ({ meta: [{ title: "Sign in — ALP Contractor Circle" }] }),
+  head: () => ({
+    meta: [
+      { title: "Sign in — ALP Contractor Circle" },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+    links: [{ rel: "canonical", href: "https://alpcontractorcircle.com" }],
+  }),
   validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
     redirect: typeof search.redirect === "string" ? safeRedirect(search.redirect) : undefined,
   }),
