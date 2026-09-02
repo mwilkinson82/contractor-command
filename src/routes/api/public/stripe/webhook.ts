@@ -1,6 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import Stripe from "stripe";
 import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
+import { syncPaidResendContact } from "@/lib/resend/capture";
+import {
+  hubTierForPurchase,
+  resendSegmentForPurchase,
+  type HubTier,
+} from "@/lib/stripe/paid-product-map";
 
 type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
 
@@ -10,19 +16,18 @@ async function getSupabaseAdmin() {
 }
 
 // Stripe webhook: keeps `subscriptions` in sync with Stripe state.
-// Configure this URL in Stripe Dashboard → Developers → Webhooks:
-//   https://contractor-command.lovable.app/api/public/stripe/webhook
+// Live URL (do not change): https://app.alpcontractorcircle.com/api/public/stripe/webhook
 // Required events: customer.subscription.created, customer.subscription.updated,
 // customer.subscription.deleted, checkout.session.completed, invoice.payment_failed.
 //
-// Tier mapping (set these env vars to enable):
-//   STRIPE_PRICE_ID_BOOK       → 'book_buyer'   (alphandbook.com, $47 one-time)
-//   STRIPE_PRICE_ID_INTENSIVE  → 'intensive'    ($5,000 one-time)
-//   STRIPE_PRICE_ID_CIRCLE     → 'circle'       (recurring subscription)
-// Anything else is ignored. This Stripe account also sells products outside
-// this portal, so unknown prices must not create people/subscription rows here.
-
-type Tier = "book_buyer" | "power_hour" | "sm_school" | "contractor_school" | "intensive" | "circle" | "aos_only";
+// Hub tier + Resend segment mapping lives in src/lib/stripe/paid-product-map.ts.
+// Circle live monthly (hardcoded, not env-only):
+//   price_1TVh3TJdDAUSVXbNJRsYFTbp / prod_UUgQlHRk9H1ZUS
+// Anything else is ignored for hub rows. This Stripe account also sells
+// products outside this portal, so unknown prices must not create people
+// here. Resend contact upsert is an alongside path — it does not send mail
+// and must not replace hub Circle welcome.
+type Tier = HubTier;
 type WebhookEventClaim = "process" | "duplicate" | "in_progress";
 type SupabaseRpcResult<T> = Promise<{
   data: T | null;
@@ -32,35 +37,40 @@ type SupabaseRpcClient = {
   rpc: <T>(fn: string, args: Record<string, unknown>) => SupabaseRpcResult<T>;
 };
 
-const LEGACY_CIRCLE_PRICE_IDS = new Set([
-  // Founding Circle import price used before the current STRIPE_PRICE_ID_CIRCLE env var.
-  "price_1TDR3aJdDAUSVXbNZOY6EXF3",
-  // $497/mo Circle price used for direct Stripe checkouts before the env-managed price.
-  // Without this entry, the webhook mislabeled these subs as aos_only.
-  "price_1TDR3aJdDAUSVXbNWVzFLblo",
-]);
+function splitPersonName(name?: string | null): { firstName: string | null; lastName: string | null } {
+  const trimmed = (name ?? "").trim();
+  if (!trimmed) return { firstName: null, lastName: null };
+  const parts = trimmed.split(/\s+/);
+  return { firstName: parts[0] ?? null, lastName: parts.slice(1).join(" ") || null };
+}
 
-function tierForPrice(
-  priceId: string | null,
-  metaProduct?: string | null,
-  metaKind?: string | null,
-): Tier | null {
-  const product = metaProduct ?? metaKind ?? null;
-  if (product === "book_v2" || product === "book") return "book_buyer";
-  if (product === "power_hour") return "power_hour";
-  if (product === "sm_school") return "sm_school";
-  if (product === "contractor_school") return "contractor_school";
-  if (product === "intensive") return "intensive";
-  if (product === "circle" && priceId === process.env.STRIPE_PRICE_ID_CIRCLE) return "circle";
-
-  if (priceId && priceId === process.env.STRIPE_PRICE_ID_BOOK) return "book_buyer";
-  if (priceId && priceId === process.env.STRIPE_PRICE_ID_INTENSIVE) return "intensive";
-  if (priceId && priceId === process.env.STRIPE_PRICE_ID_CIRCLE) return "circle";
-  if (priceId && LEGACY_CIRCLE_PRICE_IDS.has(priceId)) return "circle";
-  if (priceId && (priceId === process.env.STRIPE_PRICE_ID_POWER_HOUR_MONTH || priceId === process.env.STRIPE_PRICE_ID_POWER_HOUR_QUARTER)) return "power_hour";
-  if (priceId && (priceId === process.env.STRIPE_PRICE_ID_SM_SCHOOL_MONTH || priceId === process.env.STRIPE_PRICE_ID_SM_SCHOOL_QUARTER)) return "sm_school";
-  if (priceId && (priceId === process.env.STRIPE_PRICE_ID_CONTRACTOR_SCHOOL_MONTH || priceId === process.env.STRIPE_PRICE_ID_CONTRACTOR_SCHOOL_QUARTER)) return "contractor_school";
-  return null;
+async function syncResendForPaidPurchase(opts: {
+  email: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  company?: string | null;
+  priceId: string | null;
+  productId: string | null;
+  metaProduct?: string | null;
+  metaKind?: string | null;
+}): Promise<void> {
+  const segment = resendSegmentForPurchase({
+    priceId: opts.priceId,
+    productId: opts.productId,
+    metaProduct: opts.metaProduct,
+    metaKind: opts.metaKind,
+  });
+  if (!segment) return;
+  await syncPaidResendContact({
+    email: opts.email,
+    firstName: opts.firstName,
+    lastName: opts.lastName,
+    company: opts.company,
+    segment,
+    source: "stripe",
+    source_url: "https://app.alpcontractorcircle.com",
+    magnet: segment,
+  });
 }
 
 function productLabelForTier(tier: Tier): string {
@@ -234,6 +244,7 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
 
 async function upsertSubscription(supabaseAdmin: SupabaseAdminClient, stripe: Stripe, sub: Stripe.Subscription) {
   let email: string | null = null;
+  let customerName: string | null = null;
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const existingByStripe = await supabaseAdmin
     .from("subscriptions")
@@ -243,7 +254,9 @@ async function upsertSubscription(supabaseAdmin: SupabaseAdminClient, stripe: St
   try {
     const customer = await stripe.customers.retrieve(customerId);
     if (!("deleted" in customer) || !customer.deleted) {
-      email = (customer as Stripe.Customer).email ?? null;
+      const live = customer as Stripe.Customer;
+      email = live.email ?? null;
+      customerName = live.name ?? null;
     }
   } catch (err) {
     console.error("Failed to retrieve Stripe customer", { customerId, err });
@@ -256,12 +269,48 @@ async function upsertSubscription(supabaseAdmin: SupabaseAdminClient, stripe: St
 
   const normalizedEmail = (existingByStripe.data?.email ?? email).toLowerCase();
   const priceId = sub.items.data[0]?.price?.id ?? null;
-  const productId = (sub.items.data[0]?.price?.product as string | null) ?? null;
+  const rawProduct = sub.items.data[0]?.price?.product;
+  const productId =
+    typeof rawProduct === "string"
+      ? rawProduct
+      : rawProduct && typeof rawProduct === "object" && "id" in rawProduct
+        ? String((rawProduct as { id: string }).id)
+        : null;
   const cpe = (sub as Stripe.Subscription & { current_period_end?: number }).current_period_end;
   const currentPeriodEnd = cpe ? new Date(cpe * 1000).toISOString() : null;
   const metadata = (sub.metadata ?? {}) as Record<string, string>;
-  const tier = tierForPrice(priceId, metadata.product, metadata.kind);
-  if (!tier) return;
+  const purchaseIds = {
+    priceId,
+    productId,
+    metaProduct: metadata.product,
+    metaKind: metadata.kind,
+  };
+  const tier = hubTierForPurchase(purchaseIds);
+  const resendSegment = resendSegmentForPurchase(purchaseIds);
+  if (!tier && !resendSegment) return;
+
+  const metaFirst = (metadata.first_name ?? "").trim() || null;
+  const fromCustomer = splitPersonName(customerName);
+  const firstName = metaFirst ?? fromCustomer.firstName;
+  const lastName = fromCustomer.lastName;
+  const company = (metadata.company ?? "").trim() || null;
+  const paidActive = sub.status === "active" || sub.status === "trialing";
+
+  if (!tier) {
+    if (resendSegment && paidActive) {
+      await syncResendForPaidPurchase({
+        email: normalizedEmail,
+        firstName,
+        lastName,
+        company,
+        priceId,
+        productId,
+        metaProduct: metadata.product,
+        metaKind: metadata.kind,
+      });
+    }
+    return;
+  }
 
   const { data: profile } = await supabaseAdmin
     .from("profiles")
@@ -330,8 +379,6 @@ async function upsertSubscription(supabaseAdmin: SupabaseAdminClient, stripe: St
       ).replace(/\/$/, "");
       const loginUrl = await ensureMagicLinkForMember(supabaseAdmin, normalizedEmail, origin);
       const { enqueueCircleWelcome } = await import("@/lib/email/enqueue-circle-welcome");
-      const firstName =
-        ((sub.metadata?.first_name as string | undefined) ?? "").trim() || null;
       const result = await enqueueCircleWelcome({
         supabaseAdmin,
         email: normalizedEmail,
@@ -346,6 +393,19 @@ async function upsertSubscription(supabaseAdmin: SupabaseAdminClient, stripe: St
       // Never fail the webhook over an email send.
       console.error("Circle welcome enqueue threw", { sub: sub.id, err });
     }
+  }
+
+  if (resendSegment && paidActive) {
+    await syncResendForPaidPurchase({
+      email: normalizedEmail,
+      firstName,
+      lastName,
+      company,
+      priceId,
+      productId,
+      metaProduct: metadata.product,
+      metaKind: metadata.kind,
+    });
   }
 }
 
@@ -436,6 +496,10 @@ async function upsertOneTimePurchase(supabaseAdmin: SupabaseAdminClient, stripe:
 
   const normalizedEmail = email.toLowerCase();
   const metadata = (session.metadata ?? {}) as Record<string, string>;
+  const fromCustomer = splitPersonName(session.customer_details?.name ?? metadata.first_name ?? null);
+  const firstName = (metadata.first_name ?? "").trim() || fromCustomer.firstName;
+  const lastName = (metadata.last_name ?? "").trim() || fromCustomer.lastName;
+  const company = (metadata.company ?? "").trim() || null;
 
   // Call packs are services, not tier purchases — log to vault_packets
   // and skip subscription row creation.
@@ -486,8 +550,30 @@ async function upsertOneTimePurchase(supabaseAdmin: SupabaseAdminClient, stripe:
     console.warn("Could not list line items for one-time purchase", { sessionId: session.id, err });
   }
 
-  const tier = tierForPrice(priceId, metadata.product, metadata.kind);
-  if (!tier) return;
+  const purchaseIds = {
+    priceId,
+    productId,
+    metaProduct: metadata.product,
+    metaKind: metadata.kind,
+  };
+  const tier = hubTierForPurchase(purchaseIds);
+  const resendSegment = resendSegmentForPurchase(purchaseIds);
+
+  if (!tier) {
+    if (resendSegment) {
+      await syncResendForPaidPurchase({
+        email: normalizedEmail,
+        firstName,
+        lastName,
+        company,
+        priceId,
+        productId,
+        metaProduct: metadata.product,
+        metaKind: metadata.kind,
+      });
+    }
+    return;
+  }
 
   const { data: profile } = await supabaseAdmin
     .from("profiles")
@@ -541,6 +627,19 @@ async function upsertOneTimePurchase(supabaseAdmin: SupabaseAdminClient, stripe:
       throw new Error(pendingErr.message);
     }
     await invitePaidMemberIfNeeded(supabaseAdmin, normalizedEmail);
+  }
+
+  if (resendSegment) {
+    await syncResendForPaidPurchase({
+      email: normalizedEmail,
+      firstName,
+      lastName,
+      company,
+      priceId,
+      productId,
+      metaProduct: metadata.product,
+      metaKind: metadata.kind,
+    });
   }
 }
 
