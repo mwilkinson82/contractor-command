@@ -1,5 +1,7 @@
 const MARKETING_HOSTS = [
   "marshallwilkinson.com",
+  "marshallinbio.com",
+  "altitudelogicpressure.com",
   "alpcontractorcircle.com",
   "alphandbook.com",
   "alpsalestraining.com",

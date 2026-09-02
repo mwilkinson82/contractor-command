@@ -30,6 +30,10 @@ describe("never-email / never-import", () => {
 describe("marketing CORS origins", () => {
   it("allows the Vale / ALP marketing hosts and localhost preview", () => {
     expect(allowedCorsOrigin("https://marshallwilkinson.com")).toBe("https://marshallwilkinson.com");
+    expect(allowedCorsOrigin("https://marshallinbio.com")).toBe("https://marshallinbio.com");
+    expect(allowedCorsOrigin("https://www.altitudelogicpressure.com")).toBe(
+      "https://www.altitudelogicpressure.com",
+    );
     expect(allowedCorsOrigin("https://www.alpcontractorcircle.com")).toBe(
       "https://www.alpcontractorcircle.com",
     );
