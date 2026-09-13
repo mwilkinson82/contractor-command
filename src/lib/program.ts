@@ -21,10 +21,10 @@ export type Session = {
 export const UPCOMING: Session[] = [
   {
     kind: "Biweekly Call",
-    title: "Contractor Circle — Monday, August 31",
-    date: "2026-08-31T23:00:00.000Z",
-    durationMin: 60,
-    zoomUrl: "https://meet.google.com/ony-efmk-dro",
+    title: "Contractor Circle — Sunday, September 13",
+    date: "2026-09-13T21:00:00.000Z", // 5:00 PM ET
+    durationMin: 90,
+    zoomUrl: "https://meet.google.com/iey-xzxa-sig",
     meetingProvider: "Google Meet",
     description:
       "Open-room session. Members bring one specific business issue. We work two or three of them live.",
