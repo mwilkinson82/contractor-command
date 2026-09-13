@@ -506,8 +506,8 @@ export interface FileRoutesByFullPath {
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/overwatch/tier-lookup': typeof ApiPublicOverwatchTierLookupRoute
-  '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/api/public/resend/capture': typeof ApiPublicResendCaptureRoute
+  '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -579,8 +579,8 @@ export interface FileRoutesByTo {
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/overwatch/tier-lookup': typeof ApiPublicOverwatchTierLookupRoute
-  '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/api/public/resend/capture': typeof ApiPublicResendCaptureRoute
+  '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -653,8 +653,8 @@ export interface FileRoutesById {
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/overwatch/tier-lookup': typeof ApiPublicOverwatchTierLookupRoute
-  '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/api/public/resend/capture': typeof ApiPublicResendCaptureRoute
+  '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -728,8 +728,8 @@ export interface FileRouteTypes {
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
     | '/api/public/overwatch/tier-lookup'
-    | '/api/public/stripe/webhook'
     | '/api/public/resend/capture'
+    | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -801,8 +801,8 @@ export interface FileRouteTypes {
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
     | '/api/public/overwatch/tier-lookup'
-    | '/api/public/stripe/webhook'
     | '/api/public/resend/capture'
+    | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -874,8 +874,8 @@ export interface FileRouteTypes {
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
     | '/api/public/overwatch/tier-lookup'
-    | '/api/public/stripe/webhook'
     | '/api/public/resend/capture'
+    | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -943,8 +943,8 @@ export interface RootRouteChildren {
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiPublicAosTierLookupRoute: typeof ApiPublicAosTierLookupRoute
   ApiPublicOverwatchTierLookupRoute: typeof ApiPublicOverwatchTierLookupRoute
-  ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
   ApiPublicResendCaptureRoute: typeof ApiPublicResendCaptureRoute
+  ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
@@ -1542,8 +1542,8 @@ const rootRouteChildren: RootRouteChildren = {
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiPublicAosTierLookupRoute: ApiPublicAosTierLookupRoute,
   ApiPublicOverwatchTierLookupRoute: ApiPublicOverwatchTierLookupRoute,
-  ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
   ApiPublicResendCaptureRoute: ApiPublicResendCaptureRoute,
+  ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
