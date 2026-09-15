@@ -12,6 +12,7 @@ export type HubTier =
 export type StripePurchaseIds = {
   priceId?: string | null;
   productId?: string | null;
+  paymentLinkId?: string | null;
   metaProduct?: string | null;
   metaKind?: string | null;
 };
@@ -51,6 +52,15 @@ export const CIRCLE_PRICE_IDS = new Set<string>([
 export const CIRCLE_PRODUCT_IDS = new Set<string>([
   CIRCLE_LIVE_PRODUCT_ID,
   ...CIRCLE_LEGACY_PRODUCT_IDS,
+]);
+
+/**
+ * Stripe Payment Links that sell Circle monthly. A purchase that arrives with
+ * an ad-hoc/custom price still resolves to Circle when it came through one of
+ * these links, so it is never labelled Custom/unknown.
+ */
+export const CIRCLE_PAYMENT_LINK_IDS = new Set<string>([
+  "plink_1ThaqAJdDAUSVXbN66bTiP9o",
 ]);
 
 /**
@@ -126,6 +136,7 @@ export function hubTierForPurchase(
   if (idMatches(productId, INTENSIVE_PRODUCT_IDS)) return "intensive";
   if (idMatches(priceId, CIRCLE_PRICE_IDS, env.STRIPE_PRICE_ID_CIRCLE)) return "circle";
   if (idMatches(productId, CIRCLE_PRODUCT_IDS)) return "circle";
+  if (idMatches(input.paymentLinkId ?? null, CIRCLE_PAYMENT_LINK_IDS)) return "circle";
 
   if (
     priceId &&
@@ -168,6 +179,7 @@ export function resendSegmentForPurchase(
   if (product === "circle") return "circle";
   if (idMatches(priceId, CIRCLE_PRICE_IDS, env.STRIPE_PRICE_ID_CIRCLE)) return "circle";
   if (idMatches(productId, CIRCLE_PRODUCT_IDS)) return "circle";
+  if (idMatches(input.paymentLinkId ?? null, CIRCLE_PAYMENT_LINK_IDS)) return "circle";
 
   if (product === "book_v2" || product === "book") return "handbook";
   if (idMatches(priceId, HANDBOOK_PRICE_IDS, env.STRIPE_PRICE_ID_BOOK)) return "handbook";
