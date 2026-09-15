@@ -381,26 +381,48 @@ async function upsertSubscription(
     }
   }
 
-  // Fire Circle welcome email on first activation. Idempotent per Stripe
-  // subscription id, so retries / status updates won't duplicate the send.
+  // Fire Circle welcome email on first activation. Guarded twice: the
+  // subscriptions.welcome_sent_at stamp (checked first, written on success) and
+  // the enqueue helper's idempotency key. checkout.session.completed and
+  // customer.subscription.created both land here for the same subscription, so
+  // without the stamp a slow first enqueue could double-send.
   if (tier === "circle" && (sub.status === "active" || sub.status === "trialing")) {
     try {
-      const origin = (
-        process.env.PUBLIC_APP_ORIGIN ||
-        process.env.APP_ORIGIN ||
-        "https://app.alpcontractorcircle.com"
-      ).replace(/\/$/, "");
-      const loginUrl = await ensureMagicLinkForMember(supabaseAdmin, normalizedEmail, origin);
-      const { enqueueCircleWelcome } = await import("@/lib/email/enqueue-circle-welcome");
-      const result = await enqueueCircleWelcome({
-        supabaseAdmin,
-        email: normalizedEmail,
-        firstName,
-        loginUrl,
-        idempotencyKey: `circle-welcome-${sub.id}`,
-      });
-      if (result.status === "failed") {
-        console.error("Circle welcome enqueue failed", { sub: sub.id, reason: result.reason });
+      const { data: welcomeRow } = await supabaseAdmin
+        .from("subscriptions")
+        .select("welcome_sent_at")
+        .eq("stripe_subscription_id", sub.id)
+        .maybeSingle();
+
+      if (welcomeRow?.welcome_sent_at) {
+        // Already welcomed for this subscription — nothing to do.
+      } else {
+        const origin = (
+          process.env.PUBLIC_APP_ORIGIN ||
+          process.env.APP_ORIGIN ||
+          "https://app.alpcontractorcircle.com"
+        ).replace(/\/$/, "");
+        const loginUrl = await ensureMagicLinkForMember(supabaseAdmin, normalizedEmail, origin);
+        const { enqueueCircleWelcome } = await import("@/lib/email/enqueue-circle-welcome");
+        const result = await enqueueCircleWelcome({
+          supabaseAdmin,
+          email: normalizedEmail,
+          firstName,
+          loginUrl,
+          idempotencyKey: `circle-welcome-${sub.id}`,
+        });
+        if (result.status === "failed") {
+          console.error("Circle welcome enqueue failed", { sub: sub.id, reason: result.reason });
+        } else {
+          // queued | duplicate | suppressed → stop re-attempting this subscription.
+          const { error: stampErr } = await supabaseAdmin
+            .from("subscriptions")
+            .update({ welcome_sent_at: new Date().toISOString() })
+            .eq("stripe_subscription_id", sub.id);
+          if (stampErr) {
+            console.error("Failed to stamp welcome_sent_at", { sub: sub.id, error: stampErr });
+          }
+        }
       }
     } catch (err) {
       // Never fail the webhook over an email send.
