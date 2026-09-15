@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   CIRCLE_LIVE_MONTHLY_PRICE_ID,
+  CIRCLE_LIVE_PAYMENT_LINK_ID,
   CIRCLE_LIVE_PRODUCT_ID,
   hubTierForPurchase,
   resendSegmentForPurchase,
+  stripeRefId,
 } from "@/lib/stripe/paid-product-map";
 
 const emptyEnv = {};
@@ -40,9 +42,32 @@ describe("Circle Stripe recognition", () => {
     expect(hubTierForPurchase({ metaKind: "circle" }, emptyEnv)).toBe("circle");
   });
 
-  it("does not treat unknown prices as Circle", () => {
+  it("maps the live Circle monthly Payment Link even without price/product", () => {
+    expect(
+      hubTierForPurchase({ paymentLinkId: CIRCLE_LIVE_PAYMENT_LINK_ID }, emptyEnv),
+    ).toBe("circle");
+    expect(
+      resendSegmentForPurchase({ paymentLinkId: CIRCLE_LIVE_PAYMENT_LINK_ID }, emptyEnv),
+    ).toBe("circle");
+    expect(
+      hubTierForPurchase(
+        { priceId: "price_unknown", paymentLinkId: CIRCLE_LIVE_PAYMENT_LINK_ID },
+        emptyEnv,
+      ),
+    ).toBe("circle");
+  });
+
+  it("does not treat unknown prices or payment links as Circle", () => {
     expect(hubTierForPurchase({ priceId: "price_unknown" }, emptyEnv)).toBeNull();
     expect(resendSegmentForPurchase({ priceId: "price_unknown" }, emptyEnv)).toBeNull();
+    expect(hubTierForPurchase({ paymentLinkId: "plink_unknown" }, emptyEnv)).toBeNull();
+  });
+
+  it("reads Stripe ids from a string or expanded object", () => {
+    expect(stripeRefId(CIRCLE_LIVE_PAYMENT_LINK_ID)).toBe(CIRCLE_LIVE_PAYMENT_LINK_ID);
+    expect(stripeRefId({ id: CIRCLE_LIVE_PAYMENT_LINK_ID })).toBe(CIRCLE_LIVE_PAYMENT_LINK_ID);
+    expect(stripeRefId(null)).toBeNull();
+    expect(stripeRefId({})).toBeNull();
   });
 });
 

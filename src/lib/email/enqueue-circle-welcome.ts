@@ -8,13 +8,18 @@
 import * as React from "react";
 import { render } from "@react-email/components";
 import { TEMPLATES } from "@/lib/email-templates/registry";
+import {
+  CIRCLE_WELCOME_TEMPLATE,
+  findCircleWelcomeLog,
+  isUniqueViolation,
+} from "@/lib/email/circle-welcome-state";
 
 type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
 
 const SITE_NAME = "Contractor Circle";
 const SENDER_DOMAIN = "notify.mail.alpcontractorcircle.com";
 const FROM_DOMAIN = "notify.mail.alpcontractorcircle.com";
-const TEMPLATE_NAME = "circle-welcome";
+const TEMPLATE_NAME = CIRCLE_WELCOME_TEMPLATE;
 
 function generateToken(): string {
   const bytes = new Uint8Array(32);
@@ -64,14 +69,9 @@ export async function enqueueCircleWelcome({
 }: EnqueueOpts): Promise<{ status: "queued" | "duplicate" | "suppressed" | "failed"; reason?: string }> {
   const emailLower = email.toLowerCase();
 
-  // Dedup: skip if we've already logged this idempotency key.
-  const { data: priorLog } = await supabaseAdmin
-    .from("email_send_log")
-    .select("id")
-    .eq("template_name", TEMPLATE_NAME)
-    .contains("metadata", { idempotency_key: idempotencyKey })
-    .limit(1)
-    .maybeSingle();
+  // Dedup: pending or sent row with this key. `.contains()` missed races when
+  // checkout.session.completed and customer.subscription.created ran together.
+  const priorLog = await findCircleWelcomeLog(supabaseAdmin, idempotencyKey);
   if (priorLog) return { status: "duplicate" };
 
   // Suppression check
@@ -111,13 +111,17 @@ export async function enqueueCircleWelcome({
 
   const messageId = crypto.randomUUID();
 
-  await supabaseAdmin.from("email_send_log").insert({
+  const { error: pendingErr } = await supabaseAdmin.from("email_send_log").insert({
     message_id: messageId,
     template_name: TEMPLATE_NAME,
     recipient_email: email,
     status: "pending",
     metadata: { idempotency_key: idempotencyKey },
   });
+  if (pendingErr) {
+    if (isUniqueViolation(pendingErr)) return { status: "duplicate" };
+    return { status: "failed", reason: pendingErr.message };
+  }
 
   const { error: enqueueError } = await supabaseAdmin.rpc("enqueue_email", {
     queue_name: "transactional_emails",

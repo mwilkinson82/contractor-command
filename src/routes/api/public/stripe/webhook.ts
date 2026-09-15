@@ -1,10 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import Stripe from "stripe";
-import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
+import {
+  circleWelcomeIdempotencyKey,
+  findCircleWelcomeLog,
+  markCircleWelcomeSent,
+} from "@/lib/email/circle-welcome-state";
+import { appOrigin, ensureMagicLinkForMember } from "@/lib/email/ensure-magic-link";
 import { syncPaidResendContact } from "@/lib/resend/capture";
 import {
   hubTierForPurchase,
   resendSegmentForPurchase,
+  stripeRefId,
   type HubTier,
 } from "@/lib/stripe/paid-product-map";
 
@@ -22,7 +28,9 @@ async function getSupabaseAdmin() {
 //
 // Hub tier + Resend segment mapping lives in src/lib/stripe/paid-product-map.ts.
 // Circle live monthly (hardcoded, not env-only):
-//   price_1TVh3TJdDAUSVXbNJRsYFTbp / prod_UUgQlHRk9H1ZUS
+//   price_1TVh3TJdDAUSVXbNJRsYFTbp / prod_UUgQlHRk9H1ZUS / plink_1ThaqAJdDAUSVXbN66bTiP9o
+// Payment Link checkouts pass session.payment_link into hubTierForPurchase so
+// they stay Circle even when Stripe omits kind/product metadata.
 // Anything else is ignored for hub rows. This Stripe account also sells
 // products outside this portal, so unknown prices must not create people
 // here. Resend contact upsert is an alongside path — it does not send mail
@@ -184,7 +192,17 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
               break;
             }
             case "checkout.session.completed": {
-              const session = event.data.object as Stripe.Checkout.Session;
+              let session = event.data.object as Stripe.Checkout.Session;
+              if (!session.subscription && session.mode === "subscription") {
+                try {
+                  session = await stripe.checkout.sessions.retrieve(session.id);
+                } catch (err) {
+                  console.warn("Could not re-fetch subscription-mode checkout session", {
+                    sessionId: session.id,
+                    err,
+                  });
+                }
+              }
               if (session.subscription) {
                 const sub = await stripe.subscriptions.retrieve(
                   typeof session.subscription === "string"
@@ -198,9 +216,7 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
                     supabaseAdmin,
                     stripe,
                     sub,
-                    typeof session.payment_link === "string"
-                      ? session.payment_link
-                      : (session.payment_link?.id ?? null),
+                    stripeRefId(session.payment_link),
                   );
                 }
               } else {
@@ -341,7 +357,12 @@ async function upsertSubscription(
     status: sub.status === "past_due" && existingByStripe.data?.status === "active" ? "active" : sub.status,
     cancel_at_period_end: sub.cancel_at_period_end ?? false,
     current_period_end: currentPeriodEnd,
-    metadata: { ...metadata, stripe_customer_email: email.toLowerCase(), product: productLabelForTier(tier) },
+    metadata: {
+      ...metadata,
+      stripe_customer_email: email.toLowerCase(),
+      product: productLabelForTier(tier),
+      ...(paymentLinkId ? { payment_link: paymentLinkId } : {}),
+    },
     tier: tier === "aos_only" && existingByStripe.data?.tier === "circle" ? "circle" : tier,
     updated_at: new Date().toISOString(),
   };
@@ -381,13 +402,13 @@ async function upsertSubscription(
     }
   }
 
-  // Fire Circle welcome email on first activation. Guarded twice: the
-  // subscriptions.welcome_sent_at stamp (checked first, written on success) and
-  // the enqueue helper's idempotency key. checkout.session.completed and
-  // customer.subscription.created both land here for the same subscription, so
-  // without the stamp a slow first enqueue could double-send.
+  // Fire Circle welcome on first activation. welcome_sent_at is stamped only
+  // after the hub mailer actually sends (process-queue). If email_send_log
+  // already has a sent row for this subscription, backfill the stamp and skip
+  // — that is the Dalton / Miragliotta double-send recovery path.
   if (tier === "circle" && (sub.status === "active" || sub.status === "trialing")) {
     try {
+      const idempotencyKey = circleWelcomeIdempotencyKey(sub.id);
       const { data: welcomeRow } = await supabaseAdmin
         .from("subscriptions")
         .select("welcome_sent_at")
@@ -397,30 +418,30 @@ async function upsertSubscription(
       if (welcomeRow?.welcome_sent_at) {
         // Already welcomed for this subscription — nothing to do.
       } else {
-        const origin = (
-          process.env.PUBLIC_APP_ORIGIN ||
-          process.env.APP_ORIGIN ||
-          "https://app.alpcontractorcircle.com"
-        ).replace(/\/$/, "");
-        const loginUrl = await ensureMagicLinkForMember(supabaseAdmin, normalizedEmail, origin);
-        const { enqueueCircleWelcome } = await import("@/lib/email/enqueue-circle-welcome");
-        const result = await enqueueCircleWelcome({
-          supabaseAdmin,
-          email: normalizedEmail,
-          firstName,
-          loginUrl,
-          idempotencyKey: `circle-welcome-${sub.id}`,
-        });
-        if (result.status === "failed") {
-          console.error("Circle welcome enqueue failed", { sub: sub.id, reason: result.reason });
+        const priorSent = await findCircleWelcomeLog(supabaseAdmin, idempotencyKey, ["sent"]);
+        if (priorSent) {
+          await markCircleWelcomeSent({
+            supabase: supabaseAdmin,
+            recipientEmail: normalizedEmail,
+            idempotencyKey,
+            sentAt: priorSent.created_at,
+          });
         } else {
-          // queued | duplicate | suppressed → stop re-attempting this subscription.
-          const { error: stampErr } = await supabaseAdmin
-            .from("subscriptions")
-            .update({ welcome_sent_at: new Date().toISOString() })
-            .eq("stripe_subscription_id", sub.id);
-          if (stampErr) {
-            console.error("Failed to stamp welcome_sent_at", { sub: sub.id, error: stampErr });
+          const loginUrl = await ensureMagicLinkForMember(
+            supabaseAdmin,
+            normalizedEmail,
+            appOrigin(),
+          );
+          const { enqueueCircleWelcome } = await import("@/lib/email/enqueue-circle-welcome");
+          const result = await enqueueCircleWelcome({
+            supabaseAdmin,
+            email: normalizedEmail,
+            firstName,
+            loginUrl,
+            idempotencyKey,
+          });
+          if (result.status === "failed") {
+            console.error("Circle welcome enqueue failed", { sub: sub.id, reason: result.reason });
           }
         }
       }
@@ -441,67 +462,6 @@ async function upsertSubscription(
       metaProduct: metadata.product,
       metaKind: metadata.kind,
     });
-  }
-}
-
-// Make sure the auth user exists, then return a one-click magic link that
-// signs them straight into the portal. Falls back to the bare site URL if
-// link generation fails — the welcome email is never worth blocking on.
-async function ensureMagicLinkForMember(
-  supabaseAdmin: SupabaseAdminClient,
-  email: string,
-  origin: string,
-): Promise<string | null> {
-  try {
-    const perPage = 200;
-    let exists = false;
-    for (let page = 1; page <= 25; page++) {
-      const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
-      if (error) throw error;
-      const users = data?.users ?? [];
-      if (users.some((u) => (u.email ?? "").toLowerCase() === email)) {
-        exists = true;
-        break;
-      }
-      if (users.length < perPage) break;
-    }
-    if (!exists) {
-      const { error: createErr } = await supabaseAdmin.auth.admin.createUser({
-        email,
-        email_confirm: true,
-        user_metadata: { source: "stripe_purchase", invited_at: new Date().toISOString() },
-      });
-      // The existence scan above pages through listUsers and can MISS a real
-      // user (past its paging window, or on a race). When it does, createUser
-      // hits a duplicate-email DB constraint and returns a GENERIC
-      // "Database error creating new user" — which contains none of
-      // already/registered/exists. Do NOT throw on it: any failure here just
-      // means we couldn't create the user, and if they already exist,
-      // generateLink below still succeeds and issues their login link.
-      // (Previously this threw, so a paying member got no one-click link and a
-      // link-less welcome email.) generateLink is the real source of truth.
-      if (createErr) {
-        console.warn("createUser during welcome-link failed; proceeding to generateLink", {
-          email,
-          message: createErr.message,
-          status: (createErr as { status?: number }).status,
-          code: (createErr as { code?: string }).code,
-        });
-      }
-    }
-    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
-      type: "magiclink",
-      email,
-      options: { redirectTo: `${origin}/auth/callback` },
-    });
-    if (error) throw error;
-    const tokenHash = data?.properties?.hashed_token;
-    return tokenHash
-      ? buildTokenHashAuthUrl({ origin, tokenHash, type: "magiclink" })
-      : null;
-  } catch (err) {
-    console.error("ensureMagicLinkForMember failed", { email, err });
-    return null;
   }
 }
 
@@ -588,10 +548,7 @@ async function upsertOneTimePurchase(supabaseAdmin: SupabaseAdminClient, stripe:
   const purchaseIds = {
     priceId,
     productId,
-    paymentLinkId:
-      typeof session.payment_link === "string"
-        ? session.payment_link
-        : (session.payment_link?.id ?? null),
+    paymentLinkId: stripeRefId(session.payment_link),
     metaProduct: metadata.product,
     metaKind: metadata.kind,
   };

@@ -32,6 +32,7 @@ export type StripePriceEnv = {
 /** Live Circle monthly sold via Lovable / Vale checkout. */
 export const CIRCLE_LIVE_MONTHLY_PRICE_ID = "price_1TVh3TJdDAUSVXbNJRsYFTbp";
 export const CIRCLE_LIVE_PRODUCT_ID = "prod_UUgQlHRk9H1ZUS";
+export const CIRCLE_LIVE_PAYMENT_LINK_ID = "plink_1ThaqAJdDAUSVXbN66bTiP9o";
 
 /** Older Circle IDs that still appear on the shared Stripe account. */
 export const CIRCLE_LEGACY_PRICE_IDS = [
@@ -60,8 +61,18 @@ export const CIRCLE_PRODUCT_IDS = new Set<string>([
  * these links, so it is never labelled Custom/unknown.
  */
 export const CIRCLE_PAYMENT_LINK_IDS = new Set<string>([
-  "plink_1ThaqAJdDAUSVXbN66bTiP9o",
+  CIRCLE_LIVE_PAYMENT_LINK_ID,
 ]);
+
+/** Stripe Checkout / Payment Link objects expose id as a string or `{ id }`. */
+export function stripeRefId(value: unknown): string | null {
+  if (typeof value === "string" && value.trim()) return value;
+  if (value && typeof value === "object" && "id" in value) {
+    const id = (value as { id?: unknown }).id;
+    if (typeof id === "string" && id.trim()) return id;
+  }
+  return null;
+}
 
 /**
  * Catalog IDs for paid Resend segments other than Circle.

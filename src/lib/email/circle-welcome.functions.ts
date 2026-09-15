@@ -25,12 +25,16 @@ export const sendCircleWelcomeBackfill = createServerFn({ method: "POST" })
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { enqueueCircleWelcome } = await import("@/lib/email/enqueue-circle-welcome");
+    const { appOrigin, ensureMagicLinkForMember } = await import("@/lib/email/ensure-magic-link");
 
+    const email = data.email.toLowerCase();
+    const loginUrl = await ensureMagicLinkForMember(supabaseAdmin, email, appOrigin());
     const result = await enqueueCircleWelcome({
       supabaseAdmin,
-      email: data.email,
+      email,
       firstName: data.firstName ?? null,
-      idempotencyKey: data.idempotencyKey ?? `circle-welcome-backfill-${data.email.toLowerCase()}`,
+      loginUrl,
+      idempotencyKey: data.idempotencyKey ?? `circle-welcome-backfill-${email}`,
     });
 
     return result;
