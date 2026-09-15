@@ -242,7 +242,12 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
   },
 });
 
-async function upsertSubscription(supabaseAdmin: SupabaseAdminClient, stripe: Stripe, sub: Stripe.Subscription) {
+async function upsertSubscription(
+  supabaseAdmin: SupabaseAdminClient,
+  stripe: Stripe,
+  sub: Stripe.Subscription,
+  paymentLinkId?: string | null,
+) {
   let email: string | null = null;
   let customerName: string | null = null;
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
