@@ -588,6 +588,10 @@ async function upsertOneTimePurchase(supabaseAdmin: SupabaseAdminClient, stripe:
   const purchaseIds = {
     priceId,
     productId,
+    paymentLinkId:
+      typeof session.payment_link === "string"
+        ? session.payment_link
+        : (session.payment_link?.id ?? null),
     metaProduct: metadata.product,
     metaKind: metadata.kind,
   };
