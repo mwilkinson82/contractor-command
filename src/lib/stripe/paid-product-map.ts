@@ -55,6 +55,15 @@ export const CIRCLE_PRODUCT_IDS = new Set<string>([
 ]);
 
 /**
+ * Stripe Payment Links that sell Circle monthly. A purchase that arrives with
+ * an ad-hoc/custom price still resolves to Circle when it came through one of
+ * these links, so it is never labelled Custom/unknown.
+ */
+export const CIRCLE_PAYMENT_LINK_IDS = new Set<string>([
+  "plink_1ThaqAJdDAUSVXbN66bTiP9o",
+]);
+
+/**
  * Catalog IDs for paid Resend segments other than Circle.
  *
  * This repo does not currently hardcode alphandbook.com / clinic / intensive
