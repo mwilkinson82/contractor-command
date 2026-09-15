@@ -12,6 +12,7 @@ export type HubTier =
 export type StripePurchaseIds = {
   priceId?: string | null;
   productId?: string | null;
+  paymentLinkId?: string | null;
   metaProduct?: string | null;
   metaKind?: string | null;
 };
