@@ -179,6 +179,7 @@ export function resendSegmentForPurchase(
   if (product === "circle") return "circle";
   if (idMatches(priceId, CIRCLE_PRICE_IDS, env.STRIPE_PRICE_ID_CIRCLE)) return "circle";
   if (idMatches(productId, CIRCLE_PRODUCT_IDS)) return "circle";
+  if (idMatches(input.paymentLinkId ?? null, CIRCLE_PAYMENT_LINK_IDS)) return "circle";
 
   if (product === "book_v2" || product === "book") return "handbook";
   if (idMatches(priceId, HANDBOOK_PRICE_IDS, env.STRIPE_PRICE_ID_BOOK)) return "handbook";
