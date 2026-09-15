@@ -194,7 +194,14 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
                 if (isAosAddonSubscription(sub)) {
                   await upsertAosAddon(supabaseAdmin, stripe, sub);
                 } else {
-                  await upsertSubscription(supabaseAdmin, stripe, sub);
+                  await upsertSubscription(
+                    supabaseAdmin,
+                    stripe,
+                    sub,
+                    typeof session.payment_link === "string"
+                      ? session.payment_link
+                      : (session.payment_link?.id ?? null),
+                  );
                 }
               } else {
                 // One-time purchase (book, intensive). No subscription object;
