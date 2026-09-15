@@ -1,6 +1,13 @@
 import { sendLovableEmail, type EmailSendRequest } from "@lovable.dev/email-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
+import {
+  CIRCLE_WELCOME_TEMPLATE,
+  emailSendLogMetadata,
+  findCircleWelcomeLog,
+  isUniqueViolation,
+  markCircleWelcomeSent,
+} from "@/lib/email/circle-welcome-state";
 
 const MAX_RETRIES = 5;
 const DEFAULT_BATCH_SIZE = 10;
@@ -426,6 +433,8 @@ async function processCycle({
         continue;
       }
 
+      const idempotencyKey = getString(payload, "idempotency_key");
+
       if (messageId) {
         const { data: alreadySent } = await supabase
           .from("email_send_log")
@@ -439,6 +448,33 @@ async function processCycle({
             queue,
             msg_id: msg.msg_id,
             message_id: messageId,
+          });
+          if (label === CIRCLE_WELCOME_TEMPLATE) {
+            await markCircleWelcomeSent({
+              supabase,
+              recipientEmail,
+              idempotencyKey,
+            });
+          }
+          await deleteQueueMessage(supabase, queue, msg);
+          result.skippedDuplicates += 1;
+          continue;
+        }
+      }
+
+      if (label === CIRCLE_WELCOME_TEMPLATE && idempotencyKey) {
+        const alreadyWelcome = await findCircleWelcomeLog(supabase, idempotencyKey, ["sent"]);
+        if (alreadyWelcome) {
+          console.warn("Skipping duplicate circle-welcome (idempotency key already sent)", {
+            queue,
+            msg_id: msg.msg_id,
+            idempotency_key: idempotencyKey,
+          });
+          await markCircleWelcomeSent({
+            supabase,
+            recipientEmail,
+            idempotencyKey,
+            sentAt: alreadyWelcome.created_at,
           });
           await deleteQueueMessage(supabase, queue, msg);
           result.skippedDuplicates += 1;
@@ -473,12 +509,25 @@ async function processCycle({
       try {
         await sendLovableEmail(prepared.sendRequest, { apiKey, sendUrl });
 
-        await supabase.from("email_send_log").insert({
+        const sentMetadata = emailSendLogMetadata({ idempotencyKey, queue });
+        const { error: sentLogErr } = await supabase.from("email_send_log").insert({
           message_id: messageId,
           template_name: label,
           recipient_email: recipientEmail,
           status: "sent",
+          metadata: sentMetadata,
         });
+        if (sentLogErr && !isUniqueViolation(sentLogErr)) {
+          console.error("Failed to log sent email", { queue, messageId, error: sentLogErr });
+        }
+
+        if (label === CIRCLE_WELCOME_TEMPLATE) {
+          await markCircleWelcomeSent({
+            supabase,
+            recipientEmail,
+            idempotencyKey,
+          });
+        }
 
         await deleteQueueMessage(supabase, queue, msg);
         result.processed += 1;
