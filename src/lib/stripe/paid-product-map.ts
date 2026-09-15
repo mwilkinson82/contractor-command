@@ -136,6 +136,7 @@ export function hubTierForPurchase(
   if (idMatches(productId, INTENSIVE_PRODUCT_IDS)) return "intensive";
   if (idMatches(priceId, CIRCLE_PRICE_IDS, env.STRIPE_PRICE_ID_CIRCLE)) return "circle";
   if (idMatches(productId, CIRCLE_PRODUCT_IDS)) return "circle";
+  if (idMatches(input.paymentLinkId ?? null, CIRCLE_PAYMENT_LINK_IDS)) return "circle";
 
   if (
     priceId &&
