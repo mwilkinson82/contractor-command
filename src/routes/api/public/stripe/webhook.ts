@@ -294,6 +294,7 @@ async function upsertSubscription(
   const purchaseIds = {
     priceId,
     productId,
+    paymentLinkId: paymentLinkId ?? null,
     metaProduct: metadata.product,
     metaKind: metadata.kind,
   };
