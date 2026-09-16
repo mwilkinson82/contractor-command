@@ -29,6 +29,7 @@ import { AosHero } from "@/components/portal/aos-hero";
 import { HomeHero } from "@/components/portal/home-hero";
 import { DelayIntensiveOffer } from "@/components/portal/delay-intensive-offer";
 import { CpmIntensiveOffer } from "@/components/portal/cpm-intensive-offer";
+import { AlpLearnOffer } from "@/components/portal/alp-learn-offer";
 import { ControlJourneyPanel } from "@/components/portal/control-journey";
 import { WhatNeedsMove, type DashboardMove } from "@/components/portal/dashboard-moves";
 import { HandbookAnchor } from "@/components/portal/handbook-anchor";
