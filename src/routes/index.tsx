@@ -291,6 +291,8 @@ function HomePage() {
 
       {hasCircleAccess ? <CpmIntensiveOffer /> : null}
 
+      {hasCircleAccess ? <AlpLearnOffer /> : null}
+
       {hasCircleAccess ? <DelayIntensiveOffer /> : null}
 
       {controlJourneyEnabled ? (
