@@ -21,17 +21,17 @@ export type Session = {
 export const UPCOMING: Session[] = [
   {
     kind: "Biweekly Call",
-    title: "Contractor Circle — Sunday, September 13",
-    date: "2026-09-13T21:00:00.000Z", // 5:00 PM ET
-    durationMin: 90,
-    zoomUrl: "https://meet.google.com/iey-fixa-sig",
+    title: "Contractor Circle supplemental — How to Utilize AI in Construction and in Your Business",
+    date: "2026-09-17T23:00:00.000Z", // 7:00 PM ET Thu Sep 17
+    durationMin: 60,
+    zoomUrl: "https://meet.google.com/byx-vdtp-bvt",
     meetingProvider: "Google Meet",
     description:
-      "Open-room session. Members bring one specific business issue. We work two or three of them live.",
+      "Contractor Circle supplemental. How to Utilize AI in Construction and in Your Business.",
     agenda: [
-      "Quick room check-in — what shifted this week?",
-      "Member issues: two or three worked live.",
-      "Marshall's read + the next move for each.",
+      "AI in construction and contractor business",
+      "Live OverWatch / operating demos",
+      "Member Q&A",
     ],
   },
   {
