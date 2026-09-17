@@ -18,6 +18,7 @@ export type Session = {
 // Replays moved to the `replays` database table — see src/routes/replays.tsx.
 
 // --- Upcoming sessions (edit these as the calendar moves) ---
+// cache-bust: 2026-09-17 supplemental AI call meet link
 export const UPCOMING: Session[] = [
   {
     kind: "Biweekly Call",
