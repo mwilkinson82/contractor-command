@@ -20,6 +20,8 @@ import {
   Library,
   Gauge,
   BookOpen,
+  GraduationCap,
+
   Map,
   ArrowUpCircle,
   Flame,
