@@ -28,6 +28,7 @@ import {
   Eye,
   CirclePlay,
   TicketCheck,
+  GraduationCap,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { tierAtLeast, useTier, type Tier } from "@/hooks/use-tier";
@@ -36,6 +37,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/use-company";
 import { TierImpersonator } from "@/components/portal/tier-impersonator";
 import { ContractorCircleBrand } from "@/components/brand/contractor-circle-brand";
+import { ALP_LEARN_URL } from "@/components/portal/alp-learn-offer";
 
 type Ctx = {
   collapsed: boolean;
@@ -175,6 +177,13 @@ const CIRCLE_GROUPS: Group[] = [
       { to: "/handbook", label: "Handbook", icon: BookOpen },
       { to: "/templates", label: "Templates", icon: FileText, minTier: "circle" },
       { to: "/replays", label: "Replays", icon: Video, minTier: "circle" },
+      {
+        to: ALP_LEARN_URL,
+        label: "ALP Learn",
+        icon: GraduationCap,
+        external: true,
+        minTier: "circle",
+      },
     ],
   },
   {

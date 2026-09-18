@@ -291,8 +291,6 @@ function HomePage() {
 
       {hasCircleAccess ? <CpmIntensiveOffer /> : null}
 
-      {hasCircleAccess ? <AlpLearnOffer /> : null}
-
       {hasCircleAccess ? <DelayIntensiveOffer /> : null}
 
       {controlJourneyEnabled ? (
@@ -359,6 +357,7 @@ function HomePage() {
           <>
             <FeaturedLatestClass />
             <FeaturedWorkbook />
+            <AlpLearnOffer />
           </>
         ) : (
           <LockedCircleEducation />
