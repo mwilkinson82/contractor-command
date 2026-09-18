@@ -357,9 +357,11 @@ function HomePage() {
       <div>
         {hasCircleAccess ? (
           <>
+            <FeaturedAlpLearn />
             <FeaturedLatestClass />
             <FeaturedWorkbook />
           </>
+
         ) : (
           <LockedCircleEducation />
         )}
@@ -743,7 +745,43 @@ function FeaturedLatestClass() {
   );
 }
 
+function FeaturedAlpLearn() {
+  return (
+    <section className="relative px-4 sm:px-6 pb-6">
+      <div className="mx-auto w-full max-w-[1180px]">
+        <div className="rounded-2xl border border-border bg-card p-6 md:p-7">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-3.5 w-3.5 text-clay" />
+            <p className="label-mono">Featured · ALP Learn</p>
+          </div>
+          <div className="mt-3">
+            <h2 className="font-display text-2xl md:text-[26px] leading-tight">
+              IOR + AOS are in ALP Learn
+            </h2>
+            <p className="mt-2 max-w-3xl text-[13.5px] text-muted-foreground">
+              We cut the IOR project management and AOS material from Contractor Circle into
+              sections in ALP Learn — easy reference and education for you and your people, without
+              rifling through Replays.
+            </p>
+            <div className="mt-4">
+              <a
+                href="https://learn.alpcontractorcircle.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-[12.5px] font-medium text-cream hover:opacity-90"
+              >
+                Open ALP Learn <ArrowUpRight className="h-3 w-3" />
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function FeaturedWorkbook() {
+
   const [busy, setBusy] = useState<string | null>(null);
 
   const workbooks = [

@@ -20,6 +20,8 @@ import {
   Library,
   Gauge,
   BookOpen,
+  GraduationCap,
+
   Map,
   ArrowUpCircle,
   Flame,
@@ -173,10 +175,18 @@ const CIRCLE_GROUPS: Group[] = [
     label: "Library",
     items: [
       { to: "/handbook", label: "Handbook", icon: BookOpen },
+      {
+        to: "https://learn.alpcontractorcircle.com?utm_source=contractor_circle_hub&utm_medium=member_sidebar&utm_campaign=alp_learn_ior_aos",
+        label: "ALP Learn",
+        icon: GraduationCap,
+        external: true,
+        minTier: "circle",
+      },
       { to: "/templates", label: "Templates", icon: FileText, minTier: "circle" },
       { to: "/replays", label: "Replays", icon: Video, minTier: "circle" },
     ],
   },
+
   {
     label: "Command",
     items: [
