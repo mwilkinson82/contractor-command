@@ -357,9 +357,11 @@ function HomePage() {
       <div>
         {hasCircleAccess ? (
           <>
+            <FeaturedAlpLearn />
             <FeaturedLatestClass />
             <FeaturedWorkbook />
           </>
+
         ) : (
           <LockedCircleEducation />
         )}
