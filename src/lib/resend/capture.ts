@@ -4,6 +4,10 @@ import {
   RESEND_SEGMENT_IDS,
   type CaptureSegment,
 } from "@/lib/resend/segments";
+import {
+  persistResendSyncLog,
+  type ResendSyncLogClient,
+} from "@/lib/resend/sync-log";
 
 const RESEND_API = "https://api.resend.com";
 
@@ -23,6 +27,17 @@ export type CaptureResult =
   | { ok: true; skipped?: false; contactId: string; segment: CaptureSegment };
 
 export type ResendFetch = typeof fetch;
+
+export type SyncResendOpts = {
+  apiKey?: string | null;
+  fetch?: ResendFetch;
+  supabase?: ResendSyncLogClient | null;
+};
+
+export type SyncResendContactResult = CaptureResult | { ok: false; reason: string };
+
+export const ADMIN_COMP_SOURCE = "admin_comp";
+export const MARSHALL_COMP_SOURCE = "marshall_comp";
 
 type ResendJson = {
   status: number;
@@ -186,25 +201,73 @@ export async function upsertResendCapture(
 /**
  * Stripe alongside-path: write a paying customer into Resend.
  * Never throws — webhook onboarding must not fail over a contact upsert.
- * Does not send mail.
+ * Does not send mail. Persists success/skip/failure to resend_sync_log.
  */
 export async function syncPaidResendContact(
   input: CaptureInput & { segment: CaptureSegment },
-  opts?: { apiKey?: string | null; fetch?: ResendFetch },
-): Promise<CaptureResult | { ok: false; reason: string }> {
+  opts?: SyncResendOpts,
+): Promise<SyncResendContactResult> {
+  const source = input.source ?? "stripe";
+  const segment = input.segment;
   try {
-    return await upsertResendCapture(
+    const result = await upsertResendCapture(
       {
         ...input,
-        source: input.source ?? "stripe",
+        source,
         source_url: input.source_url ?? "https://app.alpcontractorcircle.com",
-        magnet: input.magnet ?? input.segment,
+        magnet: input.magnet ?? segment,
       },
       opts,
     );
+    await persistResendSyncLog(
+      {
+        email: input.email,
+        segment,
+        source,
+        status: result.ok && result.skipped ? "skipped" : "ok",
+        contactId: result.contactId,
+        metadata: { magnet: input.magnet ?? segment },
+      },
+      { supabase: opts?.supabase },
+    );
+    return result;
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
-    console.error("Resend paid-contact sync failed", { email: input.email, segment: input.segment, err });
+    console.error("Resend paid-contact sync failed", { email: input.email, segment, err });
+    await persistResendSyncLog(
+      {
+        email: input.email,
+        segment,
+        source,
+        status: "failed",
+        errorMessage: reason,
+        metadata: { magnet: input.magnet ?? segment },
+      },
+      { supabase: opts?.supabase },
+    );
     return { ok: false, reason };
   }
+}
+
+/**
+ * Marshall/admin Circle (and hardcore) comps: same Circle members segment
+ * as paid Circle. Source is admin_comp / marshall_comp — never stripe.
+ * Does not send mail. Never throws.
+ */
+export async function syncCompedResendContact(
+  input: Omit<CaptureInput, "segment"> & {
+    source?: typeof ADMIN_COMP_SOURCE | typeof MARSHALL_COMP_SOURCE;
+  },
+  opts?: SyncResendOpts,
+): Promise<SyncResendContactResult> {
+  return syncPaidResendContact(
+    {
+      ...input,
+      segment: "circle",
+      source: input.source ?? ADMIN_COMP_SOURCE,
+      source_url: input.source_url ?? "https://app.alpcontractorcircle.com",
+      magnet: input.magnet ?? MARSHALL_COMP_SOURCE,
+    },
+    opts,
+  );
 }

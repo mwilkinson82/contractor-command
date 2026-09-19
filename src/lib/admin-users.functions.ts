@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { applyUserComped, type CompSubscriptionClient } from "@/lib/admin-comp";
 import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
 
 async function assertAdmin(userId: string) {
@@ -260,34 +261,9 @@ export const setUserComped = createServerFn({ method: "POST" })
   )
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
-
-    if (data.subscriptionId) {
-      const update: { is_comped: boolean; status?: string } = { is_comped: data.isComped };
-      if (data.isComped) update.status = "active";
-      const { error } = await supabaseAdmin
-        .from("subscriptions")
-        .update(update)
-        .eq("id", data.subscriptionId);
-      if (error) throw error;
-      return { ok: true };
-    }
-
-    // No subscription row yet — create a comped one tied to this email/user.
-    if (!data.isComped) {
-      // Nothing to un-comp.
-      return { ok: true };
-    }
-    const { error } = await supabaseAdmin.from("subscriptions").insert({
-      user_id: data.userId,
-      email: data.email,
-      status: "active",
-      is_comped: true,
-      is_founding: false,
-      cancel_at_period_end: false,
-      metadata: { source: "admin_comp" },
+    return applyUserComped(data, {
+      supabase: supabaseAdmin as unknown as CompSubscriptionClient,
     });
-    if (error) throw error;
-    return { ok: true };
   });
 
 export const sendMemberAccessLink = createServerFn({ method: "POST" })

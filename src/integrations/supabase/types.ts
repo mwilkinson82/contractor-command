@@ -778,6 +778,42 @@ export type Database = {
         }
         Relationships: []
       }
+      resend_sync_log: {
+        Row: {
+          contact_id: string | null
+          created_at: string
+          email: string
+          error_message: string | null
+          id: string
+          metadata: Json
+          segment: string
+          source: string
+          status: string
+        }
+        Insert: {
+          contact_id?: string | null
+          created_at?: string
+          email: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json
+          segment: string
+          source: string
+          status: string
+        }
+        Update: {
+          contact_id?: string | null
+          created_at?: string
+          email?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json
+          segment?: string
+          source?: string
+          status?: string
+        }
+        Relationships: []
+      }
       schedule_baselines: {
         Row: {
           created_at: string
