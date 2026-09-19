@@ -97,14 +97,19 @@ async function addContactToSegment(
   );
 }
 
-/**
- * Create-or-update a Resend contact and add them to the matching segment.
- * Does not send mail.
- */
-export async function upsertResendCapture(
+export type CaptureOpts = {
+  apiKey?: string | null;
+  fetch?: ResendFetch;
+  /** When set, every outcome is appended to public.resend_sync_log. */
+  logSource?: ResendSyncSource;
+  stripeSubscriptionId?: string | null;
+};
+
+async function performResendUpsert(
   input: CaptureInput,
-  opts?: { apiKey?: string | null; fetch?: ResendFetch },
+  opts?: CaptureOpts,
 ): Promise<CaptureResult> {
+
   const email = input.email.trim().toLowerCase();
   const segment = input.segment ?? DEFAULT_CAPTURE_SEGMENT;
   const segmentId = RESEND_SEGMENT_IDS[segment];
