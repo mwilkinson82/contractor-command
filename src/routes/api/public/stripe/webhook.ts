@@ -341,6 +341,8 @@ async function upsertSubscription(
         productId,
         metaProduct: metadata.product,
         metaKind: metadata.kind,
+        stripeSubscriptionId: sub.id,
+
       });
     }
     return;
@@ -466,6 +468,8 @@ async function upsertSubscription(
       productId,
       metaProduct: metadata.product,
       metaKind: metadata.kind,
+      stripeSubscriptionId: sub.id,
+
     });
   }
 }

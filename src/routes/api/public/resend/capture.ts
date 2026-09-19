@@ -48,16 +48,20 @@ export const Route = createFileRoute("/api/public/resend/capture")({
         const source = parsed.source || parsed.source_url || parsed.magnet || "unknown";
 
         try {
-          const result = await upsertResendCapture({
-            email: parsed.email,
-            segment,
-            source,
-            source_url: parsed.source_url,
-            magnet: parsed.magnet,
-            firstName: parsed.firstName,
-            lastName: parsed.lastName,
-            company: parsed.company,
-          });
+          const result = await upsertResendCapture(
+            {
+              email: parsed.email,
+              segment,
+              source,
+              source_url: parsed.source_url,
+              magnet: parsed.magnet,
+              firstName: parsed.firstName,
+              lastName: parsed.lastName,
+              company: parsed.company,
+            },
+            { logSource: "public_capture" },
+          );
+
           return jsonResponse(
             {
               ok: true,
