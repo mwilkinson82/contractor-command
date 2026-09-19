@@ -1,8 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { upsertResendCapture } from "@/lib/resend/capture";
+import { syncPaidResendContact, upsertResendCapture } from "@/lib/resend/capture";
 import { allowedCorsOrigin } from "@/lib/resend/cors";
-import { shouldSkipResendCapture } from "@/lib/resend/never-email";
+import { resendCaptureSkipReason, shouldSkipResendCapture } from "@/lib/resend/never-email";
 import { RESEND_SEGMENT_IDS } from "@/lib/resend/segments";
+import { normalizeResendSyncLog, type ResendSyncLogInput } from "@/lib/resend/sync-log";
+
+function collectLogs() {
+  const logs: ResendSyncLogInput[] = [];
+  return {
+    logs,
+    persistLog: async (row: ResendSyncLogInput) => {
+      logs.push(row);
+    },
+  };
+}
 
 describe("never-email / never-import", () => {
   it("skips the locked never-email addresses", () => {
@@ -18,6 +29,9 @@ describe("never-email / never-import", () => {
     expect(
       shouldSkipResendCapture({ email: "owner@example.com", firstName: "Pat", lastName: "ProBuild" }),
     ).toBe(true);
+    expect(resendCaptureSkipReason({ email: "bryan@bettencourtconstruction.com" })).toBe("never-email");
+    expect(resendCaptureSkipReason({ email: "owner@example.com", company: "Pro Build" })).toBe("pro-build");
+    expect(resendCaptureSkipReason({ email: "sam@abcbuilders.com", company: "ABC Builders" })).toBeNull();
   });
 
   it("does not skip other *Builders* companies", () => {
@@ -55,10 +69,13 @@ describe("marketing CORS origins", () => {
 describe("upsertResendCapture", () => {
   it("returns ok without calling Resend for never-email addresses", async () => {
     const calls: string[] = [];
+    const { logs, persistLog } = collectLogs();
     const result = await upsertResendCapture(
       { email: "bryan@bettencourtconstruction.com", segment: "field_notes", source: "test" },
       {
         apiKey: "re_test",
+        persistLog,
+        logSource: "public_capture",
         fetch: async (url) => {
           calls.push(String(url));
           return new Response("{}", { status: 500 });
@@ -72,10 +89,21 @@ describe("upsertResendCapture", () => {
       segment: "field_notes",
     });
     expect(calls).toHaveLength(0);
+    expect(logs).toEqual([
+      {
+        email: "bryan@bettencourtconstruction.com",
+        source: "public_capture",
+        segment: "field_notes",
+        status: "skip",
+        reason: "never-email",
+        stripe_subscription_id: null,
+      },
+    ]);
   });
 
   it("creates a contact and adds the Field Notes segment by default", async () => {
     const calls: Array<{ url: string; method: string; body: unknown }> = [];
+    const { logs, persistLog } = collectLogs();
     const result = await upsertResendCapture(
       {
         email: "new.lead@example.com",
@@ -86,6 +114,8 @@ describe("upsertResendCapture", () => {
       },
       {
         apiKey: "re_test",
+        persistLog,
+        logSource: "public_capture",
         fetch: async (url, init) => {
           const parsed = init?.body ? JSON.parse(String(init.body)) : null;
           calls.push({ url: String(url), method: init?.method ?? "GET", body: parsed });
@@ -108,10 +138,21 @@ describe("upsertResendCapture", () => {
         magnet: "field-notes",
       },
     });
+    expect(logs).toEqual([
+      {
+        email: "new.lead@example.com",
+        source: "public_capture",
+        segment: "field_notes",
+        status: "ok",
+        reason: undefined,
+        stripe_subscription_id: null,
+      },
+    ]);
   });
 
   it("updates an existing contact and adds them to the Circle segment", async () => {
     const calls: Array<{ url: string; method: string }> = [];
+    const { persistLog } = collectLogs();
     const result = await upsertResendCapture(
       {
         email: "miragliotta310@gmail.com",
@@ -121,6 +162,7 @@ describe("upsertResendCapture", () => {
       },
       {
         apiKey: "re_test",
+        persistLog,
         fetch: async (url, init) => {
           const method = init?.method ?? "GET";
           calls.push({ url: String(url), method });
@@ -143,5 +185,138 @@ describe("upsertResendCapture", () => {
     expect(calls[2]?.url).toBe(
       `https://api.resend.com/contacts/contact_existing/segments/${RESEND_SEGMENT_IDS.circle}`,
     );
+  });
+
+  it("records fail when RESEND_API_KEY is missing", async () => {
+    const { logs, persistLog } = collectLogs();
+    await expect(
+      upsertResendCapture(
+        { email: "lead@example.com", segment: "handbook" },
+        { apiKey: null, persistLog, logSource: "public_capture" },
+      ),
+    ).rejects.toThrow("RESEND_API_KEY is not configured");
+    expect(logs).toEqual([
+      {
+        email: "lead@example.com",
+        source: "public_capture",
+        segment: "handbook",
+        status: "fail",
+        reason: "RESEND_API_KEY is not configured",
+        stripe_subscription_id: null,
+      },
+    ]);
+  });
+
+  it("records fail when Resend create contact returns an error", async () => {
+    const { logs, persistLog } = collectLogs();
+    await expect(
+      upsertResendCapture(
+        { email: "lead@example.com", segment: "clinic" },
+        {
+          apiKey: "re_test",
+          persistLog,
+          logSource: "public_capture",
+          fetch: async () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+        },
+      ),
+    ).rejects.toThrow(/Resend create contact failed \(500\)/);
+    expect(logs).toHaveLength(1);
+    expect(logs[0]?.status).toBe("fail");
+    expect(logs[0]?.reason).toContain("Resend create contact failed (500)");
+    expect(logs[0]?.segment).toBe("clinic");
+  });
+});
+
+describe("syncPaidResendContact", () => {
+  it("records ok for a paid Stripe webhook sync", async () => {
+    const { logs, persistLog } = collectLogs();
+    const result = await syncPaidResendContact(
+      {
+        email: "buyer@example.com",
+        segment: "circle",
+        stripe_subscription_id: "sub_paid_123",
+      },
+      {
+        apiKey: "re_test",
+        persistLog,
+        fetch: async () => new Response(JSON.stringify({ id: "contact_paid" }), { status: 200 }),
+      },
+    );
+    expect(result).toEqual({ ok: true, contactId: "contact_paid", segment: "circle" });
+    expect(logs).toEqual([
+      {
+        email: "buyer@example.com",
+        source: "stripe_webhook",
+        segment: "circle",
+        status: "ok",
+        reason: undefined,
+        stripe_subscription_id: "sub_paid_123",
+      },
+    ]);
+  });
+
+  it("does not throw when Resend fails and still persists fail", async () => {
+    const { logs, persistLog } = collectLogs();
+    const result = await syncPaidResendContact(
+      {
+        email: "buyer@example.com",
+        segment: "handbook",
+        stripe_subscription_id: "sub_fail_123",
+      },
+      {
+        apiKey: "re_test",
+        persistLog,
+        fetch: async () => new Response(JSON.stringify({ message: "down" }), { status: 503 }),
+      },
+    );
+    expect(result).toEqual({
+      ok: false,
+      reason: expect.stringContaining("Resend create contact failed (503)"),
+    });
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({
+      email: "buyer@example.com",
+      source: "stripe_webhook",
+      segment: "handbook",
+      status: "fail",
+      stripe_subscription_id: "sub_fail_123",
+    });
+    expect(logs[0]?.reason).toContain("Resend create contact failed (503)");
+  });
+
+  it("still returns fail when persistLog throws", async () => {
+    const result = await syncPaidResendContact(
+      { email: "buyer@example.com", segment: "circle" },
+      {
+        apiKey: "re_test",
+        persistLog: async () => {
+          throw new Error("db down");
+        },
+        fetch: async () => new Response(JSON.stringify({ message: "down" }), { status: 503 }),
+      },
+    );
+    expect(result.ok).toBe(false);
+  });
+});
+
+describe("normalizeResendSyncLog", () => {
+  it("lowercases email and trims optional fields", () => {
+    expect(
+      normalizeResendSyncLog({
+        email: "  Buyer@Example.com ",
+        source: "backfill",
+        segment: "handbook",
+        status: "ok",
+        reason: "  synced  ",
+        stripe_subscription_id: "  sub_1  ",
+      }),
+    ).toEqual({
+      email: "buyer@example.com",
+      source: "backfill",
+      segment: "handbook",
+      status: "ok",
+      reason: "synced",
+      stripe_subscription_id: "sub_1",
+    });
   });
 });

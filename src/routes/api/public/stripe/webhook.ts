@@ -61,6 +61,7 @@ async function syncResendForPaidPurchase(opts: {
   productId: string | null;
   metaProduct?: string | null;
   metaKind?: string | null;
+  stripeSubscriptionId?: string | null;
 }): Promise<void> {
   const segment = resendSegmentForPurchase({
     priceId: opts.priceId,
@@ -78,6 +79,7 @@ async function syncResendForPaidPurchase(opts: {
     source: "stripe",
     source_url: "https://app.alpcontractorcircle.com",
     magnet: segment,
+    stripe_subscription_id: opts.stripeSubscriptionId ?? null,
   });
 }
 
@@ -336,6 +338,7 @@ async function upsertSubscription(
         productId,
         metaProduct: metadata.product,
         metaKind: metadata.kind,
+        stripeSubscriptionId: sub.id,
       });
     }
     return;
@@ -461,6 +464,7 @@ async function upsertSubscription(
       productId,
       metaProduct: metadata.product,
       metaKind: metadata.kind,
+      stripeSubscriptionId: sub.id,
     });
   }
 }
@@ -566,6 +570,7 @@ async function upsertOneTimePurchase(supabaseAdmin: SupabaseAdminClient, stripe:
         productId,
         metaProduct: metadata.product,
         metaKind: metadata.kind,
+        stripeSubscriptionId: stripeRefId(session.subscription),
       });
     }
     return;
@@ -635,6 +640,7 @@ async function upsertOneTimePurchase(supabaseAdmin: SupabaseAdminClient, stripe:
       productId,
       metaProduct: metadata.product,
       metaKind: metadata.kind,
+      stripeSubscriptionId: stripeRefId(session.subscription) ?? syntheticSubId,
     });
   }
 }

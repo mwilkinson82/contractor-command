@@ -17,12 +17,17 @@ export type NeverEmailInput = {
   company?: string | null;
 };
 
-export function shouldSkipResendCapture(input: NeverEmailInput): boolean {
+export function resendCaptureSkipReason(input: NeverEmailInput): string | null {
   const email = input.email.trim().toLowerCase();
-  if (NEVER_EMAIL.has(email)) return true;
+  if (NEVER_EMAIL.has(email)) return "never-email";
 
   const haystack = [email, input.firstName, input.lastName, input.company]
     .filter((part): part is string => Boolean(part && part.trim()))
     .join(" ");
-  return PRO_BUILD_RE.test(haystack);
+  if (PRO_BUILD_RE.test(haystack)) return "pro-build";
+  return null;
+}
+
+export function shouldSkipResendCapture(input: NeverEmailInput): boolean {
+  return resendCaptureSkipReason(input) !== null;
 }
