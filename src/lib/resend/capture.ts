@@ -191,13 +191,53 @@ async function performResendUpsert(
 }
 
 /**
+ * Create-or-update a Resend contact and add them to the matching segment.
+ * Does not send mail. Records the outcome when opts.logSource is set;
+ * log-write failures are swallowed inside logResendSync.
+ */
+export async function upsertResendCapture(
+  input: CaptureInput,
+  opts?: CaptureOpts,
+): Promise<CaptureResult> {
+  const email = input.email.trim().toLowerCase();
+  const segment = input.segment ?? DEFAULT_CAPTURE_SEGMENT;
+  const source = opts?.logSource;
+  try {
+    const result = await performResendUpsert(input, opts);
+    if (source) {
+      await logResendSync({
+        email,
+        source,
+        segment: result.segment,
+        status: result.skipped ? "skip" : "ok",
+        reason: result.skipped ? "never_email_list" : null,
+        stripeSubscriptionId: opts?.stripeSubscriptionId ?? null,
+      });
+    }
+    return result;
+  } catch (err) {
+    if (source) {
+      await logResendSync({
+        email,
+        source,
+        segment,
+        status: "fail",
+        reason: err instanceof Error ? err.message : String(err),
+        stripeSubscriptionId: opts?.stripeSubscriptionId ?? null,
+      });
+    }
+    throw err;
+  }
+}
+
+/**
  * Stripe alongside-path: write a paying customer into Resend.
  * Never throws — webhook onboarding must not fail over a contact upsert.
  * Does not send mail.
  */
 export async function syncPaidResendContact(
   input: CaptureInput & { segment: CaptureSegment },
-  opts?: { apiKey?: string | null; fetch?: ResendFetch },
+  opts?: CaptureOpts,
 ): Promise<CaptureResult | { ok: false; reason: string }> {
   try {
     return await upsertResendCapture(
@@ -207,7 +247,7 @@ export async function syncPaidResendContact(
         source_url: input.source_url ?? "https://app.alpcontractorcircle.com",
         magnet: input.magnet ?? input.segment,
       },
-      opts,
+      { logSource: "stripe_webhook", ...opts },
     );
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
@@ -215,3 +255,4 @@ export async function syncPaidResendContact(
     return { ok: false, reason };
   }
 }
+
