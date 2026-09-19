@@ -1,9 +1,11 @@
 import { shouldSkipResendCapture } from "@/lib/resend/never-email";
+import { logResendSync, type ResendSyncSource } from "@/lib/resend/sync-log";
 import {
   DEFAULT_CAPTURE_SEGMENT,
   RESEND_SEGMENT_IDS,
   type CaptureSegment,
 } from "@/lib/resend/segments";
+
 
 const RESEND_API = "https://api.resend.com";
 
