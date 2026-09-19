@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { upsertResendCapture } from "@/lib/resend/capture";
+import {
+  ADMIN_COMP_SOURCE,
+  MARSHALL_COMP_SOURCE,
+  syncCompedResendContact,
+  syncPaidResendContact,
+  upsertResendCapture,
+} from "@/lib/resend/capture";
 import { allowedCorsOrigin } from "@/lib/resend/cors";
 import { shouldSkipResendCapture } from "@/lib/resend/never-email";
 import { RESEND_SEGMENT_IDS } from "@/lib/resend/segments";
+import { persistResendSyncLog, resendSyncLogRow } from "@/lib/resend/sync-log";
+import type { ResendSyncLogClient, ResendSyncLogRow } from "@/lib/resend/sync-log";
 
 describe("never-email / never-import", () => {
   it("skips the locked never-email addresses", () => {
@@ -145,3 +153,151 @@ describe("upsertResendCapture", () => {
     );
   });
 });
+
+function mockSyncLog() {
+  const rows: ResendSyncLogRow[] = [];
+  const supabase: ResendSyncLogClient = {
+    from: (table) => {
+      expect(table).toBe("resend_sync_log");
+      return {
+        insert: async (row) => {
+          rows.push(row);
+          return { error: null };
+        },
+      };
+    },
+  };
+  return { supabase, rows };
+}
+
+function creatingFetch(contactId = "contact_123") {
+  const calls: Array<{ url: string; method: string; body: unknown }> = [];
+  const fetchFn: typeof fetch = async (url, init) => {
+    const parsed = init?.body ? JSON.parse(String(init.body)) : null;
+    calls.push({ url: String(url), method: init?.method ?? "GET", body: parsed });
+    return new Response(JSON.stringify({ id: contactId }), { status: 200 });
+  };
+  return { calls, fetchFn };
+}
+
+describe("resend_sync_log", () => {
+  it("normalizes the persisted row", () => {
+    expect(
+      resendSyncLogRow({
+        email: "  Pat@Example.com ",
+        segment: "circle",
+        source: "admin_comp",
+        status: "failed",
+        errorMessage: "boom",
+        contactId: null,
+        metadata: { magnet: "marshall_comp" },
+      }),
+    ).toEqual({
+      email: "pat@example.com",
+      segment: "circle",
+      source: "admin_comp",
+      status: "failed",
+      contact_id: null,
+      error_message: "boom",
+      metadata: { magnet: "marshall_comp" },
+    });
+  });
+
+  it("swallows insert failures", async () => {
+    await expect(
+      persistResendSyncLog(
+        { email: "x@example.com", segment: "circle", source: "admin_comp", status: "ok" },
+        {
+          supabase: {
+            from: () => ({
+              insert: async () => {
+                throw new Error("db down");
+              },
+            }),
+          },
+        },
+      ),
+    ).resolves.toBeUndefined();
+  });
+});
+
+describe("syncPaidResendContact / syncCompedResendContact", () => {
+  it("upserts a Marshall comp onto the Circle segment without sending mail", async () => {
+    const { calls, fetchFn } = creatingFetch("contact_comp");
+    const { supabase, rows } = mockSyncLog();
+
+    const result = await syncCompedResendContact(
+      { email: "comped@example.com", firstName: "Pat", source: "admin_comp" },
+      { apiKey: "re_test", fetch: fetchFn, supabase },
+    );
+
+    expect(result).toEqual({ ok: true, contactId: "contact_comp", segment: "circle" });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toBe("https://api.resend.com/contacts");
+    expect(calls[0]?.body).toEqual({
+      email: "comped@example.com",
+      first_name: "Pat",
+      segments: [{ id: RESEND_SEGMENT_IDS.circle }],
+      properties: {
+        source: ADMIN_COMP_SOURCE,
+        source_url: "https://app.alpcontractorcircle.com",
+        magnet: MARSHALL_COMP_SOURCE,
+      },
+    });
+    expect(calls.every((c) => !c.url.includes("/emails"))).toBe(true);
+    expect(rows).toEqual([
+      {
+        email: "comped@example.com",
+        segment: "circle",
+        source: ADMIN_COMP_SOURCE,
+        status: "ok",
+        contact_id: "contact_comp",
+        error_message: null,
+        metadata: { magnet: MARSHALL_COMP_SOURCE },
+      },
+    ]);
+  });
+
+  it("persists a failed sync and does not throw", async () => {
+    const { supabase, rows } = mockSyncLog();
+    const result = await syncCompedResendContact(
+      { email: "fail@example.com" },
+      {
+        apiKey: "re_test",
+        supabase,
+        fetch: async () => new Response(JSON.stringify({ message: "nope" }), { status: 500 }),
+      },
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'Resend create contact failed (500): {"message":"nope"}',
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      email: "fail@example.com",
+      segment: "circle",
+      source: ADMIN_COMP_SOURCE,
+      status: "failed",
+      contact_id: null,
+    });
+    expect(rows[0]?.error_message).toContain("Resend create contact failed (500)");
+  });
+
+  it("keeps paid Stripe sync source as stripe", async () => {
+    const { calls, fetchFn } = creatingFetch();
+    const { supabase, rows } = mockSyncLog();
+
+    const result = await syncPaidResendContact(
+      { email: "paid@example.com", segment: "circle" },
+      { apiKey: "re_test", fetch: fetchFn, supabase },
+    );
+
+    expect(result).toEqual({ ok: true, contactId: "contact_123", segment: "circle" });
+    expect((calls[0]?.body as { properties?: { source?: string } }).properties?.source).toBe(
+      "stripe",
+    );
+    expect(rows[0]?.source).toBe("stripe");
+  });
+});
+
