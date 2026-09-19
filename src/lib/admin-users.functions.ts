@@ -261,6 +261,21 @@ export const setUserComped = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
 
+    // Marshall locked comps -> Resend 2026-09-19. Never throws.
+    const syncCompToResend = async () => {
+      if (!data.isComped) return;
+      const { syncPaidResendContact } = await import("@/lib/resend/capture");
+      await syncPaidResendContact(
+        {
+          email: data.email,
+          segment: "circle",
+          source: "admin_comp",
+          magnet: "circle",
+        },
+        { logSource: "backfill" },
+      );
+    };
+
     if (data.subscriptionId) {
       const update: { is_comped: boolean; status?: string } = { is_comped: data.isComped };
       if (data.isComped) update.status = "active";
@@ -269,6 +284,7 @@ export const setUserComped = createServerFn({ method: "POST" })
         .update(update)
         .eq("id", data.subscriptionId);
       if (error) throw error;
+      await syncCompToResend();
       return { ok: true };
     }
 
@@ -287,8 +303,10 @@ export const setUserComped = createServerFn({ method: "POST" })
       metadata: { source: "admin_comp" },
     });
     if (error) throw error;
+    await syncCompToResend();
     return { ok: true };
   });
+
 
 export const sendMemberAccessLink = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

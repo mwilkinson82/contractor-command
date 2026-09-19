@@ -61,6 +61,7 @@ async function syncResendForPaidPurchase(opts: {
   productId: string | null;
   metaProduct?: string | null;
   metaKind?: string | null;
+  stripeSubscriptionId?: string | null;
 }): Promise<void> {
   const segment = resendSegmentForPurchase({
     priceId: opts.priceId,
@@ -69,17 +70,21 @@ async function syncResendForPaidPurchase(opts: {
     metaKind: opts.metaKind,
   });
   if (!segment) return;
-  await syncPaidResendContact({
-    email: opts.email,
-    firstName: opts.firstName,
-    lastName: opts.lastName,
-    company: opts.company,
-    segment,
-    source: "stripe",
-    source_url: "https://app.alpcontractorcircle.com",
-    magnet: segment,
-  });
+  await syncPaidResendContact(
+    {
+      email: opts.email,
+      firstName: opts.firstName,
+      lastName: opts.lastName,
+      company: opts.company,
+      segment,
+      source: "stripe",
+      source_url: "https://app.alpcontractorcircle.com",
+      magnet: segment,
+    },
+    { logSource: "stripe_webhook", stripeSubscriptionId: opts.stripeSubscriptionId ?? null },
+  );
 }
+
 
 function productLabelForTier(tier: Tier): string {
   if (tier === "book_buyer") return "book_v2";
@@ -336,6 +341,8 @@ async function upsertSubscription(
         productId,
         metaProduct: metadata.product,
         metaKind: metadata.kind,
+        stripeSubscriptionId: sub.id,
+
       });
     }
     return;
@@ -461,6 +468,8 @@ async function upsertSubscription(
       productId,
       metaProduct: metadata.product,
       metaKind: metadata.kind,
+      stripeSubscriptionId: sub.id,
+
     });
   }
 }
