@@ -778,6 +778,39 @@ export type Database = {
         }
         Relationships: []
       }
+      resend_sync_log: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          reason: string | null
+          segment: string
+          source: string
+          status: string
+          stripe_subscription_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          reason?: string | null
+          segment: string
+          source: string
+          status: string
+          stripe_subscription_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          reason?: string | null
+          segment?: string
+          source?: string
+          status?: string
+          stripe_subscription_id?: string | null
+        }
+        Relationships: []
+      }
       schedule_baselines: {
         Row: {
           created_at: string

@@ -1,9 +1,14 @@
-import { shouldSkipResendCapture } from "@/lib/resend/never-email";
+import { resendCaptureSkipReason } from "@/lib/resend/never-email";
 import {
   DEFAULT_CAPTURE_SEGMENT,
   RESEND_SEGMENT_IDS,
   type CaptureSegment,
 } from "@/lib/resend/segments";
+import {
+  persistResendSyncLog,
+  type PersistResendSyncLog,
+  type ResendSyncSource,
+} from "@/lib/resend/sync-log";
 
 const RESEND_API = "https://api.resend.com";
 
@@ -23,6 +28,14 @@ export type CaptureResult =
   | { ok: true; skipped?: false; contactId: string; segment: CaptureSegment };
 
 export type ResendFetch = typeof fetch;
+
+export type ResendCaptureOpts = {
+  apiKey?: string | null;
+  fetch?: ResendFetch;
+  logSource?: ResendSyncSource;
+  stripeSubscriptionId?: string | null;
+  persistLog?: PersistResendSyncLog;
+};
 
 type ResendJson = {
   status: number;
@@ -95,102 +108,139 @@ async function addContactToSegment(
   );
 }
 
+async function recordCaptureOutcome(
+  input: CaptureInput,
+  opts: ResendCaptureOpts | undefined,
+  status: "ok" | "skip" | "fail",
+  reason?: string | null,
+): Promise<void> {
+  const persist = opts?.persistLog ?? persistResendSyncLog;
+  try {
+    await persist({
+      email: input.email,
+      source: opts?.logSource ?? "public_capture",
+      segment: input.segment ?? DEFAULT_CAPTURE_SEGMENT,
+      status,
+      reason,
+      stripe_subscription_id: opts?.stripeSubscriptionId ?? null,
+    });
+  } catch (err) {
+    console.error("Failed to persist resend_sync_log", {
+      email: input.email,
+      status,
+      err,
+    });
+  }
+}
+
 /**
  * Create-or-update a Resend contact and add them to the matching segment.
- * Does not send mail.
+ * Does not send mail. Records ok/skip/fail to resend_sync_log.
  */
 export async function upsertResendCapture(
   input: CaptureInput,
-  opts?: { apiKey?: string | null; fetch?: ResendFetch },
+  opts?: ResendCaptureOpts,
 ): Promise<CaptureResult> {
   const email = input.email.trim().toLowerCase();
   const segment = input.segment ?? DEFAULT_CAPTURE_SEGMENT;
   const segmentId = RESEND_SEGMENT_IDS[segment];
+  const loggedInput = { ...input, email, segment };
 
-  if (
-    shouldSkipResendCapture({
-      email,
-      firstName: input.firstName,
-      lastName: input.lastName,
-      company: input.company,
-    })
-  ) {
+  const skipReason = resendCaptureSkipReason({
+    email,
+    firstName: input.firstName,
+    lastName: input.lastName,
+    company: input.company,
+  });
+  if (skipReason) {
+    await recordCaptureOutcome(loggedInput, opts, "skip", skipReason);
     return { ok: true, skipped: true, contactId: null, segment };
   }
 
-  const apiKey = opts?.apiKey ?? process.env.RESEND_API_KEY ?? null;
-  if (!apiKey) {
-    throw new Error("RESEND_API_KEY is not configured");
-  }
-  const fetchFn = opts?.fetch ?? fetch;
-
-  const firstName = trimOrNull(input.firstName);
-  const lastName = trimOrNull(input.lastName);
-  const properties = captureProperties(input);
-
-  const createBody: Record<string, unknown> = {
-    email,
-    segments: [{ id: segmentId }],
-  };
-  if (firstName) createBody.first_name = firstName;
-  if (lastName) createBody.last_name = lastName;
-  if (Object.keys(properties).length > 0) createBody.properties = properties;
-
-  const created = await resendRequest(
-    "/contacts",
-    { method: "POST", body: JSON.stringify(createBody) },
-    apiKey,
-    fetchFn,
-  );
-
-  if (created.ok) {
-    const contactId = contactIdFromBody(created.body);
-    if (!contactId) {
-      throw new Error("Resend create contact returned no id");
+  try {
+    const apiKey = opts?.apiKey ?? process.env.RESEND_API_KEY ?? null;
+    if (!apiKey) {
+      throw new Error("RESEND_API_KEY is not configured");
     }
+    const fetchFn = opts?.fetch ?? fetch;
+
+    const firstName = trimOrNull(input.firstName);
+    const lastName = trimOrNull(input.lastName);
+    const properties = captureProperties(input);
+
+    const createBody: Record<string, unknown> = {
+      email,
+      segments: [{ id: segmentId }],
+    };
+    if (firstName) createBody.first_name = firstName;
+    if (lastName) createBody.last_name = lastName;
+    if (Object.keys(properties).length > 0) createBody.properties = properties;
+
+    const created = await resendRequest(
+      "/contacts",
+      { method: "POST", body: JSON.stringify(createBody) },
+      apiKey,
+      fetchFn,
+    );
+
+    if (created.ok) {
+      const contactId = contactIdFromBody(created.body);
+      if (!contactId) {
+        throw new Error("Resend create contact returned no id");
+      }
+      await recordCaptureOutcome(loggedInput, opts, "ok");
+      return { ok: true, contactId, segment };
+    }
+
+    if (created.status !== 409) {
+      throw new Error(`Resend create contact failed (${created.status}): ${JSON.stringify(created.body)}`);
+    }
+
+    const updateBody: Record<string, unknown> = {};
+    if (firstName) updateBody.first_name = firstName;
+    if (lastName) updateBody.last_name = lastName;
+    if (Object.keys(properties).length > 0) updateBody.properties = properties;
+
+    const updated = await resendRequest(
+      `/contacts/${encodeURIComponent(email)}`,
+      { method: "PATCH", body: JSON.stringify(updateBody) },
+      apiKey,
+      fetchFn,
+    );
+    if (!updated.ok) {
+      throw new Error(`Resend update contact failed (${updated.status}): ${JSON.stringify(updated.body)}`);
+    }
+
+    let contactId = contactIdFromBody(updated.body) ?? contactIdFromBody(created.body);
+    if (!contactId) {
+      const got = await resendRequest(`/contacts/${encodeURIComponent(email)}`, { method: "GET" }, apiKey, fetchFn);
+      contactId = contactIdFromBody(got.body);
+    }
+    if (!contactId) {
+      throw new Error("Resend update contact returned no id");
+    }
+
+    await addContactToSegment(contactId, segmentId, apiKey, fetchFn);
+    await recordCaptureOutcome(loggedInput, opts, "ok");
     return { ok: true, contactId, segment };
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    await recordCaptureOutcome(loggedInput, opts, "fail", reason);
+    throw err;
   }
-
-  if (created.status !== 409) {
-    throw new Error(`Resend create contact failed (${created.status}): ${JSON.stringify(created.body)}`);
-  }
-
-  const updateBody: Record<string, unknown> = {};
-  if (firstName) updateBody.first_name = firstName;
-  if (lastName) updateBody.last_name = lastName;
-  if (Object.keys(properties).length > 0) updateBody.properties = properties;
-
-  const updated = await resendRequest(
-    `/contacts/${encodeURIComponent(email)}`,
-    { method: "PATCH", body: JSON.stringify(updateBody) },
-    apiKey,
-    fetchFn,
-  );
-  if (!updated.ok) {
-    throw new Error(`Resend update contact failed (${updated.status}): ${JSON.stringify(updated.body)}`);
-  }
-
-  let contactId = contactIdFromBody(updated.body) ?? contactIdFromBody(created.body);
-  if (!contactId) {
-    const got = await resendRequest(`/contacts/${encodeURIComponent(email)}`, { method: "GET" }, apiKey, fetchFn);
-    contactId = contactIdFromBody(got.body);
-  }
-  if (!contactId) {
-    throw new Error("Resend update contact returned no id");
-  }
-
-  await addContactToSegment(contactId, segmentId, apiKey, fetchFn);
-  return { ok: true, contactId, segment };
 }
 
 /**
  * Stripe alongside-path: write a paying customer into Resend.
  * Never throws — webhook onboarding must not fail over a contact upsert.
- * Does not send mail.
+ * Does not send mail. Failures are persisted to resend_sync_log.
  */
 export async function syncPaidResendContact(
-  input: CaptureInput & { segment: CaptureSegment },
-  opts?: { apiKey?: string | null; fetch?: ResendFetch },
+  input: CaptureInput & {
+    segment: CaptureSegment;
+    stripe_subscription_id?: string | null;
+  },
+  opts?: ResendCaptureOpts,
 ): Promise<CaptureResult | { ok: false; reason: string }> {
   try {
     return await upsertResendCapture(
@@ -200,7 +250,11 @@ export async function syncPaidResendContact(
         source_url: input.source_url ?? "https://app.alpcontractorcircle.com",
         magnet: input.magnet ?? input.segment,
       },
-      opts,
+      {
+        ...opts,
+        logSource: opts?.logSource ?? "stripe_webhook",
+        stripeSubscriptionId: opts?.stripeSubscriptionId ?? input.stripe_subscription_id ?? null,
+      },
     );
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
