@@ -15,16 +15,18 @@ async function renderAnnouncement(body: string) {
 }
 
 describe("member announcement email", () => {
-  it("uses a natural greeting when a member name is unavailable", async () => {
+  it("renders no automatic greeting and no default signoff", async () => {
     const html = await render(
       React.createElement(template.component, {
+        firstName: "Sam",
         headline: "Thursday field note",
         body: "The member update goes here.",
       }),
     );
 
-    expect(html).toContain("Hi there —");
-    expect(html).not.toContain("Hey —");
+    expect(html).not.toContain("Hi there —");
+    expect(html).not.toContain("Sam —");
+    expect(html).not.toContain("— Marshall");
   });
 
   it("uses the Contractor Circle identity and member-note structure", async () => {

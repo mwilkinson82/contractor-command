@@ -36,7 +36,6 @@ interface MemberAnnouncementProps {
 }
 
 const MemberAnnouncementEmail = ({
-  firstName,
   preheader = "An update from Contractor Circle",
   headline = "An update from the Contractor Circle",
   body = "",
