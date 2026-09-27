@@ -50,10 +50,10 @@ import {
   Lock,
 } from "lucide-react";
 
-const CALL_ANNOUNCEMENT_ID = "contractor-circle-call-2026-07-05-5pm-est";
+const CALL_ANNOUNCEMENT_ID = "contractor-circle-call-2026-09-27-5pm-et";
 const CALL_ANNOUNCEMENT_DISMISSED_KEY = `alp.cc.dismissed.${CALL_ANNOUNCEMENT_ID}`;
-const CALL_ANNOUNCEMENT_START_AT = "2026-07-05T21:00:00.000Z";
-const CALL_ANNOUNCEMENT_EXPIRES_AT = "2026-07-06T03:00:00.000Z";
+const CALL_ANNOUNCEMENT_START_AT = "2026-09-27T21:00:00.000Z";
+const CALL_ANNOUNCEMENT_EXPIRES_AT = "2026-09-27T22:30:00.000Z";
 
 export const Route = createFileRoute("/")({
   head: () => ({

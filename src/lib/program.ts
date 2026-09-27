@@ -18,34 +18,17 @@ export type Session = {
 // Replays moved to the `replays` database table — see src/routes/replays.tsx.
 
 // --- Upcoming sessions (edit these as the calendar moves) ---
-// cache-bust: 2026-09-17 supplemental AI call meet link
+// cache-bust: 2026-09-27 biweekly working session meet link
 export const UPCOMING: Session[] = [
   {
     kind: "Biweekly Call",
-    title: "Contractor Circle supplemental — How to Utilize AI in Construction and in Your Business",
-    date: "2026-09-17T23:00:00.000Z", // 7:00 PM ET Thu Sep 17
-    durationMin: 60,
-    zoomUrl: "https://meet.google.com/byx-vdtp-bvt",
+    title: "Contractor Circle (biweekly working session)",
+    date: "2026-09-27T21:00:00.000Z", // 5:00 PM ET Sun Sep 27 (ends 6:30 PM ET)
+    durationMin: 90,
+    zoomUrl: "https://meet.google.com/rks-gyqz-gzi",
     meetingProvider: "Google Meet",
     description:
-      "Contractor Circle supplemental. How to Utilize AI in Construction and in Your Business.",
-    agenda: [
-      "AI in construction and contractor business",
-      "Live OverWatch / operating demos",
-      "Member Q&A",
-    ],
-  },
-  {
-    kind: "Monthly Bootcamp",
-    title: "Owner dependency — installing the first system.",
-    date: "2026-07-09T17:00:00.000Z", // Thu Jul 9, 10:00 AM PT
-    durationMin: 120,
-    zoomUrl: "https://us06web.zoom.us/j/83215167292?pwd=Mtt970HFCPStqSw62btyyta2Wxo0Pr.1",
-    meetingProvider: "Zoom",
-    zoomId: "832 1516 7292",
-    passcode: "321266",
-    description:
-      "Workshop format. We pick one owner bottleneck per member and write the first version of the system that pulls the owner out.",
+      "Contractor Circle working session. Come ready to work. Recording goes in the Replay Library after.",
   },
 ];
 
