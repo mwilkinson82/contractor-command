@@ -36,16 +36,14 @@ interface MemberAnnouncementProps {
 }
 
 const MemberAnnouncementEmail = ({
-  firstName,
   preheader = "An update from Contractor Circle",
   headline = "An update from the Contractor Circle",
   body = "",
   ctaLabel,
   ctaUrl,
-  signoff = "— Marshall",
+  signoff,
 }: MemberAnnouncementProps) => {
   const showCta = !!(ctaLabel && ctaUrl);
-  const greetingName = firstName?.trim();
 
   return (
     <Html lang="en" dir="ltr">
@@ -61,8 +59,6 @@ const MemberAnnouncementEmail = ({
                 <Text style={layout.eyebrow}>Contractor Circle / Member note</Text>
                 <Heading style={layout.headline}>{headline}</Heading>
               </Section>
-
-              <Text style={greeting}>{greetingName ? `${greetingName} —` : "Hi there —"}</Text>
 
               <ReactMarkdown
                 allowedElements={ANNOUNCEMENT_MARKDOWN_ELEMENTS}
@@ -126,13 +122,6 @@ const announcementBrand = {
   mono: '"JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace',
 } as const;
 
-const greeting = {
-  fontFamily: announcementBrand.sans,
-  fontSize: "14px",
-  color: announcementBrand.muted,
-  margin: "0 0 18px",
-  lineHeight: 1.55,
-};
 const paragraph = {
   fontFamily: announcementBrand.sans,
   fontSize: "15px",
