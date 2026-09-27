@@ -79,7 +79,7 @@ const MemberAnnouncementEmail = ({
                 </Button>
               )}
 
-              <Text style={layout.signoff}>{signoff}</Text>
+              {signoff?.trim() ? <Text style={layout.signoff}>{signoff.trim()}</Text> : null}
             </Section>
 
             <ContractorCircleEmailFooter />
@@ -278,11 +278,11 @@ const layout = {
   },
   signoff: {
     color: announcementBrand.ink,
-    fontFamily: announcementBrand.serif,
-    fontSize: "17px",
-    fontStyle: "italic",
-    lineHeight: 1.45,
-    margin: "22px 0 0",
+    fontFamily: announcementBrand.sans,
+    fontSize: "15px",
+    lineHeight: 1.65,
+    margin: "16px 0 0",
+    whiteSpace: "pre-wrap" as const,
   },
   footer: {
     backgroundColor: announcementBrand.paper,
