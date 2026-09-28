@@ -6,6 +6,7 @@ import { sendLovableEmail } from "@lovable.dev/email-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { TEMPLATES } from "@/lib/email-templates/registry";
+import { MEMBER_REPLY_TO } from "@/lib/email/reply-to";
 import { loadMemberControlRowsForAdmin } from "@/lib/control-admin.functions";
 import { isCircleBaselineRecipient, isCircleMemberTier } from "@/lib/announcement-audience";
 
@@ -412,6 +413,7 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
               {
                 to: r.email,
                 from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
+                reply_to: MEMBER_REPLY_TO,
                 sender_domain: SENDER_DOMAIN,
                 subject: data.subject,
                 html,
@@ -467,6 +469,7 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
             message_id: messageId,
             to: r.email,
             from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
+            reply_to: MEMBER_REPLY_TO,
             sender_domain: SENDER_DOMAIN,
             subject: data.subject,
             html,
