@@ -8,6 +8,7 @@ import {
   isUniqueViolation,
   markCircleWelcomeSent,
 } from "@/lib/email/circle-welcome-state";
+import { MEMBER_REPLY_TO } from "@/lib/email/reply-to";
 
 const MAX_RETRIES = 5;
 const DEFAULT_BATCH_SIZE = 10;
@@ -115,7 +116,7 @@ function buildSendRequest(payload: JsonObject): EmailSendRequest | null {
     html,
     text,
     purpose: getString(payload, "purpose"),
-    reply_to: getString(payload, "reply_to"),
+    reply_to: getString(payload, "reply_to") ?? MEMBER_REPLY_TO,
     identity_id: getString(payload, "identity_id"),
     test_mode: getBoolean(payload, "test_mode"),
     label: getString(payload, "label"),

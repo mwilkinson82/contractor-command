@@ -4,6 +4,7 @@
 import * as React from "react";
 import { render } from "@react-email/components";
 import { TEMPLATES } from "@/lib/email-templates/registry";
+import { MEMBER_REPLY_TO } from "@/lib/email/reply-to";
 
 type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
 
@@ -110,6 +111,7 @@ export async function enqueueLoginNudge({
       message_id: messageId,
       to: email,
       from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
+      reply_to: MEMBER_REPLY_TO,
       sender_domain: SENDER_DOMAIN,
       subject,
       html,
