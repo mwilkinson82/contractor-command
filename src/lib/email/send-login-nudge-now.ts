@@ -2,6 +2,7 @@ import * as React from "react";
 import { render } from "@react-email/components";
 import { sendLovableEmail } from "@lovable.dev/email-js";
 import { TEMPLATES } from "@/lib/email-templates/registry";
+import { MEMBER_REPLY_TO } from "@/lib/email/reply-to";
 
 type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
 
@@ -202,6 +203,7 @@ export async function sendLoginNudgeNow({
         {
           to: email,
           from: sender.from,
+          reply_to: MEMBER_REPLY_TO,
           sender_domain: sender.senderDomain,
           subject,
           html,
