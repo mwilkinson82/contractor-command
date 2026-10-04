@@ -5,10 +5,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import {
-  getImpersonatedTier,
-  subscribeImpersonatedTier,
-} from "@/lib/tier-impersonation";
+import { getImpersonatedTier, subscribeImpersonatedTier } from "@/lib/tier-impersonation";
 
 export type Tier =
   | "aos_only"
@@ -60,9 +57,8 @@ export function useTier() {
       return;
     }
     setLoading(true);
-    supabase
-      .rpc("get_user_tier", { _user_id: user.id })
-      .then(({ data, error }) => {
+    const refresh = () => {
+      supabase.rpc("get_user_tier", { _user_id: user.id }).then(({ data, error }) => {
         if (cancelled) return;
         if (error) {
           console.warn("get_user_tier failed", error);
@@ -72,8 +68,15 @@ export function useTier() {
         }
         setLoading(false);
       });
+    };
+    refresh();
+    // Paid periods expire without another webhook or a new browser session.
+    const interval = window.setInterval(refresh, 60_000);
+    window.addEventListener("focus", refresh);
     return () => {
       cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
     };
   }, [user, authLoading]);
 

@@ -1,5 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import Stripe from "stripe";
+import { circleDecision, membershipDb } from "@/lib/membership/circle.server";
+import { drainCircleAudienceSync } from "@/lib/membership/reconcile.server";
+import {
+  invoiceSubscriptionId,
+  paidThroughFromInvoice,
+  subscriptionPeriodEnd,
+} from "@/lib/stripe/subscription-evidence";
 import {
   circleWelcomeIdempotencyKey,
   findCircleWelcomeLog,
@@ -24,7 +31,8 @@ async function getSupabaseAdmin() {
 // Stripe webhook: keeps `subscriptions` in sync with Stripe state.
 // Live URL (do not change): https://app.alpcontractorcircle.com/api/public/stripe/webhook
 // Required events: customer.subscription.created, customer.subscription.updated,
-// customer.subscription.deleted, checkout.session.completed, invoice.payment_failed.
+// customer.subscription.deleted, checkout.session.completed, checkout.session.async_payment_succeeded,
+// invoice.paid, invoice.payment_failed, customer.subscription.paused/resumed.
 //
 // Hub tier + Resend segment mapping lives in src/lib/stripe/paid-product-map.ts.
 // Circle live monthly (hardcoded, not env-only):
@@ -45,7 +53,10 @@ type SupabaseRpcClient = {
   rpc: <T>(fn: string, args: Record<string, unknown>) => SupabaseRpcResult<T>;
 };
 
-function splitPersonName(name?: string | null): { firstName: string | null; lastName: string | null } {
+function splitPersonName(name?: string | null): {
+  firstName: string | null;
+  lastName: string | null;
+} {
   const trimmed = (name ?? "").trim();
   if (!trimmed) return { firstName: null, lastName: null };
   const parts = trimmed.split(/\s+/);
@@ -69,8 +80,8 @@ async function syncResendForPaidPurchase(opts: {
     metaProduct: opts.metaProduct,
     metaKind: opts.metaKind,
   });
-  if (!segment) return;
-  await syncPaidResendContact(
+  if (!segment || segment === "circle") return; // Circle uses the canonical durable outbox.
+  const result = await syncPaidResendContact(
     {
       email: opts.email,
       firstName: opts.firstName,
@@ -83,8 +94,8 @@ async function syncResendForPaidPurchase(opts: {
     },
     { logSource: "stripe_webhook", stripeSubscriptionId: opts.stripeSubscriptionId ?? null },
   );
+  if (!result.ok) throw new Error(result.reason);
 }
-
 
 function productLabelForTier(tier: Tier): string {
   if (tier === "book_buyer") return "book_v2";
@@ -96,7 +107,10 @@ function stripeObjectId(event: Stripe.Event): string | null {
   return typeof object.id === "string" ? object.id : null;
 }
 
-async function beginWebhookEvent(supabaseAdmin: SupabaseAdminClient, event: Stripe.Event): Promise<WebhookEventClaim> {
+async function beginWebhookEvent(
+  supabaseAdmin: SupabaseAdminClient,
+  event: Stripe.Event,
+): Promise<WebhookEventClaim> {
   const rpc = supabaseAdmin as unknown as SupabaseRpcClient;
   const { data, error } = await rpc.rpc<WebhookEventClaim>("begin_stripe_webhook_event", {
     _event_id: event.id,
@@ -115,7 +129,12 @@ async function beginWebhookEvent(supabaseAdmin: SupabaseAdminClient, event: Stri
   throw new Error(`Unexpected Stripe webhook claim result: ${String(data)}`);
 }
 
-async function finishWebhookEvent(supabaseAdmin: SupabaseAdminClient, eventId: string, status: "processed" | "failed", err?: unknown) {
+async function finishWebhookEvent(
+  supabaseAdmin: SupabaseAdminClient,
+  eventId: string,
+  status: "processed" | "failed",
+  err?: unknown,
+) {
   const message = err instanceof Error ? err.message : err ? String(err) : null;
   const rpc = supabaseAdmin as unknown as SupabaseRpcClient;
   const { error } = await rpc.rpc<void>("finish_stripe_webhook_event", {
@@ -187,16 +206,23 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
           switch (event.type) {
             case "customer.subscription.created":
             case "customer.subscription.updated":
-            case "customer.subscription.deleted": {
-              const sub = event.data.object as Stripe.Subscription;
+            case "customer.subscription.deleted":
+            case "customer.subscription.paused":
+            case "customer.subscription.resumed": {
+              // Events can arrive out of order. Always retrieve current Stripe state.
+              const observedAt = new Date().toISOString();
+              const sub = await stripe.subscriptions.retrieve(
+                (event.data.object as Stripe.Subscription).id,
+              );
               if (isAosAddonSubscription(sub)) {
                 await upsertAosAddon(supabaseAdmin, stripe, sub);
               } else {
-                await upsertSubscription(supabaseAdmin, stripe, sub);
+                await upsertSubscription(supabaseAdmin, stripe, sub, null, observedAt);
               }
               break;
             }
-            case "checkout.session.completed": {
+            case "checkout.session.completed":
+            case "checkout.session.async_payment_succeeded": {
               let session = event.data.object as Stripe.Checkout.Session;
               if (!session.subscription && session.mode === "subscription") {
                 try {
@@ -208,7 +234,15 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
                   });
                 }
               }
+              if (
+                session.payment_status !== "paid" &&
+                session.payment_status !== "no_payment_required"
+              )
+                break;
+              if (session.mode === "subscription" && !session.subscription)
+                throw new Error("Subscription checkout has no subscription");
               if (session.subscription) {
+                const observedAt = new Date().toISOString();
                 const sub = await stripe.subscriptions.retrieve(
                   typeof session.subscription === "string"
                     ? session.subscription
@@ -222,6 +256,7 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
                     stripe,
                     sub,
                     stripeRefId(session.payment_link),
+                    observedAt,
                   );
                 }
               } else {
@@ -232,18 +267,23 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
               }
               break;
             }
+            case "invoice.paid":
             case "invoice.payment_failed": {
               const invoice = event.data.object as Stripe.Invoice;
-              const subscription = (
-                invoice as Stripe.Invoice & {
-                  subscription?: string | { id?: string } | null;
-                }
-              ).subscription;
-              const subscriptionId =
-                typeof subscription === "string" ? subscription : subscription?.id;
+              const subscriptionId = invoiceSubscriptionId(invoice);
               if (subscriptionId) {
+                const observedAt = new Date().toISOString();
                 const sub = await stripe.subscriptions.retrieve(subscriptionId);
-                await upsertSubscription(supabaseAdmin, stripe, sub);
+                if (isAosAddonSubscription(sub)) await upsertAosAddon(supabaseAdmin, stripe, sub);
+                else
+                  await upsertSubscription(
+                    supabaseAdmin,
+                    stripe,
+                    sub,
+                    null,
+                    observedAt,
+                    event.type === "invoice.paid" ? invoice.id : undefined,
+                  );
               }
               break;
             }
@@ -275,15 +315,18 @@ async function upsertSubscription(
   stripe: Stripe,
   sub: Stripe.Subscription,
   paymentLinkId?: string | null,
+  observedAt = new Date().toISOString(),
+  paidInvoiceId?: string,
 ) {
   let email: string | null = null;
   let customerName: string | null = null;
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const existingByStripe = await supabaseAdmin
     .from("subscriptions")
-    .select("user_id,email,tier,status,is_founding,is_comped")
+    .select("user_id,email,tier,status,is_founding,is_comped,metadata")
     .eq("stripe_subscription_id", sub.id)
     .maybeSingle();
+  if (existingByStripe.error) throw new Error(existingByStripe.error.message);
   try {
     const customer = await stripe.customers.retrieve(customerId);
     if (!("deleted" in customer) || !customer.deleted) {
@@ -300,17 +343,24 @@ async function upsertSubscription(
     throw new Error(`Stripe subscription has no resolvable email: ${sub.id}`);
   }
 
-  const normalizedEmail = (existingByStripe.data?.email ?? email).toLowerCase();
-  const priceId = sub.items.data[0]?.price?.id ?? null;
-  const rawProduct = sub.items.data[0]?.price?.product;
+  const normalizedEmail = (existingByStripe.data?.email ?? email).trim().toLowerCase();
+  const primaryItem =
+    sub.items.data.find(
+      (item) =>
+        hubTierForPurchase({
+          priceId: item.price.id,
+          productId: stripeRefId(item.price.product),
+        }) === "circle",
+    ) ?? sub.items.data[0];
+  const priceId = primaryItem?.price?.id ?? null;
+  const rawProduct = primaryItem?.price?.product;
   const productId =
     typeof rawProduct === "string"
       ? rawProduct
       : rawProduct && typeof rawProduct === "object" && "id" in rawProduct
         ? String((rawProduct as { id: string }).id)
         : null;
-  const cpe = (sub as Stripe.Subscription & { current_period_end?: number }).current_period_end;
-  const currentPeriodEnd = cpe ? new Date(cpe * 1000).toISOString() : null;
+  const currentPeriodEnd = subscriptionPeriodEnd(sub);
   const metadata = (sub.metadata ?? {}) as Record<string, string>;
   const purchaseIds = {
     priceId,
@@ -321,7 +371,19 @@ async function upsertSubscription(
   };
   const tier = hubTierForPurchase(purchaseIds);
   const resendSegment = resendSegmentForPurchase(purchaseIds);
-  if (!tier && !resendSegment) return;
+  if (!tier && !resendSegment) {
+    if (existingByStripe.data?.tier === "circle" || existingByStripe.data?.tier === "hardcore") {
+      throw new Error("Existing Circle subscription has an unrecognized product; review required");
+    }
+    return;
+  }
+
+  if (
+    tier !== "circle" &&
+    (existingByStripe.data?.tier === "circle" || existingByStripe.data?.tier === "hardcore")
+  ) {
+    throw new Error("Circle product changed; explicit entitlement review required");
+  }
 
   const metaFirst = (metadata.first_name ?? "").trim() || null;
   const fromCustomer = splitPersonName(customerName);
@@ -342,17 +404,17 @@ async function upsertSubscription(
         metaProduct: metadata.product,
         metaKind: metadata.kind,
         stripeSubscriptionId: sub.id,
-
       });
     }
     return;
   }
 
-  const { data: profile } = await supabaseAdmin
+  const { data: profile, error: profileError } = await supabaseAdmin
     .from("profiles")
     .select("id")
-    .ilike("email", normalizedEmail)
+    .eq("email", normalizedEmail)
     .maybeSingle();
+  if (profileError) throw new Error(`Ambiguous membership identity: ${profileError.message}`);
 
   const row = {
     user_id: profile?.id ?? existingByStripe.data?.user_id ?? null,
@@ -361,26 +423,74 @@ async function upsertSubscription(
     stripe_subscription_id: sub.id,
     price_id: priceId,
     product_id: productId,
-    status: sub.status === "past_due" && existingByStripe.data?.status === "active" ? "active" : sub.status,
+    status: sub.status,
     cancel_at_period_end: sub.cancel_at_period_end ?? false,
     current_period_end: currentPeriodEnd,
     metadata: {
+      ...((existingByStripe.data?.metadata ?? {}) as Record<string, unknown>),
       ...metadata,
       stripe_customer_email: email.toLowerCase(),
       product: productLabelForTier(tier),
       ...(paymentLinkId ? { payment_link: paymentLinkId } : {}),
     },
-    tier: tier === "aos_only" && existingByStripe.data?.tier === "circle" ? "circle" : tier,
+    tier,
     updated_at: new Date().toISOString(),
   };
 
-  const { error: upsertErr } = await supabaseAdmin
-    .from("subscriptions")
-    .upsert(row, { onConflict: "stripe_subscription_id" });
-
-  if (upsertErr) {
-    console.error("Failed to upsert subscription", upsertErr);
-    throw new Error(upsertErr.message);
+  let circleEligible = false;
+  if (tier === "circle") {
+    const customerEmailChanged = email.trim().toLowerCase() !== normalizedEmail;
+    const identityConflict = !!(
+      profile?.id &&
+      existingByStripe.data?.user_id &&
+      profile.id !== existingByStripe.data.user_id
+    );
+    const invoiceId = stripeRefId(sub.latest_invoice);
+    let paidThrough: string | null = null;
+    let paymentPending = false;
+    // A late invoice.paid can arrive after the next invoice was opened. Verify
+    // both references so the paid event cannot be lost behind latest_invoice.
+    const invoiceIds = [...new Set([invoiceId, paidInvoiceId].filter((id): id is string => !!id))];
+    for (const candidateId of invoiceIds) {
+      const invoice = await stripe.invoices.retrieve(candidateId);
+      if (candidateId === invoiceId)
+        paymentPending = invoice.status !== "paid" && sub.status === "active";
+      const lines = await stripe.invoices
+        .listLineItems(candidateId, { limit: 100 })
+        .autoPagingToArray({ limit: 1000 });
+      const candidatePaidThrough = paidThroughFromInvoice(
+        { ...invoice, lines: { data: lines, has_more: false } },
+        sub.id,
+        priceId ? [priceId] : [],
+      );
+      if (candidatePaidThrough && (!paidThrough || candidatePaidThrough > paidThrough))
+        paidThrough = candidatePaidThrough;
+    }
+    const reviewReason =
+      identityConflict || customerEmailChanged
+        ? "stripe_identity_mismatch"
+        : paymentPending
+          ? "renewal_payment_pending"
+          : null;
+    const { data: applied, error } = await membershipDb(supabaseAdmin).rpc(
+      "apply_circle_subscription_snapshot",
+      {
+        _row: row,
+        _paid_through: paidThrough,
+        _observed_at: observedAt,
+        _review_reason: reviewReason,
+      },
+    );
+    if (error) throw new Error(error.message);
+    if (!applied) return; // Newer refresh already owns onboarding/claims/outbox.
+    circleEligible =
+      (await circleDecision(supabaseAdmin, { userId: row.user_id, email: normalizedEmail }))
+        .state === "eligible";
+  } else {
+    const { error } = await supabaseAdmin
+      .from("subscriptions")
+      .upsert(row, { onConflict: "stripe_subscription_id" });
+    if (error) throw new Error(error.message);
   }
 
   if (!profile?.id) {
@@ -413,7 +523,7 @@ async function upsertSubscription(
   // after the hub mailer actually sends (process-queue). If email_send_log
   // already has a sent row for this subscription, backfill the stamp and skip
   // — that is the Dalton / Miragliotta double-send recovery path.
-  if (tier === "circle" && (sub.status === "active" || sub.status === "trialing")) {
+  if (tier === "circle" && circleEligible && paidActive) {
     try {
       const idempotencyKey = circleWelcomeIdempotencyKey(sub.id);
       const { data: welcomeRow } = await supabaseAdmin
@@ -458,6 +568,15 @@ async function upsertSubscription(
     }
   }
 
+  if (tier === "circle") {
+    const outcome = await drainCircleAudienceSync(supabaseAdmin, {
+      apiKey: process.env.RESEND_API_KEY ?? "",
+      email: normalizedEmail,
+    });
+    if (outcome.failed)
+      throw new Error(`Circle audience sync failed (${outcome.failed}); durable retry required`);
+  }
+
   if (resendSegment && paidActive) {
     await syncResendForPaidPurchase({
       email: normalizedEmail,
@@ -469,14 +588,17 @@ async function upsertSubscription(
       metaProduct: metadata.product,
       metaKind: metadata.kind,
       stripeSubscriptionId: sub.id,
-
     });
   }
 }
 
 // One-time purchase path (book, intensive). Mirrors upsertSubscription so the
 // tier/claim resolver works the same way for recurring and one-time products.
-async function upsertOneTimePurchase(supabaseAdmin: SupabaseAdminClient, stripe: Stripe, session: Stripe.Checkout.Session) {
+async function upsertOneTimePurchase(
+  supabaseAdmin: SupabaseAdminClient,
+  stripe: Stripe,
+  session: Stripe.Checkout.Session,
+) {
   let email: string | null = session.customer_details?.email ?? session.customer_email ?? null;
   const customerId =
     typeof session.customer === "string" ? session.customer : (session.customer?.id ?? null);
@@ -500,7 +622,9 @@ async function upsertOneTimePurchase(supabaseAdmin: SupabaseAdminClient, stripe:
 
   const normalizedEmail = email.toLowerCase();
   const metadata = (session.metadata ?? {}) as Record<string, string>;
-  const fromCustomer = splitPersonName(session.customer_details?.name ?? metadata.first_name ?? null);
+  const fromCustomer = splitPersonName(
+    session.customer_details?.name ?? metadata.first_name ?? null,
+  );
   const firstName = (metadata.first_name ?? "").trim() || fromCustomer.firstName;
   const lastName = (metadata.last_name ?? "").trim() || fromCustomer.lastName;
   const company = (metadata.company ?? "").trim() || null;
@@ -529,12 +653,13 @@ async function upsertOneTimePurchase(supabaseAdmin: SupabaseAdminClient, stripe:
         },
       });
     } else {
-      console.warn("Call pack purchase has no matching profile yet", { email: normalizedEmail, session: session.id });
+      console.warn("Call pack purchase has no matching profile yet", {
+        email: normalizedEmail,
+        session: session.id,
+      });
     }
     return;
   }
-
-
 
   // Resolve price from line items.
   let priceId: string | null = null;
@@ -563,6 +688,8 @@ async function upsertOneTimePurchase(supabaseAdmin: SupabaseAdminClient, stripe:
   };
   const tier = hubTierForPurchase(purchaseIds);
   const resendSegment = resendSegmentForPurchase(purchaseIds);
+  if (tier === "circle" || resendSegment === "circle")
+    throw new Error("Circle requires a recurring subscription");
 
   if (!tier) {
     if (resendSegment) {
@@ -702,7 +829,11 @@ function addonKindForPrice(priceId: string | null): "seat" | "workspace" | null 
   return null;
 }
 
-async function upsertAosAddon(supabaseAdmin: SupabaseAdminClient, stripe: Stripe, sub: Stripe.Subscription) {
+async function upsertAosAddon(
+  supabaseAdmin: SupabaseAdminClient,
+  stripe: Stripe,
+  sub: Stripe.Subscription,
+) {
   let email: string | null = null;
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   try {
@@ -732,8 +863,7 @@ async function upsertAosAddon(supabaseAdmin: SupabaseAdminClient, stripe: Stripe
     return;
   }
   const quantity = item?.quantity ?? 1;
-  const cpe = (sub as Stripe.Subscription & { current_period_end?: number }).current_period_end;
-  const currentPeriodEnd = cpe ? new Date(cpe * 1000).toISOString() : null;
+  const currentPeriodEnd = subscriptionPeriodEnd(sub);
   const metadata = (sub.metadata ?? {}) as Record<string, string>;
 
   const { data: profile } = await supabaseAdmin

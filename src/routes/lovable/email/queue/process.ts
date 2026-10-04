@@ -1,6 +1,7 @@
 import { sendLovableEmail } from '@lovable.dev/email-js'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { createFileRoute } from '@tanstack/react-router'
+import { circleAnnouncementAllowed, queuedAnnouncementNeedsCircle } from '@/lib/membership/announcement-guard.server'
 import { MEMBER_REPLY_TO } from '@/lib/email/reply-to'
 
 const MAX_RETRIES = 5
@@ -222,6 +223,15 @@ export const Route = createFileRoute("/lovable/email/queue/process")({
             }
 
             try {
+              if (await queuedAnnouncementNeedsCircle(supabase, payload)) {
+                const permission = await circleAnnouncementAllowed(supabase, String(payload.to), {
+                  apiKey: process.env.RESEND_API_KEY ?? '',
+                })
+                if (!permission.allowed) {
+                  await moveToDlq(supabase, queue, msg, `Circle announcement withheld: ${permission.reason}`)
+                  continue
+                }
+              }
               await sendLovableEmail(
                 {
                   run_id: payload.run_id,

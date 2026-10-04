@@ -77,8 +77,10 @@ import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/e
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api/public/stripe/webhook'
+import { Route as ApiPublicResendInboundRouteImport } from './routes/api/public/resend/inbound'
 import { Route as ApiPublicResendCaptureRouteImport } from './routes/api/public/resend/capture'
 import { Route as ApiPublicOverwatchTierLookupRouteImport } from './routes/api/public/overwatch/tier-lookup'
+import { Route as ApiPublicCircleReconcileRouteImport } from './routes/api/public/circle/reconcile'
 import { Route as ApiPublicAosTierLookupRouteImport } from './routes/api/public/aos/tier-lookup'
 
 const WorkWithMarshallRoute = WorkWithMarshallRouteImport.update({
@@ -424,6 +426,11 @@ const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
   path: '/api/public/stripe/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicResendInboundRoute = ApiPublicResendInboundRouteImport.update({
+  id: '/api/public/resend/inbound',
+  path: '/api/public/resend/inbound',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicResendCaptureRoute = ApiPublicResendCaptureRouteImport.update({
   id: '/api/public/resend/capture',
   path: '/api/public/resend/capture',
@@ -433,6 +440,12 @@ const ApiPublicOverwatchTierLookupRoute =
   ApiPublicOverwatchTierLookupRouteImport.update({
     id: '/api/public/overwatch/tier-lookup',
     path: '/api/public/overwatch/tier-lookup',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicCircleReconcileRoute =
+  ApiPublicCircleReconcileRouteImport.update({
+    id: '/api/public/circle/reconcile',
+    path: '/api/public/circle/reconcile',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicAosTierLookupRoute = ApiPublicAosTierLookupRouteImport.update({
@@ -505,8 +518,10 @@ export interface FileRoutesByFullPath {
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
+  '/api/public/circle/reconcile': typeof ApiPublicCircleReconcileRoute
   '/api/public/overwatch/tier-lookup': typeof ApiPublicOverwatchTierLookupRoute
   '/api/public/resend/capture': typeof ApiPublicResendCaptureRoute
+  '/api/public/resend/inbound': typeof ApiPublicResendInboundRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -578,8 +593,10 @@ export interface FileRoutesByTo {
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
+  '/api/public/circle/reconcile': typeof ApiPublicCircleReconcileRoute
   '/api/public/overwatch/tier-lookup': typeof ApiPublicOverwatchTierLookupRoute
   '/api/public/resend/capture': typeof ApiPublicResendCaptureRoute
+  '/api/public/resend/inbound': typeof ApiPublicResendInboundRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -652,8 +669,10 @@ export interface FileRoutesById {
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
+  '/api/public/circle/reconcile': typeof ApiPublicCircleReconcileRoute
   '/api/public/overwatch/tier-lookup': typeof ApiPublicOverwatchTierLookupRoute
   '/api/public/resend/capture': typeof ApiPublicResendCaptureRoute
+  '/api/public/resend/inbound': typeof ApiPublicResendInboundRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -727,8 +746,10 @@ export interface FileRouteTypes {
     | '/lovable/email/suppression'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
+    | '/api/public/circle/reconcile'
     | '/api/public/overwatch/tier-lookup'
     | '/api/public/resend/capture'
+    | '/api/public/resend/inbound'
     | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -800,8 +821,10 @@ export interface FileRouteTypes {
     | '/lovable/email/suppression'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
+    | '/api/public/circle/reconcile'
     | '/api/public/overwatch/tier-lookup'
     | '/api/public/resend/capture'
+    | '/api/public/resend/inbound'
     | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -873,8 +896,10 @@ export interface FileRouteTypes {
     | '/lovable/email/suppression'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
+    | '/api/public/circle/reconcile'
     | '/api/public/overwatch/tier-lookup'
     | '/api/public/resend/capture'
+    | '/api/public/resend/inbound'
     | '/api/public/stripe/webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -942,8 +967,10 @@ export interface RootRouteChildren {
   ApiPublicAosFpRoute: typeof ApiPublicAosFpRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiPublicAosTierLookupRoute: typeof ApiPublicAosTierLookupRoute
+  ApiPublicCircleReconcileRoute: typeof ApiPublicCircleReconcileRoute
   ApiPublicOverwatchTierLookupRoute: typeof ApiPublicOverwatchTierLookupRoute
   ApiPublicResendCaptureRoute: typeof ApiPublicResendCaptureRoute
+  ApiPublicResendInboundRoute: typeof ApiPublicResendInboundRoute
   ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
@@ -1430,6 +1457,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/resend/inbound': {
+      id: '/api/public/resend/inbound'
+      path: '/api/public/resend/inbound'
+      fullPath: '/api/public/resend/inbound'
+      preLoaderRoute: typeof ApiPublicResendInboundRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/resend/capture': {
       id: '/api/public/resend/capture'
       path: '/api/public/resend/capture'
@@ -1442,6 +1476,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/overwatch/tier-lookup'
       fullPath: '/api/public/overwatch/tier-lookup'
       preLoaderRoute: typeof ApiPublicOverwatchTierLookupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/circle/reconcile': {
+      id: '/api/public/circle/reconcile'
+      path: '/api/public/circle/reconcile'
+      fullPath: '/api/public/circle/reconcile'
+      preLoaderRoute: typeof ApiPublicCircleReconcileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/aos/tier-lookup': {
@@ -1541,8 +1582,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAosFpRoute: ApiPublicAosFpRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiPublicAosTierLookupRoute: ApiPublicAosTierLookupRoute,
+  ApiPublicCircleReconcileRoute: ApiPublicCircleReconcileRoute,
   ApiPublicOverwatchTierLookupRoute: ApiPublicOverwatchTierLookupRoute,
   ApiPublicResendCaptureRoute: ApiPublicResendCaptureRoute,
+  ApiPublicResendInboundRoute: ApiPublicResendInboundRoute,
   ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,

@@ -2,11 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { upsertResendCapture } from "@/lib/resend/capture";
 import { captureCorsHeaders } from "@/lib/resend/cors";
-import { CAPTURE_SEGMENTS, DEFAULT_CAPTURE_SEGMENT } from "@/lib/resend/segments";
+import { PUBLIC_CAPTURE_SEGMENTS, DEFAULT_CAPTURE_SEGMENT } from "@/lib/resend/segments";
 
 const CaptureBodySchema = z.object({
   email: z.string().trim().toLowerCase().email().max(255),
-  segment: z.enum(CAPTURE_SEGMENTS).optional(),
+  segment: z.enum(PUBLIC_CAPTURE_SEGMENTS).optional(),
   source: z.string().trim().max(500).optional(),
   source_url: z.string().trim().max(2000).optional(),
   magnet: z.string().trim().max(500).optional(),
