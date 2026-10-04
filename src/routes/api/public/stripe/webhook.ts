@@ -5,8 +5,14 @@ import { drainCircleAudienceSync } from "@/lib/membership/reconcile.server";
 import {
   invoiceSubscriptionId,
   paidThroughFromInvoice,
+  paymentEvidenceReviewReason,
+  recurringInvoicePeriodEnd,
   subscriptionPeriodEnd,
 } from "@/lib/stripe/subscription-evidence";
+import {
+  verifyInvoicePayment,
+  type InvoicePaymentState,
+} from "@/lib/stripe/invoice-payment.server";
 import {
   circleWelcomeIdempotencyKey,
   findCircleWelcomeLog,
@@ -33,6 +39,7 @@ async function getSupabaseAdmin() {
 // Required events: customer.subscription.created, customer.subscription.updated,
 // customer.subscription.deleted, checkout.session.completed, checkout.session.async_payment_succeeded,
 // invoice.paid, invoice.payment_failed, customer.subscription.paused/resumed.
+// Also charge.refunded and charge.dispute.created/updated/closed for payment reversals.
 //
 // Hub tier + Resend segment mapping lives in src/lib/stripe/paid-product-map.ts.
 // Circle live monthly (hardcoded, not env-only):
@@ -287,6 +294,37 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
               }
               break;
             }
+            case "charge.refunded":
+            case "charge.dispute.created":
+            case "charge.dispute.updated":
+            case "charge.dispute.closed": {
+              const object = event.data.object as { id: string; charge?: unknown };
+              const chargeId =
+                event.type === "charge.refunded" ? object.id : stripeRefId(object.charge);
+              if (!chargeId) throw new Error("Payment reversal has no charge reference");
+              const charge = await stripe.charges.retrieve(chargeId);
+              // Acacia's current Charge carries its invoice reference. One-time
+              // charges have none and must not change unrelated product access.
+              const invoiceId = stripeRefId(
+                (charge as Stripe.Charge & { invoice?: unknown }).invoice,
+              );
+              if (!invoiceId) break;
+              const invoice = await stripe.invoices.retrieve(invoiceId);
+              const subscriptionId = invoiceSubscriptionId(invoice);
+              if (!subscriptionId) break;
+              const observedAt = new Date().toISOString();
+              const sub = await stripe.subscriptions.retrieve(subscriptionId);
+              await upsertSubscription(
+                supabaseAdmin,
+                stripe,
+                sub,
+                null,
+                observedAt,
+                invoiceId,
+                true,
+              );
+              break;
+            }
             default:
               break;
           }
@@ -317,6 +355,7 @@ async function upsertSubscription(
   paymentLinkId?: string | null,
   observedAt = new Date().toISOString(),
   paidInvoiceId?: string,
+  circleOnly = false,
 ) {
   let email: string | null = null;
   let customerName: string | null = null;
@@ -371,6 +410,7 @@ async function upsertSubscription(
   };
   const tier = hubTierForPurchase(purchaseIds);
   const resendSegment = resendSegmentForPurchase(purchaseIds);
+  if (circleOnly && tier !== "circle") return;
   if (!tier && !resendSegment) {
     if (existingByStripe.data?.tier === "circle" || existingByStripe.data?.tier === "hardcore") {
       throw new Error("Existing Circle subscription has an unrecognized product; review required");
@@ -438,6 +478,7 @@ async function upsertSubscription(
   };
 
   let circleEligible = false;
+  let circleSourcePaid = false;
   if (tier === "circle") {
     const customerEmailChanged = email.trim().toLowerCase() !== normalizedEmail;
     const identityConflict = !!(
@@ -446,32 +487,67 @@ async function upsertSubscription(
       profile.id !== existingByStripe.data.user_id
     );
     const invoiceId = stripeRefId(sub.latest_invoice);
+    const priorInvoiceId = stripeRefId(
+      (existingByStripe.data?.metadata as Record<string, unknown> | null)?.circle_paid_invoice_id,
+    );
+    const { data: priorEvidence, error: evidenceError } = await membershipDb(supabaseAdmin)
+      .from("circle_subscription_evidence")
+      .select("paid_through")
+      .eq("stripe_subscription_id", sub.id)
+      .maybeSingle();
+    if (evidenceError) throw new Error(evidenceError.message);
     let paidThrough: string | null = null;
+    let verifiedInvoiceId: string | null = null;
     let paymentPending = false;
+    const rejected: { through: string; reason: Exclude<InvoicePaymentState, "settled"> }[] = [];
     // A late invoice.paid can arrive after the next invoice was opened. Verify
     // both references so the paid event cannot be lost behind latest_invoice.
-    const invoiceIds = [...new Set([invoiceId, paidInvoiceId].filter((id): id is string => !!id))];
+    // Persisted provenance is needed when a later open renewal masks a refunded
+    // paid invoice. Never rely on a previously saved future date without proof.
+    const invoiceIds = [
+      ...new Set([invoiceId, paidInvoiceId, priorInvoiceId].filter((id): id is string => !!id)),
+    ];
     for (const candidateId of invoiceIds) {
       const invoice = await stripe.invoices.retrieve(candidateId);
+      if (invoiceSubscriptionId(invoice) !== sub.id)
+        throw new Error("Circle invoice belongs to another subscription");
       if (candidateId === invoiceId)
         paymentPending = invoice.status !== "paid" && sub.status === "active";
       const lines = await stripe.invoices
         .listLineItems(candidateId, { limit: 100 })
         .autoPagingToArray({ limit: 1000 });
+      const periodInvoice = { ...invoice, lines: { data: lines, has_more: false } };
+      const periodEnd = recurringInvoicePeriodEnd(periodInvoice, sub.id, priceId ? [priceId] : []);
+      if (!periodEnd) continue;
+      const paymentState = await verifyInvoicePayment(stripe, invoice, customerId);
       const candidatePaidThrough = paidThroughFromInvoice(
-        { ...invoice, lines: { data: lines, has_more: false } },
+        periodInvoice,
         sub.id,
         priceId ? [priceId] : [],
+        paymentState,
       );
-      if (candidatePaidThrough && (!paidThrough || candidatePaidThrough > paidThrough))
+      if (paymentState !== "settled") rejected.push({ through: periodEnd, reason: paymentState });
+      if (candidatePaidThrough && (!paidThrough || candidatePaidThrough > paidThrough)) {
         paidThrough = candidatePaidThrough;
+        verifiedInvoiceId = candidateId;
+      }
     }
+    const paymentReview = paymentEvidenceReviewReason(
+      priorEvidence?.paid_through ?? null,
+      paidThrough,
+      rejected,
+    );
     const reviewReason =
       identityConflict || customerEmailChanged
         ? "stripe_identity_mismatch"
-        : paymentPending
-          ? "renewal_payment_pending"
-          : null;
+        : (paymentReview ?? (paymentPending ? "renewal_payment_pending" : null));
+    if (verifiedInvoiceId && !paymentReview)
+      Object.assign(row.metadata, { circle_paid_invoice_id: verifiedInvoiceId });
+    else Object.assign(row.metadata, { circle_paid_invoice_id: priorInvoiceId });
+    circleSourcePaid =
+      !!paidThrough &&
+      Date.parse(paidThrough) > Date.now() &&
+      (!reviewReason || reviewReason === "renewal_payment_pending");
     const { data: applied, error } = await membershipDb(supabaseAdmin).rpc(
       "apply_circle_subscription_snapshot",
       {
@@ -523,7 +599,7 @@ async function upsertSubscription(
   // after the hub mailer actually sends (process-queue). If email_send_log
   // already has a sent row for this subscription, backfill the stamp and skip
   // — that is the Dalton / Miragliotta double-send recovery path.
-  if (tier === "circle" && circleEligible && paidActive) {
+  if (tier === "circle" && circleEligible && circleSourcePaid && paidActive) {
     try {
       const idempotencyKey = circleWelcomeIdempotencyKey(sub.id);
       const { data: welcomeRow } = await supabaseAdmin
