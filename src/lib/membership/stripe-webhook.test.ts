@@ -9,6 +9,7 @@ const m = vi.hoisted(() => ({
   from: vi.fn(),
   retrieve: vi.fn(),
   invoice: vi.fn(),
+  charge: vi.fn(),
   lines: vi.fn(),
   customer: vi.fn(),
   drain: vi.fn(),
@@ -16,6 +17,7 @@ const m = vi.hoisted(() => ({
   magic: vi.fn(),
   existing: null as Record<string, unknown> | null,
   profile: null as Record<string, unknown> | null,
+  evidence: null as Record<string, unknown> | null,
   writes: [] as { table: string; row: unknown }[],
 }));
 vi.mock("@tanstack/react-router", () => ({ createFileRoute: () => (config: unknown) => config }));
@@ -24,7 +26,11 @@ vi.mock("stripe", () => ({
     webhooks = { constructEventAsync: async () => m.event };
     subscriptions = { retrieve: m.retrieve };
     customers = { retrieve: m.customer };
-    invoices = { retrieve: m.invoice, listLineItems: () => ({ autoPagingToArray: m.lines }) };
+    invoices = {
+      retrieve: m.invoice,
+      listLineItems: (id: string) => ({ autoPagingToArray: () => m.lines(id) }),
+    };
+    charges = { retrieve: m.charge };
     checkout = {
       sessions: {
         retrieve: async () => {
@@ -68,6 +74,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   m.existing = null;
   m.profile = null;
+  m.evidence = null;
   m.writes = [];
   process.env.STRIPE_SECRET_KEY = "synthetic";
   process.env.STRIPE_WEBHOOK_SECRET = "synthetic";
@@ -93,7 +100,26 @@ beforeEach(() => {
     email: "member@example.test",
     name: "Test Member",
   });
-  m.invoice.mockResolvedValue({ status: "paid", amount_paid: 49700 });
+  m.invoice.mockImplementation(async (id: string) => ({
+    id,
+    customer: "cus_test",
+    subscription: "sub_test",
+    charge: "ch_test",
+    status: "paid",
+    amount_paid: 49700,
+  }));
+  m.charge.mockResolvedValue({
+    id: "ch_test",
+    customer: "cus_test",
+    invoice: "in_test",
+    status: "succeeded",
+    paid: true,
+    captured: true,
+    amount_captured: 49700,
+    amount_refunded: 0,
+    refunded: false,
+    disputed: false,
+  });
   m.lines.mockResolvedValue([
     {
       subscription: "sub_test",
@@ -129,9 +155,11 @@ beforeEach(() => {
         data:
           table === "profiles"
             ? m.profile
-            : fields === "welcome_sent_at"
-              ? { welcome_sent_at: null }
-              : m.existing,
+            : table === "circle_subscription_evidence"
+              ? m.evidence
+              : fields === "welcome_sent_at"
+                ? { welcome_sent_at: null }
+                : m.existing,
       }),
       upsert: async (row: unknown) => {
         m.writes.push({ table, row });
@@ -163,9 +191,15 @@ describe("Stripe lifecycle orchestration with synthetic providers", () => {
     const live = await m.retrieve();
     m.retrieve.mockResolvedValue({ ...live, latest_invoice: "in_pending" });
     m.invoice.mockImplementation(async (id: string) => ({
+      id,
+      customer: "cus_test",
+      subscription: "sub_test",
+      charge: "ch_test",
       status: id === "in_paid" ? "paid" : "open",
       amount_paid: id === "in_paid" ? 49700 : 0,
     }));
+    const charge = await m.charge();
+    m.charge.mockResolvedValue({ ...charge, invoice: "in_paid" });
     expect((await request()).status).toBe(200);
     expect(snapshot()).toMatchObject({
       _paid_through: "2099-01-01T00:00:00.000Z",
@@ -262,5 +296,147 @@ describe("Stripe lifecycle orchestration with synthetic providers", () => {
       _review_reason: "stripe_identity_mismatch",
       _row: { email: "old@example.test" },
     });
+  });
+  it("a refunded invoice with a future paid line cannot restore a canceled member", async () => {
+    const sub = await m.retrieve();
+    const charge = await m.charge();
+    m.retrieve.mockResolvedValue({ ...sub, status: "canceled" });
+    m.charge.mockResolvedValue({ ...charge, refunded: true, amount_refunded: 49700 });
+    m.event = {
+      id: "evt_after_refund",
+      type: "customer.subscription.updated",
+      data: { object: { id: "sub_test" } },
+    };
+    expect((await request()).status).toBe(200);
+    expect(snapshot()).toMatchObject({
+      _row: { status: "canceled" },
+      _paid_through: null,
+      _review_reason: "stripe_payment_fully_refunded",
+    });
+    expect(m.enqueue).not.toHaveBeenCalled();
+  });
+  it("rechecks the saved paid invoice behind an open renewal and retains the refund hold", async () => {
+    const sub = await m.retrieve();
+    const charge = await m.charge();
+    m.retrieve.mockResolvedValue({ ...sub, latest_invoice: "in_pending" });
+    m.existing = {
+      tier: "circle",
+      email: "member@example.test",
+      metadata: { circle_paid_invoice_id: "in_test" },
+    };
+    m.evidence = { paid_through: "2099-01-01T00:00:00Z" };
+    m.invoice.mockImplementation(async (id: string) => ({
+      id,
+      customer: "cus_test",
+      subscription: "sub_test",
+      charge: "ch_test",
+      status: id === "in_pending" ? "open" : "paid",
+      amount_paid: id === "in_pending" ? 0 : 49700,
+    }));
+    m.charge.mockResolvedValue({ ...charge, refunded: true, amount_refunded: 49700 });
+    expect((await request()).status).toBe(200);
+    expect(snapshot()).toMatchObject({
+      _paid_through: null,
+      _review_reason: "stripe_payment_fully_refunded",
+    });
+    expect(snapshot()._row.metadata.circle_paid_invoice_id).toBe("in_test");
+    expect(m.enqueue).not.toHaveBeenCalled();
+  });
+  it("legacy saved future evidence without an invoice reference cannot silently clear its hold", async () => {
+    m.evidence = { paid_through: "2099-01-01T00:00:00Z" };
+    m.invoice.mockResolvedValue({
+      id: "in_test",
+      subscription: "sub_test",
+      status: "open",
+      amount_paid: 0,
+    });
+    expect((await request()).status).toBe(200);
+    expect(snapshot()).toMatchObject({
+      _paid_through: null,
+      _review_reason: "stripe_payment_unverified",
+    });
+  });
+  it("an older refunded event cannot negate a newer independently paid period", async () => {
+    const charge = await m.charge();
+    m.event = {
+      id: "evt_old_paid",
+      type: "invoice.paid",
+      data: { object: { id: "in_old", subscription: "sub_test" } },
+    };
+    m.existing = {
+      tier: "circle",
+      email: "member@example.test",
+      metadata: { circle_paid_invoice_id: "in_old" },
+    };
+    m.evidence = { paid_through: "2098-01-01T00:00:00Z" };
+    m.invoice.mockImplementation(async (id: string) => ({
+      id,
+      subscription: "sub_test",
+      customer: "cus_test",
+      charge: id === "in_old" ? "ch_old" : "ch_test",
+      status: "paid",
+      amount_paid: 49700,
+    }));
+    m.charge.mockImplementation(async (id: string) => ({
+      ...charge,
+      id,
+      invoice: id === "ch_old" ? "in_old" : "in_test",
+      refunded: id === "ch_old",
+      amount_refunded: id === "ch_old" ? 49700 : 0,
+    }));
+    m.lines.mockImplementation(async (id: string) => [
+      {
+        subscription: "sub_test",
+        price: { id: "price_1TVh3TJdDAUSVXbNJRsYFTbp" },
+        period: { start: 1, end: id === "in_old" ? 4039372800 : 4070908800 },
+      },
+    ]);
+    expect((await request()).status).toBe(200);
+    expect(snapshot()).toMatchObject({
+      _paid_through: "2099-01-01T00:00:00.000Z",
+      _review_reason: null,
+    });
+    expect(snapshot()._row.metadata.circle_paid_invoice_id).toBe("in_test");
+  });
+  it.each([
+    "charge.refunded",
+    "charge.dispute.created",
+    "charge.dispute.updated",
+    "charge.dispute.closed",
+  ])("refreshes current source/payment state on %s without replaying welcome", async (type) => {
+    const charge = await m.charge();
+    m.charge.mockResolvedValue({ ...charge, disputed: true });
+    m.event = { id: "evt_reversed", type, data: { object: { id: "ch_test", charge: "ch_test" } } };
+    expect((await request()).status).toBe(200);
+    expect(snapshot()).toMatchObject({
+      _paid_through: null,
+      _review_reason: "stripe_payment_disputed",
+    });
+    expect(m.enqueue).not.toHaveBeenCalled();
+  });
+  it("a reversed one-time charge does not alter product access", async () => {
+    m.charge.mockResolvedValue({ id: "ch_book", invoice: null });
+    m.event = {
+      id: "evt_book_refund",
+      type: "charge.refunded",
+      data: { object: { id: "ch_book" } },
+    };
+    expect((await request()).status).toBe(200);
+    expect(snapshot()).toBeUndefined();
+    expect(m.writes).toHaveLength(0);
+  });
+  it("saves invoice provenance on clean signup and fails visibly before writes if charge lookup fails", async () => {
+    expect((await request()).status).toBe(200);
+    expect(snapshot()._row.metadata.circle_paid_invoice_id).toBe("in_test");
+    vi.clearAllMocks();
+    m.writes = [];
+    m.charge.mockRejectedValueOnce(new Error("Stripe charge unavailable"));
+    expect((await request()).status).toBe(500);
+    expect(snapshot()).toBeUndefined();
+    expect(m.writes).toHaveLength(0);
+    expect(m.rpc).toHaveBeenCalledWith(
+      "finish_stripe_webhook_event",
+      expect.objectContaining({ _status: "failed" }),
+    );
   });
 });

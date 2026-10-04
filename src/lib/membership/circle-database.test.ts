@@ -99,6 +99,63 @@ beforeEach(async () => {
 });
 
 describe("canonical membership in PostgreSQL", () => {
+  it("a refund/dispute hold overrides saved greatest paid-through without restoring canceled access", async () => {
+    const sid = await addSub({ status: "canceled" });
+    await db.query(
+      "insert into circle_legacy_reviews(subscription_id,preserve_access) values($1,false)",
+      [sid],
+    );
+    await evidence();
+    await db.query(
+      `select apply_circle_subscription_snapshot($1,null,now()+interval '1 second','stripe_payment_fully_refunded')`,
+      [
+        {
+          user_id: uid,
+          email: "member@example.test",
+          stripe_subscription_id: "sub_test",
+          status: "canceled",
+          tier: "circle",
+        },
+      ],
+    );
+    expect(await decision()).toMatchObject({ state: "review", hasAccess: false });
+    expect(
+      await value("select paid_through is not null as value from circle_subscription_evidence"),
+    ).toBe(true);
+    await db.query(
+      `select apply_circle_subscription_snapshot($1,null,now()+interval '2 seconds','stripe_payment_unverified')`,
+      [
+        {
+          user_id: uid,
+          email: "member@example.test",
+          stripe_subscription_id: "sub_test",
+          status: "active",
+          tier: "circle",
+        },
+      ],
+    );
+    expect(await decision()).toMatchObject({ state: "review", hasAccess: false });
+  });
+  it("payment reversal review preserves an independent owner grant or paid subscription", async () => {
+    await addSub({ status: "canceled" });
+    await evidence(undefined, future, "stripe_payment_disputed");
+    const manual = await addSub({ stripe_subscription_id: null });
+    await grant(manual);
+    expect(await decision()).toMatchObject({ state: "eligible", hasAccess: true });
+    await grant(manual, false);
+    await addSub({ stripe_subscription_id: "sub_other" });
+    await evidence("sub_other");
+    expect(await decision()).toMatchObject({ state: "eligible", hasAccess: true });
+  });
+  it("payment policy review does not broadly revoke an established unresolved legacy member", async () => {
+    const sid = await addSub();
+    await db.query(
+      "insert into circle_legacy_reviews(subscription_id,preserve_access) values($1,true)",
+      [sid],
+    );
+    await evidence(undefined, future, "stripe_partial_refund_review");
+    expect(await decision()).toMatchObject({ state: "review", hasAccess: true });
+  });
   it("keeps paid signup access and pending paid identities without a profile", async () => {
     await addSub({ user_id: null });
     await evidence();

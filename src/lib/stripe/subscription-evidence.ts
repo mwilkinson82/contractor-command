@@ -1,4 +1,5 @@
 import { stripeRefId } from "./paid-product-map";
+import type { InvoicePaymentState } from "./invoice-payment.server";
 
 type PeriodItem = { current_period_end?: number; price?: { id?: string } };
 export function subscriptionPeriodEnd(sub: {
@@ -32,8 +33,8 @@ type InvoiceLine = {
   period?: { start?: number; end?: number };
   proration?: boolean;
 };
-/** Only settled recurring lines prove paid-through access, never invoice.created or status alone. */
-export function paidThroughFromInvoice(
+/** Line period only; callers must independently verify retained payment. */
+export function recurringInvoicePeriodEnd(
   invoice: {
     status?: string | null;
     amount_paid?: number;
@@ -70,4 +71,35 @@ export function paidThroughFromInvoice(
     .map((line) => line.period?.end)
     .filter((n): n is number => typeof n === "number" && n > 0);
   return ends.length ? new Date(Math.max(...ends) * 1000).toISOString() : null;
+}
+
+/** A paid invoice alone never proves access after a refund/dispute. */
+export function paidThroughFromInvoice(
+  invoice: Parameters<typeof recurringInvoicePeriodEnd>[0],
+  subscriptionId: string,
+  priceIds: string[],
+  paymentState: InvoicePaymentState,
+  now = Date.now(),
+): string | null {
+  return paymentState === "settled"
+    ? recurringInvoicePeriodEnd(invoice, subscriptionId, priceIds, now)
+    : null;
+}
+
+export function paymentEvidenceReviewReason(
+  priorPaidThrough: string | null,
+  verifiedPaidThrough: string | null,
+  rejected: { through: string; reason: Exclude<InvoicePaymentState, "settled"> }[],
+  now = Date.now(),
+): string | null {
+  const verifiedEnd = verifiedPaidThrough ? Date.parse(verifiedPaidThrough) : 0;
+  const unsupported = rejected
+    .filter((item) => Date.parse(item.through) > Math.max(now, verifiedEnd))
+    .sort((a, b) => Date.parse(b.through) - Date.parse(a.through))[0];
+  if (unsupported) return unsupported.reason;
+  // SQL retains greatest(paid_through). Never clear a hold while that stored
+  // future period lacks revalidated invoice/charge evidence, even on an open renewal.
+  if (priorPaidThrough && Date.parse(priorPaidThrough) > Math.max(now, verifiedEnd))
+    return "stripe_payment_unverified";
+  return null;
 }
