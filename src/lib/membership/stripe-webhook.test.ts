@@ -18,6 +18,7 @@ const m = vi.hoisted(() => ({
   existing: null as Record<string, unknown> | null,
   profile: null as Record<string, unknown> | null,
   evidence: null as Record<string, unknown> | null,
+  billingApproval: false as unknown,
   writes: [] as { table: string; row: unknown }[],
 }));
 vi.mock("@tanstack/react-router", () => ({ createFileRoute: () => (config: unknown) => config }));
@@ -75,6 +76,7 @@ beforeEach(() => {
   m.existing = null;
   m.profile = null;
   m.evidence = null;
+  m.billingApproval = false;
   m.writes = [];
   process.env.STRIPE_SECRET_KEY = "synthetic";
   process.env.STRIPE_WEBHOOK_SECRET = "synthetic";
@@ -137,9 +139,11 @@ beforeEach(() => {
         ? "process"
         : name === "apply_circle_subscription_snapshot"
           ? true
-          : name === "get_circle_entitlement"
-            ? { state: "eligible", hasAccess: true, reason: "paid_period" }
-            : null,
+          : name === "circle_billing_identity_approved"
+            ? m.billingApproval
+            : name === "get_circle_entitlement"
+              ? { state: "eligible", hasAccess: true, reason: "paid_period" }
+              : null,
   }));
   m.from.mockImplementation((table: string) => {
     let fields = "";
@@ -170,6 +174,66 @@ beforeEach(() => {
   });
 });
 describe("Stripe lifecycle orchestration with synthetic providers", () => {
+  it("an exact approved billing alias renews the existing Hub identity and saves payment provenance", async () => {
+    m.existing = { id: "source", user_id: "bound-user", email: "hub@example.test", tier: "circle" };
+    m.profile = { id: "bound-user" };
+    m.billingApproval = true;
+    expect((await request()).status).toBe(200);
+    expect(m.rpc).toHaveBeenCalledWith("circle_billing_identity_approved", {
+      _source_id: "source",
+      _stripe_subscription_id: "sub_test",
+      _stripe_customer_id: "cus_test",
+      _hub_user_id: "bound-user",
+      _hub_email: "hub@example.test",
+      _billing_email: "member@example.test",
+    });
+    expect(snapshot()).toMatchObject({
+      _row: {
+        user_id: "bound-user",
+        email: "hub@example.test",
+        metadata: { circle_paid_invoice_id: "in_test" },
+      },
+      _review_reason: null,
+    });
+  });
+  it("a billing approval cannot rebind a source to an unrelated profile", async () => {
+    m.existing = { id: "source", user_id: "bound-user", email: "hub@example.test", tier: "circle" };
+    m.profile = { id: "different-user" };
+    m.billingApproval = true;
+    expect((await request()).status).toBe(200);
+    expect(m.rpc.mock.calls.some(([name]) => name === "circle_billing_identity_approved")).toBe(
+      false,
+    );
+    expect(snapshot()).toMatchObject({
+      _row: { user_id: "bound-user" },
+      _review_reason: "stripe_identity_mismatch",
+    });
+  });
+  it("an approved billing alias cannot override a refunded payment", async () => {
+    m.existing = { id: "source", user_id: "bound-user", email: "hub@example.test", tier: "circle" };
+    m.profile = { id: "bound-user" };
+    m.billingApproval = true;
+    const charge = await m.charge();
+    m.charge.mockResolvedValue({ ...charge, refunded: true, amount_refunded: 49700 });
+    expect((await request()).status).toBe(200);
+    expect(snapshot()).toMatchObject({
+      _paid_through: null,
+      _review_reason: "stripe_payment_fully_refunded",
+    });
+    expect(m.enqueue).not.toHaveBeenCalled();
+  });
+  it("approval lookup failure remains retryable without changing membership", async () => {
+    m.existing = { id: "source", user_id: "bound-user", email: "hub@example.test", tier: "circle" };
+    const original = m.rpc.getMockImplementation()!;
+    m.rpc.mockImplementation(async (name: string, ...args: unknown[]) =>
+      name === "circle_billing_identity_approved"
+        ? { data: null, error: { message: "approval lookup unavailable" } }
+        : original(name, ...args),
+    );
+    expect((await request()).status).toBe(500);
+    expect(snapshot()).toBeUndefined();
+    expect(m.writes).toHaveLength(0);
+  });
   it("paid renewal refreshes Stripe, writes paid evidence, and preserves welcome and pending-claim signup", async () => {
     expect((await request()).status).toBe(200);
     expect(m.retrieve).toHaveBeenCalledWith("sub_test");

@@ -362,7 +362,7 @@ async function upsertSubscription(
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const existingByStripe = await supabaseAdmin
     .from("subscriptions")
-    .select("user_id,email,tier,status,is_founding,is_comped,metadata")
+    .select("id,user_id,email,tier,status,is_founding,is_comped,metadata")
     .eq("stripe_subscription_id", sub.id)
     .maybeSingle();
   if (existingByStripe.error) throw new Error(existingByStripe.error.message);
@@ -457,7 +457,7 @@ async function upsertSubscription(
   if (profileError) throw new Error(`Ambiguous membership identity: ${profileError.message}`);
 
   const row = {
-    user_id: profile?.id ?? existingByStripe.data?.user_id ?? null,
+    user_id: existingByStripe.data?.user_id ?? profile?.id ?? null,
     email: normalizedEmail,
     stripe_customer_id: customerId,
     stripe_subscription_id: sub.id,
@@ -486,6 +486,22 @@ async function upsertSubscription(
       existingByStripe.data?.user_id &&
       profile.id !== existingByStripe.data.user_id
     );
+    let approvedBillingIdentity = false;
+    if (customerEmailChanged && !identityConflict && existingByStripe.data?.id && row.user_id) {
+      const { data: approved, error: approvalError } = await membershipDb(supabaseAdmin).rpc(
+        "circle_billing_identity_approved",
+        {
+          _source_id: existingByStripe.data.id,
+          _stripe_subscription_id: sub.id,
+          _stripe_customer_id: customerId,
+          _hub_user_id: row.user_id,
+          _hub_email: normalizedEmail,
+          _billing_email: email.trim().toLowerCase(),
+        },
+      );
+      if (approvalError) throw new Error(approvalError.message);
+      approvedBillingIdentity = approved === true;
+    }
     const invoiceId = stripeRefId(sub.latest_invoice);
     const priorInvoiceId = stripeRefId(
       (existingByStripe.data?.metadata as Record<string, unknown> | null)?.circle_paid_invoice_id,
@@ -538,7 +554,7 @@ async function upsertSubscription(
       rejected,
     );
     const reviewReason =
-      identityConflict || customerEmailChanged
+      identityConflict || (customerEmailChanged && !approvedBillingIdentity)
         ? "stripe_identity_mismatch"
         : (paymentReview ?? (paymentPending ? "renewal_payment_pending" : null));
     if (verifiedInvoiceId && !paymentReview)
