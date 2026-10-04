@@ -222,5 +222,9 @@ BEGIN
   END LOOP;
 END;
 $$;
-REVOKE ALL ON ALL FUNCTIONS IN SCHEMA membership_private FROM PUBLIC,anon,authenticated;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA membership_private TO service_role;
+-- Bound permissions to this migration's new helpers. CREATE OR REPLACE above
+-- preserves the ACLs of the existing decision/sweep functions.
+REVOKE ALL ON FUNCTION membership_private.alias_binding_current(public.circle_source_aliases,public.subscriptions,timestamptz),
+  membership_private.audit_circle_source_alias(),membership_private.queue_dependent_circle_aliases() FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION membership_private.alias_binding_current(public.circle_source_aliases,public.subscriptions,timestamptz),
+  membership_private.audit_circle_source_alias(),membership_private.queue_dependent_circle_aliases() TO service_role;

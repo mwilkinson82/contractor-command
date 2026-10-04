@@ -3,6 +3,13 @@ import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 
 let db: PGlite;
+let existingFunctionAcls: unknown[];
+const existingAclQuery = `select p.oid::regprocedure::text as signature,p.proacl::text as acl
+  from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+  where (n.nspname='membership_private' and p.proname not in
+    ('alias_binding_current','audit_circle_source_alias','queue_dependent_circle_aliases'))
+    or p.oid='public.queue_circle_audience_sweep()'::regprocedure
+  order by signature`;
 const uid = "00000000-0000-0000-0000-000000000001";
 const admin = "00000000-0000-0000-0000-000000000099";
 const past = "2020-01-01T00:00:00Z",
@@ -101,6 +108,7 @@ beforeAll(async () => {
       "membership_private.pre_alias_circle_decision",
     ),
   );
+  existingFunctionAcls = (await db.query(existingAclQuery)).rows;
   await db.exec(
     readFileSync("supabase/migrations/20261004201435_circle_source_aliases.sql", "utf8"),
   );
@@ -113,6 +121,22 @@ beforeEach(async () => {
 });
 
 describe("owner-reviewed aliases follow their paid source", () => {
+  it("preserves every pre-existing private function ACL and the replaced public sweep ACL", async () => {
+    expect((await db.query(existingAclQuery)).rows).toEqual(existingFunctionAcls);
+  });
+  it("limits new helper execution to the owner and service role", async () => {
+    for (const signature of [
+      "membership_private.alias_binding_current(circle_source_aliases,subscriptions,timestamp with time zone)",
+      "membership_private.audit_circle_source_alias()",
+      "membership_private.queue_dependent_circle_aliases()",
+    ]) {
+      for (const role of ["anon", "authenticated", "service_role"]) {
+        expect(
+          await value("select has_function_privilege($1,$2,'EXECUTE') as value", [role, signature]),
+        ).toBe(role === "service_role");
+      }
+    }
+  });
   const aliasUser = "00000000-0000-0000-0000-000000000002";
   const aliasEmail = "second@example.test";
   const billingEmail = "billing@example.test";

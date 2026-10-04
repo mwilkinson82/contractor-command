@@ -2,6 +2,8 @@
 
 This follow-up to the payment-evidence correction supports explicitly approved Hub accounts that share one recurring paid Circle source. A mapping is not a comp or independent grant. It cannot outlive the source's verified paid period and cannot bypass a refund, dispute, missing evidence, source supersession, or identity review.
 
+Permission changes are limited to the two new tables, three new private helper signatures (`alias_binding_current`, `audit_circle_source_alias`, `queue_dependent_circle_aliases`), and two new public RPC signatures. There are no schema-wide function grants or revocations. Existing private function ACLs and the replaced public sweep ACL remain unchanged; regression tests compare their exact ACLs before and after applying the migration.
+
 ## Exact scope
 
 The empty migration adds service-only `circle_source_aliases` and append-only `circle_source_alias_history` tables. It changes the canonical source lookup and adds dependent outbox triggers. It contains no member identities or backfill. With no alias rows, existing tier/access/AOS decisions remain unchanged.
