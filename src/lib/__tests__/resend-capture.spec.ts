@@ -14,22 +14,34 @@ describe("never-email / never-import", () => {
   it("skips Pro-Build / ProBuild / Pro Build in email, name, or company", () => {
     expect(shouldSkipResendCapture({ email: "lead@pro-build.com" })).toBe(true);
     expect(shouldSkipResendCapture({ email: "lead@probuild.io" })).toBe(true);
-    expect(shouldSkipResendCapture({ email: "owner@example.com", company: "Pro Build" })).toBe(true);
+    expect(shouldSkipResendCapture({ email: "owner@example.com", company: "Pro Build" })).toBe(
+      true,
+    );
     expect(
-      shouldSkipResendCapture({ email: "owner@example.com", firstName: "Pat", lastName: "ProBuild" }),
+      shouldSkipResendCapture({
+        email: "owner@example.com",
+        firstName: "Pat",
+        lastName: "ProBuild",
+      }),
     ).toBe(true);
   });
 
   it("does not skip other *Builders* companies", () => {
-    expect(shouldSkipResendCapture({ email: "sam@abcbuilders.com", company: "ABC Builders" })).toBe(false);
-    expect(shouldSkipResendCapture({ email: "pat@example.com", company: "Pro Builders" })).toBe(false);
+    expect(shouldSkipResendCapture({ email: "sam@abcbuilders.com", company: "ABC Builders" })).toBe(
+      false,
+    );
+    expect(shouldSkipResendCapture({ email: "pat@example.com", company: "Pro Builders" })).toBe(
+      false,
+    );
     expect(shouldSkipResendCapture({ email: "miragliotta310@gmail.com" })).toBe(false);
   });
 });
 
 describe("marketing CORS origins", () => {
   it("allows the Vale / ALP marketing hosts and localhost preview", () => {
-    expect(allowedCorsOrigin("https://marshallwilkinson.com")).toBe("https://marshallwilkinson.com");
+    expect(allowedCorsOrigin("https://marshallwilkinson.com")).toBe(
+      "https://marshallwilkinson.com",
+    );
     expect(allowedCorsOrigin("https://marshallinbio.com")).toBe("https://marshallinbio.com");
     expect(allowedCorsOrigin("https://www.altitudelogicpressure.com")).toBe(
       "https://www.altitudelogicpressure.com",
@@ -110,14 +122,14 @@ describe("upsertResendCapture", () => {
     });
   });
 
-  it("updates an existing contact and adds them to the Circle segment", async () => {
+  it("updates an existing contact and adds them to the handbook segment", async () => {
     const calls: Array<{ url: string; method: string }> = [];
     const result = await upsertResendCapture(
       {
         email: "miragliotta310@gmail.com",
-        segment: "circle",
+        segment: "handbook",
         source: "stripe",
-        magnet: "circle",
+        magnet: "handbook",
       },
       {
         apiKey: "re_test",
@@ -125,7 +137,9 @@ describe("upsertResendCapture", () => {
           const method = init?.method ?? "GET";
           calls.push({ url: String(url), method });
           if (method === "POST" && String(url).endsWith("/contacts")) {
-            return new Response(JSON.stringify({ message: "Contact already exists" }), { status: 409 });
+            return new Response(JSON.stringify({ message: "Contact already exists" }), {
+              status: 409,
+            });
           }
           if (method === "PATCH") {
             return new Response(JSON.stringify({ id: "contact_existing" }), { status: 200 });
@@ -138,10 +152,10 @@ describe("upsertResendCapture", () => {
       },
     );
 
-    expect(result).toEqual({ ok: true, contactId: "contact_existing", segment: "circle" });
+    expect(result).toEqual({ ok: true, contactId: "contact_existing", segment: "handbook" });
     expect(calls.map((c) => c.method)).toEqual(["POST", "PATCH", "POST"]);
     expect(calls[2]?.url).toBe(
-      `https://api.resend.com/contacts/contact_existing/segments/${RESEND_SEGMENT_IDS.circle}`,
+      `https://api.resend.com/contacts/contact_existing/segments/${RESEND_SEGMENT_IDS.handbook}`,
     );
   });
 });

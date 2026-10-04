@@ -8,7 +8,10 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { TEMPLATES } from "@/lib/email-templates/registry";
 import { MEMBER_REPLY_TO } from "@/lib/email/reply-to";
 import { loadMemberControlRowsForAdmin } from "@/lib/control-admin.functions";
-import { isCircleBaselineRecipient, isCircleMemberTier } from "@/lib/announcement-audience";
+
+import { circleDecision, loadCircleAudience } from "@/lib/membership/circle.server";
+import { circleAnnouncementAllowed } from "@/lib/membership/announcement-guard.server";
+import { shouldSkipResendCapture } from "@/lib/resend/never-email";
 
 // Must match SENDER_DOMAIN / FROM_DOMAIN in
 // src/routes/lovable/email/transactional/send.ts
@@ -43,7 +46,12 @@ function generateToken(): string {
 }
 
 type Audience =
-  "active" | "all_with_login" | "circle" | "circle_inactive" | "control_baseline" | "test";
+  | "active"
+  | "all_with_login"
+  | "circle"
+  | "circle_inactive"
+  | "control_baseline"
+  | "test";
 
 interface Recipient {
   email: string;
@@ -78,100 +86,50 @@ async function loadRecipients(
     if (!testEmail) throw new Error("testEmail required");
     return [{ email: testEmail, firstName: null }];
   }
-
-  if (audience === "control_baseline") {
+  if (audience === "circle" || audience === "circle_inactive" || audience === "control_baseline") {
+    const eligible = await loadCircleAudience(supabaseAdmin);
+    if (audience === "circle_inactive") {
+      const signedIn = await loadSignedInEmails();
+      return eligible.filter((r) => !signedIn.has(r.email));
+    }
+    if (audience === "circle") return eligible;
     if (!adminUserId) throw new Error("adminUserId required");
     const rows = await loadMemberControlRowsForAdmin(adminUserId);
-    const recipients = new Map<string, Recipient>();
-    for (const row of rows) {
-      if (!isCircleBaselineRecipient(row)) continue;
-      const emailKey = row.email.toLowerCase();
-      recipients.set(emailKey, {
-        email: row.email,
-        firstName: row.fullName?.trim().split(/\s+/)[0] || null,
-      });
-    }
-    return [...recipients.values()];
+    const needsBaseline = new Set(
+      rows.filter((r) => r.baselineState !== "current").map((r) => r.email.toLowerCase()),
+    );
+    return eligible.filter((r) => needsBaseline.has(r.email));
   }
-
-  // Pull profiles + subscriptions; keep anyone with a portal account (profile),
-  // plus subscription rows without a profile yet (paid but never logged in).
-  const [{ data: profiles }, { data: subs }, { data: roles }] = await Promise.all([
+  const [profilesResult, subsResult] = await Promise.all([
     supabaseAdmin.from("profiles").select("id,email,full_name"),
     supabaseAdmin.from("subscriptions").select("user_id,email,status,is_comped,tier"),
-    supabaseAdmin.from("user_roles").select("user_id,role"),
   ]);
-
-  const adminIds = new Set((roles ?? []).filter((r) => r.role === "admin").map((r) => r.user_id));
-
-  type SubRow = NonNullable<typeof subs>[number];
-  // A user can have multiple subscription rows (e.g. AOS add-on + Circle).
-  // Track every active sub per identity so the Circle filter sees them all.
-  const subsByUserId = new Map<string, SubRow[]>();
-  const subsByEmail = new Map<string, SubRow[]>();
-  for (const s of subs ?? []) {
-    if (s.user_id) {
-      const list = subsByUserId.get(s.user_id) ?? [];
-      list.push(s);
-      subsByUserId.set(s.user_id, list);
-    }
-    if (s.email) {
-      const key = s.email.toLowerCase();
-      const list = subsByEmail.get(key) ?? [];
-      list.push(s);
-      subsByEmail.set(key, list);
-    }
-  }
-
-  const isActive = (sub: SubRow) =>
-    sub.is_comped || sub.status === "active" || sub.status === "trialing";
-
-  const hasAccess = (subList: SubRow[], userId: string | null) => {
-    if (userId && adminIds.has(userId)) return true;
-    return subList.some(isActive);
-  };
-
-  const hasCircleTier = (subList: SubRow[], userId: string | null) => {
-    if (userId && adminIds.has(userId)) return true;
-    return subList.some((s) => isActive(s) && isCircleMemberTier(s.tier));
-  };
-
-  // For "circle_inactive" we need the set of emails that have logged in at
-  // least once, so we can EXCLUDE them.
-  const signedInEmails = audience === "circle_inactive" ? await loadSignedInEmails() : null;
-
+  if (profilesResult.error || subsResult.error)
+    throw new Error("Could not load announcement audience");
   const out = new Map<string, Recipient>();
-
-  for (const p of profiles ?? []) {
+  for (const p of profilesResult.data ?? []) {
     if (!p.email) continue;
-    const key = p.email.toLowerCase();
-    const subList = [...(subsByUserId.get(p.id) ?? []), ...(subsByEmail.get(key) ?? [])];
-    let include: boolean;
-    if (audience === "all_with_login") include = true;
-    else if (audience === "circle") include = hasCircleTier(subList, p.id);
-    else if (audience === "circle_inactive")
-      include = hasCircleTier(subList, p.id) && !signedInEmails!.has(key);
-    else include = hasAccess(subList, p.id);
-    if (!include) continue;
-    const firstName = (p.full_name ?? "").trim().split(/\s+/)[0] || null;
-    out.set(key, { email: p.email, firstName });
-  }
-
-  // Paid subscriptions that never created a portal account
-  for (const s of subs ?? []) {
-    if (!s.email) continue;
-    const key = s.email.toLowerCase();
-    if (out.has(key)) continue;
-    const subList = subsByEmail.get(key) ?? [s];
-    if (audience === "active" && !hasAccess(subList, s.user_id ?? null)) continue;
-    if (audience === "circle" && !hasCircleTier(subList, s.user_id ?? null)) continue;
-    if (audience === "circle_inactive") {
-      if (!hasCircleTier(subList, s.user_id ?? null)) continue;
-      if (signedInEmails!.has(key)) continue;
+    if (audience === "active") {
+      const { data, error } = await supabaseAdmin.rpc("get_user_tier", { _user_id: p.id });
+      if (error) throw new Error(error.message);
+      if (!data) continue;
     }
-    out.set(key, { email: s.email, firstName: null });
+    out.set(p.email.toLowerCase(), {
+      email: p.email,
+      firstName: (p.full_name ?? "").trim().split(/\s+/)[0] || null,
+    });
   }
-
+  for (const s of subsResult.data ?? []) {
+    const email = s.email.toLowerCase();
+    if (out.has(email)) continue;
+    if (audience === "active") {
+      if (s.tier === "circle" || s.tier === "hardcore") {
+        const decision = await circleDecision(supabaseAdmin, { userId: s.user_id, email });
+        if (decision.state !== "eligible") continue;
+      } else if (!(s.is_comped || s.status === "active" || s.status === "trialing")) continue;
+    }
+    out.set(email, { email, firstName: null });
+  }
   return [...out.values()];
 }
 
@@ -281,10 +239,11 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
 
     // Bulk-load suppression list once.
     const emails = recipients.map((r) => r.email.toLowerCase());
-    const { data: suppressedRows } = await supabaseAdmin
+    const { data: suppressedRows, error: suppressionError } = await supabaseAdmin
       .from("suppressed_emails")
       .select("email")
       .in("email", emails);
+    if (suppressionError) throw new Error(suppressionError.message);
     const suppressedSet = new Set((suppressedRows ?? []).map((s) => s.email.toLowerCase()));
 
     let queued = 0;
@@ -292,10 +251,16 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
     let suppressed = 0;
     let failed = 0;
     const directTestSend = data.audience === "test";
+    const circleRequired = ["circle", "circle_inactive", "control_baseline"].includes(
+      data.audience,
+    );
 
     for (const r of recipients) {
       const emailLower = r.email.toLowerCase();
-      if (suppressedSet.has(emailLower)) {
+      if (
+        suppressedSet.has(emailLower) ||
+        shouldSkipResendCapture({ email: emailLower, firstName: r.firstName })
+      ) {
         suppressed += 1;
         await supabaseAdmin.from("email_send_log").insert({
           message_id: crypto.randomUUID(),
@@ -313,6 +278,15 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
       }
 
       try {
+        if (circleRequired) {
+          const permission = await circleAnnouncementAllowed(supabaseAdmin, r.email, {
+            apiKey: process.env.RESEND_API_KEY ?? "",
+          });
+          if (!permission.allowed) {
+            suppressed++;
+            continue;
+          }
+        }
         // Ensure unsubscribe token (one per email).
         let unsubscribeToken: string;
         const { data: existing } = await supabaseAdmin
@@ -479,6 +453,7 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
             idempotency_key: idempotencyKey,
             unsubscribe_token: unsubscribeToken,
             queued_at: new Date().toISOString(),
+            circle_membership_required: circleRequired,
           },
         });
 

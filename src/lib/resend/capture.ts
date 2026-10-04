@@ -6,7 +6,6 @@ import {
   type CaptureSegment,
 } from "@/lib/resend/segments";
 
-
 const RESEND_API = "https://api.resend.com";
 
 export type CaptureInput = {
@@ -92,9 +91,7 @@ async function addContactToSegment(
     fetchFn,
   );
   if (added.ok || added.status === 409) return;
-  throw new Error(
-    `Resend add-to-segment failed (${added.status}): ${JSON.stringify(added.body)}`,
-  );
+  throw new Error(`Resend add-to-segment failed (${added.status}): ${JSON.stringify(added.body)}`);
 }
 
 export type CaptureOpts = {
@@ -109,9 +106,9 @@ async function performResendUpsert(
   input: CaptureInput,
   opts?: CaptureOpts,
 ): Promise<CaptureResult> {
-
   const email = input.email.trim().toLowerCase();
   const segment = input.segment ?? DEFAULT_CAPTURE_SEGMENT;
+  if (segment === "circle") throw new Error("Circle requires canonical membership reconciliation");
   const segmentId = RESEND_SEGMENT_IDS[segment];
 
   if (
@@ -159,7 +156,9 @@ async function performResendUpsert(
   }
 
   if (created.status !== 409) {
-    throw new Error(`Resend create contact failed (${created.status}): ${JSON.stringify(created.body)}`);
+    throw new Error(
+      `Resend create contact failed (${created.status}): ${JSON.stringify(created.body)}`,
+    );
   }
 
   const updateBody: Record<string, unknown> = {};
@@ -174,12 +173,19 @@ async function performResendUpsert(
     fetchFn,
   );
   if (!updated.ok) {
-    throw new Error(`Resend update contact failed (${updated.status}): ${JSON.stringify(updated.body)}`);
+    throw new Error(
+      `Resend update contact failed (${updated.status}): ${JSON.stringify(updated.body)}`,
+    );
   }
 
   let contactId = contactIdFromBody(updated.body) ?? contactIdFromBody(created.body);
   if (!contactId) {
-    const got = await resendRequest(`/contacts/${encodeURIComponent(email)}`, { method: "GET" }, apiKey, fetchFn);
+    const got = await resendRequest(
+      `/contacts/${encodeURIComponent(email)}`,
+      { method: "GET" },
+      apiKey,
+      fetchFn,
+    );
     contactId = contactIdFromBody(got.body);
   }
   if (!contactId) {
@@ -251,8 +257,11 @@ export async function syncPaidResendContact(
     );
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
-    console.error("Resend paid-contact sync failed", { email: input.email, segment: input.segment, err });
+    console.error("Resend paid-contact sync failed", {
+      email: input.email,
+      segment: input.segment,
+      err,
+    });
     return { ok: false, reason };
   }
 }
-

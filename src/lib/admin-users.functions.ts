@@ -2,6 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { membershipDb } from "@/lib/membership/circle.server";
+import { drainCircleAudienceSync } from "@/lib/membership/reconcile.server";
 import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
 
 async function assertAdmin(userId: string) {
@@ -35,7 +37,6 @@ export type AdminUserRow = {
   } | null;
   isAdmin: boolean;
 };
-
 
 export const listAdminUsers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -83,9 +84,17 @@ export const listAdminUsers = createServerFn({ method: "GET" })
       supabaseAdmin.from("user_roles").select("user_id,role"),
     ]);
 
-    const adminIds = new Set(
-      (roles ?? []).filter((r) => r.role === "admin").map((r) => r.user_id),
+    const { data: grants, error: grantsError } = await membershipDb(supabaseAdmin)
+      .from("circle_owner_grants")
+      .select("source_subscription_id,expires_at,revoked_at");
+    if (grantsError) throw new Error(grantsError.message);
+    const grantedIds = new Set(
+      (grants ?? [])
+        .filter((g) => !g.revoked_at && (!g.expires_at || Date.parse(g.expires_at) > Date.now()))
+        .map((g) => g.source_subscription_id),
     );
+
+    const adminIds = new Set((roles ?? []).filter((r) => r.role === "admin").map((r) => r.user_id));
 
     type SubRow = NonNullable<typeof subs>[number];
     // Pick the "best" sub row when multiple exist for the same user/email.
@@ -94,13 +103,21 @@ export const listAdminUsers = createServerFn({ method: "GET" })
     // row outranks the comped hardcore row and the member shows "Canceled".
     const DEAD = new Set(["canceled", "superseded", "incomplete_expired", "incomplete"]);
     const TIER_RANK: Record<string, number> = {
-      aos_only: 0, book_buyer: 1, intensive: 3,
-      power_hour: 4, sm_school: 4, contractor_school: 4, circle: 4,
+      aos_only: 0,
+      book_buyer: 1,
+      intensive: 3,
+      power_hour: 4,
+      sm_school: 4,
+      contractor_school: 4,
+      circle: 4,
       hardcore: 5,
     };
     function isLive(s: SubRow): boolean {
+      if (grantedIds.has(s.id)) return true;
       if (DEAD.has(s.status ?? "")) return false;
-      return s.is_comped || s.status === "active" || s.status === "trialing" || s.status === "comped";
+      return (
+        s.is_comped || s.status === "active" || s.status === "trialing" || s.status === "comped"
+      );
     }
     function rank(s: SubRow): number {
       // Encode priority as a single number: live (1000) > tier (×10) > stripe signal.
@@ -166,7 +183,7 @@ export const listAdminUsers = createServerFn({ method: "GET" })
           ? {
               id: sub.id,
               status: sub.status,
-              isComped: sub.is_comped,
+              isComped: sub.is_comped || grantedIds.has(sub.id),
               isFounding: sub.is_founding,
               cancelAtPeriodEnd: sub.cancel_at_period_end,
               currentPeriodEnd: sub.current_period_end,
@@ -201,7 +218,7 @@ export const listAdminUsers = createServerFn({ method: "GET" })
           ? {
               id: sub.id,
               status: sub.status,
-              isComped: sub.is_comped,
+              isComped: sub.is_comped || grantedIds.has(sub.id),
               isFounding: sub.is_founding,
               cancelAtPeriodEnd: sub.cancel_at_period_end,
               currentPeriodEnd: sub.current_period_end,
@@ -230,7 +247,7 @@ export const listAdminUsers = createServerFn({ method: "GET" })
         subscription: {
           id: s.id,
           status: s.status,
-          isComped: s.is_comped,
+          isComped: s.is_comped || grantedIds.has(s.id),
           isFounding: s.is_founding,
           cancelAtPeriodEnd: s.cancel_at_period_end,
           currentPeriodEnd: s.current_period_end,
@@ -244,7 +261,6 @@ export const listAdminUsers = createServerFn({ method: "GET" })
     return rows;
   });
 
-
 export const setUserComped = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
@@ -255,62 +271,45 @@ export const setUserComped = createServerFn({ method: "POST" })
         email: z.string().email(),
         fullName: z.string().nullable().optional(),
         isComped: z.boolean(),
+        reason: z.string().trim().min(1).max(1000).default("Explicit admin comp action"),
+        expiresAt: z.string().datetime().nullable().default(null),
       })
       .parse(input),
   )
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
 
-    // Marshall locked comps -> Resend 2026-09-19. Never throws.
-    const syncCompToResend = async () => {
-      if (!data.isComped) return;
-      const { syncPaidResendContact } = await import("@/lib/resend/capture");
-      await syncPaidResendContact(
-        {
-          email: data.email,
-          segment: "circle",
-          source: "admin_comp",
-          magnet: "circle",
-        },
-        { logSource: "backfill" },
-      );
-    };
-
-    if (data.subscriptionId) {
-      const update: { is_comped: boolean; status?: string } = { is_comped: data.isComped };
-      if (data.isComped) update.status = "active";
-      const { error } = await supabaseAdmin
-        .from("subscriptions")
-        .update(update)
-        .eq("id", data.subscriptionId);
-      if (error) throw error;
-      await syncCompToResend();
-      return { ok: true };
-    }
-
-    // No subscription row yet — create a comped one tied to this email/user.
-    if (!data.isComped) {
-      // Nothing to un-comp.
-      return { ok: true };
-    }
-    const { error } = await supabaseAdmin.from("subscriptions").insert({
-      user_id: data.userId,
-      email: data.email,
-      status: "active",
-      is_comped: true,
-      is_founding: false,
-      cancel_at_period_end: false,
-      metadata: { source: "admin_comp" },
+    const { error } = await membershipDb(supabaseAdmin).rpc("set_circle_owner_grant", {
+      _subscription_id: data.subscriptionId,
+      _user_id: data.userId,
+      _email: data.email.trim().toLowerCase(),
+      _actor: context.userId,
+      _enabled: data.isComped,
+      _reason: data.reason,
+      _expires_at: data.expiresAt,
     });
-    if (error) throw error;
-    await syncCompToResend();
-    return { ok: true };
+    if (error) throw new Error(error.message);
+    const sync = await drainCircleAudienceSync(supabaseAdmin, {
+      apiKey: process.env.RESEND_API_KEY ?? "",
+      email: data.email.trim().toLowerCase(),
+    });
+    return {
+      ok: true,
+      audienceSync: sync.failed
+        ? "retry_required"
+        : sync.review
+          ? "review_required"
+          : sync.processed
+            ? "synced"
+            : "pending",
+    };
   });
-
 
 export const sendMemberAccessLink = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ email: z.string().trim().toLowerCase().email().max(255) }).parse(input))
+  .inputValidator((input) =>
+    z.object({ email: z.string().trim().toLowerCase().email().max(255) }).parse(input),
+  )
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
 
@@ -324,7 +323,11 @@ export const sendMemberAccessLink = createServerFn({ method: "POST" })
 
     if (!sub) throw new Error("No active paid or comped membership found for that email.");
 
-    const origin = (process.env.PUBLIC_APP_ORIGIN || process.env.APP_ORIGIN || "https://app.alpcontractorcircle.com").replace(/\/$/, "");
+    const origin = (
+      process.env.PUBLIC_APP_ORIGIN ||
+      process.env.APP_ORIGIN ||
+      "https://app.alpcontractorcircle.com"
+    ).replace(/\/$/, "");
     const existing = await findAuthUserByEmail(data.email);
 
     if (existing) {

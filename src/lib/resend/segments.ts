@@ -22,3 +22,6 @@ export const DEFAULT_CAPTURE_SEGMENT: CaptureSegment = "field_notes";
 export function isCaptureSegment(value: unknown): value is CaptureSegment {
   return typeof value === "string" && (CAPTURE_SEGMENTS as readonly string[]).includes(value);
 }
+
+// Circle membership is writable only by trusted lifecycle reconciliation.
+export const PUBLIC_CAPTURE_SEGMENTS = ["field_notes", "handbook", "intensive", "clinic"] as const;
