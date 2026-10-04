@@ -275,7 +275,15 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
                 const observedAt = new Date().toISOString();
                 const sub = await stripe.subscriptions.retrieve(subscriptionId);
                 if (isAosAddonSubscription(sub)) await upsertAosAddon(supabaseAdmin, stripe, sub);
-                else await upsertSubscription(supabaseAdmin, stripe, sub, null, observedAt);
+                else
+                  await upsertSubscription(
+                    supabaseAdmin,
+                    stripe,
+                    sub,
+                    null,
+                    observedAt,
+                    event.type === "invoice.paid" ? invoice.id : undefined,
+                  );
               }
               break;
             }
@@ -308,6 +316,7 @@ async function upsertSubscription(
   sub: Stripe.Subscription,
   paymentLinkId?: string | null,
   observedAt = new Date().toISOString(),
+  paidInvoiceId?: string,
 ) {
   let email: string | null = null;
   let customerName: string | null = null;
@@ -439,17 +448,23 @@ async function upsertSubscription(
     const invoiceId = stripeRefId(sub.latest_invoice);
     let paidThrough: string | null = null;
     let paymentPending = false;
-    if (invoiceId) {
-      const invoice = await stripe.invoices.retrieve(invoiceId);
-      paymentPending = invoice.status !== "paid" && sub.status === "active";
+    // A late invoice.paid can arrive after the next invoice was opened. Verify
+    // both references so the paid event cannot be lost behind latest_invoice.
+    const invoiceIds = [...new Set([invoiceId, paidInvoiceId].filter((id): id is string => !!id))];
+    for (const candidateId of invoiceIds) {
+      const invoice = await stripe.invoices.retrieve(candidateId);
+      if (candidateId === invoiceId)
+        paymentPending = invoice.status !== "paid" && sub.status === "active";
       const lines = await stripe.invoices
-        .listLineItems(invoiceId, { limit: 100 })
+        .listLineItems(candidateId, { limit: 100 })
         .autoPagingToArray({ limit: 1000 });
-      paidThrough = paidThroughFromInvoice(
+      const candidatePaidThrough = paidThroughFromInvoice(
         { ...invoice, lines: { data: lines, has_more: false } },
         sub.id,
         priceId ? [priceId] : [],
       );
+      if (candidatePaidThrough && (!paidThrough || candidatePaidThrough > paidThrough))
+        paidThrough = candidatePaidThrough;
     }
     const reviewReason =
       identityConflict || customerEmailChanged

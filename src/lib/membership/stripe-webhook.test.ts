@@ -154,6 +154,24 @@ describe("Stripe lifecycle orchestration with synthetic providers", () => {
       expect.objectContaining({ idempotencyKey: "circle-welcome-sub_test" }),
     );
   });
+  it("a paid event still proves its period when the next invoice is already open", async () => {
+    m.event = {
+      id: "evt_paid",
+      type: "invoice.paid",
+      data: { object: { id: "in_paid", subscription: "sub_test" } },
+    };
+    const live = await m.retrieve();
+    m.retrieve.mockResolvedValue({ ...live, latest_invoice: "in_pending" });
+    m.invoice.mockImplementation(async (id: string) => ({
+      status: id === "in_paid" ? "paid" : "open",
+      amount_paid: id === "in_paid" ? 49700 : 0,
+    }));
+    expect((await request()).status).toBe(200);
+    expect(snapshot()).toMatchObject({
+      _paid_through: "2099-01-01T00:00:00.000Z",
+      _review_reason: "renewal_payment_pending",
+    });
+  });
   it("an old canceled event refreshes current state instead of overwriting a renewed membership", async () => {
     m.event = {
       id: "evt_old",
