@@ -4,6 +4,40 @@ import { readFileSync } from "node:fs";
 
 let db: PGlite;
 let existingFunctionAcls: unknown[];
+let hostedAliasPrivilegesBefore: string[];
+let hostedHistoryPrivilegesBefore: string[];
+let hostedOwnerHistoryPrivilegesBefore: string[];
+let unrelatedSecurityBefore: unknown[];
+let dataBeforeCorrection: unknown[];
+let dataAfterCorrection: unknown[];
+const preservedDataQuery = `select 'grant_history' kind,to_jsonb(h) data from circle_owner_grant_history h
+  union all select 'aliases',to_jsonb(a) from circle_source_aliases a
+  union all select 'alias_history',to_jsonb(h) from circle_source_alias_history h
+  union all select 'grants',to_jsonb(g) from circle_owner_grants g
+  union all select 'subscriptions',to_jsonb(s) from subscriptions s
+  union all select 'evidence',to_jsonb(e) from circle_subscription_evidence e
+  union all select 'reviews',to_jsonb(r) from circle_legacy_reviews r
+  union all select 'outbox',to_jsonb(o) from circle_audience_sync o order by kind,data`;
+const unrelatedSecurityQuery = `
+  select 'table' kind,c.oid::regclass::text identity,c.relacl::text acl from pg_class c
+    join pg_namespace n on n.oid=c.relnamespace where n.nspname='public'
+    and c.relname not in ('circle_source_aliases','circle_source_alias_history','circle_owner_grant_history')
+  union all select 'function',p.oid::regprocedure::text,p.proacl::text from pg_proc p
+    join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('public','membership_private')
+  union all select 'default',d.oid::text,d.defaclacl::text from pg_default_acl d
+  union all select 'other-alias-grantee',c.relname||':'||a.grantee::text,a.privilege_type||':'||a.is_grantable::text
+    from pg_class c cross join lateral aclexplode(c.relacl) a
+    where c.oid in ('public.circle_source_aliases'::regclass,'public.circle_source_alias_history'::regclass,'public.circle_owner_grant_history'::regclass)
+    and a.grantee <> (select oid from pg_roles where rolname='service_role')
+  order by kind,identity,acl`;
+async function serviceTablePrivileges(table: string): Promise<string[]> {
+  return (await value(
+    `select array_agg(a.privilege_type order by a.privilege_type) as value
+    from pg_class c cross join lateral aclexplode(c.relacl) a
+    where c.oid=$1::regclass and a.grantee=(select oid from pg_roles where rolname='service_role')`,
+    [table],
+  )) as string[];
+}
 const existingAclQuery = `select p.oid::regprocedure::text as signature,p.proacl::text as acl
   from pg_proc p join pg_namespace n on n.oid=p.pronamespace
   where (n.nspname='membership_private' and p.proname not in
@@ -67,7 +101,7 @@ beforeAll(async () => {
   db = new PGlite();
   // Minimal existing schema, not a reimplementation of the entitlement under test.
   await db.exec(`
-    create role anon; create role authenticated; create role service_role bypassrls;
+    create role anon; create role authenticated; create role service_role bypassrls; create role sandbox_exec bypassrls;
     create type app_tier as enum ('aos_only','book_buyer','power_hour','sm_school','contractor_school','intensive','circle','hardcore');
     create table profiles(id uuid primary key,email text,full_name text);
     create table user_roles(user_id uuid,role text);
@@ -91,6 +125,11 @@ beforeAll(async () => {
   await db.exec(
     existing.slice(0, existing.indexOf("CREATE OR REPLACE FUNCTION public.has_active_access")),
   );
+  // Reproduce hosted defaults before either migration creates its tables.
+  await db.exec(`
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO service_role;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT,INSERT ON TABLES TO sandbox_exec;
+  `);
   await db.exec(
     readFileSync(
       "supabase/migrations/20261004190813_circle_entitlement_reconciliation.sql",
@@ -112,6 +151,18 @@ beforeAll(async () => {
   await db.exec(
     readFileSync("supabase/migrations/20261004201435_circle_source_aliases.sql", "utf8"),
   );
+  hostedAliasPrivilegesBefore = await serviceTablePrivileges("circle_source_aliases");
+  hostedHistoryPrivilegesBefore = await serviceTablePrivileges("circle_source_alias_history");
+  hostedOwnerHistoryPrivilegesBefore = await serviceTablePrivileges("circle_owner_grant_history");
+  await db.exec(`INSERT INTO circle_owner_grants(email,granted_by,reason)
+    SELECT 'synthetic-'||i||'@example.test','${admin}','Synthetic audit preservation fixture'
+    FROM generate_series(1,20) i`);
+  dataBeforeCorrection = (await db.query(preservedDataQuery)).rows;
+  unrelatedSecurityBefore = (await db.query(unrelatedSecurityQuery)).rows;
+  await db.exec(
+    readFileSync("supabase/migrations/20261004210254_circle_alias_table_privileges.sql", "utf8"),
+  );
+  dataAfterCorrection = (await db.query(preservedDataQuery)).rows;
 }, 30000);
 afterAll(async () => db?.close());
 beforeEach(async () => {
@@ -121,6 +172,86 @@ beforeEach(async () => {
 });
 
 describe("owner-reviewed aliases follow their paid source", () => {
+  it("reproduces why a subset GRANT did not remove hosted default-ALL table privileges", () => {
+    for (const privileges of [
+      hostedAliasPrivilegesBefore,
+      hostedHistoryPrivilegesBefore,
+      hostedOwnerHistoryPrivilegesBefore,
+    ]) {
+      expect(privileges).toEqual([
+        "DELETE",
+        "INSERT",
+        "MAINTAIN",
+        "REFERENCES",
+        "SELECT",
+        "TRIGGER",
+        "TRUNCATE",
+        "UPDATE",
+      ]);
+    }
+  });
+  it("leaves only the intended service-role permissions, with no grant options", async () => {
+    expect(await serviceTablePrivileges("circle_source_aliases")).toEqual([
+      "INSERT",
+      "SELECT",
+      "UPDATE",
+    ]);
+    expect(await serviceTablePrivileges("circle_source_alias_history")).toEqual([
+      "INSERT",
+      "SELECT",
+    ]);
+    expect(await serviceTablePrivileges("circle_owner_grant_history")).toEqual([
+      "INSERT",
+      "SELECT",
+    ]);
+    expect(
+      await value(`select count(*)::int as value from pg_class c cross join lateral aclexplode(c.relacl) a
+      where c.oid in ('circle_source_aliases'::regclass,'circle_source_alias_history'::regclass,'circle_owner_grant_history'::regclass)
+      and a.grantee=(select oid from pg_roles where rolname='service_role') and a.is_grantable`),
+    ).toBe(0);
+  });
+  it("preserves all other table/function/default ACLs and owner/platform grants", async () => {
+    expect((await db.query(unrelatedSecurityQuery)).rows).toEqual(unrelatedSecurityBefore);
+    for (const table of [
+      "circle_source_aliases",
+      "circle_source_alias_history",
+      "circle_owner_grant_history",
+    ]) {
+      expect(
+        await value("select has_table_privilege('sandbox_exec',$1,'SELECT,INSERT') as value", [
+          table,
+        ]),
+      ).toBe(true);
+    }
+    expect(
+      await value("select rolbypassrls as value from pg_roles where rolname='sandbox_exec'"),
+    ).toBe(true);
+  });
+  it("preserves the 20 existing synthetic grant-history rows and every source/outbox record", () => {
+    expect(
+      dataBeforeCorrection.filter((row) => (row as { kind: string }).kind === "grant_history"),
+    ).toHaveLength(20);
+    expect(dataAfterCorrection).toEqual(dataBeforeCorrection);
+  });
+  it("is idempotent and leaves all permission boundaries intact", async () => {
+    await db.exec(
+      readFileSync("supabase/migrations/20261004210254_circle_alias_table_privileges.sql", "utf8"),
+    );
+    expect(await serviceTablePrivileges("circle_source_aliases")).toEqual([
+      "INSERT",
+      "SELECT",
+      "UPDATE",
+    ]);
+    expect(await serviceTablePrivileges("circle_source_alias_history")).toEqual([
+      "INSERT",
+      "SELECT",
+    ]);
+    expect(await serviceTablePrivileges("circle_owner_grant_history")).toEqual([
+      "INSERT",
+      "SELECT",
+    ]);
+    expect((await db.query(unrelatedSecurityQuery)).rows).toEqual(unrelatedSecurityBefore);
+  });
   it("preserves every pre-existing private function ACL and the replaced public sweep ACL", async () => {
     expect((await db.query(existingAclQuery)).rows).toEqual(existingFunctionAcls);
   });

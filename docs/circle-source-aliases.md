@@ -4,9 +4,13 @@ This follow-up to the payment-evidence correction supports explicitly approved H
 
 Permission changes are limited to the two new tables, three new private helper signatures (`alias_binding_current`, `audit_circle_source_alias`, `queue_dependent_circle_aliases`), and two new public RPC signatures. There are no schema-wide function grants or revocations. Existing private function ACLs and the replaced public sweep ACL remain unchanged; regression tests compare their exact ACLs before and after applying the migration.
 
+Hosted default table permissions required a forward correction, `20261004210254_circle_alias_table_privileges.sql`. A subset `GRANT` does not erase inherited default grants. The correction first revokes all table privileges from `service_role` on exactly `circle_source_aliases`, `circle_source_alias_history`, and `circle_owner_grant_history`, then grants SELECT/INSERT/UPDATE on aliases and SELECT/INSERT on both history tables. This removes excess DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN privileges, including history UPDATE. It preserves every other role, function, table and default-privilege definition. Tests reproduce hosted default ALL grants before applying the actual migrations, verify exact resulting ACLs, and compare 20 synthetic existing grant-history rows and all source/outbox records before and after. Both previously applied migrations remain unchanged. Hold publication and real mappings until the correction is independently approved/applied through Lovable and its final ACLs verified.
+
+These tables are not service-role-exclusive: the hosted platform role `sandbox_exec` also retains SELECT/INSERT and BYPASSRLS, and the owning `postgres` role retains its privileges. The correction deliberately does not alter either role. Anon/authenticated access remains denied, with RLS enabled. Any change to platform-role access requires separate review.
+
 ## Exact scope
 
-The empty migration adds service-only `circle_source_aliases` and append-only `circle_source_alias_history` tables. It changes the canonical source lookup and adds dependent outbox triggers. It contains no member identities or backfill. With no alias rows, existing tier/access/AOS decisions remain unchanged.
+The empty migration adds backend-restricted `circle_source_aliases` and `circle_source_alias_history` tables. After the forward permission correction, the history tables allow the service and platform roles to read/append, while the owner retains its permissions. The alias migration changes the canonical source lookup and adds dependent outbox triggers. It contains no member identities or backfill. With no alias rows, existing tier/access/AOS decisions remain unchanged.
 
 Each mapping pins the source row, Stripe subscription/customer IDs, original Hub user/email, target Hub user/profile email, and verified billing email. It records the approving admin, reason, optional expiry, and revocation. Changed source bindings or target profile email invalidate the mapping. Members cannot read or write it; the service role cannot delete mappings or update history.
 
@@ -35,4 +39,4 @@ Rollback or removal must preserve mapping/audit evidence and use explicit revoca
 
 ## Tests
 
-Synthetic PostgreSQL tests execute both actual migrations and cover both approved accounts, expiry, cancellation, refunds/disputes, supersession, independent access, exact billing approval, retargeting, revocation history, outbox fan-out and role permissions. Provider tests cover approved renewals, blocked cross-user rebinding, failed approval lookups and per-address suppression. No test mutates real accounts or sends mail.
+Synthetic PostgreSQL tests execute all three actual migrations and cover both approved accounts, expiry, cancellation, refunds/disputes, supersession, independent access, exact billing approval, retargeting, revocation history, outbox fan-out and role permissions. Provider tests cover approved renewals, blocked cross-user rebinding, failed approval lookups and per-address suppression. No test mutates real accounts or sends mail.
