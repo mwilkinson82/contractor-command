@@ -90,12 +90,283 @@ beforeAll(async () => {
       "utf8",
     ),
   );
+  // Retain the actual prior implementation only in this synthetic test database
+  // to compare empty-mapping behavior across existing source states.
+  const priorDecision = await value(
+    "select pg_get_functiondef('membership_private.circle_decision(uuid,text,timestamptz)'::regprocedure) as value",
+  );
+  await db.exec(
+    String(priorDecision).replace(
+      "membership_private.circle_decision",
+      "membership_private.pre_alias_circle_decision",
+    ),
+  );
+  await db.exec(
+    readFileSync("supabase/migrations/20261004201435_circle_source_aliases.sql", "utf8"),
+  );
 }, 30000);
 afterAll(async () => db?.close());
 beforeEach(async () => {
   await db.exec(
     "truncate circle_owner_grants,circle_legacy_reviews,circle_subscription_evidence,circle_audience_sync,subscriptions,stripe_webhook_events cascade",
   );
+});
+
+describe("owner-reviewed aliases follow their paid source", () => {
+  const aliasUser = "00000000-0000-0000-0000-000000000002";
+  const aliasEmail = "second@example.test";
+  const billingEmail = "billing@example.test";
+  async function source() {
+    await db.query(
+      "insert into profiles(id,email,full_name) values($1,$2,'Second Identity') on conflict(id) do update set email=excluded.email",
+      [aliasUser, aliasEmail],
+    );
+    const sid = await addSub();
+    await db.query(
+      "update subscriptions set stripe_customer_id='cus_test',metadata=jsonb_build_object('stripe_customer_email',$2::text) where id=$1",
+      [sid, billingEmail],
+    );
+    await evidence();
+    return sid;
+  }
+  async function map(
+    sid: string,
+    opts: {
+      enabled?: boolean;
+      userId?: string;
+      email?: string;
+      actor?: string;
+      expires?: string;
+      expectedStripeId?: string;
+    } = {},
+  ) {
+    return value(
+      "select set_circle_source_alias($1,$2,'cus_test',$3,'member@example.test',$4,$5,$6,$7,$8,'Verified same member',$9) as value",
+      [
+        sid,
+        opts.expectedStripeId ?? "sub_test",
+        uid,
+        opts.userId ?? aliasUser,
+        opts.email ?? aliasEmail,
+        billingEmail,
+        opts.actor ?? admin,
+        opts.enabled ?? true,
+        opts.expires ?? null,
+      ],
+    );
+  }
+  async function aliasDecision(at?: string) {
+    return value(
+      "select membership_private.circle_decision($1,$2,coalesce($3::timestamptz,now())) as value",
+      [aliasUser, aliasEmail, at ?? null],
+    );
+  }
+  it.each([
+    { status: "active", through: future, legacy: false },
+    { status: "canceled", through: future, legacy: false },
+    { status: "canceled", through: past, legacy: false },
+    { status: "active", through: null, legacy: true },
+    { status: "past_due", through: past, legacy: true },
+    { status: "trialing", through: null, legacy: true },
+  ])(
+    "the empty alias migration preserves the prior decision for %j",
+    async ({ status, through, legacy }) => {
+      const sid = await addSub({ status });
+      if (through) await evidence(undefined, through);
+      if (legacy)
+        await db.query(
+          "insert into circle_legacy_reviews(subscription_id,preserve_access) values($1,true)",
+          [sid],
+        );
+      for (const at of [null, past, future]) {
+        expect(
+          await value(
+            "select membership_private.circle_decision($1,$2,coalesce($3::timestamptz,now())) = membership_private.pre_alias_circle_decision($1,$2,coalesce($3::timestamptz,now())) as value",
+            [uid, "member@example.test", at],
+          ),
+        ).toBe(true);
+      }
+    },
+  );
+  it("source supersession queues aliases and a source owner's separate grant is not inherited", async () => {
+    const sid = await source();
+    await map(sid);
+    await db.query("insert into circle_legacy_reviews values($1,false,now(),'superseded')", [sid]);
+    expect(await aliasDecision()).toMatchObject({ state: "ineligible", hasAccess: false });
+    expect(
+      await value("select revision::int as value from circle_audience_sync where email=$1", [
+        aliasEmail,
+      ]),
+    ).toBe(2);
+    const grantId = await addSub({ stripe_subscription_id: null });
+    await grant(grantId);
+    expect(await decision()).toMatchObject({ state: "eligible", hasAccess: true });
+    expect(await aliasDecision()).toMatchObject({ state: "ineligible", hasAccess: false });
+  });
+  it("requires an exact reviewed mapping, allows both accounts and does not grant arbitrary cross-user matches", async () => {
+    const sid = await source();
+    expect(await aliasDecision()).toMatchObject({ state: "ineligible", hasAccess: false });
+    await map(sid);
+    expect(await decision()).toMatchObject({ state: "eligible", hasAccess: true });
+    expect(await aliasDecision()).toMatchObject({ state: "eligible", hasAccess: true });
+    expect(await value("select get_user_tier($1) as value", [aliasUser])).toBe("circle");
+    expect(
+      await value("select membership_private.circle_decision($1,'member@example.test') as value", [
+        aliasUser,
+      ]),
+    ).toMatchObject({ state: "review", hasAccess: false });
+  });
+  it("inherits paid expiry and scheduled cancellation without extending the paid period", async () => {
+    const sid = await source();
+    await map(sid);
+    await db.query(
+      "update subscriptions set status='canceled',cancel_at_period_end=true where id=$1",
+      [sid],
+    );
+    expect(await aliasDecision()).toMatchObject({ state: "eligible", hasAccess: true });
+    expect(await aliasDecision(future)).toMatchObject({ state: "ineligible", hasAccess: false });
+  });
+  it("refund/dispute review never transfers the source owner's preserved legacy access", async () => {
+    const sid = await source();
+    await map(sid);
+    await db.query(
+      "insert into circle_legacy_reviews(subscription_id,preserve_access) values($1,true)",
+      [sid],
+    );
+    await db.exec(
+      "update circle_subscription_evidence set review_reason='stripe_payment_disputed'",
+    );
+    expect(await decision()).toMatchObject({ state: "review", hasAccess: true });
+    expect(await aliasDecision()).toMatchObject({ state: "review", hasAccess: false });
+  });
+  it("alias revocation is audited/idempotent and cannot erase independent owner grants", async () => {
+    const sid = await source();
+    const aliasId = await map(sid);
+    expect(await map(sid)).toBe(aliasId);
+    expect(await value("select count(*)::int as value from circle_source_alias_history")).toBe(1);
+    await map(sid, { enabled: false });
+    await map(sid, { enabled: false });
+    expect(await aliasDecision()).toMatchObject({ state: "ineligible", hasAccess: false });
+    expect(await value("select count(*)::int as value from circle_source_alias_history")).toBe(2);
+    const grantId = await addSub({
+      user_id: aliasUser,
+      email: aliasEmail,
+      stripe_subscription_id: null,
+    });
+    await db.query("select set_circle_owner_grant($1,$2,$3,$4,true,'Separate owner grant')", [
+      grantId,
+      aliasUser,
+      aliasEmail,
+      admin,
+    ]);
+    expect(await aliasDecision()).toMatchObject({ state: "eligible", hasAccess: true });
+  });
+  it("alias expiry cannot erase an independent paid source", async () => {
+    const sid = await source();
+    await map(sid, { expires: "2098-01-01T00:00:00Z" });
+    expect(await aliasDecision("2098-01-01T00:00:00Z")).toMatchObject({
+      state: "ineligible",
+      hasAccess: false,
+    });
+    await addSub({ user_id: aliasUser, email: aliasEmail, stripe_subscription_id: "sub_other" });
+    await evidence("sub_other");
+    expect(await aliasDecision("2098-01-01T00:00:00Z")).toMatchObject({
+      state: "eligible",
+      hasAccess: true,
+    });
+  });
+  it.each([
+    "update subscriptions set stripe_subscription_id='sub_retargeted'",
+    "update subscriptions set stripe_customer_id='cus_other'",
+    "update subscriptions set user_id=null",
+    "update subscriptions set email='other@example.test'",
+    "update subscriptions set metadata='{}'",
+    "update profiles set email='changed@example.test' where email='second@example.test'",
+  ])("requires renewed review after a binding changes: %s", async (sql) => {
+    const sid = await source();
+    await map(sid);
+    await db.exec(sql);
+    expect(await aliasDecision()).toMatchObject({ state: "ineligible", hasAccess: false });
+  });
+  it("approves only exact primary-account billing aliases, never an arbitrary cross-user rebind", async () => {
+    const sid = await source();
+    await map(sid);
+    const allowed = (billing = billingEmail) =>
+      value(
+        "select circle_billing_identity_approved($1,'sub_test','cus_test',$2,'member@example.test',$3) as value",
+        [sid, uid, billing],
+      );
+    expect(await allowed()).toBe(false);
+    await map(sid, { userId: uid, email: "member@example.test" });
+    expect(await allowed()).toBe(true);
+    expect(await allowed("unexpected@example.test")).toBe(false);
+    await map(sid, { userId: uid, email: "member@example.test", enabled: false });
+    expect(await allowed()).toBe(false);
+  });
+  it("rejects stale source, non-admin actor, and target email/profile mismatch", async () => {
+    const sid = await source();
+    await expect(map(sid, { expectedStripeId: "sub_other" })).rejects.toThrow("Source changed");
+    await expect(map(sid, { actor: uid })).rejects.toThrow("Forbidden");
+    await expect(map(sid, { email: "someoneelse@example.test" })).rejects.toThrow(
+      "Target identity",
+    );
+    expect(await value("select count(*)::int as value from circle_source_aliases")).toBe(0);
+  });
+  it("queues source changes, reversal evidence, profile changes and retired destinations for retry", async () => {
+    const sid = await source();
+    await map(sid);
+    const revision = () =>
+      value("select revision::int as value from circle_audience_sync where email=$1", [aliasEmail]);
+    expect(await revision()).toBe(1);
+    await db.query("update subscriptions set status='canceled' where id=$1", [sid]);
+    expect(await revision()).toBe(2);
+    await db.exec(
+      "update circle_subscription_evidence set review_reason='stripe_payment_fully_refunded'",
+    );
+    expect(await revision()).toBe(3);
+    await db.query("update profiles set email='changed@example.test' where id=$1", [aliasUser]);
+    expect(await revision()).toBe(4);
+    await map(sid, { enabled: false });
+    await db.exec("delete from circle_audience_sync; select queue_circle_audience_sweep()");
+    expect(await revision()).toBe(1);
+  });
+  it("denies members access to alias records, history and approval RPCs", async () => {
+    expect(
+      await value(
+        "select has_table_privilege('service_role','circle_source_aliases','DELETE') as value",
+      ),
+    ).toBe(false);
+    expect(
+      await value(
+        "select has_table_privilege('service_role','circle_source_alias_history','UPDATE') as value",
+      ),
+    ).toBe(false);
+    for (const role of ["anon", "authenticated"]) {
+      expect(
+        await value("select has_table_privilege($1,'circle_source_aliases','SELECT') as value", [
+          role,
+        ]),
+      ).toBe(false);
+      expect(
+        await value(
+          "select has_table_privilege($1,'circle_source_alias_history','INSERT') as value",
+          [role],
+        ),
+      ).toBe(false);
+      expect(
+        await value(
+          "select has_function_privilege($1,'circle_billing_identity_approved(uuid,text,text,uuid,text,text)','EXECUTE') as value",
+          [role],
+        ),
+      ).toBe(false);
+      expect(
+        await value(
+          "select has_function_privilege($1,'set_circle_source_alias(uuid,text,text,uuid,text,uuid,text,text,uuid,boolean,text,timestamptz)','EXECUTE') as value",
+          [role],
+        ),
+      ).toBe(false);
+    }
+  });
 });
 
 describe("canonical membership in PostgreSQL", () => {

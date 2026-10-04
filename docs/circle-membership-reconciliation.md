@@ -32,6 +32,8 @@ Both announcement paths separate membership from marketing permission. Resend op
 
 ## Review surfaces
 
+Explicitly approved multiple-account or billing-address mappings use the separate [source alias review and release plan](circle-source-aliases.md). They follow the paid source's lifecycle and never create an independent comp. The mapping table starts empty; source-specific imports and retirement of duplicate legacy holds require their own exact private review.
+
 Admin-only server functions in `src/lib/membership/admin.functions.ts`:
 
 - `previewCircleReconciliation`: reads the canonical source and complete paginated Resend segment; returns the proposed changes and a SHA-256 plan hash. Resend-only identities are review cases, not inferred cancellations.
