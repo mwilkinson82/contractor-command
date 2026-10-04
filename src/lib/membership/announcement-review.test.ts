@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 type Row = Record<string, unknown>;
 const m = vi.hoisted(() => ({
@@ -50,12 +50,14 @@ vi.mock("@/lib/email-templates/registry", () => ({
 }));
 vi.mock("@react-email/components", () => ({ render: m.render }));
 vi.mock("@lovable.dev/email-js", () => ({ sendLovableEmail: m.send }));
-vi.mock("@/lib/resend/circle-sync", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/resend/circle-sync")>();
-  return {
-    ...actual,
-    circleResendClient: (key: string) => actual.circleResendClient(key, m.fetch, 0),
-  };
+vi.mock("@/lib/resend/circle-sync", () => ({
+  circleResendClient: () => {
+    throw new Error("Unexpected Resend dependency");
+  },
+}));
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 import {
@@ -111,7 +113,8 @@ beforeEach(() => {
   m.failMembership = false;
   m.signedIn = [];
   m.baseline = [];
-  process.env.RESEND_API_KEY = "synthetic-test-only";
+  vi.stubEnv("RESEND_API_KEY", undefined);
+  vi.stubGlobal("fetch", m.fetch);
   m.fetch.mockImplementation(async () => new Response("{}", { status: 404 }));
   m.render.mockResolvedValue("approved-template-content");
   m.from.mockImplementation((table: string) => {
@@ -183,8 +186,7 @@ describe("admin-reviewed Circle announcement exclusions", () => {
     expect(snapshot.suppressions).toEqual([
       { email: muted, userId: muted, reason: "hub_suppressed" },
     ]);
-    expect(m.fetch).toHaveBeenCalledTimes(1);
-    expect(m.fetch.mock.calls[0][1].method).toBe("GET");
+    expect(m.fetch).not.toHaveBeenCalled();
     expect(m.writes).toEqual([]);
     expect(m.queue).toEqual([]);
     expect(m.send).not.toHaveBeenCalled();
@@ -283,20 +285,17 @@ describe("admin-reviewed Circle announcement exclusions", () => {
     await sendMemberAnnouncement({ data: { ...input, circleReview: review(snapshot) } });
     m.states[ready] = decision("ineligible", "paid_period_ended");
     expect(
-      await circleAnnouncementAllowed({ from: m.from, rpc: m.rpc }, String(m.queue[0].to), {
-        apiKey: "synthetic",
-      }),
+      await circleAnnouncementAllowed({ from: m.from, rpc: m.rpc }, String(m.queue[0].to)),
     ).toEqual({ allowed: false, reason: "paid_period_ended" });
   });
-  it.each(["membership", "suppression", "provider", "credential"])(
+  it.each(["membership", "suppression", "tokens", "identity"])(
     "fails the entire preview and send on %s errors",
     async (failure) => {
       const snapshot = await preview();
       if (failure === "membership") m.failMembership = true;
       if (failure === "suppression") m.failTable = "suppressed_emails";
-      if (failure === "provider")
-        m.fetch.mockImplementation(async () => new Response("{}", { status: 500 }));
-      if (failure === "credential") delete process.env.RESEND_API_KEY;
+      if (failure === "tokens") m.failTable = "email_unsubscribe_tokens";
+      if (failure === "identity") m.failTable = "profiles";
       await expect(preview()).rejects.toThrow();
       await expect(
         sendMemberAnnouncement({ data: { ...input, circleReview: review(snapshot) } }),
@@ -305,10 +304,10 @@ describe("admin-reviewed Circle announcement exclusions", () => {
       expect(m.queue).toEqual([]);
     },
   );
-  it("records a failure instead of a suppression if the final guard cannot verify the provider", async () => {
+  it("records a failure instead of a suppression if the final guard cannot verify native suppression", async () => {
     const snapshot = await preview();
     m.render.mockImplementation(async () => {
-      m.fetch.mockRejectedValue(new Error("provider unavailable"));
+      m.failTable = "suppressed_emails";
       return "content";
     });
     expect(
@@ -316,7 +315,7 @@ describe("admin-reviewed Circle announcement exclusions", () => {
     ).toMatchObject({ queued: 0, failed: 1, suppressed: 0 });
     expect(logs().find((l) => l.recipient_email === ready)).toMatchObject({
       status: "failed",
-      error_message: "provider unavailable",
+      error_message: "Cannot verify Circle marketing suppression",
     });
     expect(m.queue).toEqual([]);
   });
@@ -361,24 +360,53 @@ describe("admin-reviewed Circle announcement exclusions", () => {
     m.tables.subscriptions.reverse();
     expect((await preview()).snapshotHash).toBe(snapshot.snapshotHash);
   });
-  it("treats a provider unsubscribe as a suppression without altering membership", async () => {
-    m.fetch.mockImplementation(
-      async () => new Response(JSON.stringify({ id: "contact", unsubscribed: true })),
-    );
+  it("honors a deny-only external unsubscribe import without altering membership", async () => {
+    m.tables.suppressed_emails.push({
+      email: ready,
+      reason: "unsubscribe",
+      metadata: { source: "resend" },
+    });
     const snapshot = await preview();
     expect(snapshot.count).toBe(0);
     expect(snapshot.suppressions).toContainEqual({
       email: ready,
       userId: ready,
-      reason: "resend_unsubscribed",
+      reason: "hub_suppressed",
     });
     expect(m.states[ready].state).toBe("eligible");
     expect(m.writes).toEqual([]);
   });
-  it("rejects a malformed provider response instead of assuming delivery permission", async () => {
-    m.fetch.mockImplementation(async () => new Response(JSON.stringify({ id: "contact" })));
-    await expect(preview()).rejects.toThrow("Cannot verify Resend contact suppression");
-    expect(m.writes).toEqual([]);
+  it("previews and enqueues without a Resend key or a reachable Resend service", async () => {
+    m.fetch.mockRejectedValue(new Error("external provider unavailable"));
+    const snapshot = await preview();
+    expect(
+      await sendMemberAnnouncement({ data: { ...input, circleReview: review(snapshot) } }),
+    ).toMatchObject({ queued: 1, failed: 0 });
+    expect(m.fetch).not.toHaveBeenCalled();
+  });
+  it("suppresses a used native unsubscribe token even without a suppression row", async () => {
+    m.tables.email_unsubscribe_tokens.find((row) => row.email === ready)!.used_at =
+      "2026-10-04T12:00:00Z";
+    const snapshot = await preview();
+    expect(snapshot.count).toBe(0);
+    expect(snapshot.suppressions).toContainEqual({
+      email: ready,
+      userId: ready,
+      reason: "hub_suppressed",
+    });
+    expect(m.states[ready].state).toBe("eligible");
+    expect(m.fetch).not.toHaveBeenCalled();
+  });
+  it("keeps never-email rules independent of paid membership", async () => {
+    m.tables.profiles.find((row) => row.email === ready)!.full_name = "Synthetic Pro-Build";
+    const snapshot = await preview();
+    expect(snapshot.count).toBe(0);
+    expect(snapshot.suppressions).toContainEqual({
+      email: ready,
+      userId: ready,
+      reason: "never_email",
+    });
+    expect(m.states[ready].state).toBe("eligible");
   });
   it("does not enqueue if the final recipient audit fails when there are no exclusions", async () => {
     m.states[held] = decision("ineligible");

@@ -16,11 +16,8 @@ export async function previewCircleAnnouncementAudience(
   db: unknown,
   audience: CircleAnnouncementAudience,
   options: {
-    apiKey: string;
-    fetch?: typeof fetch;
-    paceMs?: number;
     includeRecipient?: (email: string) => boolean;
-  },
+  } = {},
 ) {
   const recipients: { email: string; userId: string | null; firstName: string | null }[] = [];
   const reviewHolds: { email: string; userId: string | null; reason: string }[] = [];
@@ -37,7 +34,7 @@ export async function previewCircleAnnouncementAudience(
     }
     if (decision.state !== "eligible" || options.includeRecipient?.(identity.email) === false)
       continue;
-    const permission = await circleMarketingAllowed(db, identity, options);
+    const permission = await circleMarketingAllowed(db, identity);
     if (!permission.allowed) {
       suppressions.push({
         email: identity.email,

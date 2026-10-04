@@ -224,9 +224,7 @@ export const Route = createFileRoute("/lovable/email/queue/process")({
 
             try {
               if (await queuedAnnouncementNeedsCircle(supabase, payload)) {
-                const permission = await circleAnnouncementAllowed(supabase, String(payload.to), {
-                  apiKey: process.env.RESEND_API_KEY ?? '',
-                })
+                const permission = await circleAnnouncementAllowed(supabase, String(payload.to))
                 if (!permission.allowed) {
                   await moveToDlq(supabase, queue, msg, `Circle announcement withheld: ${permission.reason}`)
                   continue

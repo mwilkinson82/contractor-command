@@ -73,21 +73,13 @@ describe("reconciliation and delivery safety", () => {
       "second@example.test",
     ]);
     tables.suppressed_emails.push({ email: "second@example.test" });
-    const fetch = vi.fn().mockResolvedValue(json({ id: "contact", unsubscribed: false }));
-    expect(
-      await circleAnnouncementAllowed(db, "member@example.test", {
-        apiKey: "synthetic",
-        fetch,
-        paceMs: 0,
-      }),
-    ).toMatchObject({ allowed: true });
-    expect(
-      await circleAnnouncementAllowed(db, "second@example.test", {
-        apiKey: "synthetic",
-        fetch,
-        paceMs: 0,
-      }),
-    ).toMatchObject({ allowed: false, reason: "hub_suppressed" });
+    expect(await circleAnnouncementAllowed(db, "member@example.test")).toMatchObject({
+      allowed: true,
+    });
+    expect(await circleAnnouncementAllowed(db, "second@example.test")).toMatchObject({
+      allowed: false,
+      reason: "hub_suppressed",
+    });
   });
   it("keeps revoked destinations discoverable but uses canonical eligibility for removal", async () => {
     const { db, tables } = fakeDb("ineligible");
@@ -185,28 +177,20 @@ describe("reconciliation and delivery safety", () => {
       expect.objectContaining({ _status: "review" }),
     );
   });
-  it("rechecks expiry at delivery and skips provider access for former members", async () => {
+  it("rechecks expiry at delivery for former members", async () => {
     const { db } = fakeDb("ineligible");
-    const fetch = vi.fn();
-    expect(
-      await circleAnnouncementAllowed(db, "member@example.test", {
-        apiKey: "synthetic",
-        fetch,
-        paceMs: 0,
-      }),
-    ).toEqual({ allowed: false, reason: "expired" });
-    expect(fetch).not.toHaveBeenCalled();
+    expect(await circleAnnouncementAllowed(db, "member@example.test")).toEqual({
+      allowed: false,
+      reason: "expired",
+    });
   });
-  it("a Resend unsubscribe suppresses Lovable announcements without revoking membership", async () => {
-    const { db, rpc } = fakeDb();
-    const fetch = vi.fn().mockResolvedValue(json({ id: "member", unsubscribed: true }));
-    expect(
-      await circleAnnouncementAllowed(db, "member@example.test", {
-        apiKey: "synthetic",
-        fetch,
-        paceMs: 0,
-      }),
-    ).toEqual({ allowed: false, reason: "resend_unsubscribed" });
+  it("a mirrored external unsubscribe suppresses announcements without revoking membership", async () => {
+    const { db, rpc, tables } = fakeDb();
+    tables.suppressed_emails.push({ email: "member@example.test", reason: "unsubscribe" });
+    expect(await circleAnnouncementAllowed(db, "member@example.test")).toEqual({
+      allowed: false,
+      reason: "hub_suppressed",
+    });
     expect(rpc.mock.calls.every(([name]) => name === "get_circle_entitlement")).toBe(true);
   });
   it("does not duplicate recipients when an identity has several sources", async () => {
