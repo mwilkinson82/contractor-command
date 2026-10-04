@@ -8,6 +8,10 @@ import {
   isUniqueViolation,
   markCircleWelcomeSent,
 } from "@/lib/email/circle-welcome-state";
+import {
+  circleAnnouncementAllowed,
+  queuedAnnouncementNeedsCircle,
+} from "@/lib/membership/announcement-guard.server";
 import { MEMBER_REPLY_TO } from "@/lib/email/reply-to";
 
 const MAX_RETRIES = 5;
@@ -508,6 +512,19 @@ async function processCycle({
       }
 
       try {
+        if (await queuedAnnouncementNeedsCircle(supabase, payload)) {
+          const permission = await circleAnnouncementAllowed(supabase, recipientEmail);
+          if (!permission.allowed) {
+            await suppressQueueMessage(
+              supabase,
+              queue,
+              msg,
+              `Circle announcement withheld: ${permission.reason}`,
+            );
+            result.suppressed += 1;
+            continue;
+          }
+        }
         await sendLovableEmail(prepared.sendRequest, { apiKey, sendUrl });
 
         const sentMetadata = emailSendLogMetadata({ idempotencyKey, queue });

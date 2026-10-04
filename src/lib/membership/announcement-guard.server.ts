@@ -1,31 +1,24 @@
 import { circleDecision, loadCircleIdentities, membershipDb } from "./circle.server";
 import type { CircleIdentity } from "./circle.server";
-import { circleResendClient } from "@/lib/resend/circle-sync";
 import { shouldSkipResendCapture } from "@/lib/resend/never-email";
 
 /** Recheck at delivery. Membership and marketing suppression are separate decisions. */
 export async function circleAnnouncementAllowed(
   db: unknown,
   email: string,
-  options: {
-    apiKey: string;
-    fetch?: typeof fetch;
-    paceMs?: number;
-  },
 ): Promise<{ allowed: boolean; reason: string }> {
   const normalized = email.trim().toLowerCase();
   const identity = (await loadCircleIdentities(db)).find((i) => i.email === normalized);
   if (!identity) return { allowed: false, reason: "unmapped_circle_identity" };
   const decision = await circleDecision(db, identity);
   if (decision.state !== "eligible") return { allowed: false, reason: decision.reason };
-  return circleMarketingAllowed(db, identity, options);
+  return circleMarketingAllowed(db, identity);
 }
 
-/** Read-only suppression check, after a separate canonical membership decision. */
+/** Native suppression is authoritative; imported external opt-outs are deny-only rows. */
 export async function circleMarketingAllowed(
   db: unknown,
   identity: CircleIdentity,
-  options: { apiKey: string; fetch?: typeof fetch; paceMs?: number },
 ): Promise<{ allowed: boolean; reason: string }> {
   const normalized = identity.email.trim().toLowerCase();
   if (
@@ -50,15 +43,7 @@ export async function circleMarketingAllowed(
     throw new Error("Cannot verify Circle marketing suppression");
   if (suppression.data?.length || unsubscribe.data?.length)
     return { allowed: false, reason: "hub_suppressed" };
-  const contact = await circleResendClient(options.apiKey, options.fetch, options.paceMs).contact(
-    normalized,
-  );
-  if (contact !== null && typeof contact.unsubscribed !== "boolean")
-    throw new Error("Cannot verify Resend contact suppression");
-  return {
-    allowed: !contact?.unsubscribed,
-    reason: contact?.unsubscribed ? "resend_unsubscribed" : "eligible",
-  };
+  return { allowed: true, reason: "eligible" };
 }
 
 /** Older queue entries predate the marker; resolve their saved audience rather than guessing. */

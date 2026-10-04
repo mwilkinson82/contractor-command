@@ -155,7 +155,6 @@ async function loadReviewedCircleAudience(
     includeRecipient = (email) => needsBaseline.has(email);
   }
   return previewCircleAnnouncementAudience(supabaseAdmin, audience, {
-    apiKey: process.env.RESEND_API_KEY ?? "",
     includeRecipient,
   });
 }
@@ -440,9 +439,7 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
         // Recheck after rendering, immediately before audit + enqueue. The worker
         // independently repeats this guard at delivery to catch later changes.
         if (circleRequired) {
-          const permission = await circleAnnouncementAllowed(supabaseAdmin, r.email, {
-            apiKey: process.env.RESEND_API_KEY ?? "",
-          });
+          const permission = await circleAnnouncementAllowed(supabaseAdmin, r.email);
           if (!permission.allowed) {
             const { error } = await supabaseAdmin.from("email_send_log").insert({
               message_id: messageId,
