@@ -15,6 +15,7 @@ import {
   createAnnouncementMediaUpload,
   sendMemberAnnouncement,
   previewMemberAnnouncementAudience,
+  previewReviewedCircleAnnouncement,
   getLastMemberAnnouncement,
 } from "@/lib/announce.functions";
 import { CONTROL_BASELINE_CAMPAIGN } from "@/lib/control-activation-campaign";
@@ -62,9 +63,11 @@ function AnnouncePage() {
   const [signoff, setSignoff] = useState(initial?.signoff ?? "— Marshall");
   const [audience, setAudience] = useState<Audience>(initial?.audience ?? "all_with_login");
   const [confirmText, setConfirmText] = useState("");
+  const [reviewedAudienceHash, setReviewedAudienceHash] = useState<string | null>(null);
   const [hydratedFromServer, setHydratedFromServer] = useState(!!initial);
 
   const previewFn = useServerFn(previewMemberAnnouncementAudience);
+  const reviewedPreviewFn = useServerFn(previewReviewedCircleAnnouncement);
   const sendFn = useServerFn(sendMemberAnnouncement);
   const lastFn = useServerFn(getLastMemberAnnouncement);
   const createMediaUploadFn = useServerFn(createAnnouncementMediaUpload);
@@ -174,11 +177,29 @@ function AnnouncePage() {
     }
   }, [subject, headline, preheader, body, ctaLabel, ctaUrl, signoff, audience]);
 
-  const { data: audienceCount, isLoading: countLoading } = useQuery({
+  const circleAudience =
+    audience === "circle" || audience === "circle_inactive" || audience === "control_baseline";
+  const generalPreview = useQuery({
     queryKey: ["announce-audience", audience],
     queryFn: () => previewFn({ data: { audience } }),
-    enabled: !!isAdmin,
+    enabled: !!isAdmin && !circleAudience,
   });
+  const circlePreview = useQuery({
+    queryKey: ["announce-reviewed-circle-audience", audience],
+    queryFn: () => {
+      if (!circleAudience) throw new Error("Select a Circle audience");
+      return reviewedPreviewFn({ data: { audience } });
+    },
+    enabled: !!isAdmin && circleAudience,
+    retry: false,
+  });
+  const audienceCount = circleAudience ? circlePreview.data : generalPreview.data;
+  const countLoading = circleAudience ? circlePreview.isFetching : generalPreview.isFetching;
+  const previewError = circleAudience ? circlePreview.error : generalPreview.error;
+  const circleSnapshot = circleAudience ? circlePreview.data : undefined;
+  useEffect(() => {
+    setReviewedAudienceHash(null);
+  }, [audience, previewError]);
 
   const sendMutation = useMutation({
     mutationFn: (vars: { mode: "test" | "all" }) =>
@@ -193,6 +214,15 @@ function AnnouncePage() {
           signoff: signoff || undefined,
           audience: vars.mode === "test" ? "test" : audience,
           testEmail: vars.mode === "test" ? (user?.email ?? undefined) : undefined,
+          circleReview:
+            vars.mode === "all" &&
+            circleSnapshot &&
+            reviewedAudienceHash === circleSnapshot.snapshotHash
+              ? {
+                  snapshotHash: circleSnapshot.snapshotHash,
+                  excludedReviewEmails: circleSnapshot.reviewHolds.map((hold) => hold.email),
+                }
+              : undefined,
         },
       }),
     onSuccess: (res, vars) => {
@@ -209,9 +239,13 @@ function AnnouncePage() {
           `Queued ${res.queued} of ${res.total}. Suppressed: ${res.suppressed}. Failed: ${res.failed}.`,
         );
         setConfirmText("");
+        setReviewedAudienceHash(null);
       }
     },
-    onError: (err: Error) => toast.error(err.message ?? "Send failed"),
+    onError: (err: Error) => {
+      setReviewedAudienceHash(null);
+      toast.error(err.message ?? "Send failed");
+    },
   });
 
   const canSendAll = useMemo(() => confirmText.trim().toUpperCase() === "SEND", [confirmText]);
@@ -393,13 +427,85 @@ function AnnouncePage() {
               </label>
             </div>
             <div className="mt-4 rounded-md bg-muted/40 px-3 py-2 text-[12px]">
-              Will queue to{" "}
-              <span className="font-display text-base">
-                {countLoading ? "…" : (audienceCount?.count ?? 0)}
-              </span>{" "}
-              recipient
-              {audienceCount?.count === 1 ? "" : "s"}.
+              {previewError ? (
+                <p role="alert" className="text-destructive">
+                  Audience verification failed: {previewError.message}. Refresh before queueing.
+                </p>
+              ) : (
+                <>
+                  Will queue to{" "}
+                  <span className="font-display text-base">
+                    {countLoading ? "…" : (audienceCount?.count ?? 0)}
+                  </span>{" "}
+                  recipient
+                  {audienceCount?.count === 1 ? "" : "s"}.
+                </>
+              )}
             </div>
+            {circleAudience && (
+              <div className="mt-3 space-y-3 text-[12px]">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={countLoading || sendMutation.isPending}
+                  onClick={() => {
+                    setReviewedAudienceHash(null);
+                    void circlePreview.refetch();
+                  }}
+                >
+                  Refresh audience review
+                </Button>
+                {circleSnapshot && !previewError && (
+                  <>
+                    <details>
+                      <summary>Verified recipients ({circleSnapshot.recipients.length})</summary>
+                      <ul className="mt-2 max-h-48 overflow-y-auto space-y-1">
+                        {circleSnapshot.recipients.map((recipient) => (
+                          <li key={recipient.email}>{recipient.email}</li>
+                        ))}
+                      </ul>
+                    </details>
+                    <p>
+                      {circleSnapshot.reviewHolds.length} unresolved membership holds excluded.{" "}
+                      {circleSnapshot.suppressions.length} addresses excluded by delivery
+                      preferences.
+                    </p>
+                    <ul className="max-h-48 overflow-y-auto space-y-1">
+                      {[...circleSnapshot.reviewHolds, ...circleSnapshot.suppressions].map(
+                        (excluded) => (
+                          <li key={excluded.email}>
+                            <span className="font-mono">{excluded.email}</span> —{" "}
+                            {excluded.reason.replaceAll("_", " ")}
+                          </li>
+                        ),
+                      )}
+                    </ul>
+                    <label className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        disabled={countLoading || sendMutation.isPending}
+                        checked={reviewedAudienceHash === circleSnapshot.snapshotHash}
+                        onChange={(event) =>
+                          setReviewedAudienceHash(
+                            event.target.checked ? circleSnapshot.snapshotHash : null,
+                          )
+                        }
+                      />
+                      <span>
+                        I reviewed this recipient list and the exact exclusions above. Keep
+                        unresolved membership holds excluded from this announcement.
+                      </span>
+                    </label>
+                    <p className="text-muted-foreground">
+                      This review does not change membership or email preferences. Membership and
+                      suppression are checked again before queueing and delivery.
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="rounded-2xl border border-border bg-card p-5">
@@ -437,8 +543,13 @@ function AnnouncePage() {
               className="mt-3 w-full"
               disabled={
                 sendMutation.isPending ||
+                countLoading ||
+                !!previewError ||
+                (circleAudience &&
+                  (!circleSnapshot || reviewedAudienceHash !== circleSnapshot.snapshotHash)) ||
                 !canSendAll ||
                 !subject ||
+                !headline ||
                 !body ||
                 (audienceCount?.count ?? 0) === 0
               }
