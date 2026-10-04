@@ -217,6 +217,16 @@ describe("canonical membership in PostgreSQL", () => {
     await evidence();
     expect(await decision()).toMatchObject({ state: "review", hasAccess: false });
   });
+  it("a legacy hold cannot transfer access from an already bound identity", async () => {
+    const id = await addSub({ user_id: "00000000-0000-0000-0000-000000000002" });
+    await db.query("insert into circle_legacy_reviews values($1,true,null,null)", [id]);
+    expect(await decision()).toMatchObject({ state: "review", hasAccess: false });
+    expect(
+      await value(
+        "select get_circle_entitlement('00000000-0000-0000-0000-000000000002','member@example.test') as value",
+      ),
+    ).toMatchObject({ state: "review", hasAccess: true });
+  });
   it.each(["power_hour", "sm_school", "contractor_school", "intensive", "book_buyer", "aos_only"])(
     "preserves unrelated %s access without adding a Circle audience member",
     async (tier) => {

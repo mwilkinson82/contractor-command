@@ -90,7 +90,8 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_
   WITH rows AS (
     SELECT s.*, CASE WHEN s.user_id IS NOT NULL AND _user_id IS NOT NULL AND s.user_id <> _user_id
         THEN 'review' ELSE membership_private.subscription_state(s, at_time) END AS decision,
-      coalesce(r.preserve_access AND r.resolved_at IS NULL, false) AS review_access
+      coalesce(r.preserve_access AND r.resolved_at IS NULL
+        AND (s.user_id IS NULL OR _user_id IS NULL OR s.user_id = _user_id), false) AS review_access
     FROM public.subscriptions s LEFT JOIN public.circle_legacy_reviews r ON r.subscription_id = s.id
     WHERE s.tier IN ('circle','hardcore')
       AND public.subscription_matches_identity(s.user_id,s.email,s.metadata,_user_id,_email)
