@@ -1,0 +1,13 @@
+# Review Circle announcement recipients
+
+An unresolved membership hold previously blocked the entire Circle announcement audience. The new admin preview separates verified recipients, unresolved membership holds and marketing suppressions. A hold never becomes an eligible recipient because it was acknowledged. The existing ANNOUNCEMENTS template, sender, reply-to, LovableEmail provider and transactional queue stay in use.
+
+For Circle, Circle without a sign-in, and Control baseline campaigns, refresh the audience and inspect its recipient and exclusion lists. Acknowledge that exact list and type `SEND`. On submission the server rebuilds the audience and verifies its deterministic hash and exact held-email set before creating an announcement or queue entry. A changed recipient, identity binding, hold reason, campaign filter result or suppression requires a fresh review. Calls without a review object retain the previous fail-closed behavior when holds exist.
+
+Canonical membership and every delivery suppression are checked separately. Database errors, unavailable provider credentials and provider errors fail verification instead of being treated as exclusions. The existing recipient guard runs again after rendering, immediately before audit and enqueue, and the delivery worker independently repeats it before sending. A member who expires or becomes held after review is withheld. A provider failure during queueing is recorded as failed, not suppressed; previously queued messages retain the independent delivery guard.
+
+Preview performs only reads. Actual send submission persists the reviewed snapshot, admin ID and omitted identities/reasons in service-only `email_send_log` metadata and suppressed log entries. Those details never enter email content or the queue payload. The review changes no membership, grants, holds, suppression records or provider contacts. No new schema is required.
+
+This code depends on the corrected source-alias implementation in PR #46. The underlying membership migrations must exist before publishing the application through Lovable. Missing `RESEND_API_KEY` remains a separate operational prerequisite for verified Circle previews and sends; this change neither creates nor configures a key. A UI acknowledgement is not a substitute for the owner's separate approval of final content and recipients. No emails were sent during implementation or testing.
+
+Verification uses synthetic Supabase/provider responses and the existing PGlite membership regression suite. Tests cover mixed cohorts, old-call rejection, exact exclusions, stale audience changes, expiry/reversal/suppression races, read/provider/audit errors, admin access, filtered campaigns and preservation of email branding/content isolation.

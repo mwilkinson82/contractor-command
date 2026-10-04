@@ -12,6 +12,12 @@ import { loadMemberControlRowsForAdmin } from "@/lib/control-admin.functions";
 import { circleDecision, loadCircleAudience } from "@/lib/membership/circle.server";
 import { circleAnnouncementAllowed } from "@/lib/membership/announcement-guard.server";
 import { shouldSkipResendCapture } from "@/lib/resend/never-email";
+import {
+  assertCircleAudienceReviewed,
+  isCircleAnnouncementAudience,
+  previewCircleAnnouncementAudience,
+} from "@/lib/membership/announcement-audience.server";
+import type { CircleAnnouncementAudience } from "@/lib/membership/announcement-audience.server";
 
 // Must match SENDER_DOMAIN / FROM_DOMAIN in
 // src/routes/lovable/email/transactional/send.ts
@@ -72,7 +78,7 @@ async function loadSignedInEmails(): Promise<Set<string>> {
     }
     if (data.users.length < 1000) break;
     page += 1;
-    if (page > 20) break; // safety cap
+    if (page > 20) throw new Error("Sign-in audience exceeds the review limit");
   }
   return out;
 }
@@ -133,6 +139,27 @@ async function loadRecipients(
   return [...out.values()];
 }
 
+async function loadReviewedCircleAudience(
+  audience: CircleAnnouncementAudience,
+  adminUserId: string,
+) {
+  let includeRecipient: ((email: string) => boolean) | undefined;
+  if (audience === "circle_inactive") {
+    const signedIn = await loadSignedInEmails();
+    includeRecipient = (email) => !signedIn.has(email);
+  } else if (audience === "control_baseline") {
+    const rows = await loadMemberControlRowsForAdmin(adminUserId);
+    const needsBaseline = new Set(
+      rows.filter((r) => r.baselineState !== "current").map((r) => r.email.toLowerCase()),
+    );
+    includeRecipient = (email) => needsBaseline.has(email);
+  }
+  return previewCircleAnnouncementAudience(supabaseAdmin, audience, {
+    apiKey: process.env.RESEND_API_KEY ?? "",
+    includeRecipient,
+  });
+}
+
 const InputSchema = z.object({
   subject: z.string().min(1).max(255),
   headline: z.string().min(1).max(160),
@@ -150,6 +177,12 @@ const InputSchema = z.object({
     "test",
   ]),
   testEmail: z.string().email().optional(),
+  circleReview: z
+    .object({
+      snapshotHash: z.string().regex(/^[a-f0-9]{64}$/),
+      excludedReviewEmails: z.array(z.string().email()).max(10000),
+    })
+    .optional(),
 });
 
 const MediaUploadSchema = z.object({
@@ -205,24 +238,54 @@ export const previewMemberAnnouncementAudience = createServerFn({ method: "GET" 
     return { count: recipients.length };
   });
 
+export const previewReviewedCircleAnnouncement = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({ audience: z.enum(["circle", "circle_inactive", "control_baseline"]) }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.userId);
+    return loadReviewedCircleAudience(data.audience, context.userId);
+  });
+
 export const sendMemberAnnouncement = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => InputSchema.parse(input))
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
 
-    const recipients = await loadRecipients(data.audience, data.testEmail, context.userId);
+    if (data.circleReview && !isCircleAnnouncementAudience(data.audience))
+      throw new Error("Circle audience review cannot be used for this audience");
+    const snapshot =
+      data.circleReview && isCircleAnnouncementAudience(data.audience)
+        ? await loadReviewedCircleAudience(data.audience, context.userId)
+        : null;
+    if (snapshot && data.circleReview) assertCircleAudienceReviewed(snapshot, data.circleReview);
+    // Calls without explicit reviewed exclusions retain the original fail-closed path.
+    const recipients =
+      snapshot?.recipients ?? (await loadRecipients(data.audience, data.testEmail, context.userId));
     if (recipients.length === 0) {
       return { queued: 0, sent: 0, suppressed: 0, failed: 0, total: 0 };
     }
 
     // One announcement id ties every send together for idempotency + audit.
     const announcementId = crypto.randomUUID();
+    const audienceReviewMetadata = snapshot
+      ? {
+          audience_review: {
+            snapshot_hash: snapshot.snapshotHash,
+            reviewed_by: context.userId,
+            selected_emails: snapshot.recipients.map((r) => r.email),
+            review_holds: snapshot.reviewHolds,
+            suppressions: snapshot.suppressions,
+          },
+        }
+      : {};
 
     // Persist a copy of the composed announcement so the form can always
     // re-load the last thing we sent (real or test). This is the safety net
     // against losing a draft when the preview/browser blows up.
-    await supabaseAdmin.from("member_announcements").insert({
+    const { error: announcementError } = await supabaseAdmin.from("member_announcements").insert({
       announcement_id: announcementId,
       sent_by: context.userId,
       audience: data.audience,
@@ -236,6 +299,36 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
       recipient_count: recipients.length,
       was_test: data.audience === "test",
     });
+    if (announcementError) throw new Error("Could not save announcement audit");
+
+    if (snapshot && (snapshot.reviewHolds.length || snapshot.suppressions.length)) {
+      const { error } = await supabaseAdmin.from("email_send_log").insert(
+        [
+          ...snapshot.reviewHolds.map((hold) => ({
+            ...hold,
+            exclusion: "membership_review_excluded",
+          })),
+          ...snapshot.suppressions.map((suppression) => ({
+            ...suppression,
+            exclusion: "marketing_suppressed",
+          })),
+        ].map((excluded) => ({
+          message_id: crypto.randomUUID(),
+          template_name: TEMPLATE_NAME,
+          recipient_email: excluded.email,
+          status: "suppressed",
+          metadata: {
+            announcement_id: announcementId,
+            channel: "admin_announcement",
+            send_method: "pgmq_transactional",
+            reason: excluded.exclusion,
+            decision_reason: excluded.reason,
+            ...audienceReviewMetadata,
+          },
+        })),
+      );
+      if (error) throw new Error("Could not save reviewed audience exclusions");
+    }
 
     // Bulk-load suppression list once.
     const emails = recipients.map((r) => r.email.toLowerCase());
@@ -272,45 +365,39 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
             channel: directTestSend ? "admin_announcement_test" : "admin_announcement",
             send_method: directTestSend ? "direct_lovable" : "pgmq_transactional",
             reason: "suppressed_email",
+            ...audienceReviewMetadata,
           },
         });
         continue;
       }
 
       try {
-        if (circleRequired) {
-          const permission = await circleAnnouncementAllowed(supabaseAdmin, r.email, {
-            apiKey: process.env.RESEND_API_KEY ?? "",
-          });
-          if (!permission.allowed) {
-            suppressed++;
-            continue;
-          }
-        }
         // Ensure unsubscribe token (one per email).
         let unsubscribeToken: string;
-        const { data: existing } = await supabaseAdmin
+        const { data: existing, error: tokenLookupError } = await supabaseAdmin
           .from("email_unsubscribe_tokens")
           .select("token,used_at")
           .eq("email", emailLower)
           .maybeSingle();
+        if (tokenLookupError) throw new Error("Could not verify unsubscribe token");
 
         if (existing && !existing.used_at) {
           unsubscribeToken = existing.token;
         } else if (!existing) {
           const newToken = generateToken();
-          await supabaseAdmin
+          const { error: tokenWriteError } = await supabaseAdmin
             .from("email_unsubscribe_tokens")
             .upsert(
               { token: newToken, email: emailLower },
               { onConflict: "email", ignoreDuplicates: true },
             );
-          const { data: stored } = await supabaseAdmin
+          if (tokenWriteError) throw new Error("Could not create unsubscribe token");
+          const { data: stored, error: storedTokenError } = await supabaseAdmin
             .from("email_unsubscribe_tokens")
             .select("token")
             .eq("email", emailLower)
             .maybeSingle();
-          if (!stored) throw new Error("unsubscribe token lookup failed");
+          if (storedTokenError || !stored) throw new Error("unsubscribe token lookup failed");
           unsubscribeToken = stored.token;
         } else {
           // token already used → email should already be suppressed; skip.
@@ -326,6 +413,7 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
               channel: directTestSend ? "admin_announcement_test" : "admin_announcement",
               send_method: directTestSend ? "direct_lovable" : "pgmq_transactional",
               reason: "unsubscribe_token_used",
+              ...audienceReviewMetadata,
             },
           });
           continue;
@@ -349,7 +437,33 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
         const messageId = crypto.randomUUID();
         const idempotencyKey = `announce-${announcementId}-${emailLower}`;
 
-        await supabaseAdmin.from("email_send_log").insert({
+        // Recheck after rendering, immediately before audit + enqueue. The worker
+        // independently repeats this guard at delivery to catch later changes.
+        if (circleRequired) {
+          const permission = await circleAnnouncementAllowed(supabaseAdmin, r.email, {
+            apiKey: process.env.RESEND_API_KEY ?? "",
+          });
+          if (!permission.allowed) {
+            const { error } = await supabaseAdmin.from("email_send_log").insert({
+              message_id: messageId,
+              template_name: TEMPLATE_NAME,
+              recipient_email: r.email,
+              status: "suppressed",
+              metadata: {
+                announcement_id: announcementId,
+                channel: "admin_announcement",
+                send_method: "pgmq_transactional",
+                reason: permission.reason,
+                ...audienceReviewMetadata,
+              },
+            });
+            if (error) throw new Error("Could not record changed recipient eligibility");
+            suppressed++;
+            continue;
+          }
+        }
+
+        const { error: logError } = await supabaseAdmin.from("email_send_log").insert({
           message_id: messageId,
           template_name: TEMPLATE_NAME,
           recipient_email: r.email,
@@ -358,8 +472,10 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
             announcement_id: announcementId,
             channel: directTestSend ? "admin_announcement_test" : "admin_announcement",
             send_method: directTestSend ? "direct_lovable" : "pgmq_transactional",
+            ...audienceReviewMetadata,
           },
         });
+        if (logError) throw new Error("Could not save recipient audit before enqueue");
 
         if (directTestSend) {
           const apiKey = process.env.LOVABLE_API_KEY;
@@ -477,6 +593,19 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
         queued += 1;
       } catch (err) {
         failed += 1;
+        await supabaseAdmin.from("email_send_log").insert({
+          message_id: crypto.randomUUID(),
+          template_name: TEMPLATE_NAME,
+          recipient_email: r.email,
+          status: "failed",
+          error_message: (err instanceof Error ? err.message : String(err)).slice(0, 1000),
+          metadata: {
+            announcement_id: announcementId,
+            channel: "admin_announcement",
+            send_method: "pgmq_transactional",
+            ...audienceReviewMetadata,
+          },
+        });
         console.error("announce enqueue failed", {
           email: r.email,
           error: err instanceof Error ? err.message : String(err),

@@ -1,4 +1,5 @@
 import { circleDecision, loadCircleIdentities, membershipDb } from "./circle.server";
+import type { CircleIdentity } from "./circle.server";
 import { circleResendClient } from "@/lib/resend/circle-sync";
 import { shouldSkipResendCapture } from "@/lib/resend/never-email";
 
@@ -17,6 +18,16 @@ export async function circleAnnouncementAllowed(
   if (!identity) return { allowed: false, reason: "unmapped_circle_identity" };
   const decision = await circleDecision(db, identity);
   if (decision.state !== "eligible") return { allowed: false, reason: decision.reason };
+  return circleMarketingAllowed(db, identity, options);
+}
+
+/** Read-only suppression check, after a separate canonical membership decision. */
+export async function circleMarketingAllowed(
+  db: unknown,
+  identity: CircleIdentity,
+  options: { apiKey: string; fetch?: typeof fetch; paceMs?: number },
+): Promise<{ allowed: boolean; reason: string }> {
+  const normalized = identity.email.trim().toLowerCase();
   if (
     shouldSkipResendCapture({
       email: normalized,
@@ -42,6 +53,8 @@ export async function circleAnnouncementAllowed(
   const contact = await circleResendClient(options.apiKey, options.fetch, options.paceMs).contact(
     normalized,
   );
+  if (contact !== null && typeof contact.unsubscribed !== "boolean")
+    throw new Error("Cannot verify Resend contact suppression");
   return {
     allowed: !contact?.unsubscribed,
     reason: contact?.unsubscribed ? "resend_unsubscribed" : "eligible",
