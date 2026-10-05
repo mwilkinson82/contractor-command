@@ -73,6 +73,7 @@ const snapshot = () =>
   m.rpc.mock.calls.find(([name]) => name === "apply_circle_subscription_snapshot")?.[1];
 beforeEach(() => {
   vi.clearAllMocks();
+  delete process.env.CIRCLE_CANCELLATION_EMAILS_ENABLED_FROM;
   m.existing = null;
   m.profile = null;
   m.evidence = null;
@@ -135,15 +136,17 @@ beforeEach(() => {
   m.rpc.mockImplementation(async (name: string) => ({
     error: null,
     data:
-      name === "begin_stripe_webhook_event"
-        ? "process"
-        : name === "apply_circle_subscription_snapshot"
-          ? true
-          : name === "circle_billing_identity_approved"
-            ? m.billingApproval
-            : name === "get_circle_entitlement"
-              ? { state: "eligible", hasAccess: true, reason: "paid_period" }
-              : null,
+      name === "enqueue_circle_cancellation_notice"
+        ? "queued"
+        : name === "begin_stripe_webhook_event"
+          ? "process"
+          : name === "apply_circle_subscription_snapshot"
+            ? true
+            : name === "circle_billing_identity_approved"
+              ? m.billingApproval
+              : name === "get_circle_entitlement"
+                ? { state: "eligible", hasAccess: true, reason: "paid_period" }
+                : null,
   }));
   m.from.mockImplementation((table: string) => {
     let fields = "";
@@ -502,5 +505,106 @@ describe("Stripe lifecycle orchestration with synthetic providers", () => {
       "finish_stripe_webhook_event",
       expect.objectContaining({ _status: "failed" }),
     );
+  });
+});
+
+describe("disabled Circle cancellation notification workflow", () => {
+  async function cancellationEvent(overrides: Record<string, unknown> = {}) {
+    const active = await m.retrieve();
+    const sub = {
+      ...active,
+      canceled_at: 1791072000,
+      cancel_at_period_end: true,
+      cancellation_details: { reason: "cancellation_requested" },
+      ...overrides,
+    };
+    m.retrieve.mockResolvedValue(sub);
+    m.event = {
+      id: "evt_cancel",
+      type: "customer.subscription.updated",
+      created: 1791072001,
+      data: { object: sub },
+    };
+    return sub;
+  }
+  it("does not add notices or cancellation metadata until explicitly activated", async () => {
+    await cancellationEvent();
+    expect((await request()).status).toBe(200);
+    expect(snapshot()._row.metadata).not.toHaveProperty("circle_cancellation_notice");
+    expect(m.rpc.mock.calls.some(([name]) => name === "enqueue_circle_cancellation_notice")).toBe(
+      false,
+    );
+  });
+  it("stages member and owner messages from refreshed verified Stripe state", async () => {
+    process.env.CIRCLE_CANCELLATION_EMAILS_ENABLED_FROM = "2026-10-03T00:00:00Z";
+    await cancellationEvent();
+    expect((await request()).status).toBe(200);
+    expect(snapshot()._row.metadata.circle_cancellation_notice).toMatchObject({
+      episode: "sub_test:1791072000",
+      paidThrough: "2099-01-01T00:00:00.000Z",
+      memberAllowed: true,
+    });
+    const calls = m.rpc.mock.calls.filter(
+      ([name]) => name === "enqueue_circle_cancellation_notice",
+    );
+    expect(calls.map(([, args]) => args._channel)).toEqual(["member", "owner"]);
+    expect(calls[0][1]._payload).toMatchObject({
+      to: "member@example.test",
+      reply_to: "marshall@marshallwilkinson.com",
+      label: "circle-cancellation-confirmation",
+    });
+    expect(calls[1][1]._payload.to).toBe("wilkinson.marshall@gmail.com");
+  });
+  it("ignores a cancellation event when Stripe says the subscription resumed", async () => {
+    process.env.CIRCLE_CANCELLATION_EMAILS_ENABLED_FROM = "2026-10-03T00:00:00Z";
+    const old = await cancellationEvent();
+    m.retrieve.mockResolvedValue({ ...old, cancel_at_period_end: false, canceled_at: null });
+    expect((await request()).status).toBe(200);
+    expect(snapshot()._row.metadata.circle_cancellation_notice).toBeNull();
+    expect(m.rpc.mock.calls.some(([name]) => name === "enqueue_circle_cancellation_notice")).toBe(
+      false,
+    );
+  });
+  it("surfaces a missing cancellation anchor for manual review after saving membership", async () => {
+    process.env.CIRCLE_CANCELLATION_EMAILS_ENABLED_FROM = "2026-10-03T00:00:00Z";
+    await cancellationEvent({ canceled_at: null });
+    expect((await request()).status).toBe(500);
+    expect(snapshot()).toBeTruthy();
+    expect(m.rpc).toHaveBeenCalledWith(
+      "finish_stripe_webhook_event",
+      expect.objectContaining({
+        _status: "failed",
+        _last_error: expect.stringContaining("manual review required"),
+      }),
+    );
+  });
+  it("records queue failures as failed webhooks for retry", async () => {
+    process.env.CIRCLE_CANCELLATION_EMAILS_ENABLED_FROM = "2026-10-03T00:00:00Z";
+    await cancellationEvent();
+    const previous = m.rpc.getMockImplementation()!;
+    m.rpc.mockImplementation(async (name, args) =>
+      name === "enqueue_circle_cancellation_notice"
+        ? { data: null, error: { message: "synthetic queue failed" } }
+        : previous(name, args),
+    );
+    expect((await request()).status).toBe(500);
+    expect(m.rpc).toHaveBeenCalledWith(
+      "finish_stripe_webhook_event",
+      expect.objectContaining({
+        _status: "failed",
+        _last_error: expect.stringContaining("synthetic queue failed"),
+      }),
+    );
+  });
+  it("requests retry when a newer source refresh wins between apply and staging", async () => {
+    process.env.CIRCLE_CANCELLATION_EMAILS_ENABLED_FROM = "2026-10-03T00:00:00Z";
+    await cancellationEvent();
+    const previous = m.rpc.getMockImplementation()!;
+    m.rpc.mockImplementation(async (name, args) =>
+      name === "enqueue_circle_cancellation_notice"
+        ? { data: "stale", error: null }
+        : previous(name, args),
+    );
+    expect((await request()).status).toBe(500);
   });
 });

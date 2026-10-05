@@ -12,6 +12,7 @@ import {
   circleAnnouncementAllowed,
   queuedAnnouncementNeedsCircle,
 } from "@/lib/membership/announcement-guard.server";
+import { prepareCircleCancellationDelivery } from "./circle-cancellation.server";
 import { MEMBER_REPLY_TO } from "@/lib/email/reply-to";
 
 const MAX_RETRIES = 5;
@@ -525,7 +526,16 @@ async function processCycle({
             continue;
           }
         }
-        await sendLovableEmail(prepared.sendRequest, { apiKey, sendUrl });
+        const cancellation = await prepareCircleCancellationDelivery(supabase, payload);
+        if (!cancellation.allowed) {
+          await suppressQueueMessage(supabase, queue, msg, cancellation.reason);
+          result.suppressed += 1;
+          continue;
+        }
+        await sendLovableEmail(
+          { ...prepared.sendRequest, ...cancellation.content },
+          { apiKey, sendUrl },
+        );
 
         const sentMetadata = emailSendLogMetadata({ idempotencyKey, queue });
         const { error: sentLogErr } = await supabase.from("email_send_log").insert({

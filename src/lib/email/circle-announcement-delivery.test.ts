@@ -12,6 +12,7 @@ vi.mock("@/lib/resend/circle-sync", () => ({
     throw new Error("Unexpected Resend dependency");
   },
 }));
+import { cancellationFacts } from "./circle-cancellation";
 import { processEmailQueues } from "./process-queue.server";
 import { Route } from "@/routes/lovable/email/queue/process";
 
@@ -24,6 +25,7 @@ let writes: Row[];
 const email = "synthetic@example.test";
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv("CIRCLE_CANCELLATION_EMAILS_ENABLED_FROM", "");
   vi.stubEnv("RESEND_API_KEY", "");
   vi.stubEnv("LOVABLE_API_KEY", "synthetic-only");
   vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "synthetic-service-only");
@@ -235,5 +237,109 @@ for (const [worker, run] of Object.entries(workers))
       await run();
       expect(m.send).toHaveBeenCalledTimes(1);
       expect(m.rpc.mock.calls.some(([name]) => name === "get_circle_entitlement")).toBe(false);
+    });
+  });
+
+for (const [worker, run] of Object.entries(workers))
+  describe(`${worker} cancellation delivery`, () => {
+    function cancellation(owner = false) {
+      vi.stubEnv("CIRCLE_CANCELLATION_EMAILS_ENABLED_FROM", "2026-10-03T00:00:00Z");
+      const facts = cancellationFacts(
+        { id: "sub_test", status: "canceled", canceled_at: 1791072000, ended_at: 1791072000 },
+        {
+          periodEnd: "2026-11-01T00:00:00Z",
+          paidThrough: "2026-11-01T00:00:00Z",
+          reviewReason: null,
+          memberEmail: email,
+          billingEmail: email,
+          customerName: "Synthetic Customer",
+          memberAllowed: true,
+          neverEmail: false,
+        },
+      )!;
+      tables.subscriptions = [
+        {
+          email,
+          tier: "circle",
+          status: "canceled",
+          stripe_subscription_id: "sub_test",
+          metadata: { circle_cancellation_notice: facts },
+        },
+      ];
+      payload.label = owner ? "circle-cancellation-owner" : "circle-cancellation-confirmation";
+      payload.to = owner ? "wilkinson.marshall@gmail.com" : email;
+      delete payload.circle_membership_required;
+      payload.circle_cancellation_subscription_id = "sub_test";
+      payload.circle_cancellation_episode = facts.episode;
+      return facts;
+    }
+    it("sends cancellation confirmation for ended paid membership without a membership eligibility check", async () => {
+      cancellation();
+      state = "ineligible";
+      await run();
+      expect(m.send).toHaveBeenCalledTimes(1);
+      expect(m.send.mock.calls[0][0].text).toContain("was canceled");
+      expect(m.rpc.mock.calls.some(([name]) => name === "get_circle_entitlement")).toBe(false);
+    });
+    it("sends the independent owner alert to the existing notifications inbox", async () => {
+      cancellation(true);
+      await run();
+      expect(m.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: "wilkinson.marshall@gmail.com",
+          subject: "Contractor Circle cancellation",
+        }),
+        expect.anything(),
+      );
+    });
+    it("never sends a queued cancellation while the feature is disabled", async () => {
+      cancellation();
+      vi.stubEnv("CIRCLE_CANCELLATION_EMAILS_ENABLED_FROM", "");
+      await run();
+      expect(m.send).not.toHaveBeenCalled();
+    });
+    it("withholds resumed or superseded episodes", async () => {
+      cancellation();
+      tables.subscriptions[0].metadata = { circle_cancellation_notice: null };
+      await run();
+      expect(m.send).not.toHaveBeenCalled();
+    });
+    it("re-renders verified current billing facts instead of stale queue text", async () => {
+      const facts = cancellation();
+      facts.paidThrough = null;
+      facts.reviewReason = "paid_invoice_refunded";
+      await run();
+      expect(m.send.mock.calls[0][0].text).toContain("paid-access end date is under review");
+      expect(m.send.mock.calls[0][0].text).not.toContain("Approved recap");
+    });
+    it("honors suppression added after enqueue", async () => {
+      cancellation();
+      tables.suppressed_emails = [{ email }];
+      await run();
+      expect(m.send).not.toHaveBeenCalled();
+    });
+    it("honors unsubscribe added after enqueue", async () => {
+      cancellation();
+      tables.email_unsubscribe_tokens[0].used_at = "2026-10-04T10:00:00Z";
+      await run();
+      expect(m.send).not.toHaveBeenCalled();
+    });
+    it("never guesses through source read failure", async () => {
+      cancellation();
+      failTable = "subscriptions";
+      await run();
+      expect(m.send).not.toHaveBeenCalled();
+    });
+    it("holds unapproved or excluded identity", async () => {
+      const facts = cancellation();
+      facts.memberAllowed = false;
+      await run();
+      expect(m.send).not.toHaveBeenCalled();
+    });
+    it("rejects forged recipient bindings", async () => {
+      cancellation();
+      payload.to = "different@example.test";
+      await run();
+      expect(m.send).not.toHaveBeenCalled();
     });
   });

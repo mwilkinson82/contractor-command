@@ -2,6 +2,7 @@ import { sendLovableEmail } from '@lovable.dev/email-js'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { createFileRoute } from '@tanstack/react-router'
 import { circleAnnouncementAllowed, queuedAnnouncementNeedsCircle } from '@/lib/membership/announcement-guard.server'
+import { prepareCircleCancellationDelivery } from '@/lib/email/circle-cancellation.server'
 import { MEMBER_REPLY_TO } from '@/lib/email/reply-to'
 
 const MAX_RETRIES = 5
@@ -230,6 +231,11 @@ export const Route = createFileRoute("/lovable/email/queue/process")({
                   continue
                 }
               }
+              const cancellation = await prepareCircleCancellationDelivery(supabase, payload)
+              if (!cancellation.allowed) {
+                await moveToDlq(supabase, queue, msg, cancellation.reason)
+                continue
+              }
               await sendLovableEmail(
                 {
                   run_id: payload.run_id,
@@ -245,6 +251,7 @@ export const Route = createFileRoute("/lovable/email/queue/process")({
                   idempotency_key: payload.idempotency_key,
                   unsubscribe_token: payload.unsubscribe_token,
                   message_id: payload.message_id,
+                  ...cancellation.content,
                 },
                 { apiKey, sendUrl: process.env.LOVABLE_SEND_URL }
               )
