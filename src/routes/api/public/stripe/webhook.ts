@@ -665,8 +665,15 @@ async function upsertSubscription(
       apiKey: process.env.RESEND_API_KEY ?? "",
       email: normalizedEmail,
     });
+    // The snapshot and audience outbox are already committed. A returned failure
+    // has been durably recorded by the drain and must not replay Stripe signup.
+    // Claim/finish errors still throw above so an unrecorded failure stays retryable.
     if (outcome.failed)
-      throw new Error(`Circle audience sync failed (${outcome.failed}); durable retry required`);
+      console.warn("Circle audience sync deferred to durable retry", {
+        stripeSubscriptionId: sub.id,
+        processed: outcome.processed,
+        failed: outcome.failed,
+      });
   }
 
   if (resendSegment && paidActive) {
