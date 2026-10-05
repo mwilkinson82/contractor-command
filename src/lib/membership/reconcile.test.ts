@@ -15,7 +15,7 @@ function fakeDb(state = "eligible") {
     email_unsubscribe_tokens: [],
   };
   const rpc = vi.fn(async (name: string, args?: Record<string, unknown>) => ({
-    error: null,
+    error: null as { message: string } | null,
     data:
       name === "get_circle_entitlement"
         ? {
@@ -164,6 +164,33 @@ describe("reconciliation and delivery safety", () => {
       "finish_circle_audience_sync",
       expect.objectContaining({ _status: "failed", _error: "RESEND_API_KEY is not configured" }),
     );
+  });
+  it("does not report a recorded provider failure until its failed status is saved", async () => {
+    const { db, rpc } = fakeDb();
+    const original = rpc.getMockImplementation()!;
+    rpc.mockImplementation(async (name, args) =>
+      name === "finish_circle_audience_sync"
+        ? { data: null, error: { message: "outbox completion unavailable" } }
+        : original(name, args),
+    );
+    await expect(drainCircleAudienceSync(db, { apiKey: "", paceMs: 0 })).rejects.toThrow(
+      "outbox completion unavailable",
+    );
+    expect(rpc).toHaveBeenCalledWith(
+      "finish_circle_audience_sync",
+      expect.objectContaining({ _status: "failed", _error: "RESEND_API_KEY is not configured" }),
+    );
+  });
+  it("propagates an outbox claim failure without touching a provider or marking jobs synced", async () => {
+    const { db, rpc } = fakeDb();
+    rpc.mockResolvedValueOnce({ data: null, error: { message: "outbox claim unavailable" } });
+    const fetch = vi.fn();
+    await expect(
+      drainCircleAudienceSync(db, { apiKey: "synthetic", fetch, paceMs: 0 }),
+    ).rejects.toThrow("outbox claim unavailable");
+    expect(fetch).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith("claim_circle_audience_sync", { _email: null });
   });
   it("review jobs never invoke Resend", async () => {
     const { db, rpc } = fakeDb("review");

@@ -1,4 +1,4 @@
-import { beforeEach, describe, it, expect, vi } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 const m = vi.hoisted(() => ({
   event: {
     id: "evt_test",
@@ -173,6 +173,10 @@ beforeEach(() => {
     return chain;
   });
 });
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+});
 describe("Stripe lifecycle orchestration with synthetic providers", () => {
   it("an exact approved billing alias renews the existing Hub identity and saves payment provenance", async () => {
     m.existing = { id: "source", user_id: "bound-user", email: "hub@example.test", tier: "circle" };
@@ -296,11 +300,109 @@ describe("Stripe lifecycle orchestration with synthetic providers", () => {
     expect((await request()).status).toBe(200);
     expect(m.retrieve).not.toHaveBeenCalled();
     expect(m.enqueue).not.toHaveBeenCalled();
+    expect(m.drain).not.toHaveBeenCalled();
   });
-  it("Resend failure stays retryable after Hub provisioning and welcome enqueue", async () => {
+  it("acknowledges committed membership while a durably recorded Resend failure stays in its outbox", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubEnv("RESEND_API_KEY", "");
+    m.drain.mockResolvedValue({ processed: 1, failed: 1 });
+    const response = await request();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ received: true });
+    expect(snapshot()).toMatchObject({
+      _row: { status: "active", tier: "circle" },
+      _paid_through: "2099-01-01T00:00:00.000Z",
+    });
+    expect(m.writes.some((w) => w.table === "pending_claims")).toBe(true);
+    expect(m.enqueue).toHaveBeenCalledOnce();
+    expect(m.drain).toHaveBeenCalledWith(expect.anything(), {
+      apiKey: "",
+      email: "member@example.test",
+    });
+    expect(warn).toHaveBeenCalledWith("Circle audience sync deferred to durable retry", {
+      stripeSubscriptionId: "sub_test",
+      processed: 1,
+      failed: 1,
+    });
+    expect(m.rpc).toHaveBeenCalledWith("finish_stripe_webhook_event", {
+      _event_id: "evt_test",
+      _status: "processed",
+      _last_error: null,
+    });
+    expect(
+      m.rpc.mock.calls.some(
+        ([name, args]) => name === "finish_stripe_webhook_event" && args._status === "failed",
+      ),
+    ).toBe(false);
+
+    // Stripe's next delivery sees the committed event claim and cannot repeat
+    // welcome enqueue, source writes, or an optional provider attempt.
+    const writes = m.writes.length;
+    m.rpc.mockResolvedValueOnce({ data: "duplicate", error: null });
+    const duplicate = await request();
+    expect(duplicate.status).toBe(200);
+    expect(await duplicate.json()).toEqual({ received: true, duplicate: true });
+    expect(m.writes).toHaveLength(writes);
+    expect(m.retrieve).toHaveBeenCalledOnce();
+    expect(m.enqueue).toHaveBeenCalledOnce();
+    expect(m.drain).toHaveBeenCalledOnce();
+  });
+  it("acknowledges cancellation despite a durably recorded optional sync failure", async () => {
+    const live = await m.retrieve();
+    m.retrieve.mockResolvedValue({ ...live, status: "canceled" });
+    m.event = {
+      id: "evt_cancelled",
+      type: "customer.subscription.deleted",
+      data: { object: { id: "sub_test" } },
+    };
+    m.drain.mockResolvedValue({ processed: 1, failed: 1 });
+    expect((await request()).status).toBe(200);
+    expect(snapshot()._row.status).toBe("canceled");
+    expect(m.enqueue).not.toHaveBeenCalled();
+    expect(m.rpc).toHaveBeenCalledWith(
+      "finish_stripe_webhook_event",
+      expect.objectContaining({ _event_id: "evt_cancelled", _status: "processed" }),
+    );
+  });
+  it.each(["snapshot write failed", "transactional outbox enqueue failed"])(
+    "keeps %s retryable before signup or provider work",
+    async (message) => {
+      const original = m.rpc.getMockImplementation()!;
+      m.rpc.mockImplementation(async (name: string, ...args: unknown[]) =>
+        name === "apply_circle_subscription_snapshot"
+          ? { data: null, error: { message } }
+          : original(name, ...args),
+      );
+      expect((await request()).status).toBe(500);
+      expect(m.writes).toHaveLength(0);
+      expect(m.enqueue).not.toHaveBeenCalled();
+      expect(m.drain).not.toHaveBeenCalled();
+      expect(m.rpc).toHaveBeenCalledWith(
+        "finish_stripe_webhook_event",
+        expect.objectContaining({ _status: "failed", _last_error: message }),
+      );
+    },
+  );
+  it.each(["outbox claim failed", "outbox completion write failed"])(
+    "keeps %s retryable instead of swallowing an unrecorded sync failure",
+    async (message) => {
+      m.drain.mockRejectedValue(new Error(message));
+      expect((await request()).status).toBe(500);
+      expect(m.rpc).toHaveBeenCalledWith(
+        "finish_stripe_webhook_event",
+        expect.objectContaining({ _status: "failed", _last_error: message }),
+      );
+    },
+  );
+  it("does not acknowledge membership until Stripe event completion is durable", async () => {
+    const original = m.rpc.getMockImplementation()!;
+    m.rpc.mockImplementation(async (name: string, args: Record<string, unknown>) =>
+      name === "finish_stripe_webhook_event" && args._status === "processed"
+        ? { data: null, error: { message: "event completion unavailable" } }
+        : original(name, args),
+    );
     m.drain.mockResolvedValue({ processed: 1, failed: 1 });
     expect((await request()).status).toBe(500);
-    expect(m.enqueue).toHaveBeenCalledOnce();
     expect(m.rpc).toHaveBeenCalledWith(
       "finish_stripe_webhook_event",
       expect.objectContaining({ _status: "failed" }),
