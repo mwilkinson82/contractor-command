@@ -308,6 +308,265 @@ export type Database = {
         }
         Relationships: []
       }
+      circle_audience_sync: {
+        Row: {
+          attempts: number
+          email: string
+          last_error: string | null
+          revision: number
+          status: string
+          synced_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          email: string
+          last_error?: string | null
+          revision?: number
+          status?: string
+          synced_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          email?: string
+          last_error?: string | null
+          revision?: number
+          status?: string
+          synced_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      circle_legacy_reviews: {
+        Row: {
+          preserve_access: boolean
+          resolution: string | null
+          resolved_at: string | null
+          subscription_id: string
+        }
+        Insert: {
+          preserve_access: boolean
+          resolution?: string | null
+          resolved_at?: string | null
+          subscription_id: string
+        }
+        Update: {
+          preserve_access?: boolean
+          resolution?: string | null
+          resolved_at?: string | null
+          subscription_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "circle_legacy_reviews_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: true
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      circle_owner_grant_history: {
+        Row: {
+          changed_at: string
+          current: Json
+          grant_id: string
+          id: string
+          previous: Json | null
+        }
+        Insert: {
+          changed_at?: string
+          current: Json
+          grant_id: string
+          id?: string
+          previous?: Json | null
+        }
+        Update: {
+          changed_at?: string
+          current?: Json
+          grant_id?: string
+          id?: string
+          previous?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "circle_owner_grant_history_grant_id_fkey"
+            columns: ["grant_id"]
+            isOneToOne: false
+            referencedRelation: "circle_owner_grants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      circle_owner_grants: {
+        Row: {
+          email: string
+          expires_at: string | null
+          granted_at: string
+          granted_by: string
+          id: string
+          reason: string
+          revoked_at: string | null
+          revoked_by: string | null
+          source_subscription_id: string | null
+          tier: Database["public"]["Enums"]["app_tier"]
+          user_id: string | null
+        }
+        Insert: {
+          email: string
+          expires_at?: string | null
+          granted_at?: string
+          granted_by: string
+          id?: string
+          reason: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          source_subscription_id?: string | null
+          tier?: Database["public"]["Enums"]["app_tier"]
+          user_id?: string | null
+        }
+        Update: {
+          email?: string
+          expires_at?: string | null
+          granted_at?: string
+          granted_by?: string
+          id?: string
+          reason?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          source_subscription_id?: string | null
+          tier?: Database["public"]["Enums"]["app_tier"]
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "circle_owner_grants_source_subscription_id_fkey"
+            columns: ["source_subscription_id"]
+            isOneToOne: true
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      circle_source_alias_history: {
+        Row: {
+          alias_id: string
+          changed_at: string
+          current: Json
+          id: string
+          previous: Json | null
+        }
+        Insert: {
+          alias_id: string
+          changed_at?: string
+          current: Json
+          id?: string
+          previous?: Json | null
+        }
+        Update: {
+          alias_id?: string
+          changed_at?: string
+          current?: Json
+          id?: string
+          previous?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "circle_source_alias_history_alias_id_fkey"
+            columns: ["alias_id"]
+            isOneToOne: false
+            referencedRelation: "circle_source_aliases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      circle_source_aliases: {
+        Row: {
+          approved_at: string
+          approved_by: string
+          billing_email: string
+          expires_at: string | null
+          id: string
+          reason: string
+          revocation_reason: string | null
+          revoked_at: string | null
+          revoked_by: string | null
+          source_email: string
+          source_stripe_customer_id: string
+          source_stripe_subscription_id: string
+          source_subscription_id: string
+          source_user_id: string | null
+          target_email: string
+          target_user_id: string
+        }
+        Insert: {
+          approved_at?: string
+          approved_by: string
+          billing_email: string
+          expires_at?: string | null
+          id?: string
+          reason: string
+          revocation_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          source_email: string
+          source_stripe_customer_id: string
+          source_stripe_subscription_id: string
+          source_subscription_id: string
+          source_user_id?: string | null
+          target_email: string
+          target_user_id: string
+        }
+        Update: {
+          approved_at?: string
+          approved_by?: string
+          billing_email?: string
+          expires_at?: string | null
+          id?: string
+          reason?: string
+          revocation_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          source_email?: string
+          source_stripe_customer_id?: string
+          source_stripe_subscription_id?: string
+          source_subscription_id?: string
+          source_user_id?: string | null
+          target_email?: string
+          target_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "circle_source_aliases_source_subscription_id_fkey"
+            columns: ["source_subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      circle_subscription_evidence: {
+        Row: {
+          observed_at: string
+          paid_through: string | null
+          review_reason: string | null
+          stripe_subscription_id: string
+        }
+        Insert: {
+          observed_at: string
+          paid_through?: string | null
+          review_reason?: string | null
+          stripe_subscription_id: string
+        }
+        Update: {
+          observed_at?: string
+          paid_through?: string | null
+          review_reason?: string | null
+          stripe_subscription_id?: string
+        }
+        Relationships: []
+      }
       companies: {
         Row: {
           address: string | null
@@ -1515,6 +1774,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_circle_subscription_snapshot: {
+        Args: {
+          _observed_at: string
+          _paid_through: string
+          _review_reason?: string
+          _row: Json
+        }
+        Returns: boolean
+      }
       audit_email_queues: { Args: never; Returns: Json }
       begin_stripe_webhook_event: {
         Args: { _event_id: string; _event_type: string; _object_id: string }
@@ -1526,6 +1794,35 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      circle_billing_identity_approved: {
+        Args: {
+          _billing_email: string
+          _hub_email: string
+          _hub_user_id: string
+          _source_id: string
+          _stripe_customer_id: string
+          _stripe_subscription_id: string
+        }
+        Returns: boolean
+      }
+      claim_circle_audience_sync: {
+        Args: { _email?: string }
+        Returns: {
+          attempts: number
+          email: string
+          last_error: string | null
+          revision: number
+          status: string
+          synced_at: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "circle_audience_sync"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       delete_email: {
         Args: { message_id: number; queue_name: string }
@@ -1540,9 +1837,23 @@ export type Database = {
         Args: { _schedule_id: string }
         Returns: string
       }
+      finish_circle_audience_sync: {
+        Args: {
+          _attempt: number
+          _email: string
+          _error: string
+          _revision: number
+          _status: string
+        }
+        Returns: undefined
+      }
       finish_stripe_webhook_event: {
         Args: { _event_id: string; _last_error?: string; _status: string }
         Returns: undefined
+      }
+      get_circle_entitlement: {
+        Args: { _email: string; _user_id: string }
+        Returns: Json
       }
       get_user_aos_limits: {
         Args: { _user_id: string }
@@ -1592,6 +1903,11 @@ export type Database = {
         }
         Returns: number
       }
+      queue_circle_audience_sweep: { Args: never; Returns: undefined }
+      queue_circle_audience_sync: {
+        Args: { _email: string }
+        Returns: undefined
+      }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {
@@ -1603,6 +1919,35 @@ export type Database = {
       replace_schedule_graph: {
         Args: { _dependencies: Json; _schedule_id: string; _tasks: Json }
         Returns: undefined
+      }
+      set_circle_owner_grant: {
+        Args: {
+          _actor: string
+          _email: string
+          _enabled: boolean
+          _expires_at?: string
+          _reason: string
+          _subscription_id: string
+          _user_id: string
+        }
+        Returns: undefined
+      }
+      set_circle_source_alias: {
+        Args: {
+          _actor: string
+          _billing_email: string
+          _enabled: boolean
+          _expected_source_email: string
+          _expected_source_user_id: string
+          _expected_stripe_customer_id: string
+          _expected_stripe_subscription_id: string
+          _expires_at?: string
+          _reason: string
+          _source_id: string
+          _target_email: string
+          _target_user_id: string
+        }
+        Returns: string
       }
       subscription_matches_identity: {
         Args: {
