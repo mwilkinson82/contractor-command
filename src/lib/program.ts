@@ -18,14 +18,14 @@ export type Session = {
 // Replays moved to the `replays` database table — see src/routes/replays.tsx.
 
 // --- Upcoming sessions (edit these as the calendar moves) ---
-// cache-bust: 2026-09-27 biweekly working session meet link
+// cache-bust: 2026-10-11 biweekly working session meet link
 export const UPCOMING: Session[] = [
   {
     kind: "Biweekly Call",
     title: "Contractor Circle (biweekly working session)",
-    date: "2026-09-27T21:00:00.000Z", // 5:00 PM ET Sun Sep 27 (ends 6:30 PM ET)
+    date: "2026-10-11T21:00:00.000Z", // 5:00 PM ET Sun Oct 11 (ends 6:30 PM ET)
     durationMin: 90,
-    zoomUrl: "https://meet.google.com/rks-gyqz-gzi",
+    zoomUrl: "https://meet.google.com/sjn-hqkw-tgm",
     meetingProvider: "Google Meet",
     description:
       "Contractor Circle working session. Come ready to work. Recording goes in the Replay Library after.",
@@ -51,14 +51,16 @@ export function nextAny(): Session {
 
 export function formatSessionDate(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleString(undefined, {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  });
+  return (
+    d.toLocaleString("en-US", {
+      timeZone: "America/New_York",
+      weekday: "long",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }) + " ET"
+  );
 }
 
 export function relativeDay(iso: string): string {
