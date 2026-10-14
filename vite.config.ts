@@ -7,6 +7,7 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import path from "node:path";
 import { loadEnv } from "vite";
+import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/tanstack/vite";
 
 const serverEnvMode = process.env.NODE_ENV === "production" ? "production" : "development";
 Object.assign(process.env, loadEnv(serverEnvMode, process.cwd(), ""));
@@ -18,6 +19,7 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
+    plugins: [mcpPlugin()],
     resolve: {
       alias: {
         "entities/lib/decode.js": path.resolve(process.cwd(), "node_modules/entities/lib/decode.js"),
