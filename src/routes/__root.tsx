@@ -40,7 +40,7 @@ const APP_ORIGIN = "https://app.alpcontractorcircle.com";
 const DEFAULT_TITLE = "Command Center — Contractor Circle";
 const DEFAULT_DESCRIPTION =
   "The private member portal for Contractor Circle: live calls with Marshall, AOS access, replays, templates, Ask Marshall, and the operating process behind the projects.";
-const SOCIAL_IMAGE_URL = `${APP_ORIGIN}/og-contractor-circle.png`;
+const SOCIAL_IMAGE_URL = `${APP_ORIGIN}/brand/circle-v1/social.png`;
 
 // Run before the app shell mounts. Auth links can arrive at "/" with tokens in
 // the hash; if the auth gate mounts first, it may send the user to /login and
@@ -174,8 +174,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content: SOCIAL_IMAGE_URL,
       },
       { property: "og:image:type", content: "image/png" },
-      { property: "og:image:width", content: "1200" },
-      { property: "og:image:height", content: "630" },
+      { property: "og:image:width", content: "1024" },
+      { property: "og:image:height", content: "1024" },
       {
         property: "og:image:alt",
         content: "Contractor Circle Command Center branded preview.",
@@ -196,10 +196,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Caveat:wght@400;600&family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap",
       },
-      { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
-      { rel: "icon", type: "image/png", sizes: "32x32", href: "/favicon-32.png" },
-      { rel: "icon", type: "image/png", sizes: "192x192", href: "/app-icon-192.png" },
-      { rel: "apple-touch-icon", sizes: "180x180", href: "/apple-touch-icon.png" },
+      { rel: "icon", type: "image/x-icon", href: "/brand/circle-v1/favicon.ico" },
+      { rel: "icon", type: "image/png", sizes: "32x32", href: "/brand/circle-v1/favicon-32.png" },
+      { rel: "icon", type: "image/png", sizes: "256x256", href: "/brand/circle-v1/app-icon-256.png" },
+      { rel: "apple-touch-icon", sizes: "512x512", href: "/brand/circle-v1/app-icon-512.png" },
       { rel: "manifest", href: "/site.webmanifest" },
     ],
   }),

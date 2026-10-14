@@ -1,3 +1,4 @@
+import { contractorCircleBrand } from "@/lib/contractor-circle-brand";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Sparkles, MessageCircle, PanelLeftClose, PanelLeft, Menu } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -94,7 +95,7 @@ export function TopStrip() {
         ) : (
           <div className="flex min-w-0 items-center gap-2">
             <img
-              src="/brand/contractor-circle-mark.png"
+              src={contractorCircleBrand.webSmallMark}
               alt=""
               aria-hidden="true"
               className="h-5 w-5 shrink-0 object-contain sm:hidden"
