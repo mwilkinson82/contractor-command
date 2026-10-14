@@ -1,14 +1,10 @@
+import { useCircleSessions } from "@/hooks/use-circle-sessions";
+import { getCircleMeeting } from "@/lib/circle-sessions/sessions.functions";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { PageHeader, Container } from "@/components/portal/page-header";
-import {
-  addToCalendarUrl,
-  formatSessionDate,
-  nextOfKind,
-  relativeDay,
-  type Session,
-} from "@/lib/program";
+import { addToCalendarUrl, formatSessionDate, relativeDay, type Session } from "@/lib/program";
 import { submitCallTopic } from "@/lib/topics.functions";
 import { ArrowUpRight, Calendar, Check, Loader2, Video } from "lucide-react";
 import { FeatureAccessBoundary } from "@/components/portal/feature-access";
@@ -36,7 +32,7 @@ function CallsRoute() {
 }
 
 function CallsPage() {
-  const biweekly = nextOfKind("Biweekly Call");
+  const { sessions, isLoading, isError } = useCircleSessions();
 
   return (
     <Container>
@@ -48,7 +44,18 @@ function CallsPage() {
 
       {/* Single unified session card */}
       <section className="mt-10">
-        {biweekly ? <SessionCard session={biweekly} primary /> : null}
+        {sessions.map((session) => (
+          <SessionCard key={session.id} session={session} primary />
+        ))}
+        {!sessions.length && (
+          <p>
+            {isLoading
+              ? "Loading sessions…"
+              : isError
+                ? "Schedule unavailable. Sign in with current Circle membership or try again."
+                : "No upcoming session has been confirmed yet."}
+          </p>
+        )}
       </section>
 
       {/* Topic submission */}
@@ -76,8 +83,24 @@ function CallsPage() {
 }
 
 function SessionCard({ session, primary = false }: { session: Session; primary?: boolean }) {
+  const reveal = useServerFn(getCircleMeeting);
+  const [joinError, setJoinError] = useState("");
+  const [joining, setJoining] = useState(false);
+  async function join() {
+    setJoining(true);
+    setJoinError("");
+    try {
+      const { url } = await reveal({ data: { id: session.id! } });
+      window.location.assign(url);
+    } catch (error) {
+      setJoinError(error instanceof Error ? error.message : "Unable to join");
+    } finally {
+      setJoining(false);
+    }
+  }
   return (
     <article
+      id={`session-${session.id}`}
       className={
         primary
           ? "rounded-3xl bg-ink p-8 text-cream shadow-[var(--shadow-focus)]"
@@ -101,7 +124,7 @@ function SessionCard({ session, primary = false }: { session: Session; primary?:
         className={`mt-5 flex items-center gap-2 text-sm ${primary ? "text-cream/75" : "text-muted-foreground"}`}
       >
         <Calendar className="h-4 w-4" />
-        <span>{formatSessionDate(session.date)}</span>
+        <span>{formatSessionDate(session.date, session.timeZone)}</span>
         <span className={primary ? "text-cream/30" : "text-muted-foreground/40"}>·</span>
         <span>{session.durationMin} min</span>
       </div>
@@ -111,18 +134,20 @@ function SessionCard({ session, primary = false }: { session: Session; primary?:
         {session.description}
       </p>
       <div className="mt-7 flex flex-wrap gap-2">
-        <a
-          href={session.zoomUrl}
-          target="_blank"
-          rel="noreferrer"
+        <button
+          type="button"
+          onClick={join}
+          disabled={joining}
           className={
             primary
               ? "inline-flex items-center gap-2 rounded-lg bg-cream px-4 py-2.5 text-sm font-medium text-ink hover:opacity-90"
               : "inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-cream hover:opacity-90"
           }
         >
-          Join {session.meetingProvider} <ArrowUpRight className="h-3.5 w-3.5" />
-        </a>
+          {joining ? "Checking membership…" : `Join ${session.meetingProvider}`}{" "}
+          <ArrowUpRight className="h-3.5 w-3.5" />
+        </button>
+        {joinError && <p role="alert">{joinError}</p>}
         <a
           href={addToCalendarUrl(session)}
           target="_blank"
