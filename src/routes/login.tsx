@@ -23,7 +23,7 @@ export const Route = createFileRoute("/login")({
   }),
   beforeLoad: async ({ search }) => {
     const { data } = await supabase.auth.getSession();
-    if (data.session) throw redirect({ to: search.redirect ?? "/" });
+    if (data.session) throw redirect({ href: search.redirect ?? "/" });
   },
   component: LoginPage,
 });
@@ -65,7 +65,8 @@ function LoginPage() {
     const { data: sub } = supabase.auth.onAuthStateChange((_, session) => {
       if (session) {
         router.invalidate();
-        navigate({ to: redirectTo });
+        if (redirectTo?.includes("?")) window.location.assign(redirectTo);
+        else navigate({ to: redirectTo });
       }
     });
     return () => sub.subscription.unsubscribe();

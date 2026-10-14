@@ -44,6 +44,7 @@ import { Route as ToolsOwnerDependencyRouteImport } from './routes/tools.owner-d
 import { Route as ToolsGrowthConstraintRouteImport } from './routes/tools.growth-constraint'
 import { Route as ToolsCosNavigatorRouteImport } from './routes/tools.cos-navigator'
 import { Route as SchedulerProjectIdRouteImport } from './routes/scheduler.$projectId'
+import { Route as OauthConsentRouteImport } from './routes/oauth.consent'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as ControlPlanPacketIdRouteImport } from './routes/control-plan.$packetId'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
@@ -257,6 +258,11 @@ const SchedulerProjectIdRoute = SchedulerProjectIdRouteImport.update({
   id: '/$projectId',
   path: '/$projectId',
   getParentRoute: () => SchedulerRoute,
+} as any)
+const OauthConsentRoute = OauthConsentRouteImport.update({
+  id: '/oauth/consent',
+  path: '/oauth/consent',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
   id: '/email/unsubscribe',
@@ -507,6 +513,7 @@ export interface FileRoutesByFullPath {
   '/auth/callback': typeof AuthCallbackRoute
   '/control-plan/$packetId': typeof ControlPlanPacketIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/oauth/consent': typeof OauthConsentRoute
   '/scheduler/$projectId': typeof SchedulerProjectIdRoute
   '/tools/cos-navigator': typeof ToolsCosNavigatorRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
@@ -582,6 +589,7 @@ export interface FileRoutesByTo {
   '/auth/callback': typeof AuthCallbackRoute
   '/control-plan/$packetId': typeof ControlPlanPacketIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/oauth/consent': typeof OauthConsentRoute
   '/scheduler/$projectId': typeof SchedulerProjectIdRoute
   '/tools/cos-navigator': typeof ToolsCosNavigatorRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
@@ -658,6 +666,7 @@ export interface FileRoutesById {
   '/auth/callback': typeof AuthCallbackRoute
   '/control-plan/$packetId': typeof ControlPlanPacketIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/oauth/consent': typeof OauthConsentRoute
   '/scheduler/$projectId': typeof SchedulerProjectIdRoute
   '/tools/cos-navigator': typeof ToolsCosNavigatorRoute
   '/tools/growth-constraint': typeof ToolsGrowthConstraintRoute
@@ -735,6 +744,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/control-plan/$packetId'
     | '/email/unsubscribe'
+    | '/oauth/consent'
     | '/scheduler/$projectId'
     | '/tools/cos-navigator'
     | '/tools/growth-constraint'
@@ -810,6 +820,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/control-plan/$packetId'
     | '/email/unsubscribe'
+    | '/oauth/consent'
     | '/scheduler/$projectId'
     | '/tools/cos-navigator'
     | '/tools/growth-constraint'
@@ -885,6 +896,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/control-plan/$packetId'
     | '/email/unsubscribe'
+    | '/oauth/consent'
     | '/scheduler/$projectId'
     | '/tools/cos-navigator'
     | '/tools/growth-constraint'
@@ -961,6 +973,7 @@ export interface RootRouteChildren {
   AuthCallbackRoute: typeof AuthCallbackRoute
   ControlPlanPacketIdRoute: typeof ControlPlanPacketIdRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
+  OauthConsentRoute: typeof OauthConsentRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AosIndexRoute: typeof AosIndexRoute
   AskIndexRoute: typeof AskIndexRoute
@@ -1225,6 +1238,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/scheduler/$projectId'
       preLoaderRoute: typeof SchedulerProjectIdRouteImport
       parentRoute: typeof SchedulerRoute
+    }
+    '/oauth/consent': {
+      id: '/oauth/consent'
+      path: '/oauth/consent'
+      fullPath: '/oauth/consent'
+      preLoaderRoute: typeof OauthConsentRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/email/unsubscribe': {
       id: '/email/unsubscribe'
@@ -1576,6 +1596,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthCallbackRoute: AuthCallbackRoute,
   ControlPlanPacketIdRoute: ControlPlanPacketIdRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
+  OauthConsentRoute: OauthConsentRoute,
   AdminIndexRoute: AdminIndexRoute,
   AosIndexRoute: AosIndexRoute,
   AskIndexRoute: AskIndexRoute,
