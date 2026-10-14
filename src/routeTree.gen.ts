@@ -26,6 +26,7 @@ import { Route as ReplaysRouteImport } from './routes/replays'
 import { Route as OverwatchRouteImport } from './routes/overwatch'
 import { Route as OperatingPlaybookRouteImport } from './routes/operating-playbook'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as McpRouteImport } from './routes/mcp'
 import { Route as MagicLinkRouteImport } from './routes/magic-link'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as HardcoreRouteImport } from './routes/hardcore'
@@ -69,6 +70,7 @@ import { Route as AdminEmailApprovalsRouteImport } from './routes/admin.email-ap
 import { Route as AdminControlRouteImport } from './routes/admin.control'
 import { Route as AdminBackfillRouteImport } from './routes/admin.backfill'
 import { Route as AdminAnnounceRouteImport } from './routes/admin.announce'
+import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as ToolsSopEditPacketIdRouteImport } from './routes/tools.sop-edit.$packetId'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as ApiPublicAosFpRouteImport } from './routes/api/public/aos-fp'
@@ -167,6 +169,11 @@ const OperatingPlaybookRoute = OperatingPlaybookRouteImport.update({
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const McpRoute = McpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MagicLinkRoute = MagicLinkRouteImport.update({
@@ -384,6 +391,12 @@ const AdminAnnounceRoute = AdminAnnounceRouteImport.update({
   path: '/admin/announce',
   getParentRoute: () => rootRouteImport,
 } as any)
+const Char91DotwellKnownChar93OauthProtectedResourceRoute =
+  Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
+    id: '/.well-known/oauth-protected-resource',
+    path: '/.well-known/oauth-protected-resource',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ToolsSopEditPacketIdRoute = ToolsSopEditPacketIdRouteImport.update({
   id: '/sop-edit/$packetId',
   path: '/sop-edit/$packetId',
@@ -472,6 +485,7 @@ export interface FileRoutesByFullPath {
   '/hardcore': typeof HardcoreRoute
   '/login': typeof LoginRoute
   '/magic-link': typeof MagicLinkRoute
+  '/mcp': typeof McpRoute
   '/onboarding': typeof OnboardingRoute
   '/operating-playbook': typeof OperatingPlaybookRoute
   '/overwatch': typeof OverwatchRoute
@@ -489,6 +503,7 @@ export interface FileRoutesByFullPath {
   '/vault': typeof VaultRoute
   '/welcome': typeof WelcomeRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/announce': typeof AdminAnnounceRoute
   '/admin/backfill': typeof AdminBackfillRoute
   '/admin/control': typeof AdminControlRoute
@@ -548,6 +563,7 @@ export interface FileRoutesByTo {
   '/hardcore': typeof HardcoreRoute
   '/login': typeof LoginRoute
   '/magic-link': typeof MagicLinkRoute
+  '/mcp': typeof McpRoute
   '/onboarding': typeof OnboardingRoute
   '/operating-playbook': typeof OperatingPlaybookRoute
   '/overwatch': typeof OverwatchRoute
@@ -565,6 +581,7 @@ export interface FileRoutesByTo {
   '/vault': typeof VaultRoute
   '/welcome': typeof WelcomeRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/announce': typeof AdminAnnounceRoute
   '/admin/backfill': typeof AdminBackfillRoute
   '/admin/control': typeof AdminControlRoute
@@ -625,6 +642,7 @@ export interface FileRoutesById {
   '/hardcore': typeof HardcoreRoute
   '/login': typeof LoginRoute
   '/magic-link': typeof MagicLinkRoute
+  '/mcp': typeof McpRoute
   '/onboarding': typeof OnboardingRoute
   '/operating-playbook': typeof OperatingPlaybookRoute
   '/overwatch': typeof OverwatchRoute
@@ -642,6 +660,7 @@ export interface FileRoutesById {
   '/vault': typeof VaultRoute
   '/welcome': typeof WelcomeRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/announce': typeof AdminAnnounceRoute
   '/admin/backfill': typeof AdminBackfillRoute
   '/admin/control': typeof AdminControlRoute
@@ -703,6 +722,7 @@ export interface FileRouteTypes {
     | '/hardcore'
     | '/login'
     | '/magic-link'
+    | '/mcp'
     | '/onboarding'
     | '/operating-playbook'
     | '/overwatch'
@@ -720,6 +740,7 @@ export interface FileRouteTypes {
     | '/vault'
     | '/welcome'
     | '/work-with-marshall'
+    | '/.well-known/oauth-protected-resource'
     | '/admin/announce'
     | '/admin/backfill'
     | '/admin/control'
@@ -779,6 +800,7 @@ export interface FileRouteTypes {
     | '/hardcore'
     | '/login'
     | '/magic-link'
+    | '/mcp'
     | '/onboarding'
     | '/operating-playbook'
     | '/overwatch'
@@ -796,6 +818,7 @@ export interface FileRouteTypes {
     | '/vault'
     | '/welcome'
     | '/work-with-marshall'
+    | '/.well-known/oauth-protected-resource'
     | '/admin/announce'
     | '/admin/backfill'
     | '/admin/control'
@@ -855,6 +878,7 @@ export interface FileRouteTypes {
     | '/hardcore'
     | '/login'
     | '/magic-link'
+    | '/mcp'
     | '/onboarding'
     | '/operating-playbook'
     | '/overwatch'
@@ -872,6 +896,7 @@ export interface FileRouteTypes {
     | '/vault'
     | '/welcome'
     | '/work-with-marshall'
+    | '/.well-known/oauth-protected-resource'
     | '/admin/announce'
     | '/admin/backfill'
     | '/admin/control'
@@ -932,6 +957,7 @@ export interface RootRouteChildren {
   HardcoreRoute: typeof HardcoreRoute
   LoginRoute: typeof LoginRoute
   MagicLinkRoute: typeof MagicLinkRoute
+  McpRoute: typeof McpRoute
   OnboardingRoute: typeof OnboardingRoute
   OperatingPlaybookRoute: typeof OperatingPlaybookRoute
   OverwatchRoute: typeof OverwatchRoute
@@ -949,6 +975,7 @@ export interface RootRouteChildren {
   VaultRoute: typeof VaultRoute
   WelcomeRoute: typeof WelcomeRoute
   WorkWithMarshallRoute: typeof WorkWithMarshallRoute
+  Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   AdminAnnounceRoute: typeof AdminAnnounceRoute
   AdminBackfillRoute: typeof AdminBackfillRoute
   AdminControlRoute: typeof AdminControlRoute
@@ -1111,6 +1138,13 @@ declare module '@tanstack/react-router' {
       path: '/onboarding'
       fullPath: '/onboarding'
       preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/magic-link': {
@@ -1414,6 +1448,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAnnounceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/.well-known/oauth-protected-resource': {
+      id: '/.well-known/oauth-protected-resource'
+      path: '/.well-known/oauth-protected-resource'
+      fullPath: '/.well-known/oauth-protected-resource'
+      preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tools/sop-edit/$packetId': {
       id: '/tools/sop-edit/$packetId'
       path: '/sop-edit/$packetId'
@@ -1555,6 +1596,7 @@ const rootRouteChildren: RootRouteChildren = {
   HardcoreRoute: HardcoreRoute,
   LoginRoute: LoginRoute,
   MagicLinkRoute: MagicLinkRoute,
+  McpRoute: McpRoute,
   OnboardingRoute: OnboardingRoute,
   OperatingPlaybookRoute: OperatingPlaybookRoute,
   OverwatchRoute: OverwatchRoute,
@@ -1572,6 +1614,8 @@ const rootRouteChildren: RootRouteChildren = {
   VaultRoute: VaultRoute,
   WelcomeRoute: WelcomeRoute,
   WorkWithMarshallRoute: WorkWithMarshallRoute,
+  Char91DotwellKnownChar93OauthProtectedResourceRoute:
+    Char91DotwellKnownChar93OauthProtectedResourceRoute,
   AdminAnnounceRoute: AdminAnnounceRoute,
   AdminBackfillRoute: AdminBackfillRoute,
   AdminControlRoute: AdminControlRoute,
