@@ -15,6 +15,13 @@
       "when": 1792003965417,
       "tag": "0001_mcp_workflow_state",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792004633167,
+      "tag": "0002_mcp_abuse_cap_and_hide_checklist",
+      "breakpoints": true
     }
   ]
 }
