@@ -50,6 +50,13 @@
       "when": 1792013980638,
       "tag": "0006_mcp_module1_marshall_checklist_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792014001212,
+      "tag": "0007_mcp_contract_na_policy_fix",
+      "breakpoints": true
     }
   ]
 }
