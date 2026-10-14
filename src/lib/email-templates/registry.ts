@@ -1,3 +1,4 @@
+import { template as circleFirstStepTemplate } from './circle-first-step'
 import type { ComponentType } from 'react'
 
 export interface TemplateEntry {
@@ -30,6 +31,7 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
   'admin-activity-notice': adminActivityNoticeTemplate,
   'login-nudge': loginNudgeTemplate,
   'discord-nudge': discordNudgeTemplate,
+  'circle-first-step': circleFirstStepTemplate,
   'circle-welcome': circleWelcomeTemplate,
   'magic-link': magicLinkTemplate,
   'state-of-control-report': stateOfControlReportTemplate,

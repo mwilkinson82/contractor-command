@@ -19,6 +19,7 @@ export const SignupEmail = ({
     preview={`Confirm your email for ${siteName}`}
     label="Email verification"
     title="Confirm your email"
+    verificationEmail={recipient}
     actionLabel="Verify email"
     actionUrl={confirmationUrl}
     footer="If you didn't create an account, you can safely ignore this email."
@@ -27,11 +28,7 @@ export const SignupEmail = ({
     <Link href={siteUrl} style={transactionalLinkStyle}>
       <strong>{siteName}</strong>
     </Link>
-    . Confirm{" "}
-    <Link href={`mailto:${recipient}`} style={transactionalLinkStyle}>
-      {recipient}
-    </Link>{" "}
-    to enter the Command Center.
+    . Confirm your email below to enter the Command Center.
   </TransactionalEmail>
 );
 
