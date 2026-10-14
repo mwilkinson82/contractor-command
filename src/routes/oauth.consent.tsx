@@ -129,17 +129,28 @@ function Consent() {
       subtitle={`This lets ${clientName} use the Contractor Circle tools as you.`}
     >
       <div className="space-y-4 text-[13px] text-foreground/80">
+        {!allowed && (
+          <div role="alert" className="space-y-3 rounded-lg border-2 border-destructive/60 bg-destructive/5 p-4">
+            <p className="text-[14px] font-semibold text-destructive">
+              Signed in as {email || "an unknown account"} — switch to your Circle account
+            </p>
+            <p className="text-foreground/75">This account doesn't have access to the PM agent, so Approve is turned off.</p>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={switchAccount}
+              className="w-full rounded-lg bg-primary px-4 py-2.5 font-medium text-primary-foreground disabled:opacity-60"
+            >
+              Switch account
+            </button>
+          </div>
+        )}
         <p>
           Signed in as <span className="font-medium text-foreground">{email || "unknown account"}</span>{" "}
           <button type="button" disabled={busy} onClick={switchAccount} className="ml-1 underline underline-offset-2 disabled:opacity-60">
             Use a different account
           </button>
         </p>
-        {!allowed && (
-          <p role="alert" className="rounded-md border border-destructive/40 p-3 text-destructive">
-            This account doesn't have access to the PM agent. Use a different account to continue.
-          </p>
-        )}
         {host && (
           <p>
             Returns to <span className="font-medium text-foreground">{host}</span>
@@ -163,7 +174,7 @@ function Consent() {
             type="button"
             disabled={busy || !allowed}
             onClick={() => decide(true)}
-            className="flex-1 rounded-lg bg-primary px-4 py-2.5 font-medium text-primary-foreground disabled:opacity-60"
+            className={`flex-1 rounded-lg px-4 py-2.5 font-medium disabled:opacity-60 ${allowed ? "bg-primary text-primary-foreground" : "border border-border"}`}
           >
             Approve
           </button>

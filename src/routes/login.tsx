@@ -37,8 +37,9 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [mode, setMode] = useState<"magic" | "password">("magic");
-  const [magicSent, setMagicSent] = useState(false);
+  const fromConnect = !!redirectTo?.startsWith("/oauth/consent");
+  const [mode, setMode] = useState<"magic" | "password">(fromConnect ? "password" : "magic");
+  const [magicRequested, setMagicRequested] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
 
   function requestMagicLinkWithTimeout(emailAddress: string) {
@@ -79,9 +80,9 @@ function LoginPage() {
     setErr(null);
     try {
       await requestMagicLinkWithTimeout(email.trim());
-      setMagicSent(true);
-    } catch (error: unknown) {
-      setErr(error instanceof Error ? error.message : "Something went wrong");
+      setMagicRequested(true);
+    } catch {
+      setErr("We could not confirm your request. Please try again, or sign in with your password.");
     } finally {
       setBusy(false);
     }
@@ -115,14 +116,14 @@ function LoginPage() {
 
   return (
     <AuthCard
-      title={magicSent ? "Check your inbox." : "Sign in to the Hub."}
+      title={magicRequested ? "Request received." : fromConnect ? "Sign in to approve the connection." : "Sign in to the Hub."}
       subtitle={
-        magicSent
-          ? `If ${email} is attached to active access, the newest secure sign-in link is on its way.`
+        magicRequested
+          ? `If this address is eligible and email delivery is available, you will receive a secure sign-in link. Check the spelling of ${email}, or sign in with your password.`
           : "One secure login routes you to every ALP resource, application, and member space included in your access."
       }
     >
-      {magicSent ? (
+      {magicRequested ? (
         <div>
           <div className="rounded-xl border border-border bg-muted/45 p-5 text-[13px] leading-relaxed text-foreground/75">
             Check your inbox and spam folder. Open the newest email only; each secure link works
@@ -131,7 +132,7 @@ function LoginPage() {
           <button
             type="button"
             className="mx-auto mt-5 block text-[12px] font-medium text-clay hover:underline"
-            onClick={() => setMagicSent(false)}
+            onClick={() => setMagicRequested(false)}
           >
             Try a different email
           </button>
