@@ -777,6 +777,50 @@ export type Database = {
         }
         Relationships: []
       }
+      mcp_answers: {
+        Row: {
+          check_key: string
+          check_version: number
+          created_at: string
+          detail: string | null
+          id: string
+          lookahead_id: string
+          response: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          check_key: string
+          check_version: number
+          created_at?: string
+          detail?: string | null
+          id?: string
+          lookahead_id: string
+          response?: string | null
+          status: string
+          user_id?: string
+        }
+        Update: {
+          check_key?: string
+          check_version?: number
+          created_at?: string
+          detail?: string | null
+          id?: string
+          lookahead_id?: string
+          response?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_answers_lookahead_id_fkey"
+            columns: ["lookahead_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_lookaheads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_call_log: {
         Row: {
           called_at: string
@@ -791,6 +835,416 @@ export type Database = {
         Update: {
           called_at?: string
           id?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      mcp_carry_forwards: {
+        Row: {
+          created_at: string
+          from_lookahead_id: string
+          id: string
+          item_id: string
+          to_lookahead_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          from_lookahead_id: string
+          id?: string
+          item_id: string
+          to_lookahead_id: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          from_lookahead_id?: string
+          id?: string
+          item_id?: string
+          to_lookahead_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_carry_forwards_from_lookahead_id_fkey"
+            columns: ["from_lookahead_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_lookaheads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_carry_forwards_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_open_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_carry_forwards_to_lookahead_id_fkey"
+            columns: ["to_lookahead_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_lookaheads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_checklist_items: {
+        Row: {
+          active: boolean
+          category: string
+          created_at: string
+          id: string
+          is_placeholder: boolean
+          key: string
+          position: number
+          prompt: string
+          required_inputs: string[]
+          rule_type: string
+          severity: string
+          trade: string
+          version: number
+        }
+        Insert: {
+          active?: boolean
+          category: string
+          created_at?: string
+          id?: string
+          is_placeholder?: boolean
+          key: string
+          position?: number
+          prompt: string
+          required_inputs?: string[]
+          rule_type: string
+          severity?: string
+          trade?: string
+          version?: number
+        }
+        Update: {
+          active?: boolean
+          category?: string
+          created_at?: string
+          id?: string
+          is_placeholder?: boolean
+          key?: string
+          position?: number
+          prompt?: string
+          required_inputs?: string[]
+          rule_type?: string
+          severity?: string
+          trade?: string
+          version?: number
+        }
+        Relationships: []
+      }
+      mcp_item_events: {
+        Row: {
+          created_at: string
+          event: string
+          id: string
+          item_id: string
+          lookahead_id: string | null
+          note: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event: string
+          id?: string
+          item_id: string
+          lookahead_id?: string | null
+          note?: string | null
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          event?: string
+          id?: string
+          item_id?: string
+          lookahead_id?: string | null
+          note?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_item_events_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_open_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_item_evidence: {
+        Row: {
+          created_at: string
+          evidence: string
+          id: string
+          item_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          evidence: string
+          id?: string
+          item_id: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          evidence?: string
+          id?: string
+          item_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_item_evidence_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_open_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_jobs: {
+        Row: {
+          created_at: string
+          id: string
+          job_number: string | null
+          name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          job_number?: string | null
+          name: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          job_number?: string | null
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      mcp_lookaheads: {
+        Row: {
+          created_at: string
+          end_date: string | null
+          id: string
+          inputs: Json
+          job_id: string
+          missing_inputs: string[]
+          provided_inputs: string[]
+          start_date: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          inputs?: Json
+          job_id: string
+          missing_inputs?: string[]
+          provided_inputs?: string[]
+          start_date?: string | null
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          inputs?: Json
+          job_id?: string
+          missing_inputs?: string[]
+          provided_inputs?: string[]
+          start_date?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_lookaheads_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_open_items: {
+        Row: {
+          action: string
+          carry_count: number
+          category: string
+          check_key: string
+          check_version: number
+          created_at: string
+          detail: string | null
+          due_date: string | null
+          id: string
+          job_id: string
+          lookahead_id: string
+          origin_lookahead_id: string
+          owner: string
+          resolved_at: string | null
+          severity: string
+          status: string
+          trade: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          carry_count?: number
+          category: string
+          check_key: string
+          check_version: number
+          created_at?: string
+          detail?: string | null
+          due_date?: string | null
+          id?: string
+          job_id: string
+          lookahead_id: string
+          origin_lookahead_id: string
+          owner?: string
+          resolved_at?: string | null
+          severity: string
+          status?: string
+          trade: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          action?: string
+          carry_count?: number
+          category?: string
+          check_key?: string
+          check_version?: number
+          created_at?: string
+          detail?: string | null
+          due_date?: string | null
+          id?: string
+          job_id?: string
+          lookahead_id?: string
+          origin_lookahead_id?: string
+          owner?: string
+          resolved_at?: string | null
+          severity?: string
+          status?: string
+          trade?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_open_items_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_open_items_lookahead_id_fkey"
+            columns: ["lookahead_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_lookaheads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_open_items_origin_lookahead_id_fkey"
+            columns: ["origin_lookahead_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_lookaheads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_profiles: {
+        Row: {
+          company_name: string
+          created_at: string
+          notes: string | null
+          roles: Json
+          trades: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_name: string
+          created_at?: string
+          notes?: string | null
+          roles?: Json
+          trades?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          company_name?: string
+          created_at?: string
+          notes?: string | null
+          roles?: Json
+          trades?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      mcp_usage: {
+        Row: {
+          period: string
+          updated_at: string
+          usage_limit: number
+          used: number
+          user_id: string
+        }
+        Insert: {
+          period: string
+          updated_at?: string
+          usage_limit: number
+          used?: number
+          user_id: string
+        }
+        Update: {
+          period?: string
+          updated_at?: string
+          usage_limit?: number
+          used?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      mcp_workflow_log: {
+        Row: {
+          check_key: string | null
+          created_at: string
+          error_code: string | null
+          event_type: string
+          id: string
+          lookahead_id: string | null
+          tool: string
+          user_id: string
+        }
+        Insert: {
+          check_key?: string | null
+          created_at?: string
+          error_code?: string | null
+          event_type: string
+          id?: string
+          lookahead_id?: string | null
+          tool: string
+          user_id?: string
+        }
+        Update: {
+          check_key?: string | null
+          created_at?: string
+          error_code?: string | null
+          event_type?: string
+          id?: string
+          lookahead_id?: string | null
+          tool?: string
           user_id?: string
         }
         Relationships: []
@@ -1913,6 +2367,7 @@ export type Database = {
         Returns: boolean
       }
       mcp_rate_hit: { Args: { _limit?: number }; Returns: boolean }
+      mcp_usage_hit: { Args: { _limit: number }; Returns: Json }
       move_to_dlq: {
         Args: {
           dlq_name: string
