@@ -64,6 +64,13 @@
       "when": 1792014486533,
       "tag": "0008_mcp_finance_sees_restricted",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792018161138,
+      "tag": "0009_mcp_sweep_item_types_pm_scope",
+      "breakpoints": true
     }
   ]
 }

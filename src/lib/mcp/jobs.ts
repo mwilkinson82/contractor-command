@@ -61,11 +61,14 @@ type Item = {
   verify_state: string; verified_at: string | null; reported_by: string | null; reported_at: string | null; source: string | null;
   cost_effect: string | null; time_effect: string | null; cash_effect: string | null; effect_is_estimate: boolean;
   next_action: string | null; next_action_approved_by: string | null; updated_at: string; category: string;
+  item_type: string | null; recommendation: string | null; why: string | null; help_offer: string | null; waiting_on_document: string | null;
+  waiting_on_who: string | null; waiting_since: string | null; clause_source: string | null; delivery_method: string | null; recipient: string | null;
 };
+export type { Item };
 type Na = { scope: string; target: string; reason: string; set_at: string };
 
 export const ITEM_COLS =
-  "id, action, accountable, owner, needed_by, due_date, severity, status, section, check_key, kind, commercial_type, internal_only, verify_state, verified_at, reported_by, reported_at, source, cost_effect, time_effect, cash_effect, effect_is_estimate, next_action, next_action_approved_by, updated_at, category";
+  "id, action, accountable, owner, needed_by, due_date, severity, status, section, check_key, kind, commercial_type, internal_only, verify_state, verified_at, reported_by, reported_at, source, cost_effect, time_effect, cash_effect, effect_is_estimate, next_action, next_action_approved_by, updated_at, category, item_type, recommendation, why, help_offer, waiting_on_document, waiting_on_who, waiting_since, clause_source, delivery_method, recipient";
 
 export async function activeNa(sb: Sb, jobId: string): Promise<Na[]> {
   const { data, error } = await sb.from("mcp_job_na").select("scope, target, reason, set_at").eq("job_id", jobId).eq("active", true);
@@ -80,6 +83,20 @@ export function naLabel(it: Pick<Item, "section" | "check_key">, nas: Na[]): str
   return hit ? "section N/A — needs disposition" : null;
 }
 
+/** Effective type: items sitting under an active N/A are na_disposition while the N/A stands. */
+export function itemType(it: Pick<Item, "section" | "check_key" | "item_type">, nas: Na[]): string {
+  if (naLabel(it, nas)) return "na_disposition";
+  return it.item_type && it.item_type !== "na_disposition" ? it.item_type : "deadline";
+}
+
+function typeDetail(it: Item, t: string, client: boolean) {
+  if (t === "no") return ` | Recommendation: ${it.recommendation ?? "none recorded"} | Why: ${it.why ?? "best-practice gap"} | ${it.help_offer ?? "The PM agent can help with this."}`;
+  if (t === "pending_document") return ` | Waiting on: ${it.waiting_on_document ?? "unknown document"} from ${it.waiting_on_who ?? "unknown"} since ${it.waiting_since ?? "unknown"}`;
+  if (t === "deadline") return ` | Clause/source: ${it.clause_source ?? "unknown"} | Method: ${it.delivery_method ?? "unknown"} | Recipient: ${it.recipient ?? "unknown"}`;
+  if (t === "unknown") return " | Needs confirming evidence or a dated member statement";
+  return client ? "" : "";
+}
+
 export function itemLine(it: Item, nas: Na[], client = false) {
   const status = it.verify_state === "verified" ? `verified ${it.verified_at?.slice(0, 10) ?? ""}` : `last reported by ${it.reported_by ?? "unknown"} ${it.reported_at?.slice(0, 10) ?? ""}`;
   const effects = client
@@ -87,7 +104,8 @@ export function itemLine(it: Item, nas: Na[], client = false) {
     : `cost: ${it.cost_effect ?? "unknown"} | time: ${it.time_effect ?? "unknown"} | cash: ${it.cash_effect ?? "unknown"}${it.effect_is_estimate ? " (estimate)" : ""}`;
   const na = naLabel(it, nas);
   const next = !client && it.next_action ? ` | Next: ${it.next_action}${it.next_action_approved_by ? ` (approved by ${it.next_action_approved_by})` : " (not yet approved)"}` : "";
-  return `${it.action} | Accountable: ${it.accountable ?? it.owner} | Needed by: ${it.needed_by ?? it.due_date ?? "unknown"} | ${status.trim()} | Source: ${it.source ?? "unknown"} | ${effects}${next}${na ? ` | ${na}` : ""} [item ${it.id}]`;
+  const t = itemType(it, nas);
+  return `[${t}] ${it.action} | Accountable: ${it.accountable ?? it.owner} | Needed by: ${it.needed_by ?? it.due_date ?? "unknown"} | ${status.trim()} | Source: ${it.source ?? "unknown"} | ${effects}${next}${typeDetail(it, t, client)}${na ? ` | ${na}` : ""} [item ${it.id}]`;
 }
 
 const SECTION_TITLES: Record<string, string> = {

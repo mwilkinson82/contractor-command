@@ -1,7 +1,8 @@
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { dbError, run, text, type Sb } from "../guard";
-import { ITEM_COLS, activeNa, audit, itemLine, prefix, renderSetupReport, resolveCompany, resolveJob, type Job } from "../jobs";
+import { ITEM_COLS, activeNa, audit, itemLine, itemType, prefix, renderSetupReport, resolveCompany, resolveJob, type Job } from "../jobs";
+import { computeDue, type DayType } from "../deadlines";
 import { INPUT_KEYS, INPUT_LABELS, currentCheck, loadLookahead, renderReport, type InputKey } from "../workflow";
 
 const uuid = z.string().uuid();
@@ -27,13 +28,14 @@ async function rpc<T>(sb: Sb, fn: string, args: Record<string, unknown>): Promis
   return data as T;
 }
 
-type ItemResult = { item_id: string; existing: boolean; owner_defaulted?: boolean; needed_by_defaulted?: boolean; accountable?: string; needed_by?: string };
-const itemNote = (r: ItemResult | null | undefined) =>
+type ItemResult = { item_id: string; existing: boolean; item_type?: string; delivery_item?: ItemResult | null; owner_defaulted?: boolean; needed_by_defaulted?: boolean; accountable?: string; needed_by?: string };
+const itemNote = (r: ItemResult | null | undefined): string =>
   !r
     ? ""
     : r.existing
-      ? ` Already open: item ${r.item_id}.`
-      : ` Open item ${r.item_id} created (accountable: ${r.accountable}${r.owner_defaulted ? " — defaulted to you, reassign if needed" : ""}; needed by ${r.needed_by}${r.needed_by_defaulted ? " — defaulted to 7 days" : ""}).`;
+      ? ` Already open: item ${r.item_id} (type ${r.item_type ?? "unknown"}).`
+      : ` Open item ${r.item_id} created, type ${r.item_type ?? "deadline"} (accountable: ${r.accountable}${r.owner_defaulted ? " — defaulted to you, reassign if needed" : ""}; needed by ${r.needed_by}${r.needed_by_defaulted ? " — defaulted to 7 days" : ""}).${r.delivery_item ? ` Delivery method/recipient unknown:${itemNote(r.delivery_item)}` : ""}`;
+const itemOut = (r: ItemResult | null | undefined) => (r ? { item_id: r.item_id, item_type: r.item_type ?? "deadline" } : null);
 
 type FlagResult = { changed: string[]; confirm_items: ItemResult[]; reenable_suggestions: { na_id: string; scope: string; target: string; trigger: string }[] };
 const flagNote = (r: FlagResult) => {
@@ -138,13 +140,37 @@ export const intake = defineTool({
   name: "intake",
   title: "Job setup intake",
   description:
-    "Create a job (keyed by job number) and record its setup: step 0 scoping, contract terms, estimate handoff, budget and SOV, open items, or a two-week lookahead. Missing data is recorded as unknown, never guessed.",
+    "Create a job (keyed by job number) and record its setup: job settings (time zone, PM), step 0 scoping, contract terms, contract deadlines, estimate handoff, budget and SOV, open items, or a two-week lookahead. Missing data is recorded as unknown, never guessed.",
   inputSchema: {
-    section: z.enum(["create_job", "scope", "contract", "handoff", "budget", "open_item", "lookahead"]).describe("Which part of setup to record."),
+    section: z.enum(["create_job", "job_settings", "scope", "contract", "deadline", "handoff", "budget", "open_item", "lookahead"]).describe("Which part of setup to record."),
     job_number: jobNumber,
     company_id: companyId,
     job_name: z.string().trim().max(200).optional().describe("create_job: job name."),
     restrict_to: z.array(z.string().trim().min(1).max(120)).max(30).optional().describe("create_job: member names who may see this job (leave out for all members)."),
+    // Job settings
+    time_zone: z.string().trim().max(60).optional().describe("job_settings: IANA time zone, e.g. America/Chicago. Deadlines are computed in it."),
+    pm: z.string().trim().max(120).optional().describe("job_settings: member name to assign as the job's PM."),
+    // Deadline (contract time clause)
+    clause_key: z.enum(["notice", "submittal_turnaround", "rfi_turnaround", "liquidated_damages", "completion", "other"]).optional(),
+    label: short("deadline: what is due, e.g. 'Delay notice: utility shutdown denied'."),
+    clause_ref: z.string().max(200).optional().describe("deadline: clause reference, e.g. §8.3."),
+    trigger_desc: short("deadline: the event that starts the clock."),
+    trigger_date: date.optional().describe("deadline: date of the triggering event."),
+    trigger_alternatives: z.array(date).max(5).optional().describe("deadline: other plausible trigger dates if the trigger is ambiguous."),
+    n_days: z.number().int().min(0).max(3650).optional().describe("deadline: number of days in the clause."),
+    day_type: z.enum(["calendar", "business", "working"]).optional().describe("deadline: only if the contract defines it. Leave out otherwise."),
+    holidays: z.array(date).max(60).optional().describe("deadline: holidays listed in the contract. Leave out otherwise."),
+    weekend_roll: z.boolean().optional().describe("deadline: true only if the contract moves weekend/holiday deadlines later."),
+    fixed_date: date.optional().describe("deadline: a fixed contract date (e.g. substantial completion)."),
+    delivery_method: short("deadline / open_item: how it must be sent, per the contract."),
+    recipient: short("deadline / open_item: who it must go to."),
+    // Open item typing
+    item_type: z.enum(["unknown", "no", "pending_document", "deadline"]).optional().describe("open_item: type. na_disposition is applied automatically under N/A sections."),
+    waiting_on_document: short("open_item pending_document: the named document."),
+    waiting_on_who: short("open_item pending_document: who it is coming from."),
+    waiting_since: date.optional(),
+    clause_source: short("open_item deadline: clause or source of the due date."),
+    recommendation: short("open_item no: recommendation."), why: short("open_item no: why it matters."),
     // Step 0
     job_type: short("scope: job type / trade."),
     scope_summary: short("scope: short scope summary."),
@@ -201,6 +227,39 @@ export const intake = defineTool({
       }
       const job = await resolveJob(sb, args.job_number, args.company_id);
       const P = prefix(job);
+
+      if (args.section === "job_settings") {
+        if (!args.time_zone && !args.pm) throw new ToolError("job_settings needs time_zone and/or pm.");
+        const r = await rpc<{ time_zone: string | null; pm: string | null }>(sb, "mcp_job_settings", { _job: job.job_id, _time_zone: args.time_zone ?? null, _pm_name: args.pm ?? null });
+        return { ...text(`${P}Job settings saved. Time zone: ${r.time_zone ?? "unknown"} | PM: ${r.pm ?? "unassigned"}`), structuredContent: { time_zone: r.time_zone, pm: r.pm } };
+      }
+
+      if (args.section === "deadline") {
+        if (!args.clause_key || !args.label?.trim()) throw new ToolError("deadline needs clause_key and label.");
+        if (args.fixed_date === undefined && (args.trigger_date === undefined || args.n_days === undefined))
+          throw new ToolError("deadline needs fixed_date, or trigger_date and n_days. Leave the clause out if you don't have it; it stays unknown.");
+        const c = computeDue({
+          id: "", label: args.label, clause_ref: args.clause_ref ?? null, trigger_desc: args.trigger_desc ?? null, trigger_date: args.trigger_date ?? null,
+          trigger_alternatives: args.trigger_alternatives ?? [], n_days: args.n_days ?? null, day_type: (args.day_type ?? null) as DayType | null,
+          holidays: args.holidays ?? null, weekend_roll: args.weekend_roll ?? false, fixed_date: args.fixed_date ?? null,
+        });
+        const r = await rpc<{ deadline_id: string; item: ItemResult | null; day_type_item: ItemResult | null; trigger_item: ItemResult | null }>(sb, "mcp_deadline_add", {
+          _job: job.job_id, _due: c.due,
+          _d: {
+            clause_key: args.clause_key, label: args.label, clause_ref: args.clause_ref, trigger_desc: args.trigger_desc, trigger_date: args.trigger_date,
+            trigger_alternatives: args.trigger_alternatives ?? [], n_days: args.n_days, day_type: args.day_type, holidays: args.holidays,
+            weekend_roll: args.weekend_roll, fixed_date: args.fixed_date, delivery_method: args.delivery_method, recipient: args.recipient,
+            owner: args.owner, source: args.contract_document_provided ? "document" : "member_answer",
+          },
+        });
+        return {
+          ...text(
+            [`${P}Deadline recorded: ${args.label}${args.clause_ref ? ` (${args.clause_ref})` : ""}. Due ${c.due ?? "unknown"}.`, `Math: ${c.math}.`, ...c.alternatives.map((a) => `Also shown: ${a}.`), ...c.precautions,
+              `Deadline item:${itemNote(r.item)}`, r.day_type_item ? `Day type ambiguity:${itemNote(r.day_type_item)}` : "", r.trigger_item ? `Trigger ambiguity:${itemNote(r.trigger_item)}` : ""].filter(Boolean).join("\n"),
+          ),
+          structuredContent: { deadline_id: r.deadline_id, due: c.due, items: [r.item, r.item?.delivery_item, r.day_type_item, r.trigger_item].filter((x): x is ItemResult => !!x).map((x) => itemOut(x)!) },
+        };
+      }
 
       if (args.section === "scope") {
         const facts = {
@@ -313,9 +372,12 @@ export const intake = defineTool({
             cost_effect: args.cost_effect ?? null, time_effect: args.time_effect ?? null, cash_effect: args.cash_effect ?? null,
             effect_is_estimate: args.effect_is_estimate ?? true, next_action: args.next_action ?? null, next_action_approved_by: args.next_action_approved_by ?? null,
             internal_only: args.internal_only ?? false, source: "member_answer", tool: "intake", category: args.kind === "commercial" ? "Commercial" : "General",
+            item_type: args.item_type ?? null, waiting_on_document: args.waiting_on_document ?? null, waiting_on_who: args.waiting_on_who ?? null,
+            waiting_since: args.waiting_since ?? null, clause_source: args.clause_source ?? null, delivery_method: args.delivery_method ?? null,
+            recipient: args.recipient ?? null, recommendation: args.recommendation ?? null, why: args.why ?? null,
           },
         });
-        return text(`${P}${itemNote(r).trim()}`);
+        return { ...text(`${P}${itemNote(r).trim()}`), structuredContent: { items: [itemOut(r)!, ...(r.delivery_item ? [itemOut(r.delivery_item)!] : [])] } };
       }
 
       // lookahead
@@ -464,12 +526,12 @@ export const answer = defineTool({
             _job: job.job_id,
             _f: {
               action: `${check.category}: ${detail ?? check.prompt.replace(/^PLACEHOLDER:\s*/, "")}`.slice(0, 480), kind: status === "unknown" ? "confirm_unknown" : "general",
-              accountable: args.owner ?? null, needed_by: args.due_date ?? null, trade: check.trade, category: check.category, severity: check.severity, detail, tool: "answer",
+              item_type: status === "unknown" ? "unknown" : "no", accountable: args.owner ?? null, needed_by: args.due_date ?? null, trade: check.trade, category: check.category, severity: check.severity, detail, tool: "answer",
             },
           });
         }
         await audit(sb, job, "answer", `lookahead_answer_${status}`, check.key);
-        return { ...text(`${P}Recorded${status === "unknown" ? " as unknown" : ""}.${itemNote(item)}\nNext: next_question.`), structuredContent: { status, item_id: item?.item_id ?? null } };
+        return { ...text(`${P}Recorded${status === "unknown" ? " as unknown" : ""}.${itemNote(item)}\nNext: next_question.`), structuredContent: { status, item_id: item?.item_id ?? null, item_type: item?.item_type ?? null } };
       }
 
       if (!args.response) throw new ToolError("answer needs response yes, no, na or unknown.");
@@ -478,7 +540,7 @@ export const answer = defineTool({
       });
       return {
         ...text(`${P}Recorded ${r.recorded}.${r.recorded === "na" ? " This question won't be asked again unless you re-enable it." : ""}${itemNote(r.item)}${r.recommendation ? `\n\nRecommendation: ${r.recommendation}` : ""}\nNext: next_question.`),
-        structuredContent: { recorded: r.recorded, item_id: r.item?.item_id ?? null },
+        structuredContent: { recorded: r.recorded, item_id: r.item?.item_id ?? null, item_type: r.item?.item_type ?? null },
       };
     }),
 });
@@ -505,7 +567,11 @@ export const report = defineTool({
       }
       const audience = args.audience ?? "internal";
       await audit(sb, job, "report", `view_setup_report_${audience}`, null);
-      return text(await renderSetupReport(sb, job, audience));
+      const body = await renderSetupReport(sb, job, audience);
+      let iq = sb.from("mcp_open_items").select("id, section, check_key, item_type").eq("job_id", job.job_id).eq("status", "open");
+      if (audience === "client") iq = iq.eq("internal_only", false);
+      const [{ data: its }, nas] = await Promise.all([iq, activeNa(sb, job.job_id)]);
+      return { ...text(body), structuredContent: { items: (its ?? []).map((i) => ({ item_id: i.id, item_type: itemType(i, nas) })) } };
     }),
 });
 
@@ -521,7 +587,8 @@ export const carryForward = defineTool({
       const job = await resolveJob(sb, args.job_number, args.company_id);
       if (args.from_lookahead_id === args.to_lookahead_id) throw new ToolError("from and to lookaheads must be different.");
       const [from, to] = await Promise.all([lookaheadForJob(sb, job, args.from_lookahead_id), lookaheadForJob(sb, job, args.to_lookahead_id)]);
-      const { data: items, error } = await sb.from("mcp_open_items").select("id, carry_count").eq("lookahead_id", from.id).eq("status", "open");
+      const { data: items, error } = await sb.from("mcp_open_items").select("id, carry_count, section, check_key, item_type").eq("lookahead_id", from.id).eq("status", "open");
+      const nas = await activeNa(sb, job.job_id);
       if (error) throw new Error(error.message);
       for (const it of items ?? []) {
         const up = await sb.from("mcp_open_items").update({ lookahead_id: to.id, carry_count: it.carry_count + 1, updated_at: new Date().toISOString() }).eq("id", it.id);
@@ -530,7 +597,11 @@ export const carryForward = defineTool({
         await sb.from("mcp_item_events").insert({ item_id: it.id, event: "carried_forward", lookahead_id: to.id });
       }
       await audit(sb, job, "carry_forward", "carry_forward", to.id);
-      return text(`${prefix(job)}${items?.length ?? 0} open item(s) carried forward. Next: next_question for the new lookahead.`);
+      const typed = (items ?? []).map((i) => ({ item_id: i.id, item_type: itemType(i, nas) }));
+      return {
+        ...text(`${prefix(job)}${typed.length} open item(s) carried forward.${typed.map((i) => `\n- item ${i.item_id} (type ${i.item_type})`).join("")}\nNext: next_question for the new lookahead.`),
+        structuredContent: { items: typed },
+      };
     }),
 });
 
@@ -551,7 +622,8 @@ export const listOpenItems = defineTool({
       await audit(sb, job, "list_open_items", "view_open_items", null);
       if (!data?.length) return text(`${prefix(job)}No open items.`);
       const lines = (data as unknown as Parameters<typeof itemLine>[0][]).map((it) => `- ${itemLine(it, nas)}`);
-      return text(`${prefix(job)}Open items (${data.length}):\n${lines.join("\n")}`);
+      const rows = data as unknown as Parameters<typeof itemLine>[0][];
+      return { ...text(`${prefix(job)}Open items (${data.length}):\n${lines.join("\n")}`), structuredContent: { items: rows.map((i) => ({ item_id: i.id, item_type: itemType(i, nas) })) } };
     }),
 });
 
@@ -579,13 +651,15 @@ export const resolveItem = defineTool({
     run("resolve_item", ctx, undefined, async (sb) => {
       capInput(args);
       const job = await resolveJob(sb, args.job_number, args.company_id);
-      const { data: it, error } = await sb.from("mcp_open_items").select("id, job_id").eq("id", args.item_id).maybeSingle();
+      const { data: it, error } = await sb.from("mcp_open_items").select("id, job_id, section, check_key, item_type").eq("id", args.item_id).maybeSingle();
       if (error) throw new Error(error.message);
       if (!it || it.job_id !== job.job_id) throw new ToolError(`Item not found on job ${job.job_number}.`);
       const r = await rpc<{ closed: boolean; resolution?: string }>(sb, "mcp_resolve_item", {
         _item: args.item_id, _kind: args.kind, _evidence: args.evidence ?? null, _stated_by: args.stated_by ?? null, _stated_on: args.stated_on ?? null,
         _reason: args.reason ?? null, _approval: args.approval ?? null, _billing: args.billing ?? null, _collection: args.collection ?? null,
       });
-      return text(r.closed ? `${prefix(job)}Item ${args.item_id} closed (${r.resolution}). Evidence and history kept.` : `${prefix(job)}Item ${args.item_id} updated (last reported by ${args.stated_by}). Still open.`);
+      const t = itemType(it, await activeNa(sb, job.job_id));
+      const msg = r.closed ? `${prefix(job)}Item ${args.item_id} (type ${t}) closed (${r.resolution}). Evidence and history kept.` : `${prefix(job)}Item ${args.item_id} updated (last reported by ${args.stated_by}). Still open.`;
+      return { ...text(msg), structuredContent: { item_id: args.item_id, item_type: t, closed: r.closed } };
     }),
 });
