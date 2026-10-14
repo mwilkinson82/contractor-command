@@ -71,6 +71,7 @@ import { Route as SchedulerProjectIdRouteImport } from './routes/scheduler.$proj
 import { Route as ToolsCosNavigatorRouteImport } from './routes/tools.cos-navigator'
 import { Route as ToolsGrowthConstraintRouteImport } from './routes/tools.growth-constraint'
 import { Route as ToolsOwnerDependencyRouteImport } from './routes/tools.owner-dependency'
+import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as ApiPublicAosFpRouteImport } from './routes/api/public/aos-fp'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as ToolsSopEditPacketIdRouteImport } from './routes/tools.sop-edit.$packetId'
@@ -397,6 +398,11 @@ const ToolsOwnerDependencyRoute = ToolsOwnerDependencyRouteImport.update({
   path: '/owner-dependency',
   getParentRoute: () => ToolsRoute,
 } as any)
+const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
+  id: '/.lovable/oauth/consent',
+  path: '/.lovable/oauth/consent',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicAosFpRoute = ApiPublicAosFpRouteImport.update({
   id: '/api/public/aos-fp',
   path: '/api/public/aos-fp',
@@ -536,6 +542,7 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/aos/': typeof AosIndexRoute
   '/ask/': typeof AskIndexRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
@@ -614,6 +621,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminIndexRoute
   '/aos': typeof AosIndexRoute
   '/ask': typeof AskIndexRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
@@ -693,6 +701,7 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/aos/': typeof AosIndexRoute
   '/ask/': typeof AskIndexRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
@@ -773,6 +782,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/aos/'
     | '/ask/'
+    | '/.lovable/oauth/consent'
     | '/api/public/aos-fp'
     | '/lovable/email/suppression'
     | '/tools/sop-edit/$packetId'
@@ -851,6 +861,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/aos'
     | '/ask'
+    | '/.lovable/oauth/consent'
     | '/api/public/aos-fp'
     | '/lovable/email/suppression'
     | '/tools/sop-edit/$packetId'
@@ -929,6 +940,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/aos/'
     | '/ask/'
+    | '/.lovable/oauth/consent'
     | '/api/public/aos-fp'
     | '/lovable/email/suppression'
     | '/tools/sop-edit/$packetId'
@@ -1004,6 +1016,7 @@ export interface RootRouteChildren {
   AdminIndexRoute: typeof AdminIndexRoute
   AosIndexRoute: typeof AosIndexRoute
   AskIndexRoute: typeof AskIndexRoute
+  DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiPublicAosFpRoute: typeof ApiPublicAosFpRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiPublicAosTierLookupRoute: typeof ApiPublicAosTierLookupRoute
@@ -1455,6 +1468,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ToolsOwnerDependencyRouteImport
       parentRoute: typeof ToolsRoute
     }
+    '/.lovable/oauth/consent': {
+      id: '/.lovable/oauth/consent'
+      path: '/.lovable/oauth/consent'
+      fullPath: '/.lovable/oauth/consent'
+      preLoaderRoute: typeof DotlovableOauthConsentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/aos-fp': {
       id: '/api/public/aos-fp'
       path: '/api/public/aos-fp'
@@ -1644,6 +1664,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminIndexRoute: AdminIndexRoute,
   AosIndexRoute: AosIndexRoute,
   AskIndexRoute: AskIndexRoute,
+  DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   ApiPublicAosFpRoute: ApiPublicAosFpRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiPublicAosTierLookupRoute: ApiPublicAosTierLookupRoute,
