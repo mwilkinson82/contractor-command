@@ -1,4 +1,5 @@
 
 - MCP server lives in src/lib/mcp/ (tools, guard, server-only method rules); /mcp and /.well-known routes are plugin-generated — never hand-edit. Why: SDK owns transport and OAuth metadata.
 - OAuth consent page is /oauth/consent; every sign-in path (password ?redirect, magic link via localStorage stash in oauth-return-path.ts) must return to it. Why: losing authorization_id breaks connector setup.
-- MCP lookahead workflow state lives in public.mcp_* tables (own-row RLS) and checks come from mcp_checklist_items (latest version per key, ordered by position). Why: server owns the workflow; hosts are only the conversation layer.
+- PM agent state lives in public.mcp_* tables: jobs belong to companies (mcp_companies/mcp_company_members), keyed by (company_id, job_number); reads go through RLS via mcp_can_access_job, and all job-setup writes and rules (applies_when, N/A, re-enable, resolution rules, audit) run in SECURITY DEFINER mcp_* functions; checklist rules stay unreadable to members. Why: server owns the workflow; hosts are only the conversation layer.
+- Every PM agent tool call passes the membership gate (mcp_gate -> mcp_private.is_circle_active, which reuses get_circle_entitlement, cached 5 min) before any job read or write. Why: one canonical Circle entitlement decision.
