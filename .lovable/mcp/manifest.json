@@ -13,14 +13,14 @@
   "mcp": {
     "server": {
       "name": "contractor-circle-hub",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "title": "Contractor Circle Hub"
     },
     "tools": [
       {
         "name": "onboarding",
-        "title": "Company profile",
-        "description": "Save or read the member's company profile (company name, trades, key roles). Saved once at onboarding; save again to update.",
+        "title": "Company profile and members",
+        "description": "Read or save the company profile the PM agent works for (role, work types, trades, tool stack, decision rights, default applicability), and add members as Owner, PM or All-access.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -34,19 +34,51 @@
             "action": {
               "type": "string",
               "enum": [
-                "save",
-                "read"
+                "read",
+                "save_company",
+                "add_member"
               ],
-              "description": "save or read."
+              "description": "read, save_company (create or update), or add_member."
             },
-            "company_name": {
-              "description": "Company name (required to save).",
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
               "type": "string",
-              "minLength": 1,
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "name": {
+              "description": "Company name (required to create).",
+              "type": "string",
               "maxLength": 200
             },
+            "your_name": {
+              "description": "Your display name on the company (when creating).",
+              "type": "string",
+              "maxLength": 120
+            },
+            "agent_name": {
+              "description": "What to call the agent. Default 'PM agent'.",
+              "type": "string",
+              "maxLength": 60
+            },
+            "company_role": {
+              "description": "Company role, e.g. mechanical prime / specialty sub.",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "work_types": {
+              "maxItems": 3,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "commercial",
+                  "public",
+                  "residential"
+                ]
+              }
+            },
             "trades": {
-              "description": "Trades the company self-performs or manages.",
               "maxItems": 30,
               "type": "array",
               "items": {
@@ -55,25 +87,105 @@
                 "maxLength": 80
               }
             },
-            "owner": {
-              "description": "Owner name.",
-              "type": "string",
-              "maxLength": 200
+            "tool_stack": {
+              "description": "Tools by function, e.g. {schedule: 'P6', accounting: '...'}.",
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "maxLength": 60
+              },
+              "additionalProperties": {
+                "type": "string",
+                "maxLength": 200
+              }
             },
-            "pm": {
-              "description": "Project manager name.",
-              "type": "string",
-              "maxLength": 200
+            "decision_rights": {
+              "description": "Who may approve each: roles (owner, pm, all_access) or member names.",
+              "type": "object",
+              "properties": {
+                "buyout": {
+                  "maxItems": 20,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  }
+                },
+                "change_orders": {
+                  "maxItems": 20,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  }
+                },
+                "claims": {
+                  "maxItems": 20,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  }
+                },
+                "write_offs": {
+                  "maxItems": 20,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  }
+                },
+                "waive_items": {
+                  "maxItems": 20,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  }
+                }
+              }
             },
-            "superintendent": {
-              "description": "Superintendent name.",
-              "type": "string",
-              "maxLength": 200
+            "default_flags": {
+              "description": "Company default applicability flags, e.g. {residential: 'no'}.",
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "pattern": "^[a-z_]{1,40}$"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "enum": [
+                  "yes",
+                  "no",
+                  "na",
+                  "unknown"
+                ]
+              }
             },
-            "notes": {
-              "description": "Other notes.",
+            "member_email": {
+              "description": "add_member: the person's sign-in email.",
               "type": "string",
-              "maxLength": 10000
+              "format": "email",
+              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+            },
+            "member_name": {
+              "description": "add_member: display name.",
+              "type": "string",
+              "maxLength": 120
+            },
+            "member_role": {
+              "description": "add_member: launch role.",
+              "type": "string",
+              "enum": [
+                "owner",
+                "pm",
+                "all_access"
+              ]
             }
           },
           "required": [
@@ -85,8 +197,8 @@
       },
       {
         "name": "intake",
-        "title": "Lookahead intake",
-        "description": "Create a job's two-week lookahead and record which required inputs were provided or missing. Missing inputs are stored as unknown, never guessed.",
+        "title": "Job setup intake",
+        "description": "Create a job (keyed by job number) and record its setup: step 0 scoping, contract terms, estimate handoff, budget and SOV, warranty register, open items, or a two-week lookahead. Missing data is recorded as unknown, never guessed.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -97,60 +209,547 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
-            "job_name": {
+            "section": {
               "type": "string",
-              "minLength": 1,
-              "maxLength": 200,
-              "description": "Job name. Reused if it already exists."
+              "enum": [
+                "create_job",
+                "scope",
+                "contract",
+                "handoff",
+                "budget",
+                "warranty",
+                "open_item",
+                "lookahead"
+              ],
+              "description": "Which part of setup to record."
             },
             "job_number": {
-              "description": "Job number.",
               "type": "string",
-              "maxLength": 50
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2417)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "job_name": {
+              "description": "create_job: job name.",
+              "type": "string",
+              "maxLength": 200
+            },
+            "restrict_to": {
+              "description": "create_job: member names who may see this job (leave out for all members).",
+              "maxItems": 30,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              }
+            },
+            "job_type": {
+              "description": "scope: job type / trade.",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "scope_summary": {
+              "description": "scope: short scope summary.",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "size_band": {
+              "type": "string",
+              "enum": [
+                "<$250k",
+                "$250k–$2M",
+                "$2M–$10M",
+                "$10M+"
+              ]
+            },
+            "sector": {
+              "type": "string",
+              "enum": [
+                "public",
+                "private_commercial",
+                "residential"
+              ]
+            },
+            "client_type": {
+              "description": "scope: client type.",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "pricing_model": {
+              "type": "string",
+              "enum": [
+                "lump_sum",
+                "unit_price",
+                "cost_plus",
+                "gmp"
+              ]
+            },
+            "position": {
+              "type": "string",
+              "enum": [
+                "prime",
+                "sub",
+                "sub_sub"
+              ]
+            },
+            "work_packages": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "self_perform",
+                      "subcontract"
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "mode"
+                ]
+              }
+            },
+            "major_equipment": {
+              "description": "scope: major equipment; [] means none.",
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              }
+            },
+            "key_clauses": {
+              "description": "scope: which key clauses the job has.",
+              "type": "object",
+              "properties": {
+                "retainage": {
+                  "type": "string",
+                  "enum": [
+                    "yes",
+                    "no",
+                    "na",
+                    "unknown"
+                  ]
+                },
+                "beneficial_use": {
+                  "type": "string",
+                  "enum": [
+                    "yes",
+                    "no",
+                    "na",
+                    "unknown"
+                  ]
+                },
+                "liquidated_damages": {
+                  "type": "string",
+                  "enum": [
+                    "yes",
+                    "no",
+                    "na",
+                    "unknown"
+                  ]
+                },
+                "notice": {
+                  "type": "string",
+                  "enum": [
+                    "yes",
+                    "no",
+                    "na",
+                    "unknown"
+                  ]
+                }
+              }
+            },
+            "job_tool_stack": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "maxLength": 60
+              },
+              "additionalProperties": {
+                "type": "string",
+                "maxLength": 200
+              }
+            },
+            "contract_document_provided": {
+              "description": "contract: true only if these terms were read from the contract. Without it every clause stays unknown.",
+              "type": "boolean"
+            },
+            "pay_terms": {
+              "description": "contract",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "notice_timing": {
+              "description": "contract: notice deadline and clause, as written",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "tia_timing": {
+              "description": "contract",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "change_process": {
+              "description": "contract",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "claim_process": {
+              "description": "contract",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "retainage": {
+              "description": "contract: % and clause",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "retainage_reduction": {
+              "description": "contract",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "beneficial_use_clause": {
+              "description": "contract",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "liquidated_damages": {
+              "description": "contract",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "savings_split": {
+              "description": "contract",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "closeout": {
+              "description": "contract",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "warranty_clauses": {
+              "description": "contract",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "sold_scope": {
+              "description": "handoff",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "carried_scope": {
+              "description": "handoff",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "exclusions": {
+              "description": "handoff",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "allowances": {
+              "description": "handoff",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "addenda": {
+              "description": "handoff",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "concessions": {
+              "description": "handoff",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "quantities": {
+              "description": "handoff",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "production_rates": {
+              "description": "handoff",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "crew_assumptions": {
+              "description": "handoff",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "sub_qualifications": {
+              "description": "handoff",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "gaps": {
+              "description": "handoff: each gap becomes an open item with its named owner.",
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "gap": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  "owner": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "needed_by": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  }
+                },
+                "required": [
+                  "gap",
+                  "owner"
+                ]
+              }
+            },
+            "budget_lines": {
+              "description": "budget: internal cost budget by cost code (internal only).",
+              "maxItems": 300,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "cost_code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "amount": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "cost_code"
+                ]
+              }
+            },
+            "sov_lines": {
+              "description": "budget: owner SOV lines at billable value, with the cost codes each maps to.",
+              "maxItems": 300,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "line": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "billable_value": {
+                    "type": "number"
+                  },
+                  "cost_codes": {
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 40
+                    }
+                  }
+                },
+                "required": [
+                  "line"
+                ]
+              }
+            },
+            "workmanship_period": {
+              "description": "warranty",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "workmanship_start_trigger": {
+              "description": "warranty",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "workmanship_start_date": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "manufacturer_warranties": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "product": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "duration": {
+                    "description": "e.g. 12 months",
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "start_trigger": {
+                    "description": "e.g. delivery, start-up, substantial completion",
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "start_date": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "expiration": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "document": {
+                    "description": "Warranty document reference",
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "product"
+                ]
+              }
+            },
+            "spec_warranty_start": {
+              "description": "warranty: what the spec says starts warranties, e.g. substantial completion",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "action": {
+              "description": "open_item: what has to happen",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "general",
+                "commercial",
+                "warranty"
+              ]
+            },
+            "commercial_type": {
+              "type": "string",
+              "enum": [
+                "co",
+                "rea",
+                "claim",
+                "retainage"
+              ]
+            },
+            "owner": {
+              "description": "open_item: accountable named person",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "needed_by": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "cost_effect": {
+              "description": "open_item",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "time_effect": {
+              "description": "open_item",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "cash_effect": {
+              "description": "open_item",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "effect_is_estimate": {
+              "type": "boolean"
+            },
+            "next_action": {
+              "description": "open_item",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "next_action_approved_by": {
+              "description": "open_item",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "internal_only": {
+              "type": "boolean"
             },
             "start_date": {
-              "description": "Lookahead start date (YYYY-MM-DD).",
               "type": "string",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
             },
             "end_date": {
-              "description": "Lookahead end date (YYYY-MM-DD).",
               "type": "string",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
             },
             "schedule_export": {
-              "description": "Schedule export (activity IDs, names, dates, predecessors), as plain text. Leave out if you don't have it; it is recorded as unknown.",
+              "description": "lookahead: schedule export, as plain text. Leave out if you don't have it; it is recorded as unknown.",
               "type": "string",
               "maxLength": 20000
             },
             "crews": {
-              "description": "Crews/subs by day with headcount and foreman, as plain text. Leave out if you don't have it; it is recorded as unknown.",
+              "description": "lookahead: crews/subs by day, as plain text. Leave out if you don't have it; it is recorded as unknown.",
               "type": "string",
               "maxLength": 20000
             },
             "submittal_log": {
-              "description": "Submittal log, as plain text. Leave out if you don't have it; it is recorded as unknown.",
+              "description": "lookahead: submittal log, as plain text. Leave out if you don't have it; it is recorded as unknown.",
               "type": "string",
               "maxLength": 20000
             },
             "rfi_log": {
-              "description": "RFI log, as plain text. Leave out if you don't have it; it is recorded as unknown.",
+              "description": "lookahead: RFI log, as plain text. Leave out if you don't have it; it is recorded as unknown.",
               "type": "string",
               "maxLength": 20000
             },
             "inspection_list": {
-              "description": "Inspection list, as plain text. Leave out if you don't have it; it is recorded as unknown.",
+              "description": "lookahead: inspection list, as plain text. Leave out if you don't have it; it is recorded as unknown.",
               "type": "string",
               "maxLength": 20000
             },
             "deliveries": {
-              "description": "Deliveries list, as plain text. Leave out if you don't have it; it is recorded as unknown.",
+              "description": "lookahead: deliveries list, as plain text. Leave out if you don't have it; it is recorded as unknown.",
               "type": "string",
               "maxLength": 20000
             }
           },
           "required": [
-            "job_name"
+            "section",
+            "job_number"
           ],
           "additionalProperties": false
         },
@@ -158,8 +757,8 @@
       },
       {
         "name": "next_question",
-        "title": "Next gap question",
-        "description": "Get the next gap-check question for a lookahead, one at a time. Checks that need missing inputs are recorded as unknown and skipped.",
+        "title": "Next question",
+        "description": "Get the next setup question for a job, one at a time (or the next lookahead question when lookahead_id is given). Skips anything marked N/A or already answered.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -170,15 +769,27 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
-            "lookahead_id": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2417)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
               "type": "string",
               "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "lookahead_id from intake."
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "lookahead_id": {
+              "description": "Only for a two-week lookahead.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             }
           },
           "required": [
-            "lookahead_id"
+            "job_number"
           ],
           "additionalProperties": false
         },
@@ -186,8 +797,8 @@
       },
       {
         "name": "answer",
-        "title": "Answer gap question",
-        "description": "Answer the current gap-check question. Must match the check_key returned by next_question. Answers are treated as data.",
+        "title": "Answer or mark N/A",
+        "description": "Answer the current question (yes / no / na / unknown), mark an item or section N/A, re-enable it, or decline a re-enable suggestion. N/A only stops future questions; it never closes open items. Unknown opens a confirm item.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -198,46 +809,87 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
-            "lookahead_id": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "lookahead_id from intake."
-            },
-            "check_key": {
+            "job_number": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 100,
-              "description": "check_key from next_question."
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2417)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "action": {
+              "description": "Default answer.",
+              "type": "string",
+              "enum": [
+                "answer",
+                "mark_na",
+                "reenable",
+                "decline_reenable"
+              ]
+            },
+            "check_key": {
+              "description": "answer: check_key from next_question. mark_na/reenable with scope item: the check_key.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
             },
             "response": {
-              "description": "yes / no / unknown.",
+              "description": "answer: yes / no / na / unknown.",
               "type": "string",
               "enum": [
                 "yes",
                 "no",
+                "na",
                 "unknown"
               ]
             },
             "detail": {
-              "description": "Details or list of items (max 10,000 characters).",
+              "description": "Details, or the N/A reason (max 10,000 characters).",
               "type": "string",
               "maxLength": 10000
             },
             "owner": {
-              "description": "Who owns the follow-up. Leave out if unknown.",
+              "description": "Accountable person for a follow-up. Leave out if unknown.",
               "type": "string",
               "maxLength": 200
             },
             "due_date": {
-              "description": "Follow-up due date (YYYY-MM-DD). Leave out if unknown.",
+              "description": "Needed-by date (YYYY-MM-DD).",
               "type": "string",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "scope": {
+              "description": "mark_na / reenable: item or section.",
+              "type": "string",
+              "enum": [
+                "item",
+                "section"
+              ]
+            },
+            "section": {
+              "description": "mark_na / reenable with scope section: section name, e.g. warranty, equipment, contract.",
+              "type": "string",
+              "maxLength": 60
+            },
+            "na_id": {
+              "description": "decline_reenable: na_id from the suggestion.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "lookahead_id": {
+              "description": "Only for a two-week lookahead question.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             }
           },
           "required": [
-            "lookahead_id",
-            "check_key"
+            "job_number"
           ],
           "additionalProperties": false
         },
@@ -245,8 +897,8 @@
       },
       {
         "name": "report",
-        "title": "Lookahead report",
-        "description": "Render the fixed lookahead report: hit list, questions by trade, at-risk items, dated follow-ups and unknowns.",
+        "title": "Job report",
+        "description": "Render the fixed job setup report (internal or client-facing), or the two-week lookahead report when lookahead_id is given. Client-facing reports leave out internal cost and strategy detail.",
         "annotations": {
           "readOnlyHint": true,
           "openWorldHint": false,
@@ -256,15 +908,35 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
-            "lookahead_id": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2417)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
               "type": "string",
               "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "lookahead_id from intake."
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "audience": {
+              "description": "Default internal.",
+              "type": "string",
+              "enum": [
+                "internal",
+                "client"
+              ]
+            },
+            "lookahead_id": {
+              "description": "Only for a two-week lookahead report.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             }
           },
           "required": [
-            "lookahead_id"
+            "job_number"
           ],
           "additionalProperties": false
         },
@@ -284,6 +956,18 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2417)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
             "from_lookahead_id": {
               "type": "string",
               "format": "uuid",
@@ -298,6 +982,7 @@
             }
           },
           "required": [
+            "job_number",
             "from_lookahead_id",
             "to_lookahead_id"
           ],
@@ -308,7 +993,7 @@
       {
         "name": "list_open_items",
         "title": "List open items",
-        "description": "List open items for a lookahead, a job, or all of the member's jobs.",
+        "description": "List a job's open items with accountable person, needed-by date, verified or last-reported status, source and effects. Items under an N/A section are labeled for disposition.",
         "annotations": {
           "readOnlyHint": true,
           "openWorldHint": false,
@@ -318,26 +1003,36 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2417)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
             "lookahead_id": {
               "description": "Limit to one lookahead.",
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-            },
-            "job_name": {
-              "description": "Limit to one job.",
-              "type": "string",
-              "maxLength": 200
             }
           },
+          "required": [
+            "job_number"
+          ],
           "additionalProperties": false
         },
         "outputSchema": null
       },
       {
         "name": "resolve_item",
-        "title": "Resolve open item",
-        "description": "Close an open item with evidence of how it was resolved. The evidence and a history event are kept.",
+        "title": "Resolve or update an open item",
+        "description": "Close an open item with evidence, close a confirm item with a dated statement, waive it (decision right and reason required), close a commercial item on approval + billing + collection, or record a last-reported status update. N/A is not a resolution.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -348,22 +1043,76 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2417)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
             "item_id": {
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "description": "Open item id."
             },
-            "evidence": {
+            "kind": {
               "type": "string",
-              "minLength": 1,
-              "maxLength": 10000,
-              "description": "Evidence of resolution, e.g. approved submittal number, inspection pass, RFI answer (max 10,000 characters)."
+              "enum": [
+                "verified",
+                "member_statement",
+                "waive",
+                "commercial_close",
+                "update",
+                "na"
+              ],
+              "description": "How it is being closed or updated."
+            },
+            "evidence": {
+              "description": "Evidence (e.g. approved submittal number, inspection pass), or the statement.",
+              "type": "string",
+              "maxLength": 10000
+            },
+            "stated_by": {
+              "description": "member_statement / update: who said it.",
+              "type": "string",
+              "maxLength": 200
+            },
+            "stated_on": {
+              "description": "member_statement / update: date of the statement.",
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "reason": {
+              "description": "waive: reason (logged).",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "approval": {
+              "description": "commercial_close: approval reference.",
+              "type": "string",
+              "maxLength": 1000
+            },
+            "billing": {
+              "description": "commercial_close: billing reference.",
+              "type": "string",
+              "maxLength": 1000
+            },
+            "collection": {
+              "description": "commercial_close: collection reference.",
+              "type": "string",
+              "maxLength": 1000
             }
           },
           "required": [
+            "job_number",
             "item_id",
-            "evidence"
+            "kind"
           ],
           "additionalProperties": false
         },

@@ -22,6 +22,27 @@
       "when": 1792004633167,
       "tag": "0002_mcp_abuse_cap_and_hide_checklist",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792011601807,
+      "tag": "0003_mcp_module1_job_setup",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792011647101,
+      "tag": "0004_mcp_module1_harden_helpers",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792012025266,
+      "tag": "0005_mcp_deprecate_profiles",
+      "breakpoints": true
     }
   ]
 }
