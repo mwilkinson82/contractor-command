@@ -1,12 +1,14 @@
 import { auth, defineMcp } from "@lovable.dev/mcp-js";
 import {
-  buildHitList,
-  getQuestions,
-  runGapAnalysis,
-  startLookahead,
-  submitAnswers,
-  submitLookahead,
-} from "./tools/lookahead";
+  answer,
+  carryForward,
+  intake,
+  listOpenItems,
+  nextQuestion,
+  onboarding,
+  report,
+  resolveItem,
+} from "./tools/workflow-tools";
 
 // Vite inlines the stable ref; the runtime backend URL may be a proxy.
 const projectRef = import.meta.env["VITE_SUPABASE_PROJECT_ID"] ?? "project-ref-unset";
@@ -14,13 +16,13 @@ const projectRef = import.meta.env["VITE_SUPABASE_PROJECT_ID"] ?? "project-ref-u
 export default defineMcp({
   name: "contractor-circle-hub",
   title: "Contractor Circle Hub",
-  version: "0.1.0",
+  version: "0.2.0",
   instructions:
-    "PM two-week lookahead agent (private prototype). Start with start_lookahead, then submit_lookahead, get_questions stage by stage, submit_answers, run_gap_analysis and build_hit_list. The tools store nothing, so pass the lookahead text and answers into each call.",
+    "PM two-week lookahead workflow (private prototype). The server keeps the state and decides the steps; relay its questions and reports to the user as written. Order: onboarding (once), intake, optionally carry_forward from last week, then next_question / answer one at a time until done, then report. Use list_open_items and resolve_item to track items. Never invent missing data; leave it out so it is recorded as unknown.",
   auth: auth.oauth.issuer({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,
     acceptedAudiences: "authenticated",
     requireOAuthClientClaim: true,
   }),
-  tools: [startLookahead, submitLookahead, getQuestions, submitAnswers, runGapAnalysis, buildHitList],
+  tools: [onboarding, intake, nextQuestion, answer, report, carryForward, listOpenItems, resolveItem],
 });
