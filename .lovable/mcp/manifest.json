@@ -1,0 +1,181 @@
+{
+  "version": 1,
+  "sdk_version": "3.0.5",
+  "path": "/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://qcbbjjjxcacrscfhgfmf.supabase.co/auth/v1",
+    "require_oauth_client_claim": true,
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "contractor-circle-hub",
+      "version": "0.1.0",
+      "title": "Contractor Circle Hub"
+    },
+    "tools": [
+      {
+        "name": "start_lookahead",
+        "title": "Start two-week lookahead",
+        "description": "Begin a PM two-week lookahead review. Returns the intake instructions.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false,
+          "idempotentHint": true
+        },
+        "inputSchema": null,
+        "outputSchema": null
+      },
+      {
+        "name": "submit_lookahead",
+        "title": "Submit lookahead",
+        "description": "Check a two-week lookahead before analysis. Nothing is stored; pass the same text to later tools.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false,
+          "idempotentHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "lookahead": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000,
+              "description": "The two-week lookahead as plain text (max 20,000 characters)."
+            }
+          },
+          "required": [
+            "lookahead"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_questions",
+        "title": "Get clarifying questions",
+        "description": "Get the clarifying questions for one stage of the lookahead review, in order: crews, materials, inspections, rfis, submittals, weather, predecessors.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false,
+          "idempotentHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "stage": {
+              "description": "Stage to get questions for; defaults to the first stage.",
+              "type": "string",
+              "enum": [
+                "crews",
+                "materials",
+                "inspections",
+                "rfis",
+                "submittals",
+                "weather",
+                "predecessors"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "submit_answers",
+        "title": "Submit answers",
+        "description": "Check answers to the clarifying questions before analysis. Nothing is stored; pass the same answers to later tools.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false,
+          "idempotentHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "answers": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 10000,
+              "description": "Answers to the clarifying questions (max 10,000 characters)."
+            }
+          },
+          "required": [
+            "answers"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "run_gap_analysis",
+        "title": "Run gap analysis",
+        "description": "Find gaps in a two-week lookahead: missing predecessors, open submittals and RFIs, unscheduled inspections, lead-time risks and manpower conflicts.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "lookahead": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000,
+              "description": "The two-week lookahead as plain text (max 20,000 characters)."
+            },
+            "answers": {
+              "description": "Answers to the clarifying questions (max 10,000 characters).",
+              "type": "string",
+              "maxLength": 10000
+            }
+          },
+          "required": [
+            "lookahead"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "build_hit_list",
+        "title": "Build hit list",
+        "description": "Turn a two-week lookahead into a prioritized action list, each with an owner and due date.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "lookahead": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000,
+              "description": "The two-week lookahead as plain text (max 20,000 characters)."
+            },
+            "answers": {
+              "description": "Answers to the clarifying questions (max 10,000 characters).",
+              "type": "string",
+              "maxLength": 10000
+            }
+          },
+          "required": [
+            "lookahead"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
