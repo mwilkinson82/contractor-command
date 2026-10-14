@@ -1,10 +1,10 @@
 import { ToolError, type ToolContext } from "@lovable.dev/mcp-js";
 import { supabaseForUser } from "./supabase";
 
-// Private prototype: hard-coded allowlist. (No is_circle_active() function
-// exists in the database yet; add that check here once it does.)
+// Private prototype: hard-coded allowlist, plus the membership gate (mcp_gate -> is_circle_active) on every call.
 export const MCP_ALLOWED_EMAILS = new Set(["marshall@marshallwilkinson.com"]);
 export const FOOTER = "\n\n---\nALP Contractor Circle - private prototype";
+export const INACTIVE_MESSAGE = "Your membership isn't active, so the PM agent is paused. Your job data is saved.";
 
 export type Sb = ReturnType<typeof supabaseForUser>;
 
@@ -20,7 +20,25 @@ export async function guard(ctx: ToolContext): Promise<Sb> {
     await logWorkflow(sb, { event_type: "failure", tool: "guard", error_code: "cap_hit" });
     throw new ToolError("Please try again later.");
   }
+  // Subscription gate, before any job read or write. Cached ~5 minutes in the database.
+  const gate = await sb.rpc("mcp_gate");
+  if (gate.error) throw new ToolError("Please try again later.");
+  if (gate.data !== true) {
+    await logWorkflow(sb, { event_type: "failure", tool: "guard", error_code: "membership_inactive" });
+    throw new ToolError(INACTIVE_MESSAGE);
+  }
   return sb;
+}
+
+/** Map database errors raised by the mcp_* functions to member-facing messages. */
+export function dbError(error: { message?: string } | null): never {
+  const m = error?.message ?? "";
+  if (m.startsWith("MCP_BAD:")) throw new ToolError(m.slice(8));
+  if (m.includes("MCP_INACTIVE")) throw new ToolError(INACTIVE_MESSAGE);
+  if (m.includes("MCP_NO_JOB")) throw new ToolError("Job not found.");
+  if (m.includes("MCP_NO_ITEM")) throw new ToolError("Item not found.");
+  if (m.includes("MCP_NO_COMPANY")) throw new ToolError("You aren't a member of that company.");
+  throw new Error(m || "database error");
 }
 
 /** Workflow log: failures and missing-question events only. Ids and check keys only — never project content. */
