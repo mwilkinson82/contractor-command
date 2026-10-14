@@ -76,8 +76,8 @@ export const onboarding = defineTool({
       let cid: string | undefined = args.company_id;
       if (args.action === "save_company") {
         if (!cid) {
-          const { data: mine } = await sb.from("mcp_company_members").select("company_id");
-          if ((mine ?? []).length === 1 && !args.name) cid = mine![0].company_id;
+          const { data: mine } = await sb.from("mcp_companies").select("id");
+          if ((mine ?? []).length === 1 && !args.name) cid = mine![0].id;
         }
         cid = await rpc<string>(sb, "mcp_company_save", {
           _company: cid ?? null,

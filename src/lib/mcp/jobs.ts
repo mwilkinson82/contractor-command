@@ -6,9 +6,10 @@ import { dbError, type Sb } from "./guard";
 export type Job = { job_id: string; job_number: string; name: string; company_id: string };
 
 export async function resolveCompany(sb: Sb, companyId?: string): Promise<string> {
-  const { data, error } = await sb.from("mcp_company_members").select("company_id, mcp_companies(name)");
+  // Companies are only visible to their members (RLS), so this is "my companies".
+  const { data, error } = await sb.from("mcp_companies").select("id, name");
   if (error) throw new Error(error.message);
-  const mine = (data ?? []) as { company_id: string; mcp_companies: { name: string } | null }[];
+  const mine = (data ?? []).map((c) => ({ company_id: c.id, mcp_companies: { name: c.name } }));
   if (companyId) {
     if (!mine.some((m) => m.company_id === companyId)) throw new ToolError("You aren't a member of that company.");
     return companyId;
