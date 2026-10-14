@@ -1068,17 +1068,23 @@ export type Database = {
           applies_when: Json
           category: string
           created_at: string
+          display_label: string | null
           id: string
           is_placeholder: boolean
           key: string
           module: string
+          no_is_gap: boolean
+          no_recommendation: string | null
           position: number
           prompt: string
           record_ref: string | null
           required_inputs: string[]
           rule_type: string
           section: string | null
+          sets_flag: string | null
           severity: string
+          superseded_at: string | null
+          superseded_reason: string | null
           trade: string
           version: number
         }
@@ -1087,17 +1093,23 @@ export type Database = {
           applies_when?: Json
           category: string
           created_at?: string
+          display_label?: string | null
           id?: string
           is_placeholder?: boolean
           key: string
           module?: string
+          no_is_gap?: boolean
+          no_recommendation?: string | null
           position?: number
           prompt: string
           record_ref?: string | null
           required_inputs?: string[]
           rule_type: string
           section?: string | null
+          sets_flag?: string | null
           severity?: string
+          superseded_at?: string | null
+          superseded_reason?: string | null
           trade?: string
           version?: number
         }
@@ -1106,17 +1118,23 @@ export type Database = {
           applies_when?: Json
           category?: string
           created_at?: string
+          display_label?: string | null
           id?: string
           is_placeholder?: boolean
           key?: string
           module?: string
+          no_is_gap?: boolean
+          no_recommendation?: string | null
           position?: number
           prompt?: string
           record_ref?: string | null
           required_inputs?: string[]
           rule_type?: string
           section?: string | null
+          sets_flag?: string | null
           severity?: string
+          superseded_at?: string | null
+          superseded_reason?: string | null
           trade?: string
           version?: number
         }
@@ -3010,6 +3028,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      mcp_assert_job_scope: { Args: { _job: string }; Returns: string }
       mcp_audit: {
         Args: {
           _action: string
@@ -3024,11 +3043,13 @@ export type Database = {
         Args: { _action: string; _job: string; _object: string; _tool: string }
         Returns: undefined
       }
+      mcp_can_access_contract: { Args: { _job: string }; Returns: boolean }
       mcp_can_access_job: { Args: { _job: string }; Returns: boolean }
       mcp_company_save: {
         Args: { _company: string; _p: Json }
         Returns: string
       }
+      mcp_contract_check_key: { Args: { _key: string }; Returns: boolean }
       mcp_decline_reenable: {
         Args: { _job: string; _na_id: string }
         Returns: Json
@@ -3050,6 +3071,7 @@ export type Database = {
         Returns: Json
       }
       mcp_job_flagset: { Args: { _job: string }; Returns: Json }
+      mcp_job_scope: { Args: { _job: string }; Returns: string }
       mcp_latest_setup_checks: {
         Args: never
         Returns: {
@@ -3057,17 +3079,23 @@ export type Database = {
           applies_when: Json
           category: string
           created_at: string
+          display_label: string | null
           id: string
           is_placeholder: boolean
           key: string
           module: string
+          no_is_gap: boolean
+          no_recommendation: string | null
           position: number
           prompt: string
           record_ref: string | null
           required_inputs: string[]
           rule_type: string
           section: string | null
+          sets_flag: string | null
           severity: string
+          superseded_at: string | null
+          superseded_reason: string | null
           trade: string
           version: number
         }[]

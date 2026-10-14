@@ -126,11 +126,6 @@ const workPackage = z.object({ name: z.string().trim().min(1).max(120), mode: z.
 const budgetLine = z.object({ cost_code: z.string().trim().min(1).max(40), description: z.string().max(200).optional(), amount: z.number().optional() });
 const sovLine = z.object({ line: z.string().trim().min(1).max(40), description: z.string().max(200).optional(), billable_value: z.number().optional(), cost_codes: z.array(z.string().max(40)).max(50).optional() });
 const gap = z.object({ gap: z.string().trim().min(1).max(1000), owner: z.string().trim().min(1).max(120), needed_by: date.optional() });
-const mfrWarranty = z.object({
-  product: z.string().trim().min(1).max(120), duration: short("e.g. 12 months"), start_trigger: short("e.g. delivery, start-up, substantial completion"),
-  start_date: date.optional(), expiration: date.optional(), document: short("Warranty document reference"),
-});
-
 function triFrom(v: boolean | undefined): "yes" | "no" | "unknown" {
   return v === undefined ? "unknown" : v ? "yes" : "no";
 }
@@ -143,9 +138,9 @@ export const intake = defineTool({
   name: "intake",
   title: "Job setup intake",
   description:
-    "Create a job (keyed by job number) and record its setup: step 0 scoping, contract terms, estimate handoff, budget and SOV, warranty register, open items, or a two-week lookahead. Missing data is recorded as unknown, never guessed.",
+    "Create a job (keyed by job number) and record its setup: step 0 scoping, contract terms, estimate handoff, budget and SOV, open items, or a two-week lookahead. Missing data is recorded as unknown, never guessed.",
   inputSchema: {
-    section: z.enum(["create_job", "scope", "contract", "handoff", "budget", "warranty", "open_item", "lookahead"]).describe("Which part of setup to record."),
+    section: z.enum(["create_job", "scope", "contract", "handoff", "budget", "open_item", "lookahead"]).describe("Which part of setup to record."),
     job_number: jobNumber,
     company_id: companyId,
     job_name: z.string().trim().max(200).optional().describe("create_job: job name."),
@@ -178,10 +173,6 @@ export const intake = defineTool({
     // Budget (F)
     budget_lines: z.array(budgetLine).max(300).optional().describe("budget: internal cost budget by cost code (internal only)."),
     sov_lines: z.array(sovLine).max(300).optional().describe("budget: owner SOV lines at billable value, with the cost codes each maps to."),
-    // Warranty (E)
-    workmanship_period: short("warranty"), workmanship_start_trigger: short("warranty"), workmanship_start_date: date.optional(),
-    manufacturer_warranties: z.array(mfrWarranty).max(50).optional(),
-    spec_warranty_start: short("warranty: what the spec says starts warranties, e.g. substantial completion"),
     // Open item
     action: short("open_item: what has to happen"), kind: z.enum(["general", "commercial", "warranty"]).optional(),
     commercial_type: z.enum(["co", "rea", "claim", "retainage"]).optional(), owner: short("open_item: accountable named person"), needed_by: date.optional(),
@@ -312,36 +303,6 @@ export const intake = defineTool({
         );
       }
 
-      if (args.section === "warranty") {
-        const facts: Record<string, unknown> = {
-          workmanship: args.workmanship_period || args.workmanship_start_trigger || args.workmanship_start_date
-            ? { period: args.workmanship_period ?? "unknown", start_trigger: args.workmanship_start_trigger ?? "unknown", start_date: args.workmanship_start_date ?? "unknown" }
-            : null,
-          spec_warranty_start: args.spec_warranty_start?.trim() || null,
-        };
-        for (const m of args.manufacturer_warranties ?? [])
-          facts[`mfr:${m.product}`] = { product: m.product, duration: m.duration ?? "unknown", start_trigger: m.start_trigger ?? "unknown", start_date: m.start_date ?? "unknown", expiration: m.expiration ?? "unknown", document: m.document ?? "unknown" };
-        const fr = await rpc<{ known: string[]; unknown: string[] }>(sb, "mcp_set_facts", { _job: job.job_id, _module: "warranty", _facts: facts, _source: "member_answer" });
-        const notes: string[] = [];
-        const spec = args.spec_warranty_start ?? "";
-        if (/substantial/i.test(spec)) {
-          for (const m of args.manufacturer_warranties ?? []) {
-            if (m.start_trigger && !/substantial/i.test(m.start_trigger)) {
-              const r = await rpc<ItemResult>(sb, "mcp_add_item", {
-                _job: job.job_id,
-                _f: {
-                  check_key: `warranty:start:${m.product}`.slice(0, 200), kind: "warranty", section: "warranty", category: "Warranty", severity: "high",
-                  action: `Warranty start mismatch for ${m.product}: spec requires substantial completion, manufacturer starts at ${m.start_trigger}. Get an extended or delayed-start warranty in writing.`,
-                  tool: "intake",
-                },
-              });
-              notes.push(`- ${m.product}: spec/manufacturer start mismatch.${itemNote(r)}`);
-            }
-          }
-        }
-        return text(`${P}Warranty register saved.\nKnown: ${fr.known.join(", ") || "none"}\nUnknown: ${fr.unknown.join(", ") || "none"}${notes.length ? `\nFlags:\n${notes.join("\n")}` : ""}`);
-      }
-
       if (args.section === "open_item") {
         if (!args.action?.trim()) throw new ToolError("open_item needs action.");
         if (args.kind === "commercial" && !args.commercial_type) throw new ToolError("A commercial item needs commercial_type (co, rea, claim or retainage).");
@@ -390,7 +351,7 @@ async function lookaheadForJob(sb: Sb, job: Job, id: string) {
 }
 
 // ---------- next_question ----------
-type NextCheck = { key: string; section: string | null; category: string; prompt: string; record_value: unknown; index: number; total: number } | null;
+type NextCheck = { key: string; label: string | null; section: string | null; category: string; prompt: string; record_value: unknown; index: number; total: number } | null;
 export const nextQuestion = defineTool({
   name: "next_question",
   title: "Next question",
@@ -417,14 +378,14 @@ export const nextQuestion = defineTool({
       if (!q) {
         const { data: mods } = await sb.from("mcp_job_facts").select("module").eq("job_id", job.job_id);
         const have = new Set((mods ?? []).map((m) => m.module));
-        const todo = ["scope", "contract", "handoff", "budget", "warranty"].filter((m) => !have.has(m));
+        const todo = ["scope", "contract", "handoff", "budget"].filter((m) => !have.has(m));
         return text(`${P}No setup questions left.${todo.length ? ` Intake sections not started: ${todo.join(", ")}.` : ""} Call report.`);
       }
       const confirm = q.record_value != null;
       const ask = confirm ? `The record shows: ${typeof q.record_value === "string" ? q.record_value : JSON.stringify(q.record_value)}\nConfirm this is right (yes), or say no / unknown.` : q.prompt;
       return {
         ...text(
-          `${P}Setup question ${q.index} of ${q.total} [${q.category}${q.section ? ` / section ${q.section}` : ""}]\ncheck_key: ${q.key}\n\n${confirm ? `${q.prompt}\n${ask}` : ask}\n\nAnswer with response yes, no, na (with a reason in detail) or unknown. For unknown or no, add owner and due_date if known. To mark the whole section N/A use answer action "mark_na" with scope "section".`,
+          `${P}Setup question ${q.index} of ${q.total}${q.label ? ` (${q.label})` : ""} [${q.category}${q.section ? ` / section ${q.section}` : ""}]\ncheck_key: ${q.key}\n\n${confirm ? `${q.prompt}\n${ask}` : ask}\n\nAnswer with response yes, no, na (with a reason in detail) or unknown. For unknown or no, add owner and due_date if known. To mark the whole section N/A use answer action "mark_na" with scope "section".`,
         ),
         structuredContent: { check_key: q.key, index: q.index, total: q.total },
       };
@@ -447,7 +408,7 @@ export const answer = defineTool({
     owner: z.string().max(200).optional().describe("Accountable person for a follow-up. Leave out if unknown."),
     due_date: date.optional().describe("Needed-by date (YYYY-MM-DD)."),
     scope: z.enum(["item", "section"]).optional().describe("mark_na / reenable: item or section."),
-    section: z.string().max(60).optional().describe("mark_na / reenable with scope section: section name, e.g. warranty, equipment, contract."),
+    section: z.string().max(60).optional().describe("mark_na / reenable with scope section: section name, e.g. bid_documents, insurance_bonding, contract_time, self_perform_premob."),
     na_id: uuid.optional().describe("decline_reenable: na_id from the suggestion."),
     lookahead_id: uuid.optional().describe("Only for a two-week lookahead question."),
   },
@@ -512,11 +473,11 @@ export const answer = defineTool({
       }
 
       if (!args.response) throw new ToolError("answer needs response yes, no, na or unknown.");
-      const r = await rpc<{ recorded: string; item: ItemResult | null }>(sb, "mcp_answer", {
+      const r = await rpc<{ recorded: string; item: ItemResult | null; recommendation: string | null }>(sb, "mcp_answer", {
         _job: job.job_id, _key: args.check_key, _answer: args.response, _detail: args.detail ?? null, _owner: args.owner ?? null, _needed_by: args.due_date ?? null,
       });
       return {
-        ...text(`${P}Recorded ${r.recorded}.${r.recorded === "na" ? " This question won't be asked again unless you re-enable it." : ""}${itemNote(r.item)}\nNext: next_question.`),
+        ...text(`${P}Recorded ${r.recorded}.${r.recorded === "na" ? " This question won't be asked again unless you re-enable it." : ""}${itemNote(r.item)}${r.recommendation ? `\n\nRecommendation: ${r.recommendation}` : ""}\nNext: next_question.`),
         structuredContent: { recorded: r.recorded, item_id: r.item?.item_id ?? null },
       };
     }),
