@@ -1,3 +1,5 @@
+import { EmailSection } from "./_responsive";
+import { responsiveEmail, ResponsiveEmailHead } from "./_responsive";
 import React from "react";
 import {
   Body,
@@ -47,18 +49,18 @@ const MemberAnnouncementEmail = ({
 
   return (
     <Html lang="en" dir="ltr">
-      <Head />
+      <ResponsiveEmailHead />
       <Preview>{preheader}</Preview>
       <Body style={layout.main}>
         <Container style={layout.container}>
-          <Section style={layout.shell}>
-            <ContractorCircleEmailHeader label="Member operating brief" />
+          <EmailSection style={layout.shell}>
+            <ContractorCircleEmailHeader label="Member announcement" />
 
-            <Section style={layout.body}>
-              <Section style={layout.verdictBand}>
+            <EmailSection style={layout.body}>
+              <EmailSection style={layout.verdictBand}>
                 <Text style={layout.eyebrow}>Contractor Circle / Member note</Text>
                 <Heading style={layout.headline}>{headline}</Heading>
-              </Section>
+              </EmailSection>
 
               <ReactMarkdown
                 allowedElements={ANNOUNCEMENT_MARKDOWN_ELEMENTS}
@@ -76,10 +78,10 @@ const MemberAnnouncementEmail = ({
               )}
 
               {signoff?.trim() ? <Text style={layout.signoff}>{signoff.trim()}</Text> : null}
-            </Section>
+            </EmailSection>
 
             <ContractorCircleEmailFooter />
-          </Section>
+          </EmailSection>
 
           <Text style={layout.deliveryNote}>
             Sent to Contractor Circle members as part of their active membership.
@@ -109,16 +111,16 @@ Your membership is already active on the new system. To get in, set your passwor
 } satisfies TemplateEntry;
 
 const announcementBrand = {
-  paper: "#FAF9F5",
+  paper: "#F7F2EA",
   surface: "#FFFFFF",
   paper2: "#F0EEE6",
   edge: "#E4E1D6",
   ink: "#1F1E1B",
   muted: "#76736B",
-  signal: "#D97757",
-  clay: "#C36E4F",
-  serif: '"Source Serif 4", Georgia, "Times New Roman", serif',
-  sans: 'Archivo, "Helvetica Neue", Helvetica, Arial, sans-serif',
+  signal: "#F76A16",
+  clay: "#B7470C",
+  serif: "Arial, Helvetica, sans-serif",
+  sans: "Arial, Helvetica, sans-serif",
   mono: '"JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace',
 } as const;
 
@@ -129,6 +131,7 @@ const paragraph = {
   margin: "0 0 16px",
   lineHeight: 1.65,
   whiteSpace: "pre-wrap" as const,
+  overflowWrap: "anywhere" as const,
 };
 const heading2 = {
   fontFamily: announcementBrand.serif,
@@ -187,23 +190,9 @@ const contentRule = {
 };
 
 const layout = {
-  main: {
-    backgroundColor: announcementBrand.paper,
-    fontFamily: announcementBrand.sans,
-    margin: 0,
-    padding: "36px 0",
-  },
-  container: {
-    maxWidth: "620px",
-    margin: "0 auto",
-    padding: "0 16px",
-  },
-  shell: {
-    backgroundColor: announcementBrand.surface,
-    border: `1px solid ${announcementBrand.edge}`,
-    borderRadius: "14px",
-    overflow: "hidden",
-  },
+  main: responsiveEmail.main,
+  container: responsiveEmail.container,
+  shell: responsiveEmail.card,
   header: {
     borderBottom: `1px solid ${announcementBrand.edge}`,
     padding: "18px 28px",
@@ -226,9 +215,7 @@ const layout = {
     margin: 0,
     textTransform: "uppercase" as const,
   },
-  body: {
-    padding: "36px 34px 32px",
-  },
+  body: responsiveEmail.body,
   verdictBand: {
     borderLeft: `3px solid ${announcementBrand.signal}`,
     marginBottom: "26px",
@@ -248,23 +235,13 @@ const layout = {
     color: announcementBrand.ink,
     fontFamily: announcementBrand.serif,
     fontSize: "34px",
-    fontWeight: 400,
+    fontWeight: 700,
+    overflowWrap: "anywhere" as const,
     letterSpacing: "-0.025em",
     lineHeight: 1.08,
     margin: 0,
   },
-  button: {
-    backgroundColor: announcementBrand.ink,
-    borderRadius: "8px",
-    color: announcementBrand.surface,
-    display: "inline-block",
-    fontFamily: announcementBrand.sans,
-    fontSize: "14px",
-    fontWeight: 650,
-    margin: "8px 0 24px",
-    padding: "14px 22px",
-    textDecoration: "none",
-  },
+  button: { ...responsiveEmail.button, margin: "8px 0 24px" },
   signoff: {
     color: announcementBrand.ink,
     fontFamily: announcementBrand.sans,
@@ -272,6 +249,7 @@ const layout = {
     lineHeight: 1.65,
     margin: "16px 0 0",
     whiteSpace: "pre-wrap" as const,
+    overflowWrap: "anywhere" as const,
   },
   footer: {
     backgroundColor: announcementBrand.paper,
