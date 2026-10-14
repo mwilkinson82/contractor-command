@@ -1,0 +1,1 @@
+COMMENT ON TABLE public.mcp_profiles IS 'DEPRECATED: replaced by mcp_companies + mcp_company_members (Module 1 job setup)';
