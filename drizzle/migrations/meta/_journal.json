@@ -64,6 +64,34 @@
       "when": 1792014486533,
       "tag": "0008_mcp_finance_sees_restricted",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792018161138,
+      "tag": "0009_mcp_sweep_item_types_pm_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792018550927,
+      "tag": "0010_mcp_no_access_role_hint",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792018715228,
+      "tag": "0011_mcp_log_surfaced_fix",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792018734036,
+      "tag": "0012_mcp_item_events_surfaced",
+      "breakpoints": true
     }
   ]
 }
