@@ -48,8 +48,10 @@ export async function loadLookahead(sb: Sb, id: string): Promise<Lookahead> {
   return data as Lookahead;
 }
 
-export async function loadChecks(sb: Sb): Promise<Check[]> {
-  const { data, error } = await sb
+// Checklist rules are hidden from members at the database level; only the server (after guard()) reads them.
+export async function loadChecks(_sb: Sb): Promise<Check[]> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
     .from("mcp_checklist_items")
     .select("key, version, category, trade, prompt, rule_type, required_inputs, severity, position")
     .eq("active", true);

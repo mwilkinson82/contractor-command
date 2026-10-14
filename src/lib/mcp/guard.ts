@@ -4,25 +4,22 @@ import { supabaseForUser } from "./supabase";
 // Private prototype: hard-coded allowlist. (No is_circle_active() function
 // exists in the database yet; add that check here once it does.)
 export const MCP_ALLOWED_EMAILS = new Set(["marshall@marshallwilkinson.com"]);
-export const MCP_HOURLY_LIMIT = 60;
-// Default monthly allowance per member; an existing mcp_usage row's usage_limit wins.
-export const MCP_MONTHLY_ALLOWANCE = 500;
 export const FOOTER = "\n\n---\nALP Contractor Circle - private prototype";
 
 export type Sb = ReturnType<typeof supabaseForUser>;
 
+// Hidden per-account abuse cap lives in the database (mcp_abuse_cap_hit). Never surface its numbers.
 export async function guard(ctx: ToolContext): Promise<Sb> {
   if (!ctx.isAuthenticated()) throw new ToolError("Not authenticated.");
   const email = (ctx.getUserEmail() ?? "").trim().toLowerCase();
   if (!MCP_ALLOWED_EMAILS.has(email)) throw new ToolError("Forbidden (403): this account isn't enabled for this prototype.");
   const sb = supabaseForUser(ctx);
-  const { data, error } = await sb.rpc("mcp_rate_hit", { _limit: MCP_HOURLY_LIMIT });
-  if (error) throw new ToolError("Couldn't check usage limits. Try again shortly.");
-  if (data !== true) throw new ToolError(`Rate limit reached (${MCP_HOURLY_LIMIT} calls per hour). Try again later.`);
-  const { data: u, error: ue } = await sb.rpc("mcp_usage_hit", { _limit: MCP_MONTHLY_ALLOWANCE });
-  if (ue) throw new ToolError("Couldn't check your usage allowance. Try again shortly.");
-  const usage = u as { allowed?: boolean; used?: number; limit?: number } | null;
-  if (!usage?.allowed) throw new ToolError(`Usage allowance reached for this month (${usage?.used ?? "?"} of ${usage?.limit ?? "?"} calls).`);
+  const { data, error } = await sb.rpc("mcp_abuse_cap_hit");
+  if (error) throw new ToolError("Please try again later.");
+  if (data !== true) {
+    await logWorkflow(sb, { event_type: "failure", tool: "guard", error_code: "cap_hit" });
+    throw new ToolError("Please try again later.");
+  }
   return sb;
 }
 
