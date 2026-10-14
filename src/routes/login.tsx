@@ -10,6 +10,14 @@ import { oauthReturnPath } from "@/lib/oauth-return-path";
 
 const safeRedirect = oauthReturnPath;
 
+const MAGIC_ERRORS: Record<string, string> = {
+  not_a_live_member: "No email was sent: we couldn't find a Hub account for that address. Check the spelling, or sign in with your password.",
+  suppressed: "No email was sent: this address is blocked from receiving our emails. Sign in with your password instead.",
+  send_failed: "No email was sent: the email service failed. Try again in a minute, or sign in with your password.",
+  link_failed: "No email was sent: we couldn't create a sign-in link. Try again, or sign in with your password.",
+  error: "No email was sent because something went wrong. Try again, or sign in with your password.",
+};
+
 export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
@@ -37,7 +45,8 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [mode, setMode] = useState<"magic" | "password">("magic");
+  const fromConnect = !!redirectTo?.startsWith("/oauth/consent");
+  const [mode, setMode] = useState<"magic" | "password">(fromConnect ? "password" : "magic");
   const [magicSent, setMagicSent] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
 
@@ -78,8 +87,9 @@ function LoginPage() {
     setBusy(true);
     setErr(null);
     try {
-      await requestMagicLinkWithTimeout(email.trim());
-      setMagicSent(true);
+      const r = await requestMagicLinkWithTimeout(email.trim());
+      if (r.ok) setMagicSent(true);
+      else setErr(MAGIC_ERRORS[r.action] ?? MAGIC_ERRORS.error);
     } catch (error: unknown) {
       setErr(error instanceof Error ? error.message : "Something went wrong");
     } finally {
@@ -115,10 +125,10 @@ function LoginPage() {
 
   return (
     <AuthCard
-      title={magicSent ? "Check your inbox." : "Sign in to the Hub."}
+      title={magicSent ? "Check your inbox." : fromConnect ? "Sign in to approve the connection." : "Sign in to the Hub."}
       subtitle={
         magicSent
-          ? `If ${email} is attached to active access, the newest secure sign-in link is on its way.`
+          ? `A secure sign-in link was sent to ${email}.`
           : "One secure login routes you to every ALP resource, application, and member space included in your access."
       }
     >
