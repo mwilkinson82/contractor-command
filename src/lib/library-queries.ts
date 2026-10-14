@@ -137,20 +137,32 @@ export const latestCircleCallQueryOptions = () =>
     queryKey: ["replays", "latest-circle-call"],
     staleTime: 60_000,
     queryFn: async (): Promise<ReplayWithResources> => {
-      const { data, error } = await supabase
+      const featured = await supabase
         .from("replays")
         .select("*")
         .eq("published", true)
-        .eq("category", "circle_call")
-        .ilike("title", "Contractor Circle Call%")
+        .eq("featured", true)
         .order("recorded_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (error || !data) {
-        if (error) console.warn("[library] latest Circle call unavailable", error.message);
-        return LATEST_CIRCLE_CALL_FALLBACK;
+      if (featured.error) {
+        console.warn("[library] featured replay unavailable", featured.error.message);
       }
-      const [latest] = await attachResources([data as ReplayRow]);
+      let row = featured.data as ReplayRow | null;
+      if (!row) {
+        const { data, error } = await supabase
+          .from("replays")
+          .select("*")
+          .eq("published", true)
+          .eq("category", "circle_call")
+          .order("recorded_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (error) console.warn("[library] latest Circle call unavailable", error.message);
+        row = data as ReplayRow | null;
+      }
+      if (!row) return LATEST_CIRCLE_CALL_FALLBACK;
+      const [latest] = await attachResources([row]);
       return latest ?? LATEST_CIRCLE_CALL_FALLBACK;
     },
   });
