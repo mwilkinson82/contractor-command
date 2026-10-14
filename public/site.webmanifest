@@ -9,13 +9,13 @@
   "theme_color": "#F7F2EA",
   "icons": [
     {
-      "src": "/app-icon-192.png",
-      "sizes": "192x192",
+      "src": "/brand/circle-v1/app-icon-256.png",
+      "sizes": "256x256",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/app-icon-512.png",
+      "src": "/brand/circle-v1/app-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
