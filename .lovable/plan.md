@@ -1,85 +1,28 @@
-## Where the bug actually lives
+# Private remote MCP server: can this backend support it?
 
-The misleading admin notice ("This purchase didn't match a known product. No welcome email was sent to the customer.") is **not** emitted from this portal. It comes from the separate **[ALP Site](/projects/d5d995bb-85ad-4c1b-b601-a214c4a121a0)** project, in `supabase/functions/stripe-webhook/index.ts` (the "Unrecognized product" branch around lines 388–422).
+Answers only. Nothing has been changed.
 
-Cross-project tooling here is read-only, so this plan has to be applied inside the ALP Site project. Open that project and ask Lovable to apply the change below — I can hand it over verbatim.
+## 1) OAuth Server (Dynamic Client Registration + custom consent path)
+**Yes, it's possible. I can turn it on, but you can't.** Your Lovable Cloud backend has no settings screen for this, so you can't change it yourself. I have a setup action that switches on the backend's OAuth 2.1 sign-in server. It enables Dynamic Client Registration by default and accepts a custom consent path such as `/oauth/consent`. The default path is `/.lovable/oauth/consent`. The address users are sent to for consent comes from the app's own canonical address, so I don't choose it. I haven't turned it on yet.
 
-## Root cause
+## 2) Asymmetric JWT signing keys (ES256)
+**Yes.** I have a separate action that moves the project to asymmetric signing keys. Once it runs, the JWKS and authorization-server discovery documents are served by the direct auth issuer. I haven't checked which signing method the project uses today. The usual check is to read a fresh token's header: "HS256" means it still uses a shared secret. I'll check that before running anything.
 
-That webhook only knows about marketing-site SKUs (Power Hour, Contractor School, S&M School, ALP University, etc.). Contractor Circle subscriptions are sold/managed by this portal, so their Stripe price IDs aren't in `PRODUCT_MAP` / `PRICE_ID_MAP`. When a Circle purchase fires `checkout.session.completed` on the shared Stripe account, `getProductFromSession()` returns `null`, the webhook drops into the "Custom / Ad-Hoc" branch, and Marshall gets the scary admin email — even though the **portal's** Stripe webhook (`src/routes/api/public/stripe/webhook.ts`) successfully enqueued the Circle welcome (`circle-welcome-<sub_id>` in `email_send_log`).
+## 3) Backend URL, project ref and custom auth domain
+I can't share the backend address or project ref. Lovable Cloud doesn't allow showing them. The app talks to the backend through a Lovable proxy address. External OAuth clients must use the direct issuer instead, because a proxy address fails strict issuer matching. I haven't confirmed whether a custom domain exists for sign-in itself. Your custom domain (app.alpcontractorcircle.com) serves the app and its consent page, not the auth issuer.
 
-The three Circle price IDs currently in use (pulled from `subscriptions`):
+## 4) Edge function that skips the built-in JWT check
+**Possible, but I don't recommend it.** On this kind of project, server logic belongs inside the app itself, not in separate edge functions. The supported approach is an `/mcp` endpoint built into the Hub with Lovable's MCP toolkit:
+- It returns its own 401 with a `WWW-Authenticate` header.
+- It publishes the protected-resource metadata at `/.well-known/oauth-protected-resource`.
+- It checks each token against the direct issuer and only accepts tokens issued to OAuth clients. Copied login tokens are rejected.
+- It sends the caller's token through to the database, so each user only sees their own data.
 
-```
-price_1TDR3aJdDAUSVXbNWVzFLblo   circle
-price_1TDR3aJdDAUSVXbNZOY6EXF3   circle
-price_1TVh3TJdDAUSVXbNJRsYFTbp   circle
-```
+This does the same job as mcp-lite with `withOAuthProtectedResource`, with no separate function to deploy.
 
-## Fix (applied in the ALP Site project)
-
-Edit `supabase/functions/stripe-webhook/index.ts`:
-
-1. Add a set of "handled-by-portal" price IDs near the top, alongside `PRICE_ID_MAP`:
-
-   ```ts
-   // Contractor Circle prices are handled end-to-end by the portal app
-   // (app.alpcontractorcircle.com). The portal's Stripe webhook sends the
-   // Circle welcome + magic link. We just acknowledge and log here.
-   const PORTAL_HANDLED_PRICE_IDS = new Set<string>([
-     "price_1TDR3aJdDAUSVXbNWVzFLblo",
-     "price_1TDR3aJdDAUSVXbNZOY6EXF3",
-     "price_1TVh3TJdDAUSVXbNJRsYFTbp",
-   ]);
-
-   function sessionIsPortalHandled(session: any): boolean {
-     if (session.metadata?.kind === "circle" || session.metadata?.product === "circle") return true;
-     const items = session.line_items?.data ?? [];
-     for (const item of items) {
-       const priceId = typeof item.price === "string" ? item.price : item.price?.id;
-       if (priceId && PORTAL_HANDLED_PRICE_IDS.has(priceId)) return true;
-     }
-     return false;
-   }
-   ```
-
-2. In `handler`, **before** the `getProductFromSession` lookup (just after we have `customerEmail`), short-circuit Circle purchases:
-
-   ```ts
-   if (sessionIsPortalHandled(session)) {
-     console.log("Circle purchase — handled by portal app, skipping marketing-site flow");
-     await supabase.from("purchase_log").insert({
-       customer_name: customerName,
-       customer_email: customerEmail,
-       product_name: "Contractor Circle (handled by portal)",
-       stripe_session_id: session.id,
-       amount_cents: session.amount_total,
-       welcome_email_sent: true,        // portal sent it
-       kajabi_provisioned: false,       // intentional — Circle doesn't use Kajabi
-     });
-     return new Response(JSON.stringify({ received: true, handled_by: "portal" }), {
-       status: 200,
-       headers: { "Content-Type": "application/json", ...corsHeaders },
-     });
-   }
-   ```
-
-   No admin email is sent in this branch — the portal already handles confirmation + delivery + its own admin signal.
-
-3. Leave the existing "Unrecognized product" branch untouched so genuinely unknown SKUs still page Marshall.
-
-## Why this is the right shape
-
-- Uses both `session.metadata.kind/product === "circle"` (the portal's checkout sets this) **and** an explicit Circle price-ID allowlist, so it's robust whether Stripe sends metadata, line items, or both.
-- Keeps the marketing-site webhook authoritative for marketing-site products — only carves out Circle.
-- New Circle price IDs in the future: add to `PORTAL_HANDLED_PRICE_IDS`. No other moving parts.
-
-## Out of scope
-
-- No changes in this portal project — its webhook already does the right thing.
-- No changes to Kajabi, Resend, or `purchase_log` schema.
-- No retroactive email cleanup; existing false-alarm notices stay in your inbox.
-
-## Hand-off
-
-Open [ALP Site](/projects/d5d995bb-85ad-4c1b-b601-a214c4a121a0) and paste the change request above. The edit is localized to `supabase/functions/stripe-webhook/index.ts` and a redeploy of that one edge function.
+## If you approve, I would build
+1. Turn on the OAuth server (defaults, or `/oauth/consent` if you prefer).
+2. Check the signing method and move to ES256 if needed.
+3. Add a consent page with Approve and Deny. Make sure password, signup and Google sign-in all return users to it.
+4. Add the `/mcp` endpoint and the tools you choose. You'd need to tell me which tools to expose.
+5. Generate the MCP manifest. You then publish.

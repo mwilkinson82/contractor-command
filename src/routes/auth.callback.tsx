@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthCard } from "@/components/auth/auth-card";
+import { consumeOAuthReturn } from "@/lib/oauth-return-path";
 
 const CALLBACK_TIMEOUT_MS = 10_000;
 const AUTH_STEP_TIMEOUT_MS = 8_000;
@@ -84,7 +85,7 @@ function AuthCallbackPage() {
       setPhase("expired");
     };
 
-    const finishSignedIn = (destination = redirect ?? "/") => {
+    const finishSignedIn = (destination = redirect ?? consumeOAuthReturn() ?? "/") => {
       if (cancelled || settled) return;
       settled = true;
       clearDeadline();

@@ -92,8 +92,38 @@ const csrfOriginGuard = createMiddleware().server(async ({ next, request }) => {
   }
 });
 
+/**
+ * Private MCP prototype gate: a bearer token whose email isn't on the
+ * allowlist gets 403 before reaching /mcp. This only ever rejects; the MCP
+ * handler still verifies every token's signature and re-checks the email.
+ * Requests with no token pass through so the handler returns 401 +
+ * WWW-Authenticate.
+ */
+const MCP_ALLOWED_EMAILS = new Set(["marshall@marshallwilkinson.com"]);
+const mcpAllowlistGate = createMiddleware().server(async ({ next, request }) => {
+  const url = new URL(request.url);
+  if (url.pathname !== "/mcp" && !url.pathname.startsWith("/mcp/")) return next();
+  const authz = request.headers.get("authorization") ?? "";
+  if (!authz.startsWith("Bearer ")) return next();
+  let email = "";
+  try {
+    const part = authz.slice(7).split(".")[1] ?? "";
+    const json = atob(part.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(part.length / 4) * 4, "="));
+    email = String((JSON.parse(json) as { email?: unknown }).email ?? "").trim().toLowerCase();
+  } catch {
+    return next();
+  }
+  if (!MCP_ALLOWED_EMAILS.has(email)) {
+    return new Response(JSON.stringify({ error: "forbidden" }), {
+      status: 403,
+      headers: { "content-type": "application/json" },
+    });
+  }
+  return next();
+});
+
 export const startInstance = createStart(() => ({
-  requestMiddleware: [errorMiddleware, csrfOriginGuard],
+  requestMiddleware: [errorMiddleware, mcpAllowlistGate, csrfOriginGuard],
   functionMiddleware: [attachSupabaseAuth],
 }));
 

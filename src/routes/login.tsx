@@ -6,11 +6,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { sendTransactionalEmail } from "@/lib/email/send";
 import { requestMemberMagicLink } from "@/lib/magic-link.functions";
 
-function safeRedirect(value: unknown): string {
-  if (typeof value !== "string") return "/";
-  if (!value.startsWith("/") || value.startsWith("//")) return "/";
-  return value;
-}
+import { oauthReturnPath } from "@/lib/oauth-return-path";
+
+const safeRedirect = oauthReturnPath;
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -25,7 +23,7 @@ export const Route = createFileRoute("/login")({
   }),
   beforeLoad: async ({ search }) => {
     const { data } = await supabase.auth.getSession();
-    if (data.session) throw redirect({ to: search.redirect ?? "/" });
+    if (data.session) throw redirect({ href: search.redirect ?? "/" });
   },
   component: LoginPage,
 });
@@ -67,7 +65,8 @@ function LoginPage() {
     const { data: sub } = supabase.auth.onAuthStateChange((_, session) => {
       if (session) {
         router.invalidate();
-        navigate({ to: redirectTo });
+        if (redirectTo?.includes("?")) window.location.assign(redirectTo);
+        else navigate({ to: redirectTo });
       }
     });
     return () => sub.subscription.unsubscribe();
