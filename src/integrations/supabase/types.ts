@@ -777,6 +777,24 @@ export type Database = {
         }
         Relationships: []
       }
+      mcp_call_log: {
+        Row: {
+          called_at: string
+          id: number
+          user_id: string
+        }
+        Insert: {
+          called_at?: string
+          id?: number
+          user_id?: string
+        }
+        Update: {
+          called_at?: string
+          id?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       member_announcements: {
         Row: {
           announcement_id: string | null
@@ -1894,6 +1912,7 @@ export type Database = {
         Args: { _schedule_id: string; _user_id: string }
         Returns: boolean
       }
+      mcp_rate_hit: { Args: { _limit?: number }; Returns: boolean }
       move_to_dlq: {
         Args: {
           dlq_name: string
