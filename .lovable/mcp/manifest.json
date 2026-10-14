@@ -198,7 +198,7 @@
       {
         "name": "intake",
         "title": "Job setup intake",
-        "description": "Create a job (keyed by job number) and record its setup: step 0 scoping, contract terms, estimate handoff, budget and SOV, warranty register, open items, or a two-week lookahead. Missing data is recorded as unknown, never guessed.",
+        "description": "Create a job (keyed by job number) and record its setup: step 0 scoping, contract terms, estimate handoff, budget and SOV, open items, or a two-week lookahead. Missing data is recorded as unknown, never guessed.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -217,7 +217,6 @@
                 "contract",
                 "handoff",
                 "budget",
-                "warranty",
                 "open_item",
                 "lookahead"
               ],
@@ -587,65 +586,6 @@
                 ]
               }
             },
-            "workmanship_period": {
-              "description": "warranty",
-              "type": "string",
-              "maxLength": 2000
-            },
-            "workmanship_start_trigger": {
-              "description": "warranty",
-              "type": "string",
-              "maxLength": 2000
-            },
-            "workmanship_start_date": {
-              "type": "string",
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
-            },
-            "manufacturer_warranties": {
-              "maxItems": 50,
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "product": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 120
-                  },
-                  "duration": {
-                    "description": "e.g. 12 months",
-                    "type": "string",
-                    "maxLength": 2000
-                  },
-                  "start_trigger": {
-                    "description": "e.g. delivery, start-up, substantial completion",
-                    "type": "string",
-                    "maxLength": 2000
-                  },
-                  "start_date": {
-                    "type": "string",
-                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
-                  },
-                  "expiration": {
-                    "type": "string",
-                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
-                  },
-                  "document": {
-                    "description": "Warranty document reference",
-                    "type": "string",
-                    "maxLength": 2000
-                  }
-                },
-                "required": [
-                  "product"
-                ]
-              }
-            },
-            "spec_warranty_start": {
-              "description": "warranty: what the spec says starts warranties, e.g. substantial completion",
-              "type": "string",
-              "maxLength": 2000
-            },
             "action": {
               "description": "open_item: what has to happen",
               "type": "string",
@@ -871,7 +811,7 @@
               ]
             },
             "section": {
-              "description": "mark_na / reenable with scope section: section name, e.g. warranty, equipment, contract.",
+              "description": "mark_na / reenable with scope section: section name, e.g. bid_documents, insurance_bonding, contract_time, self_perform_premob.",
               "type": "string",
               "maxLength": 60
             },
