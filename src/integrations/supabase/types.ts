@@ -2366,6 +2366,7 @@ export type Database = {
         Args: { _schedule_id: string; _user_id: string }
         Returns: boolean
       }
+      mcp_abuse_cap_hit: { Args: never; Returns: boolean }
       mcp_rate_hit: { Args: { _limit?: number }; Returns: boolean }
       mcp_usage_hit: { Args: { _limit: number }; Returns: Json }
       move_to_dlq: {
