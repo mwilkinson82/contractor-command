@@ -1,3 +1,4 @@
+import type { ErrorComponentProps } from "@tanstack/react-router";
 // Edit a previously-vaulted SOP. Loads the saved doc from the Company Vault
 // and renders the SOP Document Builder in edit mode — saves overwrite the
 // same packet instead of creating a duplicate.
@@ -29,7 +30,7 @@ export const Route = createFileRoute("/tools/sop-edit/$packetId")({
   component: EditSopPage,
 });
 
-function EditSopError({ error, reset }: { error: Error; reset: () => void }) {
+function EditSopError({ error, reset }: ErrorComponentProps) {
   const router = useRouter();
   return (
     <div className="mx-auto max-w-xl px-6 py-16 text-center">
