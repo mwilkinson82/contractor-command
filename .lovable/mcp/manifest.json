@@ -42,6 +42,12 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
+            "project_name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "Project name."
+            },
             "lookahead": {
               "type": "string",
               "minLength": 1,
@@ -50,6 +56,7 @@
             }
           },
           "required": [
+            "project_name",
             "lookahead"
           ],
           "additionalProperties": false
@@ -126,6 +133,12 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
+            "project_name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "Project name."
+            },
             "lookahead": {
               "type": "string",
               "minLength": 1,
@@ -136,9 +149,15 @@
               "description": "Answers to the clarifying questions (max 10,000 characters).",
               "type": "string",
               "maxLength": 10000
+            },
+            "session_id": {
+              "description": "session_id returned by submit_lookahead; checked against the project name and lookahead.",
+              "type": "string",
+              "maxLength": 64
             }
           },
           "required": [
+            "project_name",
             "lookahead"
           ],
           "additionalProperties": false
@@ -157,6 +176,12 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
+            "project_name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "Project name."
+            },
             "lookahead": {
               "type": "string",
               "minLength": 1,
@@ -167,9 +192,15 @@
               "description": "Answers to the clarifying questions (max 10,000 characters).",
               "type": "string",
               "maxLength": 10000
+            },
+            "session_id": {
+              "description": "session_id returned by submit_lookahead; checked against the project name and lookahead.",
+              "type": "string",
+              "maxLength": 64
             }
           },
           "required": [
+            "project_name",
             "lookahead"
           ],
           "additionalProperties": false
