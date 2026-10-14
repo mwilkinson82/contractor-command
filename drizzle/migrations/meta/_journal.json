@@ -43,6 +43,13 @@
       "when": 1792012025266,
       "tag": "0005_mcp_deprecate_profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792013980638,
+      "tag": "0006_mcp_module1_marshall_checklist_roles",
+      "breakpoints": true
     }
   ]
 }
