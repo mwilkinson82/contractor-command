@@ -1,3 +1,5 @@
+import { EmailSection } from "./_responsive";
+import { responsiveEmail, ResponsiveEmailHead } from "./_responsive";
 import * as React from "react";
 import {
   Body,
@@ -40,12 +42,12 @@ const CircleWelcomeEmail = ({
   const name = firstName?.trim();
   return (
     <Html lang="en" dir="ltr">
-      <Head />
+      <ResponsiveEmailHead />
       <Preview>Welcome to {siteName}. Here's how to step in.</Preview>
       <Body style={main}>
         <Container style={container}>
-          <ContractorCircleEmailHeader label="Welcome to the Circle" />
-          <Section style={card}>
+          <ContractorCircleEmailHeader label="Welcome to the Circle" inverse />
+          <EmailSection style={card}>
             <Text style={eyebrow}>ALP CONTRACTOR CIRCLE · WELCOME</Text>
             <Heading style={h1}>{name ? `${name}, you're in.` : `You're in.`}</Heading>
             <Text style={lede}>
@@ -54,7 +56,7 @@ const CircleWelcomeEmail = ({
               you need it.
             </Text>
 
-            <Section style={ctaWrap}>
+            <EmailSection style={ctaWrap}>
               <Button style={button} href={loginUrl ?? siteUrl}>
                 Enter the portal
               </Button>
@@ -62,7 +64,7 @@ const CircleWelcomeEmail = ({
                 Sign in with your email and password. If you need a new password, use the reset link
                 on the login page.
               </Text>
-            </Section>
+            </EmailSection>
 
             <Text style={sectionLabel}>START HERE</Text>
             <Text style={item}>
@@ -109,7 +111,7 @@ const CircleWelcomeEmail = ({
               <br />
               Anything else — hit reply. Goes straight to me.
             </Text>
-          </Section>
+          </EmailSection>
           <Text style={signoff}>— Marshall &amp; the ALP team</Text>
           <ContractorCircleEmailFooter />
         </Container>
@@ -142,19 +144,9 @@ const PAPER = emailBrand.workSurface,
   HAIRLINE = emailBrand.paperEdge,
   SIGNAL = emailBrand.signal;
 
-const main = {
-  backgroundColor: emailBrand.cream,
-  fontFamily: sansFamily,
-  margin: 0,
-  padding: "32px 0",
-};
-const container = { maxWidth: "560px", margin: "0 auto", padding: "0 16px" };
-const card = {
-  backgroundColor: PAPER,
-  border: `1px solid ${HAIRLINE}`,
-  borderRadius: "20px",
-  padding: "40px 36px",
-};
+const main = responsiveEmail.main;
+const container = responsiveEmail.container;
+const card = { ...responsiveEmail.card, ...responsiveEmail.body };
 const eyebrow = {
   fontSize: "11px",
   letterSpacing: "0.22em",
@@ -179,19 +171,7 @@ const lede = {
   fontFamily: sansFamily,
 };
 const ctaWrap = { margin: "4px 0 24px" };
-const button = {
-  backgroundColor: INK,
-  color: PAPER,
-  fontSize: "13px",
-  letterSpacing: "0.22em",
-  textTransform: "uppercase" as const,
-  borderRadius: "999px",
-  padding: "16px 28px",
-  textDecoration: "none",
-  display: "inline-block",
-  fontWeight: 500,
-  fontFamily: monoFamily,
-};
+const button = responsiveEmail.button;
 const ctaNote = {
   fontSize: "12px",
   color: MUTED,

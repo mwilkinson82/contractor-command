@@ -32,15 +32,15 @@ describe("member announcement email", () => {
   it("uses the Contractor Circle identity and member-note structure", async () => {
     const html = await renderAnnouncement("The member update goes here.");
 
-    expect(html).toContain("Member operating brief");
+    expect(html).toContain("Member announcement");
     expect(html).toContain("Contractor Circle / Member note");
-    expect(html).toContain("contractor-circle-mark.png");
+    expect(html).toContain("brand/circle-v1/email-cream.png");
     expect(html).not.toContain("contractor-circle-horizontal.png");
     expect(html).toContain("AN ALP COMMUNITY");
     expect(html).toContain("Build the company behind the projects.");
-    expect(html).toContain("background-color:#171310");
-    expect(html).toContain("background-color:#FAF9F5");
-    expect(html).toContain("border-left:3px solid #D97757");
+    expect(html).toContain("background-color:#F7F2EA");
+    expect(html).toContain("background-color:#E8E3DB");
+    expect(html).toContain("border-top:5px solid #F76A16");
   });
 
   it("renders formatted text, lists, links, and hosted images", async () => {

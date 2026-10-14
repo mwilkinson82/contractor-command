@@ -1,120 +1,78 @@
+import { EmailSection } from "./_responsive";
 import type { ReactNode } from "react";
 import { Column, Img, Row, Section, Text } from "@react-email/components";
-import { emailBrand } from "./_brand";
+import { contractorCircleBrand } from "@/lib/contractor-circle-brand";
 
-const APP_ORIGIN = "https://app.alpcontractorcircle.com";
-const MARK_LOGO_URL = `${APP_ORIGIN}/email/contractor-circle-mark.png`;
-
-interface ContractorCircleEmailHeaderProps {
-  label?: string;
-}
-
+/** Fluid table structure and modest default padding work even without media queries. */
 export function ContractorCircleEmailHeader({
   label = "Member communication",
-}: ContractorCircleEmailHeaderProps) {
+  inverse = false,
+}: {
+  label?: string;
+  inverse?: boolean;
+}) {
   return (
-    <Section style={styles.header}>
-      <Row>
-        <Column style={styles.headerMarkColumn}>
-          <Img src={MARK_LOGO_URL} width="42" height="42" alt="" style={styles.mark} />
-        </Column>
-        <Column>
-          <Text style={styles.headerBrand}>Contractor Circle</Text>
-          <Text style={styles.headerLabel}>{label}</Text>
-        </Column>
-      </Row>
-    </Section>
+    <EmailSection style={{ ...styles.header, ...(inverse ? { backgroundColor: "#1C1A17" } : {}) }}>
+      <Img
+        src={inverse ? contractorCircleBrand.emailMarkInverse : contractorCircleBrand.emailMark}
+        width="280"
+        alt="Contractor Circle by ALP"
+        style={{ display: "block", width: "100%", maxWidth: 280, height: "auto" }}
+      />
+      <Text style={{ ...styles.label, ...(inverse ? { color: "#F7F2EA" } : {}) }}>{label}</Text>
+    </EmailSection>
   );
 }
-
-interface ContractorCircleEmailFooterProps {
-  children?: ReactNode;
-}
-
-export function ContractorCircleEmailFooter({ children }: ContractorCircleEmailFooterProps) {
+export function ContractorCircleEmailFooter({ children }: { children?: ReactNode }) {
   return (
-    <Section style={styles.footer}>
-      <Row>
-        <Column style={styles.markColumn}>
-          <Img src={MARK_LOGO_URL} width="38" height="38" alt="" style={styles.mark} />
-        </Column>
-        <Column>
-          <Text style={styles.footerBrand}>Contractor Circle</Text>
-          <Text style={styles.footerLine}>
-            {children ?? "Build the company behind the projects."}
-          </Text>
-        </Column>
-        <Column align="right" style={styles.alpColumn}>
-          <Text style={styles.alp}>AN ALP COMMUNITY</Text>
-        </Column>
-      </Row>
-    </Section>
+    <EmailSection style={styles.footer}>
+      <Text style={styles.footerLine}>{children ?? "Build the company behind the projects."}</Text>
+      <Text style={styles.label}>AN ALP COMMUNITY</Text>
+    </EmailSection>
   );
 }
-
 const styles = {
   header: {
-    backgroundColor: "#171310",
-    borderBottom: `3px solid ${emailBrand.signal}`,
-    padding: "18px 24px",
+    backgroundColor: "#F7F2EA",
+    borderTop: `5px solid ${contractorCircleBrand.emailAccent}`,
+    padding: "26px 16px 20px",
+    width: "100%",
+    tableLayout: "fixed",
   },
-  headerMarkColumn: {
-    width: "54px",
-  },
-  headerBrand: {
-    color: "#FAF7F0",
-    fontFamily: 'Georgia, "Times New Roman", serif',
-    fontSize: "17px",
-    fontWeight: 600,
-    lineHeight: 1.2,
-    margin: "0 0 4px",
-  },
-  headerLabel: {
-    color: "#B7AFA3",
-    fontFamily: emailBrand.mono,
-    fontSize: "7.5px",
-    fontWeight: 700,
-    letterSpacing: "0.14em",
-    lineHeight: 1.4,
+  wordmark: {
+    color: "#1C1A17",
+    fontFamily: "Arial, Helvetica, sans-serif",
+    fontSize: 17,
+    fontWeight: 800,
+    letterSpacing: "-0.5px",
+    lineHeight: "18px",
     margin: 0,
-    textTransform: "uppercase" as const,
   },
-  footer: {
-    backgroundColor: "#171310",
-    borderTop: `3px solid ${emailBrand.signal}`,
-    padding: "20px 24px",
+  by: {
+    color: "#1C1A17",
+    fontFamily: "Arial, Helvetica, sans-serif",
+    fontSize: 11,
+    lineHeight: "14px",
+    margin: "5px 0 0",
   },
-  markColumn: {
-    width: "50px",
+  label: {
+    color: "#6B6259",
+    fontFamily: "Arial, Helvetica, sans-serif",
+    fontSize: 10,
+    lineHeight: "17px",
+    letterSpacing: "1.35px",
+    textTransform: "uppercase",
+    margin: "18px 0 0",
+    overflowWrap: "anywhere",
   },
-  mark: {
-    display: "block",
-  },
-  footerBrand: {
-    color: "#FAF7F0",
-    fontFamily: 'Georgia, "Times New Roman", serif',
-    fontSize: "15px",
-    fontWeight: 600,
-    lineHeight: 1.2,
-    margin: "0 0 3px",
-  },
+  footer: { backgroundColor: "#F7F2EA", padding: "28px 16px", width: "100%", tableLayout: "fixed" },
   footerLine: {
-    color: "#B7AFA3",
-    fontSize: "10px",
-    lineHeight: 1.4,
-    margin: 0,
-  },
-  alpColumn: {
-    paddingLeft: "12px",
-    width: "150px",
-  },
-  alp: {
-    color: "#B7AFA3",
-    fontFamily: emailBrand.mono,
-    fontSize: "7.5px",
+    color: "#1C1A17",
+    fontFamily: "Arial, Helvetica, sans-serif",
+    fontSize: 13,
     fontWeight: 700,
-    letterSpacing: "0.14em",
-    lineHeight: 1.4,
+    lineHeight: "20px",
     margin: 0,
+    overflowWrap: "anywhere",
   },
 } as const;
