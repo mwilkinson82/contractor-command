@@ -1,3 +1,4 @@
+import { assertQueuedSessionCurrent } from "@/lib/circle-sessions/store.server";
 import { sendLovableEmail } from '@lovable.dev/email-js'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { createFileRoute } from '@tanstack/react-router'
@@ -223,6 +224,7 @@ export const Route = createFileRoute("/lovable/email/queue/process")({
             }
 
             try {
+              await assertQueuedSessionCurrent(supabase, payload)
               if (await queuedAnnouncementNeedsCircle(supabase, payload)) {
                 const permission = await circleAnnouncementAllowed(supabase, String(payload.to))
                 if (!permission.allowed) {

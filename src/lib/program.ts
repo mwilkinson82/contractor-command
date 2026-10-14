@@ -3,6 +3,8 @@
 // what members see across the portal.
 
 export type Session = {
+  id?: string;
+  timeZone?: string;
   kind: "Biweekly Call" | "Monthly Bootcamp";
   title: string;
   date: string; // ISO datetime with tz offset
@@ -17,50 +19,31 @@ export type Session = {
 
 // Replays moved to the `replays` database table — see src/routes/replays.tsx.
 
-// --- Upcoming sessions (edit these as the calendar moves) ---
-// cache-bust: 2026-10-11 biweekly working session meet link
-export const UPCOMING: Session[] = [
-  {
-    kind: "Biweekly Call",
-    title: "Contractor Circle (biweekly working session)",
-    date: "2026-10-11T21:00:00.000Z", // 5:00 PM ET Sun Oct 11 (ends 6:30 PM ET)
-    durationMin: 90,
-    zoomUrl: "https://meet.google.com/sjn-hqkw-tgm",
-    meetingProvider: "Google Meet",
-    description:
-      "Contractor Circle working session. Come ready to work. Recording goes in the Replay Library after.",
-  },
-];
-
-export function nextOfKind(kind: Session["kind"]): Session | undefined {
-  const now = Date.now();
-  return (
-    UPCOMING.filter((s) => s.kind === kind && new Date(s.date).getTime() > now).sort(
-      (a, b) => +new Date(a.date) - +new Date(b.date),
-    )[0] ?? UPCOMING.find((s) => s.kind === kind)
-  );
+// Session data is persisted in circle_sessions; client bundles contain no meeting URLs.
+export const UPCOMING: Session[] = [];
+export function nextOfKind(
+  kind: Session["kind"],
+  sessions: Session[] = UPCOMING,
+): Session | undefined {
+  return nextAny(sessions.filter((s) => s.kind === kind));
+}
+export function nextAny(sessions: Session[] = UPCOMING): Session | undefined {
+  return sessions
+    .filter((s) => Date.parse(s.date) + s.durationMin * 60_000 > Date.now())
+    .sort((a, b) => Date.parse(a.date) - Date.parse(b.date))[0];
 }
 
-export function nextAny(): Session {
-  const now = Date.now();
-  const upcoming = UPCOMING.filter((s) => new Date(s.date).getTime() > now).sort(
-    (a, b) => +new Date(a.date) - +new Date(b.date),
-  );
-  return upcoming[0] ?? UPCOMING[0];
-}
-
-export function formatSessionDate(iso: string): string {
+export function formatSessionDate(iso: string, timeZone = "America/New_York"): string {
   const d = new Date(iso);
-  return (
-    d.toLocaleString("en-US", {
-      timeZone: "America/New_York",
-      weekday: "long",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    }) + " ET"
-  );
+  return d.toLocaleString("en-US", {
+    timeZone,
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
 }
 
 export function relativeDay(iso: string): string {
@@ -85,8 +68,8 @@ export function addToCalendarUrl(s: Session): string {
     action: "TEMPLATE",
     text: `${s.kind} — ${s.title}`,
     dates: `${fmt(start)}/${fmt(end)}`,
-    details: `${s.description}\n\n${s.meetingProvider}: ${s.zoomUrl}`,
-    location: s.zoomUrl,
+    details: `${s.description}\n\nJoin through the member Hub: https://app.alpcontractorcircle.com/calls`,
+    location: "https://app.alpcontractorcircle.com/calls",
   });
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }

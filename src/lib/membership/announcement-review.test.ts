@@ -63,6 +63,7 @@ afterEach(() => {
 import {
   previewReviewedCircleAnnouncement,
   previewMemberAnnouncementAudience,
+  previewMemberAnnouncementContent,
   sendMemberAnnouncement,
 } from "@/lib/announce.functions";
 import { circleAnnouncementAllowed } from "./announcement-guard.server";
@@ -146,6 +147,10 @@ beforeEach(() => {
       },
       not: (key: string) => {
         filters.push((row) => row[key] != null);
+        return chain;
+      },
+      single: () => {
+        single = true;
         return chain;
       },
       maybeSingle: () => {
@@ -425,5 +430,52 @@ describe("admin-reviewed Circle announcement exclusions", () => {
     const snapshot = await preview();
     expect(snapshot.recipients).toEqual([{ email: ready, userId: null, firstName: null }]);
     expect(JSON.stringify(snapshot)).not.toContain("expired@example.test");
+  });
+});
+
+describe("call announcement content review", () => {
+  const session = { id: "11111111-1111-4111-8111-111111111111", version: 1 };
+  beforeEach(() => {
+    m.tables.circle_sessions = [
+      {
+        ...session,
+        title: "Next Circle",
+        starts_at: "2099-10-25T21:00:00Z",
+        time_zone: "America/New_York",
+        duration_min: 90,
+        status: "scheduled",
+        meeting_url: "https://meet.google.com/abc-defg-hij",
+      },
+    ];
+  });
+  it("previews without sending and queues exactly the reviewed session", async () => {
+    const audience = await preview();
+    const data = { ...input, mode: "call" as const, session, circleReview: review(audience) };
+    const rendered = await previewMemberAnnouncementContent({ data });
+    expect(m.writes).toEqual([]);
+    expect(m.send).not.toHaveBeenCalled();
+    await expect(sendMemberAnnouncement({ data })).rejects.toThrow(/Preview/);
+    const sent = await sendMemberAnnouncement({
+      data: { ...data, previewHash: rendered.previewHash },
+    });
+    expect(sent.queued).toBe(1);
+    expect(m.queue[0].circle_session).toEqual(session);
+    expect(JSON.stringify(m.queue)).not.toContain("meet.google.com");
+  });
+  it("rejects content edits and session changes after preview before any queue write", async () => {
+    const audience = await preview();
+    const data = { ...input, mode: "call" as const, session, circleReview: review(audience) };
+    const rendered = await previewMemberAnnouncementContent({ data });
+    await expect(
+      sendMemberAnnouncement({
+        data: { ...data, body: "Changed", previewHash: rendered.previewHash },
+      }),
+    ).rejects.toThrow(/Preview/);
+    m.tables.circle_sessions[0].version = 2;
+    await expect(
+      sendMemberAnnouncement({ data: { ...data, previewHash: rendered.previewHash } }),
+    ).rejects.toThrow(/changed/);
+    expect(m.queue).toEqual([]);
+    expect(m.writes).toEqual([]);
   });
 });

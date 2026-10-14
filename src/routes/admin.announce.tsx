@@ -1,3 +1,4 @@
+import { CircleSessionPicker } from "@/components/admin/circle-session-picker";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
@@ -14,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   createAnnouncementMediaUpload,
   sendMemberAnnouncement,
+  previewMemberAnnouncementContent,
   previewMemberAnnouncementAudience,
   previewReviewedCircleAnnouncement,
   getLastMemberAnnouncement,
@@ -26,6 +28,8 @@ type Audience = "active" | "all_with_login" | "circle" | "circle_inactive" | "co
 const DRAFT_KEY = "admin.announce.draft.v1";
 
 type Draft = {
+  mode?: "general" | "call";
+  session?: { id: string; version: number };
   subject: string;
   headline: string;
   preheader: string;
@@ -54,6 +58,16 @@ function AnnouncePage() {
   // navigation can't erase what was typed.
   const initial = readDraft();
 
+  const [mode, setMode] = useState<"general" | "call">(initial?.mode ?? "general");
+  const [selectedSession, setSelectedSession] = useState<
+    { id: string; version: number } | undefined
+  >(initial?.session);
+  const [renderedPreview, setRenderedPreview] = useState<{
+    html: string;
+    previewHash: string;
+    draftKey: string;
+  } | null>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
   const [subject, setSubject] = useState(initial?.subject ?? "");
   const [headline, setHeadline] = useState(initial?.headline ?? "");
   const [preheader, setPreheader] = useState(initial?.preheader ?? "");
@@ -68,6 +82,7 @@ function AnnouncePage() {
 
   const previewFn = useServerFn(previewMemberAnnouncementAudience);
   const reviewedPreviewFn = useServerFn(previewReviewedCircleAnnouncement);
+  const contentPreviewFn = useServerFn(previewMemberAnnouncementContent);
   const sendFn = useServerFn(sendMemberAnnouncement);
   const lastFn = useServerFn(getLastMemberAnnouncement);
   const createMediaUploadFn = useServerFn(createAnnouncementMediaUpload);
@@ -100,6 +115,12 @@ function AnnouncePage() {
     if (hydratedFromServer) return;
     const a = lastSent?.announcement;
     if (!a) return;
+    setMode(a.announcement_mode === "call" ? "call" : "general");
+    setSelectedSession(
+      a.announcement_mode === "call" && a.session_snapshot
+        ? { id: a.session_snapshot.id, version: a.session_snapshot.version }
+        : undefined,
+    );
     setSubject(a.subject ?? "");
     setHeadline(a.headline ?? "");
     setPreheader(a.preheader ?? "");
@@ -125,6 +146,12 @@ function AnnouncePage() {
       toast.error("No previous announcement saved yet.");
       return;
     }
+    setMode(a.announcement_mode === "call" ? "call" : "general");
+    setSelectedSession(
+      a.announcement_mode === "call" && a.session_snapshot
+        ? { id: a.session_snapshot.id, version: a.session_snapshot.version }
+        : undefined,
+    );
     setSubject(a.subject ?? "");
     setHeadline(a.headline ?? "");
     setPreheader(a.preheader ?? "");
@@ -147,6 +174,8 @@ function AnnouncePage() {
   const loadControlBaselineCampaign = () => {
     setSubject(CONTROL_BASELINE_CAMPAIGN.subject);
     setHeadline(CONTROL_BASELINE_CAMPAIGN.headline);
+    setMode("general");
+    setSelectedSession(undefined);
     setPreheader(CONTROL_BASELINE_CAMPAIGN.preheader);
     setBody(CONTROL_BASELINE_CAMPAIGN.body);
     setCtaLabel(CONTROL_BASELINE_CAMPAIGN.ctaLabel);
@@ -161,6 +190,8 @@ function AnnouncePage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const draft: Draft = {
+      mode,
+      session: selectedSession,
       subject,
       headline,
       preheader,
@@ -175,7 +206,18 @@ function AnnouncePage() {
     } catch {
       /* ignore quota / private-mode errors */
     }
-  }, [subject, headline, preheader, body, ctaLabel, ctaUrl, signoff, audience]);
+  }, [
+    subject,
+    headline,
+    preheader,
+    body,
+    ctaLabel,
+    ctaUrl,
+    signoff,
+    audience,
+    mode,
+    selectedSession,
+  ]);
 
   const circleAudience =
     audience === "circle" || audience === "circle_inactive" || audience === "control_baseline";
@@ -201,10 +243,40 @@ function AnnouncePage() {
     setReviewedAudienceHash(null);
   }, [audience, previewError]);
 
+  const contentData = {
+    mode,
+    session: mode === "call" ? selectedSession : undefined,
+    subject,
+    headline,
+    preheader: preheader || undefined,
+    body,
+    ctaLabel: ctaLabel || undefined,
+    ctaUrl: ctaUrl || undefined,
+    signoff: signoff || undefined,
+    audience,
+  };
+  const draftKey = JSON.stringify(contentData);
+  const previewCurrent = renderedPreview?.draftKey === draftKey;
+  async function previewContent() {
+    setPreviewBusy(true);
+    try {
+      const result = await contentPreviewFn({ data: contentData });
+      setRenderedPreview({ ...result, draftKey });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not preview");
+      setRenderedPreview(null);
+    } finally {
+      setPreviewBusy(false);
+    }
+  }
+
   const sendMutation = useMutation({
     mutationFn: (vars: { mode: "test" | "all" }) =>
       sendFn({
         data: {
+          mode,
+          session: mode === "call" ? selectedSession : undefined,
+          previewHash: previewCurrent ? renderedPreview?.previewHash : undefined,
           subject,
           headline,
           preheader: preheader || undefined,
@@ -299,6 +371,22 @@ function AnnouncePage() {
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         {/* Composer */}
         <div className="space-y-4">
+          <Field label="Announcement type">
+            <select
+              className="w-full rounded border bg-background p-2"
+              value={mode}
+              onChange={(e) => {
+                setMode(e.target.value as "general" | "call");
+                setConfirmText("");
+              }}
+            >
+              <option value="general">General announcement</option>
+              <option value="call">Call announcement</option>
+            </select>
+          </Field>
+          {mode === "call" && (
+            <CircleSessionPicker selection={selectedSession} onChange={setSelectedSession} />
+          )}
           <Field label="Subject">
             <Input value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={255} />
           </Field>
@@ -344,6 +432,28 @@ function AnnouncePage() {
 
         {/* Send panel */}
         <div className="space-y-4">
+          <section className="space-y-3 rounded-2xl border p-4">
+            <Button type="button" onClick={previewContent} disabled={previewBusy}>
+              {previewBusy ? "Rendering…" : "Preview email without sending"}
+            </Button>
+            {!previewCurrent && renderedPreview && (
+              <p>Draft changed. Preview again before sending.</p>
+            )}
+            {previewCurrent && renderedPreview && (
+              <iframe
+                title="Rendered announcement preview"
+                sandbox=""
+                srcDoc={renderedPreview.html}
+                className="h-[640px] w-full border"
+              />
+            )}
+            {mode === "call" && (
+              <p className="text-xs">
+                The call details and Hub link come from the selected session. Preview is required
+                before sending.
+              </p>
+            )}
+          </section>
           <div className="rounded-2xl border border-border bg-card p-5">
             <p className="label-mono inline-flex items-center gap-1.5">
               <Users className="h-3 w-3" /> Audience
@@ -517,7 +627,13 @@ function AnnouncePage() {
               type="button"
               variant="outline"
               className="mt-3 w-full"
-              disabled={sendMutation.isPending || !subject || !headline || !body}
+              disabled={
+                sendMutation.isPending ||
+                !subject ||
+                !headline ||
+                !body ||
+                (mode === "call" && !previewCurrent)
+              }
               onClick={() => sendMutation.mutate({ mode: "test" })}
             >
               <Send className="mr-2 h-4 w-4" /> Send test to me
@@ -544,6 +660,7 @@ function AnnouncePage() {
               disabled={
                 sendMutation.isPending ||
                 countLoading ||
+                (mode === "call" && !previewCurrent) ||
                 !!previewError ||
                 (circleAudience &&
                   (!circleSnapshot || reviewedAudienceHash !== circleSnapshot.snapshotHash)) ||

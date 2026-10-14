@@ -1,3 +1,4 @@
+import { assertQueuedSessionCurrent } from "@/lib/circle-sessions/store.server";
 import { sendLovableEmail, type EmailSendRequest } from "@lovable.dev/email-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
@@ -512,6 +513,7 @@ async function processCycle({
       }
 
       try {
+        await assertQueuedSessionCurrent(supabase, payload);
         if (await queuedAnnouncementNeedsCircle(supabase, payload)) {
           const permission = await circleAnnouncementAllowed(supabase, recipientEmail);
           if (!permission.allowed) {

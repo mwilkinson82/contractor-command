@@ -24,8 +24,7 @@ async function sendInternal(
   const request = getRequest();
   const authHeader = request?.headers.get("authorization") ?? "";
   const origin =
-    request?.headers.get("origin") ||
-    (request?.url ? new URL(request.url).origin : "");
+    request?.headers.get("origin") || (request?.url ? new URL(request.url).origin : "");
   if (!origin) {
     console.warn("[topics] No origin to call send endpoint");
     return;
@@ -167,7 +166,7 @@ export const selectCallTopic = createServerFn({ method: "POST" })
         kind: updated.kind,
         title: updated.title,
         sessionDate: data.sessionDate,
-        zoomUrl: data.zoomUrl,
+        zoomUrl: "https://app.alpcontractorcircle.com/calls",
       },
       `topic-selected-${updated.id}`,
     );

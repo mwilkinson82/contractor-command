@@ -1,3 +1,4 @@
+import { useCircleSessions } from "@/hooks/use-circle-sessions";
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
@@ -21,7 +22,6 @@ import {
   Gauge,
   BookOpen,
   GraduationCap,
-
   Map,
   ArrowUpCircle,
   Flame,
@@ -352,7 +352,8 @@ export function AppSidebar() {
   const { collapsed, toggle, mobileOpen, setMobileOpen } = useAppSidebar();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
-  const next = nextAny();
+  const { sessions } = useCircleSessions();
+  const next = nextAny(sessions);
   const { company, logoUrl } = useCompany();
   const companyName = company?.name?.trim() || "Your company";
   const companyInitial = companyName.charAt(0).toUpperCase();
@@ -538,14 +539,18 @@ export function AppSidebar() {
                   Next session
                 </p>
                 <p className="mt-0.5 truncate text-[11px] text-foreground/80">
-                  {next.kind} · {relativeDay(next.date)}
+                  {next
+                    ? `${next.kind} · ${relativeDay(next.date)}`
+                    : "No upcoming session confirmed"}
                 </p>
               </div>
             </div>
           ) : (
             <div
               className="grid place-items-center py-2"
-              title={`${next.kind} · ${relativeDay(next.date)}`}
+              title={
+                next ? `${next.kind} · ${relativeDay(next.date)}` : "No upcoming session confirmed"
+              }
             >
               <Circle className="h-2 w-2 fill-good text-good animate-live-pulse" />
             </div>

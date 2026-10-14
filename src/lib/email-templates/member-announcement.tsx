@@ -22,6 +22,7 @@ import {
 import { ContractorCircleEmailFooter, ContractorCircleEmailHeader } from "./_brand-components";
 
 interface MemberAnnouncementProps {
+  callSession?: { title: string; details: string; hubUrl: string };
   /** First name, used in greeting. Falls back gracefully when missing. */
   firstName?: string;
   /** Short preview / preheader text shown in inbox list. */
@@ -43,6 +44,7 @@ const MemberAnnouncementEmail = ({
   body = "",
   ctaLabel,
   ctaUrl,
+  callSession,
   signoff,
 }: MemberAnnouncementProps) => {
   const showCta = !!(ctaLabel && ctaUrl);
@@ -62,6 +64,20 @@ const MemberAnnouncementEmail = ({
                 <Heading style={layout.headline}>{headline}</Heading>
               </EmailSection>
 
+              {callSession && (
+                <EmailSection>
+                  <Heading as="h2" style={heading3}>
+                    {callSession.title}
+                  </Heading>
+                  <Text style={paragraph}>{callSession.details}</Text>
+                  <Button href={callSession.hubUrl} style={layout.button}>
+                    Open this call in the Hub
+                  </Button>
+                  <Text style={paragraph}>
+                    Sign in with your current Circle membership to join.
+                  </Text>
+                </EmailSection>
+              )}
               <ReactMarkdown
                 allowedElements={ANNOUNCEMENT_MARKDOWN_ELEMENTS}
                 unwrapDisallowed
