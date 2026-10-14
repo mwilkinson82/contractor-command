@@ -252,6 +252,7 @@ function HomePage() {
       const { data } = await supabase
         .from("replays")
         .select("title, recorded_at")
+        .eq("published", true)
         .order("recorded_at", { ascending: false })
         .limit(1)
         .maybeSingle();
