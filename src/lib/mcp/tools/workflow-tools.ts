@@ -396,7 +396,7 @@ export const nextQuestion = defineTool({
   title: "Next question",
   description: "Get the next setup question for a job, one at a time (or the next lookahead question when lookahead_id is given). Skips anything marked N/A or already answered.",
   inputSchema: { job_number: jobNumber, company_id: companyId, lookahead_id: uuid.optional().describe("Only for a two-week lookahead.") },
-  annotations: { ...READ, idempotentHint: true },
+  annotations: { ...WRITE, idempotentHint: true },
   handler: (args, ctx) =>
     run("next_question", ctx, args.lookahead_id, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id);
