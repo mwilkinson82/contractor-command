@@ -338,6 +338,81 @@ export type Database = {
         }
         Relationships: []
       }
+      circle_calendar_attempts: {
+        Row: {
+          attempt_id: string | null
+          attempted_at: string | null
+          cadence_date: string
+          calendar_event_id: string | null
+          calendar_id: string
+          created_at: string
+          marker: string
+          session_id: string | null
+          source_cadence_date: string
+          source_event_id: string
+          source_meeting_url: string
+          source_session_id: string | null
+          source_starts_at: string
+          source_version: number | null
+          starts_at: string
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_id?: string | null
+          attempted_at?: string | null
+          cadence_date: string
+          calendar_event_id?: string | null
+          calendar_id: string
+          created_at?: string
+          marker?: string
+          session_id?: string | null
+          source_cadence_date: string
+          source_event_id: string
+          source_meeting_url: string
+          source_session_id?: string | null
+          source_starts_at: string
+          source_version?: number | null
+          starts_at: string
+          state?: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_id?: string | null
+          attempted_at?: string | null
+          cadence_date?: string
+          calendar_event_id?: string | null
+          calendar_id?: string
+          created_at?: string
+          marker?: string
+          session_id?: string | null
+          source_cadence_date?: string
+          source_event_id?: string
+          source_meeting_url?: string
+          source_session_id?: string | null
+          source_starts_at?: string
+          source_version?: number | null
+          starts_at?: string
+          state?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "circle_calendar_attempts_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: true
+            referencedRelation: "circle_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "circle_calendar_attempts_source_session_id_fkey"
+            columns: ["source_session_id"]
+            isOneToOne: false
+            referencedRelation: "circle_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       circle_legacy_reviews: {
         Row: {
           preserve_access: boolean
@@ -448,6 +523,72 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      circle_sessions: {
+        Row: {
+          cadence_date: string | null
+          calendar_event_id: string | null
+          calendar_id: string | null
+          calendar_updated_at: string | null
+          calendar_verification_method: string | null
+          calendar_verified_at: string | null
+          created_at: string
+          description: string
+          duration_min: number
+          id: string
+          kind: string
+          meeting_url: string
+          rollover_enabled: boolean
+          starts_at: string
+          status: string
+          time_zone: string
+          title: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          cadence_date?: string | null
+          calendar_event_id?: string | null
+          calendar_id?: string | null
+          calendar_updated_at?: string | null
+          calendar_verification_method?: string | null
+          calendar_verified_at?: string | null
+          created_at?: string
+          description?: string
+          duration_min: number
+          id?: string
+          kind?: string
+          meeting_url: string
+          rollover_enabled?: boolean
+          starts_at: string
+          status?: string
+          time_zone?: string
+          title: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          cadence_date?: string | null
+          calendar_event_id?: string | null
+          calendar_id?: string | null
+          calendar_updated_at?: string | null
+          calendar_verification_method?: string | null
+          calendar_verified_at?: string | null
+          created_at?: string
+          description?: string
+          duration_min?: number
+          id?: string
+          kind?: string
+          meeting_url?: string
+          rollover_enabled?: boolean
+          starts_at?: string
+          status?: string
+          time_zone?: string
+          title?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
       }
       circle_source_alias_history: {
         Row: {
@@ -1252,6 +1393,7 @@ export type Database = {
       member_announcements: {
         Row: {
           announcement_id: string | null
+          announcement_mode: string
           audience: string
           body: string
           created_at: string
@@ -1262,12 +1404,14 @@ export type Database = {
           preheader: string | null
           recipient_count: number
           sent_by: string | null
+          session_snapshot: Json | null
           signoff: string | null
           subject: string
           was_test: boolean
         }
         Insert: {
           announcement_id?: string | null
+          announcement_mode?: string
           audience: string
           body: string
           created_at?: string
@@ -1278,12 +1422,14 @@ export type Database = {
           preheader?: string | null
           recipient_count?: number
           sent_by?: string | null
+          session_snapshot?: Json | null
           signoff?: string | null
           subject: string
           was_test?: boolean
         }
         Update: {
           announcement_id?: string | null
+          announcement_mode?: string
           audience?: string
           body?: string
           created_at?: string
@@ -1294,6 +1440,7 @@ export type Database = {
           preheader?: string | null
           recipient_count?: number
           sent_by?: string | null
+          session_snapshot?: Json | null
           signoff?: string | null
           subject?: string
           was_test?: boolean
@@ -2256,6 +2403,10 @@ export type Database = {
         Returns: boolean
       }
       audit_email_queues: { Args: never; Returns: Json }
+      begin_circle_calendar_create: {
+        Args: { _cadence_date: string }
+        Returns: Json
+      }
       begin_stripe_webhook_event: {
         Args: { _event_id: string; _event_type: string; _object_id: string }
         Returns: string
@@ -2378,6 +2529,39 @@ export type Database = {
         }
         Returns: number
       }
+      publish_circle_calendar_session: {
+        Args: {
+          _cadence_date: string
+          _calendar_id: string
+          _calendar_updated_at: string
+          _conference_status: string
+          _description?: string
+          _duration_min: number
+          _event_id: string
+          _meeting_url: string
+          _rollover_enabled?: boolean
+          _starts_at: string
+          _time_zone: string
+          _title: string
+        }
+        Returns: string
+      }
+      publish_circle_reserved_session: {
+        Args: {
+          _cadence_date: string
+          _calendar_id: string
+          _description?: string
+          _ends_at: string
+          _event_id: string
+          _event_status: string
+          _is_recurring: boolean
+          _meeting_url: string
+          _starts_at: string
+          _time_zone: string
+          _title: string
+        }
+        Returns: string
+      }
       queue_circle_audience_sweep: { Args: never; Returns: undefined }
       queue_circle_audience_sync: {
         Args: { _email: string }
@@ -2391,9 +2575,70 @@ export type Database = {
           read_ct: number
         }[]
       }
+      record_circle_calendar_event: {
+        Args: {
+          _attempt_id: string
+          _cadence_date: string
+          _event_id: string
+          _marker: string
+        }
+        Returns: {
+          attempt_id: string | null
+          attempted_at: string | null
+          cadence_date: string
+          calendar_event_id: string | null
+          calendar_id: string
+          created_at: string
+          marker: string
+          session_id: string | null
+          source_cadence_date: string
+          source_event_id: string
+          source_meeting_url: string
+          source_session_id: string | null
+          source_starts_at: string
+          source_version: number | null
+          starts_at: string
+          state: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "circle_calendar_attempts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       replace_schedule_graph: {
         Args: { _dependencies: Json; _schedule_id: string; _tasks: Json }
         Returns: undefined
+      }
+      reserve_circle_rollover: {
+        Args: { _expected_version: number; _source_id: string }
+        Returns: {
+          attempt_id: string | null
+          attempted_at: string | null
+          cadence_date: string
+          calendar_event_id: string | null
+          calendar_id: string
+          created_at: string
+          marker: string
+          session_id: string | null
+          source_cadence_date: string
+          source_event_id: string
+          source_meeting_url: string
+          source_session_id: string | null
+          source_starts_at: string
+          source_version: number | null
+          starts_at: string
+          state: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "circle_calendar_attempts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       set_circle_owner_grant: {
         Args: {
