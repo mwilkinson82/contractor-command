@@ -9,217 +9,87 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as AccountRouteImport } from './routes/account'
-import { Route as CallsRouteImport } from './routes/calls'
-import { Route as CommunityRouteImport } from './routes/community'
-import { Route as EcosystemRouteImport } from './routes/ecosystem'
-import { Route as FieldToolsRouteImport } from './routes/field-tools'
-import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
-import { Route as HandbookRouteImport } from './routes/handbook'
-import { Route as HardcoreRouteImport } from './routes/hardcore'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as MagicLinkRouteImport } from './routes/magic-link'
-import { Route as McpRouteImport } from './routes/mcp'
-import { Route as OnboardingRouteImport } from './routes/onboarding'
-import { Route as OperatingPlaybookRouteImport } from './routes/operating-playbook'
-import { Route as OverwatchRouteImport } from './routes/overwatch'
-import { Route as ReplaysRouteImport } from './routes/replays'
-import { Route as ResetPasswordRouteImport } from './routes/reset-password'
-import { Route as SchedulerRouteImport } from './routes/scheduler'
-import { Route as SchedulerFieldRouteImport } from './routes/scheduler-field'
-import { Route as SchedulerPortfolioRouteImport } from './routes/scheduler-portfolio'
-import { Route as SchedulerPreviewRouteImport } from './routes/scheduler-preview'
-import { Route as SignupRouteImport } from './routes/signup'
-import { Route as StartHereRouteImport } from './routes/start-here'
-import { Route as TemplatesRouteImport } from './routes/templates'
-import { Route as ToolsRouteImport } from './routes/tools'
-import { Route as UpgradeRouteImport } from './routes/upgrade'
-import { Route as VaultRouteImport } from './routes/vault'
-import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as WorkWithMarshallRouteImport } from './routes/work-with-marshall'
-import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
-import { Route as AdminIndexRouteImport } from './routes/admin.index'
-import { Route as AdminAnnounceRouteImport } from './routes/admin.announce'
-import { Route as AdminBackfillRouteImport } from './routes/admin.backfill'
-import { Route as AdminControlRouteImport } from './routes/admin.control'
-import { Route as AdminEmailApprovalsRouteImport } from './routes/admin.email-approvals'
-import { Route as AdminHandbookRouteImport } from './routes/admin.handbook'
-import { Route as AdminIntensiveLeadsRouteImport } from './routes/admin.intensive-leads'
-import { Route as AdminLibraryRouteImport } from './routes/admin.library'
-import { Route as AdminMigrateRouteImport } from './routes/admin.migrate'
-import { Route as AdminPeopleRouteImport } from './routes/admin.people'
-import { Route as AdminQaRouteImport } from './routes/admin.qa'
-import { Route as AdminTopicsRouteImport } from './routes/admin.topics'
-import { Route as AdminWeeklyMoveRouteImport } from './routes/admin.weekly-move'
-import { Route as AosIndexRouteImport } from './routes/aos.index'
-import { Route as AosAddCapacityRouteImport } from './routes/aos.add-capacity'
-import { Route as AosLinkRouteImport } from './routes/aos.link'
-import { Route as ApiAskRouteImport } from './routes/api/ask'
-import { Route as ApiContractScanRouteImport } from './routes/api/contract-scan'
-import { Route as ApiOwnerPlaysRouteImport } from './routes/api/owner-plays'
-import { Route as ApiSopBacklogRouteImport } from './routes/api/sop-backlog'
-import { Route as ApiSopDraftRouteImport } from './routes/api/sop-draft'
+import { Route as WelcomeRouteImport } from './routes/welcome'
+import { Route as VaultRouteImport } from './routes/vault'
+import { Route as UpgradeRouteImport } from './routes/upgrade'
+import { Route as ToolsRouteImport } from './routes/tools'
+import { Route as TemplatesRouteImport } from './routes/templates'
+import { Route as StartHereRouteImport } from './routes/start-here'
+import { Route as SignupRouteImport } from './routes/signup'
+import { Route as SchedulerPreviewRouteImport } from './routes/scheduler-preview'
+import { Route as SchedulerPortfolioRouteImport } from './routes/scheduler-portfolio'
+import { Route as SchedulerFieldRouteImport } from './routes/scheduler-field'
+import { Route as SchedulerRouteImport } from './routes/scheduler'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as ReplaysRouteImport } from './routes/replays'
+import { Route as OverwatchRouteImport } from './routes/overwatch'
+import { Route as OperatingPlaybookRouteImport } from './routes/operating-playbook'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as McpRouteImport } from './routes/mcp'
+import { Route as MagicLinkRouteImport } from './routes/magic-link'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as HardcoreRouteImport } from './routes/hardcore'
+import { Route as HandbookRouteImport } from './routes/handbook'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as FieldToolsRouteImport } from './routes/field-tools'
+import { Route as EcosystemRouteImport } from './routes/ecosystem'
+import { Route as CommunityRouteImport } from './routes/community'
+import { Route as CallsRouteImport } from './routes/calls'
+import { Route as AccountRouteImport } from './routes/account'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as AskIndexRouteImport } from './routes/ask.index'
-import { Route as AskThreadIdRouteImport } from './routes/ask.$threadId'
-import { Route as AskNewRouteImport } from './routes/ask.new'
-import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
-import { Route as ControlPlanPacketIdRouteImport } from './routes/control-plan.$packetId'
-import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
-import { Route as OauthConsentRouteImport } from './routes/oauth.consent'
-import { Route as SchedulerProjectIdRouteImport } from './routes/scheduler.$projectId'
-import { Route as ToolsCosNavigatorRouteImport } from './routes/tools.cos-navigator'
-import { Route as ToolsGrowthConstraintRouteImport } from './routes/tools.growth-constraint'
+import { Route as AosIndexRouteImport } from './routes/aos.index'
+import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as ToolsOwnerDependencyRouteImport } from './routes/tools.owner-dependency'
-import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
-import { Route as ApiPublicAosFpRouteImport } from './routes/api/public/aos-fp'
-import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
+import { Route as ToolsGrowthConstraintRouteImport } from './routes/tools.growth-constraint'
+import { Route as ToolsCosNavigatorRouteImport } from './routes/tools.cos-navigator'
+import { Route as SchedulerProjectIdRouteImport } from './routes/scheduler.$projectId'
+import { Route as OauthConsentRouteImport } from './routes/oauth.consent'
+import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
+import { Route as ControlPlanPacketIdRouteImport } from './routes/control-plan.$packetId'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
+import { Route as AskNewRouteImport } from './routes/ask.new'
+import { Route as AskThreadIdRouteImport } from './routes/ask.$threadId'
+import { Route as ApiSopDraftRouteImport } from './routes/api/sop-draft'
+import { Route as ApiSopBacklogRouteImport } from './routes/api/sop-backlog'
+import { Route as ApiOwnerPlaysRouteImport } from './routes/api/owner-plays'
+import { Route as ApiContractScanRouteImport } from './routes/api/contract-scan'
+import { Route as ApiAskRouteImport } from './routes/api/ask'
+import { Route as AosLinkRouteImport } from './routes/aos.link'
+import { Route as AosAddCapacityRouteImport } from './routes/aos.add-capacity'
+import { Route as AdminWeeklyMoveRouteImport } from './routes/admin.weekly-move'
+import { Route as AdminTopicsRouteImport } from './routes/admin.topics'
+import { Route as AdminQaRouteImport } from './routes/admin.qa'
+import { Route as AdminPeopleRouteImport } from './routes/admin.people'
+import { Route as AdminMigrateRouteImport } from './routes/admin.migrate'
+import { Route as AdminLibraryRouteImport } from './routes/admin.library'
+import { Route as AdminIntensiveLeadsRouteImport } from './routes/admin.intensive-leads'
+import { Route as AdminHandbookRouteImport } from './routes/admin.handbook'
+import { Route as AdminEmailApprovalsRouteImport } from './routes/admin.email-approvals'
+import { Route as AdminControlRouteImport } from './routes/admin.control'
+import { Route as AdminBackfillRouteImport } from './routes/admin.backfill'
+import { Route as AdminAnnounceRouteImport } from './routes/admin.announce'
+import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as ToolsSopEditPacketIdRouteImport } from './routes/tools.sop-edit.$packetId'
-import { Route as ApiPublicAosTierLookupRouteImport } from './routes/api/public/aos/tier-lookup'
-import { Route as ApiPublicCircleReconcileRouteImport } from './routes/api/public/circle/reconcile'
-import { Route as ApiPublicOverwatchTierLookupRouteImport } from './routes/api/public/overwatch/tier-lookup'
-import { Route as ApiPublicResendCaptureRouteImport } from './routes/api/public/resend/capture'
-import { Route as ApiPublicResendInboundRouteImport } from './routes/api/public/resend/inbound'
-import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api/public/stripe/webhook'
-import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
-import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
-import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
-import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
+import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
+import { Route as ApiPublicAosFpRouteImport } from './routes/api/public/aos-fp'
+import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
+import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
+import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
+import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
+import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
+import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api/public/stripe/webhook'
+import { Route as ApiPublicResendInboundRouteImport } from './routes/api/public/resend/inbound'
+import { Route as ApiPublicResendCaptureRouteImport } from './routes/api/public/resend/capture'
+import { Route as ApiPublicOverwatchTierLookupRouteImport } from './routes/api/public/overwatch/tier-lookup'
+import { Route as ApiPublicCircleReconcileRouteImport } from './routes/api/public/circle/reconcile'
+import { Route as ApiPublicAosTierLookupRouteImport } from './routes/api/public/aos/tier-lookup'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AccountRoute = AccountRouteImport.update({
-  id: '/account',
-  path: '/account',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CallsRoute = CallsRouteImport.update({
-  id: '/calls',
-  path: '/calls',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CommunityRoute = CommunityRouteImport.update({
-  id: '/community',
-  path: '/community',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EcosystemRoute = EcosystemRouteImport.update({
-  id: '/ecosystem',
-  path: '/ecosystem',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FieldToolsRoute = FieldToolsRouteImport.update({
-  id: '/field-tools',
-  path: '/field-tools',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
-  id: '/forgot-password',
-  path: '/forgot-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HandbookRoute = HandbookRouteImport.update({
-  id: '/handbook',
-  path: '/handbook',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HardcoreRoute = HardcoreRouteImport.update({
-  id: '/hardcore',
-  path: '/hardcore',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MagicLinkRoute = MagicLinkRouteImport.update({
-  id: '/magic-link',
-  path: '/magic-link',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const McpRoute = McpRouteImport.update({
-  id: '/mcp',
-  path: '/mcp',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OnboardingRoute = OnboardingRouteImport.update({
-  id: '/onboarding',
-  path: '/onboarding',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OperatingPlaybookRoute = OperatingPlaybookRouteImport.update({
-  id: '/operating-playbook',
-  path: '/operating-playbook',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OverwatchRoute = OverwatchRouteImport.update({
-  id: '/overwatch',
-  path: '/overwatch',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ReplaysRoute = ReplaysRouteImport.update({
-  id: '/replays',
-  path: '/replays',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ResetPasswordRoute = ResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SchedulerRoute = SchedulerRouteImport.update({
-  id: '/scheduler',
-  path: '/scheduler',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SchedulerFieldRoute = SchedulerFieldRouteImport.update({
-  id: '/scheduler-field',
-  path: '/scheduler-field',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SchedulerPortfolioRoute = SchedulerPortfolioRouteImport.update({
-  id: '/scheduler-portfolio',
-  path: '/scheduler-portfolio',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SchedulerPreviewRoute = SchedulerPreviewRouteImport.update({
-  id: '/scheduler-preview',
-  path: '/scheduler-preview',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SignupRoute = SignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const StartHereRoute = StartHereRouteImport.update({
-  id: '/start-here',
-  path: '/start-here',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TemplatesRoute = TemplatesRouteImport.update({
-  id: '/templates',
-  path: '/templates',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ToolsRoute = ToolsRouteImport.update({
-  id: '/tools',
-  path: '/tools',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const UpgradeRoute = UpgradeRouteImport.update({
-  id: '/upgrade',
-  path: '/upgrade',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const VaultRoute = VaultRouteImport.update({
-  id: '/vault',
-  path: '/vault',
+const WorkWithMarshallRoute = WorkWithMarshallRouteImport.update({
+  id: '/work-with-marshall',
+  path: '/work-with-marshall',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WelcomeRoute = WelcomeRouteImport.update({
@@ -227,9 +97,299 @@ const WelcomeRoute = WelcomeRouteImport.update({
   path: '/welcome',
   getParentRoute: () => rootRouteImport,
 } as any)
-const WorkWithMarshallRoute = WorkWithMarshallRouteImport.update({
-  id: '/work-with-marshall',
-  path: '/work-with-marshall',
+const VaultRoute = VaultRouteImport.update({
+  id: '/vault',
+  path: '/vault',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UpgradeRoute = UpgradeRouteImport.update({
+  id: '/upgrade',
+  path: '/upgrade',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ToolsRoute = ToolsRouteImport.update({
+  id: '/tools',
+  path: '/tools',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TemplatesRoute = TemplatesRouteImport.update({
+  id: '/templates',
+  path: '/templates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StartHereRoute = StartHereRouteImport.update({
+  id: '/start-here',
+  path: '/start-here',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SchedulerPreviewRoute = SchedulerPreviewRouteImport.update({
+  id: '/scheduler-preview',
+  path: '/scheduler-preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SchedulerPortfolioRoute = SchedulerPortfolioRouteImport.update({
+  id: '/scheduler-portfolio',
+  path: '/scheduler-portfolio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SchedulerFieldRoute = SchedulerFieldRouteImport.update({
+  id: '/scheduler-field',
+  path: '/scheduler-field',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SchedulerRoute = SchedulerRouteImport.update({
+  id: '/scheduler',
+  path: '/scheduler',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReplaysRoute = ReplaysRouteImport.update({
+  id: '/replays',
+  path: '/replays',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OverwatchRoute = OverwatchRouteImport.update({
+  id: '/overwatch',
+  path: '/overwatch',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperatingPlaybookRoute = OperatingPlaybookRouteImport.update({
+  id: '/operating-playbook',
+  path: '/operating-playbook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const McpRoute = McpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MagicLinkRoute = MagicLinkRouteImport.update({
+  id: '/magic-link',
+  path: '/magic-link',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HardcoreRoute = HardcoreRouteImport.update({
+  id: '/hardcore',
+  path: '/hardcore',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HandbookRoute = HandbookRouteImport.update({
+  id: '/handbook',
+  path: '/handbook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FieldToolsRoute = FieldToolsRouteImport.update({
+  id: '/field-tools',
+  path: '/field-tools',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EcosystemRoute = EcosystemRouteImport.update({
+  id: '/ecosystem',
+  path: '/ecosystem',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CommunityRoute = CommunityRouteImport.update({
+  id: '/community',
+  path: '/community',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CallsRoute = CallsRouteImport.update({
+  id: '/calls',
+  path: '/calls',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountRoute = AccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AskIndexRoute = AskIndexRouteImport.update({
+  id: '/ask/',
+  path: '/ask/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AosIndexRoute = AosIndexRouteImport.update({
+  id: '/aos/',
+  path: '/aos/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/admin/',
+  path: '/admin/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ToolsOwnerDependencyRoute = ToolsOwnerDependencyRouteImport.update({
+  id: '/owner-dependency',
+  path: '/owner-dependency',
+  getParentRoute: () => ToolsRoute,
+} as any)
+const ToolsGrowthConstraintRoute = ToolsGrowthConstraintRouteImport.update({
+  id: '/growth-constraint',
+  path: '/growth-constraint',
+  getParentRoute: () => ToolsRoute,
+} as any)
+const ToolsCosNavigatorRoute = ToolsCosNavigatorRouteImport.update({
+  id: '/cos-navigator',
+  path: '/cos-navigator',
+  getParentRoute: () => ToolsRoute,
+} as any)
+const SchedulerProjectIdRoute = SchedulerProjectIdRouteImport.update({
+  id: '/$projectId',
+  path: '/$projectId',
+  getParentRoute: () => SchedulerRoute,
+} as any)
+const OauthConsentRoute = OauthConsentRouteImport.update({
+  id: '/oauth/consent',
+  path: '/oauth/consent',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
+  id: '/email/unsubscribe',
+  path: '/email/unsubscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ControlPlanPacketIdRoute = ControlPlanPacketIdRouteImport.update({
+  id: '/control-plan/$packetId',
+  path: '/control-plan/$packetId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth/callback',
+  path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AskNewRoute = AskNewRouteImport.update({
+  id: '/ask/new',
+  path: '/ask/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AskThreadIdRoute = AskThreadIdRouteImport.update({
+  id: '/ask/$threadId',
+  path: '/ask/$threadId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSopDraftRoute = ApiSopDraftRouteImport.update({
+  id: '/api/sop-draft',
+  path: '/api/sop-draft',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSopBacklogRoute = ApiSopBacklogRouteImport.update({
+  id: '/api/sop-backlog',
+  path: '/api/sop-backlog',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOwnerPlaysRoute = ApiOwnerPlaysRouteImport.update({
+  id: '/api/owner-plays',
+  path: '/api/owner-plays',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiContractScanRoute = ApiContractScanRouteImport.update({
+  id: '/api/contract-scan',
+  path: '/api/contract-scan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAskRoute = ApiAskRouteImport.update({
+  id: '/api/ask',
+  path: '/api/ask',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AosLinkRoute = AosLinkRouteImport.update({
+  id: '/aos/link',
+  path: '/aos/link',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AosAddCapacityRoute = AosAddCapacityRouteImport.update({
+  id: '/aos/add-capacity',
+  path: '/aos/add-capacity',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminWeeklyMoveRoute = AdminWeeklyMoveRouteImport.update({
+  id: '/admin/weekly-move',
+  path: '/admin/weekly-move',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminTopicsRoute = AdminTopicsRouteImport.update({
+  id: '/admin/topics',
+  path: '/admin/topics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminQaRoute = AdminQaRouteImport.update({
+  id: '/admin/qa',
+  path: '/admin/qa',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminPeopleRoute = AdminPeopleRouteImport.update({
+  id: '/admin/people',
+  path: '/admin/people',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminMigrateRoute = AdminMigrateRouteImport.update({
+  id: '/admin/migrate',
+  path: '/admin/migrate',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminLibraryRoute = AdminLibraryRouteImport.update({
+  id: '/admin/library',
+  path: '/admin/library',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminIntensiveLeadsRoute = AdminIntensiveLeadsRouteImport.update({
+  id: '/admin/intensive-leads',
+  path: '/admin/intensive-leads',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminHandbookRoute = AdminHandbookRouteImport.update({
+  id: '/admin/handbook',
+  path: '/admin/handbook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminEmailApprovalsRoute = AdminEmailApprovalsRouteImport.update({
+  id: '/admin/email-approvals',
+  path: '/admin/email-approvals',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminControlRoute = AdminControlRouteImport.update({
+  id: '/admin/control',
+  path: '/admin/control',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminBackfillRoute = AdminBackfillRouteImport.update({
+  id: '/admin/backfill',
+  path: '/admin/backfill',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminAnnounceRoute = AdminAnnounceRouteImport.update({
+  id: '/admin/announce',
+  path: '/admin/announce',
   getParentRoute: () => rootRouteImport,
 } as any)
 const Char91DotwellKnownChar93OauthProtectedResourceRoute =
@@ -238,169 +398,14 @@ const Char91DotwellKnownChar93OauthProtectedResourceRoute =
     path: '/.well-known/oauth-protected-resource',
     getParentRoute: () => rootRouteImport,
   } as any)
-const AdminIndexRoute = AdminIndexRouteImport.update({
-  id: '/admin/',
-  path: '/admin/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminAnnounceRoute = AdminAnnounceRouteImport.update({
-  id: '/admin/announce',
-  path: '/admin/announce',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminBackfillRoute = AdminBackfillRouteImport.update({
-  id: '/admin/backfill',
-  path: '/admin/backfill',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminControlRoute = AdminControlRouteImport.update({
-  id: '/admin/control',
-  path: '/admin/control',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminEmailApprovalsRoute = AdminEmailApprovalsRouteImport.update({
-  id: '/admin/email-approvals',
-  path: '/admin/email-approvals',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminHandbookRoute = AdminHandbookRouteImport.update({
-  id: '/admin/handbook',
-  path: '/admin/handbook',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminIntensiveLeadsRoute = AdminIntensiveLeadsRouteImport.update({
-  id: '/admin/intensive-leads',
-  path: '/admin/intensive-leads',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminLibraryRoute = AdminLibraryRouteImport.update({
-  id: '/admin/library',
-  path: '/admin/library',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminMigrateRoute = AdminMigrateRouteImport.update({
-  id: '/admin/migrate',
-  path: '/admin/migrate',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminPeopleRoute = AdminPeopleRouteImport.update({
-  id: '/admin/people',
-  path: '/admin/people',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminQaRoute = AdminQaRouteImport.update({
-  id: '/admin/qa',
-  path: '/admin/qa',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminTopicsRoute = AdminTopicsRouteImport.update({
-  id: '/admin/topics',
-  path: '/admin/topics',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminWeeklyMoveRoute = AdminWeeklyMoveRouteImport.update({
-  id: '/admin/weekly-move',
-  path: '/admin/weekly-move',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AosIndexRoute = AosIndexRouteImport.update({
-  id: '/aos/',
-  path: '/aos/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AosAddCapacityRoute = AosAddCapacityRouteImport.update({
-  id: '/aos/add-capacity',
-  path: '/aos/add-capacity',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AosLinkRoute = AosLinkRouteImport.update({
-  id: '/aos/link',
-  path: '/aos/link',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAskRoute = ApiAskRouteImport.update({
-  id: '/api/ask',
-  path: '/api/ask',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiContractScanRoute = ApiContractScanRouteImport.update({
-  id: '/api/contract-scan',
-  path: '/api/contract-scan',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiOwnerPlaysRoute = ApiOwnerPlaysRouteImport.update({
-  id: '/api/owner-plays',
-  path: '/api/owner-plays',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSopBacklogRoute = ApiSopBacklogRouteImport.update({
-  id: '/api/sop-backlog',
-  path: '/api/sop-backlog',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSopDraftRoute = ApiSopDraftRouteImport.update({
-  id: '/api/sop-draft',
-  path: '/api/sop-draft',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AskIndexRoute = AskIndexRouteImport.update({
-  id: '/ask/',
-  path: '/ask/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AskThreadIdRoute = AskThreadIdRouteImport.update({
-  id: '/ask/$threadId',
-  path: '/ask/$threadId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AskNewRoute = AskNewRouteImport.update({
-  id: '/ask/new',
-  path: '/ask/new',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthCallbackRoute = AuthCallbackRouteImport.update({
-  id: '/auth/callback',
-  path: '/auth/callback',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ControlPlanPacketIdRoute = ControlPlanPacketIdRouteImport.update({
-  id: '/control-plan/$packetId',
-  path: '/control-plan/$packetId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
-  id: '/email/unsubscribe',
-  path: '/email/unsubscribe',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OauthConsentRoute = OauthConsentRouteImport.update({
-  id: '/oauth/consent',
-  path: '/oauth/consent',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SchedulerProjectIdRoute = SchedulerProjectIdRouteImport.update({
-  id: '/$projectId',
-  path: '/$projectId',
-  getParentRoute: () => SchedulerRoute,
-} as any)
-const ToolsCosNavigatorRoute = ToolsCosNavigatorRouteImport.update({
-  id: '/cos-navigator',
-  path: '/cos-navigator',
+const ToolsSopEditPacketIdRoute = ToolsSopEditPacketIdRouteImport.update({
+  id: '/sop-edit/$packetId',
+  path: '/sop-edit/$packetId',
   getParentRoute: () => ToolsRoute,
 } as any)
-const ToolsGrowthConstraintRoute = ToolsGrowthConstraintRouteImport.update({
-  id: '/growth-constraint',
-  path: '/growth-constraint',
-  getParentRoute: () => ToolsRoute,
-} as any)
-const ToolsOwnerDependencyRoute = ToolsOwnerDependencyRouteImport.update({
-  id: '/owner-dependency',
-  path: '/owner-dependency',
-  getParentRoute: () => ToolsRoute,
-} as any)
-const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
-  id: '/.lovable/oauth/consent',
-  path: '/.lovable/oauth/consent',
+const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
+  id: '/lovable/email/suppression',
+  path: '/lovable/email/suppression',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicAosFpRoute = ApiPublicAosFpRouteImport.update({
@@ -408,62 +413,15 @@ const ApiPublicAosFpRoute = ApiPublicAosFpRouteImport.update({
   path: '/api/public/aos-fp',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
-  id: '/lovable/email/suppression',
-  path: '/lovable/email/suppression',
+const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
+  id: '/.lovable/oauth/consent',
+  path: '/.lovable/oauth/consent',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ToolsSopEditPacketIdRoute = ToolsSopEditPacketIdRouteImport.update({
-  id: '/sop-edit/$packetId',
-  path: '/sop-edit/$packetId',
-  getParentRoute: () => ToolsRoute,
-} as any)
-const ApiPublicAosTierLookupRoute = ApiPublicAosTierLookupRouteImport.update({
-  id: '/api/public/aos/tier-lookup',
-  path: '/api/public/aos/tier-lookup',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicCircleReconcileRoute =
-  ApiPublicCircleReconcileRouteImport.update({
-    id: '/api/public/circle/reconcile',
-    path: '/api/public/circle/reconcile',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicOverwatchTierLookupRoute =
-  ApiPublicOverwatchTierLookupRouteImport.update({
-    id: '/api/public/overwatch/tier-lookup',
-    path: '/api/public/overwatch/tier-lookup',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicResendCaptureRoute = ApiPublicResendCaptureRouteImport.update({
-  id: '/api/public/resend/capture',
-  path: '/api/public/resend/capture',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicResendInboundRoute = ApiPublicResendInboundRouteImport.update({
-  id: '/api/public/resend/inbound',
-  path: '/api/public/resend/inbound',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
-  id: '/api/public/stripe/webhook',
-  path: '/api/public/stripe/webhook',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
-  id: '/lovable/email/auth/preview',
-  path: '/lovable/email/auth/preview',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LovableEmailAuthWebhookRoute = LovableEmailAuthWebhookRouteImport.update({
-  id: '/lovable/email/auth/webhook',
-  path: '/lovable/email/auth/webhook',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LovableEmailQueueProcessRoute =
-  LovableEmailQueueProcessRouteImport.update({
-    id: '/lovable/email/queue/process',
-    path: '/lovable/email/queue/process',
+const LovableEmailTransactionalSendRoute =
+  LovableEmailTransactionalSendRouteImport.update({
+    id: '/lovable/email/transactional/send',
+    path: '/lovable/email/transactional/send',
     getParentRoute: () => rootRouteImport,
   } as any)
 const LovableEmailTransactionalPreviewRoute =
@@ -472,12 +430,54 @@ const LovableEmailTransactionalPreviewRoute =
     path: '/lovable/email/transactional/preview',
     getParentRoute: () => rootRouteImport,
   } as any)
-const LovableEmailTransactionalSendRoute =
-  LovableEmailTransactionalSendRouteImport.update({
-    id: '/lovable/email/transactional/send',
-    path: '/lovable/email/transactional/send',
+const LovableEmailQueueProcessRoute =
+  LovableEmailQueueProcessRouteImport.update({
+    id: '/lovable/email/queue/process',
+    path: '/lovable/email/queue/process',
     getParentRoute: () => rootRouteImport,
   } as any)
+const LovableEmailAuthWebhookRoute = LovableEmailAuthWebhookRouteImport.update({
+  id: '/lovable/email/auth/webhook',
+  path: '/lovable/email/auth/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
+  id: '/lovable/email/auth/preview',
+  path: '/lovable/email/auth/preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
+  id: '/api/public/stripe/webhook',
+  path: '/api/public/stripe/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicResendInboundRoute = ApiPublicResendInboundRouteImport.update({
+  id: '/api/public/resend/inbound',
+  path: '/api/public/resend/inbound',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicResendCaptureRoute = ApiPublicResendCaptureRouteImport.update({
+  id: '/api/public/resend/capture',
+  path: '/api/public/resend/capture',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicOverwatchTierLookupRoute =
+  ApiPublicOverwatchTierLookupRouteImport.update({
+    id: '/api/public/overwatch/tier-lookup',
+    path: '/api/public/overwatch/tier-lookup',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicCircleReconcileRoute =
+  ApiPublicCircleReconcileRouteImport.update({
+    id: '/api/public/circle/reconcile',
+    path: '/api/public/circle/reconcile',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicAosTierLookupRoute = ApiPublicAosTierLookupRouteImport.update({
+  id: '/api/public/aos/tier-lookup',
+  path: '/api/public/aos/tier-lookup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -1034,193 +1034,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/account': {
-      id: '/account'
-      path: '/account'
-      fullPath: '/account'
-      preLoaderRoute: typeof AccountRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/calls': {
-      id: '/calls'
-      path: '/calls'
-      fullPath: '/calls'
-      preLoaderRoute: typeof CallsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/community': {
-      id: '/community'
-      path: '/community'
-      fullPath: '/community'
-      preLoaderRoute: typeof CommunityRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/ecosystem': {
-      id: '/ecosystem'
-      path: '/ecosystem'
-      fullPath: '/ecosystem'
-      preLoaderRoute: typeof EcosystemRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/field-tools': {
-      id: '/field-tools'
-      path: '/field-tools'
-      fullPath: '/field-tools'
-      preLoaderRoute: typeof FieldToolsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/forgot-password': {
-      id: '/forgot-password'
-      path: '/forgot-password'
-      fullPath: '/forgot-password'
-      preLoaderRoute: typeof ForgotPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/handbook': {
-      id: '/handbook'
-      path: '/handbook'
-      fullPath: '/handbook'
-      preLoaderRoute: typeof HandbookRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/hardcore': {
-      id: '/hardcore'
-      path: '/hardcore'
-      fullPath: '/hardcore'
-      preLoaderRoute: typeof HardcoreRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/magic-link': {
-      id: '/magic-link'
-      path: '/magic-link'
-      fullPath: '/magic-link'
-      preLoaderRoute: typeof MagicLinkRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/mcp': {
-      id: '/mcp'
-      path: '/mcp'
-      fullPath: '/mcp'
-      preLoaderRoute: typeof McpRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/onboarding': {
-      id: '/onboarding'
-      path: '/onboarding'
-      fullPath: '/onboarding'
-      preLoaderRoute: typeof OnboardingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/operating-playbook': {
-      id: '/operating-playbook'
-      path: '/operating-playbook'
-      fullPath: '/operating-playbook'
-      preLoaderRoute: typeof OperatingPlaybookRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/overwatch': {
-      id: '/overwatch'
-      path: '/overwatch'
-      fullPath: '/overwatch'
-      preLoaderRoute: typeof OverwatchRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/replays': {
-      id: '/replays'
-      path: '/replays'
-      fullPath: '/replays'
-      preLoaderRoute: typeof ReplaysRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reset-password': {
-      id: '/reset-password'
-      path: '/reset-password'
-      fullPath: '/reset-password'
-      preLoaderRoute: typeof ResetPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/scheduler': {
-      id: '/scheduler'
-      path: '/scheduler'
-      fullPath: '/scheduler'
-      preLoaderRoute: typeof SchedulerRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/scheduler-field': {
-      id: '/scheduler-field'
-      path: '/scheduler-field'
-      fullPath: '/scheduler-field'
-      preLoaderRoute: typeof SchedulerFieldRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/scheduler-portfolio': {
-      id: '/scheduler-portfolio'
-      path: '/scheduler-portfolio'
-      fullPath: '/scheduler-portfolio'
-      preLoaderRoute: typeof SchedulerPortfolioRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/scheduler-preview': {
-      id: '/scheduler-preview'
-      path: '/scheduler-preview'
-      fullPath: '/scheduler-preview'
-      preLoaderRoute: typeof SchedulerPreviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/signup': {
-      id: '/signup'
-      path: '/signup'
-      fullPath: '/signup'
-      preLoaderRoute: typeof SignupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/start-here': {
-      id: '/start-here'
-      path: '/start-here'
-      fullPath: '/start-here'
-      preLoaderRoute: typeof StartHereRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/templates': {
-      id: '/templates'
-      path: '/templates'
-      fullPath: '/templates'
-      preLoaderRoute: typeof TemplatesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/tools': {
-      id: '/tools'
-      path: '/tools'
-      fullPath: '/tools'
-      preLoaderRoute: typeof ToolsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/upgrade': {
-      id: '/upgrade'
-      path: '/upgrade'
-      fullPath: '/upgrade'
-      preLoaderRoute: typeof UpgradeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/vault': {
-      id: '/vault'
-      path: '/vault'
-      fullPath: '/vault'
-      preLoaderRoute: typeof VaultRouteImport
+    '/work-with-marshall': {
+      id: '/work-with-marshall'
+      path: '/work-with-marshall'
+      fullPath: '/work-with-marshall'
+      preLoaderRoute: typeof WorkWithMarshallRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/welcome': {
@@ -1230,165 +1048,193 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WelcomeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/work-with-marshall': {
-      id: '/work-with-marshall'
-      path: '/work-with-marshall'
-      fullPath: '/work-with-marshall'
-      preLoaderRoute: typeof WorkWithMarshallRouteImport
+    '/vault': {
+      id: '/vault'
+      path: '/vault'
+      fullPath: '/vault'
+      preLoaderRoute: typeof VaultRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/.well-known/oauth-protected-resource': {
-      id: '/.well-known/oauth-protected-resource'
-      path: '/.well-known/oauth-protected-resource'
-      fullPath: '/.well-known/oauth-protected-resource'
-      preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
+    '/upgrade': {
+      id: '/upgrade'
+      path: '/upgrade'
+      fullPath: '/upgrade'
+      preLoaderRoute: typeof UpgradeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/': {
-      id: '/admin/'
-      path: '/admin'
-      fullPath: '/admin/'
-      preLoaderRoute: typeof AdminIndexRouteImport
+    '/tools': {
+      id: '/tools'
+      path: '/tools'
+      fullPath: '/tools'
+      preLoaderRoute: typeof ToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/announce': {
-      id: '/admin/announce'
-      path: '/admin/announce'
-      fullPath: '/admin/announce'
-      preLoaderRoute: typeof AdminAnnounceRouteImport
+    '/templates': {
+      id: '/templates'
+      path: '/templates'
+      fullPath: '/templates'
+      preLoaderRoute: typeof TemplatesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/backfill': {
-      id: '/admin/backfill'
-      path: '/admin/backfill'
-      fullPath: '/admin/backfill'
-      preLoaderRoute: typeof AdminBackfillRouteImport
+    '/start-here': {
+      id: '/start-here'
+      path: '/start-here'
+      fullPath: '/start-here'
+      preLoaderRoute: typeof StartHereRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/control': {
-      id: '/admin/control'
-      path: '/admin/control'
-      fullPath: '/admin/control'
-      preLoaderRoute: typeof AdminControlRouteImport
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/email-approvals': {
-      id: '/admin/email-approvals'
-      path: '/admin/email-approvals'
-      fullPath: '/admin/email-approvals'
-      preLoaderRoute: typeof AdminEmailApprovalsRouteImport
+    '/scheduler-preview': {
+      id: '/scheduler-preview'
+      path: '/scheduler-preview'
+      fullPath: '/scheduler-preview'
+      preLoaderRoute: typeof SchedulerPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/handbook': {
-      id: '/admin/handbook'
-      path: '/admin/handbook'
-      fullPath: '/admin/handbook'
-      preLoaderRoute: typeof AdminHandbookRouteImport
+    '/scheduler-portfolio': {
+      id: '/scheduler-portfolio'
+      path: '/scheduler-portfolio'
+      fullPath: '/scheduler-portfolio'
+      preLoaderRoute: typeof SchedulerPortfolioRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/intensive-leads': {
-      id: '/admin/intensive-leads'
-      path: '/admin/intensive-leads'
-      fullPath: '/admin/intensive-leads'
-      preLoaderRoute: typeof AdminIntensiveLeadsRouteImport
+    '/scheduler-field': {
+      id: '/scheduler-field'
+      path: '/scheduler-field'
+      fullPath: '/scheduler-field'
+      preLoaderRoute: typeof SchedulerFieldRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/library': {
-      id: '/admin/library'
-      path: '/admin/library'
-      fullPath: '/admin/library'
-      preLoaderRoute: typeof AdminLibraryRouteImport
+    '/scheduler': {
+      id: '/scheduler'
+      path: '/scheduler'
+      fullPath: '/scheduler'
+      preLoaderRoute: typeof SchedulerRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/migrate': {
-      id: '/admin/migrate'
-      path: '/admin/migrate'
-      fullPath: '/admin/migrate'
-      preLoaderRoute: typeof AdminMigrateRouteImport
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/people': {
-      id: '/admin/people'
-      path: '/admin/people'
-      fullPath: '/admin/people'
-      preLoaderRoute: typeof AdminPeopleRouteImport
+    '/replays': {
+      id: '/replays'
+      path: '/replays'
+      fullPath: '/replays'
+      preLoaderRoute: typeof ReplaysRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/qa': {
-      id: '/admin/qa'
-      path: '/admin/qa'
-      fullPath: '/admin/qa'
-      preLoaderRoute: typeof AdminQaRouteImport
+    '/overwatch': {
+      id: '/overwatch'
+      path: '/overwatch'
+      fullPath: '/overwatch'
+      preLoaderRoute: typeof OverwatchRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/topics': {
-      id: '/admin/topics'
-      path: '/admin/topics'
-      fullPath: '/admin/topics'
-      preLoaderRoute: typeof AdminTopicsRouteImport
+    '/operating-playbook': {
+      id: '/operating-playbook'
+      path: '/operating-playbook'
+      fullPath: '/operating-playbook'
+      preLoaderRoute: typeof OperatingPlaybookRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/weekly-move': {
-      id: '/admin/weekly-move'
-      path: '/admin/weekly-move'
-      fullPath: '/admin/weekly-move'
-      preLoaderRoute: typeof AdminWeeklyMoveRouteImport
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/aos/': {
-      id: '/aos/'
-      path: '/aos'
-      fullPath: '/aos/'
-      preLoaderRoute: typeof AosIndexRouteImport
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/aos/add-capacity': {
-      id: '/aos/add-capacity'
-      path: '/aos/add-capacity'
-      fullPath: '/aos/add-capacity'
-      preLoaderRoute: typeof AosAddCapacityRouteImport
+    '/magic-link': {
+      id: '/magic-link'
+      path: '/magic-link'
+      fullPath: '/magic-link'
+      preLoaderRoute: typeof MagicLinkRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/aos/link': {
-      id: '/aos/link'
-      path: '/aos/link'
-      fullPath: '/aos/link'
-      preLoaderRoute: typeof AosLinkRouteImport
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/ask': {
-      id: '/api/ask'
-      path: '/api/ask'
-      fullPath: '/api/ask'
-      preLoaderRoute: typeof ApiAskRouteImport
+    '/hardcore': {
+      id: '/hardcore'
+      path: '/hardcore'
+      fullPath: '/hardcore'
+      preLoaderRoute: typeof HardcoreRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/contract-scan': {
-      id: '/api/contract-scan'
-      path: '/api/contract-scan'
-      fullPath: '/api/contract-scan'
-      preLoaderRoute: typeof ApiContractScanRouteImport
+    '/handbook': {
+      id: '/handbook'
+      path: '/handbook'
+      fullPath: '/handbook'
+      preLoaderRoute: typeof HandbookRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/owner-plays': {
-      id: '/api/owner-plays'
-      path: '/api/owner-plays'
-      fullPath: '/api/owner-plays'
-      preLoaderRoute: typeof ApiOwnerPlaysRouteImport
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/sop-backlog': {
-      id: '/api/sop-backlog'
-      path: '/api/sop-backlog'
-      fullPath: '/api/sop-backlog'
-      preLoaderRoute: typeof ApiSopBacklogRouteImport
+    '/field-tools': {
+      id: '/field-tools'
+      path: '/field-tools'
+      fullPath: '/field-tools'
+      preLoaderRoute: typeof FieldToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/sop-draft': {
-      id: '/api/sop-draft'
-      path: '/api/sop-draft'
-      fullPath: '/api/sop-draft'
-      preLoaderRoute: typeof ApiSopDraftRouteImport
+    '/ecosystem': {
+      id: '/ecosystem'
+      path: '/ecosystem'
+      fullPath: '/ecosystem'
+      preLoaderRoute: typeof EcosystemRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/community': {
+      id: '/community'
+      path: '/community'
+      fullPath: '/community'
+      preLoaderRoute: typeof CommunityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/calls': {
+      id: '/calls'
+      path: '/calls'
+      fullPath: '/calls'
+      preLoaderRoute: typeof CallsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account': {
+      id: '/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AccountRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ask/': {
@@ -1398,60 +1244,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AskIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/ask/$threadId': {
-      id: '/ask/$threadId'
-      path: '/ask/$threadId'
-      fullPath: '/ask/$threadId'
-      preLoaderRoute: typeof AskThreadIdRouteImport
+    '/aos/': {
+      id: '/aos/'
+      path: '/aos'
+      fullPath: '/aos/'
+      preLoaderRoute: typeof AosIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/ask/new': {
-      id: '/ask/new'
-      path: '/ask/new'
-      fullPath: '/ask/new'
-      preLoaderRoute: typeof AskNewRouteImport
+    '/admin/': {
+      id: '/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/auth/callback': {
-      id: '/auth/callback'
-      path: '/auth/callback'
-      fullPath: '/auth/callback'
-      preLoaderRoute: typeof AuthCallbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/control-plan/$packetId': {
-      id: '/control-plan/$packetId'
-      path: '/control-plan/$packetId'
-      fullPath: '/control-plan/$packetId'
-      preLoaderRoute: typeof ControlPlanPacketIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/email/unsubscribe': {
-      id: '/email/unsubscribe'
-      path: '/email/unsubscribe'
-      fullPath: '/email/unsubscribe'
-      preLoaderRoute: typeof EmailUnsubscribeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/oauth/consent': {
-      id: '/oauth/consent'
-      path: '/oauth/consent'
-      fullPath: '/oauth/consent'
-      preLoaderRoute: typeof OauthConsentRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/scheduler/$projectId': {
-      id: '/scheduler/$projectId'
-      path: '/$projectId'
-      fullPath: '/scheduler/$projectId'
-      preLoaderRoute: typeof SchedulerProjectIdRouteImport
-      parentRoute: typeof SchedulerRoute
-    }
-    '/tools/cos-navigator': {
-      id: '/tools/cos-navigator'
-      path: '/cos-navigator'
-      fullPath: '/tools/cos-navigator'
-      preLoaderRoute: typeof ToolsCosNavigatorRouteImport
+    '/tools/owner-dependency': {
+      id: '/tools/owner-dependency'
+      path: '/owner-dependency'
+      fullPath: '/tools/owner-dependency'
+      preLoaderRoute: typeof ToolsOwnerDependencyRouteImport
       parentRoute: typeof ToolsRoute
     }
     '/tools/growth-constraint': {
@@ -1461,32 +1272,200 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ToolsGrowthConstraintRouteImport
       parentRoute: typeof ToolsRoute
     }
-    '/tools/owner-dependency': {
-      id: '/tools/owner-dependency'
-      path: '/owner-dependency'
-      fullPath: '/tools/owner-dependency'
-      preLoaderRoute: typeof ToolsOwnerDependencyRouteImport
+    '/tools/cos-navigator': {
+      id: '/tools/cos-navigator'
+      path: '/cos-navigator'
+      fullPath: '/tools/cos-navigator'
+      preLoaderRoute: typeof ToolsCosNavigatorRouteImport
       parentRoute: typeof ToolsRoute
     }
-    '/.lovable/oauth/consent': {
-      id: '/.lovable/oauth/consent'
-      path: '/.lovable/oauth/consent'
-      fullPath: '/.lovable/oauth/consent'
-      preLoaderRoute: typeof DotlovableOauthConsentRouteImport
+    '/scheduler/$projectId': {
+      id: '/scheduler/$projectId'
+      path: '/$projectId'
+      fullPath: '/scheduler/$projectId'
+      preLoaderRoute: typeof SchedulerProjectIdRouteImport
+      parentRoute: typeof SchedulerRoute
+    }
+    '/oauth/consent': {
+      id: '/oauth/consent'
+      path: '/oauth/consent'
+      fullPath: '/oauth/consent'
+      preLoaderRoute: typeof OauthConsentRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/aos-fp': {
-      id: '/api/public/aos-fp'
-      path: '/api/public/aos-fp'
-      fullPath: '/api/public/aos-fp'
-      preLoaderRoute: typeof ApiPublicAosFpRouteImport
+    '/email/unsubscribe': {
+      id: '/email/unsubscribe'
+      path: '/email/unsubscribe'
+      fullPath: '/email/unsubscribe'
+      preLoaderRoute: typeof EmailUnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/lovable/email/suppression': {
-      id: '/lovable/email/suppression'
-      path: '/lovable/email/suppression'
-      fullPath: '/lovable/email/suppression'
-      preLoaderRoute: typeof LovableEmailSuppressionRouteImport
+    '/control-plan/$packetId': {
+      id: '/control-plan/$packetId'
+      path: '/control-plan/$packetId'
+      fullPath: '/control-plan/$packetId'
+      preLoaderRoute: typeof ControlPlanPacketIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ask/new': {
+      id: '/ask/new'
+      path: '/ask/new'
+      fullPath: '/ask/new'
+      preLoaderRoute: typeof AskNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ask/$threadId': {
+      id: '/ask/$threadId'
+      path: '/ask/$threadId'
+      fullPath: '/ask/$threadId'
+      preLoaderRoute: typeof AskThreadIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/sop-draft': {
+      id: '/api/sop-draft'
+      path: '/api/sop-draft'
+      fullPath: '/api/sop-draft'
+      preLoaderRoute: typeof ApiSopDraftRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/sop-backlog': {
+      id: '/api/sop-backlog'
+      path: '/api/sop-backlog'
+      fullPath: '/api/sop-backlog'
+      preLoaderRoute: typeof ApiSopBacklogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/owner-plays': {
+      id: '/api/owner-plays'
+      path: '/api/owner-plays'
+      fullPath: '/api/owner-plays'
+      preLoaderRoute: typeof ApiOwnerPlaysRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/contract-scan': {
+      id: '/api/contract-scan'
+      path: '/api/contract-scan'
+      fullPath: '/api/contract-scan'
+      preLoaderRoute: typeof ApiContractScanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ask': {
+      id: '/api/ask'
+      path: '/api/ask'
+      fullPath: '/api/ask'
+      preLoaderRoute: typeof ApiAskRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/aos/link': {
+      id: '/aos/link'
+      path: '/aos/link'
+      fullPath: '/aos/link'
+      preLoaderRoute: typeof AosLinkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/aos/add-capacity': {
+      id: '/aos/add-capacity'
+      path: '/aos/add-capacity'
+      fullPath: '/aos/add-capacity'
+      preLoaderRoute: typeof AosAddCapacityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/weekly-move': {
+      id: '/admin/weekly-move'
+      path: '/admin/weekly-move'
+      fullPath: '/admin/weekly-move'
+      preLoaderRoute: typeof AdminWeeklyMoveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/topics': {
+      id: '/admin/topics'
+      path: '/admin/topics'
+      fullPath: '/admin/topics'
+      preLoaderRoute: typeof AdminTopicsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/qa': {
+      id: '/admin/qa'
+      path: '/admin/qa'
+      fullPath: '/admin/qa'
+      preLoaderRoute: typeof AdminQaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/people': {
+      id: '/admin/people'
+      path: '/admin/people'
+      fullPath: '/admin/people'
+      preLoaderRoute: typeof AdminPeopleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/migrate': {
+      id: '/admin/migrate'
+      path: '/admin/migrate'
+      fullPath: '/admin/migrate'
+      preLoaderRoute: typeof AdminMigrateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/library': {
+      id: '/admin/library'
+      path: '/admin/library'
+      fullPath: '/admin/library'
+      preLoaderRoute: typeof AdminLibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/intensive-leads': {
+      id: '/admin/intensive-leads'
+      path: '/admin/intensive-leads'
+      fullPath: '/admin/intensive-leads'
+      preLoaderRoute: typeof AdminIntensiveLeadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/handbook': {
+      id: '/admin/handbook'
+      path: '/admin/handbook'
+      fullPath: '/admin/handbook'
+      preLoaderRoute: typeof AdminHandbookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/email-approvals': {
+      id: '/admin/email-approvals'
+      path: '/admin/email-approvals'
+      fullPath: '/admin/email-approvals'
+      preLoaderRoute: typeof AdminEmailApprovalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/control': {
+      id: '/admin/control'
+      path: '/admin/control'
+      fullPath: '/admin/control'
+      preLoaderRoute: typeof AdminControlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/backfill': {
+      id: '/admin/backfill'
+      path: '/admin/backfill'
+      fullPath: '/admin/backfill'
+      preLoaderRoute: typeof AdminBackfillRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/announce': {
+      id: '/admin/announce'
+      path: '/admin/announce'
+      fullPath: '/admin/announce'
+      preLoaderRoute: typeof AdminAnnounceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.well-known/oauth-protected-resource': {
+      id: '/.well-known/oauth-protected-resource'
+      path: '/.well-known/oauth-protected-resource'
+      fullPath: '/.well-known/oauth-protected-resource'
+      preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tools/sop-edit/$packetId': {
@@ -1496,67 +1475,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ToolsSopEditPacketIdRouteImport
       parentRoute: typeof ToolsRoute
     }
-    '/api/public/aos/tier-lookup': {
-      id: '/api/public/aos/tier-lookup'
-      path: '/api/public/aos/tier-lookup'
-      fullPath: '/api/public/aos/tier-lookup'
-      preLoaderRoute: typeof ApiPublicAosTierLookupRouteImport
+    '/lovable/email/suppression': {
+      id: '/lovable/email/suppression'
+      path: '/lovable/email/suppression'
+      fullPath: '/lovable/email/suppression'
+      preLoaderRoute: typeof LovableEmailSuppressionRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/circle/reconcile': {
-      id: '/api/public/circle/reconcile'
-      path: '/api/public/circle/reconcile'
-      fullPath: '/api/public/circle/reconcile'
-      preLoaderRoute: typeof ApiPublicCircleReconcileRouteImport
+    '/api/public/aos-fp': {
+      id: '/api/public/aos-fp'
+      path: '/api/public/aos-fp'
+      fullPath: '/api/public/aos-fp'
+      preLoaderRoute: typeof ApiPublicAosFpRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/overwatch/tier-lookup': {
-      id: '/api/public/overwatch/tier-lookup'
-      path: '/api/public/overwatch/tier-lookup'
-      fullPath: '/api/public/overwatch/tier-lookup'
-      preLoaderRoute: typeof ApiPublicOverwatchTierLookupRouteImport
+    '/.lovable/oauth/consent': {
+      id: '/.lovable/oauth/consent'
+      path: '/.lovable/oauth/consent'
+      fullPath: '/.lovable/oauth/consent'
+      preLoaderRoute: typeof DotlovableOauthConsentRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/resend/capture': {
-      id: '/api/public/resend/capture'
-      path: '/api/public/resend/capture'
-      fullPath: '/api/public/resend/capture'
-      preLoaderRoute: typeof ApiPublicResendCaptureRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/resend/inbound': {
-      id: '/api/public/resend/inbound'
-      path: '/api/public/resend/inbound'
-      fullPath: '/api/public/resend/inbound'
-      preLoaderRoute: typeof ApiPublicResendInboundRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/stripe/webhook': {
-      id: '/api/public/stripe/webhook'
-      path: '/api/public/stripe/webhook'
-      fullPath: '/api/public/stripe/webhook'
-      preLoaderRoute: typeof ApiPublicStripeWebhookRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/lovable/email/auth/preview': {
-      id: '/lovable/email/auth/preview'
-      path: '/lovable/email/auth/preview'
-      fullPath: '/lovable/email/auth/preview'
-      preLoaderRoute: typeof LovableEmailAuthPreviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/lovable/email/auth/webhook': {
-      id: '/lovable/email/auth/webhook'
-      path: '/lovable/email/auth/webhook'
-      fullPath: '/lovable/email/auth/webhook'
-      preLoaderRoute: typeof LovableEmailAuthWebhookRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/lovable/email/queue/process': {
-      id: '/lovable/email/queue/process'
-      path: '/lovable/email/queue/process'
-      fullPath: '/lovable/email/queue/process'
-      preLoaderRoute: typeof LovableEmailQueueProcessRouteImport
+    '/lovable/email/transactional/send': {
+      id: '/lovable/email/transactional/send'
+      path: '/lovable/email/transactional/send'
+      fullPath: '/lovable/email/transactional/send'
+      preLoaderRoute: typeof LovableEmailTransactionalSendRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/lovable/email/transactional/preview': {
@@ -1566,11 +1510,67 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LovableEmailTransactionalPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/lovable/email/transactional/send': {
-      id: '/lovable/email/transactional/send'
-      path: '/lovable/email/transactional/send'
-      fullPath: '/lovable/email/transactional/send'
-      preLoaderRoute: typeof LovableEmailTransactionalSendRouteImport
+    '/lovable/email/queue/process': {
+      id: '/lovable/email/queue/process'
+      path: '/lovable/email/queue/process'
+      fullPath: '/lovable/email/queue/process'
+      preLoaderRoute: typeof LovableEmailQueueProcessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lovable/email/auth/webhook': {
+      id: '/lovable/email/auth/webhook'
+      path: '/lovable/email/auth/webhook'
+      fullPath: '/lovable/email/auth/webhook'
+      preLoaderRoute: typeof LovableEmailAuthWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lovable/email/auth/preview': {
+      id: '/lovable/email/auth/preview'
+      path: '/lovable/email/auth/preview'
+      fullPath: '/lovable/email/auth/preview'
+      preLoaderRoute: typeof LovableEmailAuthPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/stripe/webhook': {
+      id: '/api/public/stripe/webhook'
+      path: '/api/public/stripe/webhook'
+      fullPath: '/api/public/stripe/webhook'
+      preLoaderRoute: typeof ApiPublicStripeWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/resend/inbound': {
+      id: '/api/public/resend/inbound'
+      path: '/api/public/resend/inbound'
+      fullPath: '/api/public/resend/inbound'
+      preLoaderRoute: typeof ApiPublicResendInboundRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/resend/capture': {
+      id: '/api/public/resend/capture'
+      path: '/api/public/resend/capture'
+      fullPath: '/api/public/resend/capture'
+      preLoaderRoute: typeof ApiPublicResendCaptureRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/overwatch/tier-lookup': {
+      id: '/api/public/overwatch/tier-lookup'
+      path: '/api/public/overwatch/tier-lookup'
+      fullPath: '/api/public/overwatch/tier-lookup'
+      preLoaderRoute: typeof ApiPublicOverwatchTierLookupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/circle/reconcile': {
+      id: '/api/public/circle/reconcile'
+      path: '/api/public/circle/reconcile'
+      fullPath: '/api/public/circle/reconcile'
+      preLoaderRoute: typeof ApiPublicCircleReconcileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/aos/tier-lookup': {
+      id: '/api/public/aos/tier-lookup'
+      path: '/api/public/aos/tier-lookup'
+      fullPath: '/api/public/aos/tier-lookup'
+      preLoaderRoute: typeof ApiPublicAosTierLookupRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
