@@ -29,6 +29,13 @@
       "when": 1792011601807,
       "tag": "0003_mcp_module1_job_setup",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792011647101,
+      "tag": "0004_mcp_module1_harden_helpers",
+      "breakpoints": true
     }
   ]
 }
