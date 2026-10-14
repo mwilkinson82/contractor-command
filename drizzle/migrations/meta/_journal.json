@@ -8,6 +8,13 @@
       "when": 1792002226631,
       "tag": "0000_mcp_rate_limit",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792003965417,
+      "tag": "0001_mcp_workflow_state",
+      "breakpoints": true
     }
   ]
 }
