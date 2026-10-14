@@ -86,7 +86,7 @@ export function itemLine(it: Item, nas: Na[], client = false) {
     ? `time: ${it.time_effect ?? "unknown"}`
     : `cost: ${it.cost_effect ?? "unknown"} | time: ${it.time_effect ?? "unknown"} | cash: ${it.cash_effect ?? "unknown"}${it.effect_is_estimate ? " (estimate)" : ""}`;
   const na = naLabel(it, nas);
-  const next = it.next_action ? ` | Next: ${it.next_action}${it.next_action_approved_by ? ` (approved by ${it.next_action_approved_by})` : " (not yet approved)"}` : "";
+  const next = !client && it.next_action ? ` | Next: ${it.next_action}${it.next_action_approved_by ? ` (approved by ${it.next_action_approved_by})` : " (not yet approved)"}` : "";
   return `${it.action} | Accountable: ${it.accountable ?? it.owner} | Needed by: ${it.needed_by ?? it.due_date ?? "unknown"} | ${status.trim()} | Source: ${it.source ?? "unknown"} | ${effects}${next}${na ? ` | ${na}` : ""} [item ${it.id}]`;
 }
 
