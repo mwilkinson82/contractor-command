@@ -3215,6 +3215,7 @@ export type Database = {
         Args: { _action: string; _job: string; _object: string; _tool: string }
         Returns: undefined
       }
+      mcp_caller_is_no_access_role: { Args: never; Returns: boolean }
       mcp_can_access_contract: { Args: { _job: string }; Returns: boolean }
       mcp_can_access_job: { Args: { _job: string }; Returns: boolean }
       mcp_company_save: {
