@@ -1,8 +1,9 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthCard } from "@/components/auth/auth-card";
 import { rememberOAuthReturn } from "@/lib/oauth-return-path";
+import { MCP_ALLOWED_EMAILS } from "@/lib/mcp/allowlist";
 
 type OAuthResult = { data: any; error: { message: string } | null };
 type OAuthApi = {
@@ -47,7 +48,10 @@ export const Route = createFileRoute("/oauth/consent")({
   },
   loader: async ({ location }) => {
     const id = new URLSearchParams(location.search).get("authorization_id")!;
-    const { data, error } = await oauth().getAuthorizationDetails(id);
+    const { data, error } = await Promise.race([
+      oauth().getAuthorizationDetails(id),
+      new Promise<OAuthResult>((r) => setTimeout(() => r({ data: null, error: { message: "The connection request timed out. Start again from the app you're connecting." } }), 15000)),
+    ]);
     if (error) throw new Error(error.message || "This connection request is invalid or has expired.");
     const immediate = data?.redirect_url ?? data?.redirect_to;
     if (immediate && !data?.client) {
@@ -75,8 +79,17 @@ function Consent() {
   const { authorization_id } = Route.useSearch();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
   if (!loaded) return null;
   const { details, email } = loaded;
+  const allowed = MCP_ALLOWED_EMAILS.has(email.trim().toLowerCase());
+  async function switchAccount() {
+    setBusy(true);
+    const next = `/oauth/consent?authorization_id=${encodeURIComponent(authorization_id)}`;
+    rememberOAuthReturn(next);
+    await supabase.auth.signOut();
+    navigate({ to: "/login", search: { redirect: next }, replace: true });
+  }
   const clientName: string = details?.client?.name ?? details?.client?.client_name ?? "An app";
   const redirectUri: string | undefined = details?.redirect_uri ?? details?.client?.redirect_uri;
   const scopes: string[] = String(details?.scope ?? details?.scopes ?? "")
@@ -116,9 +129,15 @@ function Consent() {
       subtitle={`This lets ${clientName} use the Contractor Circle tools as you.`}
     >
       <div className="space-y-4 text-[13px] text-foreground/80">
-        {email && (
-          <p>
-            Signed in as <span className="font-medium text-foreground">{email}</span>
+        <p>
+          Signed in as <span className="font-medium text-foreground">{email || "unknown account"}</span>{" "}
+          <button type="button" disabled={busy} onClick={switchAccount} className="ml-1 underline underline-offset-2 disabled:opacity-60">
+            Use a different account
+          </button>
+        </p>
+        {!allowed && (
+          <p role="alert" className="rounded-md border border-destructive/40 p-3 text-destructive">
+            This account doesn't have access to the PM agent. Use a different account to continue.
           </p>
         )}
         {host && (
@@ -142,7 +161,7 @@ function Consent() {
         <div className="flex gap-3 pt-2">
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || !allowed}
             onClick={() => decide(true)}
             className="flex-1 rounded-lg bg-primary px-4 py-2.5 font-medium text-primary-foreground disabled:opacity-60"
           >

@@ -35,6 +35,8 @@ const PUBLIC_ROUTES = new Set([
   "/auth/callback",
   "/welcome",
   "/scheduler-preview",
+  "/oauth/consent",
+  "/.lovable/oauth/consent",
 ]);
 const ONBOARDING_ROUTE = "/onboarding";
 const APP_ORIGIN = "https://app.alpcontractorcircle.com";

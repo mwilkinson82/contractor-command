@@ -2,7 +2,8 @@ import { ToolError, type ToolContext } from "@lovable.dev/mcp-js";
 import { supabaseForUser } from "./supabase";
 
 // Private prototype: hard-coded allowlist, plus the membership gate (mcp_gate -> is_circle_active) on every call.
-export const MCP_ALLOWED_EMAILS = new Set(["marshall@marshallwilkinson.com"]);
+import { MCP_ALLOWED_EMAILS } from "./allowlist";
+export { MCP_ALLOWED_EMAILS };
 export const FOOTER = "\n\n---\nALP Contractor Circle - private prototype";
 export const INACTIVE_MESSAGE = "Your membership isn't active, so the PM agent is paused. Your job data is saved.";
 
