@@ -3,7 +3,7 @@
 import { ToolError } from "@lovable.dev/mcp-js";
 import { dbError, type Sb } from "./guard";
 
-export type Job = { job_id: string; job_number: string; name: string; company_id: string };
+export type Job = { job_id: string; job_number: string; name: string; company_id: string; scope?: "full" | "contract" };
 
 export async function resolveCompany(sb: Sb, companyId?: string): Promise<string> {
   // Companies are only visible to their members (RLS), so this is "my companies".
@@ -13,6 +13,10 @@ export async function resolveCompany(sb: Sb, companyId?: string): Promise<string
   if (companyId) {
     if (!mine.some((m) => m.company_id === companyId)) throw new ToolError("You aren't a member of that company.");
     return companyId;
+  }
+  if (!mine.length) {
+    const nr = await sb.rpc("mcp_caller_is_no_access_role");
+    if (nr.data === true) throw new ToolError("Your role doesn't have access to the PM agent. Ask your company owner if you need it.");
   }
   if (!mine.length) throw new ToolError('No company set up yet. Call onboarding with action "save_company" first.');
   if (mine.length > 1) {
@@ -124,6 +128,8 @@ function show(v: unknown): string {
 
 export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" | "client") {
   const client = audience === "client";
+  const contractOnly = job.scope === "contract";
+  const hideMoney = client || contractOnly;
   const [co, flagsR, factsR, itemsR, nas] = await Promise.all([
     sb.from("mcp_companies").select("name, agent_name").eq("id", job.company_id).maybeSingle(),
     sb.from("mcp_job_flags").select("flag_key, value, source, set_at").eq("job_id", job.job_id),
@@ -135,7 +141,7 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
   const flags = (flagsR.data ?? []) as Flag[];
   let facts = (factsR.data ?? []) as Fact[];
   let items = (itemsR.data ?? []) as unknown as Item[];
-  if (client) {
+  if (hideMoney) {
     facts = facts.filter((f) => !f.internal_only && !CLIENT_SCRUB.test(f.key));
     items = items.filter((i) => !i.internal_only && !CLIENT_SCRUB.test(`${i.action} ${i.category}`));
   }
@@ -144,14 +150,14 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
   const sectionNa = new Set(nas.filter((n) => n.scope === "section").map((n) => n.target));
   const out: string[] = [];
   out.push(
-    `${prefix(job)}JOB SETUP REPORT (${client ? "CLIENT-FACING" : "INTERNAL"})`,
+    `${prefix(job)}JOB SETUP REPORT (${client ? "CLIENT-FACING" : contractOnly ? "INTERNAL — CONTRACT SIDE ONLY" : "INTERNAL"})`,
     `Job: ${job.job_number} – ${job.name}`,
     `Company: ${co.data?.name ?? "unknown"} | Prepared by: ${co.data?.agent_name ?? "PM agent"}`,
     `Data through: ${dataThrough}`,
     "",
   );
   let n = 1;
-  const modules = client ? ["applicability", "contract", "warranty"] : ["applicability", "contract", "handoff", "budget", "warranty"];
+  const modules = contractOnly ? ["contract"] : client ? ["applicability", "contract", "warranty"] : ["applicability", "contract", "handoff", "budget", "warranty"];
   for (const mod of modules) {
     const sectionItems = items.filter((i) => i.section === mod);
     out.push(`${n++}. ${SECTION_TITLES[mod]}`);
@@ -160,7 +166,7 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
       out.push(`   Marked N/A for this job (${reason ?? "no reason"}).`);
       if (sectionItems.length) {
         out.push("   Section N/A — needs disposition:");
-        sectionItems.forEach((it) => out.push(`   - ${itemLine(it, nas, client)}`));
+        sectionItems.forEach((it) => out.push(`   - ${itemLine(it, nas, hideMoney)}`));
       }
       out.push("");
       continue;
@@ -184,7 +190,7 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
     }
     if (sectionItems.length) {
       out.push("   Open items:");
-      sectionItems.forEach((it) => out.push(`   - ${itemLine(it, nas, client)}`));
+      sectionItems.forEach((it) => out.push(`   - ${itemLine(it, nas, hideMoney)}`));
     }
     out.push("");
   }
@@ -204,7 +210,7 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
   if (!other.length) out.push("   None.");
   other
     .sort((a, b) => (a.needed_by ?? "9999").localeCompare(b.needed_by ?? "9999"))
-    .forEach((it) => out.push(`   - ${itemLine(it, nas, client)}`));
+    .forEach((it) => out.push(`   - ${itemLine(it, nas, hideMoney)}`));
   out.push("");
   out.push(`${n++}. UNKNOWNS`);
   const unk = [

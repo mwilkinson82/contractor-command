@@ -621,7 +621,7 @@ export const listOpenItems = defineTool({
       if (error) throw new Error(error.message);
       await audit(sb, job, "list_open_items", "view_open_items", null);
       if (!data?.length) return text(`${prefix(job)}No open items.`);
-      const lines = (data as unknown as Parameters<typeof itemLine>[0][]).map((it) => `- ${itemLine(it, nas)}`);
+      const lines = (data as unknown as Parameters<typeof itemLine>[0][]).map((it) => `- ${itemLine(it, nas, job.scope === "contract")}`);
       const rows = data as unknown as Parameters<typeof itemLine>[0][];
       return { ...text(`${prefix(job)}Open items (${data.length}):\n${lines.join("\n")}`), structuredContent: { items: rows.map((i) => ({ item_id: i.id, item_type: itemType(i, nas) })) } };
     }),
