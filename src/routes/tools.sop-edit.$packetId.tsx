@@ -37,7 +37,7 @@ function EditSopError({ error, reset }: ErrorComponentProps) {
       <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-signal">
         Edit SOP failed
       </p>
-      <p className="mt-2 text-[13px] text-foreground">{error.message}</p>
+      <p className="mt-2 text-[13px] text-foreground">{error instanceof Error ? error.message : String(error)}</p>
       <button
         type="button"
         onClick={() => {
