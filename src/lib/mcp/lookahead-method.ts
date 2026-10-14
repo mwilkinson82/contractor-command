@@ -1,8 +1,8 @@
 // Server-only method rules for the PM two-week lookahead agent.
 // Never return these strings to callers.
-import { generateText } from "ai";
+import { streamText } from "ai";
+import { createOpenAI } from "@ai-sdk/openai";
 import { ToolError } from "@lovable.dev/mcp-js";
-import { createLovableAiGatewayProvider } from "@/lib/ai-gateway";
 
 export const STAGES = ["crews", "materials", "inspections", "rfis", "submittals", "weather", "predecessors"] as const;
 export type Stage = (typeof STAGES)[number];
@@ -81,17 +81,34 @@ Maximum 15 items. Then add "This week's top 3:" with the three items to do first
 export async function analyze(kind: "gap" | "hit", lookahead: string, answers: string | undefined, signal: AbortSignal) {
   const key = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.LOVABLE_API_KEY;
   if (!key) throw new ToolError("Analysis is unavailable right now.");
-  const model = createLovableAiGatewayProvider(key)("google/gemini-3-flash-preview");
+  const openai = createOpenAI({
+    baseURL: "https://ai.gateway.lovable.dev/v1",
+    apiKey: "unused",
+    headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" },
+  });
+  const model = openai.responses("openai/gpt-6-astra");
   const prompt = `<lookahead>\n${lookahead}\n</lookahead>\n<answers>\n${answers?.trim() || "(none provided)"}\n</answers>`;
   try {
-    const { text } = await generateText({
+    const result = streamText({
       model,
       system: `${GUARDRAILS}\n\n${kind === "gap" ? GAP_METHOD : HIT_METHOD}`,
       prompt,
       abortSignal: signal,
-      maxOutputTokens: 2500,
+      maxOutputTokens: 4000,
+      providerOptions: {
+        openai: {
+          forceReasoning: true,
+          reasoningEffort: "low",
+          reasoningSummary: "auto",
+          store: false,
+          include: ["reasoning.encrypted_content"],
+        },
+      },
     });
-    return text.trim();
+    let out = "";
+    for await (const chunk of result.textStream) out += chunk;
+    if (!out.trim()) throw new Error("empty");
+    return out.trim();
   } catch {
     throw new ToolError("Analysis failed. Try again in a moment.");
   }
