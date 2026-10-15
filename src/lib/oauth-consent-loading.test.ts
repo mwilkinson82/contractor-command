@@ -37,7 +37,7 @@ const load = () => route.loader({ location: { search: `?authorization_id=${ID}` 
 async function rejectsAfterTimeout(p: Promise<unknown>) {
   const caught = p.catch((e) => e);
   await vi.advanceTimersByTimeAsync(CONSENT_STEP_TIMEOUT_MS);
-  const err = await caught;
+  const err = (await caught) as Error & { stage?: string; kind?: string };
   expect(err).toBeInstanceOf(Error);
   expect(String(err.message)).not.toContain(ID);
   return err as Error & { stage?: string; kind?: string };
