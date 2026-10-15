@@ -13,6 +13,7 @@ import mcp from "../../src/lib/mcp/index";
 import { setLogLevel } from "@lovable.dev/mcp-js";
 setLogLevel("error");
 import { bootDb, setupKeysAndFetch, callTool, user, state, ROLES, TOOLS, type Role } from "./harness";
+import { asUser } from "./fake-supabase";
 
 const handler = createTanStackMcpHandler(mcp, { resourcePath: "/mcp", metadataPath: "/.well-known/oauth-protected-resource" });
 let tok: Awaited<ReturnType<typeof setupKeysAndFetch>>;
@@ -42,6 +43,8 @@ beforeAll(async () => {
   await db.query(`UPDATE public.mcp_jobs SET pm_user_id = $1 WHERE job_number = 'J-100'`, [user("pm").id]);
   await db.query(`UPDATE public.mcp_jobs SET pm_user_id = $1 WHERE job_number = 'J-200'`, [user("pm2").id]);
   await db.exec(`UPDATE public.mcp_jobs SET restricted = true WHERE job_number = 'J-300'`);
+  // Super is assigned to J-100 only (limited, read-only view).
+  await db.query(`INSERT INTO public.mcp_job_access (job_id, user_id, granted_by) SELECT id, $1, $2 FROM public.mcp_jobs WHERE job_number = 'J-100'`, [user("super").id, user("owner").id]);
 });
 
 afterAll(() => {
@@ -50,16 +53,17 @@ afterAll(() => {
 });
 
 // Expected access to J-100 (the PM's own job): full | contract | none
-const ACCESS: Record<Role, "full" | "contract" | "none"> = { owner: "full", pm: "full", finance: "full", contracts: "contract", estimating: "contract", super: "none" };
+const ACCESS: Record<Role, "full" | "contract" | "super"> = { owner: "full", pm: "full", finance: "full", contracts: "contract", estimating: "contract", super: "super" };
 
 describe.each(ROLES)("role %s", (role) => {
   const a = ACCESS[role];
-  const denied = (o: { isError: boolean; text: string }) => o.isError && (role === "super" ? NO_ACCESS.test(o.text) : true);
+  const READ_ONLY = /limited, read-only view/;
+  const denied = (o: { isError: boolean; text: string }) => o.isError && (role === "super" ? READ_ONLY.test(o.text) : true);
 
   test("onboarding", async () => {
     const o = await call(role, "onboarding", { action: "read" });
-    const ok = a === "none" ? denied(o) : !o.isError && /TEST Roles Co/.test(o.text);
-    mark(role, "onboarding", ok, a === "none" ? "denied" : "read company", o.isError ? o.text : "");
+    const ok = !o.isError && /TEST Roles Co/.test(o.text);
+    mark(role, "onboarding", ok, "read company", o.isError ? o.text : "");
     expect(ok).toBe(true);
   });
 
@@ -72,8 +76,8 @@ describe.each(ROLES)("role %s", (role) => {
 
   test("next_question", async () => {
     const o = await call(role, "next_question", { job_number: "J-100" });
-    const ok = a === "none" ? denied(o) : !o.isError && (a === "full" ? /Setup question/.test(o.text) : !/budget|handoff/i.test(o.text.split("Intake sections not started")[0]));
-    mark(role, "next_question", ok, a === "none" ? "denied" : a === "full" ? "setup questions" : "no full-scope questions", o.isError ? o.text : "");
+    const ok = a === "super" ? denied(o) : !o.isError && (a === "full" ? /Setup question/.test(o.text) : !/budget|handoff/i.test(o.text.split("Intake sections not started")[0]));
+    mark(role, "next_question", ok, a === "super" ? "read-only: denied" : a === "full" ? "setup questions" : "contract-time questions only", o.isError ? o.text : "");
     expect(ok, o.text).toBe(true);
   });
 
@@ -82,18 +86,19 @@ describe.each(ROLES)("role %s", (role) => {
     const key = nq.text.match(/check_key: (\S+)/)?.[1];
     expect(key, nq.text).toBeTruthy();
     const o = await call(role, "answer", { job_number: "J-100", check_key: key, response: "unknown", owner: "Test Owner" });
+    // Contract roles only ever get contract-time questions; the owner's current check is a full-scope one, so it is refused.
     const ok = a === "full" ? !o.isError : denied(o);
-    mark(role, "answer", ok, a === "full" ? "answered" : "write denied", o.isError ? o.text : "");
+    mark(role, "answer", ok, a === "full" ? "answered" : a === "super" ? "read-only: denied" : "full-scope check refused", o.isError ? o.text : "");
     expect(ok, o.text).toBe(true);
   });
 
   test("report", async () => {
     const o = await call(role, "report", { job_number: "J-100" });
     let ok: boolean;
-    if (a === "none") ok = denied(o);
+    if (a === "super") ok = !o.isError && /LIMITED VIEW — NO FINANCIALS/.test(o.text) && !/01-100|50000|50,000|Budget|cost:|cash:|SCHEDULE OF VALUES/i.test(o.text.split("====").pop()!);
     else if (a === "contract") ok = !o.isError && /CONTRACT SIDE ONLY/.test(o.text) && !/01-100|50000|50,000|Budget/i.test(o.text.split("====").pop()!);
     else ok = !o.isError && /DATE SWEEP/.test(o.text) && /JOB SETUP REPORT \(INTERNAL\)/.test(o.text);
-    mark(role, "report", ok, a === "none" ? "denied" : a === "contract" ? "contract side only, no budget" : "full internal + sweep", o.isError ? o.text : "");
+    mark(role, "report", ok, a === "super" ? "limited view, no financials" : a === "contract" ? "contract side only, no budget" : "full internal + sweep", o.isError ? o.text : "");
     expect(ok, o.text).toBe(true);
   });
 
@@ -103,7 +108,7 @@ describe.each(ROLES)("role %s", (role) => {
     const from = laOf(l1.text), to = laOf(l2.text);
     expect(from && to, l1.text + l2.text).toBeTruthy();
     const o = await call(role, "carry_forward", { job_number: "J-100", from_lookahead_id: from, to_lookahead_id: to });
-    const ok = a === "full" ? !o.isError && /carried forward/.test(o.text) : denied(o);
+    const ok = a === "full" ? !o.isError && /carried forward/.test(o.text) : a === "super" ? denied(o) : o.isError && /needs full access/.test(o.text);
     mark(role, "carry_forward", ok, a === "full" ? "carried" : "denied", o.isError ? o.text : "");
     expect(ok, o.text).toBe(true);
   });
@@ -111,9 +116,9 @@ describe.each(ROLES)("role %s", (role) => {
   test("list_open_items", async () => {
     const o = await call(role, "list_open_items", { job_number: "J-100" });
     let ok: boolean;
-    if (a === "none") ok = denied(o);
+    if (a === "super") ok = !o.isError && /TEST/.test(o.text) && !/cost:|cash:|01-100|50000/i.test(o.text.split("====").pop()!);
     else ok = !o.isError && /DATE SWEEP/.test(o.text) && (a === "contract" || /\[(unknown|no|na_disposition|pending_document|deadline)\]/.test(o.text));
-    mark(role, "list_open_items", ok, a === "none" ? "denied" : "listed + sweep", o.isError ? o.text : "");
+    mark(role, "list_open_items", ok, a === "super" ? "listed, no cost/cash" : "listed + sweep", o.isError ? o.text : "");
     expect(ok, o.text).toBe(true);
   });
 
@@ -146,15 +151,61 @@ describe("job scope across jobs", () => {
       expect(await see(r, "J-300")).toBe(false);
     }
   });
-  test("super sees nothing", async () => {
-    for (const j of ["J-100", "J-200", "J-300"]) {
-      const o = await call("super", "report", { job_number: j });
-      expect(o.isError && NO_ACCESS.test(o.text)).toBe(true);
-    }
+  test("super sees only assigned jobs; restricted stays hidden unless assigned", async () => {
+    expect(await see("super", "J-100")).toBe(true);
+    expect(await see("super", "J-200")).toBe(false);
+    expect(await see("super", "J-300")).toBe(false);
+    const db = state.db!;
+    await db.query(`INSERT INTO public.mcp_job_access (job_id, user_id, granted_by) SELECT id, $1, $2 FROM public.mcp_jobs WHERE job_number = 'J-300'`, [user("super").id, user("owner").id]);
+    expect(await see("super", "J-300")).toBe(true);
+    await db.query(`DELETE FROM public.mcp_job_access WHERE user_id = $1 AND job_id = (SELECT id FROM public.mcp_jobs WHERE job_number = 'J-300')`, [user("super").id]);
+    expect(await see("super", "J-300")).toBe(false);
+  });
+  test("super with no assignment gets the no-access message", async () => {
+    const db = state.db!;
+    await db.query(`DELETE FROM public.mcp_job_access WHERE user_id = $1`, [user("super").id]);
+    const o = await call("super", "report", { job_number: "J-100" });
+    expect(o.isError && NO_ACCESS.test(o.text), o.text).toBe(true);
+    await db.query(`INSERT INTO public.mcp_job_access (job_id, user_id, granted_by) SELECT id, $1, $2 FROM public.mcp_jobs WHERE job_number = 'J-100'`, [user("super").id, user("owner").id]);
+  });
+  test("super never sees budget items, facts or internal items", async () => {
+    const db = state.db!;
+    const rows = await asUser(db, { sub: user("super").id, email: user("super").email, role: "authenticated" }, async (tx: any) => ({
+      facts: (await tx.query(`SELECT count(*)::int n FROM public.mcp_job_facts`)).rows[0].n,
+      flags: (await tx.query(`SELECT count(*)::int n FROM public.mcp_job_flags`)).rows[0].n,
+      budgetItems: (await tx.query(`SELECT count(*)::int n FROM public.mcp_open_items WHERE section IN ('budget','sov') OR internal_only`)).rows[0].n,
+      items: (await tx.query(`SELECT count(*)::int n FROM public.mcp_open_items`)).rows[0].n,
+    }));
+    expect(rows.facts).toBe(0);
+    expect(rows.flags).toBe(0);
+    expect(rows.budgetItems).toBe(0);
+    expect(rows.items).toBeGreaterThan(0);
   });
   test("PM sweep never mentions jobs the PM can't see", async () => {
     const o = await call("pm", "list_open_items", { job_number: "J-100" });
     expect(o.text).not.toMatch(/J-200|J-300/);
+  });
+});
+
+describe("role changes take effect on the very next call (finding 3)", () => {
+  test("no cached role: a member switched to contracts is refused on the next write", async () => {
+    const db = state.db!;
+    const setRole = (r: string) => db.query(`UPDATE public.mcp_company_members SET role = $1 WHERE user_id = $2`, [r, user("pm2").id]);
+    await setRole("finance");
+    const a = await call("pm2", "intake", { section: "open_item", job_number: "J-200", action: "TEST pm2 as finance", owner: "Test Owner", item_type: "unknown" });
+    expect(a.isError, a.text).toBe(false);
+    const lookahead = await call("pm2", "intake", { section: "lookahead", job_number: "J-200", start_date: "2026-10-19", end_date: "2026-11-01" });
+    const la = laOf(lookahead.text);
+    await setRole("contracts");
+    const b = await call("pm2", "intake", { section: "open_item", job_number: "J-200", action: "TEST pm2 as contracts", owner: "Test Owner", item_type: "unknown" });
+    expect(b.isError && /Job not found|needs full access/.test(b.text), b.text).toBe(true);
+    // Demoted creator: their own earlier rows don't stay readable through "own rows".
+    const l = await call("pm2", "list_open_items", { job_number: "J-200" });
+    expect(l.text).not.toMatch(/TEST pm2 as finance/);
+    const rows = await asUser(db, { sub: user("pm2").id, email: user("pm2").email, role: "authenticated" }, async (tx: any) =>
+      (await tx.query(`SELECT count(*)::int n FROM public.mcp_lookaheads WHERE id = $1`, [la])).rows[0].n);
+    expect(rows).toBe(0);
+    await setRole("pm");
   });
 });
 
