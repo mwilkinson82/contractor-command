@@ -353,22 +353,22 @@ function LoadingWorkspace() {
   );
 }
 
-type GateChildren = (showShell: boolean) => React.ReactNode;
-
-/**
- * Public/protected split. The wrapper runs only work that every page needs
- * and that makes no portal request: auth-hash forwarding and the auth-event
- * listener (deferred router invalidation, vault reset on sign-out). Public
- * pages (/login, /auth/callback, /oauth/consent, ...) render directly and
- * never mount the portal hooks; those hooks call supabase.auth.getUser()/
- * getSession(), which hold the shared auth lock across their network request,
- * so an unrelated slow portal request could stall the consent page's own
- * session and identity checks.
- */
-function AuthGate({ children }: { children: GateChildren }) {
+function AuthGate({ children }: { children: (showShell: boolean) => React.ReactNode }) {
+  const { session, loading } = useAuth();
+  const {
+    needsOnboarding,
+    loading: companyLoading,
+    error: companyError,
+    refetch: retryCompany,
+  } = useCompany();
+  const { tier, loading: tierLoading } = useTier();
+  const isAdmin = useIsAdmin();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const authHashTarget = getAuthHashTarget(pathname);
+  const navigate = useNavigate();
   const router = useRouter();
+  const isPublic = PUBLIC_ROUTES.has(pathname);
+  const isOnboarding = pathname === ONBOARDING_ROUTE;
 
   // Some auth emails still land back at "/" with Supabase tokens in the URL
   // hash ("#access_token=...&refresh_token=...") or with an expired-link
@@ -384,10 +384,9 @@ function AuthGate({ children }: { children: GateChildren }) {
     }
   }, [pathname, authHashTarget]);
 
-  // Invalidate router caches when auth changes. Invalidation is deferred
-  // outside the auth callback, skipped for INITIAL_SESSION/token refresh, and
-  // never restarts the public sign-in/consent flow. Vault hydration (a portal
-  // request) lives in ProtectedGate; only the request-free reset stays here.
+  // Invalidate router caches + sync vault when auth changes. Invalidation is
+  // deferred outside the auth callback, skipped for INITIAL_SESSION/token
+  // refresh, and never restarts the public sign-in/consent flow.
   useEffect(() => {
     const scheduler = createAuthInvalidationScheduler({
       getPathname: () => router.state.location.pathname,
@@ -395,40 +394,17 @@ function AuthGate({ children }: { children: GateChildren }) {
     });
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       scheduler.onEvent(event);
-      if (!s?.user?.id) vault.reset();
+      if (s?.user?.id) {
+        void vault.hydrateFor(s.user.id);
+      } else {
+        vault.reset();
+      }
     });
     return () => {
       sub.subscription.unsubscribe();
       scheduler.dispose();
     };
   }, [router]);
-
-  if (authHashTarget) return <LoadingWorkspace />;
-  if (PUBLIC_ROUTES.has(pathname)) return <>{children(false)}</>;
-  return <ProtectedGate pathname={pathname}>{children}</ProtectedGate>;
-}
-
-function ProtectedGate({ children, pathname }: { children: GateChildren; pathname: string }) {
-  const { session, loading } = useAuth();
-  const {
-    needsOnboarding,
-    loading: companyLoading,
-    error: companyError,
-    refetch: retryCompany,
-  } = useCompany();
-  const { tier, loading: tierLoading } = useTier();
-  const isAdmin = useIsAdmin();
-  const navigate = useNavigate();
-  const isOnboarding = pathname === ONBOARDING_ROUTE;
-
-  // Signed-in user changes (sign-in in another tab, account switch) re-sync
-  // the vault; the session effect below covers the initial mount.
-  useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
-      if (s?.user?.id) void vault.hydrateFor(s.user.id);
-    });
-    return () => sub.subscription.unsubscribe();
-  }, []);
 
   useEffect(() => {
     if (session?.user?.id) void vault.hydrateFor(session.user.id);
@@ -467,7 +443,8 @@ function ProtectedGate({ children, pathname }: { children: GateChildren; pathnam
 
   useEffect(() => {
     if (loading) return;
-    if (!session) {
+    if (authHashTarget) return;
+    if (!session && !isPublic) {
       const redirectTo =
         typeof window === "undefined"
           ? pathname
@@ -477,7 +454,7 @@ function ProtectedGate({ children, pathname }: { children: GateChildren; pathnam
     }
     // Auth callbacks and consent own their navigation. In particular, OTP
     // establishes a session before the signed continuation has been resolved.
-    if (session && !companyLoading && needsOnboarding && !isOnboarding) {
+    if (session && !isPublic && !companyLoading && needsOnboarding && !isOnboarding) {
       navigate({ to: "/onboarding" });
       return;
     }
@@ -494,6 +471,7 @@ function ProtectedGate({ children, pathname }: { children: GateChildren; pathnam
   }, [
     loading,
     session,
+    isPublic,
     isOnboarding,
     companyLoading,
     needsOnboarding,
@@ -501,8 +479,13 @@ function ProtectedGate({ children, pathname }: { children: GateChildren; pathnam
     tier,
     isAdmin,
     pathname,
+    authHashTarget,
     navigate,
   ]);
+
+  if (authHashTarget) return <LoadingWorkspace />;
+
+  if (isPublic) return <>{children(false)}</>;
 
   if (loading) {
     return <LoadingWorkspace />;
