@@ -3238,6 +3238,7 @@ export type Database = {
         Returns: boolean
       }
       mcp_is_company_member: { Args: { _company: string }; Returns: boolean }
+      mcp_is_test_caller: { Args: never; Returns: boolean }
       mcp_job_create: {
         Args: {
           _company: string
