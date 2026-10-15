@@ -24,6 +24,7 @@ import { START_HERE_MIN_TIER } from "@/lib/start-here-access";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { supabase } from "@/integrations/supabase/client";
 import { vault } from "@/lib/vault";
+import { createAuthInvalidationScheduler } from "@/lib/auth-event-invalidation";
 import { setPresence, resetPresence, type PresenceUser } from "@/lib/portal-presence";
 import { toast } from "sonner";
 
@@ -383,17 +384,26 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
     }
   }, [pathname, authHashTarget]);
 
-  // Invalidate router caches + sync vault when auth changes
+  // Invalidate router caches + sync vault when auth changes. Invalidation is
+  // deferred outside the auth callback, skipped for INITIAL_SESSION/token
+  // refresh, and never restarts the public sign-in/consent flow.
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
-      router.invalidate();
+    const scheduler = createAuthInvalidationScheduler({
+      getPathname: () => router.state.location.pathname,
+      invalidate: () => router.invalidate(),
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      scheduler.onEvent(event);
       if (s?.user?.id) {
         void vault.hydrateFor(s.user.id);
       } else {
         vault.reset();
       }
     });
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      sub.subscription.unsubscribe();
+      scheduler.dispose();
+    };
   }, [router]);
 
   useEffect(() => {
