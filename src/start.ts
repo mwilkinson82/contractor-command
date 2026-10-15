@@ -99,7 +99,7 @@ const csrfOriginGuard = createMiddleware().server(async ({ next, request }) => {
  * Requests with no token pass through so the handler returns 401 +
  * WWW-Authenticate.
  */
-const MCP_ALLOWED_EMAILS = new Set(["marshall@marshallwilkinson.com"]);
+const MCP_ALLOWED_EMAILS = new Set(["marshall@marshallwilkinson.com", "marshall+athenatest@marshallwilkinson.com"]) // TEST WINDOW ONLY - remove after the live role test;
 const mcpAllowlistGate = createMiddleware().server(async ({ next, request }) => {
   const url = new URL(request.url);
   if (url.pathname !== "/mcp" && !url.pathname.startsWith("/mcp/")) return next();
