@@ -99,6 +99,13 @@
       "when": 1792030000000,
       "tag": "0013_mcp_remove_test_caller_bypass",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792027574933,
+      "tag": "0014_mcp_lookaheads_company_job_scope_guards",
+      "breakpoints": true
     }
   ]
 }
