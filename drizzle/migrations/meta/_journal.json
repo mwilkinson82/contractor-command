@@ -96,7 +96,7 @@
     {
       "idx": 13,
       "version": "7",
-      "when": 1792030000000,
+      "when": 1792020000000,
       "tag": "0013_mcp_remove_test_caller_bypass",
       "breakpoints": true
     },
@@ -112,13 +112,6 @@
       "version": "7",
       "when": 1792028498057,
       "tag": "0015_mcp_super_limited_view",
-      "breakpoints": true
-    },
-    {
-      "idx": 16,
-      "version": "7",
-      "when": 1792028766578,
-      "tag": "0016_mcp_super_limited_view",
       "breakpoints": true
     }
   ]
