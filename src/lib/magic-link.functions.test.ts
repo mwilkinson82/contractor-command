@@ -132,3 +132,39 @@ it("ordinary member magic links remain available without the continuation secret
   expect(m.send).toHaveBeenCalledOnce();
   expect(console.error).not.toHaveBeenCalled();
 });
+
+it("selects the Athena variant only for a validated consent continuation, URL untouched", async () => {
+  vi.stubEnv("OAUTH_CONTINUATION_SECRET", "synthetic-test-secret-at-least-32-characters");
+  const promise = requestMemberMagicLink({
+    data: {
+      email: "member@example.test",
+      continuation: "/oauth/consent?authorization_id=test-request",
+    },
+  });
+  await vi.advanceTimersByTimeAsync(600);
+  await promise;
+  const args = m.send.mock.calls[0][0];
+  expect(args.variant).toBe("athena");
+  const url = new URL(args.confirmationUrl);
+  expect(url.pathname).toBe("/auth/callback");
+  expect(url.searchParams.get("token_hash")).toBe("inert-test-token");
+  expect(url.searchParams.get("continuation")).toBeTruthy();
+});
+
+it("ordinary sign-in keeps the default Circle variant", async () => {
+  const promise = requestMemberMagicLink({ data: { email: "member@example.test" } });
+  await vi.advanceTimersByTimeAsync(600);
+  await promise;
+  expect(m.send.mock.calls[0][0].variant).toBeUndefined();
+});
+
+it.each(["/hub", "https://evil.example/oauth/consent?authorization_id=x", "/oauth/consent"])(
+  "invalid continuation %s sends nothing",
+  async (continuation) => {
+    vi.stubEnv("OAUTH_CONTINUATION_SECRET", "synthetic-test-secret-at-least-32-characters");
+    const promise = requestMemberMagicLink({ data: { email: "member@example.test", continuation } });
+    await vi.advanceTimersByTimeAsync(600);
+    expect(await promise).toEqual({ ok: true, action: "accepted" });
+    expect(m.send).not.toHaveBeenCalled();
+  },
+);

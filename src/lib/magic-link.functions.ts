@@ -206,6 +206,9 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
             idempotencyKey: `public-signin-${email}-${Date.now()}`,
             channel: "public_magic_link",
             siteUrl: origin,
+            // Presentation only, derived from the validated canonical consent
+            // path after signing. Not proof of client identity.
+            ...(continuation ? { variant: "athena" as const } : {}),
           });
           internalAction =
             sendResult.status === "sent"
