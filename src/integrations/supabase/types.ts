@@ -3218,6 +3218,7 @@ export type Database = {
       mcp_caller_is_no_access_role: { Args: never; Returns: boolean }
       mcp_can_access_contract: { Args: { _job: string }; Returns: boolean }
       mcp_can_access_job: { Args: { _job: string }; Returns: boolean }
+      mcp_can_view_job: { Args: { _job: string }; Returns: boolean }
       mcp_company_save: {
         Args: { _company: string; _p: Json }
         Returns: string
@@ -3238,6 +3239,8 @@ export type Database = {
         Returns: boolean
       }
       mcp_is_company_member: { Args: { _company: string }; Returns: boolean }
+      mcp_is_company_viewer: { Args: { _company: string }; Returns: boolean }
+      mcp_is_super_view: { Args: { _job: string }; Returns: boolean }
       mcp_is_test_caller: { Args: never; Returns: boolean }
       mcp_job_create: {
         Args: {
