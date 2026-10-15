@@ -67,7 +67,7 @@ export async function enqueueCircleWelcome({
   firstName,
   loginUrl,
   idempotencyKey,
-}: EnqueueOpts): Promise<{ status: "queued" | "duplicate" | "suppressed" | "failed"; reason?: string }> {
+}: EnqueueOpts): Promise<{ status: "queued" | "duplicate" | "suppressed" | "failed"; reason?: string; messageId?: string }> {
   const emailLower = email.toLowerCase();
 
   // Dedup: pending or sent row with this key. `.contains()` missed races when
@@ -155,5 +155,5 @@ export async function enqueueCircleWelcome({
     return { status: "failed", reason: enqueueError.message };
   }
 
-  return { status: "queued" };
+  return { status: "queued", messageId };
 }
