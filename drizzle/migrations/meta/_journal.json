@@ -92,6 +92,13 @@
       "when": 1792018734036,
       "tag": "0012_mcp_item_events_surfaced",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792030000000,
+      "tag": "0013_mcp_remove_test_caller_bypass",
+      "breakpoints": true
     }
   ]
 }
