@@ -106,6 +106,13 @@
       "when": 1792027574933,
       "tag": "0014_mcp_lookaheads_company_job_scope_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1792040000000,
+      "tag": "0015_mcp_super_limited_view",
+      "breakpoints": true
     }
   ]
 }
