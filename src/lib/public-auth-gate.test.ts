@@ -68,7 +68,10 @@ function makeClient() {
 const settle = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function state<T>(p: Promise<T>, ms = 150) {
-  return Promise.race([p.then(() => "resolved" as const), settle(ms).then(() => "pending" as const)]);
+  return Promise.race([
+    p.then(() => "resolved" as const),
+    settle(ms).then(() => "pending" as const),
+  ]);
 }
 
 describe("auth SDK lock: hung getUser blocks concurrent getSession", () => {
