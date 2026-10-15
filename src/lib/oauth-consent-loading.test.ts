@@ -26,12 +26,17 @@ import { CONSENT_STEP_TIMEOUT_MS } from "@/lib/consent-loading";
 
 type Cfg = {
   beforeLoad: (a: unknown) => Promise<unknown>;
-  loader: (a: unknown) => Promise<any>;
+  loader: (a: unknown) => Promise<unknown>;
 };
+type E = { stage?: string; kind?: string; message: string; __redirect?: unknown };
 const route = Route as unknown as Cfg;
 const ID = "synthetic-auth-id";
 const never = () => new Promise<never>(() => {});
-const before = () => route.beforeLoad({ search: { authorization_id: ID }, location: { pathname: "/oauth/consent", searchStr: `?authorization_id=${ID}&x=1` } });
+const before = () =>
+  route.beforeLoad({
+    search: { authorization_id: ID },
+    location: { pathname: "/oauth/consent", searchStr: `?authorization_id=${ID}&x=1` },
+  });
 const load = () => route.loader({ location: { search: `?authorization_id=${ID}` } });
 
 async function rejectsAfterTimeout(p: Promise<unknown>) {
@@ -63,13 +68,16 @@ describe("consent beforeLoad", () => {
   });
   it("redirects signed-out callers with the canonical authorization_id only", async () => {
     m.getSession.mockResolvedValue({ data: { session: null }, error: null });
-    const thrown: any = await before().catch((e) => e);
-    expect(thrown.__redirect).toEqual({ to: "/login", search: { redirect: `/oauth/consent?authorization_id=${ID}` } });
+    const thrown = (await before().catch((e) => e)) as E;
+    expect(thrown.__redirect).toEqual({
+      to: "/login",
+      search: { redirect: `/oauth/consent?authorization_id=${ID}` },
+    });
     expect(vi.getTimerCount()).toBe(0);
   });
   it("fails closed on a session error", async () => {
     m.getSession.mockResolvedValue({ data: { session: null }, error: { message: "raw" } });
-    const err: any = await before().catch((e) => e);
+    const err = (await before().catch((e) => e)) as E;
     expect(err.stage).toBe("session");
     expect(err.__redirect).toBeUndefined();
   });
@@ -97,17 +105,20 @@ describe("consent loader", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
   it("hides raw details errors", async () => {
-    m.details.mockResolvedValue({ data: null, error: { message: `raw ${ID} https://x/y?token=z` } });
-    const err: any = await load().catch((e) => e);
+    m.details.mockResolvedValue({
+      data: null,
+      error: { message: `raw ${ID} https://x/y?token=z` },
+    });
+    const err = (await load().catch((e) => e)) as E;
     expect(err.stage).toBe("details");
     expect(err.message).not.toContain("token");
   });
   it("fails closed when identity is missing or errors", async () => {
     m.details.mockResolvedValue({ data: client, error: null });
     m.getUser.mockResolvedValue({ data: { user: null }, error: null });
-    expect(((await load().catch((e) => e)) as any).stage).toBe("identity");
+    expect(((await load().catch((e) => e)) as E).stage).toBe("identity");
     m.getUser.mockResolvedValue({ data: { user: { id: "u" } }, error: { message: "x" } });
-    expect(((await load().catch((e) => e)) as any).stage).toBe("identity");
+    expect(((await load().catch((e) => e)) as E).stage).toBe("identity");
   });
   it("returns details and identity on success with no timers left", async () => {
     m.details.mockResolvedValue({ data: client, error: null });

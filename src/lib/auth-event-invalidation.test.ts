@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createAuthInvalidationScheduler, shouldInvalidateOnAuthEvent } from "@/lib/auth-event-invalidation";
+import {
+  createAuthInvalidationScheduler,
+  shouldInvalidateOnAuthEvent,
+} from "@/lib/auth-event-invalidation";
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
@@ -16,13 +19,16 @@ describe("auth event invalidation", () => {
     expect(shouldInvalidateOnAuthEvent("INITIAL_SESSION", "/")).toBe(false);
     expect(shouldInvalidateOnAuthEvent("TOKEN_REFRESHED", "/")).toBe(false);
   });
-  it.each(["/login", "/auth/callback", "/oauth/consent"])("never restarts public flow %s", async (p) => {
-    const { s, invalidate } = setup(p);
-    for (const e of ["SIGNED_IN", "SIGNED_OUT", "USER_UPDATED"]) s.onEvent(e);
-    await vi.runAllTimersAsync();
-    expect(invalidate).not.toHaveBeenCalled();
-    expect(vi.getTimerCount()).toBe(0);
-  });
+  it.each(["/login", "/auth/callback", "/oauth/consent"])(
+    "never restarts public flow %s",
+    async (p) => {
+      const { s, invalidate } = setup(p);
+      for (const e of ["SIGNED_IN", "SIGNED_OUT", "USER_UPDATED"]) s.onEvent(e);
+      await vi.runAllTimersAsync();
+      expect(invalidate).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
   it("defers protected-route invalidation outside the callback and coalesces", async () => {
     const { s, invalidate } = setup("/vault");
     s.onEvent("SIGNED_OUT");

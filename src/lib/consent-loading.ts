@@ -7,27 +7,37 @@ export type ConsentStage = "session" | "details" | "identity";
 
 const STAGE_MESSAGES: Record<ConsentStage, { timeout: string; failed: string }> = {
   session: {
-    timeout: "Checking your sign-in took too long. Reload this page or start again from the app you're connecting.",
-    failed: "We couldn't check your sign-in. Reload this page or start again from the app you're connecting.",
+    timeout:
+      "Checking your sign-in took too long. Reload this page or start again from the app you're connecting.",
+    failed:
+      "We couldn't check your sign-in. Reload this page or start again from the app you're connecting.",
   },
   details: {
     timeout: "The connection request timed out. Start again from the app you're connecting.",
     failed: "This connection request is invalid or has expired.",
   },
   identity: {
-    timeout: "Confirming your account took too long. Reload this page or start again from the app you're connecting.",
+    timeout:
+      "Confirming your account took too long. Reload this page or start again from the app you're connecting.",
     failed: "We couldn't confirm your account. Reload this page or sign in again.",
   },
 };
 
 export class ConsentStepError extends Error {
-  constructor(public stage: ConsentStage, public kind: "timeout" | "failed") {
+  constructor(
+    public stage: ConsentStage,
+    public kind: "timeout" | "failed",
+  ) {
     super(STAGE_MESSAGES[stage][kind]);
     this.name = "ConsentStepError";
   }
 }
 
-export function boundedStep<T>(stage: ConsentStage, work: () => Promise<T>, ms = CONSENT_STEP_TIMEOUT_MS): Promise<T> {
+export function boundedStep<T>(
+  stage: ConsentStage,
+  work: () => Promise<T>,
+  ms = CONSENT_STEP_TIMEOUT_MS,
+): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new ConsentStepError(stage, "timeout")), ms);
