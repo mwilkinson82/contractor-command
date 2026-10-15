@@ -3,6 +3,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthCard } from "@/components/auth/auth-card";
 import { MCP_ALLOWED_EMAILS } from "@/lib/mcp/allowlist";
+import { boundedStep, ConsentStepError, consentReturnPath } from "@/lib/consent-loading";
 
 type OAuthResult = { data: any; error: { message: string } | null };
 type OAuthApi = {
@@ -36,28 +37,27 @@ export const Route = createFileRoute("/oauth/consent")({
   validateSearch: (s: Record<string, unknown>) => ({
     authorization_id: typeof s.authorization_id === "string" ? s.authorization_id : "",
   }),
-  beforeLoad: async ({ search, location }) => {
+  beforeLoad: async ({ search }) => {
     if (!search.authorization_id) throw new Error("This connection request is missing its ID. Start again from the app you're connecting.");
-    const { data } = await supabase.auth.getSession();
+    const { data, error } = await boundedStep("session", () => supabase.auth.getSession());
+    if (error) throw new ConsentStepError("session", "failed");
     if (!data.session) {
-      const next = location.pathname + location.searchStr;
-      throw redirect({ to: "/login", search: { redirect: next } });
+      throw redirect({ to: "/login", search: { redirect: consentReturnPath(search.authorization_id) } });
     }
   },
   loader: async ({ location }) => {
     const id = new URLSearchParams(location.search).get("authorization_id")!;
-    const { data, error } = await Promise.race([
-      oauth().getAuthorizationDetails(id),
-      new Promise<OAuthResult>((r) => setTimeout(() => r({ data: null, error: { message: "The connection request timed out. Start again from the app you're connecting." } }), 15000)),
-    ]);
-    if (error) throw new Error(error.message || "This connection request is invalid or has expired.");
+    const { data, error } = await boundedStep("details", () => oauth().getAuthorizationDetails(id));
+    if (error) throw new ConsentStepError("details", "failed");
     const immediate = data?.redirect_url ?? data?.redirect_to;
     if (immediate && !data?.client) {
       window.location.href = immediate;
       return null;
     }
-    const { data: u } = await supabase.auth.getUser();
-    return { details: data, email: u.user?.email ?? "", userId: u.user?.id };
+    const { data: u, error: userError } = await boundedStep("identity", () => supabase.auth.getUser());
+    // Fail closed: no confirmed identity means no consent screen.
+    if (userError || !u?.user?.id) throw new ConsentStepError("identity", "failed");
+    return { details: data, email: u.user.email ?? "", userId: u.user.id };
   },
   component: Consent,
   pendingComponent: () => (
