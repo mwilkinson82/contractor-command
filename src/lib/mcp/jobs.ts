@@ -3,7 +3,7 @@
 import { ToolError } from "@lovable.dev/mcp-js";
 import { dbError, type Sb } from "./guard";
 
-export type Job = { job_id: string; job_number: string; name: string; company_id: string; scope?: "full" | "contract" };
+export type Job = { job_id: string; job_number: string; name: string; company_id: string };
 
 export async function resolveCompany(sb: Sb, companyId?: string): Promise<string> {
   // Companies are only visible to their members (RLS), so this is "my companies".
@@ -13,10 +13,6 @@ export async function resolveCompany(sb: Sb, companyId?: string): Promise<string
   if (companyId) {
     if (!mine.some((m) => m.company_id === companyId)) throw new ToolError("You aren't a member of that company.");
     return companyId;
-  }
-  if (!mine.length) {
-    const nr = await sb.rpc("mcp_caller_is_no_access_role");
-    if (nr.data === true) throw new ToolError("Your role doesn't have access to the PM agent. Ask your company owner if you need it.");
   }
   if (!mine.length) throw new ToolError('No company set up yet. Call onboarding with action "save_company" first.');
   if (mine.length > 1) {
@@ -65,14 +61,11 @@ type Item = {
   verify_state: string; verified_at: string | null; reported_by: string | null; reported_at: string | null; source: string | null;
   cost_effect: string | null; time_effect: string | null; cash_effect: string | null; effect_is_estimate: boolean;
   next_action: string | null; next_action_approved_by: string | null; updated_at: string; category: string;
-  item_type: string | null; recommendation: string | null; why: string | null; help_offer: string | null; waiting_on_document: string | null;
-  waiting_on_who: string | null; waiting_since: string | null; clause_source: string | null; delivery_method: string | null; recipient: string | null;
 };
-export type { Item };
 type Na = { scope: string; target: string; reason: string; set_at: string };
 
 export const ITEM_COLS =
-  "id, action, accountable, owner, needed_by, due_date, severity, status, section, check_key, kind, commercial_type, internal_only, verify_state, verified_at, reported_by, reported_at, source, cost_effect, time_effect, cash_effect, effect_is_estimate, next_action, next_action_approved_by, updated_at, category, item_type, recommendation, why, help_offer, waiting_on_document, waiting_on_who, waiting_since, clause_source, delivery_method, recipient";
+  "id, action, accountable, owner, needed_by, due_date, severity, status, section, check_key, kind, commercial_type, internal_only, verify_state, verified_at, reported_by, reported_at, source, cost_effect, time_effect, cash_effect, effect_is_estimate, next_action, next_action_approved_by, updated_at, category";
 
 export async function activeNa(sb: Sb, jobId: string): Promise<Na[]> {
   const { data, error } = await sb.from("mcp_job_na").select("scope, target, reason, set_at").eq("job_id", jobId).eq("active", true);
@@ -87,20 +80,6 @@ export function naLabel(it: Pick<Item, "section" | "check_key">, nas: Na[]): str
   return hit ? "section N/A — needs disposition" : null;
 }
 
-/** Effective type: items sitting under an active N/A are na_disposition while the N/A stands. */
-export function itemType(it: Pick<Item, "section" | "check_key" | "item_type">, nas: Na[]): string {
-  if (naLabel(it, nas)) return "na_disposition";
-  return it.item_type && it.item_type !== "na_disposition" ? it.item_type : "deadline";
-}
-
-function typeDetail(it: Item, t: string, client: boolean) {
-  if (t === "no") return ` | Recommendation: ${it.recommendation ?? "none recorded"} | Why: ${it.why ?? "best-practice gap"} | ${it.help_offer ?? "The PM agent can help with this."}`;
-  if (t === "pending_document") return ` | Waiting on: ${it.waiting_on_document ?? "unknown document"} from ${it.waiting_on_who ?? "unknown"} since ${it.waiting_since ?? "unknown"}`;
-  if (t === "deadline") return ` | Clause/source: ${it.clause_source ?? "unknown"} | Method: ${it.delivery_method ?? "unknown"} | Recipient: ${it.recipient ?? "unknown"}`;
-  if (t === "unknown") return " | Needs confirming evidence or a dated member statement";
-  return client ? "" : "";
-}
-
 export function itemLine(it: Item, nas: Na[], client = false) {
   const status = it.verify_state === "verified" ? `verified ${it.verified_at?.slice(0, 10) ?? ""}` : `last reported by ${it.reported_by ?? "unknown"} ${it.reported_at?.slice(0, 10) ?? ""}`;
   const effects = client
@@ -108,8 +87,7 @@ export function itemLine(it: Item, nas: Na[], client = false) {
     : `cost: ${it.cost_effect ?? "unknown"} | time: ${it.time_effect ?? "unknown"} | cash: ${it.cash_effect ?? "unknown"}${it.effect_is_estimate ? " (estimate)" : ""}`;
   const na = naLabel(it, nas);
   const next = !client && it.next_action ? ` | Next: ${it.next_action}${it.next_action_approved_by ? ` (approved by ${it.next_action_approved_by})` : " (not yet approved)"}` : "";
-  const t = itemType(it, nas);
-  return `[${t}] ${it.action} | Accountable: ${it.accountable ?? it.owner} | Needed by: ${it.needed_by ?? it.due_date ?? "unknown"} | ${status.trim()} | Source: ${it.source ?? "unknown"} | ${effects}${next}${typeDetail(it, t, client)}${na ? ` | ${na}` : ""} [item ${it.id}]`;
+  return `${it.action} | Accountable: ${it.accountable ?? it.owner} | Needed by: ${it.needed_by ?? it.due_date ?? "unknown"} | ${status.trim()} | Source: ${it.source ?? "unknown"} | ${effects}${next}${na ? ` | ${na}` : ""} [item ${it.id}]`;
 }
 
 const SECTION_TITLES: Record<string, string> = {
@@ -128,8 +106,6 @@ function show(v: unknown): string {
 
 export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" | "client") {
   const client = audience === "client";
-  const contractOnly = job.scope === "contract";
-  const hideMoney = client || contractOnly;
   const [co, flagsR, factsR, itemsR, nas] = await Promise.all([
     sb.from("mcp_companies").select("name, agent_name").eq("id", job.company_id).maybeSingle(),
     sb.from("mcp_job_flags").select("flag_key, value, source, set_at").eq("job_id", job.job_id),
@@ -141,7 +117,7 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
   const flags = (flagsR.data ?? []) as Flag[];
   let facts = (factsR.data ?? []) as Fact[];
   let items = (itemsR.data ?? []) as unknown as Item[];
-  if (hideMoney) {
+  if (client) {
     facts = facts.filter((f) => !f.internal_only && !CLIENT_SCRUB.test(f.key));
     items = items.filter((i) => !i.internal_only && !CLIENT_SCRUB.test(`${i.action} ${i.category}`));
   }
@@ -150,14 +126,14 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
   const sectionNa = new Set(nas.filter((n) => n.scope === "section").map((n) => n.target));
   const out: string[] = [];
   out.push(
-    `${prefix(job)}JOB SETUP REPORT (${client ? "CLIENT-FACING" : contractOnly ? "INTERNAL — CONTRACT SIDE ONLY" : "INTERNAL"})`,
+    `${prefix(job)}JOB SETUP REPORT (${client ? "CLIENT-FACING" : "INTERNAL"})`,
     `Job: ${job.job_number} – ${job.name}`,
     `Company: ${co.data?.name ?? "unknown"} | Prepared by: ${co.data?.agent_name ?? "PM agent"}`,
     `Data through: ${dataThrough}`,
     "",
   );
   let n = 1;
-  const modules = contractOnly ? ["contract"] : client ? ["applicability", "contract", "warranty"] : ["applicability", "contract", "handoff", "budget", "warranty"];
+  const modules = client ? ["applicability", "contract", "warranty"] : ["applicability", "contract", "handoff", "budget", "warranty"];
   for (const mod of modules) {
     const sectionItems = items.filter((i) => i.section === mod);
     out.push(`${n++}. ${SECTION_TITLES[mod]}`);
@@ -166,7 +142,7 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
       out.push(`   Marked N/A for this job (${reason ?? "no reason"}).`);
       if (sectionItems.length) {
         out.push("   Section N/A — needs disposition:");
-        sectionItems.forEach((it) => out.push(`   - ${itemLine(it, nas, hideMoney)}`));
+        sectionItems.forEach((it) => out.push(`   - ${itemLine(it, nas, client)}`));
       }
       out.push("");
       continue;
@@ -190,7 +166,7 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
     }
     if (sectionItems.length) {
       out.push("   Open items:");
-      sectionItems.forEach((it) => out.push(`   - ${itemLine(it, nas, hideMoney)}`));
+      sectionItems.forEach((it) => out.push(`   - ${itemLine(it, nas, client)}`));
     }
     out.push("");
   }
@@ -210,7 +186,7 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
   if (!other.length) out.push("   None.");
   other
     .sort((a, b) => (a.needed_by ?? "9999").localeCompare(b.needed_by ?? "9999"))
-    .forEach((it) => out.push(`   - ${itemLine(it, nas, hideMoney)}`));
+    .forEach((it) => out.push(`   - ${itemLine(it, nas, client)}`));
   out.push("");
   out.push(`${n++}. UNKNOWNS`);
   const unk = [
