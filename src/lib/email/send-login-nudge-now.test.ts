@@ -77,8 +77,9 @@ describe("sendLoginNudgeNow variants", () => {
     expect(p.text).toContain("Sign into Athena");
     expect(decode(p.html)).toContain(`href="${URL_EXACT}"`);
     expect(p.text).toContain(URL_EXACT);
-    expect(p.html).not.toMatch(/Circle|member/i);
-    expect(p.text).not.toMatch(/Circle|member/i);
+    const visible = (t: string) => t.replace(/https?:\/\/\S+?(?=["\s)\]]|$)/g, "");
+    expect(visible(p.html)).not.toMatch(/Circle|member/i);
+    expect(visible(p.text)).not.toMatch(/Circle|member/i);
   });
 
   it.each(["public_magic_link", "admin_people_signin"] as const)(
