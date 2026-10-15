@@ -51,11 +51,14 @@ function LoginPage() {
       );
     });
 
-    return Promise.race([requestMagicLink({ data: { email: emailAddress, continuation: oauthConsentReturn(redirectTo) } }), timeout]).finally(
-      () => {
-        if (timeoutId) clearTimeout(timeoutId);
-      },
-    );
+    return Promise.race([
+      requestMagicLink({
+        data: { email: emailAddress, continuation: oauthConsentReturn(redirectTo) },
+      }),
+      timeout,
+    ]).finally(() => {
+      if (timeoutId) clearTimeout(timeoutId);
+    });
   }
 
   useEffect(() => {
@@ -94,7 +97,8 @@ function LoginPage() {
     setBusy(true);
     setErr(null);
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) setErr("We could not sign you in. Check your details or request a secure sign-in link.");
+    if (error)
+      setErr("We could not sign you in. Check your details or request a secure sign-in link.");
     if (data?.user) {
       const user = data.user;
       const metadata = user.user_metadata as { full_name?: unknown };
@@ -116,7 +120,14 @@ function LoginPage() {
 
   return (
     <AuthCard
-      title={magicRequested ? "Request received." : fromConnect ? "Sign in to approve the connection." : "Sign in to the Hub."}
+      brand={fromConnect ? "athena" : "hub"}
+      title={
+        magicRequested
+          ? "Request received."
+          : fromConnect
+            ? "Sign in to approve the connection."
+            : "Sign in to the Hub."
+      }
       subtitle={
         magicRequested
           ? `If this address is eligible and email delivery is available, you will receive a secure sign-in link. Check the spelling of ${email}, or sign in with your password.`

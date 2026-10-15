@@ -61,12 +61,12 @@ export const Route = createFileRoute("/oauth/consent")({
   },
   component: Consent,
   pendingComponent: () => (
-    <AuthCard title="Loading connection request…" subtitle="One moment.">
+    <AuthCard brand="athena" title="Loading connection request…" subtitle="One moment.">
       <div />
     </AuthCard>
   ),
   errorComponent: ({ error }) => (
-    <AuthCard title="Can't load this request." subtitle={error instanceof Error ? error.message : "It may have expired."}>
+    <AuthCard brand="athena" title="Can't load this request." subtitle={error instanceof Error ? error.message : "It may have expired."}>
       <p className="text-[13px] text-foreground/70">Start the connection again from the app you're connecting.</p>
     </AuthCard>
   ),
@@ -128,7 +128,7 @@ function Consent() {
   }
 
   return (
-    <AuthCard
+    <AuthCard brand="athena"
       title={`Connect ${clientName} to Contractor Circle`}
       subtitle={`This lets ${clientName} use the Contractor Circle tools as you.`}
     >

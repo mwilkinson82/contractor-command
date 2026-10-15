@@ -30,12 +30,47 @@ export function AuthCard({
   subtitle,
   children,
   footer,
+  brand = "hub",
 }: {
   title: string;
   subtitle?: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  brand?: "hub" | "athena";
 }) {
+  if (brand === "athena") {
+    return (
+      <main className="min-h-screen bg-[#F2EFE7] px-4 py-10 text-[#171919] sm:py-16">
+        <div className="mx-auto w-full max-w-lg">
+          <img
+            src="/brand/athena/athena-wordmark-primary.svg"
+            alt="Athena"
+            className="mx-auto h-auto w-56 sm:w-64"
+          />
+          <p className="mt-3 text-center text-xs tracking-[0.18em] text-[#343635]">
+            POWERED BY ALP
+          </p>
+          <section className="mt-10 rounded-2xl border border-[#343635]/20 bg-background p-6 text-foreground shadow-sm sm:p-9">
+            <div className="mb-6 h-1 w-10 bg-[#B9512C]" aria-hidden="true" />
+            <h1 className="font-display text-3xl leading-tight">{title}</h1>
+            {subtitle && (
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{subtitle}</p>
+            )}
+            <div className="mt-7">{children}</div>
+            <div className="mt-7 border-t border-border pt-5 text-xs text-muted-foreground">
+              {footer ?? "Athena · Contractor Circle"}
+            </div>
+          </section>
+          <a
+            href="mailto:support@alpcontractorcircle.com"
+            className="mt-6 block text-center text-xs text-[#343635] underline underline-offset-4"
+          >
+            Need help?
+          </a>
+        </div>
+      </main>
+    );
+  }
   return (
     <main className="min-h-screen bg-background px-4 py-5 text-foreground sm:px-6 sm:py-8 lg:px-10">
       <div className="mx-auto w-full max-w-[1450px]">
