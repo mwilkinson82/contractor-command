@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { sendTransactionalEmail } from "@/lib/email/send";
 import { requestMemberMagicLink } from "@/lib/magic-link.functions";
 
-import { oauthReturnPath } from "@/lib/oauth-return-path";
+import { oauthReturnPath, oauthConsentReturn } from "@/lib/oauth-return-path";
 
 const safeRedirect = oauthReturnPath;
 
@@ -37,8 +37,8 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const fromConnect = !!redirectTo?.startsWith("/oauth/consent");
-  const [mode, setMode] = useState<"magic" | "password">(fromConnect ? "password" : "magic");
+  const fromConnect = !!oauthConsentReturn(redirectTo);
+  const [mode, setMode] = useState<"magic" | "password">("magic");
   const [magicRequested, setMagicRequested] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
 
@@ -51,7 +51,7 @@ function LoginPage() {
       );
     });
 
-    return Promise.race([requestMagicLink({ data: { email: emailAddress } }), timeout]).finally(
+    return Promise.race([requestMagicLink({ data: { email: emailAddress, continuation: oauthConsentReturn(redirectTo) } }), timeout]).finally(
       () => {
         if (timeoutId) clearTimeout(timeoutId);
       },
@@ -64,14 +64,14 @@ function LoginPage() {
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_, session) => {
-      if (session) {
+      if (session && mode === "password") {
         router.invalidate();
         if (redirectTo?.includes("?")) window.location.assign(redirectTo);
         else navigate({ to: redirectTo });
       }
     });
     return () => sub.subscription.unsubscribe();
-  }, [router, navigate, redirectTo]);
+  }, [router, navigate, redirectTo, mode]);
 
   async function onMagicSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -94,7 +94,7 @@ function LoginPage() {
     setBusy(true);
     setErr(null);
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) setErr(error.message);
+    if (error) setErr("We could not sign you in. Check your details or request a secure sign-in link.");
     if (data?.user) {
       const user = data.user;
       const metadata = user.user_metadata as { full_name?: unknown };
@@ -120,7 +120,7 @@ function LoginPage() {
       subtitle={
         magicRequested
           ? `If this address is eligible and email delivery is available, you will receive a secure sign-in link. Check the spelling of ${email}, or sign in with your password.`
-          : "One secure login routes you to every ALP resource, application, and member space included in your access."
+          : "No password required. Use the email associated with your membership."
       }
     >
       {magicRequested ? (
@@ -152,7 +152,7 @@ function LoginPage() {
           {err && <p className="text-[12px] text-[color:var(--danger-warm)]">{err}</p>}
           <AuthSubmit
             busy={busy || !isHydrated}
-            label={isHydrated ? "Enter the command center" : "Loading"}
+            label={isHydrated ? "Email me a secure sign-in link" : "Loading"}
             busyLabel={isHydrated ? "Sending secure link" : "Loading"}
           />
           <button

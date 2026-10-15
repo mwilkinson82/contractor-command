@@ -2,7 +2,6 @@ import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthCard } from "@/components/auth/auth-card";
-import { rememberOAuthReturn } from "@/lib/oauth-return-path";
 import { MCP_ALLOWED_EMAILS } from "@/lib/mcp/allowlist";
 
 type OAuthResult = { data: any; error: { message: string } | null };
@@ -42,7 +41,6 @@ export const Route = createFileRoute("/oauth/consent")({
     const { data } = await supabase.auth.getSession();
     if (!data.session) {
       const next = location.pathname + location.searchStr;
-      rememberOAuthReturn(next);
       throw redirect({ to: "/login", search: { redirect: next } });
     }
   },
@@ -59,7 +57,7 @@ export const Route = createFileRoute("/oauth/consent")({
       return null;
     }
     const { data: u } = await supabase.auth.getUser();
-    return { details: data, email: u.user?.email ?? "" };
+    return { details: data, email: u.user?.email ?? "", userId: u.user?.id };
   },
   component: Consent,
   pendingComponent: () => (
@@ -81,13 +79,13 @@ function Consent() {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   if (!loaded) return null;
-  const { details, email } = loaded;
+  const { details, email, userId } = loaded;
   const allowed = MCP_ALLOWED_EMAILS.has(email.trim().toLowerCase());
   async function switchAccount() {
     setBusy(true);
     const next = `/oauth/consent?authorization_id=${encodeURIComponent(authorization_id)}`;
-    rememberOAuthReturn(next);
-    await supabase.auth.signOut();
+    const { error: signOutError } = await supabase.auth.signOut();
+    if (signOutError) { setError("Could not switch accounts. Please try again."); setBusy(false); return; }
     navigate({ to: "/login", search: { redirect: next }, replace: true });
   }
   const clientName: string = details?.client?.name ?? details?.client?.client_name ?? "An app";
@@ -99,6 +97,12 @@ function Consent() {
   async function decide(approve: boolean) {
     setBusy(true);
     setError(null);
+    const { data: identity, error: identityError } = await supabase.auth.getUser();
+    if (identityError || !identity.user || identity.user.id !== userId) {
+      setError("Your signed-in account changed. Reload this request before approving.");
+      setBusy(false);
+      return;
+    }
     const { data, error } = approve
       ? await oauth().approveAuthorization(authorization_id)
       : await oauth().denyAuthorization(authorization_id);

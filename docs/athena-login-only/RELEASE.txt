@@ -1,0 +1,98 @@
+ATHENA LOGIN-ONLY RELEASE — LOCAL REVIEW, NOT DEPLOYED
+Branch: codex/athena-passwordless-login-only
+Base: cf0957f10ec9983ea6574be401ba71c5352839cc
+Combined implementation preserved at codex/athena-passwordless-access,
+commit 7a5ef853ebb430902b041e715deed9b91f8ea7c1.
+
+SCOPE
+Magic-link-first member/connector login, optional password login, explicit
+no-password-required copy, signed cross-browser consent continuation, strict
+redirect validation, callback token-verification race protection, and consent
+account-change protection. Original membership eligibility remains unchanged.
+No standalone entitlement lookup, Stripe webhook/catalog change, gate change,
+new database function/table, migration, tenant/role change, allowlist change,
+pricing, checkout, logo, or automatic customer onboarding email.
+Existing database reads/writes performed by the established member sign-in flow
+remain; this release adds no database dependency or schema change.
+
+OPERATOR READINESS — REQUIRED BEFORE PUBLICATION
+Destination is ONLY Lovable project 362c776b-68ab-4871-bedb-c42cb9843c1b.
+The owner must enter OAUTH_CONTINUATION_SECRET through Lovable's secure secret
+form or More > Cloud > Secrets > Add secret. Recommended value: 32 random bytes
+encoded as 64 hexadecimal characters. Code enforces at least 32 characters.
+Never put the value in chat, source, VITE_ variables, logs, screenshots or reports.
+Use one stable runtime value for signing and verification. No external provider
+or second application needs a copy. Rotation invalidates outstanding signed
+continuations immediately; their normal maximum lifetime is 30 minutes.
+
+Missing/short configuration produces the fixed ERROR log:
+  [oauth-continuation] configuration_error
+  code: OAUTH_CONTINUATION_NOT_CONFIGURED
+  action: Configure OAUTH_CONTINUATION_SECRET in this project's Lovable Cloud Secrets before releasing connector sign-in.
+This check occurs before identity lookup, user creation, token generation, or
+email sending. The log contains no identity, secret value/length, token, or URL.
+Public callers still receive the same delayed generic accepted response.
+Ordinary login without an OAuth continuation remains available without this key.
+The same check also protects continuation verification after a key is removed.
+
+After the owner submits the secret, verify it in the Lovable server runtime by
+calling assertOAuthContinuationConfigured() from oauth-continuation.server.ts
+in a private operator check. Report only configured/pass or failed, no values
+or derived data. Do not expose a public debug endpoint or send an email for this
+configuration check. No automatic monitoring alert is installed by this branch;
+operators must review this fixed error code in the server logs. Configuring the
+secret has NOT been confirmed. Lovable secret forms require owner/editor action;
+MCP respond_to_approval cannot submit secret values.
+
+RELEASE SEQUENCE
+1. Obtain the pending explicit approval before any GitHub branch push/draft PR.
+   Do not upload using another route while that approval is pending.
+2. Review the login-only commit and recheck current main for concurrent work.
+   Do not merge the combined standalone branch for this release.
+3. After action-time authorization, have the owner configure the secret through
+   Lovable's secure form and verify runtime readiness as above.
+4. Stage the reviewed login-only code through the approved Lovable project flow.
+   No database migration or standalone Stripe catalog setting is required.
+5. Obtain approval for controlled acceptance email delivery to the designated
+   test identity. Verify existing passwordless member login; consent restoration
+   in a fresh browser/device; two concurrent requests; expiry/reuse rejection;
+   account switching; invalid redirects; optional password login. Confirm a
+   read-only MCP call under the unchanged allowlist and active Circle gate.
+   Preserve the existing TEST company and jobs 2417, 2417-R, 2418. These checks
+   are still pending; local tests are mocked/in-process, not live acceptance.
+6. Obtain release approval for the exact reviewed version, then publish only
+   through the specified Lovable project. Verify published behavior. Do not
+   claim deployment from a build or preview alone.
+
+ROLLBACK
+In Lovable, restore the app version captured immediately before this release,
+not blindly the historical baseline if main has advanced. Revert only the
+login-only change set, preserving concurrent work. Republish through Lovable
+with action-time approval and verify the prior login behavior. No database
+rollback is required and no member/job data should be changed or deleted.
+Keeping the unused continuation secret after rollback is harmless; removal is a
+separate owner configuration action. New signed links may no longer restore
+consent under the old callback, so users may need to restart connection setup.
+Likewise, pre-release emails without signed continuations may sign in but need
+a fresh connector request under the new callback. Never restore a bypass.
+
+STANDALONE RELEASE
+Remains on the preserved combined branch. It still requires approved commercial
+terms/catalog IDs, Lovable-only migration and database verification, separate
+release approval and lifecycle acceptance. The login-only operational error
+improvement must be brought forward when combining the branches later.
+
+VERIFICATION
+32 focused auth tests passed. 642 code-only regression tests across 56 files
+passed; SQL-executing suites deliberately excluded. No SQL executed locally.
+Commands:
+  npx vitest run src/lib/magic-link.functions.test.ts src/lib/oauth-continuation.test.ts src/lib/auth-callback.test.ts src/lib/login-passwordless.test.ts
+  npx vitest run --exclude '**/*database.test.ts'
+  npx tsc --noEmit
+  npm run build
+No external provider was called by the mocked auth tests, no customer email was
+sent, and no secret was generated, transmitted, or configured by this task.
+
+Final checks: TypeScript passed; production build passed; focused ESLint
+passed; git diff --check passed. No signing-secret identifier or signing-domain
+implementation found in built public assets.
