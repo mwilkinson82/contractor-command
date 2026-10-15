@@ -3,7 +3,7 @@
 import { ToolError } from "@lovable.dev/mcp-js";
 import { dbError, type Sb } from "./guard";
 
-export type Job = { job_id: string; job_number: string; name: string; company_id: string; scope?: "full" | "contract" };
+export type Job = { job_id: string; job_number: string; name: string; company_id: string; scope?: "full" | "contract" | "super" };
 
 export async function resolveCompany(sb: Sb, companyId?: string): Promise<string> {
   // Companies are only visible to their members (RLS), so this is "my companies".
@@ -26,7 +26,18 @@ export async function resolveCompany(sb: Sb, companyId?: string): Promise<string
 }
 
 /** Exact job-number match only. Anything else returns "Did you mean…" without acting. */
-export async function resolveJob(sb: Sb, jobNumber: string, companyId?: string): Promise<Job> {
+export const READ_ONLY_MESSAGE = "Your role has a limited, read-only view of this job (no financials). Ask your owner or PM to make changes.";
+export const FULL_ACCESS_MESSAGE = "This needs full access to the job. Your role can't do it.";
+
+/** need "write": anything but the read-only Super view; need "full": full job scope only. Re-checked by the database on every write. */
+export async function resolveJob(sb: Sb, jobNumber: string, companyId?: string, need?: "write" | "full"): Promise<Job> {
+  const job = await resolveJobRaw(sb, jobNumber, companyId);
+  if (need === "write" && job.scope === "super") throw new ToolError(READ_ONLY_MESSAGE);
+  if (need === "full" && job.scope !== "full") throw new ToolError(job.scope === "super" ? READ_ONLY_MESSAGE : FULL_ACCESS_MESSAGE);
+  return job;
+}
+
+async function resolveJobRaw(sb: Sb, jobNumber: string, companyId?: string): Promise<Job> {
   const company = await resolveCompany(sb, companyId);
   const { data, error } = await sb.rpc("mcp_resolve_job", { _company: company, _job_number: jobNumber });
   if (error) dbError(error);
@@ -129,7 +140,8 @@ function show(v: unknown): string {
 export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" | "client") {
   const client = audience === "client";
   const contractOnly = job.scope === "contract";
-  const hideMoney = client || contractOnly;
+  const superView = job.scope === "super";
+  const hideMoney = client || contractOnly || superView;
   const [co, flagsR, factsR, itemsR, nas] = await Promise.all([
     sb.from("mcp_companies").select("name, agent_name").eq("id", job.company_id).maybeSingle(),
     sb.from("mcp_job_flags").select("flag_key, value, source, set_at").eq("job_id", job.job_id),
@@ -150,14 +162,14 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
   const sectionNa = new Set(nas.filter((n) => n.scope === "section").map((n) => n.target));
   const out: string[] = [];
   out.push(
-    `${prefix(job)}JOB SETUP REPORT (${client ? "CLIENT-FACING" : contractOnly ? "INTERNAL — CONTRACT SIDE ONLY" : "INTERNAL"})`,
+    `${prefix(job)}JOB SETUP REPORT (${client ? "CLIENT-FACING" : superView ? "LIMITED VIEW — NO FINANCIALS" : contractOnly ? "INTERNAL — CONTRACT SIDE ONLY" : "INTERNAL"})`,
     `Job: ${job.job_number} – ${job.name}`,
     `Company: ${co.data?.name ?? "unknown"} | Prepared by: ${co.data?.agent_name ?? "PM agent"}`,
     `Data through: ${dataThrough}`,
     "",
   );
   let n = 1;
-  const modules = contractOnly ? ["contract"] : client ? ["applicability", "contract", "warranty"] : ["applicability", "contract", "handoff", "budget", "warranty"];
+  const modules: string[] = superView ? [] : contractOnly ? ["contract"] : client ? ["applicability", "contract", "warranty"] : ["applicability", "contract", "handoff", "budget", "warranty"];
   for (const mod of modules) {
     const sectionItems = items.filter((i) => i.section === mod);
     out.push(`${n++}. ${SECTION_TITLES[mod]}`);
