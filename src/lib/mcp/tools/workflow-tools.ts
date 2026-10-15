@@ -225,7 +225,7 @@ export const intake = defineTool({
           structuredContent: { job_id: r.job_id!, job_number: args.job_number },
         };
       }
-      const job = await resolveJob(sb, args.job_number, args.company_id);
+      const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const P = prefix(job);
 
       if (args.section === "job_settings") {
@@ -422,7 +422,7 @@ export const nextQuestion = defineTool({
   annotations: { ...WRITE, idempotentHint: true },
   handler: (args, ctx) =>
     run("next_question", ctx, args.lookahead_id, async (sb) => {
-      const job = await resolveJob(sb, args.job_number, args.company_id);
+      const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const P = prefix(job);
       if (args.lookahead_id) {
         const la = await lookaheadForJob(sb, job, args.lookahead_id);
@@ -478,7 +478,7 @@ export const answer = defineTool({
   handler: (args, ctx) =>
     run("answer", ctx, args.lookahead_id, async (sb) => {
       capInput(args);
-      const job = await resolveJob(sb, args.job_number, args.company_id);
+      const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const P = prefix(job);
       const action = args.action ?? "answer";
       if (action === "mark_na" || action === "reenable") {
@@ -584,7 +584,7 @@ export const carryForward = defineTool({
   annotations: { ...WRITE, idempotentHint: true },
   handler: (args, ctx) =>
     run("carry_forward", ctx, args.to_lookahead_id, async (sb) => {
-      const job = await resolveJob(sb, args.job_number, args.company_id);
+      const job = await resolveJob(sb, args.job_number, args.company_id, "full");
       if (args.from_lookahead_id === args.to_lookahead_id) throw new ToolError("from and to lookaheads must be different.");
       const [from, to] = await Promise.all([lookaheadForJob(sb, job, args.from_lookahead_id), lookaheadForJob(sb, job, args.to_lookahead_id)]);
       const { data: items, error } = await sb.from("mcp_open_items").select("id, carry_count, section, check_key, item_type").eq("lookahead_id", from.id).eq("status", "open");
@@ -621,7 +621,7 @@ export const listOpenItems = defineTool({
       if (error) throw new Error(error.message);
       await audit(sb, job, "list_open_items", "view_open_items", null);
       if (!data?.length) return text(`${prefix(job)}No open items.`);
-      const lines = (data as unknown as Parameters<typeof itemLine>[0][]).map((it) => `- ${itemLine(it, nas, job.scope === "contract")}`);
+      const lines = (data as unknown as Parameters<typeof itemLine>[0][]).map((it) => `- ${itemLine(it, nas, job.scope !== "full")}`);
       const rows = data as unknown as Parameters<typeof itemLine>[0][];
       return { ...text(`${prefix(job)}Open items (${data.length}):\n${lines.join("\n")}`), structuredContent: { items: rows.map((i) => ({ item_id: i.id, item_type: itemType(i, nas) })) } };
     }),
@@ -650,7 +650,7 @@ export const resolveItem = defineTool({
   handler: (args, ctx) =>
     run("resolve_item", ctx, undefined, async (sb) => {
       capInput(args);
-      const job = await resolveJob(sb, args.job_number, args.company_id);
+      const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const { data: it, error } = await sb.from("mcp_open_items").select("id, job_id, section, check_key, item_type").eq("id", args.item_id).maybeSingle();
       if (error) throw new Error(error.message);
       if (!it || it.job_id !== job.job_id) throw new ToolError(`Item not found on job ${job.job_number}.`);
