@@ -31,11 +31,23 @@ function syntheticSession() {
     token_type: "bearer",
     expires_in: 3600,
     expires_at: exp,
-    user: { id: USER_ID, aud: "authenticated", role: "authenticated", app_metadata: {}, user_metadata: {}, created_at: "2026-01-01T00:00:00Z" },
+    user: {
+      id: USER_ID,
+      aud: "authenticated",
+      role: "authenticated",
+      app_metadata: {},
+      user_metadata: {},
+      created_at: "2026-01-01T00:00:00Z",
+    },
   };
 }
 
-type Waiter = { steal: boolean; signal?: AbortSignal; grant: () => void; reject: (e: unknown) => void };
+type Waiter = {
+  steal: boolean;
+  signal?: AbortSignal;
+  grant: () => void;
+  reject: (e: unknown) => void;
+};
 
 // Minimal Web Locks fake: exclusive mode, ifAvailable, signal abort, steal.
 class FakeLockManager {
@@ -46,7 +58,11 @@ class FakeLockManager {
     this.held.set(name, { abort: () => undefined });
   }
 
-  request(name: string, opts: { ifAvailable?: boolean; steal?: boolean; signal?: AbortSignal }, cb: (lock: unknown) => Promise<unknown>) {
+  request(
+    name: string,
+    opts: { ifAvailable?: boolean; steal?: boolean; signal?: AbortSignal },
+    cb: (lock: unknown) => Promise<unknown>,
+  ) {
     return new Promise((resolve, reject) => {
       const run = () => {
         let abortHolder: (e: unknown) => void = () => undefined;
@@ -71,7 +87,10 @@ class FakeLockManager {
       const w: Waiter = { steal: false, signal: opts.signal, grant: run, reject };
       opts.signal?.addEventListener("abort", () => {
         const q = this.queue.get(name) ?? [];
-        this.queue.set(name, q.filter((x) => x !== w));
+        this.queue.set(
+          name,
+          q.filter((x) => x !== w),
+        );
         reject(new DOMException("aborted", "AbortError"));
       });
       this.queue.set(name, [...(this.queue.get(name) ?? []), w]);
@@ -109,7 +128,10 @@ beforeEach(() => {
   vi.stubEnv("VITE_SUPABASE_PUBLISHABLE_KEY", "synthetic-publishable-key");
   vi.stubGlobal("window", globalThis);
   vi.stubGlobal("document", { visibilityState: "hidden" });
-  vi.stubGlobal("location", { hostname: "app.alpcontractorcircle.com", href: "https://app.alpcontractorcircle.com/oauth/consent?authorization_id=synthetic" });
+  vi.stubGlobal("location", {
+    hostname: "app.alpcontractorcircle.com",
+    href: "https://app.alpcontractorcircle.com/oauth/consent?authorization_id=synthetic",
+  });
   vi.stubGlobal("localStorage", storage);
   vi.stubGlobal("navigator", { locks });
   vi.stubGlobal("BroadcastChannel", undefined);
@@ -121,9 +143,14 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-async function settleWithin<T>(p: Promise<T>, ms: number): Promise<{ settled: true; value: T } | { settled: false }> {
+async function settleWithin<T>(
+  p: Promise<T>,
+  ms: number,
+): Promise<{ settled: true; value: T } | { settled: false }> {
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<{ settled: false }>((r) => (timer = setTimeout(() => r({ settled: false }), ms)));
+  const timeout = new Promise<{ settled: false }>(
+    (r) => (timer = setTimeout(() => r({ settled: false }), ms)),
+  );
   try {
     return await Promise.race([p.then((value) => ({ settled: true as const, value })), timeout]);
   } finally {
