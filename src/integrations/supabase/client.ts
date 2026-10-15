@@ -25,6 +25,10 @@ function createSupabaseClient() {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
+      // supabase-js 2.106 forwards an unset value as `undefined`, which
+      // overrides the auth SDK's own 5000 ms default and makes the cross-tab
+      // lock wait forever (no orphaned-lock recovery). Restore the SDK default.
+      lockAcquireTimeout: 5000,
     }
   });
 }

@@ -1,5 +1,13 @@
 export function oauthReturnPath(value: unknown): string {
-  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//") || /[\\\u0000-\u001f\u007f]/.test(value)) return "/";
+  if (
+    typeof value !== "string" ||
+    !value.startsWith("/") ||
+    value.startsWith("//") ||
+    // Reject URL control characters before parsing.
+    // eslint-disable-next-line no-control-regex
+    /[\\\u0000-\u001f\u007f]/.test(value)
+  )
+    return "/";
   // A fixed parsing origin keeps route search validation safe during SSR.
   const origin = "https://app.invalid";
   try {
@@ -11,29 +19,19 @@ export function oauthReturnPath(value: unknown): string {
   }
 }
 
-// Magic links open in a new tab and land on /auth/callback without the
-// original ?redirect, so the consent page also stashes its URL here.
-const KEY = "alp.oauth.consentReturn";
-const TTL_MS = 30 * 60 * 1000;
-
-export function rememberOAuthReturn(path: string) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify({ path, at: Date.now() }));
-  } catch {
-    /* storage unavailable */
-  }
-}
-
-export function consumeOAuthReturn(): string | undefined {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return undefined;
-    localStorage.removeItem(KEY);
-    const { path, at } = JSON.parse(raw) as { path?: unknown; at?: number };
-    if (typeof at !== "number" || Date.now() - at > TTL_MS) return undefined;
-    const safe = oauthReturnPath(path);
-    return safe.startsWith("/oauth/consent") ? safe : undefined;
-  } catch {
+// Only this canonical route can be carried through a passwordless OAuth link.
+export function oauthConsentReturn(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.length > 512) return undefined;
+  const safe = oauthReturnPath(value);
+  const url = new URL(safe, "https://app.invalid");
+  const id = url.searchParams.get("authorization_id");
+  if (
+    url.pathname !== "/oauth/consent" ||
+    url.hash ||
+    [...url.searchParams.keys()].length !== 1 ||
+    !id ||
+    !/^[a-zA-Z0-9_-]{1,200}$/.test(id)
+  )
     return undefined;
-  }
+  return `/oauth/consent?authorization_id=${encodeURIComponent(id)}`;
 }

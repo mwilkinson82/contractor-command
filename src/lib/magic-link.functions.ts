@@ -8,12 +8,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
+import { oauthConsentReturn } from "@/lib/oauth-return-path";
 import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
 
 type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
 
 const Input = z.object({
   email: z.string().trim().toLowerCase().email().max(255),
+  continuation: z.string().max(512).optional(),
 });
 
 function fallbackAppOrigin(): string {
@@ -34,9 +36,13 @@ function allowedRequestOrigin(origin: string | null): string | null {
       host === "127.0.0.1" ||
       host === "app.alpcontractorcircle.com" ||
       host === "contractor-command.lovable.app" ||
-      (host.endsWith(".lovable.app") && host.startsWith("id-preview--"));
+      host === "id-preview--362c776b-68ab-4871-bedb-c42cb9843c1b.lovable.app";
 
-    return allowed ? url.origin : null;
+    return allowed &&
+      (url.protocol === "https:" ||
+        (url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(host)))
+      ? url.origin
+      : null;
   } catch {
     return null;
   }
@@ -157,6 +163,13 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
       | "error" = "not_a_live_member";
 
     try {
+      const path = oauthConsentReturn(data.continuation);
+      if (data.continuation && !path) throw new Error("Invalid continuation");
+      const { createOAuthContinuation, assertOAuthContinuationConfigured } =
+        await import("./oauth-continuation.server");
+      // Check configuration before identity lookup or token minting. An outage
+      // is observable to operators regardless of whether this email is eligible.
+      if (path) assertOAuthContinuationConfigured();
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
       if (await ensureAuthUserForMember(supabaseAdmin, email)) {
@@ -171,13 +184,17 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
           internalAction = "link_failed";
           console.error("[magic-link] generateLink failed", {
             email: redactEmail(email),
-            error: error?.message ?? "No hashed_token returned from Supabase",
+            reason: "link_generation_failed",
           });
         } else {
+          const continuation = path
+            ? createOAuthContinuation(path, link.user.id, tokenHash)
+            : undefined;
           const confirmationUrl = buildTokenHashAuthUrl({
             origin,
             tokenHash,
             type: "magiclink",
+            continuation,
           });
           const firstName = await resolveFirstName(supabaseAdmin, email);
           const { sendLoginNudgeNow } = await import("@/lib/email/send-login-nudge-now");
@@ -189,6 +206,9 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
             idempotencyKey: `public-signin-${email}-${Date.now()}`,
             channel: "public_magic_link",
             siteUrl: origin,
+            // Presentation only, derived from the validated canonical consent
+            // path after signing. Not proof of client identity.
+            ...(continuation ? { variant: "athena" as const } : {}),
           });
           internalAction =
             sendResult.status === "sent"
@@ -202,7 +222,7 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
       internalAction = "error";
       console.error("[magic-link] internal error", {
         email: redactEmail(email),
-        err,
+        reason: "request_failed",
       });
     }
 

@@ -2,8 +2,8 @@ import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthCard } from "@/components/auth/auth-card";
-import { rememberOAuthReturn } from "@/lib/oauth-return-path";
 import { MCP_ALLOWED_EMAILS } from "@/lib/mcp/allowlist";
+import { boundedStep, ConsentStepError, consentReturnPath } from "@/lib/consent-loading";
 
 type OAuthResult = { data: any; error: { message: string } | null };
 type OAuthApi = {
@@ -37,38 +37,36 @@ export const Route = createFileRoute("/oauth/consent")({
   validateSearch: (s: Record<string, unknown>) => ({
     authorization_id: typeof s.authorization_id === "string" ? s.authorization_id : "",
   }),
-  beforeLoad: async ({ search, location }) => {
+  beforeLoad: async ({ search }) => {
     if (!search.authorization_id) throw new Error("This connection request is missing its ID. Start again from the app you're connecting.");
-    const { data } = await supabase.auth.getSession();
+    const { data, error } = await boundedStep("session", () => supabase.auth.getSession());
+    if (error) throw new ConsentStepError("session", "failed");
     if (!data.session) {
-      const next = location.pathname + location.searchStr;
-      rememberOAuthReturn(next);
-      throw redirect({ to: "/login", search: { redirect: next } });
+      throw redirect({ to: "/login", search: { redirect: consentReturnPath(search.authorization_id) } });
     }
   },
   loader: async ({ location }) => {
     const id = new URLSearchParams(location.search).get("authorization_id")!;
-    const { data, error } = await Promise.race([
-      oauth().getAuthorizationDetails(id),
-      new Promise<OAuthResult>((r) => setTimeout(() => r({ data: null, error: { message: "The connection request timed out. Start again from the app you're connecting." } }), 15000)),
-    ]);
-    if (error) throw new Error(error.message || "This connection request is invalid or has expired.");
+    const { data, error } = await boundedStep("details", () => oauth().getAuthorizationDetails(id));
+    if (error) throw new ConsentStepError("details", "failed");
     const immediate = data?.redirect_url ?? data?.redirect_to;
     if (immediate && !data?.client) {
       window.location.href = immediate;
       return null;
     }
-    const { data: u } = await supabase.auth.getUser();
-    return { details: data, email: u.user?.email ?? "" };
+    const { data: u, error: userError } = await boundedStep("identity", () => supabase.auth.getUser());
+    // Fail closed: no confirmed identity means no consent screen.
+    if (userError || !u?.user?.id) throw new ConsentStepError("identity", "failed");
+    return { details: data, email: u.user.email ?? "", userId: u.user.id };
   },
   component: Consent,
   pendingComponent: () => (
-    <AuthCard title="Loading connection request…" subtitle="One moment.">
+    <AuthCard brand="athena" title="Loading connection request…" subtitle="One moment.">
       <div />
     </AuthCard>
   ),
   errorComponent: ({ error }) => (
-    <AuthCard title="Can't load this request." subtitle={error instanceof Error ? error.message : "It may have expired."}>
+    <AuthCard brand="athena" title="Can't load this request." subtitle={error instanceof Error ? error.message : "It may have expired."}>
       <p className="text-[13px] text-foreground/70">Start the connection again from the app you're connecting.</p>
     </AuthCard>
   ),
@@ -81,13 +79,13 @@ function Consent() {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   if (!loaded) return null;
-  const { details, email } = loaded;
+  const { details, email, userId } = loaded;
   const allowed = MCP_ALLOWED_EMAILS.has(email.trim().toLowerCase());
   async function switchAccount() {
     setBusy(true);
     const next = `/oauth/consent?authorization_id=${encodeURIComponent(authorization_id)}`;
-    rememberOAuthReturn(next);
-    await supabase.auth.signOut();
+    const { error: signOutError } = await supabase.auth.signOut();
+    if (signOutError) { setError("Could not switch accounts. Please try again."); setBusy(false); return; }
     navigate({ to: "/login", search: { redirect: next }, replace: true });
   }
   const clientName: string = details?.client?.name ?? details?.client?.client_name ?? "An app";
@@ -99,6 +97,12 @@ function Consent() {
   async function decide(approve: boolean) {
     setBusy(true);
     setError(null);
+    const { data: identity, error: identityError } = await supabase.auth.getUser();
+    if (identityError || !identity.user || identity.user.id !== userId) {
+      setError("Your signed-in account changed. Reload this request before approving.");
+      setBusy(false);
+      return;
+    }
     const { data, error } = approve
       ? await oauth().approveAuthorization(authorization_id)
       : await oauth().denyAuthorization(authorization_id);
@@ -124,7 +128,7 @@ function Consent() {
   }
 
   return (
-    <AuthCard
+    <AuthCard brand="athena"
       title={`Connect ${clientName} to Contractor Circle`}
       subtitle={`This lets ${clientName} use the Contractor Circle tools as you.`}
     >

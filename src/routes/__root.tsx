@@ -24,6 +24,7 @@ import { START_HERE_MIN_TIER } from "@/lib/start-here-access";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { supabase } from "@/integrations/supabase/client";
 import { vault } from "@/lib/vault";
+import { createAuthInvalidationScheduler } from "@/lib/auth-event-invalidation";
 import { setPresence, resetPresence, type PresenceUser } from "@/lib/portal-presence";
 import { toast } from "sonner";
 
@@ -201,7 +202,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { rel: "icon", type: "image/x-icon", href: "/brand/circle-v1/favicon.ico" },
       { rel: "icon", type: "image/png", sizes: "32x32", href: "/brand/circle-v1/favicon-32.png" },
-      { rel: "icon", type: "image/png", sizes: "256x256", href: "/brand/circle-v1/app-icon-256.png" },
+      {
+        rel: "icon",
+        type: "image/png",
+        sizes: "256x256",
+        href: "/brand/circle-v1/app-icon-256.png",
+      },
       { rel: "apple-touch-icon", sizes: "512x512", href: "/brand/circle-v1/app-icon-512.png" },
       { rel: "manifest", href: "/site.webmanifest" },
     ],
@@ -349,7 +355,12 @@ function LoadingWorkspace() {
 
 function AuthGate({ children }: { children: (showShell: boolean) => React.ReactNode }) {
   const { session, loading } = useAuth();
-  const { needsOnboarding, loading: companyLoading } = useCompany();
+  const {
+    needsOnboarding,
+    loading: companyLoading,
+    error: companyError,
+    refetch: retryCompany,
+  } = useCompany();
   const { tier, loading: tierLoading } = useTier();
   const isAdmin = useIsAdmin();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -373,17 +384,26 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
     }
   }, [pathname, authHashTarget]);
 
-  // Invalidate router caches + sync vault when auth changes
+  // Invalidate router caches + sync vault when auth changes. Invalidation is
+  // deferred outside the auth callback, skipped for INITIAL_SESSION/token
+  // refresh, and never restarts the public sign-in/consent flow.
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
-      router.invalidate();
+    const scheduler = createAuthInvalidationScheduler({
+      getPathname: () => router.state.location.pathname,
+      invalidate: () => router.invalidate(),
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      scheduler.onEvent(event);
       if (s?.user?.id) {
         void vault.hydrateFor(s.user.id);
       } else {
         vault.reset();
       }
     });
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      sub.subscription.unsubscribe();
+      scheduler.dispose();
+    };
   }, [router]);
 
   useEffect(() => {
@@ -432,7 +452,9 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
       navigate({ to: "/login", search: { redirect: redirectTo }, replace: true });
       return;
     }
-    if (session && !companyLoading && needsOnboarding && !isOnboarding) {
+    // Auth callbacks and consent own their navigation. In particular, OTP
+    // establishes a session before the signed continuation has been resolved.
+    if (session && !isPublic && !companyLoading && needsOnboarding && !isOnboarding) {
       navigate({ to: "/onboarding" });
       return;
     }
@@ -470,6 +492,24 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
   }
 
   if (!session) return null;
+  if (companyLoading) return <LoadingWorkspace />;
+  if (companyError) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-background">
+        <div className="text-center">
+          <p>{companyError}</p>
+          <button
+            type="button"
+            onClick={() => void retryCompany()}
+            className="mt-4 rounded-lg border px-4 py-2"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
+  if (needsOnboarding && !isOnboarding) return <LoadingWorkspace />;
   // Onboarding renders without the app shell — it's a focused setup screen.
   if (isOnboarding) return <>{children(false)}</>;
   return <>{children(true)}</>;
