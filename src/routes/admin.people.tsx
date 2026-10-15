@@ -26,6 +26,7 @@ import {
 import { toast } from "sonner";
 import { Container } from "@/components/portal/page-header";
 import { useIsAdmin } from "@/hooks/use-is-admin";
+import { CircleWelcomeSender } from "@/components/admin/circle-welcome-sender";
 import {
   auditPeople,
   repairPerson,
@@ -164,6 +165,7 @@ function PeoplePage() {
       {/* Mint a sign-in link for ANY auth user, even if they're not in this list
           (no subscription / claim yet). Useful for triaging "can't log in" reports. */}
       <MintByEmail />
+      <CircleWelcomeSender />
 
       {/* Filters */}
 
