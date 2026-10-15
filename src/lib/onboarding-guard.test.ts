@@ -6,6 +6,7 @@ const m = vi.hoisted(() => ({
   session: { user: { id: "owner" } } as object | null,
   companyLoading: false,
   needsOnboarding: true,
+  portalHookCalls: [] as string[],
 }));
 vi.mock("react", async (original) => ({
   ...(await original<object>()),
@@ -24,15 +25,22 @@ vi.mock("@tanstack/react-router", () => ({
   HeadContent: () => null,
   Scripts: () => null,
 }));
-vi.mock("@/hooks/use-auth", () => ({ useAuth: () => ({ session: m.session, loading: false }) }));
+vi.mock("@/hooks/use-auth", () => ({
+  useAuth: () => (m.portalHookCalls.push("useAuth"), { session: m.session, loading: false }),
+}));
 vi.mock("@/hooks/use-company", () => ({
-  useCompany: () => ({ needsOnboarding: m.needsOnboarding, loading: m.companyLoading }),
+  useCompany: () => (
+    m.portalHookCalls.push("useCompany"),
+    { needsOnboarding: m.needsOnboarding, loading: m.companyLoading }
+  ),
 }));
 vi.mock("@/hooks/use-tier", () => ({
-  useTier: () => ({ tier: "circle", loading: false }),
+  useTier: () => (m.portalHookCalls.push("useTier"), { tier: "circle", loading: false }),
   tierAtLeast: () => true,
 }));
-vi.mock("@/hooks/use-is-admin", () => ({ useIsAdmin: () => false }));
+vi.mock("@/hooks/use-is-admin", () => ({
+  useIsAdmin: () => (m.portalHookCalls.push("useIsAdmin"), false),
+}));
 vi.mock("@/components/portal/app-sidebar", () => ({
   AppSidebar: () => null,
   AppSidebarProvider: () => null,
@@ -50,8 +58,13 @@ function runGuard() {
   type TestElement = { props: { children: TestElement }; type: (props: unknown) => unknown };
   const tree = (Route as unknown as { component: () => TestElement }).component();
   const gate = tree.props.children.props.children;
-  gate.type(gate.props);
-  m.effects.at(-1)!();
+  // AuthGate is the public/protected wrapper; it renders ProtectedGate only
+  // for protected paths. Public paths must never reach the portal hooks.
+  const rendered = gate.type(gate.props) as TestElement | null;
+  if (rendered && typeof rendered.type === "function" && rendered.type.name === "ProtectedGate") {
+    rendered.type(rendered.props);
+    m.effects.at(-1)!();
+  }
 }
 beforeEach(() => {
   m.effects = [];
@@ -59,6 +72,7 @@ beforeEach(() => {
   m.session = { user: { id: "owner" } };
   m.companyLoading = false;
   m.needsOnboarding = true;
+  m.portalHookCalls = [];
 });
 it.each(["/auth/callback", "/oauth/consent", "/.lovable/oauth/consent"])(
   "does not interrupt %s after OTP establishes a session",
@@ -66,8 +80,14 @@ it.each(["/auth/callback", "/oauth/consent", "/.lovable/oauth/consent"])(
     m.pathname = path;
     runGuard();
     expect(m.navigate).not.toHaveBeenCalled();
+    expect(m.portalHookCalls).toEqual([]);
   },
 );
+it("mounts the portal hooks on protected pages", () => {
+  m.pathname = "/";
+  runGuard();
+  expect(m.portalHookCalls).toEqual(["useAuth", "useCompany", "useTier", "useIsAdmin"]);
+});
 it("still requires onboarding on protected pages after a missing-company result", () => {
   m.pathname = "/";
   runGuard();
