@@ -26,18 +26,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { vault } from "@/lib/vault";
 import { setPresence, resetPresence, type PresenceUser } from "@/lib/portal-presence";
 import { toast } from "sonner";
+import { PUBLIC_ROUTES, signedOutReturnPath } from "@/lib/auth-gate-redirect";
 
-const PUBLIC_ROUTES = new Set([
-  "/login",
-  "/signup",
-  "/forgot-password",
-  "/reset-password",
-  "/auth/callback",
-  "/welcome",
-  "/scheduler-preview",
-  "/oauth/consent",
-  "/.lovable/oauth/consent",
-]);
 const ONBOARDING_ROUTE = "/onboarding";
 const APP_ORIGIN = "https://app.alpcontractorcircle.com";
 const DEFAULT_TITLE = "Command Center — Contractor Circle";
@@ -425,11 +415,10 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
     if (loading) return;
     if (authHashTarget) return;
     if (!session && !isPublic) {
-      const redirectTo =
-        typeof window === "undefined"
-          ? pathname
-          : `${window.location.pathname}${window.location.search}${window.location.hash}`;
-      navigate({ to: "/login", search: { redirect: redirectTo }, replace: true });
+      const redirectTo = signedOutReturnPath(router.latestLocation);
+      if (redirectTo !== null) {
+        navigate({ to: "/login", search: { redirect: redirectTo }, replace: true });
+      }
       return;
     }
     if (session && !companyLoading && needsOnboarding && !isOnboarding) {
@@ -458,6 +447,7 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
     isAdmin,
     pathname,
     authHashTarget,
+    router,
     navigate,
   ]);
 
