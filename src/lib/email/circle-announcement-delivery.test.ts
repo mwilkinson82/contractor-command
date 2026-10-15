@@ -147,6 +147,25 @@ const workers = {
 };
 for (const [worker, run] of Object.entries(workers))
   describe(`${worker} Circle delivery`, () => {
+    it.each(["canceled", "changed", "past", "unavailable"])(
+      "withholds stale call session: %s",
+      async (reason) => {
+        const id = "11111111-1111-4111-8111-111111111111";
+        payload.circle_session = { id, version: 1 };
+        tables.circle_sessions = [
+          {
+            id,
+            version: reason === "changed" ? 2 : 1,
+            status: reason === "canceled" ? "canceled" : "scheduled",
+            starts_at: reason === "past" ? "2000-01-01T00:00:00Z" : "2099-01-01T00:00:00Z",
+            meeting_url: "https://meet.google.com/abc-defg-hij",
+          },
+        ];
+        if (reason === "unavailable") failTable = "circle_sessions";
+        await run();
+        expect(m.send).not.toHaveBeenCalled();
+      },
+    );
     it("delivers through the existing branded Lovable path without Resend", async () => {
       await run();
       expect(m.send).toHaveBeenCalledTimes(1);

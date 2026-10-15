@@ -1,3 +1,5 @@
+import { EmailSection } from "./_responsive";
+import { responsiveEmail, ResponsiveEmailHead } from "./_responsive";
 import type { ReactNode } from "react";
 import {
   Body,
@@ -21,6 +23,7 @@ interface TransactionalEmailProps {
   actionLabel?: string;
   actionUrl?: string;
   code?: string;
+  verificationEmail?: string;
   footer: ReactNode;
 }
 
@@ -32,30 +35,52 @@ export function TransactionalEmail({
   actionLabel,
   actionUrl,
   code,
+  verificationEmail,
   footer,
 }: TransactionalEmailProps) {
   return (
     <Html lang="en" dir="ltr">
-      <Head />
+      <ResponsiveEmailHead />
       <Preview>{preview}</Preview>
-      <Body style={emailStyles.main}>
-        <Container style={emailStyles.container}>
-          <Section style={emailStyles.card}>
+      <Body style={responsiveEmail.main}>
+        <Container style={responsiveEmail.container}>
+          <EmailSection style={responsiveEmail.card}>
             <ContractorCircleEmailHeader label={label} />
-            <Section style={emailStyles.body}>
+            <EmailSection style={responsiveEmail.body}>
               <Text style={emailStyles.eyebrow}>Contractor Circle / Secure access</Text>
               <Heading style={emailStyles.h1}>{title}</Heading>
               <Text style={emailStyles.text}>{children}</Text>
+              {verificationEmail && (
+                <EmailSection style={{ backgroundColor: "#F7F2EA", padding: 16, marginBottom: 24 }}>
+                  <Text
+                    style={{ fontSize: 10, letterSpacing: "1.5px", color: "#6B6259", margin: 0 }}
+                  >
+                    EMAIL TO CONFIRM
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: 700,
+                      lineHeight: "25px",
+                      margin: "14px 0 0",
+                      overflowWrap: "anywhere",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {verificationEmail}
+                  </Text>
+                </EmailSection>
+              )}
               {code && <Text style={emailStyles.codeBlock}>{code}</Text>}
               {actionLabel && actionUrl && (
-                <Button style={emailStyles.button} href={actionUrl}>
+                <Button style={responsiveEmail.button} href={actionUrl}>
                   {actionLabel}
                 </Button>
               )}
               <Text style={transactionalStyles.footer}>{footer}</Text>
-            </Section>
+            </EmailSection>
             <ContractorCircleEmailFooter />
-          </Section>
+          </EmailSection>
         </Container>
       </Body>
     </Html>

@@ -137,9 +137,9 @@ async function resolveFirstName(
 
 export type MagicLinkResult = {
   ok: true;
-  // Always "sent" to unauthenticated callers. The actual action is logged
+  // Always "accepted" to unauthenticated callers. The actual action is logged
   // server-side only so the UI cannot enumerate member emails.
-  action: "sent";
+  action: "accepted";
 };
 
 export const requestMemberMagicLink = createServerFn({ method: "POST" })
@@ -153,7 +153,8 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
       | "suppressed"
       | "send_failed"
       | "not_a_live_member"
-      | "link_failed" = "not_a_live_member";
+      | "link_failed"
+      | "error" = "not_a_live_member";
 
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -198,6 +199,7 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
         }
       }
     } catch (err) {
+      internalAction = "error";
       console.error("[magic-link] internal error", {
         email: redactEmail(email),
         err,
@@ -207,5 +209,5 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
     console.info("[magic-link]", { email: redactEmail(email), action: internalAction });
 
     await minDelay;
-    return { ok: true, action: "sent" };
+    return { ok: true, action: "accepted" };
   });

@@ -1,3 +1,9 @@
+import {
+  announcementSessionFields,
+  resolveAnnouncement,
+} from "@/lib/circle-sessions/announcement.server";
+import { assertQueuedSessionCurrent } from "@/lib/circle-sessions/store.server";
+import { membershipDb } from "@/lib/membership/circle.server";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import * as React from "react";
@@ -52,12 +58,7 @@ function generateToken(): string {
 }
 
 type Audience =
-  | "active"
-  | "all_with_login"
-  | "circle"
-  | "circle_inactive"
-  | "control_baseline"
-  | "test";
+  "active" | "all_with_login" | "circle" | "circle_inactive" | "control_baseline" | "test";
 
 interface Recipient {
   email: string;
@@ -160,6 +161,7 @@ async function loadReviewedCircleAudience(
 }
 
 const InputSchema = z.object({
+  ...announcementSessionFields,
   subject: z.string().min(1).max(255),
   headline: z.string().min(1).max(160),
   preheader: z.string().max(200).optional(),
@@ -247,11 +249,27 @@ export const previewReviewedCircleAnnouncement = createServerFn({ method: "GET" 
     return loadReviewedCircleAudience(data.audience, context.userId);
   });
 
+export const previewMemberAnnouncementContent = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => InputSchema.parse(input))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.userId);
+    const resolved = await resolveAnnouncement(supabaseAdmin, data);
+    const html = await render(
+      React.createElement(TEMPLATES[TEMPLATE_NAME].component, resolved.props),
+    );
+    return { html, previewHash: resolved.hash };
+  });
+
 export const sendMemberAnnouncement = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => InputSchema.parse(input))
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
+
+    const resolved = await resolveAnnouncement(supabaseAdmin, data);
+    if (data.mode === "call" && data.previewHash !== resolved.hash)
+      throw new Error("Preview this exact call announcement before sending");
 
     if (data.circleReview && !isCircleAnnouncementAudience(data.audience))
       throw new Error("Circle audience review cannot be used for this audience");
@@ -284,20 +302,24 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
     // Persist a copy of the composed announcement so the form can always
     // re-load the last thing we sent (real or test). This is the safety net
     // against losing a draft when the preview/browser blows up.
-    const { error: announcementError } = await supabaseAdmin.from("member_announcements").insert({
-      announcement_id: announcementId,
-      sent_by: context.userId,
-      audience: data.audience,
-      subject: data.subject,
-      headline: data.headline,
-      preheader: data.preheader ?? null,
-      body: data.body,
-      cta_label: data.ctaLabel ?? null,
-      cta_url: data.ctaUrl ?? null,
-      signoff: data.signoff ?? null,
-      recipient_count: recipients.length,
-      was_test: data.audience === "test",
-    });
+    const { error: announcementError } = await membershipDb(supabaseAdmin)
+      .from("member_announcements")
+      .insert({
+        announcement_mode: data.mode,
+        session_snapshot: resolved.snapshot,
+        announcement_id: announcementId,
+        sent_by: context.userId,
+        audience: data.audience,
+        subject: data.subject,
+        headline: data.headline,
+        preheader: data.preheader ?? null,
+        body: data.body,
+        cta_label: data.ctaLabel ?? null,
+        cta_url: data.ctaUrl ?? null,
+        signoff: data.signoff ?? null,
+        recipient_count: recipients.length,
+        was_test: data.audience === "test",
+      });
     if (announcementError) throw new Error("Could not save announcement audit");
 
     if (snapshot && (snapshot.reviewHolds.length || snapshot.suppressions.length)) {
@@ -420,15 +442,7 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
 
         // Render template per-recipient (firstName varies).
         const entry = TEMPLATES[TEMPLATE_NAME];
-        const props = {
-          firstName: r.firstName ?? undefined,
-          headline: data.headline,
-          preheader: data.preheader,
-          body: data.body,
-          ctaLabel: data.ctaLabel,
-          ctaUrl: data.ctaUrl,
-          signoff: data.signoff,
-        };
+        const props = { ...resolved.props, firstName: r.firstName ?? undefined };
         const element = React.createElement(entry.component, props);
         const html = await render(element);
         const plainText = await render(element, { plainText: true });
@@ -460,6 +474,7 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
           }
         }
 
+        await assertQueuedSessionCurrent(supabaseAdmin, { circle_session: data.session });
         const { error: logError } = await supabaseAdmin.from("email_send_log").insert({
           message_id: messageId,
           template_name: TEMPLATE_NAME,
@@ -567,6 +582,7 @@ export const sendMemberAnnouncement = createServerFn({ method: "POST" })
             unsubscribe_token: unsubscribeToken,
             queued_at: new Date().toISOString(),
             circle_membership_required: circleRequired,
+            circle_session: data.session,
           },
         });
 
@@ -624,10 +640,10 @@ export const getLastMemberAnnouncement = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context.userId);
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await membershipDb(supabaseAdmin)
       .from("member_announcements")
       .select(
-        "subject,headline,preheader,body,cta_label,cta_url,signoff,audience,was_test,recipient_count,created_at",
+        "subject,headline,preheader,body,cta_label,cta_url,signoff,audience,was_test,recipient_count,created_at,announcement_mode,session_snapshot",
       )
       .order("created_at", { ascending: false })
       .limit(1)

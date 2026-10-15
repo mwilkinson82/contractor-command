@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { MEMBER_REPLY_TO } from '@/lib/email/reply-to'
 import { render } from '@react-email/components'
 import { parseEmailWebhookPayload } from '@lovable.dev/email-js'
 import { WebhookError, verifyWebhookRequest } from '@lovable.dev/webhooks-js'
@@ -179,6 +180,7 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
             to: payload.data.email,
             from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
             sender_domain: SENDER_DOMAIN,
+            reply_to: MEMBER_REPLY_TO,
             subject: EMAIL_SUBJECTS[emailType] || 'Notification',
             html,
             text,

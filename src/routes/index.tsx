@@ -1,3 +1,4 @@
+import { useCircleSessions } from "@/hooks/use-circle-sessions";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { isEmbeddableReplayUrl, openTemplateFile } from "@/lib/library";
@@ -10,7 +11,6 @@ import {
   formatSessionDate,
   greeting,
   nextAny,
-  nextOfKind,
   relativeDay,
   type Session,
 } from "@/lib/program";
@@ -50,11 +50,6 @@ import {
   Lock,
 } from "lucide-react";
 
-const CALL_ANNOUNCEMENT_ID = "contractor-circle-call-2026-09-27-5pm-et";
-const CALL_ANNOUNCEMENT_DISMISSED_KEY = `alp.cc.dismissed.${CALL_ANNOUNCEMENT_ID}`;
-const CALL_ANNOUNCEMENT_START_AT = "2026-09-27T21:00:00.000Z";
-const CALL_ANNOUNCEMENT_EXPIRES_AT = "2026-09-27T22:30:00.000Z";
-
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
@@ -72,13 +67,14 @@ export const Route = createFileRoute("/")({
 const COMPANY_KEY = "aos.company_id";
 
 function HomePage() {
-  const session = nextAny();
-  const standardCallSession = nextOfKind("Biweekly Call") ?? session;
-  const callSession = {
-    ...standardCallSession,
-    title: "Contractor Circle Call",
-    date: CALL_ANNOUNCEMENT_START_AT,
-  };
+  const { sessions } = useCircleSessions();
+  const session = nextAny(sessions);
+  const callSession = session;
+  const sessionId = session?.id;
+  const sessionDate = session?.date;
+  const sessionZone = session?.timeZone;
+  const sessionDuration = session?.durationMin;
+  const dismissedKey = `alp.cc.dismissed.${session?.id ?? "none"}`;
   const [latestReplay, setLatestReplay] = useState<{ title: string; recorded_at: string } | null>(
     null,
   );
@@ -207,21 +203,21 @@ function HomePage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!user || !shouldSeeCallAnnouncement) return;
+    if (!user || !shouldSeeCallAnnouncement || !sessionDate || !sessionDuration) return;
     const now = Date.now();
-    const startAt = new Date(CALL_ANNOUNCEMENT_START_AT).getTime();
-    const expiresAt = new Date(CALL_ANNOUNCEMENT_EXPIRES_AT).getTime();
+    const startAt = Date.parse(sessionDate);
+    const expiresAt = startAt + sessionDuration * 60_000;
     // Only show on the day of the call (from 8 hours before start until expiry).
     const showFrom = startAt - 8 * 60 * 60 * 1000;
     if (now < showFrom || now > expiresAt) return;
-    if (window.sessionStorage.getItem(CALL_ANNOUNCEMENT_DISMISSED_KEY) === "1") return;
+    if (window.sessionStorage.getItem(dismissedKey) === "1") return;
     setCallAnnouncementOpen(true);
-  }, [shouldSeeCallAnnouncement, user]);
+  }, [shouldSeeCallAnnouncement, user, sessionId, sessionDate, sessionDuration, dismissedKey]);
 
   function handleCallAnnouncementOpenChange(open: boolean) {
     setCallAnnouncementOpen(open);
     if (!open && typeof window !== "undefined") {
-      window.sessionStorage.setItem(CALL_ANNOUNCEMENT_DISMISSED_KEY, "1");
+      window.sessionStorage.setItem(dismissedKey, "1");
     }
   }
 
@@ -234,13 +230,13 @@ function HomePage() {
         day: "numeric",
       }),
     );
-    setSessionWhen(formatSessionDate(session.date));
+    setSessionWhen(sessionDate ? formatSessionDate(sessionDate, sessionZone) : "");
     if (latestReplay) setReplayDate(new Date(latestReplay.recorded_at).toLocaleDateString());
     const load = () => setPackets(vault.list());
     load();
     window.addEventListener("vault:changed", load);
     return () => window.removeEventListener("vault:changed", load);
-  }, [session.date, latestReplay]);
+  }, [sessionDate, sessionZone, latestReplay]);
 
   // Load latest replay from DB
   useEffect(() => {
@@ -262,11 +258,13 @@ function HomePage() {
 
   return (
     <div className="relative">
-      <ContractorCircleCallAnnouncement
-        open={callAnnouncementOpen}
-        onOpenChange={handleCallAnnouncementOpenChange}
-        session={callSession}
-      />
+      {callSession && (
+        <ContractorCircleCallAnnouncement
+          open={callAnnouncementOpen}
+          onOpenChange={handleCallAnnouncementOpenChange}
+          session={callSession}
+        />
+      )}
 
       {/* Ask Marshall hero — the front door */}
       <HomeHero
@@ -279,14 +277,7 @@ function HomePage() {
         featuredTraining={featuredTraining ?? null}
         greetingIcon={
           company?.greeting_icon as
-            | "wave"
-            | "crane"
-            | "bulldozer"
-            | "hammer"
-            | "scale"
-            | "brick"
-            | null
-            | undefined
+            "wave" | "crane" | "bulldozer" | "hammer" | "scale" | "brick" | null | undefined
         }
       />
 
@@ -308,13 +299,20 @@ function HomePage() {
       <section className="relative px-4 pb-12 sm:px-6">
         <div className="mx-auto grid w-full max-w-[1180px] overflow-hidden rounded-xl border border-border shadow-[0_24px_70px_-55px_color-mix(in_oklab,var(--ink)_45%,transparent)] lg:grid-cols-[minmax(0,1fr)_360px]">
           <WhatNeedsMove moves={dashboardMoves} />
-          <NextCallCard
-            session={session}
-            sessionWhen={sessionWhen}
-            latestReplay={latestReplay}
-            replayDate={replayDate}
-            locked={!hasCircleAccess}
-          />
+          {session ? (
+            <NextCallCard
+              session={session}
+              sessionWhen={sessionWhen}
+              latestReplay={latestReplay}
+              replayDate={replayDate}
+              locked={!hasCircleAccess}
+            />
+          ) : (
+            <div className="p-6">
+              <p>No upcoming session confirmed.</p>
+              <Link to="/calls">View calls</Link>
+            </div>
+          )}
         </div>
       </section>
 
@@ -362,7 +360,6 @@ function HomePage() {
             <FeaturedLatestClass />
             <FeaturedWorkbook />
           </>
-
         ) : (
           <LockedCircleEducation />
         )}
@@ -782,7 +779,6 @@ function FeaturedAlpLearn() {
 }
 
 function FeaturedWorkbook() {
-
   const [busy, setBusy] = useState<string | null>(null);
 
   const workbooks = [
