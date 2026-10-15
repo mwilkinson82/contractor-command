@@ -64,6 +64,13 @@
       "when": 1792014486533,
       "tag": "0008_mcp_finance_sees_restricted",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792025886960,
+      "tag": "0009_mcp_remove_test_caller_bypass",
+      "breakpoints": true
     }
   ]
 }
