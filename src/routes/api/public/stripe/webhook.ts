@@ -1,5 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import Stripe from "stripe";
+import {
+  cancellationActivation,
+  cancellationFacts,
+  cancellationEventMatches,
+} from "@/lib/email/circle-cancellation";
+import { enqueueCircleCancellation } from "@/lib/email/circle-cancellation.server";
+import { shouldSkipResendCapture } from "@/lib/resend/never-email";
 import { circleDecision, membershipDb } from "@/lib/membership/circle.server";
 import { drainCircleAudienceSync } from "@/lib/membership/reconcile.server";
 import {
@@ -224,7 +231,16 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
               if (isAosAddonSubscription(sub)) {
                 await upsertAosAddon(supabaseAdmin, stripe, sub);
               } else {
-                await upsertSubscription(supabaseAdmin, stripe, sub, null, observedAt);
+                await upsertSubscription(
+                  supabaseAdmin,
+                  stripe,
+                  sub,
+                  null,
+                  observedAt,
+                  undefined,
+                  false,
+                  event,
+                );
               }
               break;
             }
@@ -356,6 +372,7 @@ async function upsertSubscription(
   observedAt = new Date().toISOString(),
   paidInvoiceId?: string,
   circleOnly = false,
+  lifecycleEvent?: Stripe.Event,
 ) {
   let email: string | null = null;
   let customerName: string | null = null;
@@ -560,6 +577,26 @@ async function upsertSubscription(
     if (verifiedInvoiceId && !paymentReview)
       Object.assign(row.metadata, { circle_paid_invoice_id: verifiedInvoiceId });
     else Object.assign(row.metadata, { circle_paid_invoice_id: priorInvoiceId });
+    const noticeFacts =
+      cancellationActivation() === null
+        ? null
+        : cancellationFacts(sub, {
+            periodEnd: currentPeriodEnd,
+            paidThrough,
+            reviewReason,
+            memberEmail: normalizedEmail,
+            billingEmail: email.trim().toLowerCase(),
+            customerName,
+            memberAllowed: !identityConflict && (!customerEmailChanged || approvedBillingIdentity),
+            neverEmail: shouldSkipResendCapture({
+              email: normalizedEmail,
+              firstName,
+              lastName,
+              company,
+            }),
+          });
+    if (cancellationActivation() !== null)
+      Object.assign(row.metadata, { circle_cancellation_notice: noticeFacts });
     circleSourcePaid =
       !!paidThrough &&
       Date.parse(paidThrough) > Date.now() &&
@@ -575,6 +612,30 @@ async function upsertSubscription(
     );
     if (error) throw new Error(error.message);
     if (!applied) return; // Newer refresh already owns onboarding/claims/outbox.
+    if (
+      cancellationActivation() !== null &&
+      lifecycleEvent &&
+      lifecycleEvent.created * 1000 >= cancellationActivation()! &&
+      ["customer.subscription.updated", "customer.subscription.deleted"].includes(
+        lifecycleEvent.type,
+      ) &&
+      (sub.status === "canceled" || sub.cancel_at_period_end || sub.cancel_at) &&
+      !sub.canceled_at &&
+      !["payment_failed", "payment_disputed"].includes(sub.cancellation_details?.reason ?? "")
+    )
+      throw new Error(
+        "Circle cancellation lacks a verified request timestamp; manual review required",
+      );
+    if (
+      noticeFacts &&
+      lifecycleEvent &&
+      cancellationEventMatches(
+        lifecycleEvent as Stripe.Event & { data: { object: Stripe.Subscription } },
+        sub,
+        noticeFacts,
+      )
+    )
+      await enqueueCircleCancellation(supabaseAdmin, sub.id, noticeFacts, observedAt);
     circleEligible =
       (await circleDecision(supabaseAdmin, { userId: row.user_id, email: normalizedEmail }))
         .state === "eligible";

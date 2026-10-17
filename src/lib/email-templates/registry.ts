@@ -19,6 +19,7 @@ import { template as adminActivityNoticeTemplate } from './admin-activity-notice
 import { template as loginNudgeTemplate } from './login-nudge'
 import { template as discordNudgeTemplate } from './discord-nudge'
 import { template as circleWelcomeTemplate } from './circle-welcome'
+import { memberTemplate as circleCancellationMember, ownerTemplate as circleCancellationOwner } from './circle-cancellation'
 import { template as magicLinkTemplate } from './magic-link'
 import { template as stateOfControlReportTemplate } from './state-of-control-report'
 
@@ -33,6 +34,8 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
   'discord-nudge': discordNudgeTemplate,
   'circle-first-step': circleFirstStepTemplate,
   'circle-welcome': circleWelcomeTemplate,
+  'circle-cancellation-confirmation': circleCancellationMember,
+  'circle-cancellation-owner': circleCancellationOwner,
   'magic-link': magicLinkTemplate,
   'state-of-control-report': stateOfControlReportTemplate,
 }
