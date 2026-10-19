@@ -11,12 +11,18 @@
 
 const ORIGIN = "https://app.alpcontractorcircle.com";
 
+// Smallest first: ChatGPT shows a broken icon when the fetched icon is too
+// large (reported for ~13 KB files; our 512 PNG is ~14 KB).
 export const ATHENA_SERVER_ICONS = Object.freeze([
+  { src: `${ORIGIN}/brand/athena/athena-icon-64.png`, mimeType: "image/png", sizes: ["64x64"] },
   { src: `${ORIGIN}/brand/athena/athena-primary-512.png`, mimeType: "image/png", sizes: ["512x512"] },
   { src: `${ORIGIN}/brand/athena/athena-mark-primary.svg`, mimeType: "image/svg+xml", sizes: ["any"] },
 ]);
 
 export const ATHENA_WEBSITE_URL = ORIGIN;
+
+/** MCP 2025-11-25 Implementation.description. There is no publisher field in the spec. */
+export const ATHENA_DESCRIPTION = "Athena powered by ALP, construction agents. Built by ALP.";
 
 type JsonRpcMessage = { jsonrpc?: string; id?: unknown; method?: string; result?: { serverInfo?: Record<string, unknown> } };
 
@@ -46,6 +52,7 @@ export function brandJsonRpcPayload(payload: unknown, ids: unknown[]): { value: 
           ...info,
           icons: info.icons ?? ATHENA_SERVER_ICONS.map((i) => ({ ...i, sizes: [...i.sizes] })),
           websiteUrl: info.websiteUrl ?? ATHENA_WEBSITE_URL,
+          description: info.description ?? ATHENA_DESCRIPTION,
         },
       },
     };
