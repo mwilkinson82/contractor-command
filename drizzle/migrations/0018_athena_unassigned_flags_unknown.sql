@@ -70,27 +70,6 @@ BEGIN
     'accountable', acc, 'needed_by', nb, 'delivery_item', child);
 END $function$;
 
--- 3b) Billing forecast (asked only when the job is NOT cost-loaded): v2 recommendation no longer tells the member to
---     cost-load the schedule they already said no to. wording approved by Marshall 2026-10-19. v1 stays for history.
-INSERT INTO public.mcp_checklist_items (key, version, category, trade, prompt, rule_type, required_inputs, severity, position, is_placeholder, module, section, applies_when, record_ref, display_label, no_recommendation)
-SELECT 'bss_billing_forecast', coalesce(max(version), 0) + 1, 'Budget, SOV, schedule', 'general', 'A monthly billing forecast is built from the budget, SOV and schedule.', 'confirm', '{}', 'high', 44, false, 'job_setup', 'budget_sov_schedule',
-       '{"flag":"cost_loaded","in":["no"]}', NULL, 'D12', 'Build a monthly billing forecast from the budget, SOV and schedule: spread each SOV line over the months the schedule says that work happens. I can help you build it. Why: a monthly billing forecast tells you whether you''re hitting your revenue target, shows you how to make it up if delays hit, and helps you sequence the work to capture revenue. Without it, you find out you''re behind on billing after the month is gone.'
-  FROM public.mcp_checklist_items WHERE key = 'bss_billing_forecast';
-UPDATE public.mcp_checklist_items SET superseded_at = now(), superseded_reason = 'v2: recommendation respects cost_loaded = no (0016)'
- WHERE key = 'bss_billing_forecast' AND version < (SELECT max(version) FROM public.mcp_checklist_items WHERE key = 'bss_billing_forecast') AND superseded_at IS NULL;
-
--- 4) Branding: new companies default to "Athena PM" (product line: "Athena powered by ALP, construction agents";
---    later agents follow the same pattern: "Athena Estimating", "Athena Accounts Payable").
-ALTER TABLE public.mcp_companies ALTER COLUMN agent_name SET DEFAULT 'Athena PM';
-
--- 5) DATA CHANGE (flagged for Marshall): companies still on the old default label move to the new one.
---    Only rows exactly equal to the old default; a custom name is never touched.
-UPDATE public.mcp_companies SET agent_name = 'Athena PM' WHERE agent_name = 'PM agent';
-
--- 6) Open items still carrying the old default help line get the new one (exact match only).
-UPDATE public.mcp_open_items SET help_offer = 'Athena can help you close this gap — ask it to draft the next step.'
- WHERE help_offer = 'The PM agent can help you close this gap — ask it to draft the next step.';
-
 
 -- 2) A member's explicit "not specified" sets an applicability flag back to unknown, even over an earlier value
 --    (mcp_set_flags never lets unknown overwrite a value). Opens the usual confirm item.
