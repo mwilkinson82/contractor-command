@@ -1,3 +1,4 @@
+import { shortRef } from "./refs";
 // Server-side workflow: checklist evaluation and fixed report rendering.
 // Rule types and required inputs are never returned to the host.
 import { ToolError } from "@lovable.dev/mcp-js";
@@ -131,7 +132,7 @@ export async function renderReport(sb: Sb, la: Lookahead) {
 
   out.push("1. HIT LIST");
   if (!items.length) out.push("   None.");
-  items.forEach((it, i) => out.push(`   ${i + 1}. ${it.action} | Owner: ${it.owner} | Due: ${due(it.due_date)}${it.carry_count ? ` | Carried ${it.carry_count}x` : ""} [item ${it.id}]`));
+  items.forEach((it, i) => out.push(`   ${i + 1}. ${it.action} | Owner: ${it.owner} | Due: ${due(it.due_date)}${it.carry_count ? ` | Carried ${it.carry_count}x` : ""} [ref ${shortRef(it.id)}]`));
   out.push("");
 
   out.push("2. QUESTIONS BY TRADE");

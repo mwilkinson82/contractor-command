@@ -13,6 +13,7 @@ export const WARRANTY_SETUP_QUESTIONS = [
   { key: "closeout_documents", label: "Required closeout documents", ask: "Which closeout documents are required (O&M manuals, as-builts, attic stock, training, lien releases, etc.)?" },
   { key: "punch_final_acceptance", label: "Punch list and final acceptance", ask: "What are the punch list and final acceptance requirements?" },
   { key: "manufacturer_warranties", label: "Manufacturer warranties to collect", ask: "Which manufacturer warranties do we have to collect and turn over?" },
+  { key: "closeout_expectations", label: "Other closeout expectations", ask: "Any other closeout expectations from the owner or GC: training, commissioning, final cleaning, lien waivers, a warranty walk, or a turnover meeting? Say none if there aren't any." },
 ] as const;
 export type WarrantyKey = (typeof WARRANTY_SETUP_QUESTIONS)[number]["key"];
 
@@ -48,7 +49,9 @@ export function renderWarrantyRegister(facts: Fact[], today: string): string[] {
   const trigOther = by.get("warranty_start_trigger_other");
   const trigDate = by.get("warranty_trigger_date");
   const trigText = isKnown(trig)
-    ? trig!.value === "other" ? `other: ${isKnown(trigOther) ? str(trigOther!.value) : "not described"}` : TRIGGER_LABEL[trig!.value as WarrantyTrigger] ?? str(trig!.value)
+    ? trig!.value === "other"
+      ? `other: ${isKnown(trigOther) ? str(trigOther!.value) : "not described"}`
+      : `${TRIGGER_LABEL[trig!.value as WarrantyTrigger] ?? str(trig!.value)}${isKnown(trigOther) ? ` (${str(trigOther!.value)})` : ""}`
     : "unknown";
 
   if (!isKnown(has)) out.push(`   - Workmanship warranty: unknown${src(has)}`);
@@ -100,7 +103,7 @@ export function warrantyOpenItems(facts: Fact[]): { check_key: string; action: s
     const f = by.get(q.key);
     if (f?.status === "na") continue;
     if (!isKnown(f)) items.push({ check_key: `warranty:${q.key}`, action: `Confirm ${q.label.toLowerCase()}`, item_type: "unknown" });
-    else if (/^(no|none)\.?$/i.test(str(f!.value)) && q.key !== "manufacturer_warranties")
+    else if (/^(no|none)\.?$/i.test(str(f!.value)) && q.key !== "manufacturer_warranties" && q.key !== "closeout_expectations")
       items.push({ check_key: `warranty:${q.key}`, action: `${q.label}: answered "no" — confirm against the contract`, item_type: "no",
         recommendation: `Read the closeout section and write down the ${q.label.toLowerCase()} now, so closeout isn't a surprise.`, why: "Closeout requirements left undefined at setup hold up final payment and retainage." });
   }
@@ -146,12 +149,19 @@ export function warrantyAnswerFacts(key: WarrantyKey, response: string | undefin
   }
   if (key === "warranty_start_trigger") {
     if (!d) throw new Error('Give the start trigger in detail: "substantial completion", "final acceptance", or describe the other trigger.');
-    if (/substantial/i.test(d)) return { warranty_start_trigger: "substantial_completion" };
-    if (/final (acceptance|completion)/i.test(d)) return { warranty_start_trigger: "final_acceptance" };
-    return { warranty_start_trigger: "other", warranty_start_trigger_other: d.slice(0, 500) };
+    return mapTrigger(d);
   }
   if (response === "na") return { [key]: "n/a" };
   if (!d && response === "no") return { [key]: "none" };
   if (!d) throw new Error('This question needs detail (the requirement, or "none"), or response "unknown".');
   return { [key]: d.slice(0, 2000) };
+}
+
+/** Map the member's words for what starts the warranty. Owner acceptance is final acceptance; the words are kept. */
+export function mapTrigger(text: string): { warranty_start_trigger: WarrantyTrigger; warranty_start_trigger_other: string | null } {
+  const d = text.trim().slice(0, 500);
+  if (/\b(owner'?s?|client'?s?) (final )?acceptance|acceptance by (the )?(owner|client)|final acceptance|final completion|accepted by (the )?owner/i.test(d))
+    return { warranty_start_trigger: "final_acceptance", warranty_start_trigger_other: /^final acceptance\.?$/i.test(d) ? null : d };
+  if (/substantial(ly)? complet/i.test(d)) return { warranty_start_trigger: "substantial_completion", warranty_start_trigger_other: /^substantial completion\.?$/i.test(d) ? null : d };
+  return { warranty_start_trigger: "other", warranty_start_trigger_other: d };
 }
