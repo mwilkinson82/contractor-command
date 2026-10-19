@@ -13,6 +13,7 @@ const ORIGIN = "https://app.alpcontractorcircle.com";
 
 export const ATHENA_SERVER_ICONS = Object.freeze([
   { src: `${ORIGIN}/brand/athena/athena-primary-512.png`, mimeType: "image/png", sizes: ["512x512"] },
+  { src: `${ORIGIN}/brand/athena/athena-mark-primary.svg`, mimeType: "image/svg+xml", sizes: ["any"] },
 ]);
 
 export const ATHENA_WEBSITE_URL = ORIGIN;
