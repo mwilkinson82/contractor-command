@@ -1,3 +1,4 @@
+import { DB_UNAVAILABLE, MCP_DAILY_CAP, MCP_HOURLY_CAP, capMessage, type CapResult } from "./limits";
 import { ToolError, type ToolContext } from "@lovable.dev/mcp-js";
 import { supabaseForUser } from "./supabase";
 import { runSweep } from "./sweep";
@@ -5,26 +6,27 @@ import { runSweep } from "./sweep";
 // Private prototype: hard-coded allowlist, plus the membership gate (mcp_gate -> is_circle_active) on every call.
 import { MCP_ALLOWED_EMAILS } from "./allowlist";
 export { MCP_ALLOWED_EMAILS };
-export const FOOTER = "\n\n---\nALP Contractor Circle - private prototype";
-export const INACTIVE_MESSAGE = "Your membership isn't active, so the PM agent is paused. Your job data is saved.";
+export const FOOTER = "\n\n---\nAthena powered by ALP, construction agents";
+export const INACTIVE_MESSAGE = "Your membership isn't active, so Athena is paused. Your job data is saved.";
 
 export type Sb = ReturnType<typeof supabaseForUser>;
 
-// Hidden per-account abuse cap lives in the database (mcp_abuse_cap_hit). Never surface its numbers.
+// Per-account call cap: mcp_abuse_cap_check with the caps from ./limits. The member sees which limit and when it resets.
 export async function guard(ctx: ToolContext): Promise<Sb> {
   if (!ctx.isAuthenticated()) throw new ToolError("Not authenticated.");
   const email = (ctx.getUserEmail() ?? "").trim().toLowerCase();
   const sb = supabaseForUser(ctx);
   if (!MCP_ALLOWED_EMAILS.has(email)) throw new ToolError("Forbidden (403): this account isn't enabled for this prototype.");
-  const { data, error } = await sb.rpc("mcp_abuse_cap_hit");
-  if (error) throw new ToolError("Please try again later.");
-  if (data !== true) {
-    await logWorkflow(sb, { event_type: "failure", tool: "guard", error_code: "cap_hit" });
-    throw new ToolError("Please try again later.");
+  const { data, error } = await sb.rpc("mcp_abuse_cap_check", { _hourly: MCP_HOURLY_CAP, _daily: MCP_DAILY_CAP });
+  if (error) throw new ToolError(DB_UNAVAILABLE);
+  const cap = (data ?? { ok: false }) as CapResult;
+  if (!cap.ok) {
+    await logWorkflow(sb, { event_type: "failure", tool: "guard", error_code: cap.limit === "daily" ? "cap_hit_daily" : "cap_hit_hourly" });
+    throw new ToolError(capMessage(cap));
   }
   // Subscription gate, before any job read or write. Cached ~5 minutes in the database.
   const gate = await sb.rpc("mcp_gate");
-  if (gate.error) throw new ToolError("Please try again later.");
+  if (gate.error) throw new ToolError(DB_UNAVAILABLE);
   if (gate.data !== true) {
     await logWorkflow(sb, { event_type: "failure", tool: "guard", error_code: "membership_inactive" });
     throw new ToolError(INACTIVE_MESSAGE);
