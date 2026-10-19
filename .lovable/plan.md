@@ -1,28 +1,22 @@
-# Private remote MCP server: can this backend support it?
+# OAUTH_CONTINUATION_SECRET — inspection report (read-only)
 
-Answers only. Nothing has been changed.
+No files, secrets, database, branches or deployments were changed. No secret value or derived material was read.
 
-## 1) OAuth Server (Dynamic Client Registration + custom consent path)
-**Yes, it's possible. I can turn it on, but you can't.** Your Lovable Cloud backend has no settings screen for this, so you can't change it yourself. I have a setup action that switches on the backend's OAuth 2.1 sign-in server. It enables Dynamic Client Registration by default and accepts a custom consent path such as `/oauth/consent`. The default path is `/.lovable/oauth/consent`. The address users are sent to for consent comes from the app's own canonical address, so I don't choose it. I haven't turned it on yet.
+## 1. Configuration metadata (verified)
+- The project's secret list includes the name `OAUTH_CONTINUATION_SECRET`. This was a name-only listing. It confirms the secret is saved, not that a running server can read it.
 
-## 2) Asymmetric JWT signing keys (ES256)
-**Yes.** I have a separate action that moves the project to asymmetric signing keys. Once it runs, the JWKS and authorization-server discovery documents are served by the direct auth issuer. I haven't checked which signing method the project uses today. The usual check is to read a fresh token's header: "HS256" means it still uses a shared secret. I'll check that before running anything.
+## 2. Runtime execution (pending)
+- No code in the current revision reads `OAUTH_CONTINUATION_SECRET`. A search of `src/` found nothing.
+- There is no supported read-only way to run a check in the server runtime. Running one would mean adding a check (the PR's code or a guarded probe) and building it into preview. Building counts as a mutation, so it is not allowed here.
+- So the synthetic HMAC checks (sign/verify, tamper rejection, expiry rejection) have **not run**. No PASS/FAIL is reported. Verification is still **pending**.
 
-## 3) Backend URL, project ref and custom auth domain
-I can't share the backend address or project ref. Lovable Cloud doesn't allow showing them. The app talks to the backend through a Lovable proxy address. External OAuth clients must use the direct issuer instead, because a proxy address fails strict issuer matching. I haven't confirmed whether a custom domain exists for sign-in itself. Your custom domain (app.alpcontractorcircle.com) serves the app and its consent page, not the auth issuer.
+## 3. Current Git revision
+- HEAD: `cf0957f10ec9983ea6574be401ba71c5352839cc` (Lovable working branch, not PR #56's head `6515e5f1…`).
 
-## 4) Edge function that skips the built-in JWT check
-**Possible, but I don't recommend it.** On this kind of project, server logic belongs inside the app itself, not in separate edge functions. The supported approach is an `/mcp` endpoint built into the Hub with Lovable's MCP toolkit:
-- It returns its own 401 with a `WWW-Authenticate` header.
-- It publishes the protected-resource metadata at `/.well-known/oauth-protected-resource`.
-- It checks each token against the direct issuer and only accepts tokens issued to OAuth clients. Copied login tokens are rejected.
-- It sends the caller's token through to the database, so each user only sees their own data.
+## 4. Owner-approved step needed to verify without production
+1. Approve bringing PR #56's head (`6515e5f18c68…`) into this project's preview. Two ways to do it: switch this project to that branch in the editor's branch picker, or have me apply the diff here. Either way it builds the **preview only**. Production at app.alpcontractorcircle.com changes only when someone clicks Publish.
+2. Make sure the PR has a server-only check (a test or a guarded diagnostic) that runs the three synthetic checks in memory and returns only named PASS/FAIL results.
+3. Run that check against the preview build and report only PASS/FAIL.
+4. Do not publish.
 
-This does the same job as mcp-lite with `withOAuthProtectedResource`, with no separate function to deploy.
-
-## If you approve, I would build
-1. Turn on the OAuth server (defaults, or `/oauth/consent` if you prefer).
-2. Check the signing method and move to ES256 if needed.
-3. Add a consent page with Approve and Deny. Make sure password, signup and Google sign-in all return users to it.
-4. Add the `/mcp` endpoint and the tools you choose. You'd need to tell me which tools to expose.
-5. Generate the MCP manifest. You then publish.
+Note: preview and production share one backend and one set of secrets. A preview result also confirms the secret is available to the published runtime once that code is published.
