@@ -3,6 +3,8 @@
 import { renderWarrantyRegister } from "./warranty";
 import { whoForJob } from "./people";
 import { itemRef } from "./refs";
+import { clientSafe } from "./client-safe";
+import { draftIdentityText } from "./drafts";
 import { ToolError } from "@lovable.dev/mcp-js";
 import { dbError, type Sb } from "./guard";
 
@@ -69,7 +71,7 @@ export async function audit(sb: Sb, job: Job | null, tool: string, action: strin
 
 export const prefix = (job: Job) => `${job.job_number} – `;
 
-const CLIENT_SCRUB = /budget|margin|contingency|\bIOR\b|cost[- ]to[- ]complete|strategy|profit|fee\b|savings[ _]split|runs the money/i;
+const CLIENT_SCRUB = /budget|margin|markup|forecast|overhead|\$\s?\d|contingency|\bIOR\b|cost[- ]to[- ]complete|strategy|profit|fee\b|savings[ _]split|runs the money/i;
 /** Coaching or internal copy that never belongs in a client-facing report. */
 export const CLIENT_COACHING = /can help you|I can help|Athena can|PM agent|the super runs|my recommendation/i;
 
@@ -240,8 +242,9 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
     out.push(`${n++}. SCHEDULE OF VALUES`);
     if (!sov.length) out.push("   None recorded.");
     sov.forEach((f) => {
-      const v = (f.value ?? {}) as { description?: string; billable_value?: number };
-      out.push(`   - ${f.key}: ${v.description ?? ""} ${v.billable_value ?? "unknown"}`);
+      // Client documents list the billing lines only; values stay out (no dollar figures in client reports).
+      const v = (f.value ?? {}) as { description?: string };
+      out.push(`   - ${f.key}: ${v.description ?? ""}`.trimEnd());
     });
     out.push("");
   }
@@ -260,5 +263,15 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
   ];
   if (!unk.length) out.push("   None.");
   out.push(...unk);
-  return out.join("\n");
+  if (!client) {
+    // Internal only: who drafts for this job are signed as (0019).
+    const jr = await sb.from("mcp_jobs").select("pm_user_id, pm_name, pm_email, pm_title").eq("id", job.job_id).maybeSingle();
+    if (!jr.error) {
+      const j = (jr.data ?? {}) as { pm_user_id?: string | null; pm_name?: string | null; pm_email?: string | null; pm_title?: string | null };
+      const pmName = who("unknown").replace(/ \(PM\)$/, "");
+      const name = pmName.startsWith("Unassigned") ? (j.pm_name ?? null) : pmName;
+      out.push("", draftIdentityText({ name, email: j.pm_email ?? null, title: j.pm_title ?? null, isMember: !!j.pm_user_id }, { name: co.data?.name ?? null }));
+    }
+  }
+  return client ? clientSafe(out.join("\n")) : out.join("\n");
 }
