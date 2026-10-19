@@ -21,7 +21,7 @@ describe("tools/list (retest 3, item 1)", () => {
   });
   it("the real server registers contract_terms and bumped its version", () => {
     const src = JSON.stringify(mcp, (_k, v) => (typeof v === "function" ? undefined : v));
-    expect(src).toContain("0.5.0");
+    expect(src).toContain("0.6.0");
     expect(src).toContain("contract_terms");
   });
 });
@@ -60,7 +60,9 @@ describe("draft header (item 4)", () => {
   it("carries the literal Sign as: and Suggested From: lines", () => {
     expect(draftHeader(pm, { name: "ALP Construction" })).toBe("Suggested From: sam.ortiz@example.com\nSign as: Sam Ortiz, Project Manager, ALP Construction");
     const t = draftIdentityText(pm, { name: "ALP Construction" });
-    expect(t).toContain("word for word");
-    expect(t).toContain("Suggested From: sam.ortiz@example.com\nSign as: Sam Ortiz, Project Manager, ALP Construction");
+    // Retest 4: visible data lines only; the instruction to put them above drafts is hidden guidance.
+    expect(t).not.toContain("word for word");
+    expect(t).toContain("- Sign as: Sam Ortiz, Project Manager, ALP Construction");
+    expect(t).toContain("- Suggested From: sam.ortiz@example.com");
   });
 });

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { findDelayTerms, parseClauseText, termDue } from "./delays";
 import { clientSafe, hasClientLeak } from "./client-safe";
-import { draftIdentity, draftIdentityText } from "./drafts";
+import { draftGuidance, draftIdentity, draftIdentityText } from "./drafts";
 import { makeWho } from "./people";
 
 describe("delay terms", () => {
@@ -35,7 +35,8 @@ describe("draft identity", () => {
       .toEqual({ suggested_from: "sam@x.invalid", signature: "Sam Ortiz\nProject Manager\nALP Construction", missing: [] });
     const t = draftIdentityText({ name: null, email: null, title: null, isMember: false }, { name: "ALP" });
     expect(t).toContain("no PM set");
-    expect(t).toContain("host's email card picks");
+    expect(t).not.toContain("email card"); // retest 4: how-to-send guidance is hidden (draftGuidance)
+    expect(draftGuidance({ name: null, email: null, title: null, isMember: false }, { name: "ALP" }).join(" ")).toContain("host's email card picks");
   });
   it("accountable defaults to a contact PM", () => {
     const who = makeWho([{ user_id: "u1", display_name: "Marshall", role: "owner" }], null, "Sam Ortiz");

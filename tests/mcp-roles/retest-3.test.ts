@@ -70,7 +70,10 @@ describe("item 3: items follow a non-member PM", () => {
 
   test("item 4: drafts carry the literal Suggested From / Sign as lines", async () => {
     const r = await call("intake", { section: "delay_event", job_number: "R3-2", delay_description: "Lighting rough-in slipped 3 weeks" });
-    expect(r.text).toContain("Suggested From: sam.ortiz@example.invalid\nSign as: Sam Ortiz, Project Manager, TEST Athena Co");
-    expect(r.text).toContain("word for word");
+    // Retest 4: the two lines are data (visible) plus hidden guidance on how to use them; no instruction in the visible text.
+    expect(r.text).toContain("- Sign as: Sam Ortiz, Project Manager, TEST Athena Co");
+    expect(r.text).toContain("- Suggested From: sam.ortiz@example.invalid");
+    expect(r.guidance).toContain("Suggested From: sam.ortiz@example.invalid / Sign as: Sam Ortiz, Project Manager, TEST Athena Co");
+    expect(r.structured?.assistant_guidance).toBeTruthy();
   });
 });
