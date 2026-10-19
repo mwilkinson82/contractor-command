@@ -21,7 +21,9 @@ const short = (d: string) => z.string().max(2000).optional().describe(d);
 const tri = z.enum(["yes", "no", "na", "unknown"]);
 const doc = (what: string) => z.string().max(20_000).optional().describe(`${what}, as plain text. Leave out if you don't have it; it is recorded as unknown.`);
 const WRITE = { readOnlyHint: false, destructiveHint: false, openWorldHint: false } as const;
-const READ = { readOnlyHint: true, openWorldHint: false } as const;
+const READ = { readOnlyHint: true, destructiveHint: false, openWorldHint: false } as const;
+// OpenAI: destructiveHint covers overwrite, cancel, waive or close, even when undoable.
+const DESTRUCTIVE = { readOnlyHint: false, destructiveHint: true, openWorldHint: false } as const;
 const MAX_INPUT = 20_000;
 
 function capInput(args: unknown) {
@@ -731,7 +733,7 @@ export const answer = defineTool({
     na_id: uuid.optional().describe("decline_reenable: na_id from the suggestion."),
     lookahead_id: uuid.optional().describe("Only for a two-week lookahead question."),
   },
-  annotations: { ...WRITE, idempotentHint: false },
+  annotations: { ...DESTRUCTIVE, idempotentHint: false },
   handler: (args, ctx) =>
     run("answer", ctx, { lookaheadId: args.lookahead_id, jobNumber: args.job_number }, async (sb) => {
       capInput(args);
@@ -933,7 +935,7 @@ export const resolveItem = defineTool({
     billing: z.string().max(1000).optional().describe("commercial_close: billing reference."),
     collection: z.string().max(1000).optional().describe("commercial_close: collection reference."),
   },
-  annotations: { ...WRITE, idempotentHint: false },
+  annotations: { ...DESTRUCTIVE, idempotentHint: false },
   handler: (args, ctx) =>
     run("resolve_item", ctx, { lookaheadId: undefined, jobNumber: args.job_number }, async (sb) => {
       capInput(args);

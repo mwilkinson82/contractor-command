@@ -1,3 +1,4 @@
+import { MCP_ALLOWED_EMAILS } from "./lib/mcp/allowlist";
 import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
@@ -100,7 +101,6 @@ const csrfOriginGuard = createMiddleware().server(async ({ next, request }) => {
  * Requests with no token pass through so the handler returns 401 +
  * WWW-Authenticate.
  */
-const MCP_ALLOWED_EMAILS = new Set(["marshall@marshallwilkinson.com"]);
 const mcpAllowlistGate = createMiddleware().server(async ({ next, request }) => {
   const url = new URL(request.url);
   if (url.pathname !== "/mcp" && !url.pathname.startsWith("/mcp/")) return next();
