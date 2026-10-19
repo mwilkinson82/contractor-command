@@ -21,7 +21,7 @@ import { LOOKAHEAD_PUSHBACK, LOOKAHEAD_BUILD_QUESTIONS } from "../../src/lib/mcp
 
 const handler = createTanStackMcpHandler(mcp, { resourcePath: "/mcp", metadataPath: "/.well-known/oauth-protected-resource" });
 let tok: Awaited<ReturnType<typeof setupKeysAndFetch>>;
-let capTest = false; // only the rate-limit test keeps the call log; elsewhere the 60/hour cap would trip on long walks
+let capTest = false; // only the rate-limit test keeps the call log; elsewhere the hourly cap would trip on long walks
 const call = async (name: string, args: Record<string, unknown>, who: "owner" | "super" = "owner") => {
   if (!capTest && state.db) await state.db.exec(`DELETE FROM public.mcp_call_log`);
   return callTool(handler, await tok(who), name, args);
@@ -248,7 +248,7 @@ describe("rate limit", () => {
     const uid = user("owner").id;
     capTest = true;
     await db.query(`DELETE FROM public.mcp_call_log WHERE user_id = $1`, [uid]);
-    await db.query(`INSERT INTO public.mcp_call_log (user_id, called_at) SELECT $1, now() - interval '30 minutes' FROM generate_series(1, 60)`, [uid]);
+    await db.query(`INSERT INTO public.mcp_call_log (user_id, called_at) SELECT $1, now() - interval '30 minutes' FROM generate_series(1, 200)`, [uid]);
     const r = await call("onboarding", { action: "read" });
     expect(r.isError).toBe(true);
     expect(r.text).toMatch(/You've hit Athena's hourly limit\. It resets at \d{2}:\d{2} E[DS]T \(in about (29|30|31) min\)\./);
