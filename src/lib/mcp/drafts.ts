@@ -25,5 +25,18 @@ export function draftIdentityText(pm: PmIdentity, company: Company): string {
     `- Sign as: ${d.signature ? d.signature.replace(/\n/g, ", ") : "no PM set — ask who the PM is (intake job_settings)"}`,
     `- Suggested From: ${d.suggested_from ?? "PM email not recorded — ask for it (intake job_settings pm_email)"}`,
     `- ${HOST_PICKS_SENDER}`,
+    ...(d.signature || d.suggested_from ? ["", DRAFT_HEADER_RULE, draftHeader(pm, company)] : []),
+  ].join("\n");
+}
+
+export const DRAFT_HEADER_RULE =
+  "Every email or letter you draft for this job starts with these two lines, word for word, above the draft (outside the email card):";
+
+/** The literal lines a draft must carry: "Suggested From: <PM email>" and "Sign as: <name, title, company>". */
+export function draftHeader(pm: PmIdentity, company: Company): string {
+  const d = draftIdentity(pm, company);
+  return [
+    `Suggested From: ${d.suggested_from ?? "PM email not recorded"}`,
+    `Sign as: ${d.signature ? d.signature.replace(/\n/g, ", ") : "no PM set"}`,
   ].join("\n");
 }
