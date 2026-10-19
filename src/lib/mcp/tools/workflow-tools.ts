@@ -7,6 +7,8 @@ import { INPUT_KEYS, INPUT_LABELS, currentCheck, loadLookahead, renderReport, ty
 import { WARRANTY_CHECK_PREFIX, WARRANTY_SETUP_QUESTIONS, mapTrigger, nextWarrantyQuestion, renderWarrantyRegister, warrantyAnswerFacts, warrantyHow, warrantyOpenItems, type WarrantyKey } from "../warranty";
 import { EVIDENCE_ASK, evidenceProblem } from "../evidence";
 import { itemRef, matchRef, shortRef } from "../refs";
+import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
+import { draftIdentityText, type PmIdentity } from "../drafts";
 import { FLAGS_ASKED_LATER, noGuidance, noGuidanceText, reconcileRecommendation } from "../guidance";
 import { LOOKAHEAD_BUILD_QUESTIONS, LOOKAHEAD_EXISTS_ASK, LOOKAHEAD_PUSHBACK, LOOKAHEAD_SETUP_KEY, buildQuestionsText, pushbackText } from "../lookahead-help";
 
@@ -206,16 +208,24 @@ export const intake = defineTool({
   name: "intake",
   title: "Job setup intake",
   description:
-    "Create a job (keyed by job number) and record its setup: job settings (time zone, PM), step 0 scoping, contract terms, contract deadlines, estimate handoff, budget and SOV, open items, or a two-week lookahead. Missing data is recorded as unknown, never guessed.",
+    "Create a job (keyed by job number) and record its setup: job settings (time zone, PM), step 0 scoping, contract terms, contract deadlines, estimate handoff, budget and SOV, open items, a delay event, or a two-week lookahead. Missing data is recorded as unknown, never guessed. Record every delay, slip or schedule impact the member mentions with section delay_event before answering.",
   inputSchema: {
-    section: z.enum(["create_job", "job_settings", "scope", "contract", "deadline", "handoff", "budget", "warranty", "open_item", "lookahead"]).describe("Which part of setup to record."),
+    section: z.enum(["create_job", "job_settings", "scope", "contract", "deadline", "handoff", "budget", "warranty", "open_item", "lookahead", "delay_event"]).describe("Which part of setup to record."),
     job_number: jobNumber,
     company_id: companyId,
     job_name: z.string().trim().max(200).optional().describe("create_job: job name."),
     restrict_to: z.array(z.string().trim().min(1).max(120)).max(30).optional().describe("create_job: member names who may see this job (leave out for all members)."),
     // Job settings
     time_zone: z.string().trim().max(60).optional().describe("job_settings: IANA time zone, e.g. America/Chicago. Deadlines are computed in it."),
-    pm: z.string().trim().max(120).optional().describe("job_settings: member name to assign as the job's PM."),
+    pm: z.string().trim().max(120).optional().describe("job_settings: the job PM's name. A company member is linked; anyone else is saved as a contact (name + email) with no Athena access."),
+    pm_email: z.string().trim().max(200).optional().describe("job_settings: the PM's email. Used as the suggested From on drafts. No Athena access is granted."),
+    pm_title: z.string().trim().max(120).optional().describe("job_settings: the PM's title for draft signatures. Default 'Project Manager'."),
+    // Delay event
+    delay_description: z.string().trim().max(500).optional().describe("delay_event: what slipped, in the member's words, e.g. 'Lighting rough-in slipped 3 weeks'."),
+    delay_activity: z.string().trim().max(200).optional().describe("delay_event: the schedule activity affected, if named."),
+    delay_start_date: date.optional().describe("delay_event: the date the delay began. Leave out if the member doesn't know; Athena flags both notices due today with 'confirm start date'."),
+    delay_days: z.number().int().min(0).max(3650).optional().describe("delay_event: estimated impact in calendar days, if stated."),
+    delay_cause: z.string().trim().max(500).optional().describe("delay_event: cause, if stated. Never guess it."),
     // Deadline (contract time clause)
     clause_key: z.enum(["notice", "submittal_turnaround", "rfi_turnaround", "liquidated_damages", "completion", "other"]).optional(),
     label: short("deadline: what is due, e.g. 'Delay notice: utility shutdown denied'."),
@@ -309,9 +319,66 @@ export const intake = defineTool({
       const P = prefix(job);
 
       if (args.section === "job_settings") {
-        if (!args.time_zone && !args.pm) throw new ToolError("job_settings needs time_zone and/or pm.");
-        const r = await rpc<{ time_zone: string | null; pm: string | null }>(sb, "mcp_job_settings", { _job: job.job_id, _time_zone: args.time_zone ?? null, _pm_name: args.pm ?? null });
-        return { ...text(`${P}Job settings saved. Time zone: ${r.time_zone ?? "unknown"} | PM: ${r.pm ?? "unassigned"}`), structuredContent: { time_zone: r.time_zone, pm: r.pm } };
+        if (!args.time_zone && !args.pm && !args.pm_email && !args.pm_title) throw new ToolError("job_settings needs time_zone and/or pm (pm_email, pm_title).");
+        type Settings = { time_zone: string | null; pm: string | null; pm_email?: string | null; pm_title?: string | null; pm_is_member?: boolean };
+        let r: Settings;
+        const full = await (sb.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: { code?: string; message: string } | null }>)("mcp_job_settings", {
+          _job: job.job_id, _time_zone: args.time_zone ?? null, _pm_name: args.pm ?? null, _pm_email: args.pm_email ?? null, _pm_title: args.pm_title ?? null,
+        });
+        if (full.error && isMissingFunction(full.error)) {
+          // Migration 0019 not applied yet: the old 3-arg version (members only).
+          r = await rpc<Settings>(sb, "mcp_job_settings", { _job: job.job_id, _time_zone: args.time_zone ?? null, _pm_name: args.pm ?? null });
+        } else {
+          if (full.error) dbError(full.error);
+          r = full.data as Settings;
+        }
+        const co = await sb.from("mcp_companies").select("name").eq("id", job.company_id).maybeSingle();
+        const pmLine = r.pm ? `${r.pm}${r.pm_is_member === false ? " (not an Athena user; saved as a contact with no Athena access)" : ""}${r.pm_email ? ` <${r.pm_email}>` : ""}` : "unassigned";
+        const id: PmIdentity = { name: r.pm, email: r.pm_email ?? null, title: r.pm_title ?? null, isMember: r.pm_is_member !== false };
+        return {
+          ...text(`${P}Job settings saved. Time zone: ${r.time_zone ?? "unknown"} | PM: ${pmLine}\n\n${draftIdentityText(id, { name: co.data?.name ?? null })}`),
+          structuredContent: { time_zone: r.time_zone, pm: r.pm, pm_email: r.pm_email ?? null, pm_title: r.pm_title ?? null, pm_is_member: r.pm_is_member ?? true },
+        };
+      }
+
+      if (args.section === "delay_event") {
+        if (!args.delay_description) throw new ToolError("delay_event needs delay_description (what slipped, in the member's words).");
+        const [dl, facts, jr, co] = await Promise.all([
+          sb.from("mcp_job_deadlines").select("clause_key, label, clause_ref, trigger_desc, n_days, day_type, recipient, delivery_method, active").eq("job_id", job.job_id),
+          sb.from("mcp_job_facts").select("key, value, status").eq("job_id", job.job_id).eq("module", "contract").in("key", ["notice_timing", "claim_process"]),
+          sb.from("mcp_jobs").select("pm_name, pm_email, pm_title, pm_user_id").eq("id", job.job_id).maybeSingle(),
+          sb.from("mcp_companies").select("name").eq("id", job.company_id).maybeSingle(),
+        ]);
+        const known = Object.fromEntries(((facts.data ?? []) as { key: string; value: unknown; status: string }[]).filter((f) => f.status === "known").map((f) => [f.key, f.value]));
+        const { notice, claim } = findDelayTerms((dl.data ?? []) as DeadlineRow[], known);
+        const start = args.delay_start_date ?? null;
+        const nd = termDue(notice, start);
+        const cd = termDue(claim, start);
+        const pack = (t: typeof notice, d: typeof nd) => (t ? { label: t.label, clause_ref: t.clause_ref, due: d.due, recipient: t.recipient, delivery_method: t.delivery_method } : null);
+        const r = await rpc<{ delay_event_id: string; start_known: boolean; notice_item: ItemResult; claim_item: ItemResult }>(sb, "mcp_delay_event_add", {
+          _job: job.job_id,
+          _d: { description: args.delay_description, activity: args.delay_activity, start_date: start, days: args.delay_days, cause: args.delay_cause },
+          _notice: pack(notice, nd), _claim: pack(claim, cd),
+        });
+        const termLine = (name: string, t: typeof notice, d: typeof nd) =>
+          !t ? `${name}: contract term not recorded — open item asks to confirm it (due today).`
+            : !start ? `${name}: ${t.n_days} ${t.day_type ?? "(day type not stated)"} days${t.clause_ref ? ` (${t.clause_ref})` : ""}; start date unknown, so flagged due today — confirm start date.`
+              : `${name}: due ${d.due} (${d.math}${t.clause_ref ? `, ${t.clause_ref}` : ""}).${d.precautions.length ? ` ${d.precautions.join(" ")}` : ""}`;
+        const j = (jr.data ?? {}) as { pm_name?: string | null; pm_email?: string | null; pm_title?: string | null; pm_user_id?: string | null };
+        let pmName = j.pm_name ?? null;
+        if (!pmName && j.pm_user_id) pmName = ((await sb.from("mcp_company_members").select("display_name").eq("company_id", job.company_id).eq("user_id", j.pm_user_id).maybeSingle()).data as { display_name?: string } | null)?.display_name ?? null;
+        const id: PmIdentity = { name: pmName, email: j.pm_email ?? null, title: j.pm_title ?? null, isMember: !!j.pm_user_id };
+        return {
+          ...text([
+            `${P}Delay recorded: ${args.delay_description}${args.delay_activity ? ` (activity: ${args.delay_activity})` : ""}.`,
+            `Start date: ${start ?? "unknown — confirm it; the notice clock runs from when the delay began, not when it was found"} | Impact: ${args.delay_days != null ? `${args.delay_days} days` : "unknown"} | Cause: ${args.delay_cause ?? "unknown"}`,
+            termLine("Delay notice", notice, nd), `Notice item:${itemNote(r.notice_item)}`,
+            termLine("Claim notice", claim, cd), `Claim item:${itemNote(r.claim_item)}`,
+            "", draftIdentityText(id, { name: co.data?.name ?? null }),
+          ].join("\n")),
+          structuredContent: { delay_event_id: r.delay_event_id, start_known: r.start_known, notice_due: start ? nd.due : null, claim_due: start ? cd.due : null,
+            items: [r.notice_item, r.notice_item?.delivery_item, r.claim_item, r.claim_item?.delivery_item].filter((x): x is ItemResult => !!x).map((x) => itemOut(x)!) },
+        };
       }
 
       if (args.section === "deadline") {
