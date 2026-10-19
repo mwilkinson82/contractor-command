@@ -4,7 +4,7 @@ import { dbError, run, text, type Sb } from "../guard";
 import { ITEM_COLS, activeNa, audit, itemLine, itemType, prefix, renderSetupReport, resolveCompany, resolveJob, type Job } from "../jobs";
 import { computeDue, type DayType } from "../deadlines";
 import { INPUT_KEYS, INPUT_LABELS, currentCheck, loadLookahead, renderReport, type InputKey } from "../workflow";
-import { WARRANTY_SETUP_QUESTIONS, renderWarrantyRegister, warrantyOpenItems } from "../warranty";
+import { WARRANTY_CHECK_PREFIX, WARRANTY_SETUP_QUESTIONS, nextWarrantyQuestion, renderWarrantyRegister, warrantyAnswerFacts, warrantyHow, warrantyOpenItems, type WarrantyKey } from "../warranty";
 import { EVIDENCE_ASK, isVagueEvidence } from "../evidence";
 import { FLAGS_ASKED_LATER, noGuidance, noGuidanceText, reconcileRecommendation } from "../guidance";
 import { LOOKAHEAD_BUILD_QUESTIONS, LOOKAHEAD_PUSHBACK, LOOKAHEAD_SETUP_KEY, buildQuestionsText, pushbackText } from "../lookahead-help";
@@ -61,7 +61,7 @@ export const onboarding = defineTool({
     company_id: companyId,
     name: z.string().trim().max(200).optional().describe("Company name (required to create)."),
     your_name: z.string().trim().max(120).optional().describe("Your display name on the company (when creating)."),
-    agent_name: z.string().trim().max(60).optional().describe("What to call the agent. Default 'Athena'."),
+    agent_name: z.string().trim().max(60).optional().describe("What to call the agent. Default 'Athena PM'."),
     company_role: short("Company role, e.g. mechanical prime / specialty sub."),
     work_types: z.array(z.enum(["commercial", "public", "residential"])).max(3).optional(),
     trades: z.array(z.string().trim().min(1).max(80)).max(30).optional(),
@@ -135,9 +135,45 @@ const gap = z.object({ gap: z.string().trim().min(1).max(1000), owner: z.string(
 function triFrom(v: boolean | undefined): "yes" | "no" | "unknown" {
   return v === undefined ? "unknown" : v ? "yes" : "no";
 }
+/** Typed answers that mean "this clause is not in the contract" ("No LDs", "None.", "N/A", "0%", "not included"). "No later than 7 days" is a real term, not an absence. */
+export const CLAUSE_ABSENT =
+  /^(?:none|no|n\/?a|nil|zero|0\s*%?|not (?:included|applicable|in (?:the )?contract)|there (?:is|are) no\b.*|no(?:\s+\S+){0,3}?\s+(?:clause|clauses|lds?|liquidated damages?|beneficial use|retainage|retention|notice requirements?)\b.*)\.?$/i;
+
 function clauseFlag(v: string | undefined): "yes" | "no" | undefined {
   if (v === undefined || !v.trim()) return undefined;
-  return /^(none|no|n\/a|not included)\.?$/i.test(v.trim()) ? "no" : "yes";
+  return CLAUSE_ABSENT.test(v.trim()) ? "no" : "yes";
+}
+
+/** Save warranty/closeout setup facts, then open an item for every "no" or unknown (deduped by check_key). */
+async function saveWarranty(sb: Sb, job: Job, facts: Record<string, unknown>, o: { fillMissing: boolean; owner: string | null; neededBy: string | null; tool: string }) {
+  if (o.fillMissing) {
+    const { data: prior, error: priorErr } = await sb.from("mcp_job_facts").select("key").eq("job_id", job.job_id).eq("module", "warranty");
+    if (priorErr) throw new Error(priorErr.message);
+    const had = new Set((prior ?? []).map((p) => p.key));
+    for (const q of WARRANTY_SETUP_QUESTIONS) if (!(q.key in facts) && !had.has(q.key)) facts[q.key] = null;
+  }
+  if (Object.keys(facts).length) await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: "warranty", _facts: facts, _source: "member_answer" });
+  const all = await warrantyFacts(sb, job);
+  const asked = new Set(all.map((f) => f.key));
+  const made: ItemResult[] = [];
+  for (const it of warrantyOpenItems(all)) {
+    // In the one-at-a-time flow, only questions already asked can owe an item.
+    if (!o.fillMissing && !asked.has(it.check_key.slice(WARRANTY_CHECK_PREFIX.length))) continue;
+    made.push(await rpc<ItemResult>(sb, "mcp_add_item", {
+      _job: job.job_id,
+      _f: {
+        check_key: it.check_key, action: it.action, item_type: it.item_type, kind: it.item_type === "unknown" ? "confirm_unknown" : "gap", section: "warranty", category: "Warranty",
+        recommendation: it.recommendation ?? null, why: it.why ?? null, accountable: o.owner, needed_by: o.neededBy, source: "member_answer", tool: o.tool,
+      },
+    }));
+  }
+  return { all, made };
+}
+
+async function warrantyFacts(sb: Sb, job: Job) {
+  const { data, error } = await sb.from("mcp_job_facts").select("key, value, status, source").eq("job_id", job.job_id).eq("module", "warranty");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as { key: string; value: unknown; status: string; source: string }[];
 }
 
 export const intake = defineTool({
@@ -225,7 +261,7 @@ export const intake = defineTool({
   },
   annotations: { ...WRITE, idempotentHint: false },
   handler: (args, ctx) =>
-    run("intake", ctx, undefined, async (sb) => {
+    run("intake", ctx, { lookaheadId: undefined, jobNumber: args.job_number }, async (sb) => {
       capInput(args);
       if (args.section === "create_job") {
         if (!args.job_name) throw new ToolError("create_job needs job_name.");
@@ -359,26 +395,10 @@ export const intake = defineTool({
         put("warranty_start_trigger_other", args.warranty_start_trigger_other);
         put("warranty_trigger_date", args.warranty_trigger_date);
         for (const k of ["warranty_start_basis", "closeout_documents", "punch_final_acceptance", "manufacturer_warranties"] as const) put(k, args[k]);
-        const { data: prior, error: priorErr } = await sb.from("mcp_job_facts").select("key").eq("job_id", job.job_id).eq("module", "warranty");
-        if (priorErr) throw new Error(priorErr.message);
-        const had = new Set((prior ?? []).map((p) => p.key));
-        for (const q of WARRANTY_SETUP_QUESTIONS) if (!(q.key in facts) && !had.has(q.key)) facts[q.key] = null;
-        if (Object.keys(facts).length) await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: "warranty", _facts: facts, _source: "member_answer" });
-        const { data: all, error: allErr } = await sb.from("mcp_job_facts").select("key, value, status, source").eq("job_id", job.job_id).eq("module", "warranty");
-        if (allErr) throw new Error(allErr.message);
-        const made: ItemResult[] = [];
-        for (const it of warrantyOpenItems(all ?? [])) {
-          made.push(await rpc<ItemResult>(sb, "mcp_add_item", {
-            _job: job.job_id,
-            _f: {
-              check_key: it.check_key, action: it.action, item_type: it.item_type, kind: it.item_type === "unknown" ? "confirm_unknown" : "gap", section: "warranty", category: "Warranty",
-              recommendation: it.recommendation ?? null, why: it.why ?? null, accountable: args.owner ?? null, needed_by: args.needed_by ?? null, source: "member_answer", tool: "intake",
-            },
-          }));
-        }
+        const { all, made } = await saveWarranty(sb, job, facts, { fillMissing: true, owner: args.owner ?? null, neededBy: args.needed_by ?? null, tool: "intake" });
         const today = new Date().toISOString().slice(0, 10);
         return {
-          ...text(`${P}Warranty and closeout setup saved.\n\nWARRANTY REGISTER\n${renderWarrantyRegister(all ?? [], today).join("\n")}${made.map((m) => itemNote(m)).join("")}`),
+          ...text(`${P}Warranty and closeout setup saved.\n\nWARRANTY REGISTER\n${renderWarrantyRegister(all, today).join("\n")}${made.map((m) => itemNote(m)).join("")}`),
           structuredContent: { items: made.map((m) => itemOut(m)!) },
         };
       }
@@ -518,7 +538,7 @@ export const nextQuestion = defineTool({
   inputSchema: { job_number: jobNumber, company_id: companyId, lookahead_id: uuid.optional().describe("Only for a two-week lookahead.") },
   annotations: { ...WRITE, idempotentHint: true },
   handler: (args, ctx) =>
-    run("next_question", ctx, args.lookahead_id, async (sb) => {
+    run("next_question", ctx, { lookaheadId: args.lookahead_id, jobNumber: args.job_number }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const P = prefix(job);
       if (args.lookahead_id) {
@@ -540,6 +560,18 @@ export const nextQuestion = defineTool({
         auto = `Answered for you: ${q.label ? `${q.label} ` : ""}"${q.prompt}" — yes (job number ${job.job_number} is on record). Say so if that's wrong and I'll change it.\n\n`;
         q = await rpc<NextCheck>(sb, "mcp_next_check", { _job: job.job_id });
       }
+      // Workmanship warranty and closeout expectations are asked up front: right after the gate questions, before the rest of the checklist.
+      const wq = nextWarrantyQuestion(await warrantyFacts(sb, job));
+      const wLeft = wq ? wq.remaining_after + 1 : 0;
+      if (wq && q?.section !== "gate") {
+        const key = `${WARRANTY_CHECK_PREFIX}${wq.key}`;
+        const after = wq.remaining_after + (q ? q.total - q.index + 1 : 0);
+        await audit(sb, job, "next_question", "view_setup_question", key);
+        return {
+          ...text(`${P}${auto}Setup question — ${after === 0 ? "last one" : `${after} more after this`} (Warranty and closeout ${wq.index} of ${wq.total}: ${wq.label}) [Warranty / section warranty]\ncheck_key: ${key}\n\n${wq.ask}\n\n${warrantyHow(wq.key)}\nCall answer with job_number and check_key.`),
+          structuredContent: { check_key: key, index: wq.index, total: wq.total, remaining_after: after, auto_answered: auto ? "job_number_assigned" : null },
+        };
+      }
       await audit(sb, job, "next_question", "view_setup_question", q?.key ?? null);
       if (!q) {
         const { data: mods } = await sb.from("mcp_job_facts").select("module").eq("job_id", job.job_id);
@@ -551,9 +583,9 @@ export const nextQuestion = defineTool({
       const ask = confirm ? `The record shows: ${typeof q.record_value === "string" ? q.record_value : JSON.stringify(q.record_value)}\nConfirm this is right (yes), or say no / unknown.` : q.prompt;
       return {
         ...text(
-          `${P}${auto}Setup question ${q.index} — ${q.total - q.index === 0 ? "last one" : `${q.total - q.index} more after this`}${q.label ? ` (${q.label})` : ""} [${q.category}${q.section ? ` / section ${q.section}` : ""}]\ncheck_key: ${q.key}\n\n${confirm ? `${q.prompt}\n${ask}` : ask}\n\nAnswer with response yes, no, na (with a reason in detail) or unknown. For unknown or no, add owner and due_date if known. To mark the whole section N/A use answer action "mark_na" with scope "section".`,
+          `${P}${auto}Setup question ${q.index} — ${q.total - q.index + wLeft === 0 ? "last one" : `${q.total - q.index + wLeft} more after this`}${q.label ? ` (${q.label})` : ""} [${q.category}${q.section ? ` / section ${q.section}` : ""}]\ncheck_key: ${q.key}\n\n${confirm ? `${q.prompt}\n${ask}` : ask}\n\nAnswer with response yes, no, na (with a reason in detail) or unknown. For unknown or no, add owner and due_date if known. To mark the whole section N/A use answer action "mark_na" with scope "section".`,
         ),
-        structuredContent: { check_key: q.key, index: q.index, total: q.total, remaining_after: q.total - q.index, auto_answered: auto ? "job_number_assigned" : null },
+        structuredContent: { check_key: q.key, index: q.index, total: q.total, remaining_after: q.total - q.index + wLeft, auto_answered: auto ? "job_number_assigned" : null },
       };
     }),
 });
@@ -581,7 +613,7 @@ export const answer = defineTool({
   },
   annotations: { ...WRITE, idempotentHint: false },
   handler: (args, ctx) =>
-    run("answer", ctx, args.lookahead_id, async (sb) => {
+    run("answer", ctx, { lookaheadId: args.lookahead_id, jobNumber: args.job_number }, async (sb) => {
       capInput(args);
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const P = prefix(job);
@@ -639,6 +671,20 @@ export const answer = defineTool({
         return { ...text(`${P}Recorded${status === "unknown" ? " as unknown" : ""}.${itemNote(item)}\nNext: next_question.`), structuredContent: { status, item_id: item?.item_id ?? null, item_type: item?.item_type ?? null } };
       }
 
+      if (args.check_key.startsWith(WARRANTY_CHECK_PREFIX)) {
+        const key = args.check_key.slice(WARRANTY_CHECK_PREFIX.length) as WarrantyKey;
+        if (!WARRANTY_SETUP_QUESTIONS.some((q) => q.key === key)) throw new ToolError("That isn't a setup question. Call next_question and answer the check it returns.");
+        let facts: Record<string, unknown>;
+        try { facts = warrantyAnswerFacts(key, args.response, args.detail); } catch (e) { throw new ToolError((e as Error).message); }
+        const { all, made } = await saveWarranty(sb, job, facts, { fillMissing: false, owner: args.owner ?? null, neededBy: args.due_date ?? null, tool: "answer" });
+        await audit(sb, job, "answer", "warranty_answer", args.check_key);
+        const today = new Date().toISOString().slice(0, 10);
+        const left = nextWarrantyQuestion(all);
+        return {
+          ...text(`${P}Recorded.${made.map((m) => itemNote(m)).join("")}${left ? "" : `\n\nWARRANTY REGISTER\n${renderWarrantyRegister(all, today).join("\n")}`}\nNext: next_question.`),
+          structuredContent: { recorded: JSON.parse(JSON.stringify(facts)) as Record<string, string | number | null>, items: made.map((m) => itemOut(m)!) },
+        };
+      }
       if (!args.response) throw new ToolError("answer needs response yes, no, na or unknown.");
       // A "no" on the look-ahead check is not accepted: push back and offer to build one from the schedule.
       if (args.check_key === LOOKAHEAD_SETUP_KEY && args.response === "no" && args.lookahead_help !== "decline") {
@@ -677,7 +723,7 @@ export const report = defineTool({
   },
   annotations: { ...READ, idempotentHint: true },
   handler: (args, ctx) =>
-    run("report", ctx, args.lookahead_id, async (sb) => {
+    run("report", ctx, { lookaheadId: args.lookahead_id, jobNumber: args.job_number, client: args.audience === "client" }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id);
       if (args.lookahead_id) {
         const la = await lookaheadForJob(sb, job, args.lookahead_id);
@@ -690,7 +736,9 @@ export const report = defineTool({
       let iq = sb.from("mcp_open_items").select("id, section, check_key, item_type").eq("job_id", job.job_id).eq("status", "open");
       if (audience === "client") iq = iq.eq("internal_only", false);
       const [{ data: its }, nas] = await Promise.all([iq, activeNa(sb, job.job_id)]);
-      return { ...text(body), structuredContent: { items: (its ?? []).map((i) => ({ item_id: i.id, item_type: itemType(i, nas) })) } };
+      // Client-facing output never carries item ids.
+      const items = (its ?? []).map((i) => (audience === "client" ? { item_type: itemType(i, nas) } : { item_id: i.id, item_type: itemType(i, nas) }));
+      return { ...text(body), structuredContent: { items } };
     }),
 });
 
@@ -702,7 +750,7 @@ export const carryForward = defineTool({
   inputSchema: { job_number: jobNumber, company_id: companyId, from_lookahead_id: uuid.describe("Previous lookahead_id."), to_lookahead_id: uuid.describe("New lookahead_id from intake.") },
   annotations: { ...WRITE, idempotentHint: true },
   handler: (args, ctx) =>
-    run("carry_forward", ctx, args.to_lookahead_id, async (sb) => {
+    run("carry_forward", ctx, { lookaheadId: args.to_lookahead_id, jobNumber: args.job_number }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id, "full");
       if (args.from_lookahead_id === args.to_lookahead_id) throw new ToolError("from and to lookaheads must be different.");
       const [from, to] = await Promise.all([lookaheadForJob(sb, job, args.from_lookahead_id), lookaheadForJob(sb, job, args.to_lookahead_id)]);
@@ -732,7 +780,7 @@ export const listOpenItems = defineTool({
   inputSchema: { job_number: jobNumber, company_id: companyId, lookahead_id: uuid.optional().describe("Limit to one lookahead.") },
   annotations: { ...READ, idempotentHint: true },
   handler: (args, ctx) =>
-    run("list_open_items", ctx, args.lookahead_id, async (sb) => {
+    run("list_open_items", ctx, { lookaheadId: args.lookahead_id, jobNumber: args.job_number }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id);
       let q = sb.from("mcp_open_items").select(ITEM_COLS).eq("job_id", job.job_id).eq("status", "open");
       if (args.lookahead_id) q = q.eq("lookahead_id", args.lookahead_id);
@@ -767,7 +815,7 @@ export const resolveItem = defineTool({
   },
   annotations: { ...WRITE, idempotentHint: false },
   handler: (args, ctx) =>
-    run("resolve_item", ctx, undefined, async (sb) => {
+    run("resolve_item", ctx, { lookaheadId: undefined, jobNumber: args.job_number }, async (sb) => {
       capInput(args);
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const { data: it, error } = await sb.from("mcp_open_items").select("id, job_id, section, check_key, item_type").eq("id", args.item_id).maybeSingle();

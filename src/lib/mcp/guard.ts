@@ -1,7 +1,7 @@
 import { DB_UNAVAILABLE, MCP_DAILY_CAP, MCP_HOURLY_CAP, capMessage, type CapResult } from "./limits";
 import { ToolError, type ToolContext } from "@lovable.dev/mcp-js";
 import { supabaseForUser } from "./supabase";
-import { runSweep } from "./sweep";
+import { runSweep, type SweepScope } from "./sweep";
 
 // Private prototype: hard-coded allowlist, plus the membership gate (mcp_gate -> is_circle_active) on every call.
 import { MCP_ALLOWED_EMAILS } from "./allowlist";
@@ -60,18 +60,22 @@ export async function logWorkflow(
 /** Guard + run + log failures. */
 const ALWAYS_SWEEP = new Set(["report", "list_open_items"]);
 
-export async function run<R>(tool: string, ctx: ToolContext, lookaheadId: string | undefined, fn: (sb: Sb) => Promise<R>): Promise<R> {
+/** opts: a lookahead id, or { lookaheadId, jobNumber, client }. With a job number the date sweep shows that job only. */
+export async function run<R>(tool: string, ctx: ToolContext, opts: string | undefined | { lookaheadId?: string; jobNumber?: string; client?: boolean }, fn: (sb: Sb) => Promise<R>): Promise<R> {
+  const o = typeof opts === "object" ? opts : { lookaheadId: opts };
+  const lookaheadId = o.lookaheadId;
+  const sweepScope: SweepScope = { jobNumber: o.jobNumber, client: o.client };
   const sb = await guard(ctx);
   let sweep: Awaited<ReturnType<typeof runSweep>> = null;
   try {
     const fresh = await sb.rpc("mcp_session_touch");
-    if (fresh.data === true || ALWAYS_SWEEP.has(tool)) sweep = await runSweep(sb);
+    if (fresh.data === true || ALWAYS_SWEEP.has(tool)) sweep = await runSweep(sb, sweepScope);
   } catch {
     sweep = null; // the sweep never blocks the tool itself
   }
   try {
     const r = await fn(sb);
-    return sweep ? withSweep(r, sweep) : r;
+    return sweep ? withSweep(r, sweep, sweepScope.client === true) : r;
   } catch (e) {
     await logWorkflow(sb, {
       event_type: "failure",
@@ -88,10 +92,10 @@ export function text(body: string) {
   return { content: [{ type: "text" as const, text: body + FOOTER }] };
 }
 
-function withSweep<R>(r: R, sweep: NonNullable<Awaited<ReturnType<typeof runSweep>>>): R {
+function withSweep<R>(r: R, sweep: NonNullable<Awaited<ReturnType<typeof runSweep>>>, client = false): R {
   const res = r as unknown as { content?: { type: string; text?: string }[]; structuredContent?: Record<string, unknown> };
   if (!res?.content?.length || res.content[0].type !== "text") return r;
   const first = { ...res.content[0], text: `${sweep.text}\n\n====\n\n${res.content[0].text ?? ""}` };
-  const items = sweep.items.map((i) => ({ job_number: i.job_number, item_id: i.item_id, item_type: i.item_type, due: i.due, days: i.days, bucket: i.bucket }));
+  const items = sweep.items.map((i) => ({ job_number: i.job_number, item_id: client ? null : i.item_id, item_type: i.item_type, due: i.due, days: i.days, bucket: i.bucket }));
   return { ...res, content: [first, ...res.content.slice(1)], structuredContent: { ...(res.structuredContent ?? {}), sweep: items } } as unknown as R;
 }

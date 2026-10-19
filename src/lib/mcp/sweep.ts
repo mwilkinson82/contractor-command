@@ -1,11 +1,13 @@
-// Session-start date sweep: overdue / due today / upcoming 14 days across every job the caller can access.
+// Date sweep: overdue / due today / upcoming 14 days. Scoped to one job whenever the tool names a job
+// (never another job's dates); company-wide only for tools with no job (onboarding).
 import type { Sb } from "./guard";
+import { whoForJob } from "./people";
 import { computeDue, diffDays, todayIn, type Clause } from "./deadlines";
 
 const ASSUMED_TZ = "America/New_York";
 const MONEY = /\$\s?[\d,.]+[kKmM]?|\b\d[\d,.]*\s?(dollars|usd)\b/gi;
 
-type JobRow = { id: string; job_number: string; name: string; time_zone: string | null };
+type JobRow = { id: string; job_number: string; name: string; time_zone: string | null; company_id: string };
 type ItemRow = { id: string; job_id: string; action: string; needed_by: string | null; item_type: string | null; internal_only: boolean; check_key: string; accountable: string | null; cost_effect: string | null; cash_effect: string | null };
 type DeadlineRow = Clause & { job_id: string; item_id: string | null; internal_only: boolean; clause_key: string };
 
@@ -17,8 +19,13 @@ function when(days: number) {
   return `due in ${days} day${days === 1 ? "" : "s"}`;
 }
 
-export async function runSweep(sb: Sb): Promise<{ text: string; items: SweepItem[] } | null> {
-  const { data: jobs, error } = await sb.from("mcp_jobs").select("id, job_number, name, time_zone").not("company_id", "is", null);
+export type SweepScope = { jobNumber?: string; client?: boolean };
+
+export async function runSweep(sb: Sb, scope_: SweepScope = {}): Promise<{ text: string; items: SweepItem[] } | null> {
+  let jq = sb.from("mcp_jobs").select("id, job_number, name, time_zone, company_id").not("company_id", "is", null);
+  if (scope_.jobNumber) jq = jq.eq("job_number", scope_.jobNumber.trim());
+  const { data: jobs, error } = await jq;
+  const client = scope_.client === true;
   if (error || !jobs?.length) return null;
   const js = jobs as JobRow[];
   const ids = js.map((j) => j.id);
@@ -29,6 +36,8 @@ export async function runSweep(sb: Sb): Promise<{ text: string; items: SweepItem
   ]);
   const scope = new Map(js.map((j, i) => [j.id, (scopesR[i].data as string | null) ?? null]));
   const byJob = new Map(js.filter((j) => scope.get(j.id)).map((j) => [j.id, j]));
+  const single = scope_.jobNumber && byJob.size === 1 ? [...byJob.values()][0] : null;
+  const who = single ? await whoForJob(sb, single.company_id, single.id) : (v: string | null) => v ?? "unknown";
   const lines: { bucket: SweepItem["bucket"]; days: number; text: string; extra: string[] }[] = [];
   const out: SweepItem[] = [];
   const tzNotes: string[] = [];
@@ -46,6 +55,7 @@ export async function runSweep(sb: Sb): Promise<{ text: string; items: SweepItem
   for (const d of (dlR.data ?? []) as DeadlineRow[]) {
     const j = byJob.get(d.job_id);
     if (!j) continue;
+    if (client && d.internal_only) continue;
     if (d.item_id) clauseItems.add(d.item_id);
     const c = computeDue(d);
     if (!c.due) continue;
@@ -56,7 +66,7 @@ export async function runSweep(sb: Sb): Promise<{ text: string; items: SweepItem
     const zone = j.time_zone ? tz : `${tz}, assumed`;
     lines.push({
       bucket, days,
-      text: `${j.job_number} – ${d.label}${d.clause_ref ? ` (${d.clause_ref})` : ""}: ${when(days)} — ${c.due} (${zone})${d.item_id ? ` [item ${d.item_id}, type deadline]` : ""}`,
+      text: `${j.job_number} – ${d.label}${d.clause_ref ? ` (${d.clause_ref})` : ""}: ${when(days)} — ${c.due} (${zone})${d.item_id && !client ? ` [item ${d.item_id}, type deadline]` : ""}`,
       extra: [`Math: ${c.math}.`, ...c.alternatives.map((a) => `Also shown: ${a}.`), ...c.precautions],
     });
     out.push({ job_id: j.id, job_number: j.job_number, ref: `deadline:${d.id}`, item_id: d.item_id, item_type: "deadline", due: c.due, days, bucket });
@@ -65,16 +75,16 @@ export async function runSweep(sb: Sb): Promise<{ text: string; items: SweepItem
   for (const it of (itemsR.data ?? []) as ItemRow[]) {
     const j = byJob.get(it.job_id);
     if (!j || !it.needed_by || clauseItems.has(it.id)) continue;
-    if (scope.get(j.id) !== "full" && it.internal_only) continue;
+    if ((client || scope.get(j.id) !== "full") && it.internal_only) continue;
     const tz = j.time_zone ?? ASSUMED_TZ;
     const days = diffDays(it.needed_by, todayIn(tz));
     if (days > 14) continue;
     const bucket = days < 0 ? "overdue" : days === 0 ? "today" : "upcoming";
     let action = it.action;
-    if (scope.get(j.id) !== "full") action = action.replace(MONEY, "[amount withheld]");
+    if (client || scope.get(j.id) !== "full") action = action.replace(MONEY, "[amount withheld]");
     lines.push({
       bucket, days,
-      text: `${action}: ${when(days)} — ${it.needed_by} (${j.time_zone ? tz : `${tz}, assumed`}) | Accountable: ${it.accountable ?? "unknown"} [item ${it.id}, type ${it.item_type ?? "deadline"}]`,
+      text: `${action}: ${when(days)} — ${it.needed_by} (${j.time_zone ? tz : `${tz}, assumed`}) | Accountable: ${who(it.accountable)}${client ? "" : ` [item ${it.id}, type ${it.item_type ?? "deadline"}]`}`,
       extra: [],
     });
     out.push({ job_id: j.id, job_number: j.job_number, ref: `item:${it.id}`, item_id: it.id, item_type: it.item_type ?? "deadline", due: it.needed_by, days, bucket });

@@ -39,7 +39,7 @@ const str = (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v));
 /** Lines for the WARRANTY REGISTER section. "Not started" only when nothing was recorded at setup. */
 export function renderWarrantyRegister(facts: Fact[], today: string): string[] {
   const by = new Map(facts.map((f) => [f.key, f]));
-  if (!WARRANTY_SETUP_QUESTIONS.some((q) => by.has(q.key)) && !by.has("warranty_trigger_date")) return ["   Not started."];
+  if (!WARRANTY_SETUP_QUESTIONS.some((q) => by.has(q.key)) && !by.has("warranty_trigger_date")) return ["   Not set up yet. Athena asks the workmanship warranty and closeout questions in job setup (next_question)."];
   const out: string[] = [];
   const src = (f?: Fact) => (f?.source ? ` (${f.source === "member_answer" ? "manual" : f.source.replace(/_/g, " ")})` : "");
   const has = by.get("workmanship_warranty");
@@ -105,4 +105,53 @@ export function warrantyOpenItems(facts: Fact[]): { check_key: string; action: s
         recommendation: `Read the closeout section and write down the ${q.label.toLowerCase()} now, so closeout isn't a surprise.`, why: "Closeout requirements left undefined at setup hold up final payment and retainage." });
   }
   return items;
+}
+
+// ---------- JOB SETUP flow: asked one at a time by next_question, up front ----------
+export const WARRANTY_CHECK_PREFIX = "warranty:";
+
+/** The next unanswered warranty/closeout question, and how many remain after it. Duration and trigger are skipped when there is no warranty (or it is unknown). */
+export function nextWarrantyQuestion(facts: Fact[]): { key: WarrantyKey; label: string; ask: string; index: number; total: number; remaining_after: number } | null {
+  const by = new Map(facts.map((f) => [f.key, f]));
+  const has = by.get("workmanship_warranty");
+  const noWarranty = !!has && (has.status !== "known" || has.value === "no");
+  const qs = WARRANTY_SETUP_QUESTIONS.filter((q) => !(noWarranty && (q.key === "workmanship_warranty_months" || q.key === "warranty_start_trigger")));
+  const open = qs.filter((q) => !by.has(q.key));
+  if (!open.length) return null;
+  const q = open[0];
+  return { key: q.key, label: q.label, ask: q.ask, index: qs.indexOf(q) + 1, total: qs.length, remaining_after: open.length - 1 };
+}
+
+export function warrantyHow(key: WarrantyKey): string {
+  if (key === "workmanship_warranty") return 'Answer with response "yes", "no" or "unknown".';
+  if (key === "workmanship_warranty_months") return 'Answer with detail giving the length (e.g. "12 months" or "2 years"), or response "unknown".';
+  if (key === "warranty_start_trigger") return 'Answer with detail "substantial completion", "final acceptance", or describe the other trigger. Use response "unknown" if you don\'t know.';
+  return 'Answer with detail (the requirement as written), detail "none", or response "unknown". Response "na" if it doesn\'t apply.';
+}
+
+/** Turn an answer to a warranty setup question into warranty facts. Throws a plain message when the answer doesn't fit. */
+export function warrantyAnswerFacts(key: WarrantyKey, response: string | undefined, detail: string | undefined): Record<string, unknown> {
+  const d = detail?.trim() || "";
+  if (response === "unknown") return { [key]: null };
+  if (key === "workmanship_warranty") {
+    const r = response ?? (/^(yes|y)\b/i.test(d) ? "yes" : /^(no|none|n)\b/i.test(d) ? "no" : undefined);
+    if (r !== "yes" && r !== "no") throw new Error('This question needs response "yes", "no" or "unknown".');
+    return { workmanship_warranty: r };
+  }
+  if (key === "workmanship_warranty_months") {
+    const m = d.match(/(\d+(?:\.\d+)?)\s*(years?|yrs?|months?|mos?)?/i);
+    if (!m) throw new Error('Give the length in detail, e.g. "12 months" or "2 years", or response "unknown".');
+    const n = Number(m[1]) * (m[2] && /^y/i.test(m[2]) ? 12 : 1);
+    return { workmanship_warranty_months: Math.round(n) };
+  }
+  if (key === "warranty_start_trigger") {
+    if (!d) throw new Error('Give the start trigger in detail: "substantial completion", "final acceptance", or describe the other trigger.');
+    if (/substantial/i.test(d)) return { warranty_start_trigger: "substantial_completion" };
+    if (/final (acceptance|completion)/i.test(d)) return { warranty_start_trigger: "final_acceptance" };
+    return { warranty_start_trigger: "other", warranty_start_trigger_other: d.slice(0, 500) };
+  }
+  if (response === "na") return { [key]: "n/a" };
+  if (!d && response === "no") return { [key]: "none" };
+  if (!d) throw new Error('This question needs detail (the requirement, or "none"), or response "unknown".');
+  return { [key]: d.slice(0, 2000) };
 }
