@@ -21,10 +21,24 @@ import { LOOKAHEAD_PUSHBACK, LOOKAHEAD_BUILD_QUESTIONS } from "../../src/lib/mcp
 
 const handler = createTanStackMcpHandler(mcp, { resourcePath: "/mcp", metadataPath: "/.well-known/oauth-protected-resource" });
 let tok: Awaited<ReturnType<typeof setupKeysAndFetch>>;
-const call = async (name: string, args: Record<string, unknown>, who: "owner" | "super" = "owner") => callTool(handler, await tok(who), name, args);
+let capTest = false; // only the rate-limit test keeps the call log; elsewhere the 60/hour cap would trip on long walks
+const call = async (name: string, args: Record<string, unknown>, who: "owner" | "super" = "owner") => {
+  if (!capTest && state.db) await state.db.exec(`DELETE FROM public.mcp_call_log`);
+  return callTool(handler, await tok(who), name, args);
+};
 const items = async (job: string, like: string) =>
   (await state.db!.query<{ check_key: string; item_type: string; status: string; recommendation: string | null; help_offer: string | null }>(
     `SELECT i.check_key, i.item_type, i.status, i.recommendation, i.help_offer FROM public.mcp_open_items i JOIN public.mcp_jobs j ON j.id = i.job_id WHERE j.job_number = $1 AND i.check_key LIKE $2 ORDER BY 1`, [job, like])).rows;
+
+const WARRANTY_ANSWERS: Record<string, Record<string, string>> = {
+  "warranty:workmanship_warranty": { response: "yes" },
+  "warranty:workmanship_warranty_months": { detail: "1 year" },
+  "warranty:warranty_start_trigger": { detail: "Substantial completion" },
+  "warranty:warranty_start_basis": { detail: "§12.2 certificate of substantial completion" },
+  "warranty:closeout_documents": { detail: "O&M manuals, as-builts" },
+  "warranty:punch_final_acceptance": { detail: "Punch closed in 30 days; architect sign-off" },
+  "warranty:manufacturer_warranties": { detail: "Roofing 20-yr NDL" },
+};
 
 /** Answer earlier setup questions "yes" until `key` is the current one. */
 async function toCheck(job: string, key: string) {
@@ -33,7 +47,7 @@ async function toCheck(job: string, key: string) {
     const k = q.text.match(/check_key: (\S+)/)?.[1];
     if (!k) throw new Error(q.text);
     if (k === key) return;
-    await call("answer", { job_number: job, check_key: k, response: "yes" });
+    await call("answer", { job_number: job, check_key: k, ...(WARRANTY_ANSWERS[k] ?? { response: "yes" }) });
   }
   throw new Error(`never reached ${key}`);
 }
@@ -50,11 +64,11 @@ beforeAll(async () => {
 });
 
 describe("branding", () => {
-  test("tool replies end with the full footer and the company defaults to Athena", async () => {
+  test("tool replies end with the full footer and the company defaults to Athena PM", async () => {
     const r = await call("onboarding", { action: "read" });
     expect(r.text).toContain("Athena powered by ALP, construction agents");
     const a = (await state.db!.query<{ agent_name: string }>(`SELECT agent_name FROM public.mcp_companies`)).rows[0];
-    expect(a.agent_name).toBe("Athena");
+    expect(a.agent_name).toBe("Athena PM");
   });
 });
 
@@ -85,7 +99,7 @@ describe("warranty in JOB SETUP", () => {
   });
   test("next_question lists warranty as a setup section not started", async () => {
     const r = await call("report", { job_number: "J-3", audience: "internal" });
-    expect(r.text).toMatch(/WARRANTY REGISTER\n\s+Not started\./);
+    expect(r.text).toMatch(/WARRANTY REGISTER\n\s+Not set up yet\. Athena asks the workmanship warranty and closeout questions in job setup/);
   });
 });
 
@@ -185,7 +199,9 @@ describe("live ChatGPT test bugs (job setup flow)", () => {
     const q2 = await call("next_question", { job_number: "J-4" });
     expect(q2.text).toContain('Answered for you: B5 "A job number is assigned.');
     expect(q2.text).toContain("yes (job number J-4 is on record)");
-    expect(q2.text).toContain("check_key: bss_billing_forecast");
+    // Warranty and closeout questions come up front, right after the gate.
+    expect(q2.text).toContain("check_key: warranty:workmanship_warranty");
+    await toCheck("J-4", "bss_billing_forecast");
   });
   test("#1 #7 #8 a setup no: recommend + why + help, no cost-loaded advice after a no, item goes to the job's PM", async () => {
     const r = await call("answer", { job_number: "J-4", check_key: "bss_billing_forecast", response: "no" });
@@ -230,6 +246,7 @@ describe("rate limit", () => {
   test("hourly cap gives a readable message with the reset time, distinct from a DB failure; nothing runs", async () => {
     const db = state.db!;
     const uid = user("owner").id;
+    capTest = true;
     await db.query(`DELETE FROM public.mcp_call_log WHERE user_id = $1`, [uid]);
     await db.query(`INSERT INTO public.mcp_call_log (user_id, called_at) SELECT $1, now() - interval '30 minutes' FROM generate_series(1, 60)`, [uid]);
     const r = await call("onboarding", { action: "read" });
@@ -237,5 +254,104 @@ describe("rate limit", () => {
     expect(r.text).toMatch(/You've hit Athena's hourly limit\. It resets at \d{2}:\d{2} E[DS]T \(in about (29|30|31) min\)\./);
     await db.query(`DELETE FROM public.mcp_call_log WHERE user_id = $1`, [uid]);
     expect((await call("onboarding", { action: "read" })).isError).toBe(false);
+    capTest = false;
+  });
+});
+
+// Retest on the LIVE build 4904699, 2026-10-19 11:31–11:40 AM Manaus (ChatGPT, Job 1001). TEST data only.
+describe("live retest 2026-10-19", () => {
+  const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+  beforeAll(async () => {
+    for (const j of ["R-1", "R-2"]) await call("intake", { section: "create_job", job_number: j, job_name: `TEST ${j}` });
+    await call("intake", { section: "job_settings", job_number: "R-1", pm: "Test PM" });
+  });
+
+  test("#1 typed contract terms (no document) read back as typed; LD and beneficial use read OFF", async () => {
+    const r = await call("intake", { section: "contract", job_number: "R-1",
+      pay_terms: "Net 30 after approved pay app", notice_timing: "7 days written notice", tia_timing: "14 days", change_process: "Written CO before work",
+      claim_process: "21 days from the event", retainage: "10%", retainage_reduction: "5% at 50% complete", beneficial_use_clause: "None",
+      liquidated_damages: "No LDs", savings_split: "50/50", closeout: "O&Ms and as-builts before final", warranty_clauses: "1 year from substantial completion" });
+    expect(r.isError).toBe(false);
+    const rep = await call("report", { job_number: "R-1", audience: "internal" });
+    expect(rep.text).toContain("- retainage: 10% (manual)");
+    expect(rep.text).toContain("- notice timing: 7 days written notice (manual)");
+    expect(rep.text).toMatch(/has lds: OFF \(manual\)/);
+    expect(rep.text).toMatch(/beneficial use: OFF \(manual\)/);
+    expect(rep.text).toMatch(/has retainage: ON \(manual\)/);
+    expect(rep.text).toMatch(/notice requirements: ON \(manual\)/);
+    const unknown = (await state.db!.query<{ key: string }>(`SELECT f.key FROM public.mcp_job_facts f JOIN public.mcp_jobs j ON j.id = f.job_id WHERE j.job_number = 'R-1' AND f.module = 'contract' AND f.status <> 'known'`)).rows;
+    expect(unknown).toEqual([]);
+  });
+
+  test("#2 #7 job setup asks warranty and closeout up front; the register fills from the answers", async () => {
+    const g = await call("next_question", { job_number: "R-2" });
+    expect(g.text).toContain("check_key: gate_cost_loaded"); // gate questions stay first
+    await call("answer", { job_number: "R-2", check_key: "gate_cost_loaded", response: "yes" });
+    const q = await call("next_question", { job_number: "R-2" });
+    expect(q.text).toContain("check_key: warranty:workmanship_warranty");
+    expect(q.text).toContain("Is there a workmanship warranty on this job (yes / no)?");
+    for (const [k, a] of Object.entries(WARRANTY_ANSWERS)) {
+      const n = await call("next_question", { job_number: "R-2" });
+      expect(n.text).toContain(`check_key: ${k}`);
+      expect((await call("answer", { job_number: "R-2", check_key: k, ...a })).isError).toBe(false);
+    }
+    const after = await call("next_question", { job_number: "R-2" });
+    expect(after.text).not.toContain("check_key: warranty:");
+    const rep = await call("report", { job_number: "R-2", audience: "client" });
+    expect(rep.text).toMatch(/WARRANTY REGISTER\n\s+- Workmanship warranty: yes \(manual\)\n\s+Status: Pending substantial completion date\n\s+Duration: 12 months/);
+    expect(rep.text).toContain("- Required closeout documents: O&M manuals, as-builts (manual)");
+  });
+
+  test("#2 a no warranty skips duration/trigger; unknowns become open items", async () => {
+    await call("intake", { section: "create_job", job_number: "R-3", job_name: "TEST R-3" });
+    await call("answer", { job_number: "R-3", check_key: "gate_cost_loaded", response: "yes" });
+    await call("answer", { job_number: "R-3", check_key: "warranty:workmanship_warranty", response: "no" });
+    const n = await call("next_question", { job_number: "R-3" });
+    expect(n.text).toContain("check_key: warranty:warranty_start_basis");
+    await call("answer", { job_number: "R-3", check_key: "warranty:warranty_start_basis", response: "unknown" });
+    expect((await items("R-3", "warranty:%")).map((i) => `${i.check_key}=${i.item_type}`)).toEqual(["warranty:warranty_start_basis=unknown", "warranty:workmanship_warranty=no"]);
+  });
+
+  test("#4 the date sweep on a report shows only that job's dates", async () => {
+    const soon = new Date(Date.now() + 3 * 86400_000).toISOString().slice(0, 10);
+    await call("intake", { section: "open_item", job_number: "R-1", action: "TEST R-1 submit insurance cert", needed_by: soon });
+    await call("intake", { section: "open_item", job_number: "R-2", action: "TEST R-2 owner walk", needed_by: soon });
+    for (const audience of ["client", "internal"]) {
+      const rep = await call("report", { job_number: "R-2", audience });
+      const sweep = rep.text.split("====")[0];
+      expect(sweep).toContain("TEST R-2 owner walk");
+      expect(sweep).not.toContain("TEST R-1");
+      expect(sweep).not.toMatch(/\bJ-\d|R-1 –/);
+      expect(((rep.structured?.sweep ?? []) as { job_number: string }[]).every((s) => s.job_number === "R-2")).toBe(true);
+    }
+    const lo = await call("list_open_items", { job_number: "R-2" });
+    expect(lo.text.split("====")[0]).not.toContain("TEST R-1");
+  });
+
+  test("#5 #6 #8 client report: no item ids, Accountable is Name (Role), no coaching copy, Athena footer and Prepared by", async () => {
+    await call("intake", { section: "open_item", job_number: "R-1", action: "TEST no-owner item" });
+    await call("intake", { section: "open_item", job_number: "R-1", action: "TEST gap", item_type: "no", owner: "Test Owner",
+      recommendation: "Do it now — the super runs the money in the field.", why: "best practice" });
+    await state.db!.exec(`UPDATE public.mcp_open_items SET accountable = 'Test Owner' WHERE action = 'TEST no-owner item'`); // live rows say just the name
+    const rep = await call("report", { job_number: "R-1", audience: "client" });
+    expect(rep.text).not.toMatch(UUID);
+    expect(rep.text).not.toContain("[item ");
+    expect(rep.text).toContain("Accountable: Test Owner (Owner)");
+    expect(rep.text).not.toMatch(/Accountable: Test Owner \|/);
+    expect(rep.text).not.toMatch(/can help you close this gap|PM agent|the super runs the money|savings split|Recommendation:/i);
+    expect(rep.text).toContain("Prepared by: Athena PM");
+    expect(rep.text).toContain("Athena powered by ALP, construction agents");
+    expect(rep.text).not.toMatch(/private prototype|ALP Contractor Circle/);
+    expect(JSON.stringify(rep.structured ?? {})).not.toMatch(UUID);
+    const internal = await call("report", { job_number: "R-1", audience: "internal" });
+    expect(internal.text).toMatch(UUID); // internal keeps ids for resolve_item
+    expect(internal.text).toContain("savings split");
+  });
+
+  test("#8 a company still labeled 'PM agent' reads 'Prepared by: Athena PM'", async () => {
+    await state.db!.exec(`UPDATE public.mcp_companies SET agent_name = 'PM agent'`);
+    const rep = await call("report", { job_number: "R-1", audience: "client" });
+    expect(rep.text).toContain("Prepared by: Athena PM");
+    await state.db!.exec(`UPDATE public.mcp_companies SET agent_name = 'Athena PM'`);
   });
 });
