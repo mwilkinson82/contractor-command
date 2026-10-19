@@ -83,7 +83,7 @@ describe.each(ROLES)("role %s", (role) => {
 
   test("answer", async () => {
     const nq = await call("owner", "next_question", { job_number: "J-100" });
-    const key = nq.all.match(/check_key: (\S+)/)?.[1];
+    const key = nq.all.match(/Question ref: (\S+)/)?.[1];
     expect(key, nq.text).toBeTruthy();
     const o = await call(role, "answer", { job_number: "J-100", check_key: key, response: "unknown", owner: "Test Owner" });
     // Contract roles only ever get contract-time questions; the owner's current check is a full-scope one, so it is refused.

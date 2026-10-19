@@ -1,3 +1,5 @@
+import { parseQuestionRef } from "../../src/lib/mcp/refs";
+import { questionRef } from "../../src/lib/mcp/refs";
 // Athena fixes through the real /mcp handler and real migrations (PGlite). TEST company and users only.
 // Covers: warranty in JOB SETUP, manual contract terms, look-ahead "no" pushback, production look-ahead questions, branding.
 import { describe, test, expect, vi, beforeAll } from "vitest";
@@ -45,8 +47,9 @@ const WARRANTY_ANSWERS: Record<string, Record<string, string>> = {
 async function toCheck(job: string, key: string) {
   for (let i = 0; i < 40; i++) {
     const q = await call("next_question", { job_number: job });
-    const k = q.all.match(/check_key: (\S+)/)?.[1];
-    if (!k) throw new Error(q.text);
+    const shown = q.all.match(/Question ref: (\S+)/)?.[1];
+    if (!shown) throw new Error(q.text);
+    const k = parseQuestionRef(shown);
     if (k === key) return;
     await call("answer", { job_number: job, check_key: k, ...(WARRANTY_ANSWERS[k] ?? { response: "yes" }) });
   }
@@ -158,7 +161,7 @@ describe("look-ahead walk", () => {
       const q = await call("next_question", { job_number: "J-1", lookahead_id: id });
       if (/All lookahead checks are done/.test(q.text)) break;
       expect(q.text).not.toContain("PLACEHOLDER");
-      const key = (q.structured?.check_key as string) ?? q.all.match(/check_key: (\S+)/)?.[1]; expect(key, q.text).toBeTruthy();
+      const key = (q.structured?.check_key as string) ?? q.all.match(/Question ref: (\S+)/)?.[1]; expect(key, q.text).toBeTruthy();
       seen.push(key);
       const list = /or say none/.test(q.text);
       const a = await call("answer", { job_number: "J-1", lookahead_id: id, check_key: key, ...(list ? { detail: "none" } : { response: "yes" }) });
@@ -196,13 +199,13 @@ describe("live ChatGPT test bugs (job setup flow)", () => {
   test("#6 job number check is answered visibly; numbering shows what's left", async () => {
     const q1 = await call("next_question", { job_number: "J-4" });
     expect(q1.text).toMatch(/Setup question 1 — \d+ more after this/);
-    expect(q1.all).toContain("check_key: gate_cost_loaded");
+    expect(q1.all).toContain("Question ref: gate-cost-loaded");
     await call("answer", { job_number: "J-4", check_key: "gate_cost_loaded", response: "no" });
     const q2 = await call("next_question", { job_number: "J-4" });
     expect(q2.text).toContain('Answered for you: B5 "A job number is assigned.');
     expect(q2.text).toContain("yes (job number J-4 is on record)");
     // Warranty and closeout questions come up front, right after the gate.
-    expect(q2.all).toContain("check_key: warranty:workmanship_warranty");
+    expect(q2.all).toContain("Question ref: warranty-workmanship-warranty");
     await toCheck("J-4", "bss_billing_forecast");
   });
   test("#1 #7 #8 a setup no: recommend + why + help, no cost-loaded advice after a no, item goes to the job's PM", async () => {
@@ -288,18 +291,18 @@ describe("live retest 2026-10-19", () => {
 
   test("#2 #7 job setup asks warranty and closeout up front; the register fills from the answers", async () => {
     const g = await call("next_question", { job_number: "R-2" });
-    expect(g.all).toContain("check_key: gate_cost_loaded"); // gate questions stay first
+    expect(g.all).toContain("Question ref: gate-cost-loaded"); // gate questions stay first
     await call("answer", { job_number: "R-2", check_key: "gate_cost_loaded", response: "yes" });
     const q = await call("next_question", { job_number: "R-2" });
-    expect(q.all).toContain("check_key: warranty:workmanship_warranty");
+    expect(q.all).toContain("Question ref: warranty-workmanship-warranty");
     expect(q.text).toContain("Is there a workmanship warranty on this job (yes / no)?");
     for (const [k, a] of Object.entries(WARRANTY_ANSWERS)) {
       const n = await call("next_question", { job_number: "R-2" });
-      expect(n.all).toContain(`check_key: ${k}`);
+      expect(n.all).toContain(`Question ref: ${questionRef(k)}`);
       expect((await call("answer", { job_number: "R-2", check_key: k, ...a })).isError).toBe(false);
     }
     const after = await call("next_question", { job_number: "R-2" });
-    expect(after.all).not.toContain("check_key: warranty:");
+    expect(after.all).not.toContain("Question ref: warranty-");
     const rep = await call("report", { job_number: "R-2", audience: "client" });
     expect(rep.text).toMatch(/WARRANTY REGISTER\n\s+- Workmanship warranty: yes \(manual\)\n\s+Status: Pending substantial completion date\n\s+Duration: 12 months/);
     expect(rep.text).toContain("- Required closeout documents: O&M manuals, as-builts (manual)");
@@ -310,7 +313,7 @@ describe("live retest 2026-10-19", () => {
     await call("answer", { job_number: "R-3", check_key: "gate_cost_loaded", response: "yes" });
     await call("answer", { job_number: "R-3", check_key: "warranty:workmanship_warranty", response: "no" });
     const n = await call("next_question", { job_number: "R-3" });
-    expect(n.all).toContain("check_key: warranty:warranty_start_basis");
+    expect(n.all).toContain("Question ref: warranty-warranty-start-basis");
     await call("answer", { job_number: "R-3", check_key: "warranty:warranty_start_basis", response: "unknown" });
     expect((await items("R-3", "warranty:%")).map((i) => `${i.check_key}=${i.item_type}`)).toEqual(["warranty:warranty_start_basis=unknown", "warranty:workmanship_warranty=no"]);
   });
