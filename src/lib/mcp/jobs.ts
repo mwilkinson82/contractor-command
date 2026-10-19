@@ -3,7 +3,7 @@ import { FLAG_CLAUSE, effectiveFlag } from "./clauses";
 // Rule evaluation (applies_when, N/A suppression, resolution rules) lives in the database mcp_* functions.
 import { renderWarrantyRegister } from "./warranty";
 import { whoForJob } from "./people";
-import { itemRef } from "./refs";
+import { displayRef } from "./refs";
 import { clientSafe } from "./client-safe";
 import { draftGuidance, draftIdentityText } from "./drafts";
 import { ToolError } from "@lovable.dev/mcp-js";
@@ -11,14 +11,21 @@ import { dbError, type Sb } from "./guard";
 
 export type Job = { job_id: string; job_number: string; name: string; company_id: string; scope?: "full" | "contract" | "super" };
 
+const companyNames = (m: { mcp_companies: { name: string | null } }[]) => m.map((c) => c.mcp_companies.name ?? "unnamed company").join("; ");
+
 export async function resolveCompany(sb: Sb, companyId?: string): Promise<string> {
   // Companies are only visible to their members (RLS), so this is "my companies".
   const { data, error } = await sb.from("mcp_companies").select("id, name");
   if (error) throw new Error(error.message);
   const mine = (data ?? []).map((c) => ({ company_id: c.id, mcp_companies: { name: c.name } }));
   if (companyId) {
-    if (!mine.some((m) => m.company_id === companyId)) throw new ToolError("You aren't a member of that company.");
-    return companyId;
+    // Accept the company's id or its name (plain-text hosts only see names).
+    const want = companyId.trim().toLowerCase();
+    const byId = mine.find((m) => m.company_id === want);
+    if (byId) return byId.company_id;
+    const byName = mine.filter((m) => (m.mcp_companies.name ?? "").trim().toLowerCase() === want);
+    if (byName.length === 1) return byName[0].company_id;
+    throw new ToolError(mine.length > 1 ? `You aren't a member of a company called "${companyId.trim()}". Your companies: ${companyNames(mine)}.` : "You aren't a member of that company.");
   }
   if (!mine.length) {
     const nr = await sb.rpc("mcp_caller_is_no_access_role");
@@ -26,7 +33,8 @@ export async function resolveCompany(sb: Sb, companyId?: string): Promise<string
   }
   if (!mine.length) throw new ToolError('No company set up yet. Call onboarding with action "save_company" first.');
   if (mine.length > 1) {
-    throw new ToolError(`You belong to more than one company. Pass company_id:\n${mine.map((m) => `- ${m.company_id}: ${m.mcp_companies?.name ?? "unknown"}`).join("\n")}`);
+    // Never pick one silently.
+    throw new ToolError(`You belong to more than one company: ${companyNames(mine)}. Which company is this for? Nothing was changed.`);
   }
   return mine[0].company_id;
 }
@@ -126,7 +134,6 @@ export function typeWord(t: string): string {
   return ({ deadline: "Deadline", unknown: "To confirm", no: "Gap", na_disposition: "N/A, needs a decision", pending_document: "Waiting on a document" } as Record<string, string>)[t] ?? t;
 }
 /** Checklist labels (A1, D9) mean something to a PM; hash refs (#36c310) don't, so they stay in structured content. */
-const isLabelRef = (r: string) => !r.startsWith("#");
 
 /** Source codes in words: member_answer -> manual, other snake_case codes spaced. */
 const humanSources = (l: string) => l.replace(/\bmember_answer\b/g, "manual").replace(/(Source|Clause\/source): ([a-z]+(?:_[a-z]+)+)/g, (_m, k, v) => `${k}: ${v.replace(/_/g, " ")}`);
@@ -143,7 +150,7 @@ export function itemLine(it: Item, nas: Na[], client = false, o: LineOpts = {}) 
   const t = itemType(it, nas);
   const who = o.who ? o.who(it.accountable ?? it.owner) : it.accountable ?? it.owner;
   const cf = o.clientFacing === true;
-  return humanSources(`[${typeWord(t)}] ${it.action} | Accountable: ${who} | Needed by: ${it.needed_by ?? it.due_date ?? "unknown"} | ${status.trim()}${cf ? "" : ` | Source: ${it.source ?? "unknown"}`} | ${effects}${next}${typeDetail(it, t, client, cf)}${na ? ` | ${na}` : ""}${cf || !isLabelRef(itemRef(it)) ? "" : ` [${itemRef(it)}]`}`);
+  return humanSources(`[${typeWord(t)}] ${it.action} | Accountable: ${who} | Needed by: ${it.needed_by ?? it.due_date ?? "unknown"} | ${status.trim()}${cf ? "" : ` | Source: ${it.source ?? "unknown"}`} | ${effects}${next}${typeDetail(it, t, client, cf)}${na ? ` | ${na}` : ""}${cf ? "" : ` | ${displayRef(it)}`}`);
 }
 
 const SECTION_TITLES: Record<string, string> = {
@@ -241,12 +248,15 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
     } else if (mod === "warranty") {
       const w = facts.filter((f) => f.module === "warranty");
       const cc = facts.find((f) => f.module === "contract" && f.key === "closeout" && f.status === "known");
-      if (cc && !w.some((f) => f.key === "closeout_documents" && f.status === "known")) w.push({ ...cc, module: "warranty", key: "closeout_documents" });
+      const wcd = w.findIndex((f) => f.key === "closeout_documents" && f.status === "known");
+      if (cc && wcd < 0) w.push({ ...cc, module: "warranty", key: "closeout_documents" });
+      // Same text as the contract's closeout clause: it came from the contract, so show that source.
+      else if (cc && JSON.stringify(w[wcd].value).trim() === JSON.stringify(cc.value).trim()) w[wcd] = { ...w[wcd], source: cc.source };
       out.push(...renderWarrantyRegister(w, new Date().toISOString().slice(0, 10)));
     } else {
       const fs = facts.filter((f) => f.module === mod);
       if (!fs.length) out.push("   Not started.");
-      fs.forEach((f) => out.push(`   - ${f.key.replace(/_/g, " ")}: ${f.status === "known" ? show(f.value) : f.status} (${mod === "contract" && f.source === "member_answer" ? "manual" : f.source.replace(/_/g, " ")})`));
+      fs.forEach((f) => out.push(`   - ${f.key.replace(/_/g, " ")}: ${f.status === "known" ? `${show(f.value)} (${f.source === "member_answer" ? "manual" : f.source.replace(/_/g, " ")})` : f.status}`));
     }
     if (sectionItems.length) {
       out.push("   Open items:");
