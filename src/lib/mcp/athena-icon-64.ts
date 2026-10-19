@@ -1,0 +1,26 @@
+/**
+ * 64x64 Athena mark (PNG, ~2.4 KB) for ChatGPT's connector icon.
+ * ChatGPT rejects or breaks on large icon files, so a small favicon-sized PNG
+ * is listed first in serverInfo.icons. Stored as base64 so text-only tooling
+ * can ship it; served by src/routes/brand.athena.athena-icon-64[.]png.ts.
+ */
+export const ATHENA_ICON_64_PNG_BASE64 = "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";
+
+export function athenaIcon64Bytes(): Uint8Array<ArrayBuffer> {
+  const bin = atob(ATHENA_ICON_64_PNG_BASE64);
+  const out = new Uint8Array(new ArrayBuffer(bin.length));
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+export function athenaIcon64Response(): Response {
+  return new Response(athenaIcon64Bytes(), {
+    status: 200,
+    headers: {
+      "content-type": "image/png",
+      "cache-control": "public, max-age=86400",
+      "access-control-allow-origin": "*",
+      "cross-origin-resource-policy": "cross-origin",
+    },
+  });
+}
