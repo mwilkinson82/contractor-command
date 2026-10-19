@@ -2,7 +2,7 @@
 // so the real RLS policies and SECURITY DEFINER functions from drizzle/migrations decide what each role sees.
 import type { PGlite } from "@electric-sql/pglite";
 
-type Claims = { sub: string; email: string; role: "authenticated"; client_id?: string };
+type Claims = { sub: string; email: string; role: "authenticated" | "service_role"; client_id?: string };
 type Res = { data: any; error: { message: string } | null };
 
 const q = (id: string) => `"${id.replace(/"/g, '""')}"`;
@@ -10,7 +10,7 @@ const q = (id: string) => `"${id.replace(/"/g, '""')}"`;
 export async function asUser<T>(db: PGlite, claims: Claims, fn: (tx: any) => Promise<T>): Promise<T> {
   return db.transaction(async (tx) => {
     await tx.query(`SELECT set_config('request.jwt.claims', $1, true)`, [JSON.stringify(claims)]);
-    await tx.exec(`SET LOCAL ROLE authenticated`);
+    await tx.exec(claims.role === "service_role" ? `SET LOCAL ROLE service_role` : `SET LOCAL ROLE authenticated`);
     return fn(tx);
   });
 }
@@ -43,6 +43,7 @@ class Query implements PromiseLike<Res> {
   private p(v: unknown) { this.params.push(v !== null && typeof v === "object" && !Array.isArray(v) ? JSON.stringify(v) : Array.isArray(v) ? JSON.stringify(v) : v); return `$${this.params.length}`; }
   select(cols = "*") { if (this.mode === "select") this.cols = cols; else { this.returning = true; this.cols = cols; } return this; }
   eq(c: string, v: unknown) { this.where.push(`${q(c)} = ${this.p(v)}`); return this; }
+  like(c: string, v: string) { this.where.push(`${q(c)} LIKE ${this.p(v)}`); return this; }
   in(c: string, vs: unknown[]) { if (!vs.length) this.where.push("false"); else this.where.push(`${q(c)}::text IN (${vs.map((v) => this.p(String(v))).join(",")})`); return this; }
   not(c: string, op: string, v: unknown) { if (op === "is" && v === null) this.where.push(`${q(c)} IS NOT NULL`); else this.where.push(`NOT (${q(c)} = ${this.p(v)})`); return this; }
   order(c: string, o?: { ascending?: boolean }) { this.ord = ` ORDER BY ${q(c)} ${o?.ascending === false ? "DESC" : "ASC"}`; return this; }

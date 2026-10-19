@@ -2,6 +2,7 @@ import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
+import { brandInitializeResponse, initializeRequestIds, isMcpPost } from "./lib/mcp/server-info-branding";
 
 const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
   // Bypass app middleware for /lovable/* — these routes (webhooks, cron,
@@ -122,8 +123,29 @@ const mcpAllowlistGate = createMiddleware().server(async ({ next, request }) => 
   return next();
 });
 
+/**
+ * Athena icon on the MCP initialize response (serverInfo.icons / websiteUrl).
+ * Runs after the allowlist gate; only a 200 initialize result is rewritten.
+ */
+const mcpServerInfoBranding = createMiddleware().server(async ({ next, request }) => {
+  if (!isMcpPost(request)) return next();
+  let ids: unknown[] = [];
+  try {
+    ids = initializeRequestIds(await request.clone().text());
+  } catch {
+    ids = [];
+  }
+  const result = await next();
+  if (ids.length === 0) return result;
+  try {
+    return { ...result, response: await brandInitializeResponse(result.response, ids) };
+  } catch {
+    return result;
+  }
+});
+
 export const startInstance = createStart(() => ({
-  requestMiddleware: [errorMiddleware, mcpAllowlistGate, csrfOriginGuard],
+  requestMiddleware: [errorMiddleware, mcpAllowlistGate, mcpServerInfoBranding, csrfOriginGuard],
   functionMiddleware: [attachSupabaseAuth],
 }));
 
