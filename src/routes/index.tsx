@@ -100,7 +100,7 @@ function HomePage() {
   const firstName =
     (user?.user_metadata?.full_name as string | undefined)?.split(" ")[0] ||
     user?.email?.split("@")[0] ||
-    "there";
+    "";
   const companyName = company?.name?.trim() || "Your Command Center";
   const shouldSeeCallAnnouncement =
     isAdmin === true || (!tierLoading && tierAtLeast(tier, "circle"));
