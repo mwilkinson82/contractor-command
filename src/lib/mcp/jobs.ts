@@ -5,7 +5,7 @@ import { renderWarrantyRegister } from "./warranty";
 import { whoForJob } from "./people";
 import { itemRef } from "./refs";
 import { clientSafe } from "./client-safe";
-import { draftIdentityText } from "./drafts";
+import { draftGuidance, draftIdentityText } from "./drafts";
 import { ToolError } from "@lovable.dev/mcp-js";
 import { dbError, type Sb } from "./guard";
 
@@ -121,6 +121,16 @@ function typeDetail(it: Item, t: string, client: boolean, clientFacing = false) 
   return client ? "" : "";
 }
 
+/** Item types in words a PM reads. */
+export function typeWord(t: string): string {
+  return ({ deadline: "Deadline", unknown: "To confirm", no: "Gap", na_disposition: "N/A, needs a decision", pending_document: "Waiting on a document" } as Record<string, string>)[t] ?? t;
+}
+/** Checklist labels (A1, D9) mean something to a PM; hash refs (#36c310) don't, so they stay in structured content. */
+const isLabelRef = (r: string) => !r.startsWith("#");
+
+/** Source codes in words: member_answer -> manual, other snake_case codes spaced. */
+const humanSources = (l: string) => l.replace(/\bmember_answer\b/g, "manual").replace(/(Source|Clause\/source): ([a-z]+(?:_[a-z]+)+)/g, (_m, k, v) => `${k}: ${v.replace(/_/g, " ")}`);
+
 export type LineOpts = { clientFacing?: boolean; who?: (raw: string | null | undefined) => string };
 
 export function itemLine(it: Item, nas: Na[], client = false, o: LineOpts = {}) {
@@ -133,7 +143,7 @@ export function itemLine(it: Item, nas: Na[], client = false, o: LineOpts = {}) 
   const t = itemType(it, nas);
   const who = o.who ? o.who(it.accountable ?? it.owner) : it.accountable ?? it.owner;
   const cf = o.clientFacing === true;
-  return `[${t}] ${it.action} | Accountable: ${who} | Needed by: ${it.needed_by ?? it.due_date ?? "unknown"} | ${status.trim()}${cf ? "" : ` | Source: ${it.source ?? "unknown"}`} | ${effects}${next}${typeDetail(it, t, client, cf)}${na ? ` | ${na}` : ""}${cf ? "" : ` [ref ${itemRef(it)}]`}`;
+  return humanSources(`[${typeWord(t)}] ${it.action} | Accountable: ${who} | Needed by: ${it.needed_by ?? it.due_date ?? "unknown"} | ${status.trim()}${cf ? "" : ` | Source: ${it.source ?? "unknown"}`} | ${effects}${next}${typeDetail(it, t, client, cf)}${na ? ` | ${na}` : ""}${cf || !isLabelRef(itemRef(it)) ? "" : ` [${itemRef(it)}]`}`);
 }
 
 const SECTION_TITLES: Record<string, string> = {
@@ -158,6 +168,12 @@ export function flagWord(v: string): string {
 function show(v: unknown): string {
   if (v === null || v === undefined) return "unknown";
   if (typeof v === "string") return v;
+  // Structured values (SOV lines, budget lines) read as "description: x | billable value: y", not JSON.
+  if (typeof v === "object" && !Array.isArray(v))
+    return Object.entries(v as Record<string, unknown>)
+      .map(([k, x]) => `${k.replace(/_/g, " ")}: ${Array.isArray(x) ? (x.length ? x.join(", ") : "none") : x === null || x === undefined ? "unknown" : typeof x === "object" ? JSON.stringify(x) : String(x)}`)
+      .join(" | ");
+  if (Array.isArray(v)) return v.map((x) => (typeof x === "string" ? x : JSON.stringify(x))).join(", ");
   return JSON.stringify(v);
 }
 
@@ -271,7 +287,10 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
       const j = (jr.data ?? {}) as { pm_user_id?: string | null; pm_name?: string | null; pm_email?: string | null; pm_title?: string | null };
       const pmName = who("unknown").replace(/ \(PM\)$/, "");
       const name = pmName.startsWith("Unassigned") ? (j.pm_name ?? null) : pmName;
-      out.push("", draftIdentityText({ name, email: j.pm_email ?? null, title: j.pm_title ?? null, isMember: !!j.pm_user_id }, { name: co.data?.name ?? null }));
+      const pmId = { name, email: j.pm_email ?? null, title: j.pm_title ?? null, isMember: !!j.pm_user_id };
+      out.push("", draftIdentityText(pmId, { name: co.data?.name ?? null }));
+      // Assistant-only; the last pass (finalizeVisible) moves these lines out of the visible text.
+      out.push(...draftGuidance(pmId, { name: co.data?.name ?? null }));
     }
   }
   return client ? clientSafe(out.join("\n")) : out.join("\n");
