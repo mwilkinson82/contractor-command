@@ -1,3 +1,4 @@
+import { finalizeVisible, splitGuidance } from "./visible";
 import { DB_UNAVAILABLE, MCP_DAILY_CAP, MCP_HOURLY_CAP, capMessage, type CapResult } from "./limits";
 import { ToolError, type ToolContext } from "@lovable.dev/mcp-js";
 import { supabaseForUser } from "./supabase";
@@ -88,7 +89,7 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
   }
   try {
     const r = await fn(sb);
-    return sweep ? withSweep(r, sweep, sweepScope.client === true) : r;
+    return finalizeVisible(sweep ? withSweep(r, sweep, sweepScope.client === true) : r);
   } catch (e) {
     await logWorkflow(sb, {
       event_type: "failure",
@@ -96,7 +97,7 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
       lookahead_id: lookaheadId && /^[0-9a-f-]{36}$/i.test(lookaheadId) ? lookaheadId : null,
       error_code: e instanceof ToolError ? "tool_error" : "internal",
     });
-    if (e instanceof ToolError) throw e;
+    if (e instanceof ToolError) throw new ToolError(splitGuidance(e.message).visible.trim() || e.message);
     throw new ToolError("Something went wrong. Try again in a moment.");
   }
 }
@@ -110,6 +111,6 @@ function withSweep<R>(r: R, sweep: NonNullable<Awaited<ReturnType<typeof runSwee
   if (!res?.content?.length || res.content[0].type !== "text") return r;
   const joined = `${sweep.text}\n\n====\n\n${res.content[0].text ?? ""}`;
   const first = { ...res.content[0], text: client ? clientSafe(joined) : joined };
-  const items = sweep.items.map((i) => ({ job_number: i.job_number, item_id: client ? null : i.item_id, item_type: i.item_type, due: i.due, days: i.days, bucket: i.bucket }));
+  const items = sweep.items.map((i) => ({ job_number: i.job_number, item_ref: client ? null : i.item_ref, item_id: client ? null : i.item_id, item_type: i.item_type, due: i.due, days: i.days, bucket: i.bucket }));
   return { ...res, content: [first, ...res.content.slice(1)], structuredContent: { ...(res.structuredContent ?? {}), sweep: items } } as unknown as R;
 }

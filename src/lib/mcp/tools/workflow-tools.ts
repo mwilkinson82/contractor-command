@@ -8,9 +8,10 @@ import { WARRANTY_CHECK_PREFIX, WARRANTY_SETUP_QUESTIONS, mapTrigger, nextWarran
 import { EVIDENCE_ASK, evidenceProblem } from "../evidence";
 import { itemRef, matchRef, shortRef } from "../refs";
 import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
-import { draftIdentityText, type PmIdentity } from "../drafts";
+import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
+import { guide } from "../visible";
 import { FLAGS_ASKED_LATER, noGuidance, noGuidanceText, reconcileRecommendation } from "../guidance";
-import { LOOKAHEAD_BUILD_QUESTIONS, LOOKAHEAD_EXISTS_ASK, LOOKAHEAD_PUSHBACK, LOOKAHEAD_SETUP_KEY, buildQuestionsText, pushbackText } from "../lookahead-help";
+import { LOOKAHEAD_BUILD_QUESTIONS, LOOKAHEAD_EXISTS_ASK, LOOKAHEAD_PUSHBACK, LOOKAHEAD_SETUP_KEY, PUSHBACK_GUIDANCE, buildQuestionsGuidance, buildQuestionsText, pushbackText } from "../lookahead-help";
 
 const uuid = z.string().uuid();
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
@@ -40,8 +41,8 @@ const itemNote = (r: ItemResult | null | undefined): string =>
   !r
     ? ""
     : r.existing
-      ? ` Already open: item ${shortRef(r.item_id)} (type ${r.item_type ?? "unknown"}).`
-      : ` Open item ${shortRef(r.item_id)} created, type ${r.item_type ?? "deadline"} (accountable: ${r.accountable}${r.owner_defaulted ? " — defaulted to the job's PM; with no PM set it stays unassigned until you name one" : ""}; needed by ${r.needed_by}${r.needed_by_defaulted ? " — defaulted to 7 days" : ""}).${r.delivery_item ? ` Delivery method/recipient unknown:${itemNote(r.delivery_item)}` : ""}`;
+      ? " Already open."
+      : ` Open item created (accountable: ${r.accountable}${r.owner_defaulted ? " — defaulted to the job's PM; with no PM set it stays unassigned until you name one" : ""}; needed by ${r.needed_by}${r.needed_by_defaulted ? " — defaulted to 7 days" : ""}).${r.delivery_item ? ` Delivery method/recipient unknown:${itemNote(r.delivery_item)}` : ""}`;
 const itemOut = (r: ItemResult | null | undefined) => (r ? { item_id: r.item_id, item_ref: shortRef(r.item_id), item_type: r.item_type ?? "deadline" } : null);
 
 type FlagResult = { changed: string[]; confirm_items: ItemResult[]; reenable_suggestions: { na_id: string; scope: string; target: string; trigger: string }[] };
@@ -114,13 +115,13 @@ export const onboarding = defineTool({
         ...text(
           [
             args.action === "read" ? "Company profile:" : "Saved.",
-            `Company: ${c.name} (company_id ${cid})`,
+            `Company: ${c.name}`,
             `Agent name: ${c.agent_name}`,
             `Role: ${c.company_role ?? "unknown"} | Work types: ${(c.work_types ?? []).join(", ") || "unknown"} | Trades: ${(c.trades ?? []).join(", ") || "unknown"}`,
-            `Tool stack: ${Object.entries((c.tool_stack ?? {}) as Record<string, string>).map(([k, v]) => `${k}: ${v}`).join("; ") || "unknown"}`,
+            `Tool stack: ${Object.entries((c.tool_stack ?? {}) as Record<string, string>).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`).join("; ") || "unknown"}`,
             `Decision rights: ${Object.entries(rights).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v.join(", ")}`).join("; ")}`,
-            `Default applicability: ${Object.entries((c.default_flags ?? {}) as Record<string, string>).map(([k, v]) => `${k}: ${v}`).join("; ") || "none"}`,
-            `Members: ${(members ?? []).map((m) => `${m.display_name} (${m.role})`).join(", ")}`,
+            `Default applicability: ${Object.entries((c.default_flags ?? {}) as Record<string, string>).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`).join("; ") || "none"}`,
+            `Members: ${(members ?? []).map((m) => `${m.display_name} (${m.role.replace(/_/g, "-")})`).join(", ")}`,
             "",
             'Next: create a job with intake section "create_job" and a job_number.',
           ].join("\n"),
@@ -135,17 +136,13 @@ const workPackage = z.object({ name: z.string().trim().min(1).max(120), mode: z.
 const budgetLine = z.object({ cost_code: z.string().trim().min(1).max(40), description: z.string().max(200).optional(), amount: z.number().optional() });
 const sovLine = z.object({ line: z.string().trim().min(1).max(40), description: z.string().max(200).optional(), billable_value: z.number().optional(), cost_codes: z.array(z.string().max(40)).max(50).optional() });
 const gap = z.object({ gap: z.string().trim().min(1).max(1000), owner: z.string().trim().min(1).max(120), needed_by: date.optional() });
+import { CLAUSE_ABSENT, CLAUSE_UNKNOWN, FLAG_CLAUSE, clauseFlag, effectiveFlag } from "../clauses";
+export { CLAUSE_ABSENT, CLAUSE_UNKNOWN };
+/** Field keys in words ("beneficial_use_clause" -> "beneficial use clause"). */
+const humanKeys = (ks: string[]) => ks.map((k) => k.replace(/_/g, " ")).join(", ");
 function triFrom(v: boolean | undefined): "yes" | "no" | "unknown" {
   return v === undefined ? "unknown" : v ? "yes" : "no";
 }
-/** Typed answers that mean "this clause is not in the contract" ("No LDs", "None.", "N/A", "0%", "not included"). "No later than 7 days" is a real term, not an absence. */
-export const CLAUSE_ABSENT =
-  /^(?:none|no|n\/?a|nil|zero|0\s*%?|not (?:included|applicable|in (?:the )?contract)|there (?:is|are) no\b.*|no(?:\s+\S+){0,3}?\s+(?:clause|clauses|lds?|liquidated damages?|beneficial use|retainage|retention|notice requirements?)\b.*)\.?$/i;
-
-/** "Not specified", "unknown", "TBD": the term is unknown. No fact value, no flag. */
-export const CLAUSE_UNKNOWN =
-  /^(?:not specified|unspecified|not stated|not (?:provided|given|known|sure)|unknown|unsure|unclear|tbd|tbc|n\/s|to be (?:confirmed|determined)|don'?t know|do not know|no idea)\b/i;
-
 const TYPED_MARK = /user[- ]typed|typed (?:in )?by|member[- ]typed|reported by (?:the )?user|no (?:contract )?document|not read from/i;
 
 /** Terms count as read from the contract only when the client names the document it read and nothing says they were typed. */
@@ -155,12 +152,6 @@ export function readFromDocument(a: { contract_document_provided?: boolean; cont
 
 function keysText(a: Record<string, unknown>): string {
   return Object.values(a).filter((v) => typeof v === "string").join(" ");
-}
-
-function clauseFlag(v: string | undefined): "yes" | "no" | undefined {
-  if (v === undefined || !v.trim()) return undefined;
-  if (CLAUSE_UNKNOWN.test(v.trim())) return undefined;
-  return CLAUSE_ABSENT.test(v.trim()) ? "no" : "yes";
 }
 
 /** Save warranty/closeout setup facts, then open an item for every "no" or unknown (deduped by check_key). */
@@ -217,7 +208,7 @@ export const intake = defineTool({
     restrict_to: z.array(z.string().trim().min(1).max(120)).max(30).optional().describe("create_job: member names who may see this job (leave out for all members)."),
     // Job settings
     time_zone: z.string().trim().max(60).optional().describe("job_settings: IANA time zone, e.g. America/Chicago. Deadlines are computed in it."),
-    pm: z.string().trim().max(120).optional().describe("job_settings: the job PM's name. A company member is linked; anyone else is saved as a contact (name + email) with no Athena access."),
+    pm: z.string().trim().max(120).optional().describe("job_settings: the job PM's name only (put the email in pm_email; no notes such as \"non-member\"). A company member is linked; anyone else is saved as a contact (name + email) with no Athena access."),
     pm_email: z.string().trim().max(200).optional().describe("job_settings: the PM's email. Used as the suggested From on drafts. No Athena access is granted."),
     pm_title: z.string().trim().max(120).optional().describe("job_settings: the PM's title for draft signatures. Default 'Project Manager'."),
     // Delay event
@@ -335,10 +326,10 @@ export const intake = defineTool({
         const co = await sb.from("mcp_companies").select("name").eq("id", job.company_id).maybeSingle();
         const pmLine = r.pm ? `${r.pm}${r.pm_is_member === false ? " (not an Athena user; saved as a contact with no Athena access)" : ""}${r.pm_email ? ` <${r.pm_email}>` : ""}` : "unassigned";
         const id: PmIdentity = { name: r.pm, email: r.pm_email ?? null, title: r.pm_title ?? null, isMember: r.pm_is_member !== false };
-        return {
-          ...text(`${P}Job settings saved. Time zone: ${r.time_zone ?? "unknown"} | PM: ${pmLine}\n\n${draftIdentityText(id, { name: co.data?.name ?? null })}`),
+        return guide({
+          ...text(`${P}Job settings saved. Time zone: ${r.time_zone ?? "unknown"} | PM: ${pmLine}${r.pm ? `\nOpen items that were unassigned now read Accountable: ${r.pm} (PM). To assign an item to the PM, pass the name only.` : ""}\n\n${draftIdentityText(id, { name: co.data?.name ?? null })}`),
           structuredContent: { time_zone: r.time_zone, pm: r.pm, pm_email: r.pm_email ?? null, pm_title: r.pm_title ?? null, pm_is_member: r.pm_is_member ?? true },
-        };
+        }, ...draftGuidance(id, { name: co.data?.name ?? null }));
       }
 
       if (args.section === "delay_event") {
@@ -368,7 +359,7 @@ export const intake = defineTool({
         let pmName = j.pm_name ?? null;
         if (!pmName && j.pm_user_id) pmName = ((await sb.from("mcp_company_members").select("display_name").eq("company_id", job.company_id).eq("user_id", j.pm_user_id).maybeSingle()).data as { display_name?: string } | null)?.display_name ?? null;
         const id: PmIdentity = { name: pmName, email: j.pm_email ?? null, title: j.pm_title ?? null, isMember: !!j.pm_user_id };
-        return {
+        return guide({
           ...text([
             `${P}Delay recorded: ${args.delay_description}${args.delay_activity ? ` (activity: ${args.delay_activity})` : ""}.`,
             `Start date: ${start ?? "unknown — confirm it; the notice clock runs from when the delay began, not when it was found"} | Impact: ${args.delay_days != null ? `${args.delay_days} days` : "unknown"} | Cause: ${args.delay_cause ?? "unknown"}`,
@@ -378,7 +369,7 @@ export const intake = defineTool({
           ].join("\n")),
           structuredContent: { delay_event_id: r.delay_event_id, start_known: r.start_known, notice_due: start ? nd.due : null, claim_due: start ? cd.due : null,
             items: [r.notice_item, r.notice_item?.delivery_item, r.claim_item, r.claim_item?.delivery_item].filter((x): x is ItemResult => !!x).map((x) => itemOut(x)!) },
-        };
+        }, ...draftGuidance(id, { name: co.data?.name ?? null }));
       }
 
       if (args.section === "deadline") {
@@ -440,7 +431,7 @@ export const intake = defineTool({
         await settleFlagConfirms(sb, job);
         const { data: all } = await sb.from("mcp_job_flags").select("flag_key, value, source").eq("job_id", job.job_id).order("flag_key");
         return text(
-          `${P}Step 0 scoping saved.\nRecorded: ${fr.known.join(", ") || "none"}\nUnknown: ${fr.unknown.join(", ") || "none"}\n\nApplicability flags:\n${(all ?? []).map((f) => `- ${f.flag_key.replace(/_/g, " ")}: ${f.value} (${f.source.replace(/_/g, " ")})`).join("\n")}\n${flagNote(r)}\n\nNext: intake section "contract", or next_question.`,
+          `${P}Step 0 scoping saved.\nRecorded: ${humanKeys(fr.known) || "none"}\nUnknown: ${humanKeys(fr.unknown) || "none"}\n\nApplicability flags:\n${(all ?? []).map((f) => `- ${f.flag_key.replace(/_/g, " ")}: ${f.value} (${f.source.replace(/_/g, " ")})`).join("\n")}\n${flagNote(r)}\n\nNext: intake section "contract", or next_question.`,
         );
       }
 
@@ -493,7 +484,7 @@ export const intake = defineTool({
         }
         const saved = Object.keys(given);
         return text(
-          `${P}Contract terms saved${saved.length ? (fromDoc ? " from the contract (source: document)" : " as manual entries (source: manual)") : ""}.\n${!fromDoc && saved.length ? "These were entered by hand, not read from the contract. Confirm them against the contract when you have it.\n" : ""}Known: ${fr.known.join(", ") || "none"}\nUnknown: ${fr.unknown.join(", ") || "none"}${note ? `\n${note}` : ""}`,
+          `${P}Contract terms saved${saved.length ? (fromDoc ? " from the contract (source: document)" : " as manual entries (source: manual)") : ""}.\n${!fromDoc && saved.length ? "These were entered by hand, not read from the contract. Confirm them against the contract when you have it.\n" : ""}Known: ${humanKeys(fr.known) || "none"}\nUnknown: ${humanKeys(fr.unknown) || "none"}${note ? `\n${note}` : ""}`,
         );
       }
 
@@ -528,7 +519,7 @@ export const intake = defineTool({
           });
           notes.push(`-${itemNote(r)}`);
         }
-        return text(`${P}Estimate-to-execution baseline saved (internal only).\nKnown: ${fr.known.join(", ") || "none"}\nUnknown: ${fr.unknown.join(", ") || "none"}\nGaps:\n${notes.join("\n") || "- none"}`);
+        return text(`${P}Estimate-to-execution baseline saved (internal only).\nKnown: ${humanKeys(fr.known) || "none"}\nUnknown: ${humanKeys(fr.unknown) || "none"}\nGaps:\n${notes.join("\n") || "- none"}`);
       }
 
       if (args.section === "budget") {
@@ -593,7 +584,7 @@ export const intake = defineTool({
       }
       if (args.lookahead_exists === "no") {
         await audit(sb, job, "intake", "lookahead_no_pushback", null);
-        return { ...text(pushbackText(P)), structuredContent: { created: false, lookahead_help: "offered", prompt: LOOKAHEAD_PUSHBACK } };
+        return guide({ ...text(pushbackText(P)), structuredContent: { created: false, lookahead_help: "offered", prompt: LOOKAHEAD_PUSHBACK } }, `Ask the member, then call intake section "lookahead" again with lookahead_exists "build" (they want help) or answer check_key "${LOOKAHEAD_SETUP_KEY}" with response "no" and lookahead_help "decline".`);
       }
       const docs: Partial<Record<InputKey, string>> = {};
       for (const k of ["schedule_export", "crews", "submittal_log", "rfi_log", "inspection_list", "deliveries"] as const) {
@@ -617,7 +608,7 @@ export const intake = defineTool({
       }
       return {
         ...text(
-          `${P}Look-ahead created for ${args.start_date ?? "the next two weeks"}${args.end_date ? ` to ${args.end_date}` : ""}. (Its id is in this result's structured data for next_question; don't show it to the member.)\n\nProvided:\n${provided.map((k) => `- ${INPUT_LABELS[k as InputKey]}`).join("\n") || "- none"}\n\nMissing (recorded as unknown):\n${missing.map((k) => `- ${INPUT_LABELS[k]}`).join("\n") || "- none"}\n\nNext: next_question with this job_number and lookahead_id.`,
+          `${P}Look-ahead created for ${args.start_date ?? "the next two weeks"}${args.end_date ? ` to ${args.end_date}` : ""}.\n\nProvided:\n${provided.map((k) => `- ${INPUT_LABELS[k as InputKey]}`).join("\n") || "- none"}\n\nMissing (recorded as unknown):\n${missing.map((k) => `- ${INPUT_LABELS[k]}`).join("\n") || "- none"}\n\nNext: next_question with this job_number and lookahead_id (from structuredContent; don't show the id to the member).`,
         ),
         structuredContent: { lookahead_id: la.id, provided, missing },
       };
@@ -712,7 +703,7 @@ export const nextQuestion = defineTool({
       const ask = confirm ? `The record shows: ${typeof q.record_value === "string" ? q.record_value : JSON.stringify(q.record_value)}\nConfirm this is right (yes), or say no / unknown.` : q.prompt;
       return {
         ...text(
-          `${P}${auto}Setup question ${q.index} — ${q.total - q.index + wLeft === 0 ? "last one" : `${q.total - q.index + wLeft} more after this`}${q.label ? ` (${q.label})` : ""} [${q.category}${q.section ? ` / section ${q.section}` : ""}]\ncheck_key: ${q.key}\n\n${confirm ? `${q.prompt}\n${ask}` : ask}\n\nAnswer with response yes, no, na (with a reason in detail) or unknown. For unknown or no, add owner and due_date if known. To mark the whole section N/A use answer action "mark_na" with scope "section".`,
+          `${P}${auto}Setup question ${q.index} — ${q.total - q.index + wLeft === 0 ? "last one" : `${q.total - q.index + wLeft} more after this`}${q.label ? ` (${q.label})` : ""} [${q.category}]\ncheck_key: ${q.key}\n\n${confirm ? `${q.prompt}\n${ask}` : ask}\n\nAnswer with response yes, no, na (with a reason in detail) or unknown. For unknown or no, add owner and due_date if known. To mark the whole section N/A use answer action "mark_na" with scope "section".`,
         ),
         structuredContent: { check_key: q.key, index: q.index, total: q.total, remaining_after: q.total - q.index + wLeft, auto_answered: auto ? "job_number_assigned" : null },
       };
@@ -819,8 +810,8 @@ export const answer = defineTool({
       if (args.check_key === LOOKAHEAD_SETUP_KEY && args.response === "no" && args.lookahead_help !== "decline") {
         await audit(sb, job, "answer", args.lookahead_help === "accept" ? "lookahead_help_accepted" : "lookahead_no_pushback", args.check_key);
         if (args.lookahead_help === "accept")
-          return { ...text(buildQuestionsText(P, job.job_number)), structuredContent: { recorded: null, lookahead_help: "accepted", questions: [...LOOKAHEAD_BUILD_QUESTIONS] } };
-        return { ...text(pushbackText(P)), structuredContent: { recorded: null, lookahead_help: "offered", prompt: LOOKAHEAD_PUSHBACK } };
+          return guide({ ...text(buildQuestionsText(P)), structuredContent: { recorded: null, lookahead_help: "accepted", questions: [...LOOKAHEAD_BUILD_QUESTIONS] } }, ...buildQuestionsGuidance(job.job_number));
+        return guide({ ...text(pushbackText(P)), structuredContent: { recorded: null, lookahead_help: "offered", prompt: LOOKAHEAD_PUSHBACK } }, PUSHBACK_GUIDANCE);
       }
       const r = await rpc<{ recorded: string; item: ItemResult | null; recommendation: string | null }>(sb, "mcp_answer", {
         _job: job.job_id, _key: args.check_key, _answer: args.response, _detail: args.detail ?? null, _owner: args.owner ?? null, _needed_by: args.due_date ?? null,
@@ -894,10 +885,10 @@ export const carryForward = defineTool({
       }
       await audit(sb, job, "carry_forward", "carry_forward", to.id);
       const typed = (items ?? []).map((i) => ({ item_id: i.id, item_type: itemType(i, nas) }));
-      return {
-        ...text(`${prefix(job)}${typed.length} open item(s) carried forward.${typed.map((i) => `\n- item ${shortRef(i.item_id)} (type ${i.item_type})`).join("")}\nNext: next_question for the new lookahead.`),
-        structuredContent: { items: typed },
-      };
+      return guide({
+        ...text(`${prefix(job)}${typed.length} open item(s) carried forward.`),
+        structuredContent: { items: typed.map((t) => ({ ...t, item_ref: shortRef(t.item_id) })) },
+      }, "Next: next_question for the new lookahead.");
     }),
 });
 
@@ -970,7 +961,7 @@ export const resolveItem = defineTool({
         _reason: args.reason ?? null, _approval: args.approval ?? null, _billing: args.billing ?? null, _collection: args.collection ?? null,
       });
       const t = itemType(it, await activeNa(sb, job.job_id));
-      const msg = r.closed ? `${prefix(job)}Item ${ref} (type ${t}) closed (${r.resolution}). Evidence and history kept.` : `${prefix(job)}Item ${ref} updated (last reported by ${statedBy}). Still open.`;
+      const msg = r.closed ? `${prefix(job)}Item closed: ${(it.action ?? "").replace(/^\S+ – /, "")} (${r.resolution === "member_statement" ? "member statement" : r.resolution}). Evidence and history kept.` : `${prefix(job)}Item updated: ${(it.action ?? "").replace(/^\S+ – /, "")} (last reported by ${statedBy}). Still open.`;
       return { ...text(msg), structuredContent: { item_id: itemId, item_ref: ref, item_type: t, closed: r.closed } };
     }),
 });
@@ -1007,7 +998,7 @@ export const contractTerms = defineTool({
       });
       const flags = CONTRACT_FLAGS.map((k) => {
         const f = (flR.data ?? []).find((x) => x.flag_key === k);
-        return { flag: k, value: flagWord(f?.value ?? "unknown"), source: f ? src(f.source) : null };
+        return { flag: k, value: flagWord(effectiveFlag(f?.value ?? "unknown", by.get(FLAG_CLAUSE[k]))), source: f ? src(f.source) : null };
       });
       const lines = [
         `${prefix(job)}CONTRACT TERMS (as saved)`,

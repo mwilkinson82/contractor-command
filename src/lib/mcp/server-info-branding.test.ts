@@ -123,7 +123,7 @@ describe("with the real MCP toolkit handler", () => {
       ? JSON.parse(text)
       : JSON.parse(text.split("\n").find((l) => l.startsWith("data:"))!.slice(5));
     expect(json.result.serverInfo.title).toBe("Athena powered by ALP, construction agents");
-    expect(json.result.serverInfo.icons.map((i: { sizes: string[] }) => i.sizes[0])).toEqual(["64x64", "512x512", "any"]);
+    expect(json.result.serverInfo.icons.map((i: { sizes: string[] }) => i.sizes[0])).toEqual(["64x64", "64x64", "512x512", "any"]);
     expect(json.result.serverInfo.description).toBe(ATHENA_DESCRIPTION);
     expect(json.result.serverInfo.websiteUrl).toBe("https://app.alpcontractorcircle.com");
   });
@@ -141,7 +141,7 @@ describe("icon files", () => {
   });
   it("every declared icon points at a file in public/brand/athena", () => {
     for (const icon of ATHENA_SERVER_ICONS) {
-      if (icon.src.endsWith("/athena-icon-64.png")) continue; // served by a route, not public/
+      if (icon.src.endsWith("/athena-icon-64.png") || icon.src.startsWith("data:")) continue; // served by a route / inline, not public/
       const name = icon.src.split("/brand/athena/")[1];
       expect(() => png(name)).not.toThrow();
     }
@@ -161,5 +161,14 @@ describe("athena-icon-64 route payload", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("image/png");
     expect(res.headers.get("access-control-allow-origin")).toBe("*");
+  });
+});
+
+describe("inline icon (retest 4)", () => {
+  it("second icon is the same 64x64 PNG as a data: URI", () => {
+    const d = ATHENA_SERVER_ICONS[1];
+    expect(d.src.startsWith("data:image/png;base64,")).toBe(true);
+    expect(d.mimeType).toBe("image/png");
+    expect(Buffer.from(d.src.split(",")[1], "base64").equals(Buffer.from(athenaIcon64Bytes()))).toBe(true);
   });
 });

@@ -18,12 +18,31 @@ export function draftIdentity(pm: PmIdentity, company: Company) {
   };
 }
 
+/** Data for drafts: who signs and the suggested From. Visible to the PM; how to use it is in DRAFT_GUIDANCE. */
 export function draftIdentityText(pm: PmIdentity, company: Company): string {
   const d = draftIdentity(pm, company);
   return [
     "Drafts for this job:",
-    `- Sign as: ${d.signature ? d.signature.replace(/\n/g, ", ") : "no PM set — ask who the PM is (intake job_settings)"}`,
-    `- Suggested From: ${d.suggested_from ?? "PM email not recorded — ask for it (intake job_settings pm_email)"}`,
-    `- ${HOST_PICKS_SENDER}`,
+    `- Sign as: ${d.signature ? d.signature.replace(/\n/g, ", ") : "no PM set yet"}`,
+    `- Suggested From: ${d.suggested_from ?? "PM email not recorded"}`,
+  ].join("\n");
+}
+
+/** Assistant-only: how to use the draft data. Goes to structuredContent / _meta, never the visible text. */
+export function draftGuidance(pm: PmIdentity, company: Company): string[] {
+  const d = draftIdentity(pm, company);
+  return [
+    `Start every email or letter you draft for this job with these two lines, outside the email card: ${draftHeader(pm, company).replace(/\n/g, " / ")}.`,
+    HOST_PICKS_SENDER,
+    ...(d.missing.length ? [`Missing for drafts: ${d.missing.join(", ")}. Ask the member and save it with intake section job_settings.`] : []),
+  ];
+}
+
+/** The literal lines a draft carries: "Suggested From: <PM email>" and "Sign as: <name, title, company>". */
+export function draftHeader(pm: PmIdentity, company: Company): string {
+  const d = draftIdentity(pm, company);
+  return [
+    `Suggested From: ${d.suggested_from ?? "PM email not recorded"}`,
+    `Sign as: ${d.signature ? d.signature.replace(/\n/g, ", ") : "no PM set"}`,
   ].join("\n");
 }

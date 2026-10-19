@@ -15,8 +15,9 @@ export function makeWho(members: Member[], pmUserId: string | null, pmContact: s
   const pmName = pm?.display_name ?? (pmContact?.trim() || null);
   return (raw: string | null | undefined): string => {
     const v = (raw ?? "").trim();
-    if (!v || v.toLowerCase() === "unknown") return pmName ? `${pmName} (PM)` : UNASSIGNED;
-    if (!pm && pmName && v.toLowerCase() === pmName.toLowerCase()) return `${pmName} (PM)`;
+    if (!v || v.toLowerCase() === "unknown" || v === UNASSIGNED) return pmName ? `${pmName} (PM)` : UNASSIGNED;
+    // The PM under any other label ("Sam Ortiz (non-member PM)") reads "<name> (PM)".
+    if (pmName && v.replace(/\s*\([^()]*\)\s*$/, "").trim().toLowerCase() === pmName.toLowerCase()) return `${pmName} (PM)`;
     if (/\([^)]+\)\s*$/.test(v)) return v;
     const m = members.find((x) => x.display_name.trim().toLowerCase() === v.toLowerCase());
     if (!m) return v;

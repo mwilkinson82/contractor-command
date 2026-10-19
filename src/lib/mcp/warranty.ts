@@ -40,7 +40,7 @@ const str = (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v));
 /** Lines for the WARRANTY REGISTER section. "Not started" only when nothing was recorded at setup. */
 export function renderWarrantyRegister(facts: Fact[], today: string): string[] {
   const by = new Map(facts.map((f) => [f.key, f]));
-  if (!WARRANTY_SETUP_QUESTIONS.some((q) => by.has(q.key)) && !by.has("warranty_trigger_date")) return ["   Not set up yet. Athena asks the workmanship warranty and closeout questions in job setup (next_question)."];
+  if (!WARRANTY_SETUP_QUESTIONS.some((q) => by.has(q.key)) && !by.has("warranty_trigger_date")) return ["   Not set up yet. Athena asks the workmanship warranty and closeout questions in job setup."];
   const out: string[] = [];
   const src = (f?: Fact) => (f?.source ? ` (${f.source === "member_answer" ? "manual" : f.source.replace(/_/g, " ")})` : "");
   const has = by.get("workmanship_warranty");

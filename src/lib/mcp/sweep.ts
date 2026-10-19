@@ -12,7 +12,7 @@ type JobRow = { id: string; job_number: string; name: string; time_zone: string 
 type ItemRow = { id: string; job_id: string; action: string; needed_by: string | null; item_type: string | null; internal_only: boolean; check_key: string; accountable: string | null; cost_effect: string | null; cash_effect: string | null };
 type DeadlineRow = Clause & { job_id: string; item_id: string | null; internal_only: boolean; clause_key: string };
 
-export type SweepItem = { job_id: string; job_number: string; ref: string; item_id: string | null; item_type: string; due: string; days: number; bucket: "overdue" | "today" | "upcoming" };
+export type SweepItem = { job_id: string; job_number: string; item_ref?: string; ref: string; item_id: string | null; item_type: string; due: string; days: number; bucket: "overdue" | "today" | "upcoming" };
 
 function when(days: number) {
   if (days < 0) return `overdue by ${-days} day${days === -1 ? "" : "s"}`;
@@ -46,7 +46,7 @@ export async function runSweep(sb: Sb, scope_: SweepScope = {}): Promise<{ text:
 
   for (const j of byJob.values()) {
     if (!j.time_zone) {
-      tzNotes.push(`${j.job_number} – Time zone unknown. Precaution — assumed date, not a contract fact. Basis: dates counted in ${ASSUMED_TZ} (Eastern) until the job's time zone is set with intake section "job_settings".`);
+      tzNotes.push(`${j.job_number} – Time zone unknown. Precaution — assumed date, not a contract fact. Basis: dates counted in ${ASSUMED_TZ} (Eastern) until the job's time zone is set.`);
       if (scope.get(j.id) === "full") {
         await sb.rpc("mcp_add_item", { _job: j.id, _f: { check_key: "tz:job", item_type: "unknown", kind: "confirm_unknown", category: "Deadline", action: "Confirm the job's time zone (deadlines are computed in it)", tool: "sweep" } });
       }
@@ -67,7 +67,7 @@ export async function runSweep(sb: Sb, scope_: SweepScope = {}): Promise<{ text:
     const zone = j.time_zone ? tz : `${tz}, assumed`;
     lines.push({
       bucket, days,
-      text: `${j.job_number} – ${d.label}${d.clause_ref ? ` (${d.clause_ref})` : ""}: ${when(days)} — ${c.due} (${zone})${d.item_id && !client ? ` [ref ${shortRef(d.item_id)}, type deadline]` : ""}`,
+      text: `${j.job_number} – ${d.label}${d.clause_ref ? ` (${d.clause_ref})` : ""}: ${when(days)} — ${c.due} (${zone})`,
       extra: [`Math: ${c.math}.`, ...c.alternatives.map((a) => `Also shown: ${a}.`), ...c.precautions],
     });
     out.push({ job_id: j.id, job_number: j.job_number, ref: `deadline:${d.id}`, item_id: d.item_id, item_type: "deadline", due: c.due, days, bucket });
@@ -85,10 +85,10 @@ export async function runSweep(sb: Sb, scope_: SweepScope = {}): Promise<{ text:
     if (client || scope.get(j.id) !== "full") action = action.replace(MONEY, "[amount withheld]");
     lines.push({
       bucket, days,
-      text: `${action}: ${when(days)} — ${it.needed_by} (${j.time_zone ? tz : `${tz}, assumed`}) | Accountable: ${who(it.accountable)}${client ? "" : ` [ref ${itemRef(it)}, type ${it.item_type ?? "deadline"}]`}`,
+      text: `${action}: ${when(days)} — ${it.needed_by} (${j.time_zone ? tz : `${tz}, assumed`}) | Accountable: ${who(it.accountable)}`,
       extra: [],
     });
-    out.push({ job_id: j.id, job_number: j.job_number, ref: `item:${it.id}`, item_id: it.id, item_type: it.item_type ?? "deadline", due: it.needed_by, days, bucket });
+    out.push({ job_id: j.id, job_number: j.job_number, item_ref: itemRef(it), ref: `item:${it.id}`, item_id: it.id, item_type: it.item_type ?? "deadline", due: it.needed_by, days, bucket });
   }
 
   if (!lines.length && !tzNotes.length) return { text: "DATE SWEEP: nothing overdue, due today, or due in the next 14 days.", items: [] };
@@ -99,7 +99,7 @@ export async function runSweep(sb: Sb, scope_: SweepScope = {}): Promise<{ text:
     return [title, ...ls.flatMap((l) => [`- ${l.text}`, ...l.extra.map((e) => `    ${e}`)])];
   };
   const body = [
-    "DATE SWEEP (shown first; every date in the job's time zone)",
+    "DATE SWEEP (every date in the job's time zone)",
     ...tzNotes.map((t) => `- ${t}`),
     ...section("overdue", "OVERDUE"),
     ...section("today", "DUE TODAY"),

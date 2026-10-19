@@ -83,7 +83,7 @@ describe.each(ROLES)("role %s", (role) => {
 
   test("answer", async () => {
     const nq = await call("owner", "next_question", { job_number: "J-100" });
-    const key = nq.text.match(/check_key: (\S+)/)?.[1];
+    const key = nq.all.match(/check_key: (\S+)/)?.[1];
     expect(key, nq.text).toBeTruthy();
     const o = await call(role, "answer", { job_number: "J-100", check_key: key, response: "unknown", owner: "Test Owner" });
     // Contract roles only ever get contract-time questions; the owner's current check is a full-scope one, so it is refused.
@@ -117,7 +117,7 @@ describe.each(ROLES)("role %s", (role) => {
     const o = await call(role, "list_open_items", { job_number: "J-100" });
     let ok: boolean;
     if (a === "super") ok = !o.isError && /TEST/.test(o.text) && !/cost:|cash:|01-100|50000/i.test(o.text.split("====").pop()!);
-    else ok = !o.isError && /DATE SWEEP/.test(o.text) && (a === "contract" || /\[(unknown|no|na_disposition|pending_document|deadline)\]/.test(o.text));
+    else ok = !o.isError && /DATE SWEEP/.test(o.text) && (a === "contract" || /\[(To confirm|Gap|N\/A, needs a decision|Waiting on a document|Deadline)\]/.test(o.text));
     mark(role, "list_open_items", ok, a === "super" ? "listed, no cost/cash" : "listed + sweep", o.isError ? o.text : "");
     expect(ok, o.text).toBe(true);
   });

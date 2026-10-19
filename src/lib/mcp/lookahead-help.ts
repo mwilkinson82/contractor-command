@@ -22,18 +22,22 @@ export const LOOKAHEAD_DECLINE_RECOMMENDATION =
   "Build a two-week look-ahead from the schedule and update it every week. Athena can build it with you from the schedule.";
 
 export function pushbackText(prefix: string): string {
-  return `${prefix}${LOOKAHEAD_PUSHBACK}\n\nNot recorded yet. Ask the member, then call answer again with check_key "${LOOKAHEAD_SETUP_KEY}", response "no" and lookahead_help "accept" (they want help) or "decline" (they don't; this logs an open item).`;
+  return `${prefix}${LOOKAHEAD_PUSHBACK}\n\nNot recorded yet.`;
 }
 
-export function buildQuestionsText(prefix: string, jobNumber: string): string {
+/** Assistant-only next step after the pushback (structuredContent / _meta). */
+export const PUSHBACK_GUIDANCE = `Ask the member, then call answer again with check_key "${LOOKAHEAD_SETUP_KEY}", response "no" and lookahead_help "accept" (they want help) or "decline" (they don't; this logs an open item).`;
+
+export function buildQuestionsText(prefix: string): string {
+  return [`${prefix}Let's build the look-ahead from the schedule:`, ...LOOKAHEAD_BUILD_QUESTIONS.map((q, i) => `${i + 1}. ${q}`)].join("\n");
+}
+
+/** Assistant-only: how to turn the answers into the look-ahead. */
+export function buildQuestionsGuidance(jobNumber: string): string[] {
   return [
-    `${prefix}Let's build the look-ahead from the schedule. Ask these one at a time:`,
-    ...LOOKAHEAD_BUILD_QUESTIONS.map((q, i) => `${i + 1}. ${q}`),
-    "",
-    "Then build it: call intake with section \"lookahead\", job_number " + jobNumber + ", start_date and end_date for the two-week window,",
-    "schedule_export = the schedule activities (in-progress activities with percent complete, then what's next per the schedule, then the next 2–3 weeks with start and finish),",
-    "crews = who is doing each activity and how many, and the constraints in submittal_log, rfi_log, inspection_list and deliveries as they apply.",
+    "Ask these questions one at a time.",
+    `Then call intake with section "lookahead", job_number ${jobNumber}, start_date and end_date for the two-week window; schedule_export = the schedule activities (in-progress with percent complete, then what's next, then the next 2–3 weeks with start and finish); crews = who is doing each activity and how many; constraints in submittal_log, rfi_log, inspection_list and deliveries as they apply.`,
     "Use the member's schedule export if they have one; never invent activities or dates.",
     `Create it with lookahead_exists "build" (that records the setup check as yes), then walk it with next_question and the lookahead_id from the result.`,
-  ].join("\n");
+  ];
 }

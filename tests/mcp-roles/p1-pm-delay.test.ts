@@ -89,7 +89,8 @@ describe("3. Drafts are signed as the job PM", () => {
     const r = await call("intake", { section: "job_settings", job_number: "2601", pm_title: "Senior Project Manager" });
     expect(r.text).toContain("Sign as: Sam Ortiz, Senior Project Manager, TEST Athena Co");
     expect(r.text).toContain(`Suggested From: ${SAM}`);
-    expect(r.text).toContain("The host's email card picks the account that actually sends");
+    expect(r.text).not.toContain("email card");
+    expect(r.guidance).toContain("The host's email card picks the account that actually sends");
     const rep = await call("report", { job_number: "2601", audience: "internal" });
     expect(rep.text).toContain("Sign as: Sam Ortiz, Senior Project Manager, TEST Athena Co");
     const cl = await call("report", { job_number: "2601", audience: "client" });

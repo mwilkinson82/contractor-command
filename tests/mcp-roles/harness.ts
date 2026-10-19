@@ -1,3 +1,4 @@
+import { visibleProblems } from "../../src/lib/mcp/visible";
 // TEST-only harness: real /mcp handler (OAuth verification with requireOAuthClientClaim ON) + real tools,
 // backed by an in-process Postgres loaded with the real migrations. TEST company and TEST users only.
 import { vi } from "vitest";
@@ -67,5 +68,17 @@ export async function callTool(handler: (c: { request: Request }) => Promise<Res
   try { body = JSON.parse(m ? m[1] : raw); } catch { body = raw; }
   const result = body?.result;
   const textOut = result?.content?.map((c: any) => c.text ?? "").join("\n") ?? body?.error?.message ?? "";
-  return { status: res.status, isError: Boolean(result?.isError || body?.error), text: String(textOut), structured: result?.structuredContent, wwwAuth: res.headers.get("www-authenticate") };
+  const guidance: string[] = Array.isArray(result?.structuredContent?.assistant_guidance) ? result.structuredContent.assistant_guidance : [];
+  // Every tool result in every role test: the visible text a PM reads carries no host-directed instructions or internal codes.
+  if (process.env.DUMP_VISIBLE) (await import("node:fs")).appendFileSync(process.env.DUMP_VISIBLE, `\n##### ${name}\n${String(textOut)}\n----- guidance\n${guidance.join("\n")}\n`);
+  const problems = visibleProblems(String(textOut));
+  if (problems.length) throw new Error(`Visible text from ${name} has host-directed instructions or internal codes:\n${problems.join("\n")}`);
+  return {
+    status: res.status, isError: Boolean(result?.isError || body?.error), text: String(textOut), structured: result?.structuredContent, wwwAuth: res.headers.get("www-authenticate"),
+    /** Assistant-only guidance (structuredContent.assistant_guidance / _meta). */
+    guidance: guidance.join("\n"),
+    /** Visible text plus guidance, for tests that check what the assistant is told. */
+    all: `${String(textOut)}\n${guidance.join("\n")}`,
+    meta: result?._meta as Record<string, unknown> | undefined,
+  };
 }
