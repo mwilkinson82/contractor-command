@@ -9,12 +9,16 @@
  * allowlist are untouched.
  */
 
+import { ATHENA_ICON_64_PNG_BASE64 } from "./athena-icon-64";
+
 const ORIGIN = "https://app.alpcontractorcircle.com";
 
 // Smallest first: ChatGPT shows a broken icon when the fetched icon is too
 // large (reported for ~13 KB files; our 512 PNG is ~14 KB).
 export const ATHENA_SERVER_ICONS = Object.freeze([
   { src: `${ORIGIN}/brand/athena/athena-icon-64.png`, mimeType: "image/png", sizes: ["64x64"] },
+  // Same 64px mark inline (SEP-973 allows data: URIs) for clients that won't fetch a cross-origin icon.
+  { src: `data:image/png;base64,${ATHENA_ICON_64_PNG_BASE64}`, mimeType: "image/png", sizes: ["64x64"] },
   { src: `${ORIGIN}/brand/athena/athena-primary-512.png`, mimeType: "image/png", sizes: ["512x512"] },
   { src: `${ORIGIN}/brand/athena/athena-mark-primary.svg`, mimeType: "image/svg+xml", sizes: ["any"] },
 ]);
