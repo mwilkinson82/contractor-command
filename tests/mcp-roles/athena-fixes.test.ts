@@ -38,6 +38,7 @@ const WARRANTY_ANSWERS: Record<string, Record<string, string>> = {
   "warranty:closeout_documents": { detail: "O&M manuals, as-builts" },
   "warranty:punch_final_acceptance": { detail: "Punch closed in 30 days; architect sign-off" },
   "warranty:manufacturer_warranties": { detail: "Roofing 20-yr NDL" },
+  "warranty:closeout_expectations": { detail: "Owner training session and a warranty walk at 11 months" },
 };
 
 /** Answer earlier setup questions "yes" until `key` is the current one. */
@@ -75,7 +76,7 @@ describe("branding", () => {
 describe("warranty in JOB SETUP", () => {
   test("register shows real status; end date pending until the trigger date is known", async () => {
     const r = await call("intake", { section: "warranty", job_number: "J-1", workmanship_warranty: "yes", workmanship_warranty_months: 12, warranty_start_trigger: "substantial_completion",
-      warranty_start_basis: "§12.2: date of substantial completion certificate", closeout_documents: "O&M manuals, as-builts, attic stock", punch_final_acceptance: "Punch closed within 30 days; architect sign-off", manufacturer_warranties: "Roofing 20-yr NDL, RTUs 5-yr compressor" });
+      warranty_start_basis: "§12.2: date of substantial completion certificate", closeout_documents: "O&M manuals, as-builts, attic stock", punch_final_acceptance: "Punch closed within 30 days; architect sign-off", manufacturer_warranties: "Roofing 20-yr NDL, RTUs 5-yr compressor", closeout_expectations: "none" });
     expect(r.isError).toBe(false);
     expect(r.text).toContain("Status: Pending substantial completion date");
     expect(r.text).toContain("End date: pending trigger date");
@@ -93,7 +94,7 @@ describe("warranty in JOB SETUP", () => {
     await call("intake", { section: "warranty", job_number: "J-2", workmanship_warranty: "unknown" });
     const its = await items("J-2", "warranty:%");
     expect(its.map((i) => `${i.check_key}=${i.item_type}`)).toEqual([
-      "warranty:closeout_documents=unknown", "warranty:manufacturer_warranties=unknown", "warranty:punch_final_acceptance=no",
+      "warranty:closeout_documents=unknown", "warranty:closeout_expectations=unknown", "warranty:manufacturer_warranties=unknown", "warranty:punch_final_acceptance=no",
       "warranty:warranty_start_basis=unknown", "warranty:workmanship_warranty=unknown",
     ]);
   });
@@ -108,7 +109,7 @@ describe("contract terms entered by hand", () => {
     const r = await call("intake", { section: "contract", job_number: "J-1", retainage: "10% to 50%, then 5%", pay_terms: "Net 30" });
     expect(r.text).toContain("as manual entries (source: manual)");
     expect(r.text).toContain("retainage (manual)");
-    await call("intake", { section: "contract", job_number: "J-1", contract_document_provided: true, liquidated_damages: "$1,500/day, §9.4" });
+    await call("intake", { section: "contract", job_number: "J-1", contract_document_provided: true, contract_document_name: "Subcontract rev 2.pdf", liquidated_damages: "$1,500/day, §9.4" });
     const rep = await call("report", { job_number: "J-1", audience: "internal" });
     expect(rep.text).toContain("- retainage: 10% to 50%, then 5% (manual)");
     expect(rep.text).toContain("- pay terms: Net 30 (manual)");
@@ -209,9 +210,10 @@ describe("live ChatGPT test bugs (job setup flow)", () => {
     expect(r.text).not.toMatch(/cost-loaded/i);
     expect(r.text).toContain("accountable: Test PM (PM)");
   });
-  test("#7 with no PM set, an item defaults to the caller with their role", async () => {
+  test("#7 with no PM set, an item is Unassigned (no PM set), never the caller", async () => {
     const r = await call("intake", { section: "open_item", job_number: "J-3", action: "TEST item" });
-    expect(r.text).toContain("accountable: Test Owner (Owner)");
+    expect(r.text).toContain("accountable: Unassigned (no PM set)");
+    expect(r.text).not.toContain("accountable: Test Owner");
   });
 });
 
@@ -344,7 +346,8 @@ describe("live retest 2026-10-19", () => {
     expect(rep.text).not.toMatch(/private prototype|ALP Contractor Circle/);
     expect(JSON.stringify(rep.structured ?? {})).not.toMatch(UUID);
     const internal = await call("report", { job_number: "R-1", audience: "internal" });
-    expect(internal.text).toMatch(UUID); // internal keeps ids for resolve_item
+    expect(internal.text).not.toMatch(UUID); // short refs only; uuids stay in structured content
+    expect(internal.text).toMatch(/\[ref (#[0-9a-f]{6}|[A-Z]\d+)/);
     expect(internal.text).toContain("savings split");
   });
 
@@ -353,5 +356,71 @@ describe("live retest 2026-10-19", () => {
     const rep = await call("report", { job_number: "R-1", audience: "client" });
     expect(rep.text).toContain("Prepared by: Athena PM");
     await state.db!.exec(`UPDATE public.mcp_companies SET agent_name = 'Athena PM'`);
+  });
+});
+
+// Retest on LIVE 637c36ac, 2026-10-19 (ChatGPT, Job 1001). TEST data only.
+describe("live retest 2 (637c36ac)", () => {
+  const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+  beforeAll(async () => {
+    for (const j of ["L-1", "L-2", "L-3"]) await call("intake", { section: "create_job", job_number: j, job_name: `TEST ${j}` });
+  });
+
+  test("#1 a 'we're good' wrapped in a long verified note is still refused", async () => {
+    const mk = await call("intake", { section: "open_item", job_number: "L-1", action: "TEST specs on file", item_type: "no" });
+    const id = (mk.structured?.items as { item_id: string }[])[0].item_id;
+    const r = await call("resolve_item", { job_number: "L-1", item_id: id, kind: "verified",
+      evidence: "Owner Marshall confirms specifications are on file and reviewed: 'we're good' (October 19, 2026). No independent document verification provided." });
+    expect(r.structured?.closed).toBe(false);
+    expect(r.text).toContain("Still open");
+    const ok = await call("resolve_item", { job_number: "L-1", item_id: id, kind: "verified", evidence: "Spec book rev 3 (Section 01 33 00) uploaded to the job folder 2026-10-19" });
+    expect(ok.structured?.closed, ok.text).toBe(true);
+  });
+
+  test("#2 typed terms are manual; 'not specified' is UNKNOWN, never ON", async () => {
+    await call("intake", { section: "contract", job_number: "L-1", contract_document_provided: true,
+      pay_terms: "Net 30 (user-typed)", liquidated_damages: "Not specified", beneficial_use_clause: "not specified in contract", retainage: "10%" });
+    const t = await call("contract_terms", { job_number: "L-1" });
+    expect(t.isError, t.text).toBe(false);
+    expect(t.text).toContain("- pay terms: Net 30 (user-typed) (manual)");
+    expect(t.text).toMatch(/- liquidated damages: UNKNOWN/);
+    expect(t.text).toMatch(/has lds: UNKNOWN/);
+    expect(t.text).toMatch(/beneficial use: UNKNOWN/);
+    expect(t.text).not.toMatch(/has lds: ON|beneficial use: ON/);
+    expect(t.text).not.toContain("(document)");
+  });
+
+  test("#3 owner acceptance maps to final acceptance; closeout docs from the contract fill the register", async () => {
+    await call("intake", { section: "contract", job_number: "L-2", closeout: "O&M manuals and as-builts before final payment" });
+    const r = await call("intake", { section: "warranty", job_number: "L-2", workmanship_warranty: "yes", workmanship_warranty_months: 12, warranty_start_trigger_text: "1 year from owner acceptance" });
+    expect(r.text).toMatch(/Starts at: final acceptance/);
+    expect(r.text).not.toMatch(/Pending substantial completion/);
+    const rep = await call("report", { job_number: "L-2", audience: "internal" });
+    expect(rep.text).toContain("Required closeout documents: O&M manuals and as-builts before final payment");
+  });
+
+  test("#4 intake lookahead asks first, pushes back on no, and never prints the id", async () => {
+    const ask = await call("intake", { section: "lookahead", job_number: "L-3", start_date: "2026-10-19", end_date: "2026-11-01" });
+    expect(ask.text).toContain("is there a two-week look-ahead on this job today");
+    expect(ask.structured?.lookahead_id ?? null).toBeNull();
+    const no = await call("intake", { section: "lookahead", job_number: "L-3", lookahead_exists: "no", start_date: "2026-10-19", end_date: "2026-11-01" });
+    expect(no.text).toContain(LOOKAHEAD_PUSHBACK);
+    const yes = await call("intake", { section: "lookahead", job_number: "L-3", lookahead_exists: "build", start_date: "2026-10-19", end_date: "2026-11-01" });
+    expect(yes.isError, yes.text).toBe(false);
+    expect(yes.text).not.toMatch(UUID);
+    expect(yes.text).not.toMatch(/Lookahead ID/i);
+    expect(yes.structured?.lookahead_id).toMatch(UUID);
+  });
+
+  test("#6 list_open_items shows short refs; resolve_item accepts the ref", async () => {
+    const lo = await call("list_open_items", { job_number: "L-1" });
+    expect(lo.text).not.toMatch(UUID);
+    expect(lo.text).not.toMatch(/Item ID/i);
+    const mk = await call("intake", { section: "open_item", job_number: "L-1", action: "TEST by ref", item_type: "unknown" });
+    const ref = (mk.structured?.items as { item_ref: string }[])[0].item_ref;
+    expect(ref).toMatch(/^#[0-9a-f]{6}$/);
+    const r = await call("resolve_item", { job_number: "L-1", item_id: ref, kind: "verified", evidence: "Approved submittal 014 returned 2026-10-19" });
+    expect(r.structured?.closed, r.text).toBe(true);
+    expect(r.structured?.item_id).toMatch(UUID);
   });
 });

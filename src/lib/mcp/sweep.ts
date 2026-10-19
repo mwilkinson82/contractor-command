@@ -2,6 +2,7 @@
 // (never another job's dates); company-wide only for tools with no job (onboarding).
 import type { Sb } from "./guard";
 import { whoForJob } from "./people";
+import { itemRef, shortRef } from "./refs";
 import { computeDue, diffDays, todayIn, type Clause } from "./deadlines";
 
 const ASSUMED_TZ = "America/New_York";
@@ -66,7 +67,7 @@ export async function runSweep(sb: Sb, scope_: SweepScope = {}): Promise<{ text:
     const zone = j.time_zone ? tz : `${tz}, assumed`;
     lines.push({
       bucket, days,
-      text: `${j.job_number} – ${d.label}${d.clause_ref ? ` (${d.clause_ref})` : ""}: ${when(days)} — ${c.due} (${zone})${d.item_id && !client ? ` [item ${d.item_id}, type deadline]` : ""}`,
+      text: `${j.job_number} – ${d.label}${d.clause_ref ? ` (${d.clause_ref})` : ""}: ${when(days)} — ${c.due} (${zone})${d.item_id && !client ? ` [ref ${shortRef(d.item_id)}, type deadline]` : ""}`,
       extra: [`Math: ${c.math}.`, ...c.alternatives.map((a) => `Also shown: ${a}.`), ...c.precautions],
     });
     out.push({ job_id: j.id, job_number: j.job_number, ref: `deadline:${d.id}`, item_id: d.item_id, item_type: "deadline", due: c.due, days, bucket });
@@ -84,7 +85,7 @@ export async function runSweep(sb: Sb, scope_: SweepScope = {}): Promise<{ text:
     if (client || scope.get(j.id) !== "full") action = action.replace(MONEY, "[amount withheld]");
     lines.push({
       bucket, days,
-      text: `${action}: ${when(days)} — ${it.needed_by} (${j.time_zone ? tz : `${tz}, assumed`}) | Accountable: ${who(it.accountable)}${client ? "" : ` [item ${it.id}, type ${it.item_type ?? "deadline"}]`}`,
+      text: `${action}: ${when(days)} — ${it.needed_by} (${j.time_zone ? tz : `${tz}, assumed`}) | Accountable: ${who(it.accountable)}${client ? "" : ` [ref ${itemRef(it)}, type ${it.item_type ?? "deadline"}]`}`,
       extra: [],
     });
     out.push({ job_id: j.id, job_number: j.job_number, ref: `item:${it.id}`, item_id: it.id, item_type: it.item_type ?? "deadline", due: it.needed_by, days, bucket });

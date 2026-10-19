@@ -121,7 +121,7 @@ describe("with the real MCP toolkit handler", () => {
       ? JSON.parse(text)
       : JSON.parse(text.split("\n").find((l) => l.startsWith("data:"))!.slice(5));
     expect(json.result.serverInfo.title).toBe("Athena powered by ALP, construction agents");
-    expect(json.result.serverInfo.icons.map((i: { sizes: string[] }) => i.sizes[0])).toEqual(["512x512"]);
+    expect(json.result.serverInfo.icons.map((i: { sizes: string[] }) => i.sizes[0])).toEqual(["512x512", "any"]);
     expect(json.result.serverInfo.websiteUrl).toBe("https://app.alpcontractorcircle.com");
   });
 });

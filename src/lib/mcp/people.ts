@@ -3,6 +3,8 @@ import type { Sb } from "./guard";
 
 type Member = { user_id: string; display_name: string; role: string };
 
+export const UNASSIGNED = "Unassigned (no PM set)";
+
 export function roleLabel(role: string): string {
   return role === "pm" ? "PM" : role === "all_access" ? "All-access" : role.charAt(0).toUpperCase() + role.slice(1);
 }
@@ -11,7 +13,7 @@ export function makeWho(members: Member[], pmUserId: string | null) {
   const pm = members.find((m) => m.user_id === pmUserId) ?? null;
   return (raw: string | null | undefined): string => {
     const v = (raw ?? "").trim();
-    if (!v || v.toLowerCase() === "unknown") return pm ? `${pm.display_name} (PM)` : "Unassigned — set the job's PM";
+    if (!v || v.toLowerCase() === "unknown") return pm ? `${pm.display_name} (PM)` : UNASSIGNED;
     if (/\([^)]+\)\s*$/.test(v)) return v;
     const m = members.find((x) => x.display_name.trim().toLowerCase() === v.toLowerCase());
     if (!m) return v;
