@@ -2,6 +2,7 @@
 // Rule evaluation (applies_when, N/A suppression, resolution rules) lives in the database mcp_* functions.
 import { renderWarrantyRegister } from "./warranty";
 import { whoForJob } from "./people";
+import { itemRef } from "./refs";
 import { ToolError } from "@lovable.dev/mcp-js";
 import { dbError, type Sb } from "./guard";
 
@@ -129,7 +130,7 @@ export function itemLine(it: Item, nas: Na[], client = false, o: LineOpts = {}) 
   const t = itemType(it, nas);
   const who = o.who ? o.who(it.accountable ?? it.owner) : it.accountable ?? it.owner;
   const cf = o.clientFacing === true;
-  return `[${t}] ${it.action} | Accountable: ${who} | Needed by: ${it.needed_by ?? it.due_date ?? "unknown"} | ${status.trim()}${cf ? "" : ` | Source: ${it.source ?? "unknown"}`} | ${effects}${next}${typeDetail(it, t, client, cf)}${na ? ` | ${na}` : ""}${cf ? "" : ` [item ${it.id}]`}`;
+  return `[${t}] ${it.action} | Accountable: ${who} | Needed by: ${it.needed_by ?? it.due_date ?? "unknown"} | ${status.trim()}${cf ? "" : ` | Source: ${it.source ?? "unknown"}`} | ${effects}${next}${typeDetail(it, t, client, cf)}${na ? ` | ${na}` : ""}${cf ? "" : ` [ref ${itemRef(it)}]`}`;
 }
 
 const SECTION_TITLES: Record<string, string> = {
@@ -219,7 +220,10 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
       if (!sov.length) out.push("   - none recorded");
       sov.forEach((f) => out.push(`   - ${f.key}: ${show(f.value)}`));
     } else if (mod === "warranty") {
-      out.push(...renderWarrantyRegister(facts.filter((f) => f.module === "warranty"), new Date().toISOString().slice(0, 10)));
+      const w = facts.filter((f) => f.module === "warranty");
+      const cc = facts.find((f) => f.module === "contract" && f.key === "closeout" && f.status === "known");
+      if (cc && !w.some((f) => f.key === "closeout_documents" && f.status === "known")) w.push({ ...cc, module: "warranty", key: "closeout_documents" });
+      out.push(...renderWarrantyRegister(w, new Date().toISOString().slice(0, 10)));
     } else {
       const fs = facts.filter((f) => f.module === mod);
       if (!fs.length) out.push("   Not started.");

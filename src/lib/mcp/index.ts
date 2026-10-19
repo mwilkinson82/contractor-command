@@ -8,6 +8,7 @@ import {
   onboarding,
   report,
   resolveItem,
+  contractTerms,
 } from "./tools/workflow-tools";
 
 // Vite inlines the stable ref; the runtime backend URL may be a proxy.
@@ -24,5 +25,5 @@ export default defineMcp({
     acceptedAudiences: "authenticated",
     requireOAuthClientClaim: true,
   }),
-  tools: [onboarding, intake, nextQuestion, answer, report, carryForward, listOpenItems, resolveItem],
+  tools: [onboarding, intake, nextQuestion, answer, report, contractTerms, carryForward, listOpenItems, resolveItem],
 });

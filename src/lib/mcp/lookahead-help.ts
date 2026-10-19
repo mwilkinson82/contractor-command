@@ -3,6 +3,9 @@
 
 export const LOOKAHEAD_SETUP_KEY = "bss_lookahead";
 
+export const LOOKAHEAD_EXISTS_ASK =
+  "Before I set up the look-ahead: is there a two-week look-ahead on this job today, updated every week? (yes / no)";
+
 export const LOOKAHEAD_PUSHBACK =
   "Hey, we really should have a look-ahead. If the job is ongoing and there's production, you should have a look-ahead. Can I help you create one?";
 
@@ -31,6 +34,6 @@ export function buildQuestionsText(prefix: string, jobNumber: string): string {
     "schedule_export = the schedule activities (in-progress activities with percent complete, then what's next per the schedule, then the next 2–3 weeks with start and finish),",
     "crews = who is doing each activity and how many, and the constraints in submittal_log, rfi_log, inspection_list and deliveries as they apply.",
     "Use the member's schedule export if they have one; never invent activities or dates.",
-    `After the look-ahead is created, call answer with check_key "${LOOKAHEAD_SETUP_KEY}" and response "yes", then walk it with next_question and the lookahead_id.`,
+    `Create it with lookahead_exists "build" (that records the setup check as yes), then walk it with next_question and the lookahead_id from the result.`,
   ].join("\n");
 }
