@@ -73,6 +73,7 @@ import { Route as ToolsGrowthConstraintRouteImport } from './routes/tools.growth
 import { Route as ToolsOwnerDependencyRouteImport } from './routes/tools.owner-dependency'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as ApiPublicAosFpRouteImport } from './routes/api/public/aos-fp'
+import { Route as BrandAthenaAthenaIcon64DotpngRouteImport } from './routes/brand.athena.athena-icon-64[.]png'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as ToolsSopEditPacketIdRouteImport } from './routes/tools.sop-edit.$packetId'
 import { Route as ApiPublicAosTierLookupRouteImport } from './routes/api/public/aos/tier-lookup'
@@ -408,6 +409,12 @@ const ApiPublicAosFpRoute = ApiPublicAosFpRouteImport.update({
   path: '/api/public/aos-fp',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BrandAthenaAthenaIcon64DotpngRoute =
+  BrandAthenaAthenaIcon64DotpngRouteImport.update({
+    id: '/brand/athena/athena-icon-64.png',
+    path: '/brand/athena/athena-icon-64.png',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   id: '/lovable/email/suppression',
   path: '/lovable/email/suppression',
@@ -544,6 +551,7 @@ export interface FileRoutesByFullPath {
   '/ask/': typeof AskIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
+  '/brand/athena/athena-icon-64.png': typeof BrandAthenaAthenaIcon64DotpngRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
@@ -623,6 +631,7 @@ export interface FileRoutesByTo {
   '/ask': typeof AskIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
+  '/brand/athena/athena-icon-64.png': typeof BrandAthenaAthenaIcon64DotpngRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
@@ -703,6 +712,7 @@ export interface FileRoutesById {
   '/ask/': typeof AskIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
+  '/brand/athena/athena-icon-64.png': typeof BrandAthenaAthenaIcon64DotpngRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
@@ -784,6 +794,7 @@ export interface FileRouteTypes {
     | '/ask/'
     | '/.lovable/oauth/consent'
     | '/api/public/aos-fp'
+    | '/brand/athena/athena-icon-64.png'
     | '/lovable/email/suppression'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
@@ -863,6 +874,7 @@ export interface FileRouteTypes {
     | '/ask'
     | '/.lovable/oauth/consent'
     | '/api/public/aos-fp'
+    | '/brand/athena/athena-icon-64.png'
     | '/lovable/email/suppression'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
@@ -942,6 +954,7 @@ export interface FileRouteTypes {
     | '/ask/'
     | '/.lovable/oauth/consent'
     | '/api/public/aos-fp'
+    | '/brand/athena/athena-icon-64.png'
     | '/lovable/email/suppression'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
@@ -1018,6 +1031,7 @@ export interface RootRouteChildren {
   AskIndexRoute: typeof AskIndexRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiPublicAosFpRoute: typeof ApiPublicAosFpRoute
+  BrandAthenaAthenaIcon64DotpngRoute: typeof BrandAthenaAthenaIcon64DotpngRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiPublicAosTierLookupRoute: typeof ApiPublicAosTierLookupRoute
   ApiPublicCircleReconcileRoute: typeof ApiPublicCircleReconcileRoute
@@ -1482,6 +1496,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAosFpRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/brand/athena/athena-icon-64.png': {
+      id: '/brand/athena/athena-icon-64.png'
+      path: '/brand/athena/athena-icon-64.png'
+      fullPath: '/brand/athena/athena-icon-64.png'
+      preLoaderRoute: typeof BrandAthenaAthenaIcon64DotpngRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/lovable/email/suppression': {
       id: '/lovable/email/suppression'
       path: '/lovable/email/suppression'
@@ -1666,6 +1687,7 @@ const rootRouteChildren: RootRouteChildren = {
   AskIndexRoute: AskIndexRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   ApiPublicAosFpRoute: ApiPublicAosFpRoute,
+  BrandAthenaAthenaIcon64DotpngRoute: BrandAthenaAthenaIcon64DotpngRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiPublicAosTierLookupRoute: ApiPublicAosTierLookupRoute,
   ApiPublicCircleReconcileRoute: ApiPublicCircleReconcileRoute,
