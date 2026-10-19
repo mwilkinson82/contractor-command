@@ -2,6 +2,7 @@ import { DB_UNAVAILABLE, MCP_DAILY_CAP, MCP_HOURLY_CAP, capMessage, type CapResu
 import { ToolError, type ToolContext } from "@lovable.dev/mcp-js";
 import { supabaseForUser } from "./supabase";
 import { runSweep, type SweepScope } from "./sweep";
+import { clientSafe } from "./client-safe";
 
 // Private prototype: hard-coded allowlist, plus the membership gate (mcp_gate -> is_circle_active) on every call.
 import { MCP_ALLOWED_EMAILS } from "./allowlist";
@@ -107,7 +108,8 @@ export function text(body: string) {
 function withSweep<R>(r: R, sweep: NonNullable<Awaited<ReturnType<typeof runSweep>>>, client = false): R {
   const res = r as unknown as { content?: { type: string; text?: string }[]; structuredContent?: Record<string, unknown> };
   if (!res?.content?.length || res.content[0].type !== "text") return r;
-  const first = { ...res.content[0], text: `${sweep.text}\n\n====\n\n${res.content[0].text ?? ""}` };
+  const joined = `${sweep.text}\n\n====\n\n${res.content[0].text ?? ""}`;
+  const first = { ...res.content[0], text: client ? clientSafe(joined) : joined };
   const items = sweep.items.map((i) => ({ job_number: i.job_number, item_id: client ? null : i.item_id, item_type: i.item_type, due: i.due, days: i.days, bucket: i.bucket }));
   return { ...res, content: [first, ...res.content.slice(1)], structuredContent: { ...(res.structuredContent ?? {}), sweep: items } } as unknown as R;
 }
