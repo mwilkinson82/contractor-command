@@ -1,5 +1,6 @@
 // Module 1 (Job Setup): company + job resolution and the fixed setup report.
 // Rule evaluation (applies_when, N/A suppression, resolution rules) lives in the database mcp_* functions.
+import { renderWarrantyRegister } from "./warranty";
 import { ToolError } from "@lovable.dev/mcp-js";
 import { dbError, type Sb } from "./guard";
 
@@ -16,7 +17,7 @@ export async function resolveCompany(sb: Sb, companyId?: string): Promise<string
   }
   if (!mine.length) {
     const nr = await sb.rpc("mcp_caller_is_no_access_role");
-    if (nr.data === true) throw new ToolError("Your role doesn't have access to the PM agent. Ask your company owner if you need it.");
+    if (nr.data === true) throw new ToolError("Your role doesn't have access to Athena. Ask your company owner if you need it.");
   }
   if (!mine.length) throw new ToolError('No company set up yet. Call onboarding with action "save_company" first.');
   if (mine.length > 1) {
@@ -105,7 +106,7 @@ export function itemType(it: Pick<Item, "section" | "check_key" | "item_type">, 
 }
 
 function typeDetail(it: Item, t: string, client: boolean) {
-  if (t === "no") return ` | Recommendation: ${it.recommendation ?? "none recorded"} | Why: ${it.why ?? "best-practice gap"} | ${it.help_offer ?? "The PM agent can help with this."}`;
+  if (t === "no") return ` | Recommendation: ${it.recommendation ?? "none recorded"} | Why: ${it.why ?? "best-practice gap"} | ${it.help_offer ?? "Athena can help with this."}`;
   if (t === "pending_document") return ` | Waiting on: ${it.waiting_on_document ?? "unknown document"} from ${it.waiting_on_who ?? "unknown"} since ${it.waiting_since ?? "unknown"}`;
   if (t === "deadline") return ` | Clause/source: ${it.clause_source ?? "unknown"} | Method: ${it.delivery_method ?? "unknown"} | Recipient: ${it.recipient ?? "unknown"}`;
   if (t === "unknown") return " | Needs confirming evidence or a dated member statement";
@@ -164,7 +165,7 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
   out.push(
     `${prefix(job)}JOB SETUP REPORT (${client ? "CLIENT-FACING" : superView ? "LIMITED VIEW — NO FINANCIALS" : contractOnly ? "INTERNAL — CONTRACT SIDE ONLY" : "INTERNAL"})`,
     `Job: ${job.job_number} – ${job.name}`,
-    `Company: ${co.data?.name ?? "unknown"} | Prepared by: ${co.data?.agent_name ?? "PM agent"}`,
+    `Company: ${co.data?.name ?? "unknown"} | Prepared by: ${co.data?.agent_name ?? "Athena"}`,
     `Data through: ${dataThrough}`,
     "",
   );
@@ -195,10 +196,12 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
       out.push("   Owner SOV:");
       if (!sov.length) out.push("   - none recorded");
       sov.forEach((f) => out.push(`   - ${f.key}: ${show(f.value)}`));
+    } else if (mod === "warranty") {
+      out.push(...renderWarrantyRegister(facts.filter((f) => f.module === "warranty"), new Date().toISOString().slice(0, 10)));
     } else {
       const fs = facts.filter((f) => f.module === mod);
       if (!fs.length) out.push("   Not started.");
-      fs.forEach((f) => out.push(`   - ${f.key.replace(/_/g, " ")}: ${f.status === "known" ? show(f.value) : f.status} (${f.source.replace(/_/g, " ")})`));
+      fs.forEach((f) => out.push(`   - ${f.key.replace(/_/g, " ")}: ${f.status === "known" ? show(f.value) : f.status} (${mod === "contract" && f.source === "member_answer" ? "manual" : f.source.replace(/_/g, " ")})`));
     }
     if (sectionItems.length) {
       out.push("   Open items:");
