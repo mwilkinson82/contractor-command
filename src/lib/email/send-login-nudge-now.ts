@@ -9,7 +9,7 @@ type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server"
 
 const SITE_NAME = "Contractor Circle";
 const VERIFIED_SENDER_DOMAIN = "notify.mail.alpcontractorcircle.com";
-const ATHENA_SENDER_NAME = "Athena by ALP";
+const ATHENA_SENDER_NAME = "Athena";
 
 /** Presentation-only variant. "circle" is the default for every caller. */
 export type LoginEmailVariant = "circle" | "athena";

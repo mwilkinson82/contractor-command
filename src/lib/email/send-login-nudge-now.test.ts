@@ -62,7 +62,7 @@ describe("sendLoginNudgeNow variants", () => {
     });
     expect(r.status).toBe("sent");
     const p = m.send.mock.calls[0][0];
-    expect(p.from).toBe("Athena by ALP <no-reply@notify.mail.alpcontractorcircle.com>");
+    expect(p.from).toBe("Athena <no-reply@notify.mail.alpcontractorcircle.com>");
     expect(p.sender_domain).toBe("notify.mail.alpcontractorcircle.com");
     expect(p.reply_to).toBe(MEMBER_REPLY_TO);
     expect(p.subject).toBe("Sign into Athena");

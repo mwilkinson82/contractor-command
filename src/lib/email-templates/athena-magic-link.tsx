@@ -28,10 +28,10 @@ export const AthenaMagicLinkEmail = ({ confirmationUrl }: AthenaMagicLinkEmailPr
             <Img
               src={ATHENA_LOGO_URL}
               width="96"
-              alt="Athena by ALP"
+              alt="Athena powered by ALP, construction agents"
               style={{ display: "block", width: 96, height: "auto" }}
             />
-            <Text style={styles.label}>Athena by ALP</Text>
+            <Text style={styles.label}>Athena powered by ALP, construction agents</Text>
           </EmailSection>
           <EmailSection style={responsiveEmail.body}>
             <Heading style={emailStyles.h1}>{ATHENA_SIGN_IN_SUBJECT}</Heading>
