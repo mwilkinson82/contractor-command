@@ -1,6 +1,7 @@
 // Module 1 (Job Setup): company + job resolution and the fixed setup report.
 // Rule evaluation (applies_when, N/A suppression, resolution rules) lives in the database mcp_* functions.
 import { renderWarrantyRegister } from "./warranty";
+import { whoForJob } from "./people";
 import { ToolError } from "@lovable.dev/mcp-js";
 import { dbError, type Sb } from "./guard";
 
@@ -67,7 +68,9 @@ export async function audit(sb: Sb, job: Job | null, tool: string, action: strin
 
 export const prefix = (job: Job) => `${job.job_number} – `;
 
-const CLIENT_SCRUB = /budget|margin|contingency|\bIOR\b|cost[- ]to[- ]complete|strategy|profit|fee\b/i;
+const CLIENT_SCRUB = /budget|margin|contingency|\bIOR\b|cost[- ]to[- ]complete|strategy|profit|fee\b|savings[ _]split|runs the money/i;
+/** Coaching or internal copy that never belongs in a client-facing report. */
+export const CLIENT_COACHING = /can help you|I can help|Athena can|PM agent|the super runs|my recommendation/i;
 
 type Fact = { module: string; key: string; value: unknown; status: string; source: string; internal_only: boolean; updated_at: string };
 type Flag = { flag_key: string; value: string; source: string; set_at: string };
@@ -105,7 +108,8 @@ export function itemType(it: Pick<Item, "section" | "check_key" | "item_type">, 
   return it.item_type && it.item_type !== "na_disposition" ? it.item_type : "deadline";
 }
 
-function typeDetail(it: Item, t: string, client: boolean) {
+function typeDetail(it: Item, t: string, client: boolean, clientFacing = false) {
+  if (t === "no" && clientFacing) return "";
   if (t === "no") return ` | Recommendation: ${it.recommendation ?? "none recorded"} | Why: ${it.why ?? "best-practice gap"} | ${it.help_offer ?? "Athena can help with this."}`;
   if (t === "pending_document") return ` | Waiting on: ${it.waiting_on_document ?? "unknown document"} from ${it.waiting_on_who ?? "unknown"} since ${it.waiting_since ?? "unknown"}`;
   if (t === "deadline") return ` | Clause/source: ${it.clause_source ?? "unknown"} | Method: ${it.delivery_method ?? "unknown"} | Recipient: ${it.recipient ?? "unknown"}`;
@@ -113,7 +117,9 @@ function typeDetail(it: Item, t: string, client: boolean) {
   return client ? "" : "";
 }
 
-export function itemLine(it: Item, nas: Na[], client = false) {
+export type LineOpts = { clientFacing?: boolean; who?: (raw: string | null | undefined) => string };
+
+export function itemLine(it: Item, nas: Na[], client = false, o: LineOpts = {}) {
   const status = it.verify_state === "verified" ? `verified ${it.verified_at?.slice(0, 10) ?? ""}` : `last reported by ${it.reported_by ?? "unknown"} ${it.reported_at?.slice(0, 10) ?? ""}`;
   const effects = client
     ? `time: ${it.time_effect ?? "unknown"}`
@@ -121,7 +127,9 @@ export function itemLine(it: Item, nas: Na[], client = false) {
   const na = naLabel(it, nas);
   const next = !client && it.next_action ? ` | Next: ${it.next_action}${it.next_action_approved_by ? ` (approved by ${it.next_action_approved_by})` : " (not yet approved)"}` : "";
   const t = itemType(it, nas);
-  return `[${t}] ${it.action} | Accountable: ${it.accountable ?? it.owner} | Needed by: ${it.needed_by ?? it.due_date ?? "unknown"} | ${status.trim()} | Source: ${it.source ?? "unknown"} | ${effects}${next}${typeDetail(it, t, client)}${na ? ` | ${na}` : ""} [item ${it.id}]`;
+  const who = o.who ? o.who(it.accountable ?? it.owner) : it.accountable ?? it.owner;
+  const cf = o.clientFacing === true;
+  return `[${t}] ${it.action} | Accountable: ${who} | Needed by: ${it.needed_by ?? it.due_date ?? "unknown"} | ${status.trim()}${cf ? "" : ` | Source: ${it.source ?? "unknown"}`} | ${effects}${next}${typeDetail(it, t, client, cf)}${na ? ` | ${na}` : ""}${cf ? "" : ` [item ${it.id}]`}`;
 }
 
 const SECTION_TITLES: Record<string, string> = {
@@ -131,6 +139,17 @@ const SECTION_TITLES: Record<string, string> = {
   budget: "BUDGET AND SOV",
   warranty: "WARRANTY REGISTER",
 };
+
+/** The agent's display name. The old default "PM agent" (or none) shows as "Athena PM". */
+export function agentLabel(name: string | null | undefined): string {
+  const n = (name ?? "").trim();
+  return !n || n === "PM agent" || n === "Athena" ? "Athena PM" : n;
+}
+
+/** Applicability flags read ON / OFF / UNKNOWN. */
+export function flagWord(v: string): string {
+  return v === "yes" ? "ON" : v === "no" ? "OFF" : v === "na" ? "N/A" : "UNKNOWN";
+}
 
 function show(v: unknown): string {
   if (v === null || v === undefined) return "unknown";
@@ -143,6 +162,8 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
   const contractOnly = job.scope === "contract";
   const superView = job.scope === "super";
   const hideMoney = client || contractOnly || superView;
+  const who = await whoForJob(sb, job.company_id, job.job_id);
+  const lineOpts = { clientFacing: client, who };
   const [co, flagsR, factsR, itemsR, nas] = await Promise.all([
     sb.from("mcp_companies").select("name, agent_name").eq("id", job.company_id).maybeSingle(),
     sb.from("mcp_job_flags").select("flag_key, value, source, set_at").eq("job_id", job.job_id),
@@ -158,6 +179,7 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
     facts = facts.filter((f) => !f.internal_only && !CLIENT_SCRUB.test(f.key));
     items = items.filter((i) => !i.internal_only && !CLIENT_SCRUB.test(`${i.action} ${i.category}`));
   }
+  if (client) facts = facts.filter((f) => !CLIENT_COACHING.test(typeof f.value === "string" ? f.value : ""));
   const dates = [...flags.map((f) => f.set_at), ...facts.map((f) => f.updated_at), ...items.map((i) => i.updated_at)].filter(Boolean).sort();
   const dataThrough = dates.length ? dates[dates.length - 1].slice(0, 10) : "no data yet";
   const sectionNa = new Set(nas.filter((n) => n.scope === "section").map((n) => n.target));
@@ -165,7 +187,7 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
   out.push(
     `${prefix(job)}JOB SETUP REPORT (${client ? "CLIENT-FACING" : superView ? "LIMITED VIEW — NO FINANCIALS" : contractOnly ? "INTERNAL — CONTRACT SIDE ONLY" : "INTERNAL"})`,
     `Job: ${job.job_number} – ${job.name}`,
-    `Company: ${co.data?.name ?? "unknown"} | Prepared by: ${co.data?.agent_name ?? "Athena"}`,
+    `Company: ${co.data?.name ?? "unknown"} | Prepared by: ${agentLabel(co.data?.agent_name)}`,
     `Data through: ${dataThrough}`,
     "",
   );
@@ -179,14 +201,14 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
       out.push(`   Marked N/A for this job (${reason ?? "no reason"}).`);
       if (sectionItems.length) {
         out.push("   Section N/A — needs disposition:");
-        sectionItems.forEach((it) => out.push(`   - ${itemLine(it, nas, hideMoney)}`));
+        sectionItems.forEach((it) => out.push(`   - ${itemLine(it, nas, hideMoney, lineOpts)}`));
       }
       out.push("");
       continue;
     }
     if (mod === "applicability") {
       if (!flags.length) out.push("   None recorded.");
-      flags.sort((a, b) => a.flag_key.localeCompare(b.flag_key)).forEach((f) => out.push(`   - ${f.flag_key.replace(/_/g, " ")}: ${f.value} (${f.source.replace(/_/g, " ")})`));
+      flags.sort((a, b) => a.flag_key.localeCompare(b.flag_key)).forEach((f) => out.push(`   - ${f.flag_key.replace(/_/g, " ")}: ${flagWord(f.value)} (${f.source.replace(/_/g, " ").replace(/^member answer$/, "manual")})`));
     } else if (mod === "budget") {
       const budget = facts.filter((f) => f.module === "budget");
       const sov = facts.filter((f) => f.module === "sov");
@@ -205,7 +227,7 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
     }
     if (sectionItems.length) {
       out.push("   Open items:");
-      sectionItems.forEach((it) => out.push(`   - ${itemLine(it, nas, hideMoney)}`));
+      sectionItems.forEach((it) => out.push(`   - ${itemLine(it, nas, hideMoney, lineOpts)}`));
     }
     out.push("");
   }
@@ -225,7 +247,7 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
   if (!other.length) out.push("   None.");
   other
     .sort((a, b) => (a.needed_by ?? "9999").localeCompare(b.needed_by ?? "9999"))
-    .forEach((it) => out.push(`   - ${itemLine(it, nas, hideMoney)}`));
+    .forEach((it) => out.push(`   - ${itemLine(it, nas, hideMoney, lineOpts)}`));
   out.push("");
   out.push(`${n++}. UNKNOWNS`);
   const unk = [
