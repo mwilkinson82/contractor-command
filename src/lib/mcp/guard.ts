@@ -18,8 +18,16 @@ export async function guard(ctx: ToolContext): Promise<Sb> {
   const sb = supabaseForUser(ctx);
   if (!MCP_ALLOWED_EMAILS.has(email)) throw new ToolError("Forbidden (403): this account isn't enabled for this prototype.");
   const { data, error } = await sb.rpc("mcp_abuse_cap_check", { _hourly: MCP_HOURLY_CAP, _daily: MCP_DAILY_CAP });
-  if (error) throw new ToolError(DB_UNAVAILABLE);
-  const cap = (data ?? { ok: false }) as CapResult;
+  let cap: CapResult;
+  if (error && isMissingFunction(error)) {
+    // Migration 0017 not applied yet: fall back to the older cap (true = allowed) so the connector keeps working.
+    const old = await sb.rpc("mcp_abuse_cap_hit");
+    if (old.error) throw new ToolError(DB_UNAVAILABLE);
+    cap = old.data === true ? { ok: true } : { ok: false, limit: "hourly" };
+  } else {
+    if (error) throw new ToolError(DB_UNAVAILABLE);
+    cap = (data ?? { ok: false }) as CapResult;
+  }
   if (!cap.ok) {
     await logWorkflow(sb, { event_type: "failure", tool: "guard", error_code: cap.limit === "daily" ? "cap_hit_daily" : "cap_hit_hourly" });
     throw new ToolError(capMessage(cap));
@@ -32,6 +40,10 @@ export async function guard(ctx: ToolContext): Promise<Sb> {
     throw new ToolError(INACTIVE_MESSAGE);
   }
   return sb;
+}
+
+export function isMissingFunction(e: { code?: string; message?: string }): boolean {
+  return e.code === "PGRST202" || e.code === "42883" || /could not find the function|does not exist/i.test(e.message ?? "");
 }
 
 /** Map database errors raised by the mcp_* functions to member-facing messages. */

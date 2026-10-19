@@ -1,7 +1,7 @@
 // Per-account Athena call caps. One place to change them; passed to mcp_abuse_cap_check().
-// Hourly stays at 60 until Marshall picks a number.
-export const MCP_HOURLY_CAP = 60;
-export const MCP_DAILY_CAP = 300;
+// Marshall's numbers (2026-10-19): 200 per hour, 1,000 per day.
+export const MCP_HOURLY_CAP = 200;
+export const MCP_DAILY_CAP = 1000;
 /** Time zone used to show when a limit resets. */
 export const LIMIT_DISPLAY_TZ = "America/New_York";
 

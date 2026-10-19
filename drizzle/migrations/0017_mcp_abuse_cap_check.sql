@@ -1,7 +1,7 @@
 -- 0017: per-account call cap that tells the caller which limit was hit and when it resets.
 -- Additive: mcp_abuse_cap_hit() stays as is for the live build. The caps are parameters; the app passes
--- them from src/lib/mcp/limits.ts (hourly 60 until Marshall picks a number, daily 300 as before).
-CREATE OR REPLACE FUNCTION public.mcp_abuse_cap_check(_hourly int DEFAULT 60, _daily int DEFAULT 300)
+-- them from src/lib/mcp/limits.ts (Marshall's numbers: 200 per hour, 1,000 per day).
+CREATE OR REPLACE FUNCTION public.mcp_abuse_cap_check(_hourly int DEFAULT 200, _daily int DEFAULT 1000)
 RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE h int; d int; oldest_h timestamptz; oldest_d timestamptz;
