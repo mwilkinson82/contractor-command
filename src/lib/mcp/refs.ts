@@ -13,14 +13,32 @@ export function itemRef(it: { id: string; action?: string | null; check_key?: st
   return shortRef(it.id);
 }
 
+/** What a PM reads on an item line: "Ref A1" or "Ref 36C31". Plain-text hosts pass it straight back to resolve_item. */
+export function displayRef(it: { id: string; action?: string | null; check_key?: string | null }): string {
+  const r = itemRef(it);
+  return `Ref ${r.startsWith("#") ? r.slice(1, 6).toUpperCase() : r}`;
+}
+
+/** Setup-question key as a PM sees it: gate_role_gc -> gate-role-gc, warranty:term_months -> warranty-term-months. */
+export const questionRef = (key: string) => key.replace(/^warranty:/, "warranty-").replace(/_/g, "-");
+
+/** Accepts a question ref as shown ("gate-role-gc", "Ref: gate-role-gc", "Question ref gate-role-gc") or the raw key. */
+export function parseQuestionRef(input: string): string {
+  const t = input.trim().replace(/^(?:question\s+)?ref\s*:?\s*/i, "");
+  if (/^warranty:/i.test(t)) return t;
+  const k = t.toLowerCase().replace(/[\s-]+/g, "_");
+  return k.startsWith("warranty_") ? `warranty:${k.slice(9)}` : k;
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const isUuid = (s: string) => UUID.test(s.trim());
 
 /** Find the item a ref points at among a job's open items. Returns the id, or an error message. */
 export function matchRef(ref: string, items: { id: string; action: string | null; check_key: string | null }[]): { id: string } | { error: string } {
-  const r = ref.trim().replace(/^item\s+/i, "");
+  const r = ref.trim().replace(/^(?:item|ref)\s*:?\s*/i, "").replace(/^(?:item|ref)\s*:?\s*/i, "");
   if (isUuid(r)) return items.some((i) => i.id === r.toLowerCase()) ? { id: r.toLowerCase() } : { error: "not_found" };
-  const want = r.toUpperCase().startsWith("#") ? r.toLowerCase() : r.toUpperCase();
+  // "36C31" (as shown on the line) means the same as "#36c31".
+  const want = r.startsWith("#") ? r.toLowerCase() : /^[0-9a-f]{5,32}$/i.test(r) ? `#${r.toLowerCase()}` : r.toUpperCase();
   const hits = items.filter((i) => {
     const ref = itemRef(i);
     return ref.startsWith("#") ? ref === want.toLowerCase() || i.id.replace(/-/g, "").startsWith(want.replace(/^#/, "").toLowerCase()) && want.length >= 5 : ref === want;
