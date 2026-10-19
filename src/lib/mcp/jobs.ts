@@ -1,3 +1,4 @@
+import { FLAG_CLAUSE, effectiveFlag } from "./clauses";
 // Module 1 (Job Setup): company + job resolution and the fixed setup report.
 // Rule evaluation (applies_when, N/A suppression, resolution rules) lives in the database mcp_* functions.
 import { renderWarrantyRegister } from "./warranty";
@@ -211,7 +212,7 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
     }
     if (mod === "applicability") {
       if (!flags.length) out.push("   None recorded.");
-      flags.sort((a, b) => a.flag_key.localeCompare(b.flag_key)).forEach((f) => out.push(`   - ${f.flag_key.replace(/_/g, " ")}: ${flagWord(f.value)} (${f.source.replace(/_/g, " ").replace(/^member answer$/, "manual")})`));
+      flags.sort((a, b) => a.flag_key.localeCompare(b.flag_key)).forEach((f) => out.push(`   - ${f.flag_key.replace(/_/g, " ")}: ${flagWord(FLAG_CLAUSE[f.flag_key] ? effectiveFlag(f.value, facts.find((x) => x.module === "contract" && x.key === FLAG_CLAUSE[f.flag_key])) : f.value)} (${f.source.replace(/_/g, " ").replace(/^member answer$/, "manual")})`));
     } else if (mod === "budget") {
       const budget = facts.filter((f) => f.module === "budget");
       const sov = facts.filter((f) => f.module === "sov");

@@ -135,17 +135,11 @@ const workPackage = z.object({ name: z.string().trim().min(1).max(120), mode: z.
 const budgetLine = z.object({ cost_code: z.string().trim().min(1).max(40), description: z.string().max(200).optional(), amount: z.number().optional() });
 const sovLine = z.object({ line: z.string().trim().min(1).max(40), description: z.string().max(200).optional(), billable_value: z.number().optional(), cost_codes: z.array(z.string().max(40)).max(50).optional() });
 const gap = z.object({ gap: z.string().trim().min(1).max(1000), owner: z.string().trim().min(1).max(120), needed_by: date.optional() });
+import { CLAUSE_ABSENT, CLAUSE_UNKNOWN, FLAG_CLAUSE, clauseFlag, effectiveFlag } from "../clauses";
+export { CLAUSE_ABSENT, CLAUSE_UNKNOWN };
 function triFrom(v: boolean | undefined): "yes" | "no" | "unknown" {
   return v === undefined ? "unknown" : v ? "yes" : "no";
 }
-/** Typed answers that mean "this clause is not in the contract" ("No LDs", "None.", "N/A", "0%", "not included"). "No later than 7 days" is a real term, not an absence. */
-export const CLAUSE_ABSENT =
-  /^(?:none|no|n\/?a|nil|zero|0\s*%?|not (?:included|applicable|in (?:the )?contract)|there (?:is|are) no\b.*|no(?:\s+\S+){0,3}?\s+(?:clause|clauses|lds?|liquidated damages?|beneficial use|retainage|retention|notice requirements?)\b.*)\.?$/i;
-
-/** "Not specified", "unknown", "TBD": the term is unknown. No fact value, no flag. */
-export const CLAUSE_UNKNOWN =
-  /^(?:not specified|unspecified|not stated|not (?:provided|given|known|sure)|unknown|unsure|unclear|tbd|tbc|n\/s|to be (?:confirmed|determined)|don'?t know|do not know|no idea)\b/i;
-
 const TYPED_MARK = /user[- ]typed|typed (?:in )?by|member[- ]typed|reported by (?:the )?user|no (?:contract )?document|not read from/i;
 
 /** Terms count as read from the contract only when the client names the document it read and nothing says they were typed. */
@@ -155,12 +149,6 @@ export function readFromDocument(a: { contract_document_provided?: boolean; cont
 
 function keysText(a: Record<string, unknown>): string {
   return Object.values(a).filter((v) => typeof v === "string").join(" ");
-}
-
-function clauseFlag(v: string | undefined): "yes" | "no" | undefined {
-  if (v === undefined || !v.trim()) return undefined;
-  if (CLAUSE_UNKNOWN.test(v.trim())) return undefined;
-  return CLAUSE_ABSENT.test(v.trim()) ? "no" : "yes";
 }
 
 /** Save warranty/closeout setup facts, then open an item for every "no" or unknown (deduped by check_key). */
@@ -217,7 +205,7 @@ export const intake = defineTool({
     restrict_to: z.array(z.string().trim().min(1).max(120)).max(30).optional().describe("create_job: member names who may see this job (leave out for all members)."),
     // Job settings
     time_zone: z.string().trim().max(60).optional().describe("job_settings: IANA time zone, e.g. America/Chicago. Deadlines are computed in it."),
-    pm: z.string().trim().max(120).optional().describe("job_settings: the job PM's name. A company member is linked; anyone else is saved as a contact (name + email) with no Athena access."),
+    pm: z.string().trim().max(120).optional().describe("job_settings: the job PM's name only (put the email in pm_email; no notes such as \"non-member\"). A company member is linked; anyone else is saved as a contact (name + email) with no Athena access."),
     pm_email: z.string().trim().max(200).optional().describe("job_settings: the PM's email. Used as the suggested From on drafts. No Athena access is granted."),
     pm_title: z.string().trim().max(120).optional().describe("job_settings: the PM's title for draft signatures. Default 'Project Manager'."),
     // Delay event
@@ -336,7 +324,7 @@ export const intake = defineTool({
         const pmLine = r.pm ? `${r.pm}${r.pm_is_member === false ? " (not an Athena user; saved as a contact with no Athena access)" : ""}${r.pm_email ? ` <${r.pm_email}>` : ""}` : "unassigned";
         const id: PmIdentity = { name: r.pm, email: r.pm_email ?? null, title: r.pm_title ?? null, isMember: r.pm_is_member !== false };
         return {
-          ...text(`${P}Job settings saved. Time zone: ${r.time_zone ?? "unknown"} | PM: ${pmLine}\n\n${draftIdentityText(id, { name: co.data?.name ?? null })}`),
+          ...text(`${P}Job settings saved. Time zone: ${r.time_zone ?? "unknown"} | PM: ${pmLine}${r.pm ? `\nOpen items that were unassigned now read Accountable: ${r.pm} (PM). To assign an item to the PM, pass the name only.` : ""}\n\n${draftIdentityText(id, { name: co.data?.name ?? null })}`),
           structuredContent: { time_zone: r.time_zone, pm: r.pm, pm_email: r.pm_email ?? null, pm_title: r.pm_title ?? null, pm_is_member: r.pm_is_member ?? true },
         };
       }
@@ -1007,7 +995,7 @@ export const contractTerms = defineTool({
       });
       const flags = CONTRACT_FLAGS.map((k) => {
         const f = (flR.data ?? []).find((x) => x.flag_key === k);
-        return { flag: k, value: flagWord(f?.value ?? "unknown"), source: f ? src(f.source) : null };
+        return { flag: k, value: flagWord(effectiveFlag(f?.value ?? "unknown", by.get(FLAG_CLAUSE[k]))), source: f ? src(f.source) : null };
       });
       const lines = [
         `${prefix(job)}CONTRACT TERMS (as saved)`,
