@@ -71,7 +71,7 @@ export function HomeHero({
             </div>
 
             <p className="mt-7 text-[14px] text-muted-foreground">
-              {greeting}, {firstName}.
+              {firstName ? `${greeting}, ${firstName}.` : `${greeting}.`}
               {greetingIcon ? (
                 <GreetingIcon
                   iconKey={greetingIcon}

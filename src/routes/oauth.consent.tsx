@@ -25,13 +25,18 @@ export const Route = createFileRoute("/oauth/consent")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Approve connection — ALP Contractor Circle" },
-      { name: "description", content: "Approve or deny an app connecting to your Contractor Circle account." },
-      { property: "og:title", content: "Approve connection — ALP Contractor Circle" },
-      { property: "og:description", content: "Approve or deny an app connecting to your Contractor Circle account." },
+      { title: "Approve connection — Athena powered by ALP, construction agents" },
+      { name: "description", content: "Approve or deny an app connecting to Athena." },
+      { property: "og:title", content: "Approve connection — Athena powered by ALP, construction agents" },
+      { property: "og:description", content: "Approve or deny an app connecting to Athena." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex, nofollow" },
+    ],
+    // Athena mark on the consent page only; the Hub's own favicon is unchanged.
+    links: [
+      { rel: "icon", type: "image/png", sizes: "512x512", href: "/brand/athena/athena-primary-512.png" },
+      { rel: "apple-touch-icon", sizes: "512x512", href: "/brand/athena/athena-primary-512.png" },
     ],
   }),
   validateSearch: (s: Record<string, unknown>) => ({
@@ -129,8 +134,8 @@ function Consent() {
 
   return (
     <AuthCard brand="athena"
-      title={`Connect ${clientName} to Contractor Circle`}
-      subtitle={`This lets ${clientName} use the Contractor Circle tools as you.`}
+      title={`Connect ${clientName} to Athena`}
+      subtitle={`This lets ${clientName} use Athena as you.`}
     >
       <div className="space-y-4 text-[13px] text-foreground/80">
         {!allowed && (
@@ -138,7 +143,7 @@ function Consent() {
             <p className="text-[14px] font-semibold text-destructive">
               Signed in as {email || "an unknown account"} — switch to your Circle account
             </p>
-            <p className="text-foreground/75">This account doesn't have access to the PM agent, so Approve is turned off.</p>
+            <p className="text-foreground/75">This account doesn't have access to Athena, so Approve is turned off.</p>
             <button
               type="button"
               disabled={busy}

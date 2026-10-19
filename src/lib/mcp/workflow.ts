@@ -54,6 +54,7 @@ export async function loadChecks(_sb: Sb): Promise<Check[]> {
   const { data, error } = await supabaseAdmin
     .from("mcp_checklist_items")
     .select("key, version, category, trade, prompt, rule_type, required_inputs, severity, position")
+    .eq("module", "lookahead") // job_setup checks share this table; a look-ahead walks only its own.
     .eq("active", true);
   if (error) throw new Error(error.message);
   const latest = new Map<string, Check>();

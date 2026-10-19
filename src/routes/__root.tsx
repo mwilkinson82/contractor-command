@@ -364,6 +364,12 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
   const { tier, loading: tierLoading } = useTier();
   const isAdmin = useIsAdmin();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // The route actually on screen. During a client navigation the location
+  // updates before the new route has rendered, so "/login" can briefly still
+  // show the previous (protected) page. Gate rendering on what is on screen.
+  const renderedPathname = useRouterState({
+    select: (s) => s.resolvedLocation?.pathname ?? s.location.pathname,
+  });
   const authHashTarget = getAuthHashTarget(pathname);
   const navigate = useNavigate();
   const router = useRouter();
@@ -485,7 +491,12 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
 
   if (authHashTarget) return <LoadingWorkspace />;
 
-  if (isPublic) return <>{children(false)}</>;
+  if (isPublic) {
+    // Signed-out redirect to a public page: render nothing until the public
+    // page itself is on screen, so the protected page never flashes.
+    if (!session && !PUBLIC_ROUTES.has(renderedPathname)) return null;
+    return <>{children(false)}</>;
+  }
 
   if (loading) {
     return <LoadingWorkspace />;
