@@ -141,6 +141,13 @@
       "when": 1792030004000,
       "tag": "0019_athena_pm_contact_delay_events",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792030005000,
+      "tag": "0020_athena_items_follow_pm",
+      "breakpoints": true
     }
   ]
 }
