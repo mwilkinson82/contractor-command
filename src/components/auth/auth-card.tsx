@@ -58,7 +58,7 @@ export function AuthCard({
             )}
             <div className="mt-7">{children}</div>
             <div className="mt-7 border-t border-border pt-5 text-xs text-muted-foreground">
-              {footer ?? "Athena · Contractor Circle"}
+              {footer ?? "Athena powered by ALP, construction agents"}
             </div>
           </section>
           <a
