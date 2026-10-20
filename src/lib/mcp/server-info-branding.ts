@@ -26,7 +26,7 @@ export const ATHENA_SERVER_ICONS = Object.freeze([
 export const ATHENA_WEBSITE_URL = ORIGIN;
 
 /** serverInfo.version and the "Athena vX" line on onboarding. */
-export const ATHENA_VERSION = "0.7.3";
+export const ATHENA_VERSION = "0.7.4";
 
 /** MCP 2025-11-25 Implementation.description. There is no publisher field in the spec. */
 export const ATHENA_DESCRIPTION = "Athena powered by ALP, construction agents. Built by ALP.";

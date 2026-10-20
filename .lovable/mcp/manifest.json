@@ -13,7 +13,7 @@
   "mcp": {
     "server": {
       "name": "athena",
-      "version": "0.7.3",
+      "version": "0.7.4",
       "title": "Athena powered by ALP, construction agents"
     },
     "tools": [

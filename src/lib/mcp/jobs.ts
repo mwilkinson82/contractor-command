@@ -292,21 +292,18 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
     } else if (mod === "warranty") {
       const cc = facts.find((f) => f.module === "contract" && f.key === "closeout" && f.status === "known");
       const w = alignCloseoutSource(facts.filter((f) => f.module === "warranty"), cc ? { ...cc, module: "warranty" } : null);
-      const cw = facts.find((f) => f.module === "contract" && f.key === "warranty_clauses" && f.status === "known");
+      // The contract warranty summary is skipped when verbatim clauses exist (the §8.1 clause text is shown instead).
+      const cw = clauses.length ? undefined : facts.find((f) => f.module === "contract" && f.key === "warranty_clauses" && f.status === "known");
       out.push(...renderWarrantyRegister(cw ? [...w, { ...cw, module: "warranty", key: CONTRACT_WARRANTY_KEY }] : w, todayIn(tz)));
     } else if (mod === "contract" && clauses.length) {
-      // Verbatim clauses govern; summary fields follow for anything not yet recorded as a clause.
+      // Verbatim clauses only; summary fields are a fallback for jobs with no clauses.
       const shownClauses = client ? clauses.filter((c) => !isClaimClause(c)) : clauses;
       out.push("   Contract clauses (exact contract text):");
       shownClauses.forEach((c) => out.push(`   - ${clauseLine(c)}`));
       if (!client) missingNotices(clauses).forEach((m) => out.push(`   - Missing: ${m.label} (to confirm)`));
       // The PM always gets the notice requirements in plain words; the client copy never shows the gaps.
       if (!client) noticeRequirements(clauses).lines.forEach((l) => out.push(`   ${l}`));
-      const fs = facts.filter((f) => f.module === mod && f.status === "known");
-      if (fs.length) {
-        out.push("   Other saved terms (summary fields):");
-        fs.forEach((f) => out.push(`   - ${f.key.replace(/_/g, " ")}: ${show(f.value)} (${legacySourceLabel(f.source)})`));
-      }
+      // Summary fields are not printed when verbatim clauses exist (kept in data; shown only as the no-clause fallback below).
     } else {
       const fs = facts.filter((f) => f.module === mod);
       if (!fs.length) out.push("   Not started.");
