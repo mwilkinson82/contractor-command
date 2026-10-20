@@ -12,7 +12,7 @@ import { EVIDENCE_ASK, evidenceProblem } from "../evidence";
 import { isUuid, itemRef, lookaheadRef, matchRef, parseLookaheadRef, parseQuestionRef, questionRef, shortRef } from "../refs";
 import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
 import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
-import { guide, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_DELIVERY_BLOCK, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
+import { guide, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_DELIVERY_BLOCK, SOV_DELIVERY_ASK, SOV_DELIVERY_STRUCTURED, SOV_LINK_RULE_TEXT, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
 import { withoutClaims } from "../internal-claims";
 import { noticeRequirements } from "../notice-plain";
 import { CLAUSE_HOST_RULE, classifyClause, clauseLine, missingNotices, normSection, parseClause, NOTICE_CHECKLIST, type ClauseRow, LEGACY_SUMMARY_TAG, missingNoticeNote, SUMMARY_OFFER, SUMMARY_HEADING } from "../contract-clauses";
@@ -173,6 +173,10 @@ import { CLAUSE_ABSENT, CLAUSE_UNKNOWN, FLAG_CLAUSE, clauseFlag, effectiveFlag }
 export { CLAUSE_ABSENT, CLAUSE_UNKNOWN };
 /** Field keys in words ("beneficial_use_clause" -> "beneficial use clause"). */
 const humanKeys = (ks: string[]) => ks.map((k) => k.replace(/_/g, " ")).join(", ");
+/** 0.8.4: step 0 scoping, asked as setup question 1 by next_question. */
+const SCOPE_Q1_KEY = "job_scoping";
+const SCOPE_Q1_ASK = "Tell me about this job: the job type, who the client is, the sector (public, private commercial or residential), whether you're the prime or a sub, and the pricing model (lump sum, unit price, cost plus or GMP). Or say \"use the defaults\" and I'll fill what I can from your company profile and move on.";
+const SCOPE_Q1_GUIDANCE = "Record the answer with intake section \"scope\". If the member says \"use the defaults\" (or similar), call intake section \"scope\" with use_defaults true and nothing else, show which fields were filled and which stay unconfirmed in one line, then call next_question for question 2. Never skip this question and never guess the fields.";
 function triFrom(v: boolean | undefined): "yes" | "no" | "unknown" {
   return v === undefined ? "unknown" : v ? "yes" : "no";
 }
@@ -518,7 +522,10 @@ export const intake = defineTool({
           const d = companyScopeDefaults(co ?? null);
           args = { ...d, ...Object.fromEntries(Object.entries(args).filter(([, v]) => v !== undefined)) } as typeof args;
           const used = Object.keys(d).filter((k) => (d as Record<string, unknown>)[k] !== undefined);
-          defaultsNote = `\nCompany defaults used: ${used.length ? humanKeys(used) : "none on file"}. Everything else stays unconfirmed.`;
+          // 0.8.4: every step 0 field is either filled from the profile or named as unconfirmed, then setup moves on to question 2.
+          const SCOPE_Q1_FIELDS: [string, string][] = [["job_type", "job type"], ["sector", "sector"], ["position", "prime or sub"], ["pricing_model", "pricing model"], ["client_type", "client type"]];
+          const unconfirmed = SCOPE_Q1_FIELDS.filter(([k]) => (args as Record<string, unknown>)[k] === undefined).map(([, l]) => l);
+          defaultsNote = `\nCompany defaults used: ${used.length ? humanKeys(used) : "none on file"}. Unconfirmed (saved as unknown, not asked again now): ${unconfirmed.join(", ") || "none"}.`;
         }
         const given = {
           job_type: args.job_type, scope_summary: args.scope_summary, size_band: args.size_band, sector: args.sector,
@@ -562,7 +569,7 @@ export const intake = defineTool({
         await settleFlagConfirms(sb, job);
         const { data: all } = await sb.from("mcp_job_flags").select("flag_key, value, source").eq("job_id", job.job_id).order("flag_key");
         return text(
-          `${P}Step 0 scoping saved.${defaultsNote}\nRecorded: ${humanKeys(fr.known) || "none"}\nUnknown: ${humanKeys(fr.unknown) || "none"}\n\nApplicability flags:\n${(all ?? []).map((f) => `- ${f.flag_key.replace(/_/g, " ")}: ${f.value} (${f.source.replace(/_/g, " ")})`).join("\n")}\n${flagNote(r)}\n\nNext: intake section "contract", or next_question.`,
+          `${P}Step 0 scoping saved.${defaultsNote}\nRecorded: ${humanKeys(fr.known) || "none"}\nUnknown: ${humanKeys(fr.unknown) || "none"}\n\nApplicability flags:\n${(all ?? []).map((f) => `- ${f.flag_key.replace(/_/g, " ")}: ${f.value} (${f.source.replace(/_/g, " ")})`).join("\n")}\n${flagNote(r)}\n\n${args.use_defaults ? "Next: next_question (setup question 2, project software). Don't ask the unconfirmed scoping fields again now." : 'Next: intake section "contract", or next_question.'}`,
         );
       }
 
@@ -864,6 +871,16 @@ export const nextQuestion = defineTool({
         await rpc(sb, "mcp_answer", { _job: job.job_id, _key: q.key, _answer: "yes", _detail: `Job number ${job.job_number} is on record.`, _owner: null, _needed_by: null });
         auto = `Answered for you: ${q.label ? `${q.label} ` : ""}"${q.prompt}" — yes (job number ${job.job_number} is on record). Say so if that's wrong and I'll change it.\n\n`;
         q = await rpc<NextCheck>(sb, "mcp_next_check", { _job: job.job_id });
+      }
+      // 0.8.4: step 0 scoping is setup question 1. Hosts that go straight to next_question (ChatGPT on job 2801) skipped it,
+      // because only the create_job text asked for it. Ask it here until intake section "scope" has been saved once.
+      const { data: sc } = await sb.from("mcp_job_facts").select("key").eq("job_id", job.job_id).eq("module", "scope").eq("key", "job_type").maybeSingle();
+      if (!sc) {
+        await audit(sb, job, "next_question", "view_setup_question", SCOPE_Q1_KEY);
+        return guide({
+          ...text(`${P}${auto}Setup question 1 (Job scoping) [Job setup]\nQuestion ref: ${questionRef(SCOPE_Q1_KEY)}\n\n${SCOPE_Q1_ASK}`),
+          structuredContent: { check_key: SCOPE_Q1_KEY, index: 1, record_with: { tool: "intake", section: "scope" }, use_defaults_allowed: true },
+        }, SCOPE_Q1_GUIDANCE);
       }
       // Project software is a real setup step, asked second (right after the auto-answered job number check, before the gates),
       // so every host shows it. The answer is kept in scope facts (key project_software); no new column.
@@ -1362,7 +1379,8 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
   const today = new Date().toISOString().slice(0, 10);
   return guide(
     {
-      ...text(sovSummaryText(prefix(job), sov, brand, jr.data?.sov_basis ?? null, sovFooterMissing(c), audience, view)),
+      // 0.8.4: the delivery step rides in the tool text and structuredContent, not only in guidance, so every host (Claude too) asks it.
+      ...text(`${sovSummaryText(prefix(job), sov, brand, jr.data?.sov_basis ?? null, sovFooterMissing(c), audience, view)}\n\n${SOV_DELIVERY_ASK}\n${SOV_LINK_RULE_TEXT}`),
       structuredContent: {
         sov: {
           audience,
@@ -1376,6 +1394,7 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
           footer: sovLayout(brand).footer,
           layout: sovLayout(brand),
         },
+        delivery: SOV_DELIVERY_STRUCTURED,
       },
     },
     "To produce the SOV file, use structuredContent.sov exactly: numbers, column set and layout recipe come from the server. Do not recompute or reorder.",
