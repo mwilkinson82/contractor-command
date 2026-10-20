@@ -1,13 +1,14 @@
 import { FLAG_CLAUSE, effectiveFlag } from "./clauses";
 // Module 1 (Job Setup): company + job resolution and the fixed setup report.
 // Rule evaluation (applies_when, N/A suppression, resolution rules) lives in the database mcp_* functions.
-import { renderWarrantyRegister } from "./warranty";
+import { CONTRACT_WARRANTY_KEY, alignCloseoutSource, renderWarrantyRegister } from "./warranty";
 import { whoForJob } from "./people";
 import { displayRef } from "./refs";
 import { clientSafe } from "./client-safe";
 import { draftGuidance, draftIdentityText } from "./drafts";
 import { ToolError } from "@lovable.dev/mcp-js";
 import { dbError, type Sb } from "./guard";
+import { withoutClaims } from "./internal-claims";
 import { DEFAULT_TZ, dateIn, todayIn } from "./deadlines";
 
 export type Job = { job_id: string; job_number: string; name: string; company_id: string; scope?: "full" | "contract" | "super" };
@@ -217,6 +218,8 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
     facts = facts.filter((f) => !f.internal_only && !CLIENT_SCRUB.test(f.key));
     items = items.filter((i) => !i.internal_only && !CLIENT_SCRUB.test(`${i.action} ${i.category}`));
   }
+  // Claim notices and the claim clause are internal strategy, never client-facing.
+  if (client) { items = withoutClaims(items); facts = facts.filter((f) => !(f.module === "contract" && f.key === "claim_process")); }
   if (client) facts = facts.filter((f) => !CLIENT_COACHING.test(typeof f.value === "string" ? f.value : ""));
   const dates = [...flags.map((f) => f.set_at), ...facts.map((f) => f.updated_at), ...items.map((i) => i.updated_at)].filter(Boolean).sort();
   const dataThrough = dates.length ? dateIn(dates[dates.length - 1], tz) : "no data yet";
@@ -257,13 +260,10 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
       if (!sov.length) out.push("   - none recorded");
       sov.forEach((f) => out.push(`   - ${f.key}: ${show(f.value)}`));
     } else if (mod === "warranty") {
-      const w = facts.filter((f) => f.module === "warranty");
       const cc = facts.find((f) => f.module === "contract" && f.key === "closeout" && f.status === "known");
-      const wcd = w.findIndex((f) => f.key === "closeout_documents" && f.status === "known");
-      if (cc && wcd < 0) w.push({ ...cc, module: "warranty", key: "closeout_documents" });
-      // Same text as the contract's closeout clause: it came from the contract, so show that source.
-      else if (cc && JSON.stringify(w[wcd].value).trim() === JSON.stringify(cc.value).trim()) w[wcd] = { ...w[wcd], source: cc.source };
-      out.push(...renderWarrantyRegister(w, todayIn(tz)));
+      const w = alignCloseoutSource(facts.filter((f) => f.module === "warranty"), cc ? { ...cc, module: "warranty" } : null);
+      const cw = facts.find((f) => f.module === "contract" && f.key === "warranty_clauses" && f.status === "known");
+      out.push(...renderWarrantyRegister(cw ? [...w, { ...cw, module: "warranty", key: CONTRACT_WARRANTY_KEY }] : w, todayIn(tz)));
     } else {
       const fs = facts.filter((f) => f.module === mod);
       if (!fs.length) out.push("   Not started.");
