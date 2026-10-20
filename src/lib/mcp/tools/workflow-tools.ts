@@ -12,7 +12,7 @@ import { EVIDENCE_ASK, evidenceProblem } from "../evidence";
 import { displayRef, isUuid, itemRef, lookaheadRef, matchRef, parseLookaheadRef, parseQuestionRef, questionRef, shortRef } from "../refs";
 import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
 import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
-import { guide, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_CHART_RULE, SOV_LINK_HARD_NO, SOV_LINK_RULE_TEXT, sovChart, sovRequiredTop, sovDeliveryAsk, sovDeliveryBlock, sovDeliveryStructured, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
+import { guide, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_CHART_RULE, sovChart, sovRequiredTop, sovDeliveryAsk, sovDeliveryBlock, sovDeliveryStructured, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
 import { withoutClaims } from "../internal-claims";
 import { EMAIL_CONTACT_RULE, contactForRole, dedupeNotices, emailContact, fillNotice, jobContacts } from "../contacts";
 import { noticeRequirements } from "../notice-plain";
@@ -1408,7 +1408,7 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
   return guide(
     {
       // 0.8.4: the delivery step rides in the tool text and structuredContent, not only in guidance, so every host (Claude too) asks it.
-      ...text(`${sovRequiredTop(sovLineRows(sov), ec.structured.to_line)}\n${sovSummaryText(prefix(job), sov, brand, jr.data?.sov_basis ?? null, sovFooterMissing(c), audience, view)}${sovSpecsMissing(sov) ? `\n${SOV_SPECS_MISSING_NOTE}` : ""}\n\n${sovDeliveryAsk(audience)}\nFor option 2:\n${ec.text}\n${SOV_LINK_RULE_TEXT}`),
+      ...text(`${sovRequiredTop(sovLineRows(sov), ec.structured.to_line)}\n${sovSummaryText(prefix(job), sov, brand, jr.data?.sov_basis ?? null, sovFooterMissing(c), audience, view)}${sovSpecsMissing(sov) ? `\n${SOV_SPECS_MISSING_NOTE}` : ""}\n\n${sovDeliveryAsk(audience)}\nFor option 2 or 3:\n${ec.text}`),
       structuredContent: {
         sov: {
           audience,
@@ -1424,7 +1424,7 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
         },
         // 0.8.7: the host draws this bar chart (scheduled value by line) in the fixed palette, every host.
         chart: sovChart(sovLineRows(sov)),
-        // 0.8.6: owner/client SOV drops option 3 (chat link) entirely. 0.8.7: the owner link is a hard no (link_hard_no).
+        // 0.8.8: same three delivery options (project software, Excel/PDF email, shared link) for every audience.
         delivery: sovDeliveryStructured(audience),
         // 0.8.5: who the SOV email card goes to (option 2), so the host fills To and the greeting.
         email_contact: ec.structured,
@@ -1433,7 +1433,6 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
     "To produce the SOV file, use structuredContent.sov exactly: numbers, column set and layout recipe come from the server. Do not recompute or reorder.",
     `Present the SOV as a spreadsheet with the line-item view by default (structuredContent.sov.line_items: line no., cost code, division, description, scheduled value, % of total, then the total that ties to the contract sum). Always include a Cost Code column right after the line no., filled from line_items cost_code (e.g. 26-010); never show the item number in its place. Money with cents everywhere, exactly as in the visible text and the *_display fields (e.g. $1,400,000.00); never round or drop the .00. Do not put a date sweep or any other block before the SOV. Claude: an artifact table built from this result with no tool calls inside it; ChatGPT: a canvas or table; elsewhere: a table plus an offer to create an Excel file. Table style: ${SOV_TABLE_STYLE} Colors: blue #2563EB and gray only, never orange, rust or red, including totals. After the table, at most ONE line. The logo, footer gaps (structuredContent.sov.notes), billing note and the division roll-up offer only when the member asks. Line items carry cost_code and spec_section; keep both columns in any file. Chart colors: ${CHART_PALETTE.join(", ")} only. REQUIRED: end the reply with the SOV delivery question below, word for word, in every host including Claude.${audience === "client" ? " This is the owner/client SOV: offer options 1 and 2 only; never offer a chat link." : ""}`,
     SOV_CHART_RULE,
-    SOV_LINK_HARD_NO,
     sovDeliveryBlock(audience),
     EMAIL_CONTACT_RULE,
   );
