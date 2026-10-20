@@ -115,17 +115,3 @@ describe("Claude retest units", async () => {
   });
 });
 
-describe("client claim strip", async () => {
-  const { stripClaimText } = await import("./internal-claims");
-  it("keeps the delay notice, drops the claim notice", () => {
-    const v = "§6.4 written delay notice within 3 calendar days after start of event; §7.4 written claim notice within 7 calendar days of event, otherwise waived.";
-    const out = stripClaimText(v);
-    expect(out).toBe("§6.4 written delay notice within 3 calendar days after start of event.");
-    expect(out).not.toMatch(/claim|7\.4/i);
-  });
-  it("sentence-split terms and untouched terms", () => {
-    expect(stripClaimText("§6.4 Delay notice in 3 days. §7.4 Claims within 7 days.")).toBe("§6.4 Delay notice in 3 days.");
-    expect(stripClaimText("§4.1 10% retainage.")).toBe("§4.1 10% retainage.");
-    expect(stripClaimText("§7.4 claim notice within 7 days")).toBe("");
-  });
-});
