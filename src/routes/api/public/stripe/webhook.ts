@@ -20,6 +20,7 @@ import {
 } from "@/lib/email/circle-welcome-state";
 import { appOrigin, ensureMagicLinkForMember } from "@/lib/email/ensure-magic-link";
 import { syncPaidResendContact } from "@/lib/resend/capture";
+import { athenaProductKey, upsertAthenaSubscription } from "@/lib/stripe/athena-subscriptions.server";
 import {
   hubTierForPurchase,
   resendSegmentForPurchase,
@@ -160,6 +161,18 @@ async function finishWebhookEvent(
   }
 }
 
+/** Athena PM / Office plans go to athena_subscriptions only (never the Circle table). */
+async function handledAsAthena(
+  supabaseAdmin: SupabaseAdminClient,
+  stripe: Stripe,
+  sub: Stripe.Subscription,
+): Promise<boolean> {
+  const key = await athenaProductKey(sub, (id) => stripe.products.retrieve(id));
+  if (!key) return false;
+  await upsertAthenaSubscription(supabaseAdmin as never, stripe, sub, key);
+  return true;
+}
+
 export const Route = createFileRoute("/api/public/stripe/webhook")({
   server: {
     handlers: {
@@ -221,7 +234,9 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
               const sub = await stripe.subscriptions.retrieve(
                 (event.data.object as Stripe.Subscription).id,
               );
-              if (isAosAddonSubscription(sub)) {
+              if (await handledAsAthena(supabaseAdmin, stripe, sub)) {
+                // Athena standalone plan
+              } else if (isAosAddonSubscription(sub)) {
                 await upsertAosAddon(supabaseAdmin, stripe, sub);
               } else {
                 await upsertSubscription(supabaseAdmin, stripe, sub, null, observedAt);
@@ -255,7 +270,9 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
                     ? session.subscription
                     : session.subscription.id,
                 );
-                if (isAosAddonSubscription(sub)) {
+                if (await handledAsAthena(supabaseAdmin, stripe, sub)) {
+                  // Athena standalone plan (7-day trial: payment_status no_payment_required)
+                } else if (isAosAddonSubscription(sub)) {
                   await upsertAosAddon(supabaseAdmin, stripe, sub);
                 } else {
                   await upsertSubscription(
@@ -281,7 +298,9 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
               if (subscriptionId) {
                 const observedAt = new Date().toISOString();
                 const sub = await stripe.subscriptions.retrieve(subscriptionId);
-                if (isAosAddonSubscription(sub)) await upsertAosAddon(supabaseAdmin, stripe, sub);
+                if (await handledAsAthena(supabaseAdmin, stripe, sub)) {
+                  // Athena standalone plan
+                } else if (isAosAddonSubscription(sub)) await upsertAosAddon(supabaseAdmin, stripe, sub);
                 else
                   await upsertSubscription(
                     supabaseAdmin,
@@ -314,6 +333,7 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
               if (!subscriptionId) break;
               const observedAt = new Date().toISOString();
               const sub = await stripe.subscriptions.retrieve(subscriptionId);
+              if (await handledAsAthena(supabaseAdmin, stripe, sub)) break;
               await upsertSubscription(
                 supabaseAdmin,
                 stripe,
@@ -997,3 +1017,4 @@ async function upsertAosAddon(
     throw new Error(error.message);
   }
 }
+
