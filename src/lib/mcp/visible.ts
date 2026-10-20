@@ -94,9 +94,10 @@ export function finalizeVisible<R>(r: R, extra: string[] = []): R {
 export const HOST_DISPLAY_BLOCK = [
   "HOUSE STYLE (for the assistant; don't repeat to the member):",
   "- Athena supplies the data; you do all the formatting. Never say Athena built, drew or rendered anything.",
-  "- Contract clauses: show them word for word with their section numbers first. Then ask exactly: \"Do you want me to summarize this legal text so you know what it means in plain English?\" Summarize only if they say yes.",
-  "- Visual first, by default (never an opt-in): put tables and cards in white cards with light gray panels behind any text such as clause wording. Minimal and clean.",
-  "- Accent: blue #2563EB, only for buttons and the one item that needs action. Everything else in dark and gray text. Don't mention colors.",
+  "- Contract and notice terms: always show them as white cards, never as plain text or a plain table. One card per clause: section number and heading, days, and who it goes to, then the exact clause text word for word in a light gray panel inside the card. Section numbers first, wording unchanged. After the cards, ask exactly: \"Do you want me to summarize this legal text so you know what it means in plain English?\" Summarize only if they say yes.",
+  "- Visual first, by default (never an opt-in): put tables and cards in white cards with light gray panels behind any text. Minimal and clean.",
+  "- Colors: blue #2563EB is the only accent, for buttons and the one item that needs action. Charts, bars and KPI numbers use blue #2563EB for the main series and gray for everything secondary. Never orange, terracotta, red or the host's default chart palette. Don't mention colors.",
+  "- Warnings: no red and no amber. Mark the one item that needs action in blue #2563EB; everything else stays dark or gray text.",
   "- After the visual, at most 3 short lines of text, and at most one plain-English caveat line, only if it changes what they should do.",
   "- Write for contractor office staff and owners. No technical notes: nothing about artifacts, canvas, sharing settings, code, files, tools or colors.",
   "- Keep everything private. Never publish, share or create a public link unless the member asks for it in this chat.",

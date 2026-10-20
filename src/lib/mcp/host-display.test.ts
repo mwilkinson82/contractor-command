@@ -9,16 +9,22 @@ describe("host-display block", () => {
     expect(visibleProblems(r.content[0].text)).toEqual([]);
     expect(r.structuredContent.assistant_guidance).toContain(HOST_DISPLAY_BLOCK);
   });
-  it("covers verbatim-first, the summary offer, the styled default, one caveat and private by default", () => {
-    expect(HOST_DISPLAY_BLOCK).toMatch(/section numbers first/);
+  it("covers verbatim-first cards, the summary offer, the styled default, one caveat and private by default", () => {
+    expect(HOST_DISPLAY_BLOCK).toMatch(/Section numbers first, wording unchanged/);
+    expect(HOST_DISPLAY_BLOCK).toMatch(/always show them as white cards, never as plain text/);
+    expect(HOST_DISPLAY_BLOCK).toMatch(/One card per clause: section number and heading, days, and who it goes to/);
     expect(HOST_DISPLAY_BLOCK).toContain("Do you want me to summarize this legal text so you know what it means in plain English?");
     expect(HOST_DISPLAY_BLOCK).toMatch(/Visual first, by default \(never an opt-in\)/);
-    expect(HOST_DISPLAY_BLOCK).toContain("#2563EB");
     expect(HOST_DISPLAY_BLOCK).toMatch(/Never say Athena built, drew or rendered/);
     expect(HOST_DISPLAY_BLOCK).toMatch(/white cards with light gray panels/);
     expect(HOST_DISPLAY_BLOCK).toMatch(/one plain-English caveat/);
     expect(HOST_DISPLAY_BLOCK).toMatch(/Never publish, share or create a public link/);
     expect(HOST_DISPLAY_BLOCK).not.toMatch(/lovable/i);
+  });
+  it("one blue accent for charts, KPIs and the action item; no orange, red or amber", () => {
+    expect(HOST_DISPLAY_BLOCK).toMatch(/Charts, bars and KPI numbers use blue #2563EB/);
+    expect(HOST_DISPLAY_BLOCK).toMatch(/Never orange, terracotta, red or the host's default chart palette/);
+    expect(HOST_DISPLAY_BLOCK).toMatch(/Warnings: no red and no amber/);
   });
   it("guard.run appends it to every tool result", () => {
     expect(readFileSync("src/lib/mcp/guard.ts", "utf8")).toMatch(/finalizeVisible\([^;]*\[HOST_DISPLAY_BLOCK\]\)/);
