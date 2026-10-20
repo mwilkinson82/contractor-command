@@ -24,17 +24,18 @@ const mcpHandler = createTanStackMcpHandler(mcp, {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const call = (h: any, request: Request) => Promise.resolve(h({ request }) as Response);
 
-const HOSTS = ["meetathena.io", "www.meetathena.io", "app.alpcontractorcircle.com"];
+const HOSTS = ["app.meetathena.io", "meetathena.io", "www.meetathena.io", "app.alpcontractorcircle.com"];
 
 describe("meetathena.io host", () => {
   it("is trusted by the CSRF guard; old hosts stay trusted; lookalikes are not", () => {
-    for (const h of ["meetathena.io", "www.meetathena.io", "MeetAthena.io", "app.alpcontractorcircle.com", "contractor-command.lovable.app"]) {
+    for (const h of ["app.meetathena.io", "App.MeetAthena.io", "meetathena.io", "www.meetathena.io", "MeetAthena.io", "app.alpcontractorcircle.com", "contractor-command.lovable.app"]) {
       expect(isTrustedHost(h)).toBe(true);
     }
-    for (const h of ["evilmeetathena.io", "meetathena.io.evil.com", "meetathena.com", "x.meetathena.io"]) {
+    for (const h of ["evilmeetathena.io", "meetathena.io.evil.com", "meetathena.com", "x.meetathena.io", "app.meetathena.io.evil.com", "evilapp.meetathena.io"]) {
       expect(isTrustedHost(h)).toBe(false);
     }
     expect(TRUSTED_HOSTS.has("meetathena.io")).toBe(true);
+    expect(TRUSTED_HOSTS.has("app.meetathena.io")).toBe(true);
   });
 
   it("metadata on meetathena.io reports resource https://meetathena.io/mcp (direct and forwarded host)", async () => {
