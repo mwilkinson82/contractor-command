@@ -12,8 +12,10 @@ describe("host-display block", () => {
   it("covers verbatim-first, the summary offer, the styled default, one caveat and private by default", () => {
     expect(HOST_DISPLAY_BLOCK).toMatch(/section numbers first/);
     expect(HOST_DISPLAY_BLOCK).toContain("Do you want me to summarize this legal text so you know what it means in plain English?");
-    expect(HOST_DISPLAY_BLOCK).toMatch(/styled visual by default, never as an opt-in/);
-    expect(HOST_DISPLAY_BLOCK).toMatch(/white card background, light gray panels/);
+    expect(HOST_DISPLAY_BLOCK).toMatch(/Visual first, by default \(never an opt-in\)/);
+    expect(HOST_DISPLAY_BLOCK).toContain("#2563EB");
+    expect(HOST_DISPLAY_BLOCK).toMatch(/Never say Athena built, drew or rendered/);
+    expect(HOST_DISPLAY_BLOCK).toMatch(/white cards with light gray panels/);
     expect(HOST_DISPLAY_BLOCK).toMatch(/one plain-English caveat/);
     expect(HOST_DISPLAY_BLOCK).toMatch(/Never publish, share or create a public link/);
     expect(HOST_DISPLAY_BLOCK).not.toMatch(/lovable/i);
