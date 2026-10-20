@@ -197,7 +197,7 @@ export const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFract
 export const SOV_TABLE_STYLE = "Header row blue #2563EB with white bold text; alternating light-gray (#F3F4F6) and white row bands; bold total row with a blue #2563EB top rule.";
 
 /** 0.8.2: exact note when no line has a spec section. */
-export const SOV_SPECS_MISSING_NOTE = "Specs not provided, so spec sections are blank. Upload the spec book to fill them.";
+export const SOV_SPECS_MISSING_NOTE = "Specs not provided, so spec sections are blank. Spec sections will be cited once specs are uploaded.";
 export const sovSpecsMissing = (sov: Sov) => sov.divisions.every((d) => d.lines.every((l) => !l.spec_section));
 
 /** Side notes kept out of the visible SOV; the host shows them only when the member asks. */
