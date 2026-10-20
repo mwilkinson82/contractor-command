@@ -9,7 +9,7 @@ import { draftGuidance, draftIdentityText } from "./drafts";
 import { ToolError } from "@lovable.dev/mcp-js";
 import { dbError, type Sb } from "./guard";
 import { withoutClaims } from "./internal-claims";
-import { clauseLine, isClaimClause, missingNotices, type ClauseRow, legacySourceLabel, LEGACY_SUMMARY_TAG } from "./contract-clauses";
+import { clauseLine, isClaimClause, missingNotices, type ClauseRow, legacySourceLabel, LEGACY_SUMMARY_TAG, OLD_SUMMARY_TAG } from "./contract-clauses";
 import { noticeRequirements } from "./notice-plain";
 import { DEFAULT_TZ, dateIn, todayIn } from "./deadlines";
 
@@ -136,7 +136,8 @@ export function itemType(it: Pick<Item, "section" | "check_key" | "item_type">, 
 
 function typeDetail(it: Item, t: string, client: boolean, clientFacing = false) {
   if (t === "no" && clientFacing) return "";
-  if (t === "no") return ` | Recommendation: ${it.recommendation ?? "none recorded"} | Why: ${it.why ?? "best-practice gap"} | ${it.help_offer ?? "Athena can help with this."}`;
+  // No recommendation on file (look-ahead entries have none): leave the part out rather than print "none recorded".
+  if (t === "no") return `${it.recommendation ? ` | Recommendation: ${it.recommendation}` : ""} | Why: ${it.why ?? "best-practice gap"} | ${it.help_offer ?? "Athena can help with this."}`;
   if (t === "pending_document") return ` | Waiting on: ${it.waiting_on_document ?? "unknown document"} from ${it.waiting_on_who ?? "unknown"} since ${it.waiting_since ?? "unknown"}`;
   if (t === "deadline") return ` | Clause/source: ${it.clause_source ?? "unknown"} | Method: ${it.delivery_method ?? "unknown"} | Recipient: ${it.recipient ?? "unknown"}`;
   // The evidence prompt follows the resolve rule: only a confirm item (kind confirm_unknown) closes on a dated member statement.
@@ -214,7 +215,7 @@ function show(v: unknown): string {
  * are withheld; then the money/margin scrub. The internal copy keeps the tag.
  */
 export function clientCopy(text: string): string {
-  return clientSafe(withoutContactPii(text.split(` (${LEGACY_SUMMARY_TAG})`).join("")));
+  return clientSafe(withoutContactPii(text.split(` (${LEGACY_SUMMARY_TAG})`).join("").split(` (${OLD_SUMMARY_TAG})`).join("")));
 }
 
 export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" | "client") {

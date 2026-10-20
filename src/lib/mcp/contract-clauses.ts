@@ -67,8 +67,14 @@ export function missingNotices(rows: Pick<ClauseRow, "category">[]) {
 export const CLAUSE_HOST_RULE =
   "Contract clauses: pass each clause's text exactly as written in the contract (copy it, never summarize, shorten or merge), one clause per entry with its section number and heading, and pass the full contract text as contract_text so Athena can verify it. If a clause isn't in the contract, leave it out; Athena opens an item to confirm it.";
 
-/** Tag for a document-sourced summary-field contract term, with or without clause rows. */
-export const LEGACY_SUMMARY_TAG = "summary, not verified against the contract text";
+/**
+ * Tag for a document-sourced summary-field contract term (saved with the contract document named).
+ * It was read from the contract, so it never reads "not verified" or "manual"; it is still a summary,
+ * not exact clause text, so it never reads plain "document" either (only exact clause rows carry that).
+ */
+export const LEGACY_SUMMARY_TAG = "from the contract, summary";
+/** The pre-0.7.2 tag. Still stripped from client copy in case older text passes through. */
+export const OLD_SUMMARY_TAG = "summary, not verified against the contract text";
 /** Source label for a contract summary field: never "document" (only exact clause rows carry that). */
 export function legacySourceLabel(source: string): string {
   if (source === "document") return LEGACY_SUMMARY_TAG;

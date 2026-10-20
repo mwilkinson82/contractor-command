@@ -50,7 +50,7 @@ export function alignCloseoutSource<F extends Fact>(w: F[], contractCloseout?: F
 }
 
 /** Same tag as contract summary fields (contract-clauses LEGACY_SUMMARY_TAG). */
-export const CLOSEOUT_SUMMARY_TAG = "summary, not verified against the contract text";
+export const CLOSEOUT_SUMMARY_TAG = "from the contract, summary";
 
 /** Synthetic fact key carrying the contract's warranty clause text into the warranty checks (never stored). */
 export const CONTRACT_WARRANTY_KEY = "contract_warranty_clauses";
