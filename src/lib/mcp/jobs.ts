@@ -9,7 +9,7 @@ import { draftGuidance, draftIdentityText } from "./drafts";
 import { ToolError } from "@lovable.dev/mcp-js";
 import { dbError, type Sb } from "./guard";
 import { withoutClaims } from "./internal-claims";
-import { clauseLine, isClaimClause, missingNotices, type ClauseRow } from "./contract-clauses";
+import { clauseLine, isClaimClause, missingNotices, type ClauseRow, legacySourceLabel } from "./contract-clauses";
 import { DEFAULT_TZ, dateIn, todayIn } from "./deadlines";
 
 export type Job = { job_id: string; job_number: string; name: string; company_id: string; scope?: "full" | "contract" | "super" };
@@ -285,7 +285,9 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
     } else {
       const fs = facts.filter((f) => f.module === mod);
       if (!fs.length) out.push("   Not started.");
-      fs.forEach((f) => out.push(`   - ${f.key.replace(/_/g, " ")}: ${f.status === "known" ? `${show(f.value)} (${f.source === "member_answer" ? "manual" : f.source.replace(/_/g, " ")})` : f.status}`));
+      // No clause rows yet: contract summary fields can't claim "document" (internal report; client unchanged).
+      const legacy = mod === "contract" && !client;
+      fs.forEach((f) => out.push(`   - ${f.key.replace(/_/g, " ")}: ${f.status === "known" ? `${show(f.value)} (${legacy ? legacySourceLabel(f.source, false) : f.source === "member_answer" ? "manual" : f.source.replace(/_/g, " ")})` : f.status}`));
     }
     if (sectionItems.length) {
       out.push("   Open items:");
