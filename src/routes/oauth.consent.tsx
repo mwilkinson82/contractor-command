@@ -2,9 +2,8 @@ import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthCard } from "@/components/auth/auth-card";
-import { athenaAppOrigin, isLovableHost } from "@/lib/athena-host";
 import { checkAthenaEntitlement, NO_ENTITLEMENT_MESSAGE, type RpcClient } from "@/lib/mcp/entitlement";
-import { boundedStep, ConsentStepError, consentReturnPath } from "@/lib/consent-loading";
+import { boundedStep, ConsentStepError, consentReturnPath, isAppHandoff } from "@/lib/consent-loading";
 
 type OAuthResult = { data: any; error: { message: string } | null };
 type OAuthApi = {
@@ -45,26 +44,35 @@ export const Route = createFileRoute("/oauth/consent")({
     authorization_id: typeof s.authorization_id === "string" ? s.authorization_id : "",
   }),
   beforeLoad: async ({ search }) => {
-    // Members must never see a lovable.app address: move the request to the
-    // Athena app with the same authorization_id before anything else.
-    const here = typeof window !== "undefined" ? window.location?.hostname ?? "" : "";
-    if (here && isLovableHost(here) && !here.startsWith("id-preview--")) {
-      const target = new URL("/oauth/consent", athenaAppOrigin());
-      if (search.authorization_id) target.searchParams.set("authorization_id", search.authorization_id);
-      window.location.replace(target.toString());
-      await new Promise(() => {});
-    }
+    // v0.8.9.1: no cross-domain hop. Stay on the origin Supabase sent us to so
+    // the login session and magic-link callback share one localStorage.
     if (!search.authorization_id) throw new Error("This connection request is missing its ID. Start again from the app you're connecting.");
     const { data, error } = await boundedStep("session", () => supabase.auth.getSession());
     if (error) throw new ConsentStepError("session", "failed");
-    if (!data.session) {
+    // getSession() only reads localStorage. A stale/revoked session made
+    // Supabase reject getAuthorizationDetails (403) and show "invalid or
+    // expired". Validate with the server; if not live, clear it and sign in.
+    let live = false;
+    if (data.session) {
+      const { data: u, error: userError } = await supabase.auth.getUser();
+      live = !userError && !!u?.user?.id;
+      if (!live) await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+    }
+    if (!live) {
       throw redirect({ to: "/login", search: { redirect: consentReturnPath(search.authorization_id) } });
     }
   },
   loader: async ({ location }) => {
     const id = new URLSearchParams(location.search).get("authorization_id")!;
     const { data, error } = await boundedStep("details", () => oauth().getAuthorizationDetails(id));
-    if (error) throw new ConsentStepError("details", "failed");
+    if (error) {
+      const status = (error as { status?: number }).status;
+      if (status === 401 || status === 403 || /jwt|bearer/i.test(error.message ?? "")) {
+        await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+        throw redirect({ to: "/login", search: { redirect: consentReturnPath(id) } });
+      }
+      throw new ConsentStepError("details", "failed");
+    }
     const immediate = data?.redirect_url ?? data?.redirect_to;
     if (immediate && !data?.client) {
       window.location.href = immediate;
@@ -101,6 +109,7 @@ function Consent() {
   const { authorization_id } = Route.useSearch();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [handoff, setHandoff] = useState<string | null>(null);
   const navigate = useNavigate();
   if (!loaded) return null;
   const { details, email, userId, entitled } = loaded;
@@ -141,7 +150,22 @@ function Consent() {
       setError("No return address came back. Try again from the app you're connecting.");
       return;
     }
-    window.location.href = target;
+    // Desktop apps (Codex, Cursor, Claude Desktop) return via a custom scheme
+    // or localhost. The browser may ask "Open <app>?" and stay here, so keep a
+    // tap-to-return link on screen instead of a dead page.
+    if (isAppHandoff(target)) setHandoff(target);
+    window.location.assign(target);
+  }
+
+  if (handoff) {
+    return (
+      <AuthCard brand="athena" title={`Returning to ${clientName}…`} subtitle="If your browser asks to open the app, choose Open.">
+        <a href={handoff} className="block w-full rounded-lg bg-primary px-4 py-2.5 text-center font-medium text-primary-foreground">
+          Return to {clientName}
+        </a>
+        <p className="mt-3 text-[13px] text-foreground/70">You can close this tab once {clientName} shows Athena connected.</p>
+      </AuthCard>
+    );
   }
 
   let host: string | undefined;
