@@ -4,7 +4,7 @@ import { FLAG_CLAUSE, effectiveFlag } from "./clauses";
 import { CONTRACT_WARRANTY_KEY, alignCloseoutSource, renderWarrantyRegister } from "./warranty";
 import { whoForJob } from "./people";
 import { displayRef } from "./refs";
-import { clientSafe } from "./client-safe";
+import { clientSafe, withoutContactPii } from "./client-safe";
 import { draftGuidance, draftIdentityText } from "./drafts";
 import { ToolError } from "@lovable.dev/mcp-js";
 import { dbError, type Sb } from "./guard";
@@ -208,6 +208,11 @@ function show(v: unknown): string {
   return JSON.stringify(v);
 }
 
+/** Client copy: contact emails and phone numbers are withheld, then the money/margin scrub. */
+export function clientCopy(text: string): string {
+  return clientSafe(withoutContactPii(text));
+}
+
 export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" | "client") {
   const client = audience === "client";
   const contractOnly = job.scope === "contract";
@@ -354,5 +359,5 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
       out.push(...draftGuidance(pmId, { name: co.data?.name ?? null }));
     }
   }
-  return client ? clientSafe(out.join("\n")) : out.join("\n");
+  return client ? clientCopy(out.join("\n")) : out.join("\n");
 }
