@@ -13,9 +13,9 @@ export const CSI_DIVISIONS: Record<string, string> = {
   "45": "Industry-Specific Manufacturing Equipment", "46": "Water and Wastewater Equipment", "48": "Electrical Power Generation",
 };
 
-export type SovLineIn = { item_no: string; description: string | null; scheduled_value: number | null };
+export type SovLineIn = { item_no: string; description: string | null; scheduled_value: number | null; cost_codes?: string[]; spec_section?: string | null };
 export type Billing = { d: number | null; e: number | null; f: number | null; g: number | null; pct_complete: number | null; h: number | null; i: number | null };
-export type SovLine = { item_no: string; description: string; scheduled_value: number } & Billing;
+export type SovLine = { item_no: string; description: string; scheduled_value: number; cost_codes: string[]; spec_section: string | null } & Billing;
 export type SovDivision = { division: string; title: string; header: string; lines: SovLine[]; subtotal: number; pct_of_contract: number; share_bar_pct: number };
 export type Sov = {
   columns: typeof G703_COLUMNS;
@@ -44,6 +44,11 @@ export const G703_COLUMNS = [
 ] as const;
 
 export class SovMismatch extends Error {}
+
+/** 0.8.2: cost codes stored on each SOV line (mcp_job_facts module sov, value.cost_codes) are carried through to the output. */
+const cleanCodes = (c: unknown): string[] => (Array.isArray(c) ? c.filter((x): x is string => typeof x === "string" && x.trim() !== "").map((x) => x.trim()) : []);
+/** 0.8.2: spec section only when the job's specs give one (e.g. "26 05 19"). Never invented; blank otherwise. */
+const cleanSpec = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 
 const ITEM = /^(\d{2})\.(\d{2,3})$/;
 const cents = (n: number) => Math.round(n * 100);
@@ -97,7 +102,7 @@ export function buildSov(lines: SovLineIn[], feePct: number | null, retPct: numb
       division, title, header: `${division} Division ${division} — ${title}`,
       lines: ls.map((l) => {
         const b = billing[l.item_no] ?? {};
-        return { item_no: l.item_no, description: (l.description ?? "").trim() || `Item ${l.item_no}`, scheduled_value: l.scheduled_value!, ...lineBilling(l.scheduled_value!, b.d ?? null, b.e ?? null, retPct) };
+        return { item_no: l.item_no, description: (l.description ?? "").trim() || `Item ${l.item_no}`, scheduled_value: l.scheduled_value!, cost_codes: cleanCodes(l.cost_codes), spec_section: cleanSpec(l.spec_section), ...lineBilling(l.scheduled_value!, b.d ?? null, b.e ?? null, retPct) };
       }),
       subtotal: dollars(dC), pct_of_contract: pct2(dC, totalC), share_bar_pct: pct2(dC, totalC),
     };
@@ -190,6 +195,10 @@ const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigi
 /** 0.8.1 table look, same words in the host instruction and the layout recipe. */
 export const SOV_TABLE_STYLE = "Header row blue #2563EB with white bold text; alternating light-gray (#F3F4F6) and white row bands; bold total row with a blue #2563EB top rule.";
 
+/** 0.8.2: exact note when no line has a spec section. */
+export const SOV_SPECS_MISSING_NOTE = "Specs not provided, so spec sections are blank. Upload the spec book to fill them.";
+export const sovSpecsMissing = (sov: Sov) => sov.divisions.every((d) => d.lines.every((l) => !l.spec_section));
+
 /** Side notes kept out of the visible SOV; the host shows them only when the member asks. */
 export function sovNotes(brand: SovBrand, missing: string[]) {
   return {
@@ -206,7 +215,7 @@ export type SovView = "lines" | "divisions";
 export function sovLineRows(sov: Sov) {
   const total = Math.round(sov.summary.contract_total * 100);
   return sov.divisions.flatMap((d) =>
-    d.lines.map((l) => ({ item_no: l.item_no, division: d.division, division_title: d.title, description: l.description, scheduled_value: l.scheduled_value, pct_of_total: pct2(Math.round(l.scheduled_value * 100), total) })),
+    d.lines.map((l) => ({ item_no: l.item_no, division: d.division, division_title: d.title, spec_section: l.spec_section, description: l.description, cost_code: l.cost_codes.join(", ") || null, cost_codes: l.cost_codes, scheduled_value: l.scheduled_value, pct_of_total: pct2(Math.round(l.scheduled_value * 100), total) })),
   );
 }
 

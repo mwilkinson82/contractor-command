@@ -110,7 +110,8 @@ export const HOST_DISPLAY_BLOCK = [
   "- In Claude, build every artifact as static data embedded from this tool result: no connector or MCP calls inside the artifact, no live refresh and no re-reading Athena. At most 2 lines of text after the artifact.",
   "- Schedule of values (report deliverable sov): present it as a spreadsheet, line-item view by default: one row per line with line no., division, description, scheduled value and % of total, then the grand total that ties to the contract sum. Claude: an artifact table built from this result; ChatGPT: a canvas or table; elsewhere: a clean table plus an offer to create an Excel file. Table style: header row blue #2563EB with white bold text; alternating light-gray (#F3F4F6) and white row bands; bold total row with a blue #2563EB top rule. Blue #2563EB and gray only, never orange, rust or red, including totals. After the table, at most one line: no footer or license note and no roll-up offer unless the member asks.",
   `- Summary offer: use this wording verbatim, never paraphrased or shortened: "${SUMMARY_OFFER_TEXT}"`,
-  "- Write for contractor office staff and owners. No technical notes: nothing about artifacts, canvas, sharing settings, code, files, tools or colors.",
+  "- Write for contractor office staff and owners. No technical notes: nothing about artifacts, canvas, sharing settings, code, files, tools or colors (the exact SOV delivery question is the one exception).",
+  "- Email on demand: whenever the member asks to email something (\"also email this sub\", \"send this to the supplier\"), show the email card in that same reply with recipient, subject, body and attachment filled in from Athena's saved job data. If the address isn't in Athena's results, leave To blank on the card and ask for it in the same reply. Never guess an address. The member presses Send.",
   "- Keep everything private. Never publish, share or create a public link unless the member asks for it in this chat.",
 ].join("\n");
 
@@ -138,6 +139,32 @@ export const JOB_SETUP_SOFTWARE_BLOCK = [
   "- Athena only supplies the job data; you do the building. Never say Athena created, built or set up anything.",
   "- Record the answer with answer check_key project_software (tool name in detail), and keep it in this chat too; use the same place for every later step. Don't record it in job settings or an open item.",
   "- Keep it plain: one question at a time, no technical notes.",
+].join("\n");
+
+/** 0.8.2 SOV delivery step. Exact member-facing wording; the host asks it right after the line-item SOV. */
+export const SOV_DELIVERY_ASK = [
+  "Where do you want this SOV to live?",
+  "1. In your project software (Overwatch, Buildertrend, Procore, or another tool). I'll enter it there through the browser after you sign in.",
+  "2. As an Excel file (.xlsx). I'll create it and bring up an email for you to review, with the file attached.",
+  "3. As a shared spreadsheet in this chat (a Claude artifact or ChatGPT canvas). I'll bring up an email with the link for your team.",
+].join("\n");
+export const SOV_OWNER_REDIRECT = "For the owner, I'll send a clean Excel or PDF instead, since a chat link doesn't look professional.";
+export const SOV_NOT_NOW_DAYS = 3;
+
+/** Hidden guidance on report sov results. Instruction text only: Athena sends nothing and stores no file. */
+export const SOV_DELIVERY_BLOCK = [
+  "SOV DELIVERY (for the assistant; don't repeat to the member):",
+  `- Right after the line-item SOV table, ask exactly (this is the one allowed text after the table):\n${SOV_DELIVERY_ASK}`,
+  "- Option 1: open the tool's sign-in page and let the member sign in themselves. Never ask for, type or store a password. Enter the lines, then show a side-by-side check against the SOV total before anything is saved.",
+  "- Option 2: build a real .xlsx in the house SOV layout: title block (company, job, owner, contract value, date), then item, division, spec section, description, cost code, scheduled value, retainage % and total, subtotals by division, retainage and a grand total that ties to the contract. Then show the email draft card with the file attached in that same reply. Ask who it goes to (team members, the owner, or both); if an address is missing, leave To blank on the card and ask for it in the same reply.",
+  "- Option 3: create the artifact or canvas spreadsheet, then show an email card with the link, for team members only.",
+  `- Owners and owner's reps get the Excel or a PDF only, never an artifact or canvas link. If the member picks option 3 for the owner, say exactly: "${SOV_OWNER_REDIRECT}" Then offer option 2 or a PDF.`,
+  "- Spec sections: use structuredContent.sov.line_items spec_section as given. If it's blank, leave the cell blank; never invent a section number. When structuredContent.sov.specs_note is set, add that one line under the table in the file.",
+  "- Cost codes: use line_items cost_code as given; blank only when Athena has none for that line.",
+  "- Email on demand, at any point: use the job's saved subs, suppliers and contacts from Athena results (including names and emails written in job answers, lookahead or open-item text) and show the email card right away with recipient, subject, body and attachment filled in. If the contact or address isn't there, leave To blank and ask in the same reply. Never guess an address.",
+  "- Claude: no narration before or between steps (no \"Building...\", \"First I'll pull...\" or \"I need two things before...\"). Show the file and the email card in the same reply, To blank if needed, with one short question under it. Never hold the card back while you ask.",
+  "- Never send anything yourself. The member reviews the email card and presses Send.",
+  `- If the member says "not now", leave the SOV in the chat and add an open item to deliver it within ${SOV_NOT_NOW_DAYS} days (intake section open_item).`,
 ].join("\n");
 
 /** One short, member-safe display line kept in the visible text, for hosts that read only the visible text. */
