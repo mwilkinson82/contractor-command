@@ -17,6 +17,7 @@ import { noticeRequirements } from "../notice-plain";
 import { CLAUSE_HOST_RULE, classifyClause, clauseLine, missingNotices, normSection, parseClause, NOTICE_CHECKLIST, type ClauseRow, LEGACY_SUMMARY_TAG, missingNoticeNote } from "../contract-clauses";
 import { FLAGS_ASKED_LATER, noGuidance, noGuidanceText, reconcileRecommendation } from "../guidance";
 import { isNoneAnswer, mergeScopeFacts, visibleLookaheads } from "../lookahead-items";
+import { addRevision, currentRev, loadRevisions, lookaheadSourceFor, revisionLines, stampItemRev } from "../lookahead-revisions";
 import { LOOKAHEAD_BUILD_QUESTIONS, LOOKAHEAD_EXISTS_ASK, LOOKAHEAD_PUSHBACK, LOOKAHEAD_SETUP_KEY, PUSHBACK_GUIDANCE, buildQuestionsGuidance, buildQuestionsText, pushbackText } from "../lookahead-help";
 
 const uuid = z.string().uuid();
@@ -725,27 +726,26 @@ export const intake = defineTool({
       if (args.start_date && args.end_date && args.end_date < args.start_date) throw new ToolError("end_date is before start_date.");
       const provided: string[] = Object.keys(docs);
       if (args.start_date && args.end_date) provided.push("lookahead_dates");
-      // Same job and same window as a lookahead already on file: add to it instead of making a duplicate.
+      const src = await lookaheadSourceFor(sb, job.job_id);
+      // Same job and same window as a lookahead already on file: a new REVISION of that lookahead (same ref, history kept), never a duplicate.
       if (args.start_date && args.end_date) {
         const { data: same, error: se } = await sb.from("mcp_lookaheads").select("id, inputs, provided_inputs").eq("job_id", job.job_id).eq("start_date", args.start_date).eq("end_date", args.end_date).order("created_at", { ascending: true });
         if (se) throw new Error(se.message);
         const hit = visibleLookaheads((same ?? []) as { id: string; inputs?: unknown; provided_inputs?: string[] | null }[])[0];
         if (hit) {
-          // Inputs already on file are kept; new text for the same input is appended, never replaces it.
-          const mergedInputs: Record<string, unknown> = { ...((hit.inputs as Record<string, unknown> | null) ?? {}) };
-          for (const [k, v] of Object.entries(docs) as [string, string][]) {
-            const old = typeof mergedInputs[k] === "string" ? (mergedInputs[k] as string).trim() : "";
-            mergedInputs[k] = old && !old.includes(v) ? `${old}\n${v}` : old || v;
-          }
-          const mergedProvided = [...new Set([...(hit.provided_inputs ?? []), ...provided])];
-          const mergedMissing = INPUT_KEYS.filter((k) => !mergedProvided.includes(k));
-          const up = await sb.from("mcp_lookaheads").update({ inputs: mergedInputs, provided_inputs: mergedProvided, missing_inputs: mergedMissing }).eq("id", hit.id);
+          // Inputs sent in this revision replace that input; inputs not sent carry over. Earlier text stays in the prior revision.
+          const effective: Record<string, unknown> = { ...((hit.inputs as Record<string, unknown> | null) ?? {}), ...docs };
+          const effProvided = [...new Set([...(hit.provided_inputs ?? []), ...provided])];
+          const effMissing = INPUT_KEYS.filter((k) => !effProvided.includes(k));
+          const rev = await addRevision(sb, hit.id, { ...src, start_date: args.start_date, end_date: args.end_date, inputs: docs, effective_inputs: effective, provided_inputs: effProvided, missing_inputs: effMissing });
+          if (rev === null) throw new ToolError(`A look-ahead for ${args.start_date} to ${args.end_date} already exists (${lookaheadRef(hit.id)}). Use that ref; revisions aren't available yet, so nothing new was created.`);
+          const up = await sb.from("mcp_lookaheads").update({ inputs: effective, provided_inputs: effProvided, missing_inputs: effMissing }).eq("id", hit.id);
           if (up.error) throw new Error(up.error.message);
-          await audit(sb, job, "intake", "lookahead_reuse", hit.id);
+          await audit(sb, job, "intake", "lookahead_revise", hit.id);
           const ref = lookaheadRef(hit.id);
           return {
-            ...text(`${P}A look-ahead for ${args.start_date} to ${args.end_date} already exists (${ref}), so nothing new was created. The inputs you sent were added to it.\n\nMissing (recorded as unknown):\n${mergedMissing.map((k) => `- ${INPUT_LABELS[k]}`).join("\n") || "- none"}\n\nLookahead ref: ${ref}\nTo add items to a question already answered, call answer with this lookahead ref and that question ref again. Next: next_question with lookahead ref ${ref}.`),
-            structuredContent: { lookahead_id: hit.id, lookahead_ref: ref, provided: mergedProvided, missing: mergedMissing, reused: true },
+            ...text(`${P}Look-ahead ${ref} revised: now Rev ${rev} (source: ${src.source === "schedule" ? `schedule, ${src.schedule_tool}` : "PM"}) for ${args.start_date} to ${args.end_date}. Same ref; earlier revisions are kept and shown in the report.\n\nSent in Rev ${rev}:\n${Object.keys(docs).map((k) => `- ${INPUT_LABELS[k as InputKey]}`).join("\n") || "- none"}\n\nMissing (recorded as unknown):\n${effMissing.map((k) => `- ${INPUT_LABELS[k]}`).join("\n") || "- none"}\n\nLookahead ref: ${ref}\nTo add items to a question already answered, call answer with this lookahead ref and that question ref again. Next: next_question with lookahead ref ${ref}.`),
+            structuredContent: { lookahead_id: hit.id, lookahead_ref: ref, rev, source: src.source, provided: effProvided, missing: effMissing, revised: true },
           };
         }
       }
@@ -757,6 +757,7 @@ export const intake = defineTool({
         .single();
       if (error) throw new Error(error.message);
       await audit(sb, job, "intake", "lookahead_create", la.id);
+      await addRevision(sb, la.id, { ...src, start_date: args.start_date ?? null, end_date: args.end_date ?? null, inputs: docs, effective_inputs: docs, provided_inputs: provided, missing_inputs: missing });
       if (hasAnswer !== "yes") {
         // They have one (or are building it now): record the setup check as yes. Ignored where the check isn't installed.
         await sb.rpc("mcp_answer", { _job: job.job_id, _key: LOOKAHEAD_SETUP_KEY, _answer: "yes", _detail: args.lookahead_exists === "build" ? "Built with Athena from the schedule." : "Look-ahead in place.", _owner: null, _needed_by: null });
@@ -803,6 +804,7 @@ async function settleFlagConfirms(sb: Sb, job: Job) {
 async function attachToLookahead(sb: Sb, itemId: string, lookaheadId: string) {
   const up = await sb.from("mcp_open_items").update({ lookahead_id: lookaheadId, origin_lookahead_id: lookaheadId, updated_at: new Date().toISOString() }).eq("id", itemId);
   if (up.error) throw new Error(up.error.message);
+  await stampItemRev(sb, itemId, lookaheadId);
 }
 
 async function lookaheadForJob(sb: Sb, job: Job, input: string) {
@@ -1041,7 +1043,8 @@ export const report = defineTool({
       if (args.lookahead_id) {
         const la = await lookaheadForJob(sb, job, args.lookahead_id);
         await audit(sb, job, "report", "view_lookahead_report", la.id);
-        return text(`${prefix(job)}${await renderReport(sb, la)}`);
+        const revs = revisionLines(await loadRevisions(sb, la.id));
+        return text(`${prefix(job)}${await renderReport(sb, la)}${revs.length ? `\n\n${revs.join("\n")}` : ""}`);
       }
       const audience = args.audience ?? "internal";
       if (args.deliverable === "sov") return sovResult(sb, job, audience);
@@ -1080,6 +1083,7 @@ export const carryForward = defineTool({
         if (up.error) throw new Error(up.error.message);
         await sb.from("mcp_carry_forwards").insert({ item_id: it.id, from_lookahead_id: from.id, to_lookahead_id: to.id });
         await sb.from("mcp_item_events").insert({ item_id: it.id, event: "carried_forward", lookahead_id: to.id });
+        await stampItemRev(sb, it.id, to.id);
       }
       await audit(sb, job, "carry_forward", "carry_forward", to.id);
       const typed = (items ?? []).map((i) => ({ item_id: i.id, item_type: itemType(i, nas) }));
@@ -1140,7 +1144,9 @@ export const listOpenItems = defineTool({
         const sorted = ((las ?? []) as { id: string; start_date: string | null; end_date: string | null; created_at: string }[])
           .sort((x, y) => (!x.start_date !== !y.start_date ? (x.start_date ? -1 : 1) : k(y.start_date).localeCompare(k(x.start_date)) || k(y.end_date).localeCompare(k(x.end_date)) || k(y.created_at).localeCompare(k(x.created_at))))
           .slice(0, 10);
-        if (sorted.length) laBlock = `\n\nLookaheads (newest first):\n${sorted.map((l: { id: string; start_date: string | null; end_date: string | null }) => `- ${lookaheadRef(l.id)}: ${l.start_date ?? "dates unknown"}${l.end_date ? ` to ${l.end_date}` : ""}`).join("\n")}`;
+        const revOf = new Map<string, number | null>();
+        for (const l of sorted) revOf.set(l.id, await currentRev(sb, l.id));
+        if (sorted.length) laBlock = `\n\nLookaheads (newest first):\n${sorted.map((l: { id: string; start_date: string | null; end_date: string | null }) => `- ${lookaheadRef(l.id)}: ${l.start_date ?? "dates unknown"}${l.end_date ? ` to ${l.end_date}` : ""}${revOf.get(l.id) != null ? ` (Rev ${revOf.get(l.id)})` : ""}`).join("\n")}`;
       }
       const laHead = la ? `Lookahead ${lookaheadRef(la.id)}: ` : "";
       const [{ data, error }, nas] = await Promise.all([q.order("needed_by", { nullsFirst: false }).limit(200), activeNa(sb, job.job_id)]);

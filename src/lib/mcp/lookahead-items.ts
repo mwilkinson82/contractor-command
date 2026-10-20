@@ -11,9 +11,15 @@ export function isNoneAnswer(detail: string): boolean {
   return /^(?:none|nothing)\s+(?:block|blocks|blocking|needed|required|open|outstanding|pending|due|affect|affects|in|this|for|at)\b/i.test(t);
 }
 
-/** Lookaheads a member made. The setup container (inputs.kind "setup", created by the item store to hold job-setup items) is left out. */
+/**
+ * Lookaheads a member made. Left out: the setup container (inputs.kind "setup", created by the item store to hold
+ * job-setup items) and a lookahead folded into another as a revision (inputs.kind "merged", inputs.merged_into).
+ */
 export function visibleLookaheads<T extends { inputs?: unknown }>(rows: T[]): T[] {
-  return rows.filter((r) => !(r.inputs && typeof r.inputs === "object" && (r.inputs as { kind?: unknown }).kind === "setup"));
+  return rows.filter((r) => {
+    const kind = r.inputs && typeof r.inputs === "object" ? (r.inputs as { kind?: unknown }).kind : undefined;
+    return kind !== "setup" && kind !== "merged";
+  });
 }
 
 /**
