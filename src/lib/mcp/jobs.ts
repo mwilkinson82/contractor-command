@@ -8,7 +8,7 @@ import { clientSafe } from "./client-safe";
 import { draftGuidance, draftIdentityText } from "./drafts";
 import { ToolError } from "@lovable.dev/mcp-js";
 import { dbError, type Sb } from "./guard";
-import { withoutClaims } from "./internal-claims";
+import { stripClaimText, withoutClaims } from "./internal-claims";
 import { DEFAULT_TZ, dateIn, todayIn } from "./deadlines";
 
 export type Job = { job_id: string; job_number: string; name: string; company_id: string; scope?: "full" | "contract" | "super" };
@@ -219,7 +219,10 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
     items = items.filter((i) => !i.internal_only && !CLIENT_SCRUB.test(`${i.action} ${i.category}`));
   }
   // Claim notices and the claim clause are internal strategy, never client-facing.
-  if (client) { items = withoutClaims(items); facts = facts.filter((f) => !(f.module === "contract" && f.key === "claim_process")); }
+  if (client) { items = withoutClaims(items); facts = facts
+      .filter((f) => !(f.module === "contract" && f.key === "claim_process"))
+      .map((f) => (f.module === "contract" && typeof f.value === "string" ? { ...f, value: stripClaimText(f.value) } : f))
+      .filter((f) => !(f.module === "contract" && f.status === "known" && f.value === "")); }
   if (client) facts = facts.filter((f) => !CLIENT_COACHING.test(typeof f.value === "string" ? f.value : ""));
   const dates = [...flags.map((f) => f.set_at), ...facts.map((f) => f.updated_at), ...items.map((i) => i.updated_at)].filter(Boolean).sort();
   const dataThrough = dates.length ? dateIn(dates[dates.length - 1], tz) : "no data yet";
