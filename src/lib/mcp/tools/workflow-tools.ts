@@ -14,7 +14,7 @@ import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
 import { guide } from "../visible";
 import { withoutClaims } from "../internal-claims";
 import { noticeRequirements } from "../notice-plain";
-import { CLAUSE_HOST_RULE, classifyClause, clauseLine, missingNotices, normSection, parseClause, NOTICE_CHECKLIST, type ClauseRow, LEGACY_SUMMARY_TAG, missingNoticeNote } from "../contract-clauses";
+import { CLAUSE_HOST_RULE, classifyClause, clauseLine, missingNotices, normSection, parseClause, NOTICE_CHECKLIST, type ClauseRow, LEGACY_SUMMARY_TAG, missingNoticeNote, SUMMARY_OFFER, SUMMARY_HEADING } from "../contract-clauses";
 import { FLAGS_ASKED_LATER, noGuidance, noGuidanceText, reconcileRecommendation } from "../guidance";
 import { isNoneAnswer, mergeScopeFacts, visibleLookaheads } from "../lookahead-items";
 import { addRevision, currentRev, loadRevisions, lookaheadSourceFor, revisionLines, stampItemRev } from "../lookahead-revisions";
@@ -1028,13 +1028,14 @@ export const answer = defineTool({
 export const report = defineTool({
   name: "report",
   title: "Job report",
-  description: "Render the full job setup report (internal or client-facing), or the two-week lookahead report when lookahead_id is given. Client-facing reports leave out internal cost and strategy detail. To read back just the contract terms, use contract_terms instead.",
+  description: "Render the full job setup report (internal or client-facing), or the two-week lookahead report when lookahead_id is given. Client-facing reports leave out internal cost and strategy detail. To read back just the contract terms, use contract_terms instead. Contract clauses stay word for word; summaries only on request (include_summary true).",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
     audience: z.enum(["internal", "client"]).optional().describe("Default internal."),
     lookahead_id: laArg.optional().describe(`Only for a two-week lookahead report. ${LA_DESC}`),
     deliverable: z.enum(["setup", "sov"]).optional().describe("Default setup. sov: the schedule of values data and its layout recipe (full job access only; audience client for the copy sent to the owner)."),
+    include_summary: z.boolean().optional().describe("Setup report only. Default false: contract clauses word for word, then an offer to summarize. Set true only after the member asks for a plain-English summary."),
   },
   annotations: { ...READ, idempotentHint: true },
   handler: (args, ctx) =>
@@ -1049,7 +1050,7 @@ export const report = defineTool({
       const audience = args.audience ?? "internal";
       if (args.deliverable === "sov") return sovResult(sb, job, audience);
       await audit(sb, job, "report", `view_setup_report_${audience}`, null);
-      const body = await renderSetupReport(sb, job, audience);
+      const body = await renderSetupReport(sb, job, audience, { includeSummary: args.include_summary === true });
       let iq = sb.from("mcp_open_items").select("id, section, check_key, item_type, commercial_type, category, action").eq("job_id", job.job_id).eq("status", "open");
       if (audience === "client") iq = iq.eq("internal_only", false);
       const [{ data: its0 }, nas] = await Promise.all([iq, activeNa(sb, job.job_id)]);
@@ -1239,8 +1240,12 @@ export const contractTerms = defineTool({
   name: "contract_terms",
   title: "Read contract terms",
   description:
-    "Read back a job's contract terms exactly as saved: each clause with its value and source (manual = typed by the member, document = read from the contract), unknown clauses, the applicability flags (ON / OFF / UNKNOWN), and the notice requirements in plain words (for each event type: days to give notice and who it goes to, or exactly what the contract leaves out). Relay the notice requirements as written. Use this, not the setup report, when the member asks what terms are on file or to confirm terms they just entered. Read-only.",
-  inputSchema: { job_number: jobNumber, company_id: companyId },
+    "Read back a job's contract clauses word for word with section numbers, missing clauses and the applicability flags (ON / OFF / UNKNOWN). Show the clauses word for word first, then offer: 'Do you want me to summarize this legal text so you know what it means in plain English?' Only if the member says yes, call again with include_summary true for the plain-language notice requirements and saved summary fields. Never paraphrase a clause in place of its text. Use this, not the setup report, when the member asks what terms are on file or to confirm terms they just entered. Read-only.",
+  inputSchema: {
+    job_number: jobNumber,
+    company_id: companyId,
+    include_summary: z.boolean().optional().describe("Default false: the clauses word for word only, then an offer to summarize. Set true only after the member asks for a plain-English summary."),
+  },
   annotations: { ...READ, idempotentHint: true },
   handler: (args, ctx) =>
     run("contract_terms", ctx, { jobNumber: args.job_number }, async (sb) => {
@@ -1267,21 +1272,24 @@ export const contractTerms = defineTool({
       });
       const cl = await loadClauses(sb, job.job_id);
       const notice = noticeRequirements(cl, { noticeFlagNo: flags.find((f) => f.flag === "notice_requirements")?.value === "OFF" });
+      // Verbatim clauses first. With clauses on file, summaries (plain-language notice block and summary fields) only on request;
+      // with no clauses, the summary fields stay as the fallback. Data is never changed here.
+      const withSummary = !cl.length || args.include_summary === true;
+      const termLine = (c: (typeof clauses)[number]) => `- ${c.key.replace(/_/g, " ")}: ${c.value ?? "UNKNOWN"}${c.value ? ` (${c.source === "document" ? LEGACY_SUMMARY_TAG : c.source})` : ""}`;
       const lines = [
         `${prefix(job)}CONTRACT CLAUSES (exact contract text)`,
         ...(cl.length ? cl.map((c) => `- ${clauseLine(c)}`) : ["- None recorded. Record them with intake section clauses, copied exactly from the contract."]),
         ...missingNotices(cl).map((m) => `- Missing: ${m.label} (${missingNoticeNote(cl.length > 0)})`),
         "",
-        ...notice.lines,
-        // Verbatim clauses on file: the summary fields are not printed, so only exact contract text is quoted (kept in data, fallback only).
-        ...(cl.length
-          ? []
-          : ["", "CONTRACT TERMS (as saved)", ...clauses.map((c) => `- ${c.key.replace(/_/g, " ")}: ${c.value ?? "UNKNOWN"}${c.value ? ` (${c.source === "document" ? LEGACY_SUMMARY_TAG : c.source})` : ""}`)]),
-        "",
         "Applicability:",
         ...flags.map((f) => `- ${f.flag.replace(/_/g, " ")}: ${f.value}${f.source ? ` (${f.source})` : ""}`),
+        ...(withSummary
+          ? cl.length
+            ? ["", `${SUMMARY_HEADING}:`, ...notice.lines, "", `CONTRACT TERMS (as saved; ${SUMMARY_HEADING.toLowerCase()})`, ...clauses.map(termLine)]
+            : ["", ...notice.lines, "", "CONTRACT TERMS (as saved)", ...clauses.map(termLine)]
+          : ["", SUMMARY_OFFER]),
       ];
-      return { ...text(lines.join("\n")), structuredContent: { clauses: cl.length ? [] : clauses, flags, notice_requirements: { status: notice.status, missing: notice.missing }, contract_clauses: cl.map((c) => ({ section: c.section, heading: c.heading, category: c.category, source: c.source, n_days: c.n_days, day_type: c.day_type, trigger: c.trigger_desc })) } };
+      return { ...text(lines.join("\n")), structuredContent: { include_summary: withSummary, clauses: withSummary ? clauses : [], flags, notice_requirements: { status: notice.status, missing: notice.missing }, contract_clauses: cl.map((c) => ({ section: c.section, heading: c.heading, category: c.category, source: c.source, n_days: c.n_days, day_type: c.day_type, trigger: c.trigger_desc })) } };
     }),
 });
 

@@ -9,7 +9,7 @@ import { draftGuidance, draftIdentityText } from "./drafts";
 import { ToolError } from "@lovable.dev/mcp-js";
 import { dbError, type Sb } from "./guard";
 import { withoutClaims } from "./internal-claims";
-import { clauseLine, isClaimClause, missingNotices, type ClauseRow, legacySourceLabel, LEGACY_SUMMARY_TAG, OLD_SUMMARY_TAG } from "./contract-clauses";
+import { clauseLine, isClaimClause, missingNotices, type ClauseRow, legacySourceLabel, LEGACY_SUMMARY_TAG, OLD_SUMMARY_TAG, SUMMARY_OFFER, SUMMARY_HEADING } from "./contract-clauses";
 import { noticeRequirements } from "./notice-plain";
 import { DEFAULT_TZ, dateIn, todayIn } from "./deadlines";
 
@@ -218,7 +218,8 @@ export function clientCopy(text: string): string {
   return clientSafe(withoutContactPii(text.split(` (${LEGACY_SUMMARY_TAG})`).join("").split(` (${OLD_SUMMARY_TAG})`).join("")));
 }
 
-export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" | "client") {
+export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" | "client", opts: { includeSummary?: boolean } = {}) {
+  const includeSummary = opts.includeSummary === true;
   const client = audience === "client";
   const contractOnly = job.scope === "contract";
   const superView = job.scope === "super";
@@ -292,8 +293,8 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
     } else if (mod === "warranty") {
       const cc = facts.find((f) => f.module === "contract" && f.key === "closeout" && f.status === "known");
       const w = alignCloseoutSource(facts.filter((f) => f.module === "warranty"), cc ? { ...cc, module: "warranty" } : null);
-      // The contract warranty summary is skipped when verbatim clauses exist (the §8.1 clause text is shown instead).
-      const cw = clauses.length ? undefined : facts.find((f) => f.module === "contract" && f.key === "warranty_clauses" && f.status === "known");
+      // The contract warranty summary is skipped when verbatim clauses exist, unless a summary was asked for.
+      const cw = clauses.length && !includeSummary ? undefined : facts.find((f) => f.module === "contract" && f.key === "warranty_clauses" && f.status === "known");
       out.push(...renderWarrantyRegister(cw ? [...w, { ...cw, module: "warranty", key: CONTRACT_WARRANTY_KEY }] : w, todayIn(tz)));
     } else if (mod === "contract" && clauses.length) {
       // Verbatim clauses only; summary fields are a fallback for jobs with no clauses.
@@ -301,9 +302,12 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
       out.push("   Contract clauses (exact contract text):");
       shownClauses.forEach((c) => out.push(`   - ${clauseLine(c)}`));
       if (!client) missingNotices(clauses).forEach((m) => out.push(`   - Missing: ${m.label} (to confirm)`));
-      // The PM always gets the notice requirements in plain words; the client copy never shows the gaps.
-      if (!client) noticeRequirements(clauses).lines.forEach((l) => out.push(`   ${l}`));
-      // Summary fields are not printed when verbatim clauses exist (kept in data; shown only as the no-clause fallback below).
+      if (includeSummary) {
+        // Summaries only on request: plain-language notice block (PM copy only) and the saved summary fields.
+        out.push(`   ${SUMMARY_HEADING}:`);
+        if (!client) noticeRequirements(clauses).lines.forEach((l) => out.push(`   ${l}`));
+        facts.filter((f) => f.module === mod && f.status === "known").forEach((f) => out.push(`   - ${f.key.replace(/_/g, " ")}: ${show(f.value)} (${legacySourceLabel(f.source)})`));
+      } else out.push(`   ${SUMMARY_OFFER}`);
     } else {
       const fs = facts.filter((f) => f.module === mod);
       if (!fs.length) out.push("   Not started.");

@@ -73,6 +73,10 @@ export const CLAUSE_HOST_RULE =
  * not exact clause text, so it never reads plain "document" either (only exact clause rows carry that).
  */
 export const LEGACY_SUMMARY_TAG = "from the contract, summary";
+/** Closing offer when summaries are left out (include_summary off). */
+export const SUMMARY_OFFER = "Do you want me to summarize this legal text so you know what it means in plain English?";
+/** Heading for summary blocks shown on request (include_summary on). */
+export const SUMMARY_HEADING = "Summary — the clause text above governs";
 /** The pre-0.7.2 tag. Still stripped from client copy in case older text passes through. */
 export const OLD_SUMMARY_TAG = "summary, not verified against the contract text";
 /** Source label for a contract summary field: never "document" (only exact clause rows carry that). */
