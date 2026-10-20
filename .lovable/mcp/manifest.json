@@ -13,7 +13,7 @@
   "mcp": {
     "server": {
       "name": "athena",
-      "version": "0.8.1",
+      "version": "0.8.2",
       "title": "Athena powered by ALP, construction agents"
     },
     "tools": [
@@ -546,6 +546,10 @@
                 "sub_sub"
               ]
             },
+            "use_defaults": {
+              "description": "scope: true when the member says 'use the defaults' (or similar). Athena fills job type, sector and position from the company profile where it can, leaves everything else (e.g. client type, pricing model) unconfirmed, saves and moves on. Fields you also send win.",
+              "type": "boolean"
+            },
             "work_packages": {
               "maxItems": 50,
               "type": "array",
@@ -897,6 +901,11 @@
                       "type": "string",
                       "maxLength": 40
                     }
+                  },
+                  "spec_section": {
+                    "description": "Spec section number from the job's specs (e.g. 26 05 19). Only when the specs give one; never invent it.",
+                    "type": "string",
+                    "maxLength": 40
                   }
                 },
                 "required": [
@@ -1224,6 +1233,14 @@
               "enum": [
                 "setup",
                 "sov"
+              ]
+            },
+            "sov_view": {
+              "description": "SOV only. Default lines: every SOV line item with its % of total. divisions: the division subtotal roll-up, only when the member asks for it.",
+              "type": "string",
+              "enum": [
+                "lines",
+                "divisions"
               ]
             },
             "include_summary": {

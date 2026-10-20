@@ -1,5 +1,5 @@
 import { companyScopeDefaults, scopeAlias, SECTOR_ALIASES, PRICING_ALIASES, POSITION_ALIASES } from "../scope-defaults";
-import { SovMismatch, SOV_TABLE_STYLE, buildSov, retainagePct, sovLayout, sovLineRows, sovNotes, sovSummaryText, type SovBrand, type SovView } from "../sov";
+import { SovMismatch, SOV_SPECS_MISSING_NOTE, SOV_TABLE_STYLE, buildSov, sovSpecsMissing, retainagePct, sovLayout, sovLineRows, sovNotes, sovSummaryText, type SovBrand, type SovView } from "../sov";
 import { ATHENA_VERSION } from "../server-info-branding";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
@@ -12,7 +12,7 @@ import { EVIDENCE_ASK, evidenceProblem } from "../evidence";
 import { isUuid, itemRef, lookaheadRef, matchRef, parseLookaheadRef, parseQuestionRef, questionRef, shortRef } from "../refs";
 import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
 import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
-import { guide, JOB_SETUP_SOFTWARE_BLOCK, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
+import { guide, JOB_SETUP_SOFTWARE_BLOCK, SOV_DELIVERY_BLOCK, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
 import { withoutClaims } from "../internal-claims";
 import { noticeRequirements } from "../notice-plain";
 import { CLAUSE_HOST_RULE, classifyClause, clauseLine, missingNotices, normSection, parseClause, NOTICE_CHECKLIST, type ClauseRow, LEGACY_SUMMARY_TAG, missingNoticeNote, SUMMARY_OFFER, SUMMARY_HEADING } from "../contract-clauses";
@@ -167,7 +167,7 @@ export const onboarding = defineTool({
 // ---------- intake ----------
 const workPackage = z.object({ name: z.string().trim().min(1).max(120), mode: z.enum(["self_perform", "subcontract"]) });
 const budgetLine = z.object({ cost_code: z.string().trim().min(1).max(40), description: z.string().max(200).optional(), amount: z.number().optional() });
-const sovLine = z.object({ line: z.string().trim().min(1).max(40), description: z.string().max(200).optional(), billable_value: z.number().optional(), cost_codes: z.array(z.string().max(40)).max(50).optional() });
+const sovLine = z.object({ line: z.string().trim().min(1).max(40), description: z.string().max(200).optional(), billable_value: z.number().optional(), cost_codes: z.array(z.string().max(40)).max(50).optional(), spec_section: z.string().trim().max(40).optional().describe("Spec section number from the job's specs (e.g. 26 05 19). Only when the specs give one; never invent it.") });
 const gap = z.object({ gap: z.string().trim().min(1).max(1000), owner: z.string().trim().min(1).max(120), needed_by: date.optional() });
 import { CLAUSE_ABSENT, CLAUSE_UNKNOWN, FLAG_CLAUSE, clauseFlag, effectiveFlag } from "../clauses";
 export { CLAUSE_ABSENT, CLAUSE_UNKNOWN };
@@ -660,7 +660,7 @@ export const intake = defineTool({
         const budget: Record<string, unknown> = {};
         for (const b of args.budget_lines ?? []) budget[b.cost_code] = { description: b.description ?? null, amount: b.amount ?? null };
         const sov: Record<string, unknown> = {};
-        for (const s of args.sov_lines ?? []) sov[s.line] = { description: s.description ?? null, billable_value: s.billable_value ?? null, cost_codes: s.cost_codes ?? [] };
+        for (const s of args.sov_lines ?? []) sov[s.line] = { description: s.description ?? null, billable_value: s.billable_value ?? null, cost_codes: s.cost_codes ?? [], ...(s.spec_section ? { spec_section: s.spec_section } : {}) };
         if (Object.keys(budget).length) await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: "budget", _facts: budget, _source: "member_answer" });
         if (Object.keys(sov).length) await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: "sov", _facts: sov, _source: "member_answer" });
         if (args.fee_pct !== undefined || args.sov_basis) await rpc(sb, "mcp_job_sov_terms", { _job: job.job_id, _fee_pct: args.fee_pct ?? null, _basis: args.sov_basis ?? null });
@@ -1341,8 +1341,8 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
   for (const r of [co, jr, facts]) if (r.error) throw new Error(r.error.message);
   const rows = (facts.data ?? []) as { module: string; key: string; value: unknown; status: string }[];
   const lines = rows.filter((f) => f.module === "sov").map((f) => {
-    const v = (f.value ?? {}) as { description?: string | null; billable_value?: number | null };
-    return { item_no: f.key, description: v.description ?? null, scheduled_value: typeof v.billable_value === "number" ? v.billable_value : null };
+    const v = (f.value ?? {}) as { description?: string | null; billable_value?: number | null; cost_codes?: string[]; spec_section?: string | null };
+    return { item_no: f.key, description: v.description ?? null, scheduled_value: typeof v.billable_value === "number" ? v.billable_value : null, cost_codes: v.cost_codes, spec_section: v.spec_section ?? null };
   });
   const ret = retainagePct(rows.find((f) => f.module === "contract" && f.key === "retainage" && f.status === "known")?.value);
   const fee = jr.data?.sov_fee_pct == null ? null : Number(jr.data.sov_fee_pct);
@@ -1369,6 +1369,7 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
           view,
           line_items: sovLineRows(sov),
           notes: sovNotes(brand, sovFooterMissing(c)),
+          specs_note: sovSpecsMissing(sov) ? SOV_SPECS_MISSING_NOTE : null,
           header: { project: `${job.job_number} – ${job.name}`, prepared: today, contractor: c.name, basis: jr.data?.sov_basis ?? null, contract_sum: sov.summary.contract_total },
           ...sov,
           footer: sovLayout(brand).footer,
@@ -1377,6 +1378,7 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
       },
     },
     "To produce the SOV file, use structuredContent.sov exactly: numbers, column set and layout recipe come from the server. Do not recompute or reorder.",
-    `Present the SOV as a spreadsheet with the line-item view by default (structuredContent.sov.line_items: line no., division, description, scheduled value, % of total, then the total that ties to the contract sum). Claude: an artifact table built from this result with no tool calls inside it; ChatGPT: a canvas or table; elsewhere: a table plus an offer to create an Excel file. Table style: ${SOV_TABLE_STYLE} Colors: blue #2563EB and gray only, never orange, rust or red, including totals. After the table, at most ONE line. The logo, footer gaps (structuredContent.sov.notes), billing note and the division roll-up offer only when the member asks.`,
+    `Present the SOV as a spreadsheet with the line-item view by default (structuredContent.sov.line_items: line no., division, description, scheduled value, % of total, then the total that ties to the contract sum). Claude: an artifact table built from this result with no tool calls inside it; ChatGPT: a canvas or table; elsewhere: a table plus an offer to create an Excel file. Table style: ${SOV_TABLE_STYLE} Colors: blue #2563EB and gray only, never orange, rust or red, including totals. After the table, at most ONE line. The logo, footer gaps (structuredContent.sov.notes), billing note and the division roll-up offer only when the member asks. Line items carry cost_code and spec_section; keep both columns in any file.`,
+    SOV_DELIVERY_BLOCK,
   );
 }
