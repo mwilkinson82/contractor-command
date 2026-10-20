@@ -124,7 +124,7 @@ describe("with the real MCP toolkit handler", () => {
       ? JSON.parse(text)
       : JSON.parse(text.split("\n").find((l) => l.startsWith("data:"))!.slice(5));
     expect(json.result.serverInfo.title).toBe("Athena powered by ALP, construction agents");
-    expect(json.result.serverInfo.icons.map((i: { sizes: string[] }) => i.sizes[0])).toEqual(["64x64", "512x512"]);
+    expect(json.result.serverInfo.icons.map((i: { sizes: string[] }) => i.sizes[0])).toEqual(["64x64", "128x128", "256x256"]);
     expect(json.result.serverInfo.description).toBe(ATHENA_DESCRIPTION);
     expect(json.result.serverInfo.websiteUrl).toBe("https://app.meetathena.io");
   });

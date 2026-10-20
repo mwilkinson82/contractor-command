@@ -19,7 +19,7 @@ const act = (id: string, value: number, extra: Partial<Activity> = {}): Activity
 const job2701 = (): Activity[] => [...Array.from({ length: 38 }, (_, i) => act(`A${1000 + i * 10}`, 35_000)), act("A1390", 70_000)];
 
 describe("0.8.9 CPM activity handoff, tie guard, owner-furnished, living reports", () => {
-  it("version is 0.8.9", () => expect(ATHENA_VERSION).toBe("0.8.9"));
+  it("version is 0.8.9", () => expect(ATHENA_VERSION).toBe("0.8.10"));
 
   it("count check reads 39 of 39 with the allocated total, and names undated activities", () => {
     const acts = job2701();
@@ -87,11 +87,11 @@ describe("0.8.9 CPM activity handoff, tie guard, owner-furnished, living reports
 
   it("TIA result is computed from the saved dates, never typed in", () => {
     expect(calendarDays("2027-06-04", "2027-06-19")).toBe(15);
-    const t = tiaResult({ fragment: "FRAG-01", prior_completion: "2027-06-04", updated_completion: "2027-06-19", fragment_only_completion: "2027-06-11" })!;
+    const t = tiaResult({ fragnet: "FRAG-01", prior_completion: "2027-06-04", updated_completion: "2027-06-19", fragnet_only_completion: "2027-06-11" })!;
     expect(t.impact_cd).toBe(15);
-    expect(t.fragment_only_cd).toBe(8);
-    expect(t.math).toBe("Updated completion Jun 19, 2027 − prior completion Jun 4, 2027 = 15 calendar days. Fragment-only impact: Jun 19, 2027 − Jun 11, 2027 = 8 CD.");
-    expect(tiaResult({ fragment: "FRAG-02", prior_completion: "2027-06-04", updated_completion: "2027-06-04" })!.statement).toBe("0 CD: float absorbed it.");
+    expect(t.fragnet_only_cd).toBe(8);
+    expect(t.math).toBe("Updated completion Jun 19, 2027 − prior completion Jun 4, 2027 = 15 calendar days. Fragnet-only impact: Jun 19, 2027 − Jun 11, 2027 = 8 CD.");
+    expect(tiaResult({ fragnet: "FRAG-02", prior_completion: "2027-06-04", updated_completion: "2027-06-04" })!.statement).toBe("0 CD: float absorbed it.");
     expect(tiaResult(null)).toBeNull();
   });
 

@@ -11,11 +11,12 @@ const src = (p: string) => readFileSync(resolve(__dirname, p), "utf8");
 const jordan = { name: "Jordan Reyes", role: "Project Manager", company: "Calloway Builders", email: null as string | null, source: "test" };
 
 describe("0.8.8 blue brand, To field, pinned REQUIRED lines, sweep cards", () => {
-  it("version is 0.8.8 or later (0.8.9)", () => expect(ATHENA_VERSION).toBe("0.8.9"));
+  it("version is 0.8.8 or later (0.8.9)", () => expect(ATHENA_VERSION).toBe("0.8.10"));
   it("connector icons are the mono-blue mark at new URLs", () => {
     expect(ATHENA_SERVER_ICONS.map((i) => i.src).filter((s) => !s.startsWith("data:"))).toEqual([
       "https://app.meetathena.io/brand/athena/athena-mono-blue-64.png",
-      "https://app.meetathena.io/brand/athena/athena-mono-blue-512.png",
+      "https://app.meetathena.io/brand/athena/athena-mono-blue-128.png",
+      "https://app.meetathena.io/brand/athena/athena-mono-blue-256.png",
     ]);
     const b = Buffer.from(athenaIcon64Bytes());
     expect(b.readUInt32BE(16)).toBe(64);
@@ -37,7 +38,8 @@ describe("0.8.8 blue brand, To field, pinned REQUIRED lines, sweep cards", () =>
   });
   it("sign-in shell and email use the blue mark and no orange", () => {
     const card = src("../../components/auth/auth-card.tsx");
-    expect(card).toContain("/brand/athena/athena-lockup-blue.svg");
+    expect(src("../login-copy.ts")).toContain("/brand/athena/athena-lockup-blue.svg");
+    expect(card).toContain("ATHENA_LOGIN_LOGO");
     expect(card).not.toContain("#B9512C");
     const mail = src("../email-templates/athena-magic-link.tsx");
     expect(mail).toContain("athena-mono-blue-512.png");
