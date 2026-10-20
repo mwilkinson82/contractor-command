@@ -1,5 +1,5 @@
 import { companyScopeDefaults, scopeAlias, SECTOR_ALIASES, PRICING_ALIASES, POSITION_ALIASES } from "../scope-defaults";
-import { SovMismatch, SOV_SPECS_MISSING_NOTE, SOV_TABLE_STYLE, buildSov, sovSpecsMissing, retainagePct, sovLayout, sovLineRows, sovNotes, sovSummaryText, type SovBrand, type SovView } from "../sov";
+import { SovMismatch, SOV_SPECS_MISSING_NOTE, SOV_TABLE_STYLE, buildSov, sovSpecsMissing, retainagePct, sovLayout, sovLineRows, sovNotes, sovSummaryText, money, type SovBrand, type SovView } from "../sov";
 import { ATHENA_VERSION } from "../server-info-branding";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
@@ -12,7 +12,7 @@ import { EVIDENCE_ASK, evidenceProblem } from "../evidence";
 import { isUuid, itemRef, lookaheadRef, matchRef, parseLookaheadRef, parseQuestionRef, questionRef, shortRef } from "../refs";
 import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
 import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
-import { guide, JOB_SETUP_SOFTWARE_BLOCK, SOV_DELIVERY_BLOCK, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
+import { guide, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_DELIVERY_BLOCK, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
 import { withoutClaims } from "../internal-claims";
 import { noticeRequirements } from "../notice-plain";
 import { CLAUSE_HOST_RULE, classifyClause, clauseLine, missingNotices, normSection, parseClause, NOTICE_CHECKLIST, type ClauseRow, LEGACY_SUMMARY_TAG, missingNoticeNote, SUMMARY_OFFER, SUMMARY_HEADING } from "../contract-clauses";
@@ -1370,7 +1370,8 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
           line_items: sovLineRows(sov),
           notes: sovNotes(brand, sovFooterMissing(c)),
           specs_note: sovSpecsMissing(sov) ? SOV_SPECS_MISSING_NOTE : null,
-          header: { project: `${job.job_number} – ${job.name}`, prepared: today, contractor: c.name, basis: jr.data?.sov_basis ?? null, contract_sum: sov.summary.contract_total },
+          header: { project: `${job.job_number} – ${job.name}`, prepared: today, contractor: c.name, basis: jr.data?.sov_basis ?? null, contract_sum: sov.summary.contract_total, contract_sum_display: money(sov.summary.contract_total) },
+          contract_total_display: money(sov.summary.contract_total),
           ...sov,
           footer: sovLayout(brand).footer,
           layout: sovLayout(brand),
@@ -1378,7 +1379,7 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
       },
     },
     "To produce the SOV file, use structuredContent.sov exactly: numbers, column set and layout recipe come from the server. Do not recompute or reorder.",
-    `Present the SOV as a spreadsheet with the line-item view by default (structuredContent.sov.line_items: line no., division, description, scheduled value, % of total, then the total that ties to the contract sum). Claude: an artifact table built from this result with no tool calls inside it; ChatGPT: a canvas or table; elsewhere: a table plus an offer to create an Excel file. Table style: ${SOV_TABLE_STYLE} Colors: blue #2563EB and gray only, never orange, rust or red, including totals. After the table, at most ONE line. The logo, footer gaps (structuredContent.sov.notes), billing note and the division roll-up offer only when the member asks. Line items carry cost_code and spec_section; keep both columns in any file.`,
+    `Present the SOV as a spreadsheet with the line-item view by default (structuredContent.sov.line_items: line no., cost code, division, description, scheduled value, % of total, then the total that ties to the contract sum). Always include a Cost Code column right after the line no., filled from line_items cost_code (e.g. 26-010); never show the item number in its place. Money with cents everywhere, exactly as in the visible text and the *_display fields (e.g. $1,400,000.00); never round or drop the .00. Do not put a date sweep or any other block before the SOV. Claude: an artifact table built from this result with no tool calls inside it; ChatGPT: a canvas or table; elsewhere: a table plus an offer to create an Excel file. Table style: ${SOV_TABLE_STYLE} Colors: blue #2563EB and gray only, never orange, rust or red, including totals. After the table, at most ONE line. The logo, footer gaps (structuredContent.sov.notes), billing note and the division roll-up offer only when the member asks. Line items carry cost_code and spec_section; keep both columns in any file. Chart colors: ${CHART_PALETTE.join(", ")} only. REQUIRED: end the reply with the SOV delivery question below, word for word, in every host including Claude.`,
     SOV_DELIVERY_BLOCK,
   );
 }
