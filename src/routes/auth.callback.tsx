@@ -229,6 +229,7 @@ function AuthCallbackPage() {
   if (phase === "expired") {
     return (
       <AuthCard
+        brand={onAthenaHost() ? "athena" : "hub"}
         title="Link expired."
         subtitle="That sign-in link was already used or opened by an email scanner. Send yourself a fresh one and open the newest email only."
       >
@@ -244,7 +245,7 @@ function AuthCallbackPage() {
 
   if (phase === "signed-in") {
     return (
-      <AuthCard title="You're signed in." subtitle="Opening your workspace…">
+      <AuthCard brand={onAthenaHost() ? "athena" : "hub"} title="You're signed in." subtitle="Opening your workspace…">
         <a
           href={continueTo}
           className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-signal px-5 text-[13px] font-semibold text-ink transition-opacity hover:opacity-90"
@@ -256,7 +257,7 @@ function AuthCallbackPage() {
   }
 
   return (
-    <AuthCard title="Signing you in." subtitle="Opening your workspace…">
+    <AuthCard brand={onAthenaHost() ? "athena" : "hub"} title="Signing you in." subtitle="Opening your workspace…">
       <div />
     </AuthCard>
   );

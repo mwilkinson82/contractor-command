@@ -128,7 +128,7 @@ function LoginPage() {
 
   return (
     <AuthCard
-      brand={fromConnect ? "athena" : "hub"}
+      brand={fromConnect || onAthenaHost() ? "athena" : "hub"}
       title={
         magicRequested
           ? "Request received."
