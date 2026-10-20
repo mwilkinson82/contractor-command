@@ -57,7 +57,7 @@ describe("brandInitializeResponse", () => {
     const res = new Response(sse, { status: 200, headers: { "content-type": "text/event-stream" } });
     const text = await (await brandInitializeResponse(res, [3])).text();
     const data = JSON.parse(text.split("\n").find((l) => l.startsWith("data:"))!.slice(5));
-    expect(data.result.serverInfo.icons[0].src).toBe("https://app.alpcontractorcircle.com/brand/athena/athena-icon-64.png");
+    expect(data.result.serverInfo.icons[0].src).toBe("https://app.meetathena.io/brand/athena/athena-icon-64.png");
     expect(text.startsWith("event: message\n")).toBe(true);
     expect(text.endsWith("\n\n")).toBe(true);
   });
@@ -125,7 +125,7 @@ describe("with the real MCP toolkit handler", () => {
     expect(json.result.serverInfo.title).toBe("Athena powered by ALP, construction agents");
     expect(json.result.serverInfo.icons.map((i: { sizes: string[] }) => i.sizes[0])).toEqual(["64x64", "64x64", "512x512", "any"]);
     expect(json.result.serverInfo.description).toBe(ATHENA_DESCRIPTION);
-    expect(json.result.serverInfo.websiteUrl).toBe("https://app.alpcontractorcircle.com");
+    expect(json.result.serverInfo.websiteUrl).toBe("https://app.meetathena.io");
   });
 });
 
