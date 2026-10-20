@@ -1,8 +1,9 @@
+import { SovMismatch, buildSov, retainagePct, sovLayout, sovSummaryText, type SovBrand } from "../sov";
 import { ATHENA_VERSION } from "../server-info-branding";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
-import { ITEM_COLS, READ_ONLY_MESSAGE, activeNa, audit, flagWord, itemLine, itemType, prefix, renderSetupReport, resolveCompany, resolveJob, type Job } from "../jobs";
+import { ITEM_COLS, READ_ONLY_MESSAGE, FULL_ACCESS_MESSAGE, activeNa, audit, flagWord, itemLine, itemType, prefix, renderSetupReport, resolveCompany, resolveJob, type Job } from "../jobs";
 import { computeDue, type DayType } from "../deadlines";
 import { INPUT_KEYS, INPUT_LABELS, currentCheck, loadLookahead, renderReport, type InputKey } from "../workflow";
 import { WARRANTY_CHECK_PREFIX, WARRANTY_SETUP_QUESTIONS, mapTrigger, nextWarrantyQuestion, renderWarrantyRegister, warrantyAnswerFacts, warrantyHow, warrantyOpenItems, type WarrantyKey } from "../warranty";
@@ -62,7 +63,7 @@ export const onboarding = defineTool({
   title: "Company profile and members",
   description: "Read or save the company profile Athena works for (role, work types, trades, tool stack, decision rights, default applicability), and add members as Owner, PM or All-access. Athena is for contractors running their own construction company: never offer a consulting option or frame anything as consulting. No job number is needed here; it is required when you create a job.",
   inputSchema: {
-    action: z.enum(["read", "save_company", "add_member"]).describe("read, save_company (create or update), or add_member."),
+    action: z.enum(["read", "save_company", "add_member", "save_brand"]).describe("read, save_company (create or update), add_member, or save_brand (SOV logo link and footer)."),
     company_id: companyId,
     name: z.string().trim().max(200).optional().describe("Company name (required to create)."),
     your_name: z.string().trim().max(120).optional().describe("Your display name on the company (when creating)."),
@@ -79,6 +80,11 @@ export const onboarding = defineTool({
     member_email: z.string().email().optional().describe("add_member: the person's sign-in email."),
     member_name: z.string().trim().max(120).optional().describe("add_member: display name."),
     member_role: z.enum(["owner", "pm", "all_access"]).optional().describe("add_member: launch role."),
+    logo_url: z.string().trim().url().max(2000).optional().describe("save_brand: https link to the company logo (PNG, JPG or SVG). Leave out if there is none; the company name prints in bold."),
+    license_number: short("save_brand: license designation and number as it should print on the SOV footer."),
+    contact_name: short("save_brand: named contact on the SOV footer."),
+    contact_phone: z.string().trim().max(40).optional().describe("save_brand: the contact's phone."),
+    website: z.string().trim().max(200).optional().describe("save_brand: website printed in the SOV footer (plain text)."),
   },
   annotations: { ...WRITE, idempotentHint: true },
   handler: (args, ctx) =>
@@ -97,6 +103,12 @@ export const onboarding = defineTool({
             work_types: args.work_types, trades: args.trades, tool_stack: args.tool_stack, decision_rights: args.decision_rights, default_flags: args.default_flags,
           },
         });
+      } else if (args.action === "save_brand") {
+        cid = await resolveCompany(sb, cid);
+        const p: Record<string, string> = {};
+        for (const k of ["logo_url", "license_number", "contact_name", "contact_phone", "website"] as const) if (args[k] !== undefined) p[k] = args[k]!;
+        if (!Object.keys(p).length) throw new ToolError("Nothing to save. Give the logo link or any of the footer details.");
+        await rpc(sb, "mcp_company_brand_save", { _company: cid, _p: p });
       } else if (args.action === "add_member") {
         cid = await resolveCompany(sb, cid);
         if (!args.member_email || !args.member_name || !args.member_role) throw new ToolError("add_member needs member_email, member_name and member_role.");
@@ -106,7 +118,7 @@ export const onboarding = defineTool({
         await audit(sb, null, "onboarding", "company_view", cid, cid);
       }
       const [{ data: c, error }, { data: members }] = await Promise.all([
-        sb.from("mcp_companies").select("name, agent_name, company_role, work_types, trades, tool_stack, decision_rights, default_flags").eq("id", cid!).maybeSingle(),
+        sb.from("mcp_companies").select("name, agent_name, company_role, work_types, trades, tool_stack, decision_rights, default_flags, logo_url, license_number, contact_name, contact_phone, website").eq("id", cid!).maybeSingle(),
         sb.from("mcp_company_members").select("display_name, role").eq("company_id", cid!),
       ]);
       if (error) throw new Error(error.message);
@@ -123,6 +135,9 @@ export const onboarding = defineTool({
             `Decision rights: ${Object.entries(rights).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v.join(", ")}`).join("; ")}`,
             `Default applicability: ${Object.entries((c.default_flags ?? {}) as Record<string, string>).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`).join("; ") || "none"}`,
             `Members: ${(members ?? []).map((m) => `${m.display_name} (${m.role.replace(/_/g, "-")})`).join(", ")}`,
+            `SOV logo: ${c.logo_url ? "link on file" : `none on file (${c.name} prints in bold)`}`,
+            `SOV footer: ${[c.name, c.license_number, [c.contact_name, c.contact_phone].filter(Boolean).join(" "), c.website].filter(Boolean).join(" · ")}`,
+            ...(sovFooterMissing(c).length ? [`For the SOV, send your logo link (optional) and the footer details still missing: ${sovFooterMissing(c).join(", ")}.`] : []),
             `Athena v${ATHENA_VERSION}`,
             "",
             'Next: create a job with intake section "create_job" and a job_number.',
@@ -280,7 +295,9 @@ export const intake = defineTool({
     gaps: z.array(gap).max(50).optional().describe("handoff: each gap becomes an open item with its named owner."),
     // Budget (F)
     budget_lines: z.array(budgetLine).max(300).optional().describe("budget: internal cost budget by cost code (internal only)."),
-    sov_lines: z.array(sovLine).max(300).optional().describe("budget: owner SOV lines at billable value, with the cost codes each maps to."),
+    sov_lines: z.array(sovLine).max(300).optional().describe("budget: owner SOV lines at billable value, with the cost codes each maps to. For the SOV, number lines 01.01-style (CSI division, dot, line)."),
+    fee_pct: z.number().optional().describe("budget: contractor's fee as a percent of the contract total (e.g. 15)."),
+    sov_basis: z.string().trim().max(200).optional().describe("budget: the contract document the SOV numbers come from, e.g. \"Schedule A, Total Investment\"."),
     // Open item
     action: short("open_item: what has to happen"), kind: z.enum(["general", "commercial", "warranty"]).optional(),
     commercial_type: z.enum(["co", "rea", "claim", "retainage"]).optional(), owner: short("open_item: accountable named person"), needed_by: date.optional(),
@@ -525,12 +542,15 @@ export const intake = defineTool({
       }
 
       if (args.section === "budget") {
+        if (args.fee_pct !== undefined && !(args.fee_pct >= 0 && args.fee_pct < 100)) throw new ToolError("The fee percent must be at least 0 and under 100.");
         const budget: Record<string, unknown> = {};
         for (const b of args.budget_lines ?? []) budget[b.cost_code] = { description: b.description ?? null, amount: b.amount ?? null };
         const sov: Record<string, unknown> = {};
         for (const s of args.sov_lines ?? []) sov[s.line] = { description: s.description ?? null, billable_value: s.billable_value ?? null, cost_codes: s.cost_codes ?? [] };
         if (Object.keys(budget).length) await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: "budget", _facts: budget, _source: "member_answer" });
         if (Object.keys(sov).length) await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: "sov", _facts: sov, _source: "member_answer" });
+        if (args.fee_pct !== undefined || args.sov_basis) await rpc(sb, "mcp_job_sov_terms", { _job: job.job_id, _fee_pct: args.fee_pct ?? null, _basis: args.sov_basis ?? null });
+        const { data: terms } = await sb.from("mcp_jobs").select("sov_fee_pct, sov_basis").eq("id", job.job_id).maybeSingle();
         const { data: all } = await sb.from("mcp_job_facts").select("module, key, value").eq("job_id", job.job_id).in("module", ["budget", "sov"]);
         const codes = new Set((all ?? []).filter((f) => f.module === "budget").map((f) => f.key));
         const sovRows = (all ?? []).filter((f) => f.module === "sov");
@@ -552,7 +572,7 @@ export const intake = defineTool({
           note = itemNote(r);
         }
         return text(
-          `${P}Budget and SOV saved. Budget is internal only.\nCost codes: ${codes.size} | SOV lines: ${sovRows.length}\nSOV lines not mapped to a cost code: ${unmappedLines.join(", ") || "none"}\nCost codes not on any SOV line: ${unmappedCodes.join(", ") || "none"}\nSOV codes missing from the budget: ${badRefs.join(", ") || "none"}${note}`,
+          `${P}Budget and SOV saved. Budget is internal only.\nCost codes: ${codes.size} | SOV lines: ${sovRows.length}\nSOV lines not mapped to a cost code: ${unmappedLines.join(", ") || "none"}\nCost codes not on any SOV line: ${unmappedCodes.join(", ") || "none"}\nSOV codes missing from the budget: ${badRefs.join(", ") || "none"}\nFee: ${terms?.sov_fee_pct == null ? "not recorded" : `${Number(terms.sov_fee_pct).toFixed(2)}% of contract total`} | Basis: ${terms?.sov_basis ?? "not recorded"}${note}`,
         );
       }
 
@@ -843,6 +863,7 @@ export const report = defineTool({
     company_id: companyId,
     audience: z.enum(["internal", "client"]).optional().describe("Default internal."),
     lookahead_id: uuid.optional().describe("Only for a two-week lookahead report."),
+    deliverable: z.enum(["setup", "sov"]).optional().describe("Default setup. sov: the schedule of values data and its layout recipe (internal, full job access only)."),
   },
   annotations: { ...READ, idempotentHint: true },
   handler: (args, ctx) =>
@@ -854,6 +875,7 @@ export const report = defineTool({
         return text(`${prefix(job)}${await renderReport(sb, la)}`);
       }
       const audience = args.audience ?? "internal";
+      if (args.deliverable === "sov") return sovResult(sb, job, audience);
       await audit(sb, job, "report", `view_setup_report_${audience}`, null);
       const body = await renderSetupReport(sb, job, audience);
       let iq = sb.from("mcp_open_items").select("id, section, check_key, item_type").eq("job_id", job.job_id).eq("status", "open");
@@ -1013,3 +1035,55 @@ export const contractTerms = defineTool({
       return { ...text(lines.join("\n")), structuredContent: { clauses, flags } };
     }),
 });
+
+// ---------- SOV (lean v1) ----------
+const sovFooterMissing = (c: { license_number?: string | null; contact_name?: string | null; contact_phone?: string | null; website?: string | null }) =>
+  [["license number", c.license_number], ["contact name", c.contact_name], ["phone", c.contact_phone], ["website", c.website]].filter(([, v]) => !v).map(([k]) => k as string);
+
+async function sovResult(sb: Sb, job: Job, audience: "internal" | "client") {
+  // Dollars: only full job access, never client-facing (existing client rule), never the Super view.
+  if (audience === "client") throw new ToolError("The SOV carries dollar figures, and client-facing reports never do. Ask for the internal SOV.");
+  if (job.scope === "super") throw new ToolError(READ_ONLY_MESSAGE);
+  if (job.scope !== "full") throw new ToolError(FULL_ACCESS_MESSAGE);
+  const [co, jr, facts] = await Promise.all([
+    sb.from("mcp_companies").select("name, logo_url, license_number, contact_name, contact_phone, website").eq("id", job.company_id).maybeSingle(),
+    sb.from("mcp_jobs").select("sov_fee_pct, sov_basis").eq("id", job.job_id).maybeSingle(),
+    sb.from("mcp_job_facts").select("module, key, value, status").eq("job_id", job.job_id).in("module", ["sov", "contract"]),
+  ]);
+  for (const r of [co, jr, facts]) if (r.error) throw new Error(r.error.message);
+  const rows = (facts.data ?? []) as { module: string; key: string; value: unknown; status: string }[];
+  const lines = rows.filter((f) => f.module === "sov").map((f) => {
+    const v = (f.value ?? {}) as { description?: string | null; billable_value?: number | null };
+    return { item_no: f.key, description: v.description ?? null, scheduled_value: typeof v.billable_value === "number" ? v.billable_value : null };
+  });
+  const ret = retainagePct(rows.find((f) => f.module === "contract" && f.key === "retainage" && f.status === "known")?.value);
+  const fee = jr.data?.sov_fee_pct == null ? null : Number(jr.data.sov_fee_pct);
+  let sov;
+  try {
+    sov = buildSov(lines, fee, ret);
+  } catch (e) {
+    if (e instanceof SovMismatch) {
+      await audit(sb, job, "report", "sov_refused", null);
+      throw new ToolError(`${prefix(job)}The SOV can't be built yet. Nothing was produced.\n${e.message}`);
+    }
+    throw e;
+  }
+  const c = co.data!;
+  const brand: SovBrand = { company_name: c.name, logo_url: c.logo_url ?? null, license_number: c.license_number ?? null, contact_name: c.contact_name ?? null, contact_phone: c.contact_phone ?? null, website: c.website ?? null };
+  await audit(sb, job, "report", "view_sov", null);
+  const today = new Date().toISOString().slice(0, 10);
+  return guide(
+    {
+      ...text(sovSummaryText(prefix(job), sov, brand, jr.data?.sov_basis ?? null, sovFooterMissing(c))),
+      structuredContent: {
+        sov: {
+          header: { project: `${job.job_number} – ${job.name}`, prepared: today, contractor: c.name, basis: jr.data?.sov_basis ?? null, contract_sum: sov.summary.contract_total },
+          ...sov,
+          footer: sovLayout(brand).footer,
+          layout: sovLayout(brand),
+        },
+      },
+    },
+    "To produce the SOV file, use structuredContent.sov exactly: numbers, column set and layout recipe come from the server. Do not recompute or reorder.",
+  );
+}
