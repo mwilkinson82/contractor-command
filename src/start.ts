@@ -134,3 +134,4 @@ export const startInstance = createStart(() => ({
   requestMiddleware: [errorMiddleware, mcpAllowlistGate, mcpServerInfoBranding, csrfOriginGuard],
   functionMiddleware: [attachSupabaseAuth],
 }));
+
