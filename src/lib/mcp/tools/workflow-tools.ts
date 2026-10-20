@@ -5,7 +5,7 @@ import { z } from "zod";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import { ITEM_COLS, READ_ONLY_MESSAGE, FULL_ACCESS_MESSAGE, activeNa, audit, flagWord, itemLine, itemType, jobTimeZone, prefix, renderSetupReport, resolveCompany, resolveJob, type Job } from "../jobs";
 import { computeDue, todayIn, type DayType } from "../deadlines";
-import { INPUT_KEYS, INPUT_LABELS, currentCheck, loadLookahead, renderReport, type InputKey } from "../workflow";
+import { INPUT_KEYS, INPUT_LABELS, currentCheck, loadAnswers, loadChecks, loadLookahead, renderReport, type InputKey } from "../workflow";
 import { WARRANTY_CHECK_PREFIX, WARRANTY_SETUP_QUESTIONS, mapTrigger, nextWarrantyQuestion, CONTRACT_WARRANTY_KEY, alignCloseoutSource, renderWarrantyRegister, warrantyAnswerFacts, warrantyHow, warrantyOpenItems, type WarrantyKey } from "../warranty";
 import { EVIDENCE_ASK, evidenceProblem } from "../evidence";
 import { isUuid, itemRef, lookaheadRef, matchRef, parseLookaheadRef, parseQuestionRef, questionRef, shortRef } from "../refs";
@@ -725,6 +725,30 @@ export const intake = defineTool({
       if (args.start_date && args.end_date && args.end_date < args.start_date) throw new ToolError("end_date is before start_date.");
       const provided: string[] = Object.keys(docs);
       if (args.start_date && args.end_date) provided.push("lookahead_dates");
+      // Same job and same window as a lookahead already on file: add to it instead of making a duplicate.
+      if (args.start_date && args.end_date) {
+        const { data: same, error: se } = await sb.from("mcp_lookaheads").select("id, inputs, provided_inputs").eq("job_id", job.job_id).eq("start_date", args.start_date).eq("end_date", args.end_date).order("created_at", { ascending: true });
+        if (se) throw new Error(se.message);
+        const hit = visibleLookaheads((same ?? []) as { id: string; inputs?: unknown; provided_inputs?: string[] | null }[])[0];
+        if (hit) {
+          // Inputs already on file are kept; new text for the same input is appended, never replaces it.
+          const mergedInputs: Record<string, unknown> = { ...((hit.inputs as Record<string, unknown> | null) ?? {}) };
+          for (const [k, v] of Object.entries(docs) as [string, string][]) {
+            const old = typeof mergedInputs[k] === "string" ? (mergedInputs[k] as string).trim() : "";
+            mergedInputs[k] = old && !old.includes(v) ? `${old}\n${v}` : old || v;
+          }
+          const mergedProvided = [...new Set([...(hit.provided_inputs ?? []), ...provided])];
+          const mergedMissing = INPUT_KEYS.filter((k) => !mergedProvided.includes(k));
+          const up = await sb.from("mcp_lookaheads").update({ inputs: mergedInputs, provided_inputs: mergedProvided, missing_inputs: mergedMissing }).eq("id", hit.id);
+          if (up.error) throw new Error(up.error.message);
+          await audit(sb, job, "intake", "lookahead_reuse", hit.id);
+          const ref = lookaheadRef(hit.id);
+          return {
+            ...text(`${P}A look-ahead for ${args.start_date} to ${args.end_date} already exists (${ref}), so nothing new was created. The inputs you sent were added to it.\n\nMissing (recorded as unknown):\n${mergedMissing.map((k) => `- ${INPUT_LABELS[k]}`).join("\n") || "- none"}\n\nLookahead ref: ${ref}\nTo add items to a question already answered, call answer with this lookahead ref and that question ref again. Next: next_question with lookahead ref ${ref}.`),
+            structuredContent: { lookahead_id: hit.id, lookahead_ref: ref, provided: mergedProvided, missing: mergedMissing, reused: true },
+          };
+        }
+      }
       const missing = INPUT_KEYS.filter((k) => !provided.includes(k));
       const { data: la, error } = await sb
         .from("mcp_lookaheads")
@@ -911,9 +935,20 @@ export const answer = defineTool({
 
       if (args.lookahead_id) {
         const la = await lookaheadForJob(sb, job, args.lookahead_id);
-        const { check } = await currentCheck(sb, la, "answer");
-        if (!check) throw new ToolError("All checks are already answered. Call report.");
-        if (check.key !== args.check_key) throw new ToolError("That isn't the current question. Call next_question and answer the check it returns.");
+        const { check: current } = await currentCheck(sb, la, "answer");
+        let check = current;
+        // A check already answered on this lookahead takes more entries: the new item is added, the first answer stays.
+        let addEntry = false;
+        if (!check || check.key !== args.check_key) {
+          const answered = (await loadAnswers(sb, la.id)).some((a) => a.check_key === args.check_key && a.status !== "skipped_missing_inputs");
+          const def = answered ? (await loadChecks(sb)).find((c) => c.key === args.check_key) : undefined;
+          if (!def) {
+            if (!check) throw new ToolError("All checks are already answered. To add an item, answer one of this lookahead's question refs again (for example la-inspections), or call report.");
+            throw new ToolError("That isn't the current question. Call next_question and answer the check it returns.");
+          }
+          check = def;
+          addEntry = true;
+        }
         const detail = args.detail?.trim() || null;
         let status: "answered" | "unknown" = "answered";
         let openItem = false;
@@ -925,8 +960,11 @@ export const answer = defineTool({
           if (!detail) throw new ToolError('This question needs detail (the list, or "none"), or response "unknown".');
           openItem = !isNoneAnswer(detail);
         }
-        const { error } = await sb.from("mcp_answers").insert({ lookahead_id: la.id, check_key: check.key, check_version: check.version, status, response: args.response ?? null, detail });
-        if (error) throw new Error(error.message);
+        if (addEntry && !openItem && status !== "unknown") return text(`${P}Nothing added: that answer opens no item, and the earlier answer to this question stays.\nNext: next_question.`);
+        if (!addEntry) {
+          const { error } = await sb.from("mcp_answers").insert({ lookahead_id: la.id, check_key: check.key, check_version: check.version, status, response: args.response ?? null, detail });
+          if (error) throw new Error(error.message);
+        }
         let item: ItemResult | null = null;
         if (openItem || status === "unknown") {
           item = await rpc<ItemResult>(sb, "mcp_add_item", {
@@ -941,8 +979,8 @@ export const answer = defineTool({
         }
         // mcp_add_item files every item under the job's hidden setup container; a lookahead question's item belongs to this lookahead.
         if (item && !item.existing) await attachToLookahead(sb, item.item_id, la.id);
-        await audit(sb, job, "answer", `lookahead_answer_${status}`, check.key);
-        return { ...text(`${P}Recorded${status === "unknown" ? " as unknown" : ""}.${itemNote(item)}\nNext: next_question.`), structuredContent: { status, item_id: item?.item_id ?? null, item_type: item?.item_type ?? null } };
+        await audit(sb, job, "answer", addEntry ? "lookahead_add_entry" : `lookahead_answer_${status}`, check.key);
+        return { ...text(`${P}${addEntry ? `Added to ${lookaheadRef(la.id)}` : "Recorded"}${status === "unknown" ? " as unknown" : ""}.${itemNote(item)}\nNext: next_question.`), structuredContent: { status, item_id: item?.item_id ?? null, item_type: item?.item_type ?? null } };
       }
 
       if (args.check_key.startsWith(WARRANTY_CHECK_PREFIX)) {
@@ -1031,11 +1069,14 @@ export const carryForward = defineTool({
       const job = await resolveJob(sb, args.job_number, args.company_id, "full");
       const [from, to] = await Promise.all([lookaheadForJob(sb, job, args.from_lookahead_id), lookaheadForJob(sb, job, args.to_lookahead_id)]);
       if (from.id === to.id) throw new ToolError("from and to lookaheads must be different.");
-      const { data: items, error } = await sb.from("mcp_open_items").select("id, carry_count, section, check_key, item_type").eq("lookahead_id", from.id).eq("status", "open");
+      const { data: items, error } = await sb.from("mcp_open_items").select("id, carry_count, section, check_key, item_type, why").eq("lookahead_id", from.id).eq("status", "open");
       const nas = await activeNa(sb, job.job_id);
       if (error) throw new Error(error.message);
       for (const it of items ?? []) {
-        const up = await sb.from("mcp_open_items").update({ lookahead_id: to.id, carry_count: it.carry_count + 1, updated_at: new Date().toISOString() }).eq("id", it.id);
+        // A why that names the source lookahead ("Listed on look-ahead LA-xxxx ...") now names the destination.
+        const fromRef = lookaheadRef(from.id);
+        const why = typeof it.why === "string" && it.why.includes(fromRef) ? it.why.split(fromRef).join(lookaheadRef(to.id)) : undefined;
+        const up = await sb.from("mcp_open_items").update({ lookahead_id: to.id, carry_count: it.carry_count + 1, updated_at: new Date().toISOString(), ...(why !== undefined ? { why } : {}) }).eq("id", it.id);
         if (up.error) throw new Error(up.error.message);
         await sb.from("mcp_carry_forwards").insert({ item_id: it.id, from_lookahead_id: from.id, to_lookahead_id: to.id });
         await sb.from("mcp_item_events").insert({ item_id: it.id, event: "carried_forward", lookahead_id: to.id });
