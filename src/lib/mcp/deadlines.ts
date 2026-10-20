@@ -97,3 +97,15 @@ export function todayIn(tz: string, now = new Date()) {
   const p = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
   return p; // en-CA gives YYYY-MM-DD
 }
+
+/** Default zone when a job has no time zone stored (same default as the date sweep). */
+export const DEFAULT_TZ = "America/New_York";
+
+/** A stored timestamp as a YYYY-MM-DD date in the given zone. Plain dates pass through unchanged. */
+export function dateIn(ts: string | null | undefined, tz: string = DEFAULT_TZ): string {
+  if (!ts) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(ts)) return ts;
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return ts.slice(0, 10);
+  try { return todayIn(tz, d); } catch { return todayIn(DEFAULT_TZ, d); }
+}
