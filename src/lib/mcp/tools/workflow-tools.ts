@@ -13,6 +13,7 @@ import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
 import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
 import { guide } from "../visible";
 import { withoutClaims } from "../internal-claims";
+import { CLAUSE_HOST_RULE, classifyClause, clauseLine, missingNotices, normSection, parseClause, NOTICE_CHECKLIST, type ClauseRow } from "../contract-clauses";
 import { FLAGS_ASKED_LATER, noGuidance, noGuidanceText, reconcileRecommendation } from "../guidance";
 import { LOOKAHEAD_BUILD_QUESTIONS, LOOKAHEAD_EXISTS_ASK, LOOKAHEAD_PUSHBACK, LOOKAHEAD_SETUP_KEY, PUSHBACK_GUIDANCE, buildQuestionsGuidance, buildQuestionsText, pushbackText } from "../lookahead-help";
 
@@ -28,7 +29,10 @@ const READ = { readOnlyHint: true, openWorldHint: false } as const;
 const MAX_INPUT = 20_000;
 
 function capInput(args: unknown) {
-  const n = JSON.stringify(args ?? {}).length;
+  // The contract text has its own limit (it is the document itself, not instructions).
+  const { contract_text: _doc, ...rest } = (args ?? {}) as Record<string, unknown>;
+  void _doc;
+  const n = JSON.stringify(rest).length;
   if (n > MAX_INPUT) throw new ToolError(`Input is ${n.toLocaleString()} characters; the limit is 20,000. Trim or split it.`);
 }
 
@@ -219,13 +223,38 @@ async function warrantyFacts(sb: Sb, job: Job, synced = false): Promise<{ key: s
   return [...alignCloseoutSource(w, fromContract ?? null), ...(cw ? [{ ...cw, module: "warranty", key: CONTRACT_WARRANTY_KEY }] : [])];
 }
 
+export async function loadClauses(sb: Sb, jobId: string): Promise<ClauseRow[]> {
+  const { data, error } = await sb.from("mcp_contract_clauses").select("section, heading, category, verbatim_text, n_days, day_type, trigger_desc, source").eq("job_id", jobId);
+  if (error) throw new Error(error.message);
+  const key = (s: string) => s.split(".").map((n) => n.padStart(4, "0")).join(".");
+  return ((data ?? []) as ClauseRow[]).sort((a, b) => key(a.section).localeCompare(key(b.section)));
+}
+
+/** Open a confirm item for each missing notice clause and each unverified clause; close them once the clause is on file and verified. */
+async function syncClauseItems(sb: Sb, job: Job, saved: ClauseRow[]): Promise<ItemResult[]> {
+  const made: ItemResult[] = [];
+  const add = async (check_key: string, action: string, why: string) =>
+    made.push(await rpc<ItemResult>(sb, "mcp_add_item", { _job: job.job_id, _f: { check_key, action, item_type: "unknown", kind: "confirm_unknown", section: "contract_time", category: "Contract clause", why, source: "member_answer", tool: "intake" } }));
+  for (const m of missingNotices(saved)) await add(`clause_missing:${m.category}`, `Confirm the contract's ${m.label} clause (none recorded)`, "Notice terms come only from the contract; Athena never fills one in.");
+  for (const c of saved.filter((x) => x.source !== "document")) await add(`clause_unverified:${c.section}`, `Check §${c.section} wording against the contract (not found exactly)`, "Only clause text matching the contract exactly counts as document.");
+  // Close items the contract now answers.
+  const done = new Set([...NOTICE_CHECKLIST.filter((n) => saved.some((c) => c.category === n.category)).map((n) => `clause_missing:${n.category}`), ...saved.filter((c) => c.source === "document").map((c) => `clause_unverified:${c.section}`)]);
+  const { data: open } = await sb.from("mcp_open_items").select("id, check_key").eq("job_id", job.job_id).eq("status", "open").like("check_key", "clause_%");
+  for (const it of (open ?? []) as { id: string; check_key: string }[])
+    if (done.has(it.check_key)) {
+      const c = saved.find((x) => it.check_key.endsWith(x.section) || it.check_key.endsWith(x.category));
+      await rpc(sb, "mcp_resolve_item", { _item: it.id, _kind: "verified", _evidence: `Contract §${c?.section ?? "?"} on file, matching the contract text.`, _stated_by: null, _stated_on: null, _reason: null, _approval: null, _billing: null, _collection: null });
+    }
+  return made.filter((m) => !m.existing);
+}
+
 export const intake = defineTool({
   name: "intake",
   title: "Job setup intake",
   description:
     "Create a job (keyed by job number) and record its setup: job settings (time zone, PM), step 0 scoping, contract terms, contract deadlines, estimate handoff, budget and SOV, open items, a delay event, or a two-week lookahead. Missing data is recorded as unknown, never guessed. Record every delay, slip or schedule impact the member mentions with section delay_event before answering.",
   inputSchema: {
-    section: z.enum(["create_job", "job_settings", "scope", "contract", "deadline", "handoff", "budget", "warranty", "open_item", "lookahead", "delay_event"]).describe("Which part of setup to record."),
+    section: z.enum(["create_job", "job_settings", "scope", "contract", "deadline", "handoff", "budget", "warranty", "open_item", "lookahead", "delay_event", "clauses"]).describe("Which part of setup to record. Use clauses for contract notice and time clauses, copied word for word."),
     job_number: jobNumber,
     company_id: companyId,
     job_name: z.string().trim().max(200).optional().describe("create_job: job name."),
@@ -241,6 +270,14 @@ export const intake = defineTool({
     delay_start_date: date.optional().describe("delay_event: the date the delay began. Leave out if the member doesn't know; Athena flags both notices due today with 'confirm start date'."),
     delay_days: z.number().int().min(0).max(3650).optional().describe("delay_event: estimated impact in calendar days, if stated."),
     delay_cause: z.string().trim().max(500).optional().describe("delay_event: cause, if stated. Never guess it."),
+    // Verbatim contract clauses
+    clauses: z.array(z.object({
+      section: z.string().trim().min(1).max(40).describe("Section number as printed, e.g. 6.4."),
+      heading: z.string().trim().max(200).optional().describe("The clause heading as printed, e.g. Delay Notice. Leave out if the clause has none."),
+      text: z.string().trim().min(1).max(10_000).describe("The clause text copied exactly as written in the contract. Never summarize, shorten or merge clauses."),
+      category: z.enum(["delay_notice", "claim_notice", "nonpayment_notice", "cure_notice", "schedule_disagreement", "other"]).optional().describe("Optional; Athena classifies from the heading and text when left out."),
+    })).max(60).optional().describe(`clauses: ${CLAUSE_HOST_RULE}`),
+    contract_text: z.string().max(400_000).optional().describe("clauses: the full contract text as uploaded (copied, not summarized). Used to verify each clause word for word; stored with the job, readable by members with contract access."),
     // Deadline (contract time clause)
     clause_key: z.enum(["notice", "submittal_turnaround", "rfi_turnaround", "liquidated_damages", "completion", "other"]).optional(),
     label: short("deadline: what is due, e.g. 'Delay notice: utility shutdown denied'."),
@@ -367,7 +404,7 @@ export const intake = defineTool({
           sb.from("mcp_companies").select("name").eq("id", job.company_id).maybeSingle(),
         ]);
         const known = Object.fromEntries(((facts.data ?? []) as { key: string; value: unknown; status: string }[]).filter((f) => f.status === "known").map((f) => [f.key, f.value]));
-        const { notice, claim } = findDelayTerms((dl.data ?? []) as DeadlineRow[], known);
+        const { notice, claim } = findDelayTerms((dl.data ?? []) as DeadlineRow[], known, await loadClauses(sb, job.job_id));
         const start = args.delay_start_date ?? null;
         const nd = termDue(notice, start);
         const cd = termDue(claim, start);
@@ -396,6 +433,28 @@ export const intake = defineTool({
           structuredContent: { delay_event_id: r.delay_event_id, start_known: r.start_known, notice_due: start ? nd.due : null, claim_due: start ? cd.due : null,
             items: [r.notice_item, r.notice_item?.delivery_item, r.claim_item, r.claim_item?.delivery_item].filter((x): x is ItemResult => !!x).map((x) => itemOut(x)!) },
         }, ...draftGuidance(id, { name: co.data?.name ?? null }));
+      }
+
+      if (args.section === "clauses") {
+        if (!args.clauses?.length) throw new ToolError("clauses needs at least one clause: section, heading and the text copied exactly from the contract.");
+        const rows = args.clauses.map((c) => {
+          const p = parseClause(c.text);
+          return { section: normSection(c.section), heading: c.heading?.trim() || null, text: c.text, category: c.category ?? classifyClause(c.heading, c.text), ...p };
+        });
+        const r = await rpc<{ clauses: { section: string; source: "document" | "unverified" }[]; has_document: boolean }>(sb, "mcp_clauses_save", {
+          _job: job.job_id, _doc: args.contract_text?.trim() ? { name: args.contract_document_name ?? "contract", body: args.contract_text } : null, _clauses: rows,
+        });
+        const saved = await loadClauses(sb, job.job_id);
+        const made = await syncClauseItems(sb, job, saved);
+        const srcOf = new Map(r.clauses.map((c) => [c.section, c.source]));
+        const unverified = rows.filter((x) => srcOf.get(x.section) !== "document");
+        const lines = [
+          `${P}Contract clauses saved as written (${rows.length}).${r.has_document ? "" : " No contract text on file, so none could be verified: every clause is marked UNVERIFIED until the contract text is provided."}`,
+          ...saved.filter((c) => rows.some((x) => x.section === c.section)).map((c) => `- ${clauseLine(c)}`),
+          ...(unverified.length && r.has_document ? [`Not found exactly in the contract text: ${unverified.map((x) => `§${x.section}`).join(", ")}. Check the wording; an open item was opened for each.`] : []),
+          ...missingNotices(saved).map((m) => `Missing from the contract clauses: ${m.label}. An open item asks you to confirm it; nothing was filled in.`),
+        ];
+        return { ...text(`${lines.join("\n")}${itemNotes(made)}`), structuredContent: { clauses: saved.map((c) => ({ section: c.section, category: c.category, source: c.source, n_days: c.n_days, day_type: c.day_type })), items: made.map((m) => itemOut(m)!) } };
       }
 
       if (args.section === "deadline") {
@@ -1080,14 +1139,19 @@ export const contractTerms = defineTool({
         const f = (flR.data ?? []).find((x) => x.flag_key === k);
         return { flag: k, value: flagWord(effectiveFlag(f?.value ?? "unknown", by.get(FLAG_CLAUSE[k]))), source: f ? src(f.source) : null };
       });
+      const cl = await loadClauses(sb, job.job_id);
       const lines = [
-        `${prefix(job)}CONTRACT TERMS (as saved)`,
+        `${prefix(job)}CONTRACT CLAUSES (exact contract text)`,
+        ...(cl.length ? cl.map((c) => `- ${clauseLine(c)}`) : ["- None recorded. Record them with intake section clauses, copied exactly from the contract."]),
+        ...missingNotices(cl).map((m) => `- Missing: ${m.label} (open item asks to confirm it)`),
+        "",
+        `CONTRACT TERMS (as saved${cl.length ? "; summary fields, the clauses above govern" : ""})`,
         ...clauses.map((c) => `- ${c.key.replace(/_/g, " ")}: ${c.value ?? "UNKNOWN"}${c.value ? ` (${c.source})` : ""}`),
         "",
         "Applicability:",
         ...flags.map((f) => `- ${f.flag.replace(/_/g, " ")}: ${f.value}${f.source ? ` (${f.source})` : ""}`),
       ];
-      return { ...text(lines.join("\n")), structuredContent: { clauses, flags } };
+      return { ...text(lines.join("\n")), structuredContent: { clauses, flags, contract_clauses: cl.map((c) => ({ section: c.section, heading: c.heading, category: c.category, source: c.source, n_days: c.n_days, day_type: c.day_type, trigger: c.trigger_desc })) } };
     }),
 });
 

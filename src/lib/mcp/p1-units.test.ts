@@ -10,12 +10,12 @@ describe("delay terms", () => {
     expect(parseClauseText("Claim notice", "Article 7.4 — 7 days")).toMatchObject({ n_days: 7, day_type: null, clause_ref: "Article 7.4" });
     expect(parseClauseText("x", "promptly")).toBeNull();
   });
-  it("prefers recorded deadlines, splits a claim period out of notice text, and computes due dates", () => {
+  it("prefers recorded deadlines, never splits a claim period out of combined notice text, and computes due dates", () => {
     const t = findDelayTerms([{ clause_key: "notice", label: "Delay notice", clause_ref: "§8.3", trigger_desc: null, n_days: 2, day_type: "business", recipient: "GC PM", delivery_method: "email" }],
       { notice_timing: "3 calendar days; claims within 10 calendar days" });
     expect(t.notice).toMatchObject({ n_days: 2, day_type: "business", clause_ref: "§8.3", recipient: "GC PM" });
-    expect(t.claim).toMatchObject({ n_days: 10, day_type: "calendar" });
-    expect(termDue(t.claim, "2026-10-12").due).toBe("2026-10-22");
+    expect(t.claim).toBeNull(); // 0021: the sentence splitter is retired; claim days come only from a clause row or deadline row
+    expect(termDue(t.notice, "2026-10-12").due).toBe("2026-10-14");
     expect(termDue(t.notice, null).due).toBeNull();
   });
 });
