@@ -16,6 +16,7 @@ import { withoutClaims } from "../internal-claims";
 import { noticeRequirements } from "../notice-plain";
 import { CLAUSE_HOST_RULE, classifyClause, clauseLine, missingNotices, normSection, parseClause, NOTICE_CHECKLIST, type ClauseRow, LEGACY_SUMMARY_TAG, missingNoticeNote } from "../contract-clauses";
 import { FLAGS_ASKED_LATER, noGuidance, noGuidanceText, reconcileRecommendation } from "../guidance";
+import { isNoneAnswer, mergeScopeFacts, visibleLookaheads } from "../lookahead-items";
 import { LOOKAHEAD_BUILD_QUESTIONS, LOOKAHEAD_EXISTS_ASK, LOOKAHEAD_PUSHBACK, LOOKAHEAD_SETUP_KEY, PUSHBACK_GUIDANCE, buildQuestionsGuidance, buildQuestionsText, pushbackText } from "../lookahead-help";
 
 const uuid = z.string().uuid();
@@ -185,14 +186,20 @@ function keysText(a: Record<string, unknown>): string {
 }
 
 /** Save warranty/closeout setup facts, then open an item for every "no" or unknown (deduped by check_key). */
-async function saveWarranty(sb: Sb, job: Job, facts: Record<string, unknown>, o: { fillMissing: boolean; owner: string | null; neededBy: string | null; tool: string }) {
+async function saveWarranty(sb: Sb, job: Job, facts: Record<string, unknown>, o: { fillMissing: boolean; owner: string | null; neededBy: string | null; tool: string; source?: "document" | "member_answer" }) {
   if (o.fillMissing) {
     const { data: prior, error: priorErr } = await sb.from("mcp_job_facts").select("key").eq("job_id", job.job_id).eq("module", "warranty");
     if (priorErr) throw new Error(priorErr.message);
     const had = new Set((prior ?? []).map((p) => p.key));
     for (const q of WARRANTY_SETUP_QUESTIONS) if (!(q.key in facts) && !had.has(q.key)) facts[q.key] = null;
   }
-  if (Object.keys(facts).length) await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: "warranty", _facts: facts, _source: "member_answer" });
+  if (o.fillMissing) {
+    // Questions not answered are recorded unknown as manual entries; only the values given carry the document source.
+    const given = Object.fromEntries(Object.entries(facts).filter(([, v]) => v !== null));
+    const blank = Object.fromEntries(Object.entries(facts).filter(([, v]) => v === null));
+    if (Object.keys(given).length) await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: "warranty", _facts: given, _source: o.source ?? "member_answer" });
+    if (Object.keys(blank).length) await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: "warranty", _facts: blank, _source: "member_answer" });
+  } else if (Object.keys(facts).length) await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: "warranty", _facts: facts, _source: o.source ?? "member_answer" });
   const all = await warrantyFacts(sb, job);
   const asked = new Set(all.map((f) => f.key));
   const made: ItemResult[] = [];
@@ -318,8 +325,8 @@ export const intake = defineTool({
       .describe("scope: which key clauses the job has."),
     job_tool_stack: z.record(z.string().max(60), z.string().max(200)).optional(),
     // Contract (A)
-    contract_document_provided: z.boolean().optional().describe("contract/deadline: true ONLY if you read these terms from the contract document itself in this conversation (and give contract_document_name). Terms the member typed or told you are manual: leave this out."),
-    contract_document_name: z.string().max(300).optional().describe("contract/deadline: the contract document the terms were read from (file name or title). Required for source document; without it the terms are saved as manual."),
+    contract_document_provided: z.boolean().optional().describe("contract/deadline/warranty: true ONLY if you read these terms from the contract document itself in this conversation (and give contract_document_name). Terms the member typed or told you are manual: leave this out."),
+    contract_document_name: z.string().max(300).optional().describe("contract/deadline/warranty: the contract document the terms were read from (file name or title). Required for source document; without it the terms are saved as manual."),
     pay_terms: short("contract"), notice_timing: short("contract: notice deadline and clause, as written"), tia_timing: short("contract"),
     change_process: short("contract"), claim_process: short("contract"), retainage: short("contract: % and clause"),
     retainage_reduction: short("contract"), beneficial_use_clause: short("contract"), liquidated_damages: short("contract"),
@@ -343,7 +350,7 @@ export const intake = defineTool({
     // Budget (F)
     budget_lines: z.array(budgetLine).max(300).optional().describe("budget: internal cost budget by cost code (internal only)."),
     sov_lines: z.array(sovLine).max(300).optional().describe("budget: owner SOV lines at billable value, with the cost codes each maps to. For the SOV, number lines 01.01-style (CSI division, dot, line)."),
-    fee_pct: z.number().optional().describe("budget: contractor's fee as a percent of the contract total (e.g. 15)."),
+    fee_pct: z.number().optional().describe("budget: contractor's fee as a percent of the contract total (e.g. 15). The SOV adds this fee on top of the SOV lines, so give it only when the lines are cost of work + GC before fee. If the lines already add up to the contract sum (e.g. a lump-sum subcontract), give 0."),
     sov_basis: z.string().trim().max(200).optional().describe("budget: the contract document the SOV numbers come from, e.g. \"Schedule A, Total Investment\"."),
     // Open item
     action: short("open_item: what has to happen"), kind: z.enum(["general", "commercial", "warranty"]).optional(),
@@ -502,11 +509,19 @@ export const intake = defineTool({
       }
 
       if (args.section === "scope") {
-        const facts = {
-          job_type: args.job_type ?? null, scope_summary: args.scope_summary ?? null, size_band: args.size_band ?? null, sector: args.sector ?? null,
-          client_type: args.client_type ?? null, pricing_model: args.pricing_model ?? null, position: args.position ?? null,
-          work_packages: args.work_packages ?? null, major_equipment: args.major_equipment ?? null, key_clauses: args.key_clauses ?? null, tool_stack: args.job_tool_stack ?? null,
+        const given = {
+          job_type: args.job_type, scope_summary: args.scope_summary, size_band: args.size_band, sector: args.sector,
+          client_type: args.client_type, pricing_model: args.pricing_model, position: args.position,
+          work_packages: args.work_packages, major_equipment: args.major_equipment, key_clauses: args.key_clauses, tool_stack: args.job_tool_stack,
         };
+        const [{ data: priorScope, error: psErr }, { data: priorFlags, error: pfErr }] = await Promise.all([
+          sb.from("mcp_job_facts").select("key, value, status").eq("job_id", job.job_id).eq("module", "scope"),
+          sb.from("mcp_job_flags").select("flag_key, value").eq("job_id", job.job_id),
+        ]);
+        if (psErr) throw new Error(psErr.message);
+        if (pfErr) throw new Error(pfErr.message);
+        // A partial update merges: fields not sent keep their saved value (unknown only the first time).
+        const facts = mergeScopeFacts(given, (priorScope ?? []) as { key: string; value: unknown; status: string }[]);
         const fr = await rpc<{ known: string[]; unknown: string[] }>(sb, "mcp_set_facts", { _job: job.job_id, _module: "scope", _facts: facts, _source: "member_answer" });
         const wp = args.work_packages;
         const flags: Record<string, string> = {
@@ -529,6 +544,9 @@ export const intake = defineTool({
         // Unknown flags that a setup question or the contract section asks directly are left for that step,
         // so the member isn't asked to confirm the same thing twice.
         for (const k of Object.keys(flags)) if (flags[k] === "unknown" && FLAGS_ASKED_LATER.has(k)) delete flags[k];
+        // Fields not sent never reset a flag that is already recorded.
+        const hadFlag = new Set(((priorFlags ?? []) as { flag_key: string }[]).map((f) => f.flag_key));
+        for (const k of Object.keys(flags)) if (flags[k] === "unknown" && hadFlag.has(k)) delete flags[k];
         const r = await rpc<FlagResult>(sb, "mcp_set_flags", { _job: job.job_id, _flags: flags, _source: "member_answer" });
         await settleFlagConfirms(sb, job);
         const { data: all } = await sb.from("mcp_job_flags").select("flag_key, value, source").eq("job_id", job.job_id).order("flag_key");
@@ -600,7 +618,9 @@ export const intake = defineTool({
         if (args.warranty_start_trigger_text?.trim()) Object.assign(facts, mapTrigger(args.warranty_start_trigger_text));
         put("warranty_trigger_date", args.warranty_trigger_date);
         for (const k of ["warranty_start_basis", "closeout_documents", "punch_final_acceptance", "manufacturer_warranties", "closeout_expectations"] as const) put(k, args[k]);
-        const { all, made } = await saveWarranty(sb, job, facts, { fillMissing: true, owner: args.owner ?? null, neededBy: args.needed_by ?? null, tool: "intake" });
+        // Read from the contract (document named, nothing says typed): saved as document, shown as a contract summary, not "manual".
+        const wSource = readFromDocument(args, keysText(args)) ? "document" : "member_answer";
+        const { all, made } = await saveWarranty(sb, job, facts, { fillMissing: true, owner: args.owner ?? null, neededBy: args.needed_by ?? null, tool: "intake", source: wSource });
         const today = todayIn(await jobTimeZone(sb, job.job_id));
         return {
           ...text(`${P}Warranty and closeout setup saved.\n\nWARRANTY REGISTER\n${renderWarrantyRegister(all, today).join("\n")}${itemNotes(made)}`),
@@ -748,14 +768,21 @@ async function settleFlagConfirms(sb: Sb, job: Job) {
   }
 }
 
+/** Move a just-opened item onto the lookahead whose question opened it (and record it in the item's history). */
+async function attachToLookahead(sb: Sb, itemId: string, lookaheadId: string) {
+  const up = await sb.from("mcp_open_items").update({ lookahead_id: lookaheadId, origin_lookahead_id: lookaheadId, updated_at: new Date().toISOString() }).eq("id", itemId);
+  if (up.error) throw new Error(up.error.message);
+  await sb.from("mcp_item_events").update({ lookahead_id: lookaheadId }).eq("item_id", itemId).eq("event", "opened");
+}
+
 async function lookaheadForJob(sb: Sb, job: Job, input: string) {
   let id = input.trim();
   if (!isUuid(id)) {
     const pre = parseLookaheadRef(id);
     if (!pre) throw new ToolError("Lookahead not found. Use the lookahead ref (LA-…) printed when it was created, or list the job's open items to see each ref.");
-    const { data, error } = await sb.from("mcp_lookaheads").select("id").eq("job_id", job.job_id);
+    const { data, error } = await sb.from("mcp_lookaheads").select("id, inputs").eq("job_id", job.job_id);
     if (error) throw new Error(error.message);
-    const hits = (data ?? []).filter((r: { id: string }) => r.id.replace(/-/g, "").startsWith(pre));
+    const hits = visibleLookaheads((data ?? []) as { id: string; inputs?: unknown }[]).filter((r) => r.id.replace(/-/g, "").startsWith(pre));
     if (hits.length > 1) throw new ToolError(`More than one lookahead on job ${job.job_number} matches ${input.trim()}. Use the ref exactly as printed.`);
     if (!hits.length) throw new ToolError(`Lookahead not found on job ${job.job_number}. List the open items for the job to see each lookahead ref.`);
     id = hits[0].id;
@@ -890,7 +917,7 @@ export const answer = defineTool({
           openItem = args.response === "no";
         } else {
           if (!detail) throw new ToolError('This question needs detail (the list, or "none"), or response "unknown".');
-          openItem = !/^(none|n\/a|na|no|nothing)\.?$/i.test(detail);
+          openItem = !isNoneAnswer(detail);
         }
         const { error } = await sb.from("mcp_answers").insert({ lookahead_id: la.id, check_key: check.key, check_version: check.version, status, response: args.response ?? null, detail });
         if (error) throw new Error(error.message);
@@ -904,6 +931,8 @@ export const answer = defineTool({
             },
           });
         }
+        // mcp_add_item files every item under the job's hidden setup container; a lookahead question's item belongs to this lookahead.
+        if (item && !item.existing) await attachToLookahead(sb, item.item_id, la.id);
         await audit(sb, job, "answer", `lookahead_answer_${status}`, check.key);
         return { ...text(`${P}Recorded${status === "unknown" ? " as unknown" : ""}.${itemNote(item)}\nNext: next_question.`), structuredContent: { status, item_id: item?.item_id ?? null, item_type: item?.item_type ?? null } };
       }
@@ -1054,7 +1083,9 @@ export const listOpenItems = defineTool({
       if (la) q = q.eq("lookahead_id", la.id);
       let laBlock = "";
       if (!la) {
-        const { data: las } = await sb.from("mcp_lookaheads").select("id, start_date, end_date, created_at").eq("job_id", job.job_id).limit(200);
+        const { data: las0 } = await sb.from("mcp_lookaheads").select("id, start_date, end_date, created_at, inputs").eq("job_id", job.job_id).limit(200);
+        // The setup container (inputs.kind "setup") holds job-setup items; it is not a lookahead the member made, so it isn't listed.
+        const las = visibleLookaheads((las0 ?? []) as { inputs?: unknown }[]);
         // Newest window first (start date, then end date); undated lookaheads last; ties by creation time.
         const k = (v: string | null | undefined) => v ?? "";
         const sorted = ((las ?? []) as { id: string; start_date: string | null; end_date: string | null; created_at: string }[])
