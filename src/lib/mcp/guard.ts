@@ -6,14 +6,14 @@ import { runSweep, type SweepScope } from "./sweep";
 import { clientSafe } from "./client-safe";
 
 // Access: the shared membership entitlement (./entitlement), checked on every call.
-import { checkAthenaEntitlement } from "./entitlement";
+import { checkAthenaEntitlement, lockedToolMessage, rolesAllowTool } from "./entitlement";
 export const FOOTER = "\n\n---\nAthena powered by ALP, construction agents";
 export const INACTIVE_MESSAGE = "Your membership isn't active, so Athena is paused. Your job data is saved.";
 
 export type Sb = ReturnType<typeof supabaseForUser>;
 
 // Per-account call cap: mcp_abuse_cap_check with the caps from ./limits. The member sees which limit and when it resets.
-export async function guard(ctx: ToolContext): Promise<Sb> {
+export async function guard(ctx: ToolContext, tool?: string): Promise<Sb> {
   if (!ctx.isAuthenticated()) throw new ToolError("Not authenticated.");
   const sb = supabaseForUser(ctx);
   const { data, error } = await sb.rpc("mcp_abuse_cap_check", { _hourly: MCP_HOURLY_CAP, _daily: MCP_DAILY_CAP });
@@ -37,6 +37,11 @@ export async function guard(ctx: ToolContext): Promise<Sb> {
   if (!ent.allowed) {
     await logWorkflow(sb, { event_type: "failure", tool: "guard", error_code: "membership_inactive" });
     throw new ToolError(INACTIVE_MESSAGE);
+  }
+  // Role gating (Athena PM / Office plans). Circle and owners hold every role.
+  if (tool && !rolesAllowTool(ent.roles, tool)) {
+    await logWorkflow(sb, { event_type: "failure", tool, error_code: "role_locked" });
+    throw new ToolError(lockedToolMessage(tool));
   }
   return sb;
 }
@@ -76,7 +81,7 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
   const o = typeof opts === "object" ? opts : { lookaheadId: opts };
   const lookaheadId = o.lookaheadId;
   const sweepScope: SweepScope = { jobNumber: o.jobNumber, client: o.client };
-  const sb = await guard(ctx);
+  const sb = await guard(ctx, tool);
   let sweep: Awaited<ReturnType<typeof runSweep>> = null;
   try {
     const fresh = await sb.rpc("mcp_session_touch");
@@ -116,3 +121,5 @@ function withSweep<R>(r: R, sweep: NonNullable<Awaited<ReturnType<typeof runSwee
   const items = sweep.items.map((i) => ({ job_number: i.job_number, item_ref: client ? null : i.item_ref, item_id: client ? null : i.item_id, item_type: i.item_type, due: i.due, days: i.days, bucket: i.bucket }));
   return { ...res, content: [first, ...res.content.slice(1)], structuredContent: { ...(res.structuredContent ?? {}), sweep: items } } as unknown as R;
 }
+
+
