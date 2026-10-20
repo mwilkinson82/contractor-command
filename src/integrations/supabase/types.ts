@@ -1817,9 +1817,76 @@ export type Database = {
           },
         ]
       }
+      mcp_lookahead_revisions: {
+        Row: {
+          created_at: string
+          effective_inputs: Json
+          end_date: string | null
+          id: string
+          inputs: Json
+          lookahead_id: string
+          missing_inputs: string[]
+          parent_revision_id: string | null
+          provided_inputs: string[]
+          rev: number
+          schedule_tool: string | null
+          source: string
+          start_date: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          effective_inputs?: Json
+          end_date?: string | null
+          id?: string
+          inputs?: Json
+          lookahead_id: string
+          missing_inputs?: string[]
+          parent_revision_id?: string | null
+          provided_inputs?: string[]
+          rev: number
+          schedule_tool?: string | null
+          source?: string
+          start_date?: string | null
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          effective_inputs?: Json
+          end_date?: string | null
+          id?: string
+          inputs?: Json
+          lookahead_id?: string
+          missing_inputs?: string[]
+          parent_revision_id?: string | null
+          provided_inputs?: string[]
+          rev?: number
+          schedule_tool?: string | null
+          source?: string
+          start_date?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_lookahead_revisions_lookahead_id_fkey"
+            columns: ["lookahead_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_lookaheads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_lookahead_revisions_parent_revision_id_fkey"
+            columns: ["parent_revision_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_lookahead_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_lookaheads: {
         Row: {
           created_at: string
+          current_rev: number
           end_date: string | null
           id: string
           inputs: Json
@@ -1831,6 +1898,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          current_rev?: number
           end_date?: string | null
           id?: string
           inputs?: Json
@@ -1842,6 +1910,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          current_rev?: number
           end_date?: string | null
           id?: string
           inputs?: Json
@@ -1887,6 +1956,7 @@ export type Database = {
           job_number: string | null
           kind: string
           lookahead_id: string
+          lookahead_rev: number | null
           needed_by: string | null
           next_action: string | null
           next_action_approved_by: string | null
@@ -1940,6 +2010,7 @@ export type Database = {
           job_number?: string | null
           kind?: string
           lookahead_id: string
+          lookahead_rev?: number | null
           needed_by?: string | null
           next_action?: string | null
           next_action_approved_by?: string | null
@@ -1993,6 +2064,7 @@ export type Database = {
           job_number?: string | null
           kind?: string
           lookahead_id?: string
+          lookahead_rev?: number | null
           needed_by?: string | null
           next_action?: string | null
           next_action_approved_by?: string | null

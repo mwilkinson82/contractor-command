@@ -162,6 +162,13 @@
       "when": 1792030007000,
       "tag": "0022_athena_sov_lean_v1",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792510197479,
+      "tag": "0023_athena_lookahead_revisions",
+      "breakpoints": true
     }
   ]
 }

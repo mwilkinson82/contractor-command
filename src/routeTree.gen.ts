@@ -38,7 +38,9 @@ import { Route as UpgradeRouteImport } from './routes/upgrade'
 import { Route as VaultRouteImport } from './routes/vault'
 import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as WorkWithMarshallRouteImport } from './routes/work-with-marshall'
+import { Route as Char91DotwellKnownChar93OauthAuthorizationServerRouteImport } from './routes/[.well-known]/oauth-authorization-server'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
+import { Route as Char91DotwellKnownChar93OpenidConfigurationRouteImport } from './routes/[.well-known]/openid-configuration'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminAnnounceRouteImport } from './routes/admin.announce'
 import { Route as AdminBackfillRouteImport } from './routes/admin.backfill'
@@ -72,6 +74,7 @@ import { Route as ToolsCosNavigatorRouteImport } from './routes/tools.cos-naviga
 import { Route as ToolsGrowthConstraintRouteImport } from './routes/tools.growth-constraint'
 import { Route as ToolsOwnerDependencyRouteImport } from './routes/tools.owner-dependency'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
+import { Route as Char91DotwellKnownChar93OauthProtectedResourceMcpRouteImport } from './routes/[.well-known]/oauth-protected-resource_.mcp'
 import { Route as ApiPublicAosFpRouteImport } from './routes/api/public/aos-fp'
 import { Route as BrandAthenaAthenaIcon64DotpngRouteImport } from './routes/brand.athena.athena-icon-64[.]png'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
@@ -233,10 +236,22 @@ const WorkWithMarshallRoute = WorkWithMarshallRouteImport.update({
   path: '/work-with-marshall',
   getParentRoute: () => rootRouteImport,
 } as any)
+const Char91DotwellKnownChar93OauthAuthorizationServerRoute =
+  Char91DotwellKnownChar93OauthAuthorizationServerRouteImport.update({
+    id: '/.well-known/oauth-authorization-server',
+    path: '/.well-known/oauth-authorization-server',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const Char91DotwellKnownChar93OauthProtectedResourceRoute =
   Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
     id: '/.well-known/oauth-protected-resource',
     path: '/.well-known/oauth-protected-resource',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const Char91DotwellKnownChar93OpenidConfigurationRoute =
+  Char91DotwellKnownChar93OpenidConfigurationRouteImport.update({
+    id: '/.well-known/openid-configuration',
+    path: '/.well-known/openid-configuration',
     getParentRoute: () => rootRouteImport,
   } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -404,6 +419,12 @@ const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
   path: '/.lovable/oauth/consent',
   getParentRoute: () => rootRouteImport,
 } as any)
+const Char91DotwellKnownChar93OauthProtectedResourceMcpRoute =
+  Char91DotwellKnownChar93OauthProtectedResourceMcpRouteImport.update({
+    id: '/.well-known/oauth-protected-resource_/mcp',
+    path: '/.well-known/oauth-protected-resource/mcp',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicAosFpRoute = ApiPublicAosFpRouteImport.update({
   id: '/api/public/aos-fp',
   path: '/api/public/aos-fp',
@@ -516,7 +537,9 @@ export interface FileRoutesByFullPath {
   '/vault': typeof VaultRoute
   '/welcome': typeof WelcomeRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
+  '/.well-known/oauth-authorization-server': typeof Char91DotwellKnownChar93OauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/.well-known/openid-configuration': typeof Char91DotwellKnownChar93OpenidConfigurationRoute
   '/admin/announce': typeof AdminAnnounceRoute
   '/admin/backfill': typeof AdminBackfillRoute
   '/admin/control': typeof AdminControlRoute
@@ -550,6 +573,7 @@ export interface FileRoutesByFullPath {
   '/aos/': typeof AosIndexRoute
   '/ask/': typeof AskIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
+  '/.well-known/oauth-protected-resource/mcp': typeof Char91DotwellKnownChar93OauthProtectedResourceMcpRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/brand/athena/athena-icon-64.png': typeof BrandAthenaAthenaIcon64DotpngRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -596,7 +620,9 @@ export interface FileRoutesByTo {
   '/vault': typeof VaultRoute
   '/welcome': typeof WelcomeRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
+  '/.well-known/oauth-authorization-server': typeof Char91DotwellKnownChar93OauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/.well-known/openid-configuration': typeof Char91DotwellKnownChar93OpenidConfigurationRoute
   '/admin/announce': typeof AdminAnnounceRoute
   '/admin/backfill': typeof AdminBackfillRoute
   '/admin/control': typeof AdminControlRoute
@@ -630,6 +656,7 @@ export interface FileRoutesByTo {
   '/aos': typeof AosIndexRoute
   '/ask': typeof AskIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
+  '/.well-known/oauth-protected-resource/mcp': typeof Char91DotwellKnownChar93OauthProtectedResourceMcpRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/brand/athena/athena-icon-64.png': typeof BrandAthenaAthenaIcon64DotpngRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -677,7 +704,9 @@ export interface FileRoutesById {
   '/vault': typeof VaultRoute
   '/welcome': typeof WelcomeRoute
   '/work-with-marshall': typeof WorkWithMarshallRoute
+  '/.well-known/oauth-authorization-server': typeof Char91DotwellKnownChar93OauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/.well-known/openid-configuration': typeof Char91DotwellKnownChar93OpenidConfigurationRoute
   '/admin/announce': typeof AdminAnnounceRoute
   '/admin/backfill': typeof AdminBackfillRoute
   '/admin/control': typeof AdminControlRoute
@@ -711,6 +740,7 @@ export interface FileRoutesById {
   '/aos/': typeof AosIndexRoute
   '/ask/': typeof AskIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
+  '/.well-known/oauth-protected-resource_/mcp': typeof Char91DotwellKnownChar93OauthProtectedResourceMcpRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/brand/athena/athena-icon-64.png': typeof BrandAthenaAthenaIcon64DotpngRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -759,7 +789,9 @@ export interface FileRouteTypes {
     | '/vault'
     | '/welcome'
     | '/work-with-marshall'
+    | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
+    | '/.well-known/openid-configuration'
     | '/admin/announce'
     | '/admin/backfill'
     | '/admin/control'
@@ -793,6 +825,7 @@ export interface FileRouteTypes {
     | '/aos/'
     | '/ask/'
     | '/.lovable/oauth/consent'
+    | '/.well-known/oauth-protected-resource/mcp'
     | '/api/public/aos-fp'
     | '/brand/athena/athena-icon-64.png'
     | '/lovable/email/suppression'
@@ -839,7 +872,9 @@ export interface FileRouteTypes {
     | '/vault'
     | '/welcome'
     | '/work-with-marshall'
+    | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
+    | '/.well-known/openid-configuration'
     | '/admin/announce'
     | '/admin/backfill'
     | '/admin/control'
@@ -873,6 +908,7 @@ export interface FileRouteTypes {
     | '/aos'
     | '/ask'
     | '/.lovable/oauth/consent'
+    | '/.well-known/oauth-protected-resource/mcp'
     | '/api/public/aos-fp'
     | '/brand/athena/athena-icon-64.png'
     | '/lovable/email/suppression'
@@ -919,7 +955,9 @@ export interface FileRouteTypes {
     | '/vault'
     | '/welcome'
     | '/work-with-marshall'
+    | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
+    | '/.well-known/openid-configuration'
     | '/admin/announce'
     | '/admin/backfill'
     | '/admin/control'
@@ -953,6 +991,7 @@ export interface FileRouteTypes {
     | '/aos/'
     | '/ask/'
     | '/.lovable/oauth/consent'
+    | '/.well-known/oauth-protected-resource_/mcp'
     | '/api/public/aos-fp'
     | '/brand/athena/athena-icon-64.png'
     | '/lovable/email/suppression'
@@ -1000,7 +1039,9 @@ export interface RootRouteChildren {
   VaultRoute: typeof VaultRoute
   WelcomeRoute: typeof WelcomeRoute
   WorkWithMarshallRoute: typeof WorkWithMarshallRoute
+  Char91DotwellKnownChar93OauthAuthorizationServerRoute: typeof Char91DotwellKnownChar93OauthAuthorizationServerRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  Char91DotwellKnownChar93OpenidConfigurationRoute: typeof Char91DotwellKnownChar93OpenidConfigurationRoute
   AdminAnnounceRoute: typeof AdminAnnounceRoute
   AdminBackfillRoute: typeof AdminBackfillRoute
   AdminControlRoute: typeof AdminControlRoute
@@ -1030,6 +1071,7 @@ export interface RootRouteChildren {
   AosIndexRoute: typeof AosIndexRoute
   AskIndexRoute: typeof AskIndexRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
+  Char91DotwellKnownChar93OauthProtectedResourceMcpRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceMcpRoute
   ApiPublicAosFpRoute: typeof ApiPublicAosFpRoute
   BrandAthenaAthenaIcon64DotpngRoute: typeof BrandAthenaAthenaIcon64DotpngRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
@@ -1251,11 +1293,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkWithMarshallRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/.well-known/oauth-authorization-server': {
+      id: '/.well-known/oauth-authorization-server'
+      path: '/.well-known/oauth-authorization-server'
+      fullPath: '/.well-known/oauth-authorization-server'
+      preLoaderRoute: typeof Char91DotwellKnownChar93OauthAuthorizationServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/.well-known/oauth-protected-resource': {
       id: '/.well-known/oauth-protected-resource'
       path: '/.well-known/oauth-protected-resource'
       fullPath: '/.well-known/oauth-protected-resource'
       preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.well-known/openid-configuration': {
+      id: '/.well-known/openid-configuration'
+      path: '/.well-known/openid-configuration'
+      fullPath: '/.well-known/openid-configuration'
+      preLoaderRoute: typeof Char91DotwellKnownChar93OpenidConfigurationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -1489,6 +1545,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DotlovableOauthConsentRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/.well-known/oauth-protected-resource_/mcp': {
+      id: '/.well-known/oauth-protected-resource_/mcp'
+      path: '/.well-known/oauth-protected-resource/mcp'
+      fullPath: '/.well-known/oauth-protected-resource/mcp'
+      preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceMcpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/aos-fp': {
       id: '/api/public/aos-fp'
       path: '/api/public/aos-fp'
@@ -1655,8 +1718,12 @@ const rootRouteChildren: RootRouteChildren = {
   VaultRoute: VaultRoute,
   WelcomeRoute: WelcomeRoute,
   WorkWithMarshallRoute: WorkWithMarshallRoute,
+  Char91DotwellKnownChar93OauthAuthorizationServerRoute:
+    Char91DotwellKnownChar93OauthAuthorizationServerRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
+  Char91DotwellKnownChar93OpenidConfigurationRoute:
+    Char91DotwellKnownChar93OpenidConfigurationRoute,
   AdminAnnounceRoute: AdminAnnounceRoute,
   AdminBackfillRoute: AdminBackfillRoute,
   AdminControlRoute: AdminControlRoute,
@@ -1686,6 +1753,8 @@ const rootRouteChildren: RootRouteChildren = {
   AosIndexRoute: AosIndexRoute,
   AskIndexRoute: AskIndexRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
+  Char91DotwellKnownChar93OauthProtectedResourceMcpRoute:
+    Char91DotwellKnownChar93OauthProtectedResourceMcpRoute,
   ApiPublicAosFpRoute: ApiPublicAosFpRoute,
   BrandAthenaAthenaIcon64DotpngRoute: BrandAthenaAthenaIcon64DotpngRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
