@@ -3,6 +3,7 @@
 import type { Sb } from "./guard";
 import { whoForJob } from "./people";
 import { itemRef, shortRef } from "./refs";
+import { isContractDate } from "./jobs";
 import { isClaimDeadline, withoutClaims } from "./internal-claims";
 import { computeDue, diffDays, todayIn, type Clause } from "./deadlines";
 
@@ -10,7 +11,7 @@ const ASSUMED_TZ = "America/New_York";
 const MONEY = /\$\s?[\d,.]+[kKmM]?|\b\d[\d,.]*\s?(dollars|usd)\b/gi;
 
 type JobRow = { id: string; job_number: string; name: string; time_zone: string | null; company_id: string };
-type ItemRow = { id: string; job_id: string; action: string; needed_by: string | null; item_type: string | null; internal_only: boolean; check_key: string; accountable: string | null; cost_effect: string | null; cash_effect: string | null; commercial_type?: string | null; category?: string | null };
+type ItemRow = { id: string; job_id: string; action: string; needed_by: string | null; item_type: string | null; internal_only: boolean; check_key: string; accountable: string | null; cost_effect: string | null; cash_effect: string | null; commercial_type?: string | null; category?: string | null; clause_source: string | null };
 type DeadlineRow = Clause & { job_id: string; item_id: string | null; internal_only: boolean; clause_key: string };
 
 export type SweepItem = { job_id: string; job_number: string; item_ref?: string; ref: string; item_id: string | null; item_type: string; due: string; days: number; bucket: "overdue" | "today" | "upcoming" };
@@ -33,7 +34,7 @@ export async function runSweep(sb: Sb, scope_: SweepScope = {}): Promise<{ text:
   const ids = js.map((j) => j.id);
   const [scopesR, itemsR, dlR] = await Promise.all([
     Promise.all(js.map((j) => sb.rpc("mcp_job_scope", { _job: j.id }))),
-    sb.from("mcp_open_items").select("id, job_id, action, needed_by, item_type, internal_only, check_key, accountable, cost_effect, cash_effect, commercial_type, category").in("job_id", ids).eq("status", "open").not("needed_by", "is", null),
+    sb.from("mcp_open_items").select("id, job_id, action, needed_by, item_type, internal_only, check_key, accountable, cost_effect, cash_effect, commercial_type, category, clause_source").in("job_id", ids).eq("status", "open").not("needed_by", "is", null),
     sb.from("mcp_job_deadlines").select("id, job_id, item_id, label, clause_ref, clause_key, trigger_desc, trigger_date, trigger_alternatives, n_days, day_type, holidays, weekend_roll, fixed_date, internal_only").in("job_id", ids).eq("active", true),
   ]);
   const scope = new Map(js.map((j, i) => [j.id, (scopesR[i].data as string | null) ?? null]));
@@ -79,6 +80,8 @@ export async function runSweep(sb: Sb, scope_: SweepScope = {}): Promise<{ text:
     const j = byJob.get(it.job_id);
     if (!j || !it.needed_by || clauseItems.has(it.id)) continue;
     if ((client || scope.get(j.id) !== "full") && it.internal_only) continue;
+    // Client copy: only dates the contract sets; Athena's own follow-up dates stay internal.
+    if (client && !isContractDate(it)) continue;
     const tz = j.time_zone ?? ASSUMED_TZ;
     const days = diffDays(it.needed_by, todayIn(tz));
     if (days > 14) continue;
@@ -87,7 +90,7 @@ export async function runSweep(sb: Sb, scope_: SweepScope = {}): Promise<{ text:
     if (client || scope.get(j.id) !== "full") action = action.replace(MONEY, "[amount withheld]");
     lines.push({
       bucket, days,
-      text: `${action}: ${when(days)} — ${it.needed_by} (${j.time_zone ? tz : `${tz}, assumed`}) | Accountable: ${who(it.accountable)}`,
+      text: `${action}: ${when(days)} — ${it.needed_by} (${j.time_zone ? tz : `${tz}, assumed`})${client ? "" : ` | Accountable: ${who(it.accountable)}`}`,
       extra: [],
     });
     out.push({ job_id: j.id, job_number: j.job_number, item_ref: itemRef(it), ref: `item:${it.id}`, item_id: it.id, item_type: it.item_type ?? "deadline", due: it.needed_by, days, bucket });

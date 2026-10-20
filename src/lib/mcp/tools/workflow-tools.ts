@@ -1051,8 +1051,13 @@ export const listOpenItems = defineTool({
       if (la) q = q.eq("lookahead_id", la.id);
       let laBlock = "";
       if (!la) {
-        const { data: las } = await sb.from("mcp_lookaheads").select("id, start_date, end_date, created_at").eq("job_id", job.job_id).order("created_at", { ascending: false }).limit(10);
-        if (las?.length) laBlock = `\n\nLookaheads (newest first):\n${las.map((l: { id: string; start_date: string | null; end_date: string | null }) => `- ${lookaheadRef(l.id)}: ${l.start_date ?? "dates unknown"}${l.end_date ? ` to ${l.end_date}` : ""}`).join("\n")}`;
+        const { data: las } = await sb.from("mcp_lookaheads").select("id, start_date, end_date, created_at").eq("job_id", job.job_id).limit(200);
+        // Newest window first (start date, then end date); undated lookaheads last; ties by creation time.
+        const k = (v: string | null | undefined) => v ?? "";
+        const sorted = ((las ?? []) as { id: string; start_date: string | null; end_date: string | null; created_at: string }[])
+          .sort((x, y) => (!x.start_date !== !y.start_date ? (x.start_date ? -1 : 1) : k(y.start_date).localeCompare(k(x.start_date)) || k(y.end_date).localeCompare(k(x.end_date)) || k(y.created_at).localeCompare(k(x.created_at))))
+          .slice(0, 10);
+        if (sorted.length) laBlock = `\n\nLookaheads (newest first):\n${sorted.map((l: { id: string; start_date: string | null; end_date: string | null }) => `- ${lookaheadRef(l.id)}: ${l.start_date ?? "dates unknown"}${l.end_date ? ` to ${l.end_date}` : ""}`).join("\n")}`;
       }
       const laHead = la ? `Lookahead ${lookaheadRef(la.id)}: ` : "";
       const [{ data, error }, nas] = await Promise.all([q.order("needed_by", { nullsFirst: false }).limit(200), activeNa(sb, job.job_id)]);
