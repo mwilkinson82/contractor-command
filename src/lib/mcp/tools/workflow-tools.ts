@@ -673,6 +673,12 @@ export const intake = defineTool({
             _f: { check_key: "budget:unmapped", action: "Map SOV lines to cost codes", detail: `SOV lines without codes: ${unmappedLines.join(", ") || "none"}; codes not on any SOV line: ${unmappedCodes.join(", ") || "none"}; SOV codes not in budget: ${badRefs.join(", ") || "none"}`, section: "budget", category: "Budget", internal_only: true, tool: "intake" },
           });
           note = itemNote(r);
+        } else {
+          // Everything maps now: close the open "Map SOV lines to cost codes" item a previous save opened.
+          const { data: open } = await sb.from("mcp_open_items").select("id").eq("job_id", job.job_id).eq("check_key", "budget:unmapped").eq("status", "open");
+          for (const it of open ?? [])
+            await rpc(sb, "mcp_resolve_item", { _item: it.id, _kind: "verified", _evidence: `Budget and SOV saved: every SOV line maps to a cost code, every cost code is on an SOV line, and every SOV code is in the budget.`, _stated_by: null, _stated_on: null, _reason: null, _approval: null, _billing: null, _collection: null });
+          if (open?.length) note = "\nClosed the open item to map SOV lines to cost codes: everything maps now.";
         }
         return text(
           `${P}Budget and SOV saved. Budget is internal only.\nCost codes: ${codes.size} | SOV lines: ${sovRows.length}\nSOV lines not mapped to a cost code: ${unmappedLines.join(", ") || "none"}\nCost codes not on any SOV line: ${unmappedCodes.join(", ") || "none"}\nSOV codes missing from the budget: ${badRefs.join(", ") || "none"}\nFee: ${terms?.sov_fee_pct == null ? "not recorded" : `${Number(terms.sov_fee_pct).toFixed(2)}% of contract total`} | Basis: ${terms?.sov_basis ?? "not recorded"}${note}`,
@@ -768,11 +774,11 @@ async function settleFlagConfirms(sb: Sb, job: Job) {
   }
 }
 
-/** Move a just-opened item onto the lookahead whose question opened it (and record it in the item's history). */
+/** Move a just-opened item onto the lookahead whose question opened it. mcp_item_events is append-only, so the
+ * "opened" event is left as written; the item row carries the lookahead. */
 async function attachToLookahead(sb: Sb, itemId: string, lookaheadId: string) {
   const up = await sb.from("mcp_open_items").update({ lookahead_id: lookaheadId, origin_lookahead_id: lookaheadId, updated_at: new Date().toISOString() }).eq("id", itemId);
   if (up.error) throw new Error(up.error.message);
-  await sb.from("mcp_item_events").update({ lookahead_id: lookaheadId }).eq("item_id", itemId).eq("event", "opened");
 }
 
 async function lookaheadForJob(sb: Sb, job: Job, input: string) {
@@ -928,6 +934,8 @@ export const answer = defineTool({
             _f: {
               action: `${check.category}: ${detail ?? check.prompt.replace(/^PLACEHOLDER:\s*/, "")}`.slice(0, 480), kind: status === "unknown" ? "confirm_unknown" : "general",
               item_type: status === "unknown" ? "unknown" : "no", accountable: args.owner ?? null, needed_by: args.due_date ?? null, trade: check.trade, category: check.category, severity: check.severity, detail, tool: "answer",
+              // A look-ahead entry, not a "no" on a best-practice setup check: say where it came from instead of the DB default.
+              why: status === "unknown" ? null : `Listed on look-ahead ${lookaheadRef(la.id)} (${check.category}) as open in this window.`,
             },
           });
         }
