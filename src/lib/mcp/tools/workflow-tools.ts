@@ -1,3 +1,4 @@
+import { ATHENA_VERSION } from "../server-info-branding";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
@@ -6,7 +7,7 @@ import { computeDue, type DayType } from "../deadlines";
 import { INPUT_KEYS, INPUT_LABELS, currentCheck, loadLookahead, renderReport, type InputKey } from "../workflow";
 import { WARRANTY_CHECK_PREFIX, WARRANTY_SETUP_QUESTIONS, mapTrigger, nextWarrantyQuestion, renderWarrantyRegister, warrantyAnswerFacts, warrantyHow, warrantyOpenItems, type WarrantyKey } from "../warranty";
 import { EVIDENCE_ASK, evidenceProblem } from "../evidence";
-import { itemRef, matchRef, shortRef } from "../refs";
+import { itemRef, matchRef, parseQuestionRef, questionRef, shortRef } from "../refs";
 import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
 import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
 import { guide } from "../visible";
@@ -16,7 +17,7 @@ import { LOOKAHEAD_BUILD_QUESTIONS, LOOKAHEAD_EXISTS_ASK, LOOKAHEAD_PUSHBACK, LO
 const uuid = z.string().uuid();
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
 const jobNumber = z.string().trim().min(1).max(40).describe("Job number, exact match (e.g. 2417).");
-const companyId = uuid.optional().describe("Only needed if you belong to more than one company.");
+const companyId = z.string().trim().min(1).max(200).optional().describe("Only needed if you belong to more than one company: the company name as Athena lists it, or its company_id.");
 const short = (d: string) => z.string().max(2000).optional().describe(d);
 const tri = z.enum(["yes", "no", "na", "unknown"]);
 const doc = (what: string) => z.string().max(20_000).optional().describe(`${what}, as plain text. Leave out if you don't have it; it is recorded as unknown.`);
@@ -83,7 +84,7 @@ export const onboarding = defineTool({
   handler: (args, ctx) =>
     run("onboarding", ctx, undefined, async (sb) => {
       capInput(args);
-      let cid: string | undefined = args.company_id;
+      let cid: string | undefined = args.company_id ? await resolveCompany(sb, args.company_id) : undefined;
       if (args.action === "save_company") {
         if (!cid) {
           const { data: mine } = await sb.from("mcp_companies").select("id");
@@ -122,6 +123,7 @@ export const onboarding = defineTool({
             `Decision rights: ${Object.entries(rights).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v.join(", ")}`).join("; ")}`,
             `Default applicability: ${Object.entries((c.default_flags ?? {}) as Record<string, string>).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`).join("; ") || "none"}`,
             `Members: ${(members ?? []).map((m) => `${m.display_name} (${m.role.replace(/_/g, "-")})`).join(", ")}`,
+            `Athena v${ATHENA_VERSION}`,
             "",
             'Next: create a job with intake section "create_job" and a job_number.',
           ].join("\n"),
@@ -668,7 +670,7 @@ export const nextQuestion = defineTool({
         if (!check) return text(`${P}All lookahead checks are done. Call report with lookahead_id.`);
         const how = check.rule_type === "confirm" ? 'Answer with response "yes", "no" or "unknown".' : 'Answer with detail listing the items, or detail "none". Use response "unknown" if you don\'t know.';
         return {
-          ...text(`${P}Question ${index} of ${total} [${check.trade} / ${check.category}]\ncheck_key: ${check.key}\n\n${check.prompt}\n\n${how}\nCall answer with job_number, lookahead_id and check_key.`),
+          ...text(`${P}Question ${index} of ${total} [${check.trade} / ${check.category}]\nQuestion ref: ${questionRef(check.key)}\n\n${check.prompt}\n\n${how}\nCall answer with job_number, lookahead_id and check_key.`),
           structuredContent: { check_key: check.key, index, total },
         };
       }
@@ -688,7 +690,7 @@ export const nextQuestion = defineTool({
         const after = wq.remaining_after + (q ? q.total - q.index + 1 : 0);
         await audit(sb, job, "next_question", "view_setup_question", key);
         return {
-          ...text(`${P}${auto}Setup question — ${after === 0 ? "last one" : `${after} more after this`} (Warranty and closeout ${wq.index} of ${wq.total}: ${wq.label}) [Warranty / section warranty]\ncheck_key: ${key}\n\n${wq.ask}\n\n${warrantyHow(wq.key)}\nCall answer with job_number and check_key.`),
+          ...text(`${P}${auto}Setup question — ${after === 0 ? "last one" : `${after} more after this`} (Warranty and closeout ${wq.index} of ${wq.total}: ${wq.label}) [Warranty / section warranty]\nQuestion ref: ${questionRef(key)}\n\n${wq.ask}\n\n${warrantyHow(wq.key)}\nCall answer with job_number and check_key.`),
           structuredContent: { check_key: key, index: wq.index, total: wq.total, remaining_after: after, auto_answered: auto ? "job_number_assigned" : null },
         };
       }
@@ -703,7 +705,7 @@ export const nextQuestion = defineTool({
       const ask = confirm ? `The record shows: ${typeof q.record_value === "string" ? q.record_value : JSON.stringify(q.record_value)}\nConfirm this is right (yes), or say no / unknown.` : q.prompt;
       return {
         ...text(
-          `${P}${auto}Setup question ${q.index} — ${q.total - q.index + wLeft === 0 ? "last one" : `${q.total - q.index + wLeft} more after this`}${q.label ? ` (${q.label})` : ""} [${q.category}]\ncheck_key: ${q.key}\n\n${confirm ? `${q.prompt}\n${ask}` : ask}\n\nAnswer with response yes, no, na (with a reason in detail) or unknown. For unknown or no, add owner and due_date if known. To mark the whole section N/A use answer action "mark_na" with scope "section".`,
+          `${P}${auto}Setup question ${q.index} — ${q.total - q.index + wLeft === 0 ? "last one" : `${q.total - q.index + wLeft} more after this`}${q.label ? ` (${q.label})` : ""} [${q.category}]\nQuestion ref: ${questionRef(q.key)}\n\n${confirm ? `${q.prompt}\n${ask}` : ask}\n\nAnswer with response yes, no, na (with a reason in detail) or unknown. For unknown or no, add owner and due_date if known. To mark the whole section N/A use answer action "mark_na" with scope "section".`,
         ),
         structuredContent: { check_key: q.key, index: q.index, total: q.total, remaining_after: q.total - q.index + wLeft, auto_answered: auto ? "job_number_assigned" : null },
       };
@@ -720,7 +722,7 @@ export const answer = defineTool({
     job_number: jobNumber,
     company_id: companyId,
     action: z.enum(["answer", "mark_na", "reenable", "decline_reenable"]).optional().describe("Default answer."),
-    check_key: z.string().min(1).max(100).optional().describe("answer: check_key from next_question. mark_na/reenable with scope item: the check_key."),
+    check_key: z.string().min(1).max(100).optional().describe("answer: the question ref shown by next_question (e.g. gate-role-gc) or check_key from structured content. mark_na/reenable with scope item: the same ref."),
     lookahead_help: z.enum(["accept", "decline"]).optional().describe(`answer on check ${"bss_lookahead"} with response "no": "accept" if the member wants help building a look-ahead, "decline" if not (logs an open item). Leave out the first time; Athena asks.`),
     response: tri.optional().describe("answer: yes / no / na / unknown."),
     detail: z.string().max(10_000).optional().describe("Details, or the N/A reason (max 10,000 characters)."),
@@ -735,6 +737,7 @@ export const answer = defineTool({
   handler: (args, ctx) =>
     run("answer", ctx, { lookaheadId: args.lookahead_id, jobNumber: args.job_number }, async (sb) => {
       capInput(args);
+      if (args.check_key) args.check_key = parseQuestionRef(args.check_key);
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const P = prefix(job);
       const action = args.action ?? "answer";
@@ -757,7 +760,7 @@ export const answer = defineTool({
         await rpc(sb, "mcp_decline_reenable", { _job: job.job_id, _na_id: args.na_id });
         return text(`${P}Declined. It stays N/A and you won't be asked again for that same trigger.`);
       }
-      if (!args.check_key) throw new ToolError("answer needs check_key from next_question.");
+      if (!args.check_key) throw new ToolError("Which question? Give its question ref (for example gate-role-gc).");
 
       if (args.lookahead_id) {
         const la = await lookaheadForJob(sb, job, args.lookahead_id);
@@ -923,7 +926,7 @@ export const resolveItem = defineTool({
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
-    item_id: z.string().min(1).max(64).describe("The item: its short ref from list_open_items (e.g. A1, D9 or #36c310) or the item_id from structured content."),
+    item_id: z.string().min(1).max(64).describe("The item: the ref shown on its line in list_open_items (e.g. A1 or 36C31, with or without \"Ref\") or the item_id from structured content."),
     kind: z.enum(["verified", "member_statement", "waive", "commercial_close", "update", "na"]).describe("How it is being closed or updated."),
     evidence: z.string().trim().max(10_000).optional().describe("Evidence: a document (name or number), or for member_statement what was said. A bare \"we're good\" is not evidence; the item stays open."),
     stated_by: z.string().max(200).optional().describe("member_statement / update: who said it, only if the member named someone. Leave out and it is attributed to the calling user."),
@@ -941,7 +944,7 @@ export const resolveItem = defineTool({
       const { data: open, error: oe } = await sb.from("mcp_open_items").select("id, action, check_key").eq("job_id", job.job_id).eq("status", "open");
       if (oe) throw new Error(oe.message);
       const hit = matchRef(args.item_id, (open ?? []) as { id: string; action: string | null; check_key: string | null }[]);
-      if ("error" in hit) throw new ToolError(hit.error === "ambiguous" ? `More than one open item matches ${args.item_id}. Use the ref exactly as list_open_items shows it.` : `No open item ${args.item_id} on job ${job.job_number}. Call list_open_items for the refs.`);
+      if ("error" in hit) throw new ToolError(hit.error === "ambiguous" ? `More than one open item matches ${args.item_id}. Use the ref exactly as shown on the item line.` : `No open item ${args.item_id} on job ${job.job_number}. List the open items to see each ref.`);
       const itemId = hit.id;
       const { data: it, error } = await sb.from("mcp_open_items").select("id, job_id, section, check_key, item_type, action").eq("id", itemId).maybeSingle();
       if (error) throw new Error(error.message);

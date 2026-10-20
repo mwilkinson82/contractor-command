@@ -40,7 +40,7 @@ export const GUIDANCE_RE = new RegExp(
 /** snake_case field keys and codes (case-sensitive, so IANA zones like America/New_York pass). */
 export const SNAKE_RE = /(?<![A-Za-z/])[a-z]+(?:_[a-z0-9]+)+\b/;
 
-export const INTERNAL_CODE_RE = /\[ref #[0-9a-f]{6}[^\]]*\]|\btype (?:unknown|deadline|no|na_disposition|pending_document)\b|\b(?:setup|flag|tz|delay_notice|delay_claim|warranty|bss_[a-z_]+):[a-z0-9_:-]+/i;
+export const INTERNAL_CODE_RE = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b|\[ref #[0-9a-f]{6}[^\]]*\]|\btype (?:unknown|deadline|no|na_disposition|pending_document)\b|\b(?:setup|flag|tz|delay_notice|delay_claim|warranty|bss_[a-z_]+):[a-z0-9_:-]+/i;
 
 function sentences(line: string): string[] {
   // Split on sentence ends followed by a capital, keeping list markers and labels intact.

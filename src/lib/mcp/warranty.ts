@@ -42,7 +42,7 @@ export function renderWarrantyRegister(facts: Fact[], today: string): string[] {
   const by = new Map(facts.map((f) => [f.key, f]));
   if (!WARRANTY_SETUP_QUESTIONS.some((q) => by.has(q.key)) && !by.has("warranty_trigger_date")) return ["   Not set up yet. Athena asks the workmanship warranty and closeout questions in job setup."];
   const out: string[] = [];
-  const src = (f?: Fact) => (f?.source ? ` (${f.source === "member_answer" ? "manual" : f.source.replace(/_/g, " ")})` : "");
+  const src = (f?: Fact) => (isKnown(f) && f?.source ? ` (${f.source === "member_answer" ? "manual" : f.source.replace(/_/g, " ")})` : "");
   const has = by.get("workmanship_warranty");
   const months = by.get("workmanship_warranty_months");
   const trig = by.get("warranty_start_trigger");
