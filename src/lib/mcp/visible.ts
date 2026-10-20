@@ -178,9 +178,9 @@ export const SHARE_OPTIONS_REQUIRED =
 /** 0.8.9: pinned at the top of every date sweep. */
 export const SWEEP_CARD_REQUIRED =
   "REQUIRED: Show this date sweep as a card with a table (columns: Due, Item, Precaution, Ref), one row per item, grouped Overdue, Due today, Next 14 days. Never as plain bullets or a plain list, in every host including Claude.";
-/** 0.8.9: email cards carry a literal To: label. */
+/** 0.8.9: email cards carry a literal To: label. 0.8.10: as the first line inside the card. */
 export const EMAIL_TO_LABEL_REQUIRED =
-  'REQUIRED: Every email card shows a line that starts with the literal label "To:" followed by the address (or blank and ask in this same reply), above Subject.';
+  'REQUIRED: Inside every email card, the first line of the card itself is the literal label "To:" followed by the address (or blank and ask in this same reply), above Subject. Never put To: outside the card, above or below it.';
 /** 0.8.7: report sov always comes with a bar chart of scheduled value by line, in the fixed palette. */
 export const SOV_CHART_RULE =
   "REQUIRED, every host (Claude, ChatGPT, Grok and any other): draw a bar chart of the SOV from structuredContent.sov.chart: one bar per line (x: the line label, y: scheduled value), in the order given, placed directly under the SOV table and before the delivery question. Set the colors explicitly: bars #2563EB; axes, gridlines and labels in the grays #6B7280, #9CA3AF, #D1D5DB and #F3F4F6, with alternating gray bands (chart.band_colors) behind the bars; ChatGPT and every other host must show the gray as well as the blue. Never use the host's default palette, and never red, rose, pink, orange or amber. Money labels with cents (value_display). No chart title text beyond \"Scheduled value by line\" and no extra commentary. Bars alternate blue #2563EB and gray #9CA3AF (chart.bars[].color).";
@@ -213,7 +213,7 @@ export function sovRequiredTop(rows: { item_no: string; cost_code: string | null
   const data = rows.map((r) => `${r.item_no}${r.cost_code ? ` (${r.cost_code})` : ""} ${r.scheduled_value_display}`).join("; ");
   return [
     `REQUIRED: Draw this bar chart now under the table. Bars alternate blue #2563EB and gray #9CA3AF (1st bar blue, 2nd gray, 3rd blue, and so on; each bar's color is in structuredContent.chart.bars[].color); gray bands #F3F4F6 behind them; gray grid #D1D5DB; gray axes and labels #6B7280. No other colors. Data: ${data}.`,
-    `REQUIRED: Any email card for this SOV shows the literal label "To:" as its first line: ${toLine}. If there is no address, leave To: blank and ask for it in this same reply.`,
+    `REQUIRED: Any email card for this SOV shows the literal label "To:" as the first line inside the card itself (not above or below it): ${toLine}. If there is no address, leave To: blank and ask for it in this same reply.`,
     SHARE_OPTIONS_REQUIRED,
   ].join("\n");
 }
