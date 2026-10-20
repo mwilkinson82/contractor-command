@@ -46,3 +46,13 @@ export function matchRef(ref: string, items: { id: string; action: string | null
   if (hits.length === 1) return { id: hits[0].id };
   return { error: hits.length ? "ambiguous" : "not_found" };
 }
+
+/** Lookahead ref as printed for plain-text hosts: "LA-3F2A1" (first 5 hex of the id). The full id stays in structured content. */
+export const lookaheadRef = (id: string) => `LA-${id.replace(/-/g, "").slice(0, 5).toUpperCase()}`;
+
+/** Parse a lookahead ref as shown ("LA-3F2A1", "Lookahead ref LA-3F2A1", "la3f2a1") to its hex prefix, or null. */
+export function parseLookaheadRef(input: string): string | null {
+  const t = input.trim().replace(/^(?:look-?ahead\s*)?(?:ref\s*:?\s*)?/i, "");
+  const m = t.match(/^LA-?([0-9a-f]{5,32})$/i);
+  return m ? m[1].toLowerCase() : null;
+}

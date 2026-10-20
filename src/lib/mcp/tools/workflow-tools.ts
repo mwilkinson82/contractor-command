@@ -8,7 +8,7 @@ import { computeDue, todayIn, type DayType } from "../deadlines";
 import { INPUT_KEYS, INPUT_LABELS, currentCheck, loadLookahead, renderReport, type InputKey } from "../workflow";
 import { WARRANTY_CHECK_PREFIX, WARRANTY_SETUP_QUESTIONS, mapTrigger, nextWarrantyQuestion, CONTRACT_WARRANTY_KEY, alignCloseoutSource, renderWarrantyRegister, warrantyAnswerFacts, warrantyHow, warrantyOpenItems, type WarrantyKey } from "../warranty";
 import { EVIDENCE_ASK, evidenceProblem } from "../evidence";
-import { itemRef, matchRef, parseQuestionRef, questionRef, shortRef } from "../refs";
+import { isUuid, itemRef, lookaheadRef, matchRef, parseLookaheadRef, parseQuestionRef, questionRef, shortRef } from "../refs";
 import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
 import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
 import { guide } from "../visible";
@@ -18,6 +18,8 @@ import { FLAGS_ASKED_LATER, noGuidance, noGuidanceText, reconcileRecommendation 
 import { LOOKAHEAD_BUILD_QUESTIONS, LOOKAHEAD_EXISTS_ASK, LOOKAHEAD_PUSHBACK, LOOKAHEAD_SETUP_KEY, PUSHBACK_GUIDANCE, buildQuestionsGuidance, buildQuestionsText, pushbackText } from "../lookahead-help";
 
 const uuid = z.string().uuid();
+const laArg = z.string().trim().min(1).max(64);
+const LA_DESC = "The lookahead ref as printed (e.g. LA-3F2A1) or its lookahead_id.";
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
 const jobNumber = z.string().trim().min(1).max(40).describe("Job number, exact match (e.g. 2417).");
 const companyId = z.string().trim().min(1).max(200).optional().describe("Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. If the member hasn't named one, call list_open_items with no job_number to list the companies.");
@@ -441,16 +443,28 @@ export const intake = defineTool({
           const p = parseClause(c.text);
           return { section: normSection(c.section), heading: c.heading?.trim() || null, text: c.text, category: c.category ?? classifyClause(c.heading, c.text), ...p };
         });
+        const before = await loadClauses(sb, job.job_id);
         const r = await rpc<{ clauses: { section: string; source: "document" | "unverified" }[]; has_document: boolean }>(sb, "mcp_clauses_save", {
           _job: job.job_id, _doc: args.contract_text?.trim() ? { name: args.contract_document_name ?? "contract", body: args.contract_text } : null, _clauses: rows,
         });
-        const saved = await loadClauses(sb, job.job_id);
-        const made = await syncClauseItems(sb, job, saved);
         const srcOf = new Map(r.clauses.map((c) => [c.section, c.source]));
-        const unverified = rows.filter((x) => srcOf.get(x.section) !== "document");
+        // Verified contract text is never overwritten by wording that isn't in the contract: put the verified text back and flag the new wording.
+        const reworded = rows.filter((x) => srcOf.get(x.section) !== "document" && before.some((b) => b.section === x.section && b.source === "document" && b.verbatim_text.trim() !== x.text.trim()));
+        const flagged: ItemResult[] = [];
+        if (reworded.length) {
+          const keep = before.filter((b) => reworded.some((x) => x.section === b.section));
+          await rpc(sb, "mcp_clauses_save", { _job: job.job_id, _doc: null, _clauses: keep.map((b) => ({ section: b.section, heading: b.heading, text: b.verbatim_text, category: b.category, n_days: b.n_days, day_type: b.day_type, trigger_desc: b.trigger_desc })) });
+          for (const x of reworded)
+            flagged.push(await rpc<ItemResult>(sb, "mcp_add_item", { _job: job.job_id, _f: { check_key: `clause_reworded:${x.section}`, action: `Check new §${x.section} wording: it isn't in the contract, so the verified contract text was kept`, item_type: "unknown", kind: "confirm_unknown", section: "contract_time", category: "Contract clause", why: `Proposed wording (not saved): ‹${x.text.trim().slice(0, 1500)}›. Verified contract text is never replaced by wording the contract doesn't contain.`, source: "member_answer", tool: "intake", internal_only: true } }));
+        }
+        const saved = await loadClauses(sb, job.job_id);
+        const made = [...(await syncClauseItems(sb, job, saved)), ...flagged.filter((m) => !m.existing)];
+        const isReworded = (sec: string) => reworded.some((x) => x.section === sec);
+        const unverified = rows.filter((x) => srcOf.get(x.section) !== "document" && !isReworded(x.section));
         const lines = [
-          `${P}Contract clauses saved as written (${rows.length}).${r.has_document ? "" : " No contract text on file, so none could be verified: every clause is marked UNVERIFIED until the contract text is provided."}`,
-          ...saved.filter((c) => rows.some((x) => x.section === c.section)).map((c) => `- ${clauseLine(c)}`),
+          `${P}Contract clauses saved as written (${rows.length - reworded.length}).${r.has_document ? "" : " No contract text on file, so none could be verified: every clause is marked UNVERIFIED until the contract text is provided."}`,
+          ...saved.filter((c) => rows.some((x) => x.section === c.section) && !isReworded(c.section)).map((c) => `- ${clauseLine(c)}`),
+          ...reworded.map((x) => `Kept the verified contract text for §${x.section}: the new wording isn't in the contract, so it wasn't saved. An open item was opened to check it.`),
           ...(unverified.length && r.has_document ? [`Not found exactly in the contract text: ${unverified.map((x) => `§${x.section}`).join(", ")}. Check the wording; an open item was opened for each.`] : []),
           ...missingNotices(saved).map((m) => `Missing from the contract clauses: ${m.label}. An open item asks you to confirm it; nothing was filled in.`),
         ];
@@ -696,9 +710,9 @@ export const intake = defineTool({
       }
       return {
         ...text(
-          `${P}Look-ahead created for ${args.start_date ?? "the next two weeks"}${args.end_date ? ` to ${args.end_date}` : ""}.\n\nProvided:\n${provided.map((k) => `- ${INPUT_LABELS[k as InputKey]}`).join("\n") || "- none"}\n\nMissing (recorded as unknown):\n${missing.map((k) => `- ${INPUT_LABELS[k]}`).join("\n") || "- none"}\n\nNext: next_question with this job_number and lookahead_id (from structuredContent; don't show the id to the member).`,
+          `${P}Look-ahead created (${lookaheadRef(la.id)}) for ${args.start_date ?? "the next two weeks"}${args.end_date ? ` to ${args.end_date}` : ""}.\n\nProvided:\n${provided.map((k) => `- ${INPUT_LABELS[k as InputKey]}`).join("\n") || "- none"}\n\nMissing (recorded as unknown):\n${missing.map((k) => `- ${INPUT_LABELS[k]}`).join("\n") || "- none"}\n\nLookahead ref: ${lookaheadRef(la.id)}\nNext: next_question with this job_number and lookahead ref ${lookaheadRef(la.id)}.`,
         ),
-        structuredContent: { lookahead_id: la.id, provided, missing },
+        structuredContent: { lookahead_id: la.id, lookahead_ref: lookaheadRef(la.id), provided, missing },
       };
     }),
 });
@@ -731,7 +745,18 @@ async function settleFlagConfirms(sb: Sb, job: Job) {
   }
 }
 
-async function lookaheadForJob(sb: Sb, job: Job, id: string) {
+async function lookaheadForJob(sb: Sb, job: Job, input: string) {
+  let id = input.trim();
+  if (!isUuid(id)) {
+    const pre = parseLookaheadRef(id);
+    if (!pre) throw new ToolError("Lookahead not found. Use the lookahead ref (LA-…) printed when it was created, or list the job's open items to see each ref.");
+    const { data, error } = await sb.from("mcp_lookaheads").select("id").eq("job_id", job.job_id);
+    if (error) throw new Error(error.message);
+    const hits = (data ?? []).filter((r: { id: string }) => r.id.replace(/-/g, "").startsWith(pre));
+    if (hits.length > 1) throw new ToolError(`More than one lookahead on job ${job.job_number} matches ${input.trim()}. Use the ref exactly as printed.`);
+    if (!hits.length) throw new ToolError(`Lookahead not found on job ${job.job_number}. List the open items for the job to see each lookahead ref.`);
+    id = hits[0].id;
+  } else id = id.toLowerCase();
   const la = await loadLookahead(sb, id);
   if (la.job_id !== job.job_id) throw new ToolError(`That lookahead doesn't belong to job ${job.job_number}.`);
   return la;
@@ -743,7 +768,7 @@ export const nextQuestion = defineTool({
   name: "next_question",
   title: "Next question",
   description: "Get the next setup question for a job, one at a time (or the next lookahead question when lookahead_id is given). Skips anything marked N/A or already answered.",
-  inputSchema: { job_number: jobNumber, company_id: companyId, lookahead_id: uuid.optional().describe("Only for a two-week lookahead.") },
+  inputSchema: { job_number: jobNumber, company_id: companyId, lookahead_id: laArg.optional().describe(`Only for a two-week lookahead. ${LA_DESC}`) },
   annotations: { ...WRITE, idempotentHint: true },
   handler: (args, ctx) =>
     run("next_question", ctx, { lookaheadId: args.lookahead_id, jobNumber: args.job_number }, async (sb) => {
@@ -817,7 +842,7 @@ export const answer = defineTool({
     scope: z.enum(["item", "section"]).optional().describe("mark_na / reenable: item or section."),
     section: z.string().max(60).optional().describe("mark_na / reenable with scope section: section name, e.g. bid_documents, insurance_bonding, contract_time, self_perform_premob."),
     na_id: uuid.optional().describe("decline_reenable: na_id from the suggestion."),
-    lookahead_id: uuid.optional().describe("Only for a two-week lookahead question."),
+    lookahead_id: laArg.optional().describe(`Only for a two-week lookahead question. ${LA_DESC}`),
   },
   annotations: { ...WRITE, idempotentHint: false },
   handler: (args, ctx) =>
@@ -928,7 +953,7 @@ export const report = defineTool({
     job_number: jobNumber,
     company_id: companyId,
     audience: z.enum(["internal", "client"]).optional().describe("Default internal."),
-    lookahead_id: uuid.optional().describe("Only for a two-week lookahead report."),
+    lookahead_id: laArg.optional().describe(`Only for a two-week lookahead report. ${LA_DESC}`),
     deliverable: z.enum(["setup", "sov"]).optional().describe("Default setup. sov: the schedule of values data and its layout recipe (full job access only; audience client for the copy sent to the owner)."),
   },
   annotations: { ...READ, idempotentHint: true },
@@ -959,13 +984,13 @@ export const carryForward = defineTool({
   name: "carry_forward",
   title: "Carry forward open items",
   description: "Move open items from last week's lookahead into this week's lookahead for the same job, with history.",
-  inputSchema: { job_number: jobNumber, company_id: companyId, from_lookahead_id: uuid.describe("Previous lookahead_id."), to_lookahead_id: uuid.describe("New lookahead_id from intake.") },
+  inputSchema: { job_number: jobNumber, company_id: companyId, from_lookahead_id: laArg.describe(`Previous lookahead. ${LA_DESC}`), to_lookahead_id: laArg.describe(`New lookahead from intake. ${LA_DESC}`) },
   annotations: { ...WRITE, idempotentHint: true },
   handler: (args, ctx) =>
     run("carry_forward", ctx, { lookaheadId: args.to_lookahead_id, jobNumber: args.job_number }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id, "full");
-      if (args.from_lookahead_id === args.to_lookahead_id) throw new ToolError("from and to lookaheads must be different.");
       const [from, to] = await Promise.all([lookaheadForJob(sb, job, args.from_lookahead_id), lookaheadForJob(sb, job, args.to_lookahead_id)]);
+      if (from.id === to.id) throw new ToolError("from and to lookaheads must be different.");
       const { data: items, error } = await sb.from("mcp_open_items").select("id, carry_count, section, check_key, item_type").eq("lookahead_id", from.id).eq("status", "open");
       const nas = await activeNa(sb, job.job_id);
       if (error) throw new Error(error.message);
@@ -978,7 +1003,7 @@ export const carryForward = defineTool({
       await audit(sb, job, "carry_forward", "carry_forward", to.id);
       const typed = (items ?? []).map((i) => ({ item_id: i.id, item_type: itemType(i, nas) }));
       return guide({
-        ...text(`${prefix(job)}${typed.length} open item(s) carried forward.`),
+        ...text(`${prefix(job)}${typed.length} open item(s) carried forward from ${lookaheadRef(from.id)} to ${lookaheadRef(to.id)}.`),
         structuredContent: { items: typed.map((t) => ({ ...t, item_ref: shortRef(t.item_id) })) },
       }, "Next: next_question for the new lookahead.");
     }),
@@ -1014,7 +1039,7 @@ export const listOpenItems = defineTool({
   inputSchema: {
     job_number: listJobNumber,
     company_id: companyId,
-    lookahead_id: uuid.optional().describe("Limit to one lookahead."),
+    lookahead_id: laArg.optional().describe(`Limit to one lookahead. ${LA_DESC}`),
   },
   annotations: { ...READ, idempotentHint: true },
   handler: (args, ctx) =>
@@ -1022,15 +1047,22 @@ export const listOpenItems = defineTool({
       if (!args.job_number?.trim()) return text(await listCompaniesAndJobs(sb, args.company_id));
       const job = await resolveJob(sb, args.job_number, args.company_id);
       let q = sb.from("mcp_open_items").select(ITEM_COLS).eq("job_id", job.job_id).eq("status", "open");
-      if (args.lookahead_id) q = q.eq("lookahead_id", args.lookahead_id);
+      const la = args.lookahead_id ? await lookaheadForJob(sb, job, args.lookahead_id) : null;
+      if (la) q = q.eq("lookahead_id", la.id);
+      let laBlock = "";
+      if (!la) {
+        const { data: las } = await sb.from("mcp_lookaheads").select("id, start_date, end_date, created_at").eq("job_id", job.job_id).order("created_at", { ascending: false }).limit(10);
+        if (las?.length) laBlock = `\n\nLookaheads (newest first):\n${las.map((l: { id: string; start_date: string | null; end_date: string | null }) => `- ${lookaheadRef(l.id)}: ${l.start_date ?? "dates unknown"}${l.end_date ? ` to ${l.end_date}` : ""}`).join("\n")}`;
+      }
+      const laHead = la ? `Lookahead ${lookaheadRef(la.id)}: ` : "";
       const [{ data, error }, nas] = await Promise.all([q.order("needed_by", { nullsFirst: false }).limit(200), activeNa(sb, job.job_id)]);
       if (error) throw new Error(error.message);
       const tz = await jobTimeZone(sb, job.job_id);
       await audit(sb, job, "list_open_items", "view_open_items", null);
-      if (!data?.length) return text(`${prefix(job)}No open items.`);
+      if (!data?.length) return text(`${prefix(job)}${laHead}No open items.${laBlock}`);
       const lines = (data as unknown as Parameters<typeof itemLine>[0][]).map((it) => `- ${itemLine(it, nas, job.scope !== "full", { tz })}`);
       const rows = data as unknown as Parameters<typeof itemLine>[0][];
-      return { ...text(`${prefix(job)}Open items (${data.length}):\n${lines.join("\n")}`), structuredContent: { items: rows.map((i) => ({ item_ref: itemRef(i), item_id: i.id, item_type: itemType(i, nas) })) } };
+      return { ...text(`${prefix(job)}${laHead}Open items (${data.length}):\n${lines.join("\n")}${laBlock}`), structuredContent: { items: rows.map((i) => ({ item_ref: itemRef(i), item_id: i.id, item_type: itemType(i, nas) })) } };
     }),
 });
 

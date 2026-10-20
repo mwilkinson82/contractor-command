@@ -1,4 +1,4 @@
-import { shortRef } from "./refs";
+import { lookaheadRef, shortRef } from "./refs";
 // Server-side workflow: checklist evaluation and fixed report rendering.
 // Rule types and required inputs are never returned to the host.
 import { ToolError } from "@lovable.dev/mcp-js";
@@ -45,7 +45,7 @@ export async function loadLookahead(sb: Sb, id: string): Promise<Lookahead> {
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!data) throw new ToolError("Lookahead not found. Use the lookahead_id returned by intake.");
+  if (!data) throw new ToolError("Lookahead not found. Use the lookahead ref (LA-…) printed when it was created, or list the job's open items to see each ref.");
   return data as Lookahead;
 }
 
@@ -128,7 +128,7 @@ export async function renderReport(sb: Sb, la: Lookahead) {
   const due = (d: string | null) => d ?? "unknown";
   const out: string[] = [];
   const window = `${la.start_date ?? "unknown"} to ${la.end_date ?? "unknown"}`;
-  out.push(`TWO-WEEK LOOKAHEAD REPORT`, `Job: ${job?.name ?? "unknown"}${job?.job_number ? ` (#${job.job_number})` : ""}`, `Window: ${window}`, `Lookahead ID: ${la.id}`, "");
+  out.push(`TWO-WEEK LOOKAHEAD REPORT`, `Job: ${job?.name ?? "unknown"}${job?.job_number ? ` (#${job.job_number})` : ""}`, `Window: ${window}`, `Lookahead ref: ${lookaheadRef(la.id)}`, "");
 
   out.push("1. HIT LIST");
   if (!items.length) out.push("   None.");

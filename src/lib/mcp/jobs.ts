@@ -138,7 +138,8 @@ function typeDetail(it: Item, t: string, client: boolean, clientFacing = false) 
   if (t === "no") return ` | Recommendation: ${it.recommendation ?? "none recorded"} | Why: ${it.why ?? "best-practice gap"} | ${it.help_offer ?? "Athena can help with this."}`;
   if (t === "pending_document") return ` | Waiting on: ${it.waiting_on_document ?? "unknown document"} from ${it.waiting_on_who ?? "unknown"} since ${it.waiting_since ?? "unknown"}`;
   if (t === "deadline") return ` | Clause/source: ${it.clause_source ?? "unknown"} | Method: ${it.delivery_method ?? "unknown"} | Recipient: ${it.recipient ?? "unknown"}`;
-  if (t === "unknown") return " | Needs confirming evidence or a dated member statement";
+  // The evidence prompt follows the resolve rule: only a confirm item (kind confirm_unknown) closes on a dated member statement.
+  if (t === "unknown") return it.kind === "confirm_unknown" ? " | Needs confirming evidence or a dated member statement" : " | Needs evidence (a document or record); a member statement won't close it";
   return client ? "" : "";
 }
 
