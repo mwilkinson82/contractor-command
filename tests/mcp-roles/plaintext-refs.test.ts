@@ -65,8 +65,8 @@ describe("fix 1: plain-text refs", () => {
 });
 
 describe("fix 2: version", () => {
-  test("onboarding shows Athena v0.7.0", async () => {
-    expect((await call("onboarding", { action: "read" })).text).toMatch(/^Athena v0\.7\.0$/m);
+  test("onboarding shows Athena v0.7.1", async () => {
+    expect((await call("onboarding", { action: "read" })).text).toMatch(/^Athena v0\.7\.1$/m);
   });
 });
 

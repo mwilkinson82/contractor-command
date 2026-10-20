@@ -166,3 +166,32 @@ describe("client report: internal follow-up dates stay internal", () => {
     expect(body).not.toMatch(/Needed by/);
   });
 });
+
+describe("retest 2: client date sweep and lookahead order", () => {
+  test("client date sweep: contract dates only, no Accountable; internal sweep unchanged", async () => {
+    await call("intake", { section: "create_job", job_number: "F-4", job_name: "TEST F-4" });
+    await call("intake", { section: "job_settings", job_number: "F-4", time_zone: "America/Chicago" });
+    const soon = (n: number) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+    expect((await call("intake", { section: "deadline", job_number: "F-4", clause_key: "completion", clause_ref: "§5.2", label: "TEST long-lead submittals", fixed_date: soon(5) })).isError).toBe(false);
+    expect((await call("intake", { section: "open_item", job_number: "F-4", action: "TEST follow up on owner walk", needed_by: soon(2) })).isError).toBe(false);
+    const internal = await call("report", { job_number: "F-4" });
+    const iSweep = internal.text.slice(0, internal.text.indexOf("\n\n====\n\n"));
+    expect(iSweep).toMatch(/TEST follow up on owner walk.*\| Accountable:/);
+    const cl = await call("report", { job_number: "F-4", audience: "client" });
+    const cSweep = cl.text.slice(0, cl.text.indexOf("\n\n====\n\n"));
+    expect(cSweep).toMatch(/TEST long-lead submittals \(§5\.2\)/);
+    expect(cSweep).not.toMatch(/TEST follow up on owner walk/);
+    expect(cSweep).not.toMatch(/Accountable/);
+    expect(cSweep).not.toMatch(/Confirm delivery method/);
+  });
+  test("Lookaheads list sorts by window, newest first; undated last", async () => {
+    await call("intake", { section: "create_job", job_number: "F-5", job_name: "TEST F-5" });
+    for (const [s, e] of [["2026-10-19", "2026-11-01"], ["2026-10-12", "2026-10-25"], [null, null], ["2026-10-26", "2026-11-08"]] as const)
+      expect((await call("intake", { section: "lookahead", lookahead_exists: "yes", job_number: "F-5", ...(s ? { start_date: s, end_date: e } : {}) })).isError).toBe(false);
+    const r = await call("list_open_items", { job_number: "F-5" });
+    const block = r.text.slice(r.text.indexOf("Lookaheads (newest first):")).split("\n").filter((l) => l.startsWith("- LA-")).map((l) => l.replace(/^- LA-[0-9A-F]{5}: /, ""));
+    expect(block.slice(0, 3)).toEqual(["2026-10-26 to 2026-11-08", "2026-10-19 to 2026-11-01", "2026-10-12 to 2026-10-25"]);
+    expect(block.slice(3).length).toBeGreaterThan(0);
+    expect(block.slice(3).every((l) => l === "dates unknown")).toBe(true);
+  });
+});
