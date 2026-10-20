@@ -148,3 +148,18 @@ describe("0.8.9 CPM activity handoff, tie guard, owner-furnished, living reports
     expect(sql).toContain("doesn''t tie to the contract");
   });
 });
+
+import { REPORT_SHARE_STRUCTURED, SHARE_OPTIONS_REQUIRED, SWEEP_CARD_REQUIRED, EMAIL_TO_LABEL_REQUIRED, sovChart, SOV_DELIVERY_STRUCTURED } from "./visible";
+describe("0.8.9 retest fixes", () => {
+  it("SOV bars alternate blue and gray", () => {
+    const c = sovChart([1, 2, 3].map((n) => ({ item_no: `${n}`, cost_code: null, description: null, scheduled_value: n, scheduled_value_display: `$${n}.00` })));
+    expect(c.bars.map((b) => b.color)).toEqual(["#2563EB", "#9CA3AF", "#2563EB"]);
+  });
+  it("share, sweep and To: REQUIRED lines", () => {
+    expect(SHARE_OPTIONS_REQUIRED).toMatch(/^REQUIRED: .*all 3 sharing options.*Never recommend/);
+    expect(SWEEP_CARD_REQUIRED).toMatch(/^REQUIRED: .*card with a table.*Never as plain bullets/);
+    expect(EMAIL_TO_LABEL_REQUIRED).toContain('"To:"');
+    expect(REPORT_SHARE_STRUCTURED.options).toHaveLength(3);
+    expect(SOV_DELIVERY_STRUCTURED.never_recommend_one).toBe(true);
+  });
+});
