@@ -142,3 +142,52 @@ describe("role guardrails", () => {
     expect(Number(fee)).toBe(15);
   });
 });
+
+describe("owner SOV text keeps its amounts; other client output stays filtered", () => {
+  const soon = new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10);
+  beforeAll(async () => {
+    const a = await call("owner", "intake", { section: "open_item", job_number: "S-1", kind: "commercial", commercial_type: "claim", action: "Submit claim notice (§7.4) for TEST delay worth $12,345", needed_by: soon });
+    expect(a.isError, a.text).toBe(false);
+    const b = await call("owner", "intake", { section: "open_item", job_number: "S-1", action: "TEST owner walk, collect $5,000 deposit", needed_by: soon });
+    expect(b.isError, b.text).toBe(false);
+  });
+  const parts = (t: string) => { const i = t.indexOf("\n\n====\n\n"); return { sweep: i < 0 ? "" : t.slice(0, i), body: i < 0 ? t : t.slice(i) }; };
+
+  test("owner SOV (client audience): dollar figures and fee line survive in the visible text", async () => {
+    const r = await call("owner", "report", { job_number: "S-1", deliverable: "sov", audience: "client" });
+    expect(r.isError, r.text).toBe(false);
+    const { body } = parts(r.text);
+    expect(body).toMatch(/SCHEDULE OF VALUES \(for the owner/);
+    expect(body).toMatch(/Contract total: \$3,897,868\.94/);
+    expect(body).toMatch(/Contractor's fee: \$584,680\.34 \(15\.00%\)/);
+    expect(body).toMatch(/General Conditions: \$390,000\.55/);
+    expect(body).not.toMatch(/amount withheld/);
+  });
+  test("owner SOV: the date sweep above it is still filtered (no claim, no §7.4, amounts withheld)", async () => {
+    const r = await call("owner", "report", { job_number: "S-1", deliverable: "sov", audience: "client" });
+    const { sweep } = parts(r.text);
+    expect(sweep).not.toMatch(/claim/i);
+    expect(sweep).not.toMatch(/§\s?7\.4/);
+    expect(sweep).not.toMatch(/\$\d/);
+    expect(r.text).not.toMatch(/claim/i);
+    expect(r.text).not.toMatch(/§\s?7\.4/);
+  });
+  test("internal SOV still shows the claim in its sweep (sanity: the item is in range)", async () => {
+    const r = await call("owner", "report", { job_number: "S-1", deliverable: "sov" });
+    expect(r.text).toMatch(/§7\.4/);
+  });
+  test("client setup report: no dollars, no fee, no claim text, no §7.4", async () => {
+    const r = await call("owner", "report", { job_number: "S-1", audience: "client" });
+    expect(r.isError, r.text).toBe(false);
+    expect(r.text).not.toMatch(/\$\d/);
+    expect(r.text).not.toMatch(/claim/i);
+    expect(r.text).not.toMatch(/§\s?7\.4/);
+    expect(r.text).not.toMatch(/\bfee\b/i);
+  });
+  test("a limited role asking for the owner SOV gets no amounts", async () => {
+    const r = await call("super", "report", { job_number: "S-1", deliverable: "sov", audience: "client" });
+    expect(r.isError).toBe(true);
+    expect(r.text).not.toMatch(/\$\d/);
+    expect(r.text).not.toMatch(/§\s?7\.4/);
+  });
+});
