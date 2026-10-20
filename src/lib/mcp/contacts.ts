@@ -129,14 +129,14 @@ export function emailContact(c: JobContact | null) {
     const toLine = c.email ? `To: ${c.email}` : `To: (ask: what's ${c.name}'s email?)`;
     return {
       structured: { known: true, name: c.name, role: c.role, company: c.company, email: c.email, greeting: `Hi ${first},`, to: c.email ?? null, ask,
-        to_line: toLine, to_field: { show: true, label: "To", value: c.email ?? "", blank: !c.email }, ask_in_same_reply: !c.email },
+        to_line: toLine, to_label: "To:", to_field: { show: true, label: "To", value: c.email ?? "", blank: !c.email }, ask_in_same_reply: !c.email },
       text: `${toLine}\nSend to: ${contactText(c)}${c.email ? "" : ` (no email on file — what's ${c.name}'s email?)`}. Greeting: "Hi ${first},"`,
     };
   }
   const ask = "Who should this go to? (name and email)";
   return {
     structured: { known: false, name: null, role: null, company: null, email: null, greeting: null, to: null, ask,
-      to_line: "To: (ask: who should this go to? name and email)", to_field: { show: true, label: "To", value: "", blank: true }, ask_in_same_reply: true },
+      to_line: "To: (ask: who should this go to? name and email)", to_label: "To:", to_field: { show: true, label: "To", value: "", blank: true }, ask_in_same_reply: true },
     text: `To: (ask: who should this go to? name and email)\nNo contact saved for this job. ${ask}`,
   };
 }

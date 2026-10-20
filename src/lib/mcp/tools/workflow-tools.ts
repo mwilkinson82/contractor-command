@@ -12,7 +12,7 @@ import { EVIDENCE_ASK, evidenceProblem } from "../evidence";
 import { displayRef, isUuid, itemRef, lookaheadRef, matchRef, parseLookaheadRef, parseQuestionRef, questionRef, shortRef } from "../refs";
 import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
 import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
-import { guide, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_CHART_RULE, sovChart, sovRequiredTop, sovDeliveryAsk, sovDeliveryBlock, sovDeliveryStructured, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
+import { guide, EMAIL_TO_LABEL_REQUIRED, SHARE_OPTIONS_REQUIRED, REPORT_SHARE_ASK, REPORT_SHARE_STRUCTURED, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_CHART_RULE, sovChart, sovRequiredTop, sovDeliveryAsk, sovDeliveryBlock, sovDeliveryStructured, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
 import { withoutClaims } from "../internal-claims";
 import { EMAIL_CONTACT_RULE, contactForRole, dedupeNotices, emailContact, fillNotice, jobContacts } from "../contacts";
 import { noticeRequirements } from "../notice-plain";
@@ -1111,7 +1111,8 @@ export const report = defineTool({
       const its = audience === "client" ? withoutClaims(its0 ?? []) : its0;
       // Client-facing output never carries item ids.
       const items = (its ?? []).map((i) => (audience === "client" ? { item_type: itemType(i, nas) } : { item_id: i.id, item_type: itemType(i, nas) }));
-      return { ...text(body), structuredContent: { items } };
+      // 0.8.9: sharing a report with the team or owner always lists all three options.
+      return { ...text(`${SHARE_OPTIONS_REQUIRED}\n${body}\n\n${REPORT_SHARE_ASK}`), structuredContent: { items, delivery: { ...REPORT_SHARE_STRUCTURED, audience } } };
     }),
 });
 
@@ -1408,7 +1409,7 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
   return guide(
     {
       // 0.8.4: the delivery step rides in the tool text and structuredContent, not only in guidance, so every host (Claude too) asks it.
-      ...text(`${sovRequiredTop(sovLineRows(sov), ec.structured.to_line)}\n${sovSummaryText(prefix(job), sov, brand, jr.data?.sov_basis ?? null, sovFooterMissing(c), audience, view)}${sovSpecsMissing(sov) ? `\n${SOV_SPECS_MISSING_NOTE}` : ""}\n\n${sovDeliveryAsk(audience)}\nFor option 2 or 3:\n${ec.text}`),
+      ...text(`${sovRequiredTop(sovLineRows(sov), ec.structured.to_line)}\n${sovSummaryText(prefix(job), sov, brand, jr.data?.sov_basis ?? null, sovFooterMissing(c), audience, view)}${sovSpecsMissing(sov) ? `\n${SOV_SPECS_MISSING_NOTE}` : ""}\n\n${sovDeliveryAsk(audience)}\nFor option 2 or 3:\n${EMAIL_TO_LABEL_REQUIRED}\n${ec.text}`),
       structuredContent: {
         sov: {
           audience,
