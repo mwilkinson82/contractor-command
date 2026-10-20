@@ -36,8 +36,9 @@ export const Route = createFileRoute("/oauth/consent")({
     ],
     // Athena mark on the consent page only; the Hub's own favicon is unchanged.
     links: [
-      { rel: "icon", type: "image/png", sizes: "512x512", href: "/brand/athena/athena-primary-512.png" },
-      { rel: "apple-touch-icon", sizes: "512x512", href: "/brand/athena/athena-primary-512.png" },
+      { rel: "icon", type: "image/svg+xml", sizes: "any", href: "/brand/athena/athena-mark-mono-blue.svg" },
+      { rel: "icon", type: "image/png", sizes: "512x512", href: "/brand/athena/athena-mono-blue-512.png" },
+      { rel: "apple-touch-icon", sizes: "512x512", href: "/brand/athena/athena-mono-blue-512.png" },
     ],
   }),
   validateSearch: (s: Record<string, unknown>) => ({

@@ -11,7 +11,10 @@ import { emailBrand, emailStyles } from "./_brand";
 export const ATHENA_SIGN_IN_SUBJECT = "Sign into Athena";
 export const ATHENA_SIGN_IN_BODY =
   "Use the secure link below to sign into Athena and continue connecting your account.";
-const ATHENA_LOGO_URL = "https://app.alpcontractorcircle.com/brand/athena/athena-primary-512.png";
+const ATHENA_LOGO_URL = "https://app.alpcontractorcircle.com/brand/athena/athena-mono-blue-512.png";
+
+// 0.8.8: Athena blue brand (mono-blue mark, #2563EB accents) replaces the old orange.
+const ATHENA_BLUE = "#2563EB";
 
 interface AthenaMagicLinkEmailProps {
   confirmationUrl: string;
@@ -36,7 +39,7 @@ export const AthenaMagicLinkEmail = ({ confirmationUrl }: AthenaMagicLinkEmailPr
           <EmailSection style={responsiveEmail.body}>
             <Heading style={emailStyles.h1}>{ATHENA_SIGN_IN_SUBJECT}</Heading>
             <Text style={emailStyles.text}>{ATHENA_SIGN_IN_BODY}</Text>
-            <Button style={responsiveEmail.button} href={confirmationUrl}>
+            <Button style={{ ...responsiveEmail.button, backgroundColor: ATHENA_BLUE, borderColor: ATHENA_BLUE, color: "#FFFFFF" }} href={confirmationUrl}>
               {ATHENA_SIGN_IN_SUBJECT}
             </Button>
             <Text style={styles.footer}>
@@ -60,14 +63,14 @@ export const template = {
 
 const styles = {
   header: {
-    backgroundColor: "#F7F2EA",
-    borderTop: `5px solid ${emailBrand.signal}`,
+    backgroundColor: "#EFF6FF",
+    borderTop: `5px solid ${ATHENA_BLUE}`,
     padding: "26px 16px 20px",
     width: "100%",
     tableLayout: "fixed",
   },
   label: {
-    color: "#6B6259",
+    color: "#5B616B",
     fontFamily: "Arial, Helvetica, sans-serif",
     fontSize: 10,
     lineHeight: "17px",
