@@ -89,11 +89,26 @@ const csrfOriginGuard = createMiddleware().server(async ({ next, request }) => {
  * so the MCP handler returns 401 + WWW-Authenticate; the per-tool guard
  * re-checks entitlement on every call.
  */
+async function hasToolCall(request: Request): Promise<boolean> {
+  if (request.method.toUpperCase() !== "POST") return false;
+  try {
+    const parsed = JSON.parse(await request.clone().text()) as { method?: string } | { method?: string }[];
+    const list = Array.isArray(parsed) ? parsed : [parsed];
+    return list.some((m) => m?.method === "tools/call");
+  } catch {
+    return true; // unreadable body: keep the gate
+  }
+}
+
 const mcpEntitlementGate = createMiddleware().server(async ({ next, request }) => {
   const url = new URL(request.url);
   if (url.pathname !== "/mcp" && !url.pathname.startsWith("/mcp/")) return next();
   const authz = request.headers.get("authorization") ?? "";
   if (!authz.startsWith("Bearer ")) return next();
+  // 0.8.9: only tools/call needs the membership check here (the per-tool guard re-checks it too).
+  // initialize, tools/list, ping and notifications skip the database round trip, so a cold
+  // first connect (Claude's first fresh chat) gets its tool list fast instead of timing out.
+  if (!(await hasToolCall(request))) return next();
   let ent;
   try {
     ent = await checkAthenaEntitlement(supabaseForToken(authz.slice(7).trim()));

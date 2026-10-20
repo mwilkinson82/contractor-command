@@ -13,7 +13,7 @@
   "mcp": {
     "server": {
       "name": "athena",
-      "version": "0.8.8",
+      "version": "0.8.9",
       "title": "Athena powered by ALP, construction agents"
     },
     "tools": [
@@ -1464,6 +1464,440 @@
             "job_number",
             "item_id",
             "kind"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "cpm_activities",
+        "title": "Full CPM activity list",
+        "description": "REQUIRED: call this before drawing or updating any cost-loaded CPM, billing forecast, billing drill-down, coaching, IOR or dashboard. Returns every saved activity on the job (ID, name, duration, start/finish, predecessors and logic, total float, critical flag, % complete, $ value, SOV line, cost code), the count check (e.g. 39 of 39), the tie to the contract, the ONE saved contract completion date and the computed delay (TIA) result. Use these values exactly; never recompute, rebuild from an earlier chat, or guess them. Owner-furnished activities are $0.00 in ALP billing. Supers get the schedule with no dollars.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false,
+          "idempotentHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "version": {
+              "description": "A past CPM version to view; default the latest saved one.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "living_report_get",
+        "title": "Living report master copy",
+        "description": "REQUIRED: call this before updating a cost-loaded CPM, billing forecast, IOR or PM dashboard, and when a new chat picks one up. Returns the saved master copy (latest or a named version) with its version, last-updated stamp, data date, data and change log. Update that copy in place; never start a second one. Supers: CPM only, no dollars.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false,
+          "idempotentHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "report_type": {
+              "type": "string",
+              "enum": [
+                "cpm",
+                "billing_forecast",
+                "ior",
+                "dashboard"
+              ],
+              "description": "cpm (cost-loaded CPM), billing_forecast, ior or dashboard."
+            },
+            "version": {
+              "description": "A past version (for v6 vs v7 or a rollback view); default the latest.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "job_number",
+            "report_type"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "living_report_save",
+        "title": "Save living report version (after approval)",
+        "description": "REQUIRED: ask the PM first and call this only after they say yes to this exact update. Saves a new version of the job's cost-loaded CPM, billing forecast, IOR or PM dashboard as the master copy, with what changed and why. Athena refuses the save if any activity is dropped, an activity is undated, or (CPM and billing forecast) the total doesn't equal the contract to the cent. Owner-furnished work is $0.00 in ALP billing. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "report_type": {
+              "type": "string",
+              "enum": [
+                "cpm",
+                "billing_forecast",
+                "ior",
+                "dashboard"
+              ],
+              "description": "cpm (cost-loaded CPM), billing_forecast, ior or dashboard."
+            },
+            "base_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The version you loaded with living_report_get (0 for the first save)."
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true,
+              "description": "true only after the PM said yes to saving this exact update."
+            },
+            "data_date": {
+              "description": "The update's data date.",
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "what_changed": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "description": "One line: what changed since the last version."
+            },
+            "why": {
+              "description": "Why it changed.",
+              "type": "string",
+              "maxLength": 500
+            },
+            "activities": {
+              "description": "The FULL activity list (every activity, none dropped). Required for cpm.",
+              "maxItems": 400,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "duration": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 5000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "start": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "finish": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "predecessors": {
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 20
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "FS",
+                            "SS",
+                            "FF",
+                            "SF"
+                          ]
+                        },
+                        "lag": {
+                          "type": "integer",
+                          "minimum": -999,
+                          "maximum": 999
+                        }
+                      },
+                      "required": [
+                        "id"
+                      ]
+                    }
+                  },
+                  "total_float": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -5000,
+                        "maximum": 5000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "critical": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "pct_complete": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 100
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "sov_line": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 20
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "cost_code": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 20
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "owner_furnished": {
+                    "description": "true for owner-furnished work (schedule-only, $0.00 in ALP billing).",
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "duration",
+                  "start",
+                  "finish",
+                  "predecessors",
+                  "total_float",
+                  "critical",
+                  "pct_complete",
+                  "value",
+                  "sov_line",
+                  "cost_code"
+                ]
+              }
+            },
+            "billing": {
+              "description": "Billing forecast: every month, billed actuals and forecast. Months must total the contract.",
+              "type": "object",
+              "properties": {
+                "billed_to_date": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "months": {
+                  "maxItems": 120,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "month": {
+                        "type": "string",
+                        "pattern": "^\\d{4}-\\d{2}$"
+                      },
+                      "amount": {
+                        "type": "number"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "actual",
+                          "forecast"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "month",
+                      "amount",
+                      "kind"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "months"
+              ]
+            },
+            "tia": {
+              "description": "cpm: the delay analysis dates from the forward pass.",
+              "type": "object",
+              "properties": {
+                "fragment": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                "prior_completion": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                "updated_completion": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                "fragment_only_completion": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "fragment",
+                "prior_completion",
+                "updated_completion"
+              ]
+            },
+            "details": {
+              "description": "ior items or dashboard KPIs, as given.",
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            "contract_completion_date": {
+              "description": "cpm: the contract completion date. Saved once per job.",
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "replace_completion_date": {
+              "description": "true only when the PM confirmed changing the saved contract completion date.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "job_number",
+            "report_type",
+            "base_version",
+            "approved",
+            "what_changed"
           ],
           "additionalProperties": false
         },

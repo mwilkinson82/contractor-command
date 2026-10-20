@@ -11,12 +11,11 @@ const src = (p: string) => readFileSync(resolve(__dirname, p), "utf8");
 const jordan = { name: "Jordan Reyes", role: "Project Manager", company: "Calloway Builders", email: null as string | null, source: "test" };
 
 describe("0.8.8 blue brand, To field, pinned REQUIRED lines, sweep cards", () => {
-  it("version is 0.8.8", () => expect(ATHENA_VERSION).toBe("0.8.8"));
+  it("version is 0.8.8 or later (0.8.9)", () => expect(ATHENA_VERSION).toBe("0.8.9"));
   it("connector icons are the mono-blue mark at new URLs", () => {
     expect(ATHENA_SERVER_ICONS.map((i) => i.src).filter((s) => !s.startsWith("data:"))).toEqual([
       "https://app.meetathena.io/brand/athena/athena-mono-blue-64.png",
       "https://app.meetathena.io/brand/athena/athena-mono-blue-512.png",
-      "https://app.meetathena.io/brand/athena/athena-mark-mono-blue.svg",
     ]);
     const b = Buffer.from(athenaIcon64Bytes());
     expect(b.readUInt32BE(16)).toBe(64);
@@ -63,8 +62,9 @@ describe("0.8.8 blue brand, To field, pinned REQUIRED lines, sweep cards", () =>
     expect(lines[0]).toContain("26.01 (26-010) $100,000.00");
     expect(lines[0]).toContain("#2563EB");
     expect(lines[0]).toContain("gray bands");
-    expect(lines).toHaveLength(2);
-    expect(top).not.toMatch(/owner|no exceptions/i);
+    expect(lines).toHaveLength(3);
+    expect(lines.slice(0, 2).join("\n")).not.toMatch(/owner|no exceptions/i);
+    expect(lines[2]).toMatch(/^REQUIRED: .*all 3 sharing options/);
     expect(lines[1]).toContain("To: (ask:");
     expect(splitGuidance(top + "\nShow the email card now.").visible.startsWith(top)).toBe(true);
     expect(src("./tools/workflow-tools.ts")).toContain("...text(`${sovRequiredTop(");

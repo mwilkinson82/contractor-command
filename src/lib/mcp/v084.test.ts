@@ -20,7 +20,7 @@ describe("0.8.4 fixes", () => {
   });
   it("b. delivery step is in the report text and structuredContent", () => {
     const w = src("./tools/workflow-tools.ts");
-    expect(w).toContain("\\n\\n${sovDeliveryAsk(audience)}\\nFor option 2 or 3:\\n${ec.text}`");
+    expect(w).toContain("\\n\\n${sovDeliveryAsk(audience)}\\nFor option 2 or 3:\\n${EMAIL_TO_LABEL_REQUIRED}\\n${ec.text}`");
     expect(w).toContain("delivery: sovDeliveryStructured(audience)");
     expect(SOV_DELIVERY_STRUCTURED.required_next_step).toBe(true);
     expect(SOV_DELIVERY_STRUCTURED.ask).toBe(SOV_DELIVERY_ASK);
@@ -31,5 +31,5 @@ describe("0.8.4 fixes", () => {
     const sov = buildSov([{ item_no: "26.01", description: "Mobilization", scheduled_value: 1000, cost_codes: ["26-010"] }], 0, null);
     expect(sovLineRows(sov)[0].cost_code).toBe("26-010");
   });
-  it("version is 0.8.6", () => expect(ATHENA_VERSION).toBe("0.8.8"));
+  it("version is 0.8.6", () => expect(ATHENA_VERSION).toBe("0.8.9"));
 });

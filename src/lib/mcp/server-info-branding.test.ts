@@ -124,7 +124,7 @@ describe("with the real MCP toolkit handler", () => {
       ? JSON.parse(text)
       : JSON.parse(text.split("\n").find((l) => l.startsWith("data:"))!.slice(5));
     expect(json.result.serverInfo.title).toBe("Athena powered by ALP, construction agents");
-    expect(json.result.serverInfo.icons.map((i: { sizes: string[] }) => i.sizes[0])).toEqual(["64x64", "64x64", "512x512", "any"]);
+    expect(json.result.serverInfo.icons.map((i: { sizes: string[] }) => i.sizes[0])).toEqual(["64x64", "512x512"]);
     expect(json.result.serverInfo.description).toBe(ATHENA_DESCRIPTION);
     expect(json.result.serverInfo.websiteUrl).toBe("https://app.meetathena.io");
   });
@@ -172,10 +172,12 @@ describe("athena-icon-64 route payload", () => {
 });
 
 describe("inline icon (retest 4)", () => {
-  it("second icon is the same 64x64 PNG as a data: URI", () => {
-    const d = ATHENA_SERVER_ICONS[1];
-    expect(d.src.startsWith("data:image/png;base64,")).toBe(true);
-    expect(d.mimeType).toBe("image/png");
-    expect(Buffer.from(d.src.split(",")[1], "base64").equals(Buffer.from(athenaIcon64Bytes()))).toBe(true);
+  it("0.8.9: icons are absolute public PNGs only (no data: URI, no SVG)", () => {
+    for (const d of ATHENA_SERVER_ICONS) {
+      expect(d.src.startsWith("https://app.meetathena.io/")).toBe(true);
+      expect(d.mimeType).toBe("image/png");
+      expect(d.sizes.length).toBe(1);
+    }
+    expect(athenaIcon64Bytes().length).toBeGreaterThan(0);
   });
 });

@@ -170,9 +170,20 @@ export const SOV_DELIVERY_ASK = [
 export const SOV_DELIVERY_ASK_CLIENT = SOV_DELIVERY_ASK;
 export const sovDeliveryAsk = (_audience: "internal" | "client") => SOV_DELIVERY_ASK;
 export const SOV_NOT_NOW_DAYS = 3;
+/** 0.8.9: second bar color; SOV bars alternate blue and this gray. */
+export const SOV_ALT_GRAY = "#9CA3AF";
+/** 0.8.9: pinned at the top of every SOV and report result: list all three options, never recommend one. */
+export const SHARE_OPTIONS_REQUIRED =
+  "REQUIRED: When this is shared with the team or the owner (any audience), list all 3 sharing options below, numbered 1, 2 and 3, word for word, and let the member pick. Never recommend, pre-select or offer only one (not just a Google Sheets link, not just a PDF).";
+/** 0.8.9: pinned at the top of every date sweep. */
+export const SWEEP_CARD_REQUIRED =
+  "REQUIRED: Show this date sweep as a card with a table (columns: Due, Item, Precaution, Ref), one row per item, grouped Overdue, Due today, Next 14 days. Never as plain bullets or a plain list, in every host including Claude.";
+/** 0.8.9: email cards carry a literal To: label. */
+export const EMAIL_TO_LABEL_REQUIRED =
+  'REQUIRED: Every email card shows a line that starts with the literal label "To:" followed by the address (or blank and ask in this same reply), above Subject.';
 /** 0.8.7: report sov always comes with a bar chart of scheduled value by line, in the fixed palette. */
 export const SOV_CHART_RULE =
-  "REQUIRED, every host (Claude, ChatGPT, Grok and any other): draw a bar chart of the SOV from structuredContent.sov.chart: one bar per line (x: the line label, y: scheduled value), in the order given, placed directly under the SOV table and before the delivery question. Set the colors explicitly: bars #2563EB; axes, gridlines and labels in the grays #6B7280, #9CA3AF, #D1D5DB and #F3F4F6, with alternating gray bands (chart.band_colors) behind the bars; ChatGPT and every other host must show the gray as well as the blue. Never use the host's default palette, and never red, rose, pink, orange or amber. Money labels with cents (value_display). No chart title text beyond \"Scheduled value by line\" and no extra commentary.";
+  "REQUIRED, every host (Claude, ChatGPT, Grok and any other): draw a bar chart of the SOV from structuredContent.sov.chart: one bar per line (x: the line label, y: scheduled value), in the order given, placed directly under the SOV table and before the delivery question. Set the colors explicitly: bars #2563EB; axes, gridlines and labels in the grays #6B7280, #9CA3AF, #D1D5DB and #F3F4F6, with alternating gray bands (chart.band_colors) behind the bars; ChatGPT and every other host must show the gray as well as the blue. Never use the host's default palette, and never red, rose, pink, orange or amber. Money labels with cents (value_display). No chart title text beyond \"Scheduled value by line\" and no extra commentary. Bars alternate blue #2563EB and gray #9CA3AF (chart.bars[].color).";
 export function sovChart(rows: { item_no: string; cost_code: string | null; description: string | null; scheduled_value: number; scheduled_value_display: string }[]) {
   return {
     required: true,
@@ -188,7 +199,9 @@ export function sovChart(rows: { item_no: string; cost_code: string | null; desc
     axis_color: "#6B7280",
     label_color: "#6B7280",
     total_bar_color: "#9CA3AF",
-    bars: rows.map((r) => ({ label: `${r.item_no}${r.cost_code ? ` (${r.cost_code})` : ""}`, description: r.description, value: r.scheduled_value, value_display: r.scheduled_value_display })),
+    // 0.8.9: bars alternate blue #2563EB and gray #9CA3AF (odd lines blue, even lines gray), each bar carries its color.
+    alternating_bar_colors: [CHART_PALETTE[0], SOV_ALT_GRAY],
+    bars: rows.map((r, i) => ({ label: `${r.item_no}${r.cost_code ? ` (${r.cost_code})` : ""}`, description: r.description, value: r.scheduled_value, value_display: r.scheduled_value_display, color: i % 2 === 0 ? CHART_PALETTE[0] : SOV_ALT_GRAY })),
   };
 }
 /**
@@ -199,8 +212,9 @@ export function sovChart(rows: { item_no: string; cost_code: string | null; desc
 export function sovRequiredTop(rows: { item_no: string; cost_code: string | null; scheduled_value_display: string }[], toLine: string): string {
   const data = rows.map((r) => `${r.item_no}${r.cost_code ? ` (${r.cost_code})` : ""} ${r.scheduled_value_display}`).join("; ");
   return [
-    `REQUIRED: Draw this bar chart now under the table. Bars blue #2563EB; gray bands #F3F4F6 behind them; gray grid #D1D5DB; gray axes and labels #6B7280. No other colors. Data: ${data}.`,
-    `REQUIRED: Any email draft for this SOV starts with "${toLine}" and shows a To field; if there is no address, leave To blank and ask for it in this same reply.`,
+    `REQUIRED: Draw this bar chart now under the table. Bars alternate blue #2563EB and gray #9CA3AF (1st bar blue, 2nd gray, 3rd blue, and so on; each bar's color is in structuredContent.chart.bars[].color); gray bands #F3F4F6 behind them; gray grid #D1D5DB; gray axes and labels #6B7280. No other colors. Data: ${data}.`,
+    `REQUIRED: Any email card for this SOV shows the literal label "To:" as its first line: ${toLine}. If there is no address, leave To: blank and ask for it in this same reply.`,
+    SHARE_OPTIONS_REQUIRED,
   ].join("\n");
 }
 /** 0.8.4: the delivery step as data, in report sov structuredContent, so hosts can't skip it. */
@@ -212,6 +226,8 @@ export const SOV_DELIVERY_STRUCTURED = {
     { n: 2, kind: "xlsx_or_pdf_email", note: "Build a real .xlsx or PDF, then show an email card with it attached; To blank and asked in the same reply if no address." },
     { n: 3, kind: "shared_link", note: "Claude artifact, ChatGPT canvas or Grok Bot spreadsheet shared as 'anyone with the link', then an email card with the link. Any audience: owner, client, CM or team." },
   ],
+  list_all_options: true,
+  never_recommend_one: true,
   link_rule: "Shared links are fine for any audience (owner, client, CM or team). Set sharing to anyone with the link.",
 } as const;
 /** 0.8.8: owner/client SOV delivery data: same three options as the team SOV. */
@@ -278,3 +294,22 @@ export function visibleProblems(text: string): string[] {
   }
   return bad;
 }
+
+/** 0.8.9: the same three sharing options for a setup report, for every audience. */
+export const REPORT_SHARE_ASK = [
+  "If you want to share this report, where should it go?",
+  "1. In your project software (Overwatch, Buildertrend, Procore, or another tool). I'll enter it there through the browser after you sign in.",
+  "2. As a PDF or Word file. I'll create it and bring up an email for you to review, with the file attached.",
+  "3. As a shared link (a Claude artifact, ChatGPT canvas or Grok Bot document that anyone with the link can open). I'll bring up an email with the link.",
+].join("\n");
+export const REPORT_SHARE_STRUCTURED = {
+  required_next_step: true,
+  list_all_options: true,
+  never_recommend_one: true,
+  ask: REPORT_SHARE_ASK,
+  options: [
+    { n: 1, kind: "project_software" },
+    { n: 2, kind: "pdf_or_docx_email" },
+    { n: 3, kind: "shared_link" },
+  ],
+};

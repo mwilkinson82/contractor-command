@@ -1,4 +1,4 @@
-import { HOST_DISPLAY_BLOCK, finalizeVisible, splitGuidance, withStyleLine } from "./visible";
+import { HOST_DISPLAY_BLOCK, SWEEP_CARD_REQUIRED, finalizeVisible, splitGuidance, withStyleLine } from "./visible";
 import { DB_UNAVAILABLE, MCP_DAILY_CAP, MCP_HOURLY_CAP, capMessage, type CapResult } from "./limits";
 import { ToolError, type ToolContext } from "@lovable.dev/mcp-js";
 import { supabaseForUser } from "./supabase";
@@ -115,7 +115,7 @@ function withSweep<R>(r: R, sweep: NonNullable<Awaited<ReturnType<typeof runSwee
   const body = res.content[0].text ?? "";
   const sweepText = client ? clientSafe(sweep.text) : sweep.text;
   const bodyText = client && !ownerSov ? clientSafe(body) : body;
-  const first = { ...res.content[0], text: `${sweepText}\n\n====\n\n${bodyText}` };
+  const first = { ...res.content[0], text: `${SWEEP_CARD_REQUIRED}\n${sweepText}\n\n====\n\n${bodyText}` };
   const items = sweep.items.map((i) => ({ job_number: i.job_number, item_ref: client ? null : i.item_ref, item_id: client ? null : i.item_id, item_type: i.item_type, due: i.due, days: i.days, bucket: i.bucket }));
-  return { ...res, content: [first, ...res.content.slice(1)], structuredContent: { ...(res.structuredContent ?? {}), sweep: items } } as unknown as R;
+  return { ...res, content: [first, ...res.content.slice(1)], structuredContent: { ...(res.structuredContent ?? {}), sweep: items, sweep_display: { required: true, render: "card_table", columns: ["Due", "Item", "Precaution", "Ref"], never_bullets: true } } } as unknown as R;
 }
