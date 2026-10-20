@@ -160,8 +160,11 @@ export const SOV_DELIVERY_ASK = [
   "Where do you want this SOV to live?",
   "1. In your project software (Overwatch, Buildertrend, Procore, or another tool). I'll enter it there through the browser after you sign in.",
   "2. As an Excel file (.xlsx). I'll create it and bring up an email for you to review, with the file attached.",
-  "3. As a shared spreadsheet in this chat (a Claude artifact or ChatGPT canvas). I'll bring up an email with the link for your team.",
+  "3. As a shared spreadsheet in this chat (a Claude artifact, ChatGPT canvas or Grok Bot). I'll bring up an email with the link for your team.",
 ].join("\n");
+/** 0.8.6: the owner/client SOV never offers the chat link; options 1 and 2 only. */
+export const SOV_DELIVERY_ASK_CLIENT = SOV_DELIVERY_ASK.split("\n").slice(0, 3).join("\n");
+export const sovDeliveryAsk = (audience: "internal" | "client") => (audience === "client" ? SOV_DELIVERY_ASK_CLIENT : SOV_DELIVERY_ASK);
 export const SOV_OWNER_REDIRECT = "For the owner, I'll send a clean Excel or PDF instead, since a chat link doesn't look professional.";
 export const SOV_NOT_NOW_DAYS = 3;
 /** 0.8.4: member-facing link rule, printed under the delivery question in the report text. */
@@ -179,9 +182,17 @@ export const SOV_DELIVERY_STRUCTURED = {
   owner_redirect: SOV_OWNER_REDIRECT,
   link_rule_text: SOV_LINK_RULE_TEXT,
 } as const;
+/** 0.8.6: owner/client SOV delivery data: option 3 (chat link) is dropped entirely. */
+export const SOV_DELIVERY_STRUCTURED_CLIENT = {
+  ...SOV_DELIVERY_STRUCTURED,
+  audience: "client",
+  ask: SOV_DELIVERY_ASK_CLIENT,
+  options: SOV_DELIVERY_STRUCTURED.options.filter((o) => o.n !== 3),
+} as const;
+export const sovDeliveryStructured = (audience: "internal" | "client") => (audience === "client" ? SOV_DELIVERY_STRUCTURED_CLIENT : SOV_DELIVERY_STRUCTURED);
 /** 0.8.3: the delivery question is a required next step after every SOV output, in every host. */
 export const SOV_DELIVERY_REQUIRED =
-  "- REQUIRED NEXT STEP, every host including Claude: every reply that shows the SOV (table, artifact, canvas or file) must end with the delivery question above, word for word, as three numbered options. Never replace it with another question (not \"Overwatch, P6, or Excel?\", not \"client copy?\"), never skip it, never shorten it, and never put a date sweep, summary or note before the table or between the table and the question.";
+  "- REQUIRED NEXT STEP, every host including Claude: every reply that shows the SOV (table, artifact, canvas or file) must end with the delivery question above, word for word, as numbered options (three for the team SOV; two for the owner/client SOV, which never offers the chat link). Never replace it with another question (not \"Overwatch, P6, or Excel?\", not \"client copy?\"), never skip it, never shorten it, and never put a date sweep, summary or note before the table or between the table and the question.";
 
 /** Hidden guidance on report sov results. Instruction text only: Athena sends nothing and stores no file. */
 export const SOV_DELIVERY_BLOCK = [
@@ -190,9 +201,9 @@ export const SOV_DELIVERY_BLOCK = [
   SOV_DELIVERY_REQUIRED,
   "- Option 1: open the tool's sign-in page and let the member sign in themselves. Never ask for, type or store a password. Enter the lines, then show a side-by-side check against the SOV total before anything is saved.",
   "- Option 2: build a real .xlsx in the house SOV layout: title block (company, job, owner, contract value, date), then item, division, spec section, description, cost code, scheduled value, retainage % and total, subtotals by division, retainage and a grand total that ties to the contract. Then show the email draft card with the file attached in that same reply. Ask who it goes to (team members, the owner, or both); if an address is missing, leave To blank on the card and ask for it in the same reply.",
-  "- Option 3: create the artifact or canvas spreadsheet, then show an email card with the link, for team members only.",
+  "- Option 3: create the artifact, canvas or Grok Bot spreadsheet, then show an email card with the link, for team members only. Never list option 3 on an owner or client SOV (audience client): show options 1 and 2 only, exactly as in structuredContent.delivery.ask.",
   `- Owners and owner's reps get the Excel or a PDF only, never an artifact or canvas link. If the member picks option 3 for the owner, say exactly: "${SOV_OWNER_REDIRECT}" Then offer option 2 or a PDF.`,
-  "- Spec sections: use structuredContent.sov.line_items spec_section as given. If it's blank, leave the cell blank; never invent a section number. When structuredContent.sov.specs_note is set, add that one line under the table in the file.",
+  "- Spec sections: use structuredContent.sov.line_items spec_section as given. If it's blank, leave the cell blank; never invent a section number. When structuredContent.sov.specs_note is set, it is the one line allowed under the table (chat and file): spec sections will be cited once specs are uploaded.",
   "- Cost codes: always show a Cost Code column right after the line no. (item number) in the chat table, the artifact or canvas, and the file, filled from line_items cost_code exactly as given (e.g. 26-010). Never replace the cost code with the item number. Blank only when Athena has none for that line.",
   "- Money: every scheduled value and total with cents (line_items scheduled_value_display, e.g. $1,400,000.00). Never round or drop the .00.",
   "- Claude: the delivery question is mandatory even in Claude. Put it directly under the artifact as the last thing in the reply.",
@@ -201,6 +212,9 @@ export const SOV_DELIVERY_BLOCK = [
   "- Never send anything yourself. The member reviews the email card and presses Send.",
   `- If the member says "not now", leave the SOV in the chat and add an open item to deliver it within ${SOV_NOT_NOW_DAYS} days (intake section open_item).`,
 ].join("\n");
+/** 0.8.6: the owner/client SOV guidance asks the two-option question. */
+export const SOV_DELIVERY_BLOCK_CLIENT = SOV_DELIVERY_BLOCK.replace(SOV_DELIVERY_ASK, SOV_DELIVERY_ASK_CLIENT);
+export const sovDeliveryBlock = (audience: "internal" | "client") => (audience === "client" ? SOV_DELIVERY_BLOCK_CLIENT : SOV_DELIVERY_BLOCK);
 
 /** One short, member-safe display line kept in the visible text, for hosts that read only the visible text. */
 export const VISIBLE_STYLE_LINE = "Display: blue (#2563EB) accent only, no orange; one caveat line at most.";

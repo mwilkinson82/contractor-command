@@ -16,9 +16,9 @@ describe("0.8.2 SOV delivery step", () => {
     expect(SOV_DELIVERY_ASK.split("\n")[0]).toBe("Where do you want this SOV to live?");
     expect(SOV_DELIVERY_ASK).toContain("1. In your project software (Overwatch, Buildertrend, Procore, or another tool).");
     expect(SOV_DELIVERY_ASK).toContain("2. As an Excel file (.xlsx).");
-    expect(SOV_DELIVERY_ASK).toContain("3. As a shared spreadsheet in this chat (a Claude artifact or ChatGPT canvas).");
+    expect(SOV_DELIVERY_ASK).toContain("3. As a shared spreadsheet in this chat (a Claude artifact, ChatGPT canvas or Grok Bot).");
     expect(SOV_DELIVERY_BLOCK).toContain(SOV_DELIVERY_ASK);
-    expect(wf).toContain("SOV_DELIVERY_BLOCK,");
+    expect(wf).toContain("sovDeliveryBlock(audience),");
   });
   it("links are team only, owners get Excel or PDF", () => {
     expect(SOV_DELIVERY_BLOCK).toContain("for team members only");
@@ -41,7 +41,7 @@ describe("0.8.2 SOV delivery step", () => {
     expect(SOV_DELIVERY_BLOCK).toContain("Claude: no narration");
     expect(SOV_DELIVERY_BLOCK).toContain("Never hold the card back while you ask.");
   });
-  it("version is 0.8.5", () => expect(ATHENA_VERSION).toBe("0.8.5"));
+  it("version is 0.8.6", () => expect(ATHENA_VERSION).toBe("0.8.6"));
 });
 
 describe("0.8.2 cost codes and spec sections on SOV lines", () => {
@@ -56,7 +56,7 @@ describe("0.8.2 cost codes and spec sections on SOV lines", () => {
     expect(rows.map((r) => r.spec_section)).toEqual([null, "27 05 28"]);
     expect(sovSpecsMissing(sov)).toBe(false);
     expect(sovSpecsMissing(buildSov(lines.map(({ spec_section: _s, ...l }) => l), 0, null))).toBe(true);
-    expect(SOV_SPECS_MISSING_NOTE).toBe("Specs not provided, so spec sections are blank. Upload the spec book to fill them.");
+    expect(SOV_SPECS_MISSING_NOTE).toBe("Specs not provided, so spec sections are blank. Spec sections will be cited once specs are uploaded.");
   });
   it("lines without codes come back empty, not guessed", () => {
     const r = sovLineRows(buildSov([{ item_no: "26.01", description: "x", scheduled_value: 100 }], 0, null));
