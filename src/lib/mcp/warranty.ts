@@ -37,6 +37,47 @@ export function addMonths(date: string, months: number): string {
 const isKnown = (f?: Fact) => !!f && f.status === "known" && f.value !== null && f.value !== undefined && f.value !== "";
 const str = (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v));
 
+/** Required closeout documents taken from (or matching) the contract's closeout clause carry the contract's source,
+ * so every view tags them the same way. Returns a new list; nothing is written. */
+export function alignCloseoutSource<F extends Fact>(w: F[], contractCloseout?: F | null): F[] {
+  if (!contractCloseout || contractCloseout.status !== "known" || !isKnown(contractCloseout)) return w;
+  const i = w.findIndex((f) => f.key === "closeout_documents" && f.status === "known");
+  if (i < 0) return [...w.filter((f) => f.key !== "closeout_documents"), { ...contractCloseout, key: "closeout_documents" }];
+  if (str(w[i].value).trim() !== str(contractCloseout.value).trim()) return w;
+  const out = [...w];
+  out[i] = { ...w[i], source: contractCloseout.source };
+  return out;
+}
+
+/** Synthetic fact key carrying the contract's warranty clause text into the warranty checks (never stored). */
+export const CONTRACT_WARRANTY_KEY = "contract_warranty_clauses";
+
+const triggerIn = (t: string): WarrantyTrigger | null => {
+  const fa = /final acceptance|owner'?s? acceptance|acceptance by (the )?owner|accepted by (the )?owner/i.test(t);
+  const sc = /substantial(ly)? complet/i.test(t);
+  return fa === sc ? null : fa ? "final_acceptance" : "substantial_completion";
+};
+
+/** Where the warranty start is stated, and what each source says. A conflict when two sources name different triggers. Nothing is picked. */
+export function warrantyStartConflict(facts: Fact[]): { sources: { where: string; says: WarrantyTrigger }[] } | null {
+  const by = new Map(facts.map((f) => [f.key, f]));
+  const sources: { where: string; says: WarrantyTrigger }[] = [];
+  const trig = by.get("warranty_start_trigger");
+  if (isKnown(trig) && trig!.value !== "other") sources.push({ where: "warranty start trigger answer", says: trig!.value as WarrantyTrigger });
+  else if (isKnown(trig) && isKnown(by.get("warranty_start_trigger_other"))) {
+    const t = triggerIn(str(by.get("warranty_start_trigger_other")!.value));
+    if (t) sources.push({ where: "warranty start trigger answer", says: t });
+  }
+  const basis = by.get("warranty_start_basis");
+  if (isKnown(basis)) { const t = triggerIn(str(basis!.value)); if (t) sources.push({ where: "warranty start date basis answer", says: t }); }
+  const cw = by.get(CONTRACT_WARRANTY_KEY);
+  if (isKnown(cw)) { const t = triggerIn(str(cw!.value)); if (t) sources.push({ where: "contract warranty clause", says: t }); }
+  return new Set(sources.map((x) => x.says)).size > 1 ? { sources } : null;
+}
+
+const conflictText = (c: NonNullable<ReturnType<typeof warrantyStartConflict>>) =>
+  c.sources.map((x) => `${x.where}: ${TRIGGER_LABEL[x.says]}`).join("; ");
+
 /** Lines for the WARRANTY REGISTER section. "Not started" only when nothing was recorded at setup. */
 export function renderWarrantyRegister(facts: Fact[], today: string): string[] {
   const by = new Map(facts.map((f) => [f.key, f]));
@@ -48,11 +89,11 @@ export function renderWarrantyRegister(facts: Fact[], today: string): string[] {
   const trig = by.get("warranty_start_trigger");
   const trigOther = by.get("warranty_start_trigger_other");
   const trigDate = by.get("warranty_trigger_date");
-  const trigText = isKnown(trig)
-    ? trig!.value === "other"
-      ? `other: ${isKnown(trigOther) ? str(trigOther!.value) : "not described"}`
-      : `${TRIGGER_LABEL[trig!.value as WarrantyTrigger] ?? str(trig!.value)}${isKnown(trigOther) ? ` (${str(trigOther!.value)})` : ""}`
-    : "unknown";
+  // The trigger label and the member's own words are kept apart: template sentences use only the label.
+  const trigLabel = isKnown(trig) ? (trig!.value === "other" ? "other" : TRIGGER_LABEL[trig!.value as WarrantyTrigger] ?? str(trig!.value)) : null;
+  const trigNote = isKnown(trigOther) ? str(trigOther!.value).trim().replace(/\s+/g, " ") : null;
+  const trigText = !trigLabel ? "unknown" : trigLabel === "other" ? `other: ${trigNote ?? "not described"}` : trigLabel;
+  const event = trigLabel && trigLabel !== "other" ? trigLabel : trigLabel === "other" && trigNote ? "start trigger" : null;
 
   if (!isKnown(has)) out.push(`   - Workmanship warranty: unknown${src(has)}`);
   else if (has!.value === "no") out.push(`   - Workmanship warranty: none${src(has)}`);
@@ -61,7 +102,7 @@ export function renderWarrantyRegister(facts: Fact[], today: string): string[] {
     const start = isKnown(trigDate) ? str(trigDate!.value) : null;
     const end = start && n !== null ? addMonths(start, n) : null;
     let status: string;
-    if (!start) status = `Pending ${trigText === "unknown" ? "start trigger" : trigText} date`;
+    if (!start) status = `Pending ${event ?? "start trigger"} date`;
     else if (today < start) status = "Not yet started";
     else if (end && today > end) status = "Expired";
     else status = end ? "In warranty" : "In warranty (end date pending duration)";
@@ -70,10 +111,13 @@ export function renderWarrantyRegister(facts: Fact[], today: string): string[] {
       `     Status: ${status}`,
       `     Duration: ${n !== null ? `${n} months` : "unknown"}`,
       `     Starts at: ${trigText}`,
-      `     Start date: ${start ?? `pending ${trigText === "unknown" ? "trigger" : trigText} date`}`,
+      ...(trigNote && trigLabel !== "other" ? [`     Trigger note: ${trigNote}`] : []),
+      `     Start date: ${start ?? `pending ${event ?? "trigger"} date`}`,
       `     End date: ${end ?? (start ? "pending duration" : "pending trigger date")}`,
     );
   }
+  const conflict = warrantyStartConflict(facts);
+  if (conflict) out.push(`   - Warranty start conflict (not resolved; Athena does not pick one): ${conflictText(conflict)}. Confirm which governs.`);
   for (const q of WARRANTY_SETUP_QUESTIONS.slice(3)) {
     const f = by.get(q.key);
     out.push(`   - ${q.label}: ${isKnown(f) ? str(f!.value) : f?.status === "na" ? "n/a" : "unknown"}${src(f)}`);
@@ -99,6 +143,13 @@ export function warrantyOpenItems(facts: Fact[]): { check_key: string; action: s
     if (!isKnown(trig) || (trig!.value === "other" && !isKnown(by.get("warranty_start_trigger_other"))))
       items.push({ check_key: "warranty:warranty_start_trigger", action: "Confirm what starts the workmanship warranty (substantial completion, final acceptance or other)", item_type: "unknown" });
   }
+  const conflict = warrantyStartConflict(facts);
+  if (conflict)
+    items.push({
+      check_key: "warranty:start_conflict", action: `Resolve the warranty start conflict (${conflictText(conflict)})`, item_type: "unknown",
+      recommendation: "Read the contract warranty clause and confirm in writing which event starts the warranty, then correct the other answer.",
+      why: "The answers name different warranty start events; the warranty end date can't be relied on until one is confirmed.",
+    });
   for (const q of WARRANTY_SETUP_QUESTIONS.slice(3)) {
     const f = by.get(q.key);
     if (f?.status === "na") continue;
