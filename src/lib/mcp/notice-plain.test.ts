@@ -55,3 +55,18 @@ describe("plain-language notice requirements", () => {
     expect(recipientIn("give written notice of any delay within three days")).toBeNull();
   });
 });
+
+import rows2701 from "./__fixtures__/job-2701-clauses.json";
+describe("2701 (Harbor Point): recipient named after the delivery method", () => {
+  it("'delivered by email to Contractor's Project Manager' is the recipient for delays, claims and non-payment", () => {
+    const t = noticeRequirements(rows2701 as ClauseRow[]).lines.join("\n");
+    expect(t).toContain("- Delays: notice within 5 calendar days after the start of the event (§6.2); it goes to Contractor's Project Manager (§6.2).");
+    expect(t).toContain("- Claims: notice within 10 calendar days of the event giving rise to it (§7.3); it goes to Contractor's Project Manager (§7.3).");
+    expect(t).not.toMatch(/who notice goes to for delays|who notice goes to for[^\n]*claims/);
+  });
+  it("recipientIn reads a role after the party and never invents one", () => {
+    expect(recipientIn("Notice shall be given within 5 days, delivered by email to Contractor's Project Manager.")).toBe("Contractor's Project Manager");
+    expect(recipientIn("Written notice shall be sent by certified mail to the Owner within 10 days.")).toBe("Owner");
+    expect(recipientIn("Subcontractor shall give written notice within five days after the start of the event.")).toBeNull();
+  });
+});
