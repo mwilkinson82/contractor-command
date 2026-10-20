@@ -116,4 +116,3 @@ function withSweep<R>(r: R, sweep: NonNullable<Awaited<ReturnType<typeof runSwee
   const items = sweep.items.map((i) => ({ job_number: i.job_number, item_ref: client ? null : i.item_ref, item_id: client ? null : i.item_id, item_type: i.item_type, due: i.due, days: i.days, bucket: i.bucket }));
   return { ...res, content: [first, ...res.content.slice(1)], structuredContent: { ...(res.structuredContent ?? {}), sweep: items } } as unknown as R;
 }
-
