@@ -23,4 +23,13 @@ describe("host output rules (0.8.0, v0.7.8 retest fixes)", () => {
     expect(src).toContain('sov_view: z.enum(["lines", "divisions"])');
     expect(src).toContain("line_items: sovLineRows(sov)");
   });
+  it("color rule covers charts, tables, totals and highlights everywhere they are styled", () => {
+    const rule = "blue #2563EB and gray only, never orange, rust or red, including totals";
+    expect(HOST_DISPLAY_BLOCK).toContain(`Charts, tables, totals and highlights: ${rule}`);
+    const src = readFileSync(new URL("./tools/workflow-tools.ts", import.meta.url), "utf8");
+    expect(src).toContain(`bars, totals and highlights: ${rule}`);
+    const sov = readFileSync(new URL("./sov.ts", import.meta.url), "utf8");
+    expect(sov).toContain(`color_rule: "${rule}"`);
+    expect(sov).not.toMatch(/#C8581E|cream/);
+  });
 });
