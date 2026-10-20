@@ -89,3 +89,36 @@ describe("0.8.10", () => {
     expect(siteIconResponse(new Request("https://app.alpcontractorcircle.com/favicon.ico", { method: "OPTIONS" }))).toBeNull();
   });
 });
+
+import { CPM_GANTT_SPEC, DELAY_CALLOUT_COLOR } from "./living";
+import { isAppHandoff } from "@/lib/consent-loading";
+
+describe("0.8.10 CPM Gantt spec + desktop return", () => {
+  it("cpm_activities sends the Gantt spec right after the Tie line", () => {
+    const src = readFileSync("src/lib/mcp/tools/living-tools.ts", "utf8");
+    expect(src).toMatch(/`Tie: \$\{tie\.line\}`\] : \[\]\),\s*\.\.\.CPM_GANTT_SPEC,/);
+    expect(CPM_GANTT_SPEC[0]).toMatch(/^REQUIRED VIEW/);
+    expect(CPM_GANTT_SPEC).toHaveLength(10);
+    const all = CPM_GANTT_SPEC.join("\n");
+    expect(all).toContain("#2563EB");
+    expect(all).toContain("#9CA3AF");
+    expect(all).toContain('"Fragnet"');
+    expect(all).toContain('"Delay: +X CD"');
+    expect(all).not.toMatch(/fragment/i);
+  });
+  it("delay callout color comes from one constant", () => {
+    expect(DELAY_CALLOUT_COLOR).toBe("red #DC2626");
+    const callout = CPM_GANTT_SPEC.filter((l) => l.includes(DELAY_CALLOUT_COLOR));
+    expect(callout).toHaveLength(1);
+    expect(callout[0]).toMatch(/^7\. Delay fragnets/);
+  });
+  it("desktop app returns keep a Return link", () => {
+    expect(isAppHandoff("codex://oauth/callback?code=x")).toBe(true);
+    expect(isAppHandoff("cursor://anysphere.cursor-mcp/oauth/callback?code=x")).toBe(true);
+    expect(isAppHandoff("http://localhost:1455/callback?code=x")).toBe(true);
+    expect(isAppHandoff("http://127.0.0.1:33418/cb?code=x")).toBe(true);
+    expect(isAppHandoff("https://chatgpt.com/connector_platform_oauth_redirect?code=x")).toBe(false);
+    expect(isAppHandoff("https://claude.ai/api/mcp/auth_callback?code=x")).toBe(false);
+    expect(isAppHandoff("not a url")).toBe(false);
+  });
+});

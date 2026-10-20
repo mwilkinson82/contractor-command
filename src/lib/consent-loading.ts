@@ -59,3 +59,19 @@ export function boundedStep<T>(
 export function consentReturnPath(authorizationId: string): string {
   return `/oauth/consent?authorization_id=${encodeURIComponent(authorizationId)}`;
 }
+
+/**
+ * v0.8.10: true when the approve/deny target hands off to a desktop app
+ * (custom scheme like codex:// or cursor://, or a loopback http listener).
+ * Browsers may show an "Open <app>?" prompt for these and keep the tab on our
+ * page, so the consent page keeps a visible "Return to <app>" link.
+ */
+export function isAppHandoff(target: string): boolean {
+  try {
+    const u = new URL(target);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return true;
+    return ["localhost", "127.0.0.1", "[::1]", "::1"].includes(u.hostname);
+  } catch {
+    return false;
+  }
+}

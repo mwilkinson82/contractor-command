@@ -9,6 +9,7 @@ import {
   CPM_REQUIRED_TOP, LIVING_LABEL, LIVING_REPORT_TYPES, LIVING_REQUIRED_TOP, LIVING_SAVE_ASK, TIED_TYPES,
   activityLine, checkSave, costLoadTotal, countCheck, earnedToDate, isOwnerFurnished, ownerFurnishedWithValue, stripMoney, tieCheck, tiaResult,
   type Activity, type LivingData, type LivingReportType,
+  CPM_GANTT_SPEC,
 } from "../living";
 
 const jobNumber = z.string().trim().min(1).max(40).describe("Job number, exact match (e.g. 2701).");
@@ -114,6 +115,7 @@ export const cpmActivities = defineTool({
         `Contract completion: ${g.contract_completion_date ?? "Needed"}`,
         `Count check: ${showMoney ? count.line : `${count.dated} of ${count.expected} activities dated.`}${count.complete ? "" : ` Missing dates: ${count.missing.join(", ")}.`}`,
         ...(tie ? [`Tie: ${tie.line}`] : []),
+        ...CPM_GANTT_SPEC,
         ...(showMoney && of.length ? [`Owner-furnished (schedule-only, $0.00 in ALP billing): ${of.map((a) => a.id).join(", ")}.${ofValued.length ? ` Saved with a value that is excluded here: ${ofValued.map((a) => `${a.id} ${money(a.value ?? 0)}`).join(", ")}.` : ""}`] : []),
         ...(showMoney ? [`Earned to date: ${money(earnedToDate(acts))}`] : []),
         ...(tia ? [`Delay fragnet result (${tia.fragnet}): ${tia.math} ${tia.statement}`] : []),

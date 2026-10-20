@@ -156,6 +156,24 @@ export const CPM_REQUIRED_TOP = [
   "REQUIRED: Owner-furnished activities are schedule-only: $0.00 in ALP billing. Use the one saved contract completion date and the delay result shown here; never type in your own.",
 ].join("\n");
 
+/** Delay callout color. Switch to "charcoal #374151" to go back to blue/gray only. */
+export const DELAY_CALLOUT_COLOR = "red #DC2626";
+
+/** v0.8.10: full Gantt spec, sent right after the Tie line so every host draws the same view. Blue and gray only, except the delay callout (DELAY_CALLOUT_COLOR). */
+export const CPM_GANTT_SPEC: string[] = [
+  "REQUIRED VIEW: When the user asks to see, show, draw or update the schedule, build ONE styled Gantt as an artifact or canvas, never a plain list or a default chart. Spec:",
+  "1. Header: the job name and version, the data date, then the Count check line and the Tie line word for word, then \"Contract completion: <date>\".",
+  "2. Layout: a white background, the activity table on the left (ID, Name, Dur WD, Start, Finish, Float, $), and a timeline on the right with month columns and week ticks.",
+  "3. Bars: critical activities (float 0) are solid blue #2563EB. Non-critical activities are gray #9CA3AF, with a light-gray float tail. Milestones are diamonds. Owner-furnished activities are outlined gray bars labeled \"Owner-furnished\".",
+  "4. Logic: thin predecessor connector lines, and the critical path highlighted end to end.",
+  "5. Today line: a dashed vertical line at the data date (or today if the data date is Needed), labeled.",
+  "6. Contract completion: a dashed vertical line labeled with the saved date.",
+  `7. Delay fragnets (only when a delay result exists): a hatched bar labeled \"Fragnet\", plus a ${DELAY_CALLOUT_COLOR} callout reading \"Delay: +X CD\" using X from the saved delay result, and baseline ghost bars under the updated bars.`,
+  "8. Legend under the chart: Critical, Non-critical, Float, Milestone, Owner-furnished, Fragnet, Today.",
+  "9. Order rows by start date, keep IDs exactly as given and show all activities. All other colors are blue and gray only. No technical notes; one caveat line at most.",
+];
+
+
 export const LIVING_REQUIRED_TOP = [
   "REQUIRED: This is the saved master copy. Update it in place: change only what moved, keep the layout, show the version, Last updated and \"What changed since last version\" line, and mark it \"Draft: not saved\" until the PM approves.",
   "REQUIRED: Save a new version only after the PM says yes to this exact update. The forecast total must equal the contract to the cent and every activity must stay; Athena refuses the save otherwise.",
