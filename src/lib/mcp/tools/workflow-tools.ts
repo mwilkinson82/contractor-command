@@ -11,7 +11,7 @@ import { EVIDENCE_ASK, evidenceProblem } from "../evidence";
 import { isUuid, itemRef, lookaheadRef, matchRef, parseLookaheadRef, parseQuestionRef, questionRef, shortRef } from "../refs";
 import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
 import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
-import { guide } from "../visible";
+import { guide, JOB_SETUP_SOFTWARE_BLOCK } from "../visible";
 import { withoutClaims } from "../internal-claims";
 import { noticeRequirements } from "../notice-plain";
 import { CLAUSE_HOST_RULE, classifyClause, clauseLine, missingNotices, normSection, parseClause, NOTICE_CHECKLIST, type ClauseRow, LEGACY_SUMMARY_TAG, missingNoticeNote, SUMMARY_OFFER, SUMMARY_HEADING } from "../contract-clauses";
@@ -872,16 +872,16 @@ export const nextQuestion = defineTool({
         const { data: mods } = await sb.from("mcp_job_facts").select("module").eq("job_id", job.job_id);
         const have = new Set((mods ?? []).map((m) => m.module));
         const todo = ["scope", "contract", "handoff", "budget", "warranty"].filter((m) => !have.has(m));
-        return text(`${P}${auto}No setup questions left.${todo.length ? ` Intake sections not started: ${todo.join(", ")}.` : ""} Call report.`);
+        return guide(text(`${P}${auto}No setup questions left.${todo.length ? ` Intake sections not started: ${todo.join(", ")}.` : ""} Call report.`), JOB_SETUP_SOFTWARE_BLOCK);
       }
       const confirm = q.record_value != null;
       const ask = confirm ? `The record shows: ${typeof q.record_value === "string" ? q.record_value : JSON.stringify(q.record_value)}\nConfirm this is right (yes), or say no / unknown.` : q.prompt;
-      return {
+      return guide({
         ...text(
           `${P}${auto}Setup question ${q.index} — ${q.total - q.index + wLeft === 0 ? "last one" : `${q.total - q.index + wLeft} more after this`}${q.label ? ` (${q.label})` : ""} [${q.category}]\nQuestion ref: ${questionRef(q.key)}\n\n${confirm ? `${q.prompt}\n${ask}` : ask}\n\nAnswer with response yes, no, na (with a reason in detail) or unknown. For unknown or no, add owner and due_date if known. To mark the whole section N/A use answer action "mark_na" with scope "section".`,
         ),
         structuredContent: { check_key: q.key, index: q.index, total: q.total, remaining_after: q.total - q.index + wLeft, auto_answered: auto ? "job_number_assigned" : null },
-      };
+      }, JOB_SETUP_SOFTWARE_BLOCK);
     }),
 });
 
