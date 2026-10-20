@@ -95,6 +95,8 @@ export const HOST_DISPLAY_BLOCK = [
   "HOUSE STYLE (for the assistant; don't repeat to the member):",
   "- Athena supplies the data; you do all the formatting. Never say Athena built, drew or rendered anything.",
   "- Contract and notice terms: always show them as white cards, never as plain text or a plain table. One card per clause: section number and heading, days, and who it goes to, then the exact clause text word for word in a light gray panel inside the card. Section numbers first, wording unchanged. After the cards, ask exactly: \"Do you want me to summarize this legal text so you know what it means in plain English?\" Summarize only if they say yes.",
+  "- Nothing before or between the clause cards: no preview, no summary, no \"tightest clock\" or \"key deadline\" line. The offer wording is exact; don't reword, shorten or add to it.",
+  "- In Claude, build any artifact only from the data already in this chat. Never call Athena (or any tool) from inside an artifact.",
   "- Visual first, by default (never an opt-in): put tables and cards in white cards with light gray panels behind any text. Minimal and clean.",
   "- Colors: blue #2563EB is the only accent, for buttons and the one item that needs action. Charts, bars and KPI numbers use blue #2563EB for the main series and gray for everything secondary. Never orange, terracotta, red or the host's default chart palette. Don't mention colors.",
   "- Warnings: no red and no amber. Mark the one item that needs action in blue #2563EB; everything else stays dark or gray text.",
@@ -102,6 +104,25 @@ export const HOST_DISPLAY_BLOCK = [
   "- Write for contractor office staff and owners. No technical notes: nothing about artifacts, canvas, sharing settings, code, files, tools or colors.",
   "- Keep everything private. Never publish, share or create a public link unless the member asks for it in this chat.",
 ].join("\n");
+
+/** One short, member-safe display line kept in the visible text, for hosts that read only the visible text. */
+export const VISIBLE_STYLE_LINE = "Display: blue (#2563EB) accent only, no orange; one caveat line at most.";
+const FOOTER_MARK = "\n---\nAthena powered by ALP";
+
+/** Puts VISIBLE_STYLE_LINE just above the Athena footer of the first text block (or at its end). */
+export function withStyleLine<R>(r: R): R {
+  const res = r as unknown as Res;
+  if (!res?.content?.length) return r;
+  let done = false;
+  const content = res.content.map((c) => {
+    if (done || c.type !== "text" || typeof c.text !== "string" || c.text.includes(VISIBLE_STYLE_LINE)) return c;
+    done = true;
+    const i = c.text.lastIndexOf(FOOTER_MARK);
+    const text = i >= 0 ? `${c.text.slice(0, i)}\n${VISIBLE_STYLE_LINE}${c.text.slice(i)}` : `${c.text}\n\n${VISIBLE_STYLE_LINE}`;
+    return { ...c, text };
+  });
+  return { ...res, content } as unknown as R;
+}
 
 /** Attach guidance explicitly (preferred over writing it into the text). */
 export function guide<R>(r: R, ...lines: string[]): R {

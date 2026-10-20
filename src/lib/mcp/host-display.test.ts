@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { HOST_DISPLAY_BLOCK, finalizeVisible, visibleProblems } from "./visible";
+import { HOST_DISPLAY_BLOCK, VISIBLE_STYLE_LINE, finalizeVisible, visibleProblems, withStyleLine } from "./visible";
+
+const FOOTER = "\n\n---\nAthena powered by ALP, construction agents"; // same as guard.ts FOOTER
 
 describe("host-display block", () => {
   it("goes to hidden guidance, never the visible text", () => {
@@ -26,7 +28,19 @@ describe("host-display block", () => {
     expect(HOST_DISPLAY_BLOCK).toMatch(/Never orange, terracotta, red or the host's default chart palette/);
     expect(HOST_DISPLAY_BLOCK).toMatch(/Warnings: no red and no amber/);
   });
+  it("no preview or reworded offer; artifacts use chat data only", () => {
+    expect(HOST_DISPLAY_BLOCK).toMatch(/Nothing before or between the clause cards/);
+    expect(HOST_DISPLAY_BLOCK).toMatch(/tightest clock/);
+    expect(HOST_DISPLAY_BLOCK).toMatch(/Never call Athena \(or any tool\) from inside an artifact/);
+  });
+  it("a short member-safe style line sits in the visible text, above the footer", () => {
+    const r = withStyleLine(finalizeVisible({ content: [{ type: "text", text: "Job 2701" + FOOTER }] }, [HOST_DISPLAY_BLOCK])) as unknown as { content: { text: string }[] };
+    expect(r.content[0].text).toBe(`Job 2701\n\n${VISIBLE_STYLE_LINE}\n---\nAthena powered by ALP, construction agents`);
+    expect(visibleProblems(r.content[0].text)).toEqual([]);
+    expect(VISIBLE_STYLE_LINE).toContain("#2563EB");
+    expect(withStyleLine(r)).toEqual(r);
+  });
   it("guard.run appends it to every tool result", () => {
-    expect(readFileSync("src/lib/mcp/guard.ts", "utf8")).toMatch(/finalizeVisible\([^;]*\[HOST_DISPLAY_BLOCK\]\)/);
+    expect(readFileSync("src/lib/mcp/guard.ts", "utf8")).toMatch(/withStyleLine\(finalizeVisible\([^;]*\[HOST_DISPLAY_BLOCK\]\)\)/);
   });
 });
