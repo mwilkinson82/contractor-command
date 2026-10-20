@@ -152,6 +152,7 @@ export function sovLayout(brand: SovBrand) {
     colors: { background: "#FFFFFF", headings_totals: "#111827", body: "#374151", labels_rules_notes: "#6B7280", header_rows_division_rows_callouts: "#F3F4F6", accent: "#2563EB" },
     accent_use: ["contract total callout", "share bars", "one rule under the page header"],
     no_orange: true,
+    table_style: SOV_TABLE_STYLE,
     color_rule: "blue #2563EB and gray only, never orange, rust or red, including totals",
     default_view: "lines",
     fonts: { body_pt: "9-10", tabular_figures: true },
@@ -186,6 +187,19 @@ export function sovLayout(brand: SovBrand) {
 
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+/** 0.8.1 table look, same words in the host instruction and the layout recipe. */
+export const SOV_TABLE_STYLE = "Header row blue #2563EB with white bold text; alternating light-gray (#F3F4F6) and white row bands; bold total row with a blue #2563EB top rule.";
+
+/** Side notes kept out of the visible SOV; the host shows them only when the member asks. */
+export function sovNotes(brand: SovBrand, missing: string[]) {
+  return {
+    logo: brand.logo_url ? "link on file" : `none on file, so ${brand.company_name} prints in bold`,
+    footer_missing: missing,
+    billing: "Billing columns stay blank until there is a pay app.",
+    rollup: "Division subtotals are available (report sov_view divisions).",
+  };
+}
+
 export type SovView = "lines" | "divisions";
 
 /** One row per SOV line (the default view): line no., division, description, scheduled value, % of contract total. */
@@ -207,7 +221,6 @@ export function sovSummaryText(prefix: string, sov: Sov, brand: SovBrand, basis:
           ...sovLineRows(sov).map((r) => `${r.item_no} | ${r.division} ${r.division_title} | ${r.description} | ${money(r.scheduled_value)} | ${r.pct_of_total.toFixed(2)}%`),
           ...(s.fee > 0 ? [`CF | | Contractor's fee | ${money(s.fee)} | ${s.fee_pct.toFixed(2)}%`] : []),
           `Total | | Contract sum | ${money(s.contract_total)} | 100.00%`,
-          "Division subtotals are available on request.",
         ];
   return [
     `${prefix}SCHEDULE OF VALUES (${audience === "client" ? "for the owner" : "internal"}, ties out to the cent)`,
@@ -216,9 +229,6 @@ export function sovSummaryText(prefix: string, sov: Sov, brand: SovBrand, basis:
     `Basis: ${basis ?? "not recorded"}`,
     "",
     ...body,
-    "",
-    `Logo: ${brand.logo_url ? "link on file" : `none on file, so ${brand.company_name} prints in bold`}`,
-    ...(missing.length ? [`Footer still missing: ${missing.join(", ")}`] : []),
-    "Billing columns stay blank until there is a pay app.",
   ].join("\n");
+  // 0.8.1: nothing after the table. Logo, footer gaps, billing note and the roll-up offer live in structuredContent.sov.notes, shown only on request.
 }

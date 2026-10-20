@@ -90,6 +90,9 @@ export function finalizeVisible<R>(r: R, extra: string[] = []): R {
   } as unknown as R;
 }
 
+/** Exact summary offer (same text as contract-clauses SUMMARY_OFFER). */
+export const SUMMARY_OFFER_TEXT = "Do you want me to summarize this legal text so you know what it means in plain English?";
+
 /** How the host should show every Athena result. Goes in assistant_guidance on every tool result (guard.run), never in the visible text. */
 export const HOST_DISPLAY_BLOCK = [
   "HOUSE STYLE (for the assistant; don't repeat to the member):",
@@ -105,7 +108,8 @@ export const HOST_DISPLAY_BLOCK = [
   "- Contract output order: clause cards, then ONE line for any missing or partial notices (fold them all into that line), then the exact summary offer as the very last line. Nothing after the offer.",
   "- Never write \"No changes were made\", \"No items were changed\" or similar lines, and no filler openers such as \"Pulling up...\", \"Let me...\" or \"Here's...\". Start with the visual.",
   "- In Claude, build every artifact as static data embedded from this tool result: no connector or MCP calls inside the artifact, no live refresh and no re-reading Athena. At most 2 lines of text after the artifact.",
-  "- Schedule of values (report deliverable sov): present it as a spreadsheet, line-item view by default: one row per line with line no., division, description, scheduled value and % of total, then the grand total that ties to the contract sum. Claude: an artifact table built from this result; ChatGPT: a canvas or table; elsewhere: a clean table plus an offer to create an Excel file. White background, light gray header and division rows, blue #2563EB and gray only, never orange, rust or red, including totals. Show the division roll-up only if the member asks for it.",
+  "- Schedule of values (report deliverable sov): present it as a spreadsheet, line-item view by default: one row per line with line no., division, description, scheduled value and % of total, then the grand total that ties to the contract sum. Claude: an artifact table built from this result; ChatGPT: a canvas or table; elsewhere: a clean table plus an offer to create an Excel file. Table style: header row blue #2563EB with white bold text; alternating light-gray (#F3F4F6) and white row bands; bold total row with a blue #2563EB top rule. Blue #2563EB and gray only, never orange, rust or red, including totals. After the table, at most one line: no footer or license note and no roll-up offer unless the member asks.",
+  `- Summary offer: use this wording verbatim, never paraphrased or shortened: "${SUMMARY_OFFER_TEXT}"`,
   "- Write for contractor office staff and owners. No technical notes: nothing about artifacts, canvas, sharing settings, code, files, tools or colors.",
   "- Keep everything private. Never publish, share or create a public link unless the member asks for it in this chat.",
 ].join("\n");
