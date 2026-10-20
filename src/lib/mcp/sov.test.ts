@@ -127,7 +127,7 @@ describe("SOV line-item view (0.8.0)", () => {
     expect(rows.find((r) => r.item_no === "26.06")!.pct_of_total).toBe(18.21);
     const txt = sovSummaryText("", sov, BRAND, "Exhibit B", [], "internal");
     for (const l of J2701) expect(txt).toContain(`${l.item_no} | `);
-    expect(txt).toContain("Total | | Contract sum | $1,400,000.00 | 100.00%");
+    expect(txt).toContain("Total | | | Contract sum | $1,400,000.00 | 100.00%");
     expect(txt).not.toContain("Scheduled value by division:");
     expect(txt).not.toContain("Contractor's fee");
   });
