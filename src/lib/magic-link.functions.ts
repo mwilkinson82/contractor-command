@@ -10,6 +10,7 @@ import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { oauthConsentReturn } from "@/lib/oauth-return-path";
 import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
+import { athenaAppOrigin } from "@/lib/athena-host";
 
 type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
 
@@ -35,6 +36,7 @@ function allowedRequestOrigin(origin: string | null): string | null {
       host === "localhost" ||
       host === "127.0.0.1" ||
       host === "app.alpcontractorcircle.com" ||
+      host === "app.meetathena.io" ||
       host === "contractor-command.lovable.app" ||
       host === "id-preview--362c776b-68ab-4871-bedb-c42cb9843c1b.lovable.app";
 
@@ -152,7 +154,11 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
   .inputValidator(Input.parse)
   .handler(async ({ data }): Promise<MagicLinkResult> => {
     const email = data.email;
-    const origin = appOrigin();
+    // Athena sign-ins (an OAuth consent continuation is present) always land on
+    // the Athena app, whatever page the request came from. Hub sign-ins keep
+    // the request-derived origin. Identity and the live-member check below are
+    // the same for both.
+    const origin = oauthConsentReturn(data.continuation) ? athenaAppOrigin() : appOrigin();
     const minDelay = new Promise((resolve) => setTimeout(resolve, 600));
     let internalAction:
       | "sent"
