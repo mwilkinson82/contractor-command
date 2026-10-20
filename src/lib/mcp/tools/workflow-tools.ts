@@ -1346,6 +1346,6 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
       },
     },
     "To produce the SOV file, use structuredContent.sov exactly: numbers, column set and layout recipe come from the server. Do not recompute or reorder.",
-    "Present the SOV as a spreadsheet with the line-item view by default (structuredContent.sov.line_items: line no., division, description, scheduled value, % of total, then the total that ties to the contract sum). Claude: an artifact table built from this result with no tool calls inside it; ChatGPT: a canvas or table; elsewhere: a table plus an offer to create an Excel file. White background, light gray header and division rows, blue #2563EB only on the total. Offer the division roll-up only if asked (report sov_view divisions).",
+    "Present the SOV as a spreadsheet with the line-item view by default (structuredContent.sov.line_items: line no., division, description, scheduled value, % of total, then the total that ties to the contract sum). Claude: an artifact table built from this result with no tool calls inside it; ChatGPT: a canvas or table; elsewhere: a table plus an offer to create an Excel file. White background, light gray header and division rows; bars, totals and highlights: blue #2563EB and gray only, never orange, rust or red, including totals. Offer the division roll-up only if asked (report sov_view divisions).",
   );
 }

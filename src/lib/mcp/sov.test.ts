@@ -95,7 +95,7 @@ describe("fixed layout", () => {
     expect(Object.values(withLogo.colors)).toEqual(["#FFFFFF", "#111827", "#374151", "#6B7280", "#F3F4F6", "#2563EB"]);
     expect(withLogo.no_orange).toBe(true);
     expect(withLogo.default_view).toBe("lines");
-    expect(JSON.stringify({ ...withLogo, no_orange: undefined })).not.toMatch(/orange|cream|#C8581E/i);
+    expect(JSON.stringify({ ...withLogo, no_orange: undefined, color_rule: undefined })).not.toMatch(/orange|cream|#C8581E/i);
     expect(withLogo.logo?.url).toBe("https://example.com/l.png");
     expect(withLogo.fallback_wordmark).toBeNull();
     expect(withLogo.footer.fields).toEqual(["TEST Co", "CBC000", "Sam 555-0100", "example.com"]);
