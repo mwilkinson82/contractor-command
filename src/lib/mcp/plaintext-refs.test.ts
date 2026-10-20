@@ -35,5 +35,5 @@ describe("question refs", () => {
 
 describe("leak checks", () => {
   it("flags a raw UUID in visible text", () => expect(visibleProblems(`Item ${items[0].id}`).length).toBeGreaterThan(0));
-  it("version is 0.7.2", () => expect(ATHENA_VERSION).toBe("0.7.2"));
+  it("version is 0.7.3", () => expect(ATHENA_VERSION).toBe("0.7.3"));
 });
