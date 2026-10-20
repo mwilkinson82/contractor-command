@@ -149,9 +149,11 @@ export type SovBrand = { company_name: string; logo_url: string | null; license_
 export function sovLayout(brand: SovBrand) {
   return {
     orientation: "landscape", fit: "width",
-    colors: { headings_totals: "#111111", body: "#2B2B2B", labels_rules_notes: "#8A8A8A", header_rows_division_rows_callouts: "#F5F1E8", accent: "#C8581E" },
+    colors: { background: "#FFFFFF", headings_totals: "#111827", body: "#374151", labels_rules_notes: "#6B7280", header_rows_division_rows_callouts: "#F3F4F6", accent: "#2563EB" },
     accent_use: ["contract total callout", "share bars", "one rule under the page header"],
-    no_blue: true,
+    no_orange: true,
+    color_rule: "blue #2563EB and gray only, never orange, rust or red, including totals",
+    default_view: "lines",
     fonts: { body_pt: "9-10", tabular_figures: true },
     formats: { money: "$#,##0.00", percent: "0.00%", date: "MMMM d, yyyy" },
     logo: brand.logo_url ? { url: brand.logo_url, position: "top-left, every page", width_in: 1.2, keep_aspect: true } : null,
@@ -160,16 +162,16 @@ export function sovLayout(brand: SovBrand) {
       {
         page: 1, title: "SCHEDULE OF VALUES · CONTRACT SUMMARY", title_style: "letter-spaced",
         fields: ["Project name (large)", "PREPARED", "CONTRACTOR", "BASIS"],
-        callouts: ["CONTRACT TOTAL (orange, largest)", "COST OF WORK + GENERAL CONDITIONS (with % of contract)", "CONTRACTOR'S FEE (with % of contract)"],
-        division_table: { columns: ["Div.", "Description", "Scheduled Value", "% of Contract", "Share of contract (orange bar)"], end_rows: ["Subtotal", "Contractor's Fee", "Contract Total 100.00%"] },
+        callouts: ["CONTRACT TOTAL (blue, largest)", "COST OF WORK + GENERAL CONDITIONS (with % of contract)", "CONTRACTOR'S FEE (with % of contract)"],
+        division_table: { columns: ["Div.", "Description", "Scheduled Value", "% of Contract", "Share of contract (blue bar)"], end_rows: ["Subtotal", "Contractor's Fee", "Contract Total 100.00%"] },
       },
       {
         page: "2+", title: "SCHEDULE OF VALUES · CONTINUATION SHEET (G703 FORMAT)", title_style: "letter-spaced",
         header_fields: ["Project", "APPLICATION NO.", "APPLICATION DATE", "PERIOD TO", "CONTRACT SUM"],
         columns: G703_COLUMNS.map((c) => (c.letter ? `${c.letter}: ${c.label}` : c.label)),
-        division_header_rows: "cream, e.g. \"01 Division 01 — General Requirements\"",
+        division_header_rows: "light gray, e.g. \"01 Division 01 — General Requirements\"",
         division_subtotal_rows: "Subtotal — Division NN",
-        end_rows: ["Subtotal Cost of Work + GC, with %", "CF Contractor's Fee, with %", "Grand Total — Contract Sum, 100.00% (bold, top border, orange figure)"],
+        end_rows: ["Subtotal Cost of Work + GC, with %", "CF Contractor's Fee, with %", "Grand Total — Contract Sum, 100.00% (bold, top border, blue figure)"],
         billing_columns: "D, E, G, % Complete, H and I stay blank (not zero) until there is a pay app",
         repeat_header_rows: true,
       },
@@ -184,18 +186,36 @@ export function sovLayout(brand: SovBrand) {
 
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-/** Short visible summary for the PM. The full data is in structured content. */
-export function sovSummaryText(prefix: string, sov: Sov, brand: SovBrand, basis: string | null, missing: string[], audience: "internal" | "client" = "internal"): string {
+export type SovView = "lines" | "divisions";
+
+/** One row per SOV line (the default view): line no., division, description, scheduled value, % of contract total. */
+export function sovLineRows(sov: Sov) {
+  const total = Math.round(sov.summary.contract_total * 100);
+  return sov.divisions.flatMap((d) =>
+    d.lines.map((l) => ({ item_no: l.item_no, division: d.division, division_title: d.title, description: l.description, scheduled_value: l.scheduled_value, pct_of_total: pct2(Math.round(l.scheduled_value * 100), total) })),
+  );
+}
+
+/** Visible SOV for the PM. Default: every line item, then the total that ties out. view "divisions" shows the roll-up instead. */
+export function sovSummaryText(prefix: string, sov: Sov, brand: SovBrand, basis: string | null, missing: string[], audience: "internal" | "client" = "internal", view: SovView = "lines"): string {
   const s = sov.summary;
+  const body =
+    view === "divisions"
+      ? ["Scheduled value by division:", ...s.divisions.map((d) => `- ${d.division} ${d.title}: ${money(d.scheduled_value)} (${d.pct_of_contract.toFixed(2)}%)`)]
+      : [
+          "Line | Division | Description | Scheduled value | % of total",
+          ...sovLineRows(sov).map((r) => `${r.item_no} | ${r.division} ${r.division_title} | ${r.description} | ${money(r.scheduled_value)} | ${r.pct_of_total.toFixed(2)}%`),
+          ...(s.fee > 0 ? [`CF | | Contractor's fee | ${money(s.fee)} | ${s.fee_pct.toFixed(2)}%`] : []),
+          `Total | | Contract sum | ${money(s.contract_total)} | 100.00%`,
+          "Division subtotals are available on request.",
+        ];
   return [
     `${prefix}SCHEDULE OF VALUES (${audience === "client" ? "for the owner" : "internal"}, ties out to the cent)`,
     `Contract total: ${money(s.contract_total)}`,
-    `Cost of work + general conditions: ${money(s.cost_of_work_gc)} (${s.cost_of_work_gc_pct.toFixed(2)}%)`,
-    `Contractor's fee: ${money(s.fee)} (${s.fee_pct.toFixed(2)}%)`,
+    ...(s.fee > 0 ? [`Cost of work + general conditions: ${money(s.cost_of_work_gc)} (${s.cost_of_work_gc_pct.toFixed(2)}%)`, `Contractor's fee: ${money(s.fee)} (${s.fee_pct.toFixed(2)}%)`] : []),
     `Basis: ${basis ?? "not recorded"}`,
     "",
-    "Scheduled value by division:",
-    ...s.divisions.map((d) => `- ${d.division} ${d.title}: ${money(d.scheduled_value)} (${d.pct_of_contract.toFixed(2)}%)`),
+    ...body,
     "",
     `Logo: ${brand.logo_url ? "link on file" : `none on file, so ${brand.company_name} prints in bold`}`,
     ...(missing.length ? [`Footer still missing: ${missing.join(", ")}`] : []),

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildSov, lineBilling, retainagePct, sovLayout, G703_COLUMNS, SovMismatch } from "./sov";
+import { buildSov, lineBilling, retainagePct, sovLayout, sovLineRows, sovSummaryText, G703_COLUMNS, SovMismatch } from "./sov";
 
 const c = (n: number) => Math.round(n * 100);
 // Fictional lines that sum to the reference cost of work + GC ($3,313,188.60 at a 15% fee).
@@ -90,11 +90,12 @@ describe("fixed layout", () => {
   it("uses the fixed GC columns A B C D E G %Complete H I", () => {
     expect(G703_COLUMNS.map((x) => x.letter ?? x.label)).toEqual(["A", "B", "C", "D", "E", "G", "% Complete (G÷C)", "H", "I"]);
   });
-  it("brand colors, no blue, logo or bold fallback, footer fields", () => {
+  it("white/gray/blue colors, no orange, logo or bold fallback, footer fields", () => {
     const withLogo = sovLayout({ company_name: "TEST Co", logo_url: "https://example.com/l.png", license_number: "CBC000", contact_name: "Sam", contact_phone: "555-0100", website: "example.com" });
-    expect(Object.values(withLogo.colors)).toEqual(["#111111", "#2B2B2B", "#8A8A8A", "#F5F1E8", "#C8581E"]);
-    expect(withLogo.no_blue).toBe(true);
-    expect(JSON.stringify({ ...withLogo, no_blue: undefined })).not.toMatch(/blue|#00f|#0000ff/i);
+    expect(Object.values(withLogo.colors)).toEqual(["#FFFFFF", "#111827", "#374151", "#6B7280", "#F3F4F6", "#2563EB"]);
+    expect(withLogo.no_orange).toBe(true);
+    expect(withLogo.default_view).toBe("lines");
+    expect(JSON.stringify({ ...withLogo, no_orange: undefined, color_rule: undefined })).not.toMatch(/orange|cream|#C8581E/i);
     expect(withLogo.logo?.url).toBe("https://example.com/l.png");
     expect(withLogo.fallback_wordmark).toBeNull();
     expect(withLogo.footer.fields).toEqual(["TEST Co", "CBC000", "Sam 555-0100", "example.com"]);
@@ -103,5 +104,36 @@ describe("fixed layout", () => {
     expect(noLogo.logo).toBeNull();
     expect(noLogo.fallback_wordmark).toMatchObject({ text: "TEST Co", style: "bold" });
     expect(withLogo.pages.map((p) => p.title)).toEqual(["SCHEDULE OF VALUES · CONTRACT SUMMARY", "SCHEDULE OF VALUES · CONTINUATION SHEET (G703 FORMAT)"]);
+  });
+});
+
+// Job 2701 (Harbor Point Electrical): Exhibit B lump sum, fee 0, ten lines that tie to $1,400,000.00.
+const J2701 = [
+  ["26.01", "Mobilization, bonds and general conditions", 70000], ["26.02", "Submittals and engineering", 20000],
+  ["26.03", "Service entrance and switchgear", 210000], ["26.04", "Emergency generator and transfer switches", 180000],
+  ["26.05", "Panelboards, transformers and feeders", 185000], ["26.06", "Branch circuit rough-in and devices", 255000],
+  ["26.07", "Lighting fixtures and controls", 205000], ["26.08", "Site lighting, testing and closeout", 70000],
+  ["27.01", "Low-voltage pathways", 90000], ["28.01", "Fire alarm system", 115000],
+].map(([item_no, description, scheduled_value]) => ({ item_no: item_no as string, description: description as string, scheduled_value: scheduled_value as number }));
+const BRAND = { company_name: "ALP Construction", logo_url: null, license_number: null, contact_name: null, contact_phone: null, website: null };
+
+describe("SOV line-item view (0.8.0)", () => {
+  const sov = buildSov(J2701, 0, null);
+  it("lists every line by default and ties out to the contract sum", () => {
+    const rows = sovLineRows(sov);
+    expect(rows.map((r) => r.item_no)).toEqual(J2701.map((l) => l.item_no));
+    expect(rows.reduce((s, r) => s + c(r.scheduled_value), 0)).toBe(c(1400000));
+    expect(sov.summary.contract_total).toBe(1400000);
+    expect(rows.find((r) => r.item_no === "26.06")!.pct_of_total).toBe(18.21);
+    const txt = sovSummaryText("", sov, BRAND, "Exhibit B", [], "internal");
+    for (const l of J2701) expect(txt).toContain(`${l.item_no} | `);
+    expect(txt).toContain("Total | | Contract sum | $1,400,000.00 | 100.00%");
+    expect(txt).not.toContain("Scheduled value by division:");
+    expect(txt).not.toContain("Contractor's fee");
+  });
+  it("division roll-up only when asked", () => {
+    const txt = sovSummaryText("", sov, BRAND, "Exhibit B", [], "internal", "divisions");
+    expect(txt).toContain("- 26 Electrical: $1,195,000.00 (85.36%)");
+    expect(txt).not.toContain("26.06 | ");
   });
 });

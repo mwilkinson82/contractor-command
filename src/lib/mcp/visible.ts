@@ -98,16 +98,25 @@ export const HOST_DISPLAY_BLOCK = [
   "- Nothing before or between the clause cards: no preview, no summary, no \"tightest clock\" or \"key deadline\" line. The offer wording is exact; don't reword, shorten or add to it.",
   "- In Claude, build any artifact only from the data already in this chat. Never call Athena (or any tool) from inside an artifact.",
   "- Visual first, by default (never an opt-in): put tables and cards in white cards with light gray panels behind any text. Minimal and clean.",
+  "- Charts, tables, totals and highlights: blue #2563EB and gray only, never orange, rust or red, including totals.",
   "- Colors: blue #2563EB is the only accent, for buttons and the one item that needs action. Charts, bars and KPI numbers use blue #2563EB for the main series and gray for everything secondary. Never orange, terracotta, red or the host's default chart palette. Don't mention colors.",
   "- Warnings: no red and no amber. Mark the one item that needs action in blue #2563EB; everything else stays dark or gray text.",
-  "- After the visual, at most 3 short lines of text, and at most one plain-English caveat line, only if it changes what they should do.",
+  "- After the visual, at most 3 short lines of text, and at most one plain-English caveat line, only if it changes what they should do. Dashboards: one caveat line at most and never a \"Priority:\" block.",
+  "- Contract output order: clause cards, then ONE line for any missing or partial notices (fold them all into that line), then the exact summary offer as the very last line. Nothing after the offer.",
+  "- Never write \"No changes were made\", \"No items were changed\" or similar lines, and no filler openers such as \"Pulling up...\", \"Let me...\" or \"Here's...\". Start with the visual.",
+  "- In Claude, build every artifact as static data embedded from this tool result: no connector or MCP calls inside the artifact, no live refresh and no re-reading Athena. At most 2 lines of text after the artifact.",
+  "- Schedule of values (report deliverable sov): present it as a spreadsheet, line-item view by default: one row per line with line no., division, description, scheduled value and % of total, then the grand total that ties to the contract sum. Claude: an artifact table built from this result; ChatGPT: a canvas or table; elsewhere: a clean table plus an offer to create an Excel file. White background, light gray header and division rows, blue #2563EB and gray only, never orange, rust or red, including totals. Show the division roll-up only if the member asks for it.",
   "- Write for contractor office staff and owners. No technical notes: nothing about artifacts, canvas, sharing settings, code, files, tools or colors.",
   "- Keep everything private. Never publish, share or create a public link unless the member asks for it in this chat.",
 ].join("\n");
 
+/** Project software is a real setup step: check key, and its fixed place in next_question (2nd, right after the job number check). */
+export const PROJECT_SOFTWARE_KEY = "project_software";
+export const PROJECT_SOFTWARE_POSITION = 2;
+
 /** Job setup: where the job lives. Exact member-facing wording; the host asks it, never Athena's visible text. */
 export const JOB_SOFTWARE_ASK =
-  "Is this job already set up in your project software? Which one do you use: Overwatch, Buildertrend, Procore, or something else?";
+  "Is this job already set up in your project software? Which one do you use: Overwatch, Buildertrend, Procore, Primavera P6, another web tool, or Excel?";
 export const JOB_SOFTWARE_TOOL_FOLLOWUP = "Do you want me to create the job there, or is it already set up?";
 export const JOB_SOFTWARE_NONE_FOLLOWUP =
   "No problem. I can build the schedule of values and the CPM schedule right here in chat, or as an Excel file you can keep. Which would you like?";
@@ -115,14 +124,15 @@ export const JOB_SOFTWARE_NONE_FOLLOWUP =
 /** Hidden guidance on job-setup next_question results. Instruction text only: no new field, nothing stored by Athena. */
 export const JOB_SETUP_SOFTWARE_BLOCK = [
   "JOB SETUP: WHERE THIS JOB LIVES (for the assistant; don't repeat to the member):",
-  `- Ask once per job, right after the contract and SOV basics are recorded and before the CPM schedule step. Ask exactly: "${JOB_SOFTWARE_ASK}"`,
+  `- next_question returns this as setup question 2 (ref project-software), right after the job number check and before the gates; ask it then, once per job. Ask exactly: "${JOB_SOFTWARE_ASK}"`,
   `- If they name a tool, ask exactly: "${JOB_SOFTWARE_TOOL_FOLLOWUP}"`,
   `- If they say none or not sure, say exactly: "${JOB_SOFTWARE_NONE_FOLLOWUP}"`,
   "- If the member says yes, create it in their tool: use your browser (or the member's browser) to open the tool, have the MEMBER sign in themselves (never ask for or type a password), then create the job and build the SOV, the CPM schedule, cost loading and billing there from Athena's job data. Confirm each screen with the member before saving anything.",
+  "- Primavera P6: big contracts often require a P6 schedule. If the member picks P6, offer (a) to generate an XER file from Athena's SOV and contract dates for them to import into P6, or (b) if you have desktop control of their computer (for example ChatGPT desktop), to build the schedule directly in P6 with them watching. The member opens and signs in to P6 themselves.",
   "- If the job already exists there: open it, compare it to Athena's SOV and schedule, and list the differences. Don't overwrite anything without a yes.",
   "- If there's no tool, or you have no browser: offer to build it in chat (tables and charts) or in Excel (an SOV sheet, a schedule sheet and a cost-loaded billing forecast). Work through the choice with the member one question at a time.",
   "- Athena only supplies the job data; you do the building. Never say Athena created, built or set up anything.",
-  "- Athena has no field for this answer yet, so keep it in this chat (the tool name, or chat or Excel) and use the same place for every later step. Don't record it in job settings, an open item or a setup answer.",
+  "- Record the answer with answer check_key project_software (tool name in detail), and keep it in this chat too; use the same place for every later step. Don't record it in job settings or an open item.",
   "- Keep it plain: one question at a time, no technical notes.",
 ].join("\n");
 
