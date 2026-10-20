@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "sdk_version": "3.0.5",
+  "sdk_version": "3.1.1",
   "path": "/mcp",
   "auth": {
     "type": "oauth",
@@ -12,15 +12,15 @@
   },
   "mcp": {
     "server": {
-      "name": "contractor-circle-hub",
-      "version": "0.4.0",
-      "title": "Contractor Circle Hub"
+      "name": "athena",
+      "version": "0.7.1",
+      "title": "Athena powered by ALP, construction agents"
     },
     "tools": [
       {
         "name": "onboarding",
         "title": "Company profile and members",
-        "description": "Read or save the company profile the PM agent works for (role, work types, trades, tool stack, decision rights, default applicability), and add members as Owner, PM or All-access.",
+        "description": "Read or save the company profile Athena works for (role, work types, trades, tool stack, decision rights, default applicability), and add members as Owner, PM or All-access. Athena is for contractors running their own construction company: never offer a consulting option or frame anything as consulting. No job number is needed here; it is required when you create a job.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -36,15 +36,16 @@
               "enum": [
                 "read",
                 "save_company",
-                "add_member"
+                "add_member",
+                "save_brand"
               ],
-              "description": "read, save_company (create or update), or add_member."
+              "description": "read, save_company (create or update), add_member, or save_brand (SOV logo link and footer)."
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company.",
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. If the member hasn't named one, call list_open_items with no job_number to list the companies.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 200
             },
             "name": {
               "description": "Company name (required to create).",
@@ -57,7 +58,7 @@
               "maxLength": 120
             },
             "agent_name": {
-              "description": "What to call the agent. Default 'PM agent'.",
+              "description": "What to call the agent. Default 'Athena PM'.",
               "type": "string",
               "maxLength": 60
             },
@@ -171,7 +172,7 @@
               "description": "add_member: the person's sign-in email.",
               "type": "string",
               "format": "email",
-              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
             },
             "member_name": {
               "description": "add_member: display name.",
@@ -186,6 +187,32 @@
                 "pm",
                 "all_access"
               ]
+            },
+            "logo_url": {
+              "description": "save_brand: https link to the company logo (PNG, JPG or SVG). Leave out if there is none; the company name prints in bold.",
+              "type": "string",
+              "maxLength": 2000,
+              "format": "uri"
+            },
+            "license_number": {
+              "description": "save_brand: license designation and number as it should print on the SOV footer.",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "contact_name": {
+              "description": "save_brand: named contact on the SOV footer.",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "contact_phone": {
+              "description": "save_brand: the contact's phone.",
+              "type": "string",
+              "maxLength": 40
+            },
+            "website": {
+              "description": "save_brand: website printed in the SOV footer (plain text).",
+              "type": "string",
+              "maxLength": 200
             }
           },
           "required": [
@@ -198,7 +225,7 @@
       {
         "name": "intake",
         "title": "Job setup intake",
-        "description": "Create a job (keyed by job number) and record its setup: job settings (time zone, PM), step 0 scoping, contract terms, contract deadlines, estimate handoff, budget and SOV, open items, or a two-week lookahead. Missing data is recorded as unknown, never guessed.",
+        "description": "Create a job (keyed by job number) and record its setup: job settings (time zone, PM), step 0 scoping, contract terms, contract deadlines, estimate handoff, budget and SOV, open items, a delay event, or a two-week lookahead. Missing data is recorded as unknown, never guessed. Record every delay, slip or schedule impact the member mentions with section delay_event before answering.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -219,10 +246,13 @@
                 "deadline",
                 "handoff",
                 "budget",
+                "warranty",
                 "open_item",
-                "lookahead"
+                "lookahead",
+                "delay_event",
+                "clauses"
               ],
-              "description": "Which part of setup to record."
+              "description": "Which part of setup to record. Use clauses for contract notice and time clauses, copied word for word."
             },
             "job_number": {
               "type": "string",
@@ -231,10 +261,10 @@
               "description": "Job number, exact match (e.g. 2417)."
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company.",
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. If the member hasn't named one, call list_open_items with no job_number to list the companies.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 200
             },
             "job_name": {
               "description": "create_job: job name.",
@@ -257,9 +287,93 @@
               "maxLength": 60
             },
             "pm": {
-              "description": "job_settings: member name to assign as the job's PM.",
+              "description": "job_settings: the job PM's name only (put the email in pm_email; no notes such as \"non-member\"). A company member is linked; anyone else is saved as a contact (name + email) with no Athena access.",
               "type": "string",
               "maxLength": 120
+            },
+            "pm_email": {
+              "description": "job_settings: the PM's email. Used as the suggested From on drafts. No Athena access is granted.",
+              "type": "string",
+              "maxLength": 200
+            },
+            "pm_title": {
+              "description": "job_settings: the PM's title for draft signatures. Default 'Project Manager'.",
+              "type": "string",
+              "maxLength": 120
+            },
+            "delay_description": {
+              "description": "delay_event: what slipped, in the member's words, e.g. 'Lighting rough-in slipped 3 weeks'.",
+              "type": "string",
+              "maxLength": 500
+            },
+            "delay_activity": {
+              "description": "delay_event: the schedule activity affected, if named.",
+              "type": "string",
+              "maxLength": 200
+            },
+            "delay_start_date": {
+              "description": "delay_event: the date the delay began. Leave out if the member doesn't know; Athena flags both notices due today with 'confirm start date'.",
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "delay_days": {
+              "description": "delay_event: estimated impact in calendar days, if stated.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3650
+            },
+            "delay_cause": {
+              "description": "delay_event: cause, if stated. Never guess it.",
+              "type": "string",
+              "maxLength": 500
+            },
+            "clauses": {
+              "description": "clauses: Contract clauses: pass each clause's text exactly as written in the contract (copy it, never summarize, shorten or merge), one clause per entry with its section number and heading, and pass the full contract text as contract_text so Athena can verify it. If a clause isn't in the contract, leave it out; Athena opens an item to confirm it.",
+              "maxItems": 60,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "section": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40,
+                    "description": "Section number as printed, e.g. 6.4."
+                  },
+                  "heading": {
+                    "description": "The clause heading as printed, e.g. Delay Notice. Leave out if the clause has none.",
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 10000,
+                    "description": "The clause text copied exactly as written in the contract. Never summarize, shorten or merge clauses."
+                  },
+                  "category": {
+                    "description": "Optional; Athena classifies from the heading and text when left out.",
+                    "type": "string",
+                    "enum": [
+                      "delay_notice",
+                      "claim_notice",
+                      "nonpayment_notice",
+                      "cure_notice",
+                      "schedule_disagreement",
+                      "other"
+                    ]
+                  }
+                },
+                "required": [
+                  "section",
+                  "text"
+                ]
+              }
+            },
+            "contract_text": {
+              "description": "clauses: the full contract text as uploaded (copied, not summarized). Used to verify each clause word for word; stored with the job, readable by members with contract access.",
+              "type": "string",
+              "maxLength": 400000
             },
             "clause_key": {
               "type": "string",
@@ -521,8 +635,13 @@
               }
             },
             "contract_document_provided": {
-              "description": "contract: true only if these terms were read from the contract. Without it every clause stays unknown.",
+              "description": "contract/deadline: true ONLY if you read these terms from the contract document itself in this conversation (and give contract_document_name). Terms the member typed or told you are manual: leave this out.",
               "type": "boolean"
+            },
+            "contract_document_name": {
+              "description": "contract/deadline: the contract document the terms were read from (file name or title). Required for source document; without it the terms are saved as manual.",
+              "type": "string",
+              "maxLength": 300
             },
             "pay_terms": {
               "description": "contract",
@@ -581,6 +700,71 @@
             },
             "warranty_clauses": {
               "description": "contract",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "workmanship_warranty": {
+              "description": "warranty: is there a workmanship warranty?",
+              "type": "string",
+              "enum": [
+                "yes",
+                "no",
+                "na",
+                "unknown"
+              ]
+            },
+            "workmanship_warranty_months": {
+              "description": "warranty: how long the workmanship warranty runs, in months.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 240
+            },
+            "warranty_start_trigger": {
+              "description": "warranty: what starts the workmanship warranty. Owner acceptance = final_acceptance. Prefer warranty_start_trigger_text with the member's own words.",
+              "type": "string",
+              "enum": [
+                "substantial_completion",
+                "final_acceptance",
+                "other"
+              ]
+            },
+            "warranty_start_trigger_text": {
+              "description": "warranty: the member's own words for what starts the warranty (e.g. \"owner acceptance\"). Mapped for you and wins over warranty_start_trigger.",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "warranty_start_trigger_other": {
+              "description": "warranty: describe the trigger when warranty_start_trigger is other",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "warranty_trigger_date": {
+              "description": "warranty: the actual date of the trigger event, once it has happened. Leave out until then.",
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "warranty_start_basis": {
+              "description": "warranty: what sets the warranty start date (clause or document)",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "closeout_documents": {
+              "description": "warranty: required closeout documents (O&Ms, as-builts, etc.); \"unknown\" if not known",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "punch_final_acceptance": {
+              "description": "warranty: punch list and final acceptance requirements",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "manufacturer_warranties": {
+              "description": "warranty: manufacturer warranties to collect, or none",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "closeout_expectations": {
+              "description": "warranty: other closeout expectations (training, commissioning, final cleaning, lien waivers, warranty walk, turnover meeting), or none",
               "type": "string",
               "maxLength": 2000
             },
@@ -688,7 +872,7 @@
               }
             },
             "sov_lines": {
-              "description": "budget: owner SOV lines at billable value, with the cost codes each maps to.",
+              "description": "budget: owner SOV lines at billable value, with the cost codes each maps to. For the SOV, number lines 01.01-style (CSI division, dot, line).",
               "maxItems": 300,
               "type": "array",
               "items": {
@@ -719,6 +903,15 @@
                   "line"
                 ]
               }
+            },
+            "fee_pct": {
+              "description": "budget: contractor's fee as a percent of the contract total (e.g. 15).",
+              "type": "number"
+            },
+            "sov_basis": {
+              "description": "budget: the contract document the SOV numbers come from, e.g. \"Schedule A, Total Investment\".",
+              "type": "string",
+              "maxLength": 200
             },
             "action": {
               "description": "open_item: what has to happen",
@@ -781,6 +974,15 @@
             },
             "internal_only": {
               "type": "boolean"
+            },
+            "lookahead_exists": {
+              "description": "lookahead: the member's answer to \"is there a two-week look-ahead on this job?\" Leave out the first time; Athena asks. yes = they have one, build = they want Athena to build it from the schedule, no = they don't (Athena pushes back).",
+              "type": "string",
+              "enum": [
+                "yes",
+                "no",
+                "build"
+              ]
             },
             "start_date": {
               "type": "string",
@@ -850,16 +1052,16 @@
               "description": "Job number, exact match (e.g. 2417)."
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company.",
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. If the member hasn't named one, call list_open_items with no job_number to list the companies.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 200
             },
             "lookahead_id": {
-              "description": "Only for a two-week lookahead.",
+              "description": "Only for a two-week lookahead. The lookahead ref as printed (e.g. LA-3F2A1) or its lookahead_id.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 64
             }
           },
           "required": [
@@ -890,10 +1092,10 @@
               "description": "Job number, exact match (e.g. 2417)."
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company.",
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. If the member hasn't named one, call list_open_items with no job_number to list the companies.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 200
             },
             "action": {
               "description": "Default answer.",
@@ -906,10 +1108,18 @@
               ]
             },
             "check_key": {
-              "description": "answer: check_key from next_question. mark_na/reenable with scope item: the check_key.",
+              "description": "answer: the question ref shown by next_question (e.g. gate-role-gc) or check_key from structured content. mark_na/reenable with scope item: the same ref.",
               "type": "string",
               "minLength": 1,
               "maxLength": 100
+            },
+            "lookahead_help": {
+              "description": "answer on check bss_lookahead with response \"no\": \"accept\" if the member wants help building a look-ahead, \"decline\" if not (logs an open item). Leave out the first time; Athena asks.",
+              "type": "string",
+              "enum": [
+                "accept",
+                "decline"
+              ]
             },
             "response": {
               "description": "answer: yes / no / na / unknown.",
@@ -956,10 +1166,10 @@
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             },
             "lookahead_id": {
-              "description": "Only for a two-week lookahead question.",
+              "description": "Only for a two-week lookahead question. The lookahead ref as printed (e.g. LA-3F2A1) or its lookahead_id.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 64
             }
           },
           "required": [
@@ -972,7 +1182,7 @@
       {
         "name": "report",
         "title": "Job report",
-        "description": "Render the fixed job setup report (internal or client-facing), or the two-week lookahead report when lookahead_id is given. Client-facing reports leave out internal cost and strategy detail.",
+        "description": "Render the full job setup report (internal or client-facing), or the two-week lookahead report when lookahead_id is given. Client-facing reports leave out internal cost and strategy detail. To read back just the contract terms, use contract_terms instead.",
         "annotations": {
           "readOnlyHint": true,
           "openWorldHint": false,
@@ -989,10 +1199,10 @@
               "description": "Job number, exact match (e.g. 2417)."
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company.",
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. If the member hasn't named one, call list_open_items with no job_number to list the companies.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 200
             },
             "audience": {
               "description": "Default internal.",
@@ -1003,10 +1213,51 @@
               ]
             },
             "lookahead_id": {
-              "description": "Only for a two-week lookahead report.",
+              "description": "Only for a two-week lookahead report. The lookahead ref as printed (e.g. LA-3F2A1) or its lookahead_id.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "deliverable": {
+              "description": "Default setup. sov: the schedule of values data and its layout recipe (full job access only; audience client for the copy sent to the owner).",
+              "type": "string",
+              "enum": [
+                "setup",
+                "sov"
+              ]
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "contract_terms",
+        "title": "Read contract terms",
+        "description": "Read back a job's contract terms exactly as saved: each clause with its value and source (manual = typed by the member, document = read from the contract), unknown clauses, and the applicability flags (ON / OFF / UNKNOWN). Use this, not the setup report, when the member asks what terms are on file or to confirm terms they just entered. Read-only.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false,
+          "idempotentHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2417)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. If the member hasn't named one, call list_open_items with no job_number to list the companies.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
             }
           },
           "required": [
@@ -1037,22 +1288,22 @@
               "description": "Job number, exact match (e.g. 2417)."
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company.",
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. If the member hasn't named one, call list_open_items with no job_number to list the companies.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 200
             },
             "from_lookahead_id": {
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Previous lookahead_id."
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "Previous lookahead. The lookahead ref as printed (e.g. LA-3F2A1) or its lookahead_id."
             },
             "to_lookahead_id": {
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "New lookahead_id from intake."
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "New lookahead from intake. The lookahead ref as printed (e.g. LA-3F2A1) or its lookahead_id."
             }
           },
           "required": [
@@ -1067,7 +1318,7 @@
       {
         "name": "list_open_items",
         "title": "List open items",
-        "description": "List a job's open items with accountable person, needed-by date, verified or last-reported status, source and effects. Items under an N/A section are labeled for disposition.",
+        "description": "List a job's open items with accountable person, needed-by date, verified or last-reported status, source and effects. Items under an N/A section are labeled for disposition. If the member hasn't named a company or a job, call list_open_items with no job_number (and no company_id): Athena lists the companies and their jobs itself, so don't ask the member to guess.",
         "annotations": {
           "readOnlyHint": true,
           "openWorldHint": false,
@@ -1078,27 +1329,24 @@
           "type": "object",
           "properties": {
             "job_number": {
+              "description": "Job number, exact match (e.g. 2417). Leave out when the member hasn't named a job: Athena then lists your companies and their jobs.",
               "type": "string",
               "minLength": 1,
-              "maxLength": 40,
-              "description": "Job number, exact match (e.g. 2417)."
+              "maxLength": 40
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company.",
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. If the member hasn't named one, call list_open_items with no job_number to list the companies.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 200
             },
             "lookahead_id": {
-              "description": "Limit to one lookahead.",
+              "description": "Limit to one lookahead. The lookahead ref as printed (e.g. LA-3F2A1) or its lookahead_id.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 64
             }
           },
-          "required": [
-            "job_number"
-          ],
           "additionalProperties": false
         },
         "outputSchema": null
@@ -1124,16 +1372,16 @@
               "description": "Job number, exact match (e.g. 2417)."
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company.",
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. If the member hasn't named one, call list_open_items with no job_number to list the companies.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 200
             },
             "item_id": {
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Open item id."
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "The item: the ref shown on its line in list_open_items (e.g. A1 or 36C31, with or without \"Ref\") or the item_id from structured content."
             },
             "kind": {
               "type": "string",
@@ -1148,12 +1396,12 @@
               "description": "How it is being closed or updated."
             },
             "evidence": {
-              "description": "Evidence (e.g. approved submittal number, inspection pass), or the statement.",
+              "description": "Evidence: a document (name or number), or for member_statement what was said. A bare \"we're good\" is not evidence; the item stays open.",
               "type": "string",
               "maxLength": 10000
             },
             "stated_by": {
-              "description": "member_statement / update: who said it.",
+              "description": "member_statement / update: who said it, only if the member named someone. Leave out and it is attributed to the calling user.",
               "type": "string",
               "maxLength": 200
             },
