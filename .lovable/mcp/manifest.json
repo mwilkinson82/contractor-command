@@ -13,7 +13,7 @@
   "mcp": {
     "server": {
       "name": "athena",
-      "version": "0.7.4",
+      "version": "0.7.5",
       "title": "Athena powered by ALP, construction agents"
     },
     "tools": [
@@ -1182,7 +1182,7 @@
       {
         "name": "report",
         "title": "Job report",
-        "description": "Render the full job setup report (internal or client-facing), or the two-week lookahead report when lookahead_id is given. Client-facing reports leave out internal cost and strategy detail. To read back just the contract terms, use contract_terms instead.",
+        "description": "Render the full job setup report (internal or client-facing), or the two-week lookahead report when lookahead_id is given. Client-facing reports leave out internal cost and strategy detail. To read back just the contract terms, use contract_terms instead. Contract clauses stay word for word; summaries only on request (include_summary true).",
         "annotations": {
           "readOnlyHint": true,
           "openWorldHint": false,
@@ -1225,6 +1225,10 @@
                 "setup",
                 "sov"
               ]
+            },
+            "include_summary": {
+              "description": "Setup report only. Default false: contract clauses word for word, then an offer to summarize. Set true only after the member asks for a plain-English summary.",
+              "type": "boolean"
             }
           },
           "required": [
@@ -1237,7 +1241,7 @@
       {
         "name": "contract_terms",
         "title": "Read contract terms",
-        "description": "Read back a job's contract terms exactly as saved: each clause with its value and source (manual = typed by the member, document = read from the contract), unknown clauses, the applicability flags (ON / OFF / UNKNOWN), and the notice requirements in plain words (for each event type: days to give notice and who it goes to, or exactly what the contract leaves out). Relay the notice requirements as written. Use this, not the setup report, when the member asks what terms are on file or to confirm terms they just entered. Read-only.",
+        "description": "Read back a job's contract clauses word for word with section numbers, missing clauses and the applicability flags (ON / OFF / UNKNOWN). Show the clauses word for word first, then offer: 'Do you want me to summarize this legal text so you know what it means in plain English?' Only if the member says yes, call again with include_summary true for the plain-language notice requirements and saved summary fields. Never paraphrase a clause in place of its text. Use this, not the setup report, when the member asks what terms are on file or to confirm terms they just entered. Read-only.",
         "annotations": {
           "readOnlyHint": true,
           "openWorldHint": false,
@@ -1258,6 +1262,10 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 200
+            },
+            "include_summary": {
+              "description": "Default false: the clauses word for word only, then an offer to summarize. Set true only after the member asks for a plain-English summary.",
+              "type": "boolean"
             }
           },
           "required": [
