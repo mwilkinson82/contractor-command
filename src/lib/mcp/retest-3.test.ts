@@ -21,7 +21,7 @@ describe("tools/list (retest 3, item 1)", () => {
   });
   it("the real server registers contract_terms and bumped its version", () => {
     const src = JSON.stringify(mcp, (_k, v) => (typeof v === "function" ? undefined : v));
-    expect(src).toContain("0.7.4");
+    expect(src).toContain("0.7.5");
     expect(src).toContain("contract_terms");
   });
 });
