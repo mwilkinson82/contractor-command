@@ -138,7 +138,8 @@ function typeDetail(it: Item, t: string, client: boolean, clientFacing = false) 
   if (t === "no") return ` | Recommendation: ${it.recommendation ?? "none recorded"} | Why: ${it.why ?? "best-practice gap"} | ${it.help_offer ?? "Athena can help with this."}`;
   if (t === "pending_document") return ` | Waiting on: ${it.waiting_on_document ?? "unknown document"} from ${it.waiting_on_who ?? "unknown"} since ${it.waiting_since ?? "unknown"}`;
   if (t === "deadline") return ` | Clause/source: ${it.clause_source ?? "unknown"} | Method: ${it.delivery_method ?? "unknown"} | Recipient: ${it.recipient ?? "unknown"}`;
-  if (t === "unknown") return " | Needs confirming evidence or a dated member statement";
+  // The evidence prompt follows the resolve rule: only a confirm item (kind confirm_unknown) closes on a dated member statement.
+  if (t === "unknown") return it.kind === "confirm_unknown" ? " | Needs confirming evidence or a dated member statement" : " | Needs evidence (a document or record); a member statement won't close it";
   return client ? "" : "";
 }
 
@@ -153,6 +154,12 @@ const humanSources = (l: string) => l.replace(/\bmember_answer\b/g, "manual").re
 
 export type LineOpts = { clientFacing?: boolean; who?: (raw: string | null | undefined) => string; tz?: string };
 
+/** A due date the contract sets (a contract deadline item tied to a clause), as opposed to Athena's own follow-up date. */
+export function isContractDate(it: Pick<Item, "item_type" | "clause_source">): boolean {
+  const cs = it.clause_source ?? "";
+  return it.item_type === "deadline" && !/due date set by member/i.test(cs) && (/§/.test(cs) || /\(document\)/i.test(cs));
+}
+
 export function itemLine(it: Item, nas: Na[], client = false, o: LineOpts = {}) {
   const status = it.verify_state === "verified" ? `verified ${dateIn(it.verified_at, o.tz)}` : `last reported by ${it.reported_by ?? "unknown"} ${dateIn(it.reported_at, o.tz)}`;
   const effects = client
@@ -163,7 +170,9 @@ export function itemLine(it: Item, nas: Na[], client = false, o: LineOpts = {}) 
   const t = itemType(it, nas);
   const who = o.who ? o.who(it.accountable ?? it.owner) : it.accountable ?? it.owner;
   const cf = o.clientFacing === true;
-  return humanSources(`[${typeWord(t)}] ${it.action} | Accountable: ${who} | Needed by: ${it.needed_by ?? it.due_date ?? "unknown"} | ${status.trim()}${cf ? "" : ` | Source: ${it.source ?? "unknown"}`} | ${effects}${next}${typeDetail(it, t, client, cf)}${na ? ` | ${na}` : ""}${cf ? "" : ` | ${displayRef(it)}`}`);
+  // Client-facing: Athena's internal follow-up dates stay internal; only dates the contract sets are shown.
+  const needed = cf && !isContractDate(it) ? "" : ` | ${cf ? "Contract due date" : "Needed by"}: ${it.needed_by ?? it.due_date ?? "unknown"}`;
+  return humanSources(`[${typeWord(t)}] ${it.action} | Accountable: ${who}${needed} | ${status.trim()}${cf ? "" : ` | Source: ${it.source ?? "unknown"}`} | ${effects}${next}${typeDetail(it, t, client, cf)}${na ? ` | ${na}` : ""}${cf ? "" : ` | ${displayRef(it)}`}`);
 }
 
 const SECTION_TITLES: Record<string, string> = {
