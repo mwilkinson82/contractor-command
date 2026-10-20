@@ -172,7 +172,8 @@ export function itemLine(it: Item, nas: Na[], client = false, o: LineOpts = {}) 
   const cf = o.clientFacing === true;
   // Client-facing: Athena's internal follow-up dates stay internal; only dates the contract sets are shown.
   const needed = cf && !isContractDate(it) ? "" : ` | ${cf ? "Contract due date" : "Needed by"}: ${it.needed_by ?? it.due_date ?? "unknown"}`;
-  return humanSources(`[${typeWord(t)}] ${it.action} | Accountable: ${who}${needed} | ${status.trim()}${cf ? "" : ` | Source: ${it.source ?? "unknown"}`} | ${effects}${next}${typeDetail(it, t, client, cf)}${na ? ` | ${na}` : ""}${cf ? "" : ` | ${displayRef(it)}`}`);
+  // Client-facing: who is accountable is internal staffing, so it stays out of the owner's copy.
+  return humanSources(`[${typeWord(t)}] ${it.action}${cf ? "" : ` | Accountable: ${who}`}${needed} | ${status.trim()}${cf ? "" : ` | Source: ${it.source ?? "unknown"}`} | ${effects}${next}${typeDetail(it, t, client, cf)}${na ? ` | ${na}` : ""}${cf ? "" : ` | ${displayRef(it)}`}`);
 }
 
 const SECTION_TITLES: Record<string, string> = {
@@ -236,6 +237,8 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
       .filter((f) => !(f.module === "contract" && f.key === "claim_process"))
       // Legacy combined terms are never split: a term that mentions a claim is left out of client output whole.
       .filter((f) => !(f.module === "contract" && typeof f.value === "string" && /\bclaims?\b/i.test(f.value))); }
+  // Internal to-confirm items (open questions for the PM) never go in the client copy.
+  if (client) items = items.filter((i) => itemType(i, nas) !== "unknown");
   if (client) facts = facts.filter((f) => !CLIENT_COACHING.test(typeof f.value === "string" ? f.value : ""));
   const dates = [...flags.map((f) => f.set_at), ...facts.map((f) => f.updated_at), ...items.map((i) => i.updated_at)].filter(Boolean).sort();
   const dataThrough = dates.length ? dateIn(dates[dates.length - 1], tz) : "no data yet";
@@ -285,7 +288,7 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
       const shownClauses = client ? clauses.filter((c) => !isClaimClause(c)) : clauses;
       out.push("   Contract clauses (exact contract text):");
       shownClauses.forEach((c) => out.push(`   - ${clauseLine(c)}`));
-      missingNotices(clauses).filter((m) => !client || m.category !== "claim_notice").forEach((m) => out.push(`   - Missing: ${m.label} (to confirm)`));
+      if (!client) missingNotices(clauses).forEach((m) => out.push(`   - Missing: ${m.label} (to confirm)`));
       const fs = facts.filter((f) => f.module === mod && f.status === "known");
       if (fs.length) {
         out.push("   Other saved terms (summary fields):");
