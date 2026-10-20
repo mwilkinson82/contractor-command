@@ -75,7 +75,7 @@ export async function logWorkflow(
 const ALWAYS_SWEEP = new Set(["report", "list_open_items"]);
 
 /** opts: a lookahead id, or { lookaheadId, jobNumber, client }. With a job number the date sweep shows that job only. */
-export async function run<R>(tool: string, ctx: ToolContext, opts: string | undefined | { lookaheadId?: string; jobNumber?: string; client?: boolean }, fn: (sb: Sb) => Promise<R>): Promise<R> {
+export async function run<R>(tool: string, ctx: ToolContext, opts: string | undefined | { lookaheadId?: string; jobNumber?: string; client?: boolean; ownerSov?: boolean }, fn: (sb: Sb) => Promise<R>): Promise<R> {
   const o = typeof opts === "object" ? opts : { lookaheadId: opts };
   const lookaheadId = o.lookaheadId;
   const sweepScope: SweepScope = { jobNumber: o.jobNumber, client: o.client };
@@ -89,7 +89,7 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
   }
   try {
     const r = await fn(sb);
-    return finalizeVisible(sweep ? withSweep(r, sweep, sweepScope.client === true) : r);
+    return finalizeVisible(sweep ? withSweep(r, sweep, sweepScope.client === true, o.ownerSov === true) : r);
   } catch (e) {
     await logWorkflow(sb, {
       event_type: "failure",
@@ -106,11 +106,15 @@ export function text(body: string) {
   return { content: [{ type: "text" as const, text: body + FOOTER }] };
 }
 
-function withSweep<R>(r: R, sweep: NonNullable<Awaited<ReturnType<typeof runSweep>>>, client = false): R {
+/** ownerSov: the body is the server-built owner SOV (full job access only), the one client-facing output that carries dollars.
+ * Its body keeps its amounts and fee line; the date sweep above it is still filtered. */
+function withSweep<R>(r: R, sweep: NonNullable<Awaited<ReturnType<typeof runSweep>>>, client = false, ownerSov = false): R {
   const res = r as unknown as { content?: { type: string; text?: string }[]; structuredContent?: Record<string, unknown> };
   if (!res?.content?.length || res.content[0].type !== "text") return r;
-  const joined = `${sweep.text}\n\n====\n\n${res.content[0].text ?? ""}`;
-  const first = { ...res.content[0], text: client ? clientSafe(joined) : joined };
+  const body = res.content[0].text ?? "";
+  const sweepText = client ? clientSafe(sweep.text) : sweep.text;
+  const bodyText = client && !ownerSov ? clientSafe(body) : body;
+  const first = { ...res.content[0], text: `${sweepText}\n\n====\n\n${bodyText}` };
   const items = sweep.items.map((i) => ({ job_number: i.job_number, item_ref: client ? null : i.item_ref, item_id: client ? null : i.item_id, item_type: i.item_type, due: i.due, days: i.days, bucket: i.bucket }));
   return { ...res, content: [first, ...res.content.slice(1)], structuredContent: { ...(res.structuredContent ?? {}), sweep: items } } as unknown as R;
 }

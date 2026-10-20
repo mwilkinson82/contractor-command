@@ -933,7 +933,7 @@ export const report = defineTool({
   },
   annotations: { ...READ, idempotentHint: true },
   handler: (args, ctx) =>
-    run("report", ctx, { lookaheadId: args.lookahead_id, jobNumber: args.job_number, client: args.audience === "client" }, async (sb) => {
+    run("report", ctx, { lookaheadId: args.lookahead_id, jobNumber: args.job_number, client: args.audience === "client", ownerSov: args.audience === "client" && args.deliverable === "sov" && !args.lookahead_id }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id);
       if (args.lookahead_id) {
         const la = await lookaheadForJob(sb, job, args.lookahead_id);
