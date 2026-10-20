@@ -12,7 +12,7 @@ import { EVIDENCE_ASK, evidenceProblem } from "../evidence";
 import { displayRef, isUuid, itemRef, lookaheadRef, matchRef, parseLookaheadRef, parseQuestionRef, questionRef, shortRef } from "../refs";
 import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
 import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
-import { guide, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_CHART_RULE, SOV_LINK_HARD_NO, SOV_LINK_RULE_TEXT, sovChart, sovDeliveryAsk, sovDeliveryBlock, sovDeliveryStructured, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
+import { guide, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_CHART_RULE, SOV_LINK_HARD_NO, SOV_LINK_RULE_TEXT, sovChart, sovRequiredTop, sovDeliveryAsk, sovDeliveryBlock, sovDeliveryStructured, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
 import { withoutClaims } from "../internal-claims";
 import { EMAIL_CONTACT_RULE, contactForRole, dedupeNotices, emailContact, fillNotice, jobContacts } from "../contacts";
 import { noticeRequirements } from "../notice-plain";
@@ -443,7 +443,9 @@ export const intake = defineTool({
         const ecDelay = emailContact(contactForRole((await noticeContext(sb, job)).contacts, "Project Manager"));
         const id: PmIdentity = { name: pmName, email: j.pm_email ?? null, title: j.pm_title ?? null, isMember: !!j.pm_user_id };
         return guide({
+          // 0.8.8: email-card results lead with the To line.
           ...text([
+            ecDelay.structured.to_line,
             `${P}Delay recorded: ${args.delay_description}${args.delay_activity ? ` (activity: ${args.delay_activity})` : ""}.`,
             `Start date: ${start ?? "unknown — confirm it; the notice clock runs from when the delay began, not when it was found"} | Impact: ${args.delay_days != null ? `${args.delay_days} days` : "unknown"} | Cause: ${args.delay_cause ?? "unknown"}`,
             termLine("Delay notice", notice, nd), `Notice item:${itemNote(r.notice_item)}`,
@@ -1406,7 +1408,7 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
   return guide(
     {
       // 0.8.4: the delivery step rides in the tool text and structuredContent, not only in guidance, so every host (Claude too) asks it.
-      ...text(`${sovSummaryText(prefix(job), sov, brand, jr.data?.sov_basis ?? null, sovFooterMissing(c), audience, view)}${sovSpecsMissing(sov) ? `\n${SOV_SPECS_MISSING_NOTE}` : ""}\n\n${sovDeliveryAsk(audience)}\nFor option 2, ${ec.text.charAt(0).toLowerCase()}${ec.text.slice(1)}\n${SOV_LINK_RULE_TEXT}`),
+      ...text(`${sovRequiredTop(sovLineRows(sov), ec.structured.to_line)}\n${sovSummaryText(prefix(job), sov, brand, jr.data?.sov_basis ?? null, sovFooterMissing(c), audience, view)}${sovSpecsMissing(sov) ? `\n${SOV_SPECS_MISSING_NOTE}` : ""}\n\n${sovDeliveryAsk(audience)}\nFor option 2:\n${ec.text}\n${SOV_LINK_RULE_TEXT}`),
       structuredContent: {
         sov: {
           audience,

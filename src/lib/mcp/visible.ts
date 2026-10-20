@@ -47,11 +47,15 @@ function sentences(line: string): string[] {
   return line.split(/(?<=[.!?])\s+(?=[A-Z"(])/);
 }
 
+/** 0.8.8: lines that start with "REQUIRED:" are pinned host directives and are never moved into guidance. */
+export const REQUIRED_LINE_RE = /^REQUIRED:/;
+
 export function splitGuidance(text: string): { visible: string; guidance: string[] } {
   const guidance: string[] = [];
   const out: string[] = [];
   for (const line of text.split("\n")) {
-    if (!GUIDANCE_RE.test(line)) {
+    // 0.8.8: pinned REQUIRED lines stay at the top of the visible text (Claude skips guidance it can't see there).
+    if (!GUIDANCE_RE.test(line) || REQUIRED_LINE_RE.test(line)) {
       out.push(line);
       continue;
     }
@@ -174,7 +178,7 @@ export const SOV_LINK_HARD_NO =
   "HARD NO, every host including Claude: an artifact, canvas or chat link never goes to the owner, the owner's rep or any client. If the member asks for one, refuse in one line and offer the Excel file or a PDF. Never offer the link anyway, never offer to override or bend the rule, never ask whether they want to override it, and never build an owner copy with a link or send button. Do not write anything like \"or the shared link anyway if you're fine overriding that rule\". The member cannot waive this.";
 /** 0.8.7: report sov always comes with a bar chart of scheduled value by line, in the fixed palette. */
 export const SOV_CHART_RULE =
-  "REQUIRED, every host (Claude, ChatGPT, Grok and any other): draw a bar chart of the SOV from structuredContent.sov.chart: one bar per line (x: the line label, y: scheduled value), in the order given, placed directly under the SOV table and before the delivery question. Set the colors explicitly: bars #2563EB; axes, gridlines and labels in the grays #6B7280, #9CA3AF, #D1D5DB and #F3F4F6. Never use the host's default palette, and never red, rose, pink, orange or amber. Money labels with cents (value_display). No chart title text beyond \"Scheduled value by line\" and no extra commentary.";
+  "REQUIRED, every host (Claude, ChatGPT, Grok and any other): draw a bar chart of the SOV from structuredContent.sov.chart: one bar per line (x: the line label, y: scheduled value), in the order given, placed directly under the SOV table and before the delivery question. Set the colors explicitly: bars #2563EB; axes, gridlines and labels in the grays #6B7280, #9CA3AF, #D1D5DB and #F3F4F6, with alternating gray bands (chart.band_colors) behind the bars; ChatGPT and every other host must show the gray as well as the blue. Never use the host's default palette, and never red, rose, pink, orange or amber. Money labels with cents (value_display). No chart title text beyond \"Scheduled value by line\" and no extra commentary.";
 export function sovChart(rows: { item_no: string; cost_code: string | null; description: string | null; scheduled_value: number; scheduled_value_display: string }[]) {
   return {
     required: true,
@@ -184,8 +188,29 @@ export function sovChart(rows: { item_no: string; cost_code: string | null; desc
     y_label: "Scheduled value",
     bar_color: CHART_PALETTE[0],
     palette: [...CHART_PALETTE],
+    // 0.8.8: gray is part of every chart, not optional: alternating gray bands behind the bars, gray grid, axes and labels.
+    band_colors: ["#F3F4F6", "#FFFFFF"],
+    grid_color: "#D1D5DB",
+    axis_color: "#6B7280",
+    label_color: "#6B7280",
+    total_bar_color: "#9CA3AF",
     bars: rows.map((r) => ({ label: `${r.item_no}${r.cost_code ? ` (${r.cost_code})` : ""}`, description: r.description, value: r.scheduled_value, value_display: r.scheduled_value_display })),
   };
+}
+/**
+ * 0.8.8: short imperative lines pinned at the TOP of the report sov text content (not only guidance or
+ * structuredContent), because Claude skips guidance. Chart data is inline; owner link is a flat refusal;
+ * the email draft starts with its To line.
+ */
+export const SOV_OWNER_LINK_REQUIRED =
+  "REQUIRED: If asked to send the owner a link, even after \"send it anyway\", refuse. Say: Owners get the Excel file or a PDF, no exceptions. Do not create the link.";
+export function sovRequiredTop(rows: { item_no: string; cost_code: string | null; scheduled_value_display: string }[], toLine: string): string {
+  const data = rows.map((r) => `${r.item_no}${r.cost_code ? ` (${r.cost_code})` : ""} ${r.scheduled_value_display}`).join("; ");
+  return [
+    `REQUIRED: Draw this bar chart now under the table. Bars blue #2563EB; gray bands #F3F4F6 behind them; gray grid #D1D5DB; gray axes and labels #6B7280. No other colors. Data: ${data}.`,
+    SOV_OWNER_LINK_REQUIRED,
+    `REQUIRED: Any email draft for this SOV starts with "${toLine}" and shows a To field; if there is no address, leave To blank and ask for it in this same reply.`,
+  ].join("\n");
 }
 /** 0.8.4: the delivery step as data, in report sov structuredContent, so hosts can't skip it. */
 export const SOV_DELIVERY_STRUCTURED = {
@@ -266,6 +291,7 @@ export function guide<R>(r: R, ...lines: string[]): R {
 export function visibleProblems(text: string): string[] {
   const bad: string[] = [];
   for (const line of text.split("\n")) {
+    if (REQUIRED_LINE_RE.test(line)) continue;
     const g = line.match(GUIDANCE_RE);
     if (g) bad.push(`instruction: "${g[0]}" in: ${line.trim().slice(0, 160)}`);
     const c = line.match(INTERNAL_CODE_RE) ?? line.match(SNAKE_RE);
