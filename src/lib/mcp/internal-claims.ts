@@ -23,3 +23,4 @@ export function withoutClaims<T extends ItemLike>(items: T[]): T[] {
 }
 
 export const isClaimDeadline = (d: DeadlineLike) => CLAIM_TEXT.test(`${d.label ?? ""} ${d.clause_key ?? ""}`);
+
