@@ -12,7 +12,7 @@ import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
 import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
 import { guide } from "../visible";
 import { withoutClaims } from "../internal-claims";
-import { CLAUSE_HOST_RULE, classifyClause, clauseLine, missingNotices, normSection, parseClause, NOTICE_CHECKLIST, type ClauseRow } from "../contract-clauses";
+import { CLAUSE_HOST_RULE, classifyClause, clauseLine, missingNotices, normSection, parseClause, NOTICE_CHECKLIST, type ClauseRow, LEGACY_SUMMARY_TAG, missingNoticeNote } from "../contract-clauses";
 import { FLAGS_ASKED_LATER, noGuidance, noGuidanceText, reconcileRecommendation } from "../guidance";
 import { LOOKAHEAD_BUILD_QUESTIONS, LOOKAHEAD_EXISTS_ASK, LOOKAHEAD_PUSHBACK, LOOKAHEAD_SETUP_KEY, PUSHBACK_GUIDANCE, buildQuestionsGuidance, buildQuestionsText, pushbackText } from "../lookahead-help";
 
@@ -1121,10 +1121,10 @@ export const contractTerms = defineTool({
       const lines = [
         `${prefix(job)}CONTRACT CLAUSES (exact contract text)`,
         ...(cl.length ? cl.map((c) => `- ${clauseLine(c)}`) : ["- None recorded. Record them with intake section clauses, copied exactly from the contract."]),
-        ...missingNotices(cl).map((m) => `- Missing: ${m.label} (open item asks to confirm it)`),
+        ...missingNotices(cl).map((m) => `- Missing: ${m.label} (${missingNoticeNote(cl.length > 0)})`),
         "",
         `CONTRACT TERMS (as saved${cl.length ? "; summary fields, the clauses above govern" : ""})`,
-        ...clauses.map((c) => `- ${c.key.replace(/_/g, " ")}: ${c.value ?? "UNKNOWN"}${c.value ? ` (${c.source})` : ""}`),
+        ...clauses.map((c) => `- ${c.key.replace(/_/g, " ")}: ${c.value ?? "UNKNOWN"}${c.value ? ` (${c.source === "document" && !cl.length ? LEGACY_SUMMARY_TAG : c.source})` : ""}`),
         "",
         "Applicability:",
         ...flags.map((f) => `- ${f.flag.replace(/_/g, " ")}: ${f.value}${f.source ? ` (${f.source})` : ""}`),
