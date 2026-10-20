@@ -17,6 +17,8 @@ describe("Athena onboarding copy", () => {
     expect(index).toContain("The job_number is required for every job tool");
     expect(tools).toMatch(/const jobNumber = z\.string\(\)\.trim\(\)\.min\(1\)/);
     expect(tools).not.toMatch(/job_number: jobNumber\.optional\(\)/);
+    // Only list_open_items may omit it (it then lists companies and jobs).
+    expect(tools.match(/job_number: listJobNumber/g)?.length).toBe(1);
   });
   it("serverInfo name is a short slug and title is the full product line", () => {
     expect(index).toMatch(/name: "athena",\n  title: "Athena powered by ALP, construction agents",/);

@@ -69,3 +69,48 @@ describe("dates use the job time zone", () => {
     expect(itemLine(it0, [], false, { tz: "America/Chicago" })).toContain("last reported by Sam 2026-10-19");
   });
 });
+
+describe("Claude retest units", async () => {
+  const { warrantyStartConflict, alignCloseoutSource, CONTRACT_WARRANTY_KEY } = await import("./warranty");
+  const { claimItemIds, withoutClaims, isClaimDeadline } = await import("./internal-claims");
+  const k = (key: string, value: unknown, source = "member_answer") => ({ key, value, status: "known", source });
+  it("conflict needs two sources naming different triggers", () => {
+    expect(warrantyStartConflict([k("warranty_start_trigger", "final_acceptance"), k("warranty_start_basis", "Contract §8.1, final acceptance")])).toBeNull();
+    const c = warrantyStartConflict([k("warranty_start_trigger", "final_acceptance"), k("warranty_start_basis", "substantial completion certificate"), k(CONTRACT_WARRANTY_KEY, "§8.1 one year from Owner acceptance", "document")]);
+    expect(c?.sources.map((s) => s.says)).toEqual(["final_acceptance", "substantial_completion", "final_acceptance"]);
+  });
+  it("closeout docs matching the contract take the contract source", () => {
+    const out = alignCloseoutSource([k("closeout_documents", "O&M manuals")], k("closeout", "O&M manuals", "document"));
+    expect(out[0].source).toBe("document");
+    expect(alignCloseoutSource([k("closeout_documents", "other")], k("closeout", "O&M manuals", "document"))[0].source).toBe("member_answer");
+  });
+  it("claim items and their delivery children are dropped", () => {
+    const items = [
+      { id: "a", check_key: "delay_notice:1", action: "Send written delay notice" },
+      { id: "b", check_key: "delay_claim:1", action: "Submit claim notice (§7.4) for: x", commercial_type: "claim" },
+      { id: "c", check_key: "delivery:b", action: "Confirm delivery method and recipient for: Submit claim notice" },
+    ];
+    expect([...claimItemIds(items)].sort()).toEqual(["b", "c"]);
+    expect(withoutClaims(items).map((i) => i.id)).toEqual(["a"]);
+    expect(isClaimDeadline({ label: "Claim notice" })).toBe(true);
+    expect(isClaimDeadline({ label: "Delay notice" })).toBe(false);
+  });
+  it("PM-default note is conditional", () => {
+    expect(tools.ownerDefaultNote("Unassigned (no PM set)")).toContain("no PM is set");
+    expect(tools.ownerDefaultNote("Sam Ortiz (PM)")).toBe(" — defaulted to the job's PM");
+  });
+  it("notices go on their own lines", () => {
+    expect(tools.itemNotes([{ item_id: "x", existing: true }])).toBe("\n- Already open.");
+  });
+  it("descriptions tell the host to list companies when none is named", () => {
+    expect(tools.listOpenItems.description ?? (tools.listOpenItems as never as { config: { description: string } }).config.description).toContain("no job_number");
+    expect(shape(tools.listOpenItems).job_number.safeParse(undefined).success).toBe(true);
+    expect(shape(tools.report).company_id.description).toContain("list_open_items with no job_number");
+  });
+  it("closing only fills warranty setup answers", () => {
+    expect(tools.closedWarrantyKey("warranty:manufacturer_warranties", true, "member_statement")).toBe("manufacturer_warranties");
+    expect(tools.closedWarrantyKey("warranty:manufacturer_warranties", false, "member_statement")).toBeNull();
+    expect(tools.closedWarrantyKey("warranty:workmanship_warranty", true, "verified")).toBeNull();
+    expect(tools.closedWarrantyKey("delay_claim:1", true, "verified")).toBeNull();
+  });
+});
