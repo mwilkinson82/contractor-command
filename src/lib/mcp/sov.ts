@@ -190,7 +190,8 @@ export function sovLayout(brand: SovBrand) {
   };
 }
 
-const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+/** Money always with cents: $1,400,000.00, never $1,400,000 or $1.4M. */
+export const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /** 0.8.1 table look, same words in the host instruction and the layout recipe. */
 export const SOV_TABLE_STYLE = "Header row blue #2563EB with white bold text; alternating light-gray (#F3F4F6) and white row bands; bold total row with a blue #2563EB top rule.";
@@ -215,7 +216,7 @@ export type SovView = "lines" | "divisions";
 export function sovLineRows(sov: Sov) {
   const total = Math.round(sov.summary.contract_total * 100);
   return sov.divisions.flatMap((d) =>
-    d.lines.map((l) => ({ item_no: l.item_no, division: d.division, division_title: d.title, spec_section: l.spec_section, description: l.description, cost_code: l.cost_codes.join(", ") || null, cost_codes: l.cost_codes, scheduled_value: l.scheduled_value, pct_of_total: pct2(Math.round(l.scheduled_value * 100), total) })),
+    d.lines.map((l) => ({ item_no: l.item_no, division: d.division, division_title: d.title, spec_section: l.spec_section, description: l.description, cost_code: l.cost_codes.join(", ") || null, cost_codes: l.cost_codes, scheduled_value: l.scheduled_value, scheduled_value_display: money(l.scheduled_value), pct_of_total: pct2(Math.round(l.scheduled_value * 100), total) })),
   );
 }
 
@@ -226,10 +227,11 @@ export function sovSummaryText(prefix: string, sov: Sov, brand: SovBrand, basis:
     view === "divisions"
       ? ["Scheduled value by division:", ...s.divisions.map((d) => `- ${d.division} ${d.title}: ${money(d.scheduled_value)} (${d.pct_of_contract.toFixed(2)}%)`)]
       : [
-          "Line | Division | Description | Scheduled value | % of total",
-          ...sovLineRows(sov).map((r) => `${r.item_no} | ${r.division} ${r.division_title} | ${r.description} | ${money(r.scheduled_value)} | ${r.pct_of_total.toFixed(2)}%`),
-          ...(s.fee > 0 ? [`CF | | Contractor's fee | ${money(s.fee)} | ${s.fee_pct.toFixed(2)}%`] : []),
-          `Total | | Contract sum | ${money(s.contract_total)} | 100.00%`,
+          // 0.8.3: the cost code is its own column in the visible text (0.8.2 only carried it in structuredContent, so hosts never showed it).
+          "Line | Cost code | Division | Description | Scheduled value | % of total",
+          ...sovLineRows(sov).map((r) => `${r.item_no} | ${r.cost_code ?? ""} | ${r.division} ${r.division_title} | ${r.description} | ${money(r.scheduled_value)} | ${r.pct_of_total.toFixed(2)}%`),
+          ...(s.fee > 0 ? [`CF | | | Contractor's fee | ${money(s.fee)} | ${s.fee_pct.toFixed(2)}%`] : []),
+          `Total | | | Contract sum | ${money(s.contract_total)} | 100.00%`,
         ];
   return [
     `${prefix}SCHEDULE OF VALUES (${audience === "client" ? "for the owner" : "internal"}, ties out to the cent)`,
