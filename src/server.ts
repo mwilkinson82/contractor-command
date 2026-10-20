@@ -3,6 +3,7 @@ import "./lib/error-capture";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { siteIconResponse } from "./lib/site-icons";
+import { consentForwardResponse } from "./lib/consent-forward";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -69,6 +70,8 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    const forward = consentForwardResponse(request);
+    if (forward) return forward;
     const icon = siteIconResponse(request);
     if (icon) return icon;
     try {
