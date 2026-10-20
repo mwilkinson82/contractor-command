@@ -75,9 +75,14 @@ describe("fix 3: client report sources", () => {
     expect((await call("intake", { section: "contract", job_number: "PT-3", contract_document_provided: true, contract_document_name: "TEST Subcontract PT-3.pdf",
       retainage: "§4.1 10% through 50% completion", closeout: "§9.1 O&M manuals, as-builts, warranties" })).isError).toBe(false);
     const rep = await call("report", { job_number: "PT-3", audience: "client" });
-    expect(rep.text).toMatch(/closeout: §9\.1 O&M manuals, as-builts, warranties \(document\)/);
+    expect(rep.text).toMatch(/closeout: §9\.1 O&M manuals, as-builts, warranties \(summary, not verified against the contract text\)/);
     expect(rep.text).not.toMatch(/: unknown \(manual\)/);
     expect(rep.text).not.toMatch(/Required closeout documents: .*\(manual\)/);
+    // Copied from the contract closeout summary: summary tag, never (document), in both reports.
+    expect(rep.text).toMatch(/Required closeout documents: §9\.1 O&M manuals, as-builts, warranties \(summary, not verified against the contract text\)/);
+    const internal = await call("report", { job_number: "PT-3", audience: "internal" });
+    expect(internal.text).toMatch(/Required closeout documents: §9\.1 O&M manuals, as-builts, warranties \(summary, not verified against the contract text\)/);
+    for (const t of [rep.text, internal.text]) expect(t).not.toMatch(/^\s+- (?!has |bonded|is |self perform|notice requirements|§)[^\n]*\(document\)$/m);
     expect(rep.text).toMatch(/pay terms: unknown$/m);
   });
 });
