@@ -7,17 +7,25 @@ import { sendTransactionalEmail } from "@/lib/email/send";
 import { requestMemberMagicLink } from "@/lib/magic-link.functions";
 
 import { oauthReturnPath, oauthConsentReturn } from "@/lib/oauth-return-path";
+import { onAthenaHost } from "@/lib/athena-host-current";
 
 const safeRedirect = oauthReturnPath;
 
 export const Route = createFileRoute("/login")({
-  head: () => ({
-    meta: [
-      { title: "Sign in — ALP Contractor Circle" },
-      { name: "robots", content: "noindex, nofollow" },
-    ],
-    links: [{ rel: "canonical", href: "https://alpcontractorcircle.com" }],
-  }),
+  // Context typed loosely to avoid a circular inference with validateSearch.
+  head: (ctx: { match?: { search?: unknown } }) => {
+    const redirectTo = (ctx.match?.search as { redirect?: string } | undefined)?.redirect;
+    if (onAthenaHost() || oauthConsentReturn(redirectTo)) {
+      return { meta: [{ title: "Sign in — Athena" }, { name: "robots", content: "noindex, nofollow" }] };
+    }
+    return {
+      meta: [
+        { title: "Sign in — ALP Contractor Circle" },
+        { name: "robots", content: "noindex, nofollow" },
+      ],
+      links: [{ rel: "canonical", href: "https://alpcontractorcircle.com" }],
+    };
+  },
   validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
     redirect: typeof search.redirect === "string" ? safeRedirect(search.redirect) : undefined,
   }),
@@ -105,7 +113,7 @@ function LoginPage() {
       const fullName = typeof metadata.full_name === "string" ? metadata.full_name : undefined;
       void sendTransactionalEmail({
         templateName: "admin-activity-notice",
-        recipientEmail: "wilkinson.marshall@gmail.com",
+        recipientEmail: "[REDACTED]",
         idempotencyKey: `login-${user.id}-${Date.now()}`,
         templateData: {
           event: "Member signed in",

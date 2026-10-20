@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AuthCard } from "@/components/auth/auth-card";
 import { oauthReturnPath } from "@/lib/oauth-return-path";
 import { resolveOAuthContinuation } from "@/lib/oauth-continuation.functions";
+import { onAthenaHost } from "@/lib/athena-host-current";
 
 const CALLBACK_TIMEOUT_MS = 10_000;
 const AUTH_STEP_TIMEOUT_MS = 8_000;
@@ -17,7 +18,15 @@ function safeRedirect(value: unknown): string {
 }
 
 export const Route = createFileRoute("/auth/callback")({
-  head: () => ({ meta: [{ title: "Signing in — ALP Contractor Circle" }, { name: "referrer", content: "no-referrer" }] }),
+  head: ({ match }) => {
+    const athena = onAthenaHost() || "continuation" in ((match?.search as Record<string, unknown>) ?? {});
+    return {
+      meta: [
+        { title: athena ? "Signing in — Athena" : "Signing in — ALP Contractor Circle" },
+        { name: "referrer", content: "no-referrer" },
+      ],
+    };
+  },
   validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
     redirect: typeof search.redirect === "string" ? safeRedirect(search.redirect) : undefined,
   }),
