@@ -20,7 +20,7 @@ describe("0.8.4 fixes", () => {
   });
   it("b. delivery step is in the report text and structuredContent", () => {
     const w = src("./tools/workflow-tools.ts");
-    expect(w).toContain("\\n\\n${sovDeliveryAsk(audience)}\\nFor option 2 or 3:\\n${ec.text}`");
+    expect(w).toContain("\\n\\n${sovDeliveryAsk(audience)}\\nFor option 2 or 3:\\n${EMAIL_TO_LABEL_REQUIRED}\\n${ec.text}`");
     expect(w).toContain("delivery: sovDeliveryStructured(audience)");
     expect(SOV_DELIVERY_STRUCTURED.required_next_step).toBe(true);
     expect(SOV_DELIVERY_STRUCTURED.ask).toBe(SOV_DELIVERY_ASK);
