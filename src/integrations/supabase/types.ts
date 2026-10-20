@@ -1144,46 +1144,61 @@ export type Database = {
         Row: {
           agent_name: string
           company_role: string | null
+          contact_name: string | null
+          contact_phone: string | null
           created_at: string
           created_by: string
           decision_rights: Json
           default_flags: Json
           id: string
           is_test: boolean
+          license_number: string | null
+          logo_url: string | null
           name: string
           tool_stack: Json
           trades: string[]
           updated_at: string
+          website: string | null
           work_types: string[]
         }
         Insert: {
           agent_name?: string
           company_role?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
           created_at?: string
           created_by?: string
           decision_rights?: Json
           default_flags?: Json
           id?: string
           is_test?: boolean
+          license_number?: string | null
+          logo_url?: string | null
           name: string
           tool_stack?: Json
           trades?: string[]
           updated_at?: string
+          website?: string | null
           work_types?: string[]
         }
         Update: {
           agent_name?: string
           company_role?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
           created_at?: string
           created_by?: string
           decision_rights?: Json
           default_flags?: Json
           id?: string
           is_test?: boolean
+          license_number?: string | null
+          logo_url?: string | null
           name?: string
           tool_stack?: Json
           trades?: string[]
           updated_at?: string
+          website?: string | null
           work_types?: string[]
         }
         Relationships: []
@@ -1216,6 +1231,159 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_contract_clauses: {
+        Row: {
+          category: string
+          company_id: string
+          created_by: string | null
+          day_type: string | null
+          heading: string | null
+          id: string
+          job_id: string
+          n_days: number | null
+          parse_source: string
+          section: string
+          source: string
+          trigger_desc: string | null
+          updated_at: string
+          verbatim_text: string
+        }
+        Insert: {
+          category?: string
+          company_id: string
+          created_by?: string | null
+          day_type?: string | null
+          heading?: string | null
+          id?: string
+          job_id: string
+          n_days?: number | null
+          parse_source?: string
+          section: string
+          source: string
+          trigger_desc?: string | null
+          updated_at?: string
+          verbatim_text: string
+        }
+        Update: {
+          category?: string
+          company_id?: string
+          created_by?: string | null
+          day_type?: string | null
+          heading?: string | null
+          id?: string
+          job_id?: string
+          n_days?: number | null
+          parse_source?: string
+          section?: string
+          source?: string
+          trigger_desc?: string | null
+          updated_at?: string
+          verbatim_text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_contract_clauses_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_contract_documents: {
+        Row: {
+          body: string
+          body_sha256: string
+          company_id: string
+          created_by: string | null
+          job_id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          body_sha256: string
+          company_id: string
+          created_by?: string | null
+          job_id: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          body_sha256?: string
+          company_id?: string
+          created_by?: string | null
+          job_id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_contract_documents_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_delay_events: {
+        Row: {
+          activity: string | null
+          cause: string | null
+          claim_item_id: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          days: number | null
+          description: string
+          id: string
+          job_id: string
+          notice_item_id: string | null
+          start_date: string | null
+          start_known: boolean
+        }
+        Insert: {
+          activity?: string | null
+          cause?: string | null
+          claim_item_id?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          days?: number | null
+          description: string
+          id?: string
+          job_id: string
+          notice_item_id?: string | null
+          start_date?: string | null
+          start_known?: boolean
+        }
+        Update: {
+          activity?: string | null
+          cause?: string | null
+          claim_item_id?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          days?: number | null
+          description?: string
+          id?: string
+          job_id?: string
+          notice_item_id?: string | null
+          start_date?: string | null
+          start_known?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_delay_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
             referencedColumns: ["id"]
           },
         ]
@@ -1594,8 +1762,13 @@ export type Database = {
           id: string
           job_number: string | null
           name: string
+          pm_email: string | null
+          pm_name: string | null
+          pm_title: string | null
           pm_user_id: string | null
           restricted: boolean
+          sov_basis: string | null
+          sov_fee_pct: number | null
           time_zone: string | null
           updated_at: string
           user_id: string
@@ -1606,8 +1779,13 @@ export type Database = {
           id?: string
           job_number?: string | null
           name: string
+          pm_email?: string | null
+          pm_name?: string | null
+          pm_title?: string | null
           pm_user_id?: string | null
           restricted?: boolean
+          sov_basis?: string | null
+          sov_fee_pct?: number | null
           time_zone?: string | null
           updated_at?: string
           user_id?: string
@@ -1618,8 +1796,13 @@ export type Database = {
           id?: string
           job_number?: string | null
           name?: string
+          pm_email?: string | null
+          pm_name?: string | null
+          pm_title?: string | null
           pm_user_id?: string | null
           restricted?: boolean
+          sov_basis?: string | null
+          sov_fee_pct?: number | null
           time_zone?: string | null
           updated_at?: string
           user_id?: string
@@ -3165,6 +3348,10 @@ export type Database = {
         Args: { _schedule_id: string; _user_id: string }
         Returns: boolean
       }
+      mcp_abuse_cap_check: {
+        Args: { _daily?: number; _hourly?: number }
+        Returns: Json
+      }
       mcp_abuse_cap_hit: { Args: never; Returns: boolean }
       mcp_add_item: { Args: { _f: Json; _job: string }; Returns: Json }
       mcp_answer: {
@@ -3187,8 +3374,13 @@ export type Database = {
           id: string
           job_number: string | null
           name: string
+          pm_email: string | null
+          pm_name: string | null
+          pm_title: string | null
           pm_user_id: string | null
           restricted: boolean
+          sov_basis: string | null
+          sov_fee_pct: number | null
           time_zone: string | null
           updated_at: string
           user_id: string
@@ -3219,6 +3411,16 @@ export type Database = {
       mcp_can_access_contract: { Args: { _job: string }; Returns: boolean }
       mcp_can_access_job: { Args: { _job: string }; Returns: boolean }
       mcp_can_view_job: { Args: { _job: string }; Returns: boolean }
+      mcp_clause_norm: { Args: { _s: string }; Returns: string }
+      mcp_clauses_save: {
+        Args: { _clauses: Json; _doc: Json; _job: string }
+        Returns: Json
+      }
+      mcp_clean_pm_name: { Args: { _s: string }; Returns: string }
+      mcp_company_brand_save: {
+        Args: { _company: string; _p: Json }
+        Returns: undefined
+      }
       mcp_company_save: {
         Args: { _company: string; _p: Json }
         Returns: string
@@ -3232,7 +3434,15 @@ export type Database = {
         Args: { _job: string; _na_id: string }
         Returns: Json
       }
+      mcp_delay_event_add: {
+        Args: { _claim: Json; _d: Json; _job: string; _notice: Json }
+        Returns: Json
+      }
       mcp_eval_cond: { Args: { _c: Json; _flags: Json }; Returns: boolean }
+      mcp_flags_unknown: {
+        Args: { _job: string; _keys: string[] }
+        Returns: Json
+      }
       mcp_gate: { Args: never; Returns: boolean }
       mcp_has_right: {
         Args: { _company: string; _right: string }
@@ -3240,6 +3450,7 @@ export type Database = {
       }
       mcp_is_company_member: { Args: { _company: string }; Returns: boolean }
       mcp_is_company_viewer: { Args: { _company: string }; Returns: boolean }
+      mcp_is_pm_ref: { Args: { _label: string; _pm: string }; Returns: boolean }
       mcp_is_super_view: { Args: { _job: string }; Returns: boolean }
       mcp_is_test_caller: { Args: never; Returns: boolean }
       mcp_job_create: {
@@ -3254,8 +3465,18 @@ export type Database = {
       mcp_job_flagset: { Args: { _job: string }; Returns: Json }
       mcp_job_scope: { Args: { _job: string }; Returns: string }
       mcp_job_settings: {
-        Args: { _job: string; _pm_name: string; _time_zone: string }
+        Args: {
+          _job: string
+          _pm_email?: string
+          _pm_name: string
+          _pm_title?: string
+          _time_zone: string
+        }
         Returns: Json
+      }
+      mcp_job_sov_terms: {
+        Args: { _basis: string; _fee_pct: number; _job: string }
+        Returns: undefined
       }
       mcp_latest_setup_checks: {
         Args: never
@@ -3308,11 +3529,14 @@ export type Database = {
       mcp_member_role: { Args: { _company: string }; Returns: string }
       mcp_next_check: { Args: { _job: string }; Returns: Json }
       mcp_open_item_create: { Args: { _f: Json; _job: string }; Returns: Json }
+      mcp_pm_email_in: { Args: { _s: string }; Returns: string }
+      mcp_pm_label: { Args: { _job: string }; Returns: string }
       mcp_rate_hit: { Args: { _limit?: number }; Returns: boolean }
       mcp_reenable: {
         Args: { _job: string; _scope: string; _target: string }
         Returns: Json
       }
+      mcp_repoint_pm_items: { Args: { _job: string }; Returns: number }
       mcp_resolve_item: {
         Args: {
           _approval: string
