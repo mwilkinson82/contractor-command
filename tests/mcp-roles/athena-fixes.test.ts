@@ -116,7 +116,7 @@ describe("contract terms entered by hand", () => {
     const rep = await call("report", { job_number: "J-1", audience: "internal" });
     expect(rep.text).toContain("- retainage: 10% to 50%, then 5% (manual)");
     expect(rep.text).toContain("- pay terms: Net 30 (manual)");
-    expect(rep.text).toContain("- liquidated damages: $1,500/day, §9.4 (document)");
+    expect(rep.text).toContain("- liquidated damages: $1,500/day, §9.4 (summary, not verified against the contract text)");
     expect(rep.text).toMatch(/- notice timing: unknown/);
   });
 });
