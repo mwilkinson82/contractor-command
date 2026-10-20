@@ -1,0 +1,162 @@
+[
+ {
+  "section": "11.1",
+  "heading": "For Cause",
+  "category": "cure_notice",
+  "verbatim_text": "If Subcontractor fails to perform and does not cure within three (3) working days after written notice, Contractor may terminate or supplement the Work and charge the cost to Subcontractor.",
+  "n_days": 3,
+  "day_type": "working",
+  "trigger_desc": "after written notice, Contractor may terminate or supplement the Work and charge the cost to Subcontractor",
+  "source": "document"
+ },
+ {
+  "section": "3.3",
+  "heading": "Time of Payment",
+  "category": "other",
+  "verbatim_text": "Contractor shall pay Subcontractor the amount approved, less retainage, within **seven (7) days after Contractor receives payment from Owner** for the Work covered by the application.",
+  "n_days": 7,
+  "day_type": null,
+  "trigger_desc": "after Contractor receives payment from Owner for the Work covered by the application",
+  "source": "document"
+ },
+ {
+  "section": "3.4",
+  "heading": "Notice of Non-Payment",
+  "category": "nonpayment_notice",
+  "verbatim_text": "If payment is not received when due under Section 3.3, Subcontractor shall give Contractor **written notice of non-payment within ten (10) days of the missed due date**. Timely written notice is a **condition precedent** to any claim for payment, interest or suspension of Work arising from the late payment. This notice does not replace any statutory notice required to preserve lien or bond rights.",
+  "n_days": 10,
+  "day_type": null,
+  "trigger_desc": "of the missed due date",
+  "source": "document"
+ },
+ {
+  "section": "4.2",
+  "heading": null,
+  "category": "other",
+  "verbatim_text": "Retainage shall be released **thirty (30) days after Owner's final acceptance** of the Project and Subcontractor's delivery of all **closeout documents** required by Article 9, a final unconditional lien waiver, and consent of surety if applicable.",
+  "n_days": 30,
+  "day_type": null,
+  "trigger_desc": "after Owner's final acceptance of the Project and Subcontractor's delivery of all closeout documents required by Article 9, a final unconditional lien waiver, and consent of surety if applicable",
+  "source": "document"
+ },
+ {
+  "section": "5.1",
+  "heading": null,
+  "category": "other",
+  "verbatim_text": "Subcontractor shall submit all shop drawings, product data, and samples **within twenty-one (21) calendar days after Notice to Proceed**.",
+  "n_days": 21,
+  "day_type": "calendar",
+  "trigger_desc": "after Notice to Proceed",
+  "source": "document"
+ },
+ {
+  "section": "5.2",
+  "heading": null,
+  "category": "other",
+  "verbatim_text": "Submittals for **long-lead equipment, including switchgear, switchboards and panelboards, shall be submitted within ten (10) calendar days after Notice to Proceed**.",
+  "n_days": 10,
+  "day_type": "calendar",
+  "trigger_desc": "after Notice to Proceed",
+  "source": "document"
+ },
+ {
+  "section": "5.3",
+  "heading": null,
+  "category": "other",
+  "verbatim_text": "Subcontractor shall allow **fourteen (14) calendar days for Architect review** of each submittal. Rejected or \"revise and resubmit\" submittals shall be **resubmitted within seven (7) calendar days** after return.",
+  "n_days": 14,
+  "day_type": "calendar",
+  "trigger_desc": null,
+  "source": "document"
+ },
+ {
+  "section": "6.3",
+  "heading": null,
+  "category": "schedule_disagreement",
+  "verbatim_text": "Contractor will issue **schedule updates every Friday**. Subcontractor shall review each update and promptly notify Contractor of any disagreement.",
+  "n_days": null,
+  "day_type": null,
+  "trigger_desc": "promptly (no day count stated)",
+  "source": "document"
+ },
+ {
+  "section": "6.4",
+  "heading": "Delay Notice",
+  "category": "delay_notice",
+  "verbatim_text": "Subcontractor shall give written notice of any delay **within three (3) calendar days** after the start of the event, stating the cause and the estimated impact. Failure to give timely notice waives the claim.",
+  "n_days": 3,
+  "day_type": "calendar",
+  "trigger_desc": "after the start of the event, stating the cause and the estimated impact",
+  "source": "document"
+ },
+ {
+  "section": "6.5",
+  "heading": "No Damages for Delay",
+  "category": "other",
+  "verbatim_text": "Subcontractor's sole remedy for delay, hindrance or disruption, regardless of cause, shall be an **extension of time only**, and Subcontractor shall have no claim for damages or additional compensation.",
+  "n_days": null,
+  "day_type": null,
+  "trigger_desc": null,
+  "source": "document"
+ },
+ {
+  "section": "6.6",
+  "heading": "Liquidated Damages",
+  "category": "other",
+  "verbatim_text": "If Owner assesses liquidated damages under the Prime Contract, Contractor may pass those damages through to Subcontractor in proportion to Subcontractor's responsibility, at **$1,000 per calendar day**.",
+  "n_days": null,
+  "day_type": null,
+  "trigger_desc": null,
+  "source": "document"
+ },
+ {
+  "section": "7.1",
+  "heading": null,
+  "category": "other",
+  "verbatim_text": "No change in the Work shall be performed without a **written Change Order or written directive** from Contractor, **except in an emergency** endangering life or property. Work performed without written authorization is at Subcontractor's own risk.",
+  "n_days": null,
+  "day_type": null,
+  "trigger_desc": null,
+  "source": "document"
+ },
+ {
+  "section": "7.2",
+  "heading": null,
+  "category": "other",
+  "verbatim_text": "Subcontractor shall submit an itemized price for any requested change **within seven (7) calendar days** of Contractor's request.",
+  "n_days": 7,
+  "day_type": "calendar",
+  "trigger_desc": "of Contractor's request",
+  "source": "document"
+ },
+ {
+  "section": "7.4",
+  "heading": "Claim Notice",
+  "category": "claim_notice",
+  "verbatim_text": "Any claim for additional time or money must be submitted in writing **within seven (7) calendar days of the event** giving rise to it. Claims not timely noticed are waived.",
+  "n_days": 7,
+  "day_type": "calendar",
+  "trigger_desc": "of the event giving rise to it",
+  "source": "document"
+ },
+ {
+  "section": "7.5",
+  "heading": "Time and Material Tickets",
+  "category": "other",
+  "verbatim_text": "T&M work shall be recorded on tickets **signed by Contractor's superintendent the same day** the work is performed. Unsigned tickets will not be paid.",
+  "n_days": null,
+  "day_type": null,
+  "trigger_desc": null,
+  "source": "document"
+ },
+ {
+  "section": "8.1",
+  "heading": null,
+  "category": "other",
+  "verbatim_text": "Subcontractor warrants that all Work will be free of defects in materials and workmanship for **one (1) year from Owner's acceptance** of the Project, or longer where the Specifications require. Subcontractor shall correct defective Work promptly upon notice at no cost.",
+  "n_days": null,
+  "day_type": null,
+  "trigger_desc": "promptly (no day count stated)",
+  "source": "document"
+ }
+]

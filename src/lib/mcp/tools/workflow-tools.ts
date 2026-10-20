@@ -13,6 +13,7 @@ import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
 import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
 import { guide } from "../visible";
 import { withoutClaims } from "../internal-claims";
+import { noticeRequirements } from "../notice-plain";
 import { CLAUSE_HOST_RULE, classifyClause, clauseLine, missingNotices, normSection, parseClause, NOTICE_CHECKLIST, type ClauseRow, LEGACY_SUMMARY_TAG, missingNoticeNote } from "../contract-clauses";
 import { FLAGS_ASKED_LATER, noGuidance, noGuidanceText, reconcileRecommendation } from "../guidance";
 import { LOOKAHEAD_BUILD_QUESTIONS, LOOKAHEAD_EXISTS_ASK, LOOKAHEAD_PUSHBACK, LOOKAHEAD_SETUP_KEY, PUSHBACK_GUIDANCE, buildQuestionsGuidance, buildQuestionsText, pushbackText } from "../lookahead-help";
@@ -467,6 +468,8 @@ export const intake = defineTool({
           ...reworded.map((x) => `Kept the verified contract text for §${x.section}: the new wording isn't in the contract, so it wasn't saved. An open item was opened to check it.`),
           ...(unverified.length && r.has_document ? [`Not found exactly in the contract text: ${unverified.map((x) => `§${x.section}`).join(", ")}. Check the wording; an open item was opened for each.`] : []),
           ...missingNotices(saved).map((m) => `Missing from the contract clauses: ${m.label}. An open item asks you to confirm it; nothing was filled in.`),
+          "",
+          ...noticeRequirements(saved).lines,
         ];
         return { ...text(`${lines.join("\n")}${itemNotes(made)}`), structuredContent: { clauses: saved.map((c) => ({ section: c.section, category: c.category, source: c.source, n_days: c.n_days, day_type: c.day_type })), items: made.map((m) => itemOut(m)!) } };
       }
@@ -1150,7 +1153,7 @@ export const contractTerms = defineTool({
   name: "contract_terms",
   title: "Read contract terms",
   description:
-    "Read back a job's contract terms exactly as saved: each clause with its value and source (manual = typed by the member, document = read from the contract), unknown clauses, and the applicability flags (ON / OFF / UNKNOWN). Use this, not the setup report, when the member asks what terms are on file or to confirm terms they just entered. Read-only.",
+    "Read back a job's contract terms exactly as saved: each clause with its value and source (manual = typed by the member, document = read from the contract), unknown clauses, the applicability flags (ON / OFF / UNKNOWN), and the notice requirements in plain words (for each event type: days to give notice and who it goes to, or exactly what the contract leaves out). Relay the notice requirements as written. Use this, not the setup report, when the member asks what terms are on file or to confirm terms they just entered. Read-only.",
   inputSchema: { job_number: jobNumber, company_id: companyId },
   annotations: { ...READ, idempotentHint: true },
   handler: (args, ctx) =>
@@ -1177,10 +1180,13 @@ export const contractTerms = defineTool({
         return { flag: k, value: flagWord(effectiveFlag(f?.value ?? "unknown", by.get(FLAG_CLAUSE[k]))), source: f ? src(f.source) : null };
       });
       const cl = await loadClauses(sb, job.job_id);
+      const notice = noticeRequirements(cl, { noticeFlagNo: flags.find((f) => f.flag === "notice_requirements")?.value === "OFF" });
       const lines = [
         `${prefix(job)}CONTRACT CLAUSES (exact contract text)`,
         ...(cl.length ? cl.map((c) => `- ${clauseLine(c)}`) : ["- None recorded. Record them with intake section clauses, copied exactly from the contract."]),
         ...missingNotices(cl).map((m) => `- Missing: ${m.label} (${missingNoticeNote(cl.length > 0)})`),
+        "",
+        ...notice.lines,
         "",
         `CONTRACT TERMS (as saved${cl.length ? "; summary fields, the clauses above govern" : ""})`,
         ...clauses.map((c) => `- ${c.key.replace(/_/g, " ")}: ${c.value ?? "UNKNOWN"}${c.value ? ` (${c.source === "document" ? LEGACY_SUMMARY_TAG : c.source})` : ""}`),
@@ -1188,7 +1194,7 @@ export const contractTerms = defineTool({
         "Applicability:",
         ...flags.map((f) => `- ${f.flag.replace(/_/g, " ")}: ${f.value}${f.source ? ` (${f.source})` : ""}`),
       ];
-      return { ...text(lines.join("\n")), structuredContent: { clauses, flags, contract_clauses: cl.map((c) => ({ section: c.section, heading: c.heading, category: c.category, source: c.source, n_days: c.n_days, day_type: c.day_type, trigger: c.trigger_desc })) } };
+      return { ...text(lines.join("\n")), structuredContent: { clauses, flags, notice_requirements: { status: notice.status, missing: notice.missing }, contract_clauses: cl.map((c) => ({ section: c.section, heading: c.heading, category: c.category, source: c.source, n_days: c.n_days, day_type: c.day_type, trigger: c.trigger_desc })) } };
     }),
 });
 
