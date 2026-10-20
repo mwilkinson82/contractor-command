@@ -53,7 +53,8 @@ describe("legacy contract terms before any clause rows", () => {
     expect(i.text).not.toMatch(/^\s+- (retainage|notice timing):.*\(document\)$/m);
     const c = await call("report", { job_number: "L-1", audience: "client" });
     expect(c.text).not.toContain("§7.4");
-    expect(c.text).toContain(`   - retainage: §4.1 10% to 50%, then 5% ${TAG}`);
+    expect(c.text).toContain(`   - retainage: §4.1 10% to 50%, then 5%\n`);
+    expect(c.text).not.toContain(TAG); // client copy drops the internal tag (Marshall 2026-10-20)
     expect(c.text).not.toMatch(/^\s+- (retainage|notice timing):.*\(document\)$/m);
   });
   test("once a clause row exists, Missing lines point at real open items", async () => {
@@ -69,6 +70,7 @@ describe("legacy contract terms before any clause rows", () => {
     const i = await call("report", { job_number: "L-1", audience: "internal" });
     expect(i.text).toContain(`   - retainage: §4.1 10% to 50%, then 5% ${TAG}`);
     const c = await call("report", { job_number: "L-1", audience: "client" });
-    expect(c.text).toContain(`   - retainage: §4.1 10% to 50%, then 5% ${TAG}`);
+    expect(c.text).toContain(`   - retainage: §4.1 10% to 50%, then 5%\n`);
+    expect(c.text).not.toContain(TAG); // client copy drops the internal tag (Marshall 2026-10-20)
   });
 });

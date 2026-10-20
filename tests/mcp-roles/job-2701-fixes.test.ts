@@ -126,12 +126,12 @@ describe("bugs 5, 6: client copy and warranty source", () => {
     const r = await call("intake", { section: "warranty", job_number: "H-2", workmanship_warranty: "yes", workmanship_warranty_months: 12 });
     expect(r.text).toMatch(/Workmanship warranty: [^\n]*\(manual\)/);
   });
-  test("client report: no contact emails or phones (internal keeps them); summary tag unchanged pending Marshall", async () => {
+  test("client report: no contact emails or phones (internal keeps them); no summary tag; internal keeps both", async () => {
     expect((await call("intake", { section: "contract", job_number: "H-3", ...DOC, retainage: "§4.1 10% until the Work is 50% complete." })).isError).toBe(false);
     expect((await call("intake", { section: "open_item", job_number: "H-3", action: "TEST confirm gear delivery with supplier contact Dana (dana.test@example.com, 361-555-0142)" })).isError).toBe(false);
     const client = (await call("report", { job_number: "H-3", audience: "client" })).text;
     expect(client).toMatch(/retainage: §4\.1 10% until the Work is 50% complete\./);
-    expect(client).toMatch(/retainage: [^\n]*\(summary, not verified against the contract text\)/);
+    expect(client).not.toMatch(/summary, not verified/);
     expect(client).toMatch(/supplier contact Dana/);
     expect(client).not.toMatch(/@|555-0142/);
     const internal = (await call("report", { job_number: "H-3" })).text;

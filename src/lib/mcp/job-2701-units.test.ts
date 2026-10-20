@@ -23,9 +23,9 @@ describe("2701 unit fixes", () => {
     expect(clauseFlag("None in the contract (lump sum).")).toBe("no");
     expect(clauseFlag("§9.3 Owner may occupy portions before Substantial Completion")).toBe("yes");
   });
-  it("bug 6: client copy drops contact details (the summary tag is kept pending Marshall's call)", () => {
+  it("bugs 4 and 6: client copy drops the summary tag and contact details", () => {
     const t = clientCopy("   - retainage: §4.1 10% (summary, not verified against the contract text)\n   - Deliveries: Gulf Coast, contact Dana Whitfield (dana.whitfield@example.com)");
-    expect(t).toContain("(summary, not verified against the contract text)");
+    expect(t).not.toMatch(/summary, not verified/);
     expect(t).not.toMatch(/@/);
     expect(t).toContain("contact Dana Whitfield");
     expect(withoutContactPii("Call (361) 555-0142 or +1 361 555 0142")).toBe("Call [contact withheld] or [contact withheld]");

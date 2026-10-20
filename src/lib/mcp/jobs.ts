@@ -9,7 +9,7 @@ import { draftGuidance, draftIdentityText } from "./drafts";
 import { ToolError } from "@lovable.dev/mcp-js";
 import { dbError, type Sb } from "./guard";
 import { withoutClaims } from "./internal-claims";
-import { clauseLine, isClaimClause, missingNotices, type ClauseRow, legacySourceLabel } from "./contract-clauses";
+import { clauseLine, isClaimClause, missingNotices, type ClauseRow, legacySourceLabel, LEGACY_SUMMARY_TAG } from "./contract-clauses";
 import { noticeRequirements } from "./notice-plain";
 import { DEFAULT_TZ, dateIn, todayIn } from "./deadlines";
 
@@ -208,9 +208,13 @@ function show(v: unknown): string {
   return JSON.stringify(v);
 }
 
-/** Client copy: contact emails and phone numbers are withheld, then the money/margin scrub. */
+/**
+ * Client copy: the internal verification tag on summary fields ("summary, not verified against the contract text") is
+ * Athena's check for the PM and stays out of the owner's copy (Marshall 2026-10-20); contact emails and phone numbers
+ * are withheld; then the money/margin scrub. The internal copy keeps the tag.
+ */
 export function clientCopy(text: string): string {
-  return clientSafe(withoutContactPii(text));
+  return clientSafe(withoutContactPii(text.split(` (${LEGACY_SUMMARY_TAG})`).join("")));
 }
 
 export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" | "client") {
