@@ -15,6 +15,7 @@ vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
 vi.mock("@/lib/magic-link.functions", () => ({ requestMemberMagicLink: vi.fn() }));
 vi.mock("@/lib/email/send", () => ({ sendTransactionalEmail: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { auth: {} } }));
+vi.mock("@/lib/athena-host-current", () => ({ onAthenaHost: () => false }));
 import { Route } from "@/routes/login";
 it("connector login starts with email only and retains optional password login", () => {
   const html = renderToStaticMarkup(

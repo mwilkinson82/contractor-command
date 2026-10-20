@@ -27,6 +27,8 @@ import { vault } from "@/lib/vault";
 import { createAuthInvalidationScheduler } from "@/lib/auth-event-invalidation";
 import { setPresence, resetPresence, type PresenceUser } from "@/lib/portal-presence";
 import { toast } from "sonner";
+import { athenaAppOrigin } from "@/lib/athena-host";
+import { onAthenaHost } from "@/lib/athena-host-current";
 
 const PUBLIC_ROUTES = new Set([
   "/login",
@@ -45,6 +47,41 @@ const DEFAULT_TITLE = "Command Center — Contractor Circle";
 const DEFAULT_DESCRIPTION =
   "The private member portal for Contractor Circle: live calls with Marshall, AOS access, replays, templates, Ask Marshall, and the operating process behind the projects.";
 const SOCIAL_IMAGE_URL = `${APP_ORIGIN}/brand/circle-v1/social.png`;
+const ATHENA_TITLE = "Athena powered by ALP, construction agents";
+const ATHENA_DESCRIPTION = "Athena: construction agents by ALP for contracts, schedules, lookaheads and notices.";
+
+type Brand = {
+  title: string;
+  description: string;
+  appName: string;
+  shortName: string;
+  siteName: string;
+  origin: string;
+  imageAlt: string;
+};
+
+function brandForHost(): Brand {
+  if (onAthenaHost()) {
+    return {
+      title: ATHENA_TITLE,
+      description: ATHENA_DESCRIPTION,
+      appName: "Athena",
+      shortName: "Athena",
+      siteName: "Athena",
+      origin: athenaAppOrigin(),
+      imageAlt: "Athena by ALP.",
+    };
+  }
+  return {
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESCRIPTION,
+    appName: "Contractor Circle Command Center",
+    shortName: "Contractor Circle",
+    siteName: "Contractor Circle",
+    origin: APP_ORIGIN,
+    imageAlt: "Contractor Circle Command Center branded preview.",
+  };
+}
 
 // Run before the app shell mounts. Auth links can arrive at "/" with tokens in
 // the hash; if the auth gate mounts first, it may send the user to /login and
@@ -148,52 +185,41 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  head: () => ({
+  head: () => {
+    const b = brandForHost();
+    const athena = b.siteName === "Athena";
+    return {
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: DEFAULT_TITLE },
-      { name: "application-name", content: "Contractor Circle Command Center" },
-      { name: "apple-mobile-web-app-title", content: "Contractor Circle" },
+      { title: b.title },
+      { name: "application-name", content: b.appName },
+      { name: "apple-mobile-web-app-title", content: b.shortName },
       { name: "theme-color", content: "#FAF9F5" },
-      { name: "robots", content: "index, follow" },
-      {
-        name: "description",
-        content: DEFAULT_DESCRIPTION,
-      },
-      { property: "og:title", content: DEFAULT_TITLE },
-      { property: "og:site_name", content: "Contractor Circle" },
-      { property: "og:url", content: APP_ORIGIN },
-      { name: "twitter:title", content: DEFAULT_TITLE },
-      {
-        property: "og:description",
-        content: DEFAULT_DESCRIPTION,
-      },
-      {
-        name: "twitter:description",
-        content: DEFAULT_DESCRIPTION,
-      },
-      {
-        property: "og:image",
-        content: SOCIAL_IMAGE_URL,
-      },
-      { property: "og:image:type", content: "image/png" },
-      { property: "og:image:width", content: "1024" },
-      { property: "og:image:height", content: "1024" },
-      {
-        property: "og:image:alt",
-        content: "Contractor Circle Command Center branded preview.",
-      },
-      {
-        name: "twitter:image",
-        content: SOCIAL_IMAGE_URL,
-      },
-      { name: "twitter:card", content: "summary_large_image" },
+      { name: "robots", content: athena ? "noindex, nofollow" : "index, follow" },
+      { name: "description", content: b.description },
+      { property: "og:title", content: b.title },
+      { property: "og:site_name", content: b.siteName },
+      { property: "og:url", content: b.origin },
+      { name: "twitter:title", content: b.title },
+      { property: "og:description", content: b.description },
+      { name: "twitter:description", content: b.description },
+      ...(athena
+        ? [{ name: "twitter:card", content: "summary" }]
+        : [
+            { property: "og:image", content: SOCIAL_IMAGE_URL },
+            { property: "og:image:type", content: "image/png" },
+            { property: "og:image:width", content: "1024" },
+            { property: "og:image:height", content: "1024" },
+            { property: "og:image:alt", content: b.imageAlt },
+            { name: "twitter:image", content: SOCIAL_IMAGE_URL },
+            { name: "twitter:card", content: "summary_large_image" },
+          ]),
       { property: "og:type", content: "website" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "canonical", href: APP_ORIGIN },
+      { rel: "canonical", href: b.origin },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
@@ -206,7 +232,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
       { rel: "manifest", href: "/site.webmanifest" },
     ],
-  }),
+    };
+  },
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,

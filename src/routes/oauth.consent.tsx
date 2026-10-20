@@ -2,6 +2,7 @@ import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthCard } from "@/components/auth/auth-card";
+import { athenaAppOrigin, isLovableHost } from "@/lib/athena-host";
 import { MCP_ALLOWED_EMAILS } from "@/lib/mcp/allowlist";
 import { boundedStep, ConsentStepError, consentReturnPath } from "@/lib/consent-loading";
 
@@ -43,6 +44,15 @@ export const Route = createFileRoute("/oauth/consent")({
     authorization_id: typeof s.authorization_id === "string" ? s.authorization_id : "",
   }),
   beforeLoad: async ({ search }) => {
+    // Members must never see a lovable.app address: move the request to the
+    // Athena app with the same authorization_id before anything else.
+    const here = typeof window !== "undefined" ? window.location?.hostname ?? "" : "";
+    if (here && isLovableHost(here) && !here.startsWith("id-preview--")) {
+      const target = new URL("/oauth/consent", athenaAppOrigin());
+      if (search.authorization_id) target.searchParams.set("authorization_id", search.authorization_id);
+      window.location.replace(target.toString());
+      await new Promise(() => {});
+    }
     if (!search.authorization_id) throw new Error("This connection request is missing its ID. Start again from the app you're connecting.");
     const { data, error } = await boundedStep("session", () => supabase.auth.getSession());
     if (error) throw new ConsentStepError("session", "failed");
