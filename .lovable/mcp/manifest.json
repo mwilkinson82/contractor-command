@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "sdk_version": "3.1.1",
+  "sdk_version": "3.0.5",
   "path": "/mcp",
   "auth": {
     "type": "oauth",
@@ -172,7 +172,7 @@
               "description": "add_member: the person's sign-in email.",
               "type": "string",
               "format": "email",
-              "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
             },
             "member_name": {
               "description": "add_member: display name.",
