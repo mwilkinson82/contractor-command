@@ -23,3 +23,11 @@ export function withoutClaims<T extends ItemLike>(items: T[]): T[] {
 }
 
 export const isClaimDeadline = (d: DeadlineLike) => CLAIM_TEXT.test(`${d.label ?? ""} ${d.clause_key ?? ""}`);
+
+/** Client text: drop the claim parts of a combined contract term (split on ";" or sentence ends), keep the rest. */
+export function stripClaimText(v: string): string {
+  const parts = v.split(/(?<=;)\s*|(?<=\.)\s+(?=§|[A-Z])/);
+  const kept = parts.filter((p) => !CLAIM_TEXT.test(p));
+  if (kept.length === parts.length) return v;
+  return kept.join(" ").trim().replace(/;\s*$/, ".").replace(/\s{2,}/g, " ");
+}

@@ -99,6 +99,14 @@ describe("2. client output leaves out claim items", () => {
     expect(client.text).not.toMatch(/claim notice/i);
     expect(client.text).toMatch(/Send written delay notice/);
   });
+  test("combined notice timing term: client keeps the delay part, drops §7.4 claim text", async () => {
+    await call("intake", { section: "contract", job_number: "W-1", notice_timing: "§6.4 written delay notice within 3 calendar days after start of event; §7.4 written claim notice within 7 calendar days of event, otherwise waived." });
+    const client = await call("report", { job_number: "W-1", audience: "client" });
+    expect(client.text).toContain("notice timing: §6.4 written delay notice within 3 calendar days after start of event. (manual)");
+    expect(client.text).not.toMatch(/claim|§7\.4/i);
+    const internal = await call("report", { job_number: "W-1", audience: "internal" });
+    expect(internal.text).toContain("§7.4 written claim notice");
+  });
 });
 
 describe("9. no job named: Athena lists companies and jobs", () => {
