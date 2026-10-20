@@ -13,7 +13,7 @@
   "mcp": {
     "server": {
       "name": "athena",
-      "version": "0.8.6",
+      "version": "0.8.7",
       "title": "Athena powered by ALP, construction agents"
     },
     "tools": [
@@ -1370,6 +1370,10 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 64
+            },
+            "date_sweep": {
+              "description": "true only when the member asks for the date sweep (overdue, due today, next 14 days). It also shows on its own when a job is first opened in a session.",
+              "type": "boolean"
             }
           },
           "additionalProperties": false

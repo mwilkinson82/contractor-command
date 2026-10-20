@@ -9,10 +9,10 @@ import { computeDue, todayIn, type DayType } from "../deadlines";
 import { INPUT_KEYS, INPUT_LABELS, currentCheck, loadAnswers, loadChecks, loadLookahead, renderReport, type InputKey } from "../workflow";
 import { WARRANTY_CHECK_PREFIX, WARRANTY_SETUP_QUESTIONS, mapTrigger, nextWarrantyQuestion, CONTRACT_WARRANTY_KEY, alignCloseoutSource, renderWarrantyRegister, warrantyAnswerFacts, warrantyHow, warrantyOpenItems, type WarrantyKey } from "../warranty";
 import { EVIDENCE_ASK, evidenceProblem } from "../evidence";
-import { isUuid, itemRef, lookaheadRef, matchRef, parseLookaheadRef, parseQuestionRef, questionRef, shortRef } from "../refs";
+import { displayRef, isUuid, itemRef, lookaheadRef, matchRef, parseLookaheadRef, parseQuestionRef, questionRef, shortRef } from "../refs";
 import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
 import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
-import { guide, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_LINK_RULE_TEXT, sovDeliveryAsk, sovDeliveryBlock, sovDeliveryStructured, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
+import { guide, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_CHART_RULE, SOV_LINK_HARD_NO, SOV_LINK_RULE_TEXT, sovChart, sovDeliveryAsk, sovDeliveryBlock, sovDeliveryStructured, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
 import { withoutClaims } from "../internal-claims";
 import { EMAIL_CONTACT_RULE, contactForRole, dedupeNotices, emailContact, fillNotice, jobContacts } from "../contacts";
 import { noticeRequirements } from "../notice-plain";
@@ -1188,10 +1188,11 @@ export const listOpenItems = defineTool({
     job_number: listJobNumber,
     company_id: companyId,
     lookahead_id: laArg.optional().describe(`Limit to one lookahead. ${LA_DESC}`),
+    date_sweep: z.boolean().optional().describe("true only when the member asks for the date sweep (overdue, due today, next 14 days). It also shows on its own when a job is first opened in a session."),
   },
   annotations: { ...READ, idempotentHint: true },
   handler: (args, ctx) =>
-    run("list_open_items", ctx, { lookaheadId: args.lookahead_id, jobNumber: args.job_number }, async (sb) => {
+    run("list_open_items", ctx, { lookaheadId: args.lookahead_id, jobNumber: args.job_number, sweep: args.date_sweep === true }, async (sb) => {
       if (!args.job_number?.trim()) return text(await listCompaniesAndJobs(sb, args.company_id));
       const job = await resolveJob(sb, args.job_number, args.company_id);
       let q = sb.from("mcp_open_items").select(ITEM_COLS).eq("job_id", job.job_id).eq("status", "open");
@@ -1224,12 +1225,12 @@ export const listOpenItems = defineTool({
       const rows = deduped.items;
       const lines = rows.map((it) => {
         const d = deduped.duplicates.get(it.id);
-        return `- ${itemLine(it, nas, job.scope !== "full", { tz })}${d?.length ? ` | Same notice also logged as: ${d.map((x) => itemRef(x)).join(", ")} (shown once)` : ""}`;
+        return `- ${itemLine(it, nas, job.scope !== "full", { tz })}${d?.length ? ` | Same notice also logged as: ${d.map((x) => displayRef(x)).join(", ")} (shown once)` : ""}`;
       });
       const dupCount = [...deduped.duplicates.values()].reduce((n, d) => n + d.length, 0);
       const ec = emailContact(contactForRole(contacts, "Project Manager"));
       const dupNote = dupCount ? `\n${dupCount} duplicate notice item${dupCount === 1 ? "" : "s"} shown once (same event and notice type); nothing was deleted.` : "";
-      return guide({ ...text(`${prefix(job)}${laHead}Open items (${rows.length}):\n${lines.join("\n")}${dupNote}\n\n${ec.text}${laBlock}`), structuredContent: { items: rows.map((i) => ({ item_ref: itemRef(i), item_id: i.id, item_type: itemType(i, nas), duplicate_refs: (deduped.duplicates.get(i.id) ?? []).map((x) => itemRef(x)) })), email_contact: ec.structured } }, EMAIL_CONTACT_RULE);
+      return guide({ ...text(`${prefix(job)}${laHead}Open items (${rows.length}):\n${lines.join("\n")}${dupNote}\n\n${ec.text}${laBlock}`), structuredContent: { items: rows.map((i) => ({ item_ref: itemRef(i), item_id: i.id, item_type: itemType(i, nas), duplicate_refs: (deduped.duplicates.get(i.id) ?? []).map((x) => displayRef(x)) })), email_contact: ec.structured } }, EMAIL_CONTACT_RULE);
     }),
 });
 
@@ -1419,7 +1420,9 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
           footer: sovLayout(brand).footer,
           layout: sovLayout(brand),
         },
-        // 0.8.6: owner/client SOV drops option 3 (chat link) entirely.
+        // 0.8.7: the host draws this bar chart (scheduled value by line) in the fixed palette, every host.
+        chart: sovChart(sovLineRows(sov)),
+        // 0.8.6: owner/client SOV drops option 3 (chat link) entirely. 0.8.7: the owner link is a hard no (link_hard_no).
         delivery: sovDeliveryStructured(audience),
         // 0.8.5: who the SOV email card goes to (option 2), so the host fills To and the greeting.
         email_contact: ec.structured,
@@ -1427,6 +1430,8 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
     },
     "To produce the SOV file, use structuredContent.sov exactly: numbers, column set and layout recipe come from the server. Do not recompute or reorder.",
     `Present the SOV as a spreadsheet with the line-item view by default (structuredContent.sov.line_items: line no., cost code, division, description, scheduled value, % of total, then the total that ties to the contract sum). Always include a Cost Code column right after the line no., filled from line_items cost_code (e.g. 26-010); never show the item number in its place. Money with cents everywhere, exactly as in the visible text and the *_display fields (e.g. $1,400,000.00); never round or drop the .00. Do not put a date sweep or any other block before the SOV. Claude: an artifact table built from this result with no tool calls inside it; ChatGPT: a canvas or table; elsewhere: a table plus an offer to create an Excel file. Table style: ${SOV_TABLE_STYLE} Colors: blue #2563EB and gray only, never orange, rust or red, including totals. After the table, at most ONE line. The logo, footer gaps (structuredContent.sov.notes), billing note and the division roll-up offer only when the member asks. Line items carry cost_code and spec_section; keep both columns in any file. Chart colors: ${CHART_PALETTE.join(", ")} only. REQUIRED: end the reply with the SOV delivery question below, word for word, in every host including Claude.${audience === "client" ? " This is the owner/client SOV: offer options 1 and 2 only; never offer a chat link." : ""}`,
+    SOV_CHART_RULE,
+    SOV_LINK_HARD_NO,
     sovDeliveryBlock(audience),
     EMAIL_CONTACT_RULE,
   );
