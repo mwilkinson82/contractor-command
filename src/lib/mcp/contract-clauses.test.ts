@@ -39,7 +39,8 @@ describe("contract clauses", () => {
     expect(legacy).toEqual({ notice: null, claim: null });
   });
   it("legacy summary label and honest Missing note", () => {
-    expect(legacySourceLabel("document")).toBe("summary, not verified against the contract text");
+    expect(legacySourceLabel("document")).toBe("from the contract, summary");
+    expect(legacySourceLabel("document")).not.toMatch(/not verified|manual/);
     expect(legacySourceLabel("member_answer")).toBe("manual");
     expect(legacySourceLabel("company_default")).toBe("company default");
     expect(missingNoticeNote(false)).toContain("opens once");
