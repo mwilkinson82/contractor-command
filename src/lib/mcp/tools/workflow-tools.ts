@@ -1,4 +1,5 @@
-import { SovMismatch, buildSov, retainagePct, sovLayout, sovLineRows, sovSummaryText, type SovBrand, type SovView } from "../sov";
+import { companyScopeDefaults, scopeAlias, SECTOR_ALIASES, PRICING_ALIASES, POSITION_ALIASES } from "../scope-defaults";
+import { SovMismatch, SOV_TABLE_STYLE, buildSov, retainagePct, sovLayout, sovLineRows, sovNotes, sovSummaryText, type SovBrand, type SovView } from "../sov";
 import { ATHENA_VERSION } from "../server-info-branding";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
@@ -314,10 +315,11 @@ export const intake = defineTool({
     job_type: short("scope: job type / trade."),
     scope_summary: short("scope: short scope summary."),
     size_band: z.enum(["<$250k", "$250k–$2M", "$2M–$10M", "$10M+"]).optional(),
-    sector: z.enum(["public", "private_commercial", "residential"]).optional(),
+    sector: z.preprocess(scopeAlias(SECTOR_ALIASES), z.enum(["public", "private_commercial", "residential"]).optional()),
     client_type: short("scope: client type."),
-    pricing_model: z.enum(["lump_sum", "unit_price", "cost_plus", "gmp"]).optional(),
-    position: z.enum(["prime", "sub", "sub_sub"]).optional(),
+    pricing_model: z.preprocess(scopeAlias(PRICING_ALIASES), z.enum(["lump_sum", "unit_price", "cost_plus", "gmp"]).optional()),
+    position: z.preprocess(scopeAlias(POSITION_ALIASES), z.enum(["prime", "sub", "sub_sub"]).optional()),
+    use_defaults: z.boolean().optional().describe("scope: true when the member says 'use the defaults' (or similar). Athena fills job type, sector and position from the company profile where it can, leaves everything else (e.g. client type, pricing model) unconfirmed, saves and moves on. Fields you also send win."),
     work_packages: z.array(workPackage).max(50).optional(),
     major_equipment: z.array(z.string().trim().min(1).max(120)).max(50).optional().describe("scope: major equipment; [] means none."),
     key_clauses: z
@@ -510,6 +512,14 @@ export const intake = defineTool({
       }
 
       if (args.section === "scope") {
+        let defaultsNote = "";
+        if (args.use_defaults) {
+          const { data: co } = await sb.from("mcp_companies").select("company_role, work_types, trades").eq("id", job.company_id).maybeSingle();
+          const d = companyScopeDefaults(co ?? null);
+          args = { ...d, ...Object.fromEntries(Object.entries(args).filter(([, v]) => v !== undefined)) } as typeof args;
+          const used = Object.keys(d).filter((k) => (d as Record<string, unknown>)[k] !== undefined);
+          defaultsNote = `\nCompany defaults used: ${used.length ? humanKeys(used) : "none on file"}. Everything else stays unconfirmed.`;
+        }
         const given = {
           job_type: args.job_type, scope_summary: args.scope_summary, size_band: args.size_band, sector: args.sector,
           client_type: args.client_type, pricing_model: args.pricing_model, position: args.position,
@@ -552,7 +562,7 @@ export const intake = defineTool({
         await settleFlagConfirms(sb, job);
         const { data: all } = await sb.from("mcp_job_flags").select("flag_key, value, source").eq("job_id", job.job_id).order("flag_key");
         return text(
-          `${P}Step 0 scoping saved.\nRecorded: ${humanKeys(fr.known) || "none"}\nUnknown: ${humanKeys(fr.unknown) || "none"}\n\nApplicability flags:\n${(all ?? []).map((f) => `- ${f.flag_key.replace(/_/g, " ")}: ${f.value} (${f.source.replace(/_/g, " ")})`).join("\n")}\n${flagNote(r)}\n\nNext: intake section "contract", or next_question.`,
+          `${P}Step 0 scoping saved.${defaultsNote}\nRecorded: ${humanKeys(fr.known) || "none"}\nUnknown: ${humanKeys(fr.unknown) || "none"}\n\nApplicability flags:\n${(all ?? []).map((f) => `- ${f.flag_key.replace(/_/g, " ")}: ${f.value} (${f.source.replace(/_/g, " ")})`).join("\n")}\n${flagNote(r)}\n\nNext: intake section "contract", or next_question.`,
         );
       }
 
@@ -1358,6 +1368,7 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
           audience,
           view,
           line_items: sovLineRows(sov),
+          notes: sovNotes(brand, sovFooterMissing(c)),
           header: { project: `${job.job_number} – ${job.name}`, prepared: today, contractor: c.name, basis: jr.data?.sov_basis ?? null, contract_sum: sov.summary.contract_total },
           ...sov,
           footer: sovLayout(brand).footer,
@@ -1366,6 +1377,6 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
       },
     },
     "To produce the SOV file, use structuredContent.sov exactly: numbers, column set and layout recipe come from the server. Do not recompute or reorder.",
-    "Present the SOV as a spreadsheet with the line-item view by default (structuredContent.sov.line_items: line no., division, description, scheduled value, % of total, then the total that ties to the contract sum). Claude: an artifact table built from this result with no tool calls inside it; ChatGPT: a canvas or table; elsewhere: a table plus an offer to create an Excel file. White background, light gray header and division rows; bars, totals and highlights: blue #2563EB and gray only, never orange, rust or red, including totals. Offer the division roll-up only if asked (report sov_view divisions).",
+    `Present the SOV as a spreadsheet with the line-item view by default (structuredContent.sov.line_items: line no., division, description, scheduled value, % of total, then the total that ties to the contract sum). Claude: an artifact table built from this result with no tool calls inside it; ChatGPT: a canvas or table; elsewhere: a table plus an offer to create an Excel file. Table style: ${SOV_TABLE_STYLE} Colors: blue #2563EB and gray only, never orange, rust or red, including totals. After the table, at most ONE line. The logo, footer gaps (structuredContent.sov.notes), billing note and the division roll-up offer only when the member asks.`,
   );
 }
