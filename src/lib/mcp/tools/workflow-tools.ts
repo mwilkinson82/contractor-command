@@ -1273,14 +1273,15 @@ export const contractTerms = defineTool({
         ...missingNotices(cl).map((m) => `- Missing: ${m.label} (${missingNoticeNote(cl.length > 0)})`),
         "",
         ...notice.lines,
-        "",
-        `CONTRACT TERMS (as saved${cl.length ? "; summary fields, the clauses above govern" : ""})`,
-        ...clauses.map((c) => `- ${c.key.replace(/_/g, " ")}: ${c.value ?? "UNKNOWN"}${c.value ? ` (${c.source === "document" ? LEGACY_SUMMARY_TAG : c.source})` : ""}`),
+        // Verbatim clauses on file: the summary fields are not printed, so only exact contract text is quoted (kept in data, fallback only).
+        ...(cl.length
+          ? []
+          : ["", "CONTRACT TERMS (as saved)", ...clauses.map((c) => `- ${c.key.replace(/_/g, " ")}: ${c.value ?? "UNKNOWN"}${c.value ? ` (${c.source === "document" ? LEGACY_SUMMARY_TAG : c.source})` : ""}`)]),
         "",
         "Applicability:",
         ...flags.map((f) => `- ${f.flag.replace(/_/g, " ")}: ${f.value}${f.source ? ` (${f.source})` : ""}`),
       ];
-      return { ...text(lines.join("\n")), structuredContent: { clauses, flags, notice_requirements: { status: notice.status, missing: notice.missing }, contract_clauses: cl.map((c) => ({ section: c.section, heading: c.heading, category: c.category, source: c.source, n_days: c.n_days, day_type: c.day_type, trigger: c.trigger_desc })) } };
+      return { ...text(lines.join("\n")), structuredContent: { clauses: cl.length ? [] : clauses, flags, notice_requirements: { status: notice.status, missing: notice.missing }, contract_clauses: cl.map((c) => ({ section: c.section, heading: c.heading, category: c.category, source: c.source, n_days: c.n_days, day_type: c.day_type, trigger: c.trigger_desc })) } };
     }),
 });
 
