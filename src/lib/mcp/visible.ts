@@ -90,6 +90,17 @@ export function finalizeVisible<R>(r: R, extra: string[] = []): R {
   } as unknown as R;
 }
 
+/** 0.8.3 chart palette: every chart, table and artifact in every host. */
+export const CHART_PALETTE = ["#2563EB", "#6B7280", "#9CA3AF", "#D1D5DB", "#F3F4F6"] as const;
+export const CHART_PALETTE_RULE =
+  "- Chart palette (every chart, graph, bar, table and artifact, in Claude, ChatGPT, Grok and any other host): set the colors explicitly to blue #2563EB for the main series plus grays #6B7280, #9CA3AF, #D1D5DB and #F3F4F6 for everything else. Never red, rose, pink, orange, amber or the host's default palette. In Claude artifacts, write these hex values into the chart config; never leave colors to the library default.";
+/** 0.8.3 money rule. */
+export const MONEY_CENTS_RULE =
+  "- Money: always show dollars with cents exactly as Athena gives them, e.g. $1,400,000.00 and $700,000.00, in every line and every total. Never round, never drop the .00, never abbreviate ($1.4M). Use the *_display strings in structuredContent when present.";
+/** 0.8.3 date sweep rule. */
+export const DATE_SWEEP_RULE =
+  "- Date sweep (overdue, due today, next 14 days): show it only when the member asks for it (or for open items) or when a job is first opened in the session. Never prepend it to an SOV, a contract result, a chart or any other reply, and never add a \"Date sweep\" heading of your own.";
+
 /** Exact summary offer (same text as contract-clauses SUMMARY_OFFER). */
 export const SUMMARY_OFFER_TEXT = "Do you want me to summarize this legal text so you know what it means in plain English?";
 
@@ -108,7 +119,10 @@ export const HOST_DISPLAY_BLOCK = [
   "- Contract output order: clause cards, then ONE line for any missing or partial notices (fold them all into that line), then the exact summary offer as the very last line. Nothing after the offer.",
   "- Never write \"No changes were made\", \"No items were changed\" or similar lines, and no filler openers such as \"Pulling up...\", \"Let me...\" or \"Here's...\". Start with the visual.",
   "- In Claude, build every artifact as static data embedded from this tool result: no connector or MCP calls inside the artifact, no live refresh and no re-reading Athena. At most 2 lines of text after the artifact.",
-  "- Schedule of values (report deliverable sov): present it as a spreadsheet, line-item view by default: one row per line with line no., division, description, scheduled value and % of total, then the grand total that ties to the contract sum. Claude: an artifact table built from this result; ChatGPT: a canvas or table; elsewhere: a clean table plus an offer to create an Excel file. Table style: header row blue #2563EB with white bold text; alternating light-gray (#F3F4F6) and white row bands; bold total row with a blue #2563EB top rule. Blue #2563EB and gray only, never orange, rust or red, including totals. After the table, at most one line: no footer or license note and no roll-up offer unless the member asks.",
+  CHART_PALETTE_RULE,
+  MONEY_CENTS_RULE,
+  DATE_SWEEP_RULE,
+  "- Schedule of values (report deliverable sov): present it as a spreadsheet, line-item view by default: one row per line with line no., cost code, division, description, scheduled value and % of total (the Cost Code column always sits right after the line no.), then the grand total that ties to the contract sum. Claude: an artifact table built from this result; ChatGPT: a canvas or table; elsewhere: a clean table plus an offer to create an Excel file. Table style: header row blue #2563EB with white bold text; alternating light-gray (#F3F4F6) and white row bands; bold total row with a blue #2563EB top rule. Blue #2563EB and gray only, never orange, rust or red, including totals. After the table, at most one line: no footer or license note and no roll-up offer unless the member asks.",
   `- Summary offer: use this wording verbatim, never paraphrased or shortened: "${SUMMARY_OFFER_TEXT}"`,
   "- Write for contractor office staff and owners. No technical notes: nothing about artifacts, canvas, sharing settings, code, files, tools or colors (the exact SOV delivery question is the one exception).",
   "- Email on demand: whenever the member asks to email something (\"also email this sub\", \"send this to the supplier\"), show the email card in that same reply with recipient, subject, body and attachment filled in from Athena's saved job data. If the address isn't in Athena's results, leave To blank on the card and ask for it in the same reply. Never guess an address. The member presses Send.",
@@ -150,17 +164,23 @@ export const SOV_DELIVERY_ASK = [
 ].join("\n");
 export const SOV_OWNER_REDIRECT = "For the owner, I'll send a clean Excel or PDF instead, since a chat link doesn't look professional.";
 export const SOV_NOT_NOW_DAYS = 3;
+/** 0.8.3: the delivery question is a required next step after every SOV output, in every host. */
+export const SOV_DELIVERY_REQUIRED =
+  "- REQUIRED NEXT STEP, every host including Claude: every reply that shows the SOV (table, artifact, canvas or file) must end with the delivery question above, word for word, as three numbered options. Never replace it with another question (not \"Overwatch, P6, or Excel?\", not \"client copy?\"), never skip it, never shorten it, and never put a date sweep, summary or note before the table or between the table and the question.";
 
 /** Hidden guidance on report sov results. Instruction text only: Athena sends nothing and stores no file. */
 export const SOV_DELIVERY_BLOCK = [
   "SOV DELIVERY (for the assistant; don't repeat to the member):",
   `- Right after the line-item SOV table, ask exactly (this is the one allowed text after the table):\n${SOV_DELIVERY_ASK}`,
+  SOV_DELIVERY_REQUIRED,
   "- Option 1: open the tool's sign-in page and let the member sign in themselves. Never ask for, type or store a password. Enter the lines, then show a side-by-side check against the SOV total before anything is saved.",
   "- Option 2: build a real .xlsx in the house SOV layout: title block (company, job, owner, contract value, date), then item, division, spec section, description, cost code, scheduled value, retainage % and total, subtotals by division, retainage and a grand total that ties to the contract. Then show the email draft card with the file attached in that same reply. Ask who it goes to (team members, the owner, or both); if an address is missing, leave To blank on the card and ask for it in the same reply.",
   "- Option 3: create the artifact or canvas spreadsheet, then show an email card with the link, for team members only.",
   `- Owners and owner's reps get the Excel or a PDF only, never an artifact or canvas link. If the member picks option 3 for the owner, say exactly: "${SOV_OWNER_REDIRECT}" Then offer option 2 or a PDF.`,
   "- Spec sections: use structuredContent.sov.line_items spec_section as given. If it's blank, leave the cell blank; never invent a section number. When structuredContent.sov.specs_note is set, add that one line under the table in the file.",
-  "- Cost codes: use line_items cost_code as given; blank only when Athena has none for that line.",
+  "- Cost codes: always show a Cost Code column right after the line no. (item number) in the chat table, the artifact or canvas, and the file, filled from line_items cost_code exactly as given (e.g. 26-010). Never replace the cost code with the item number. Blank only when Athena has none for that line.",
+  "- Money: every scheduled value and total with cents (line_items scheduled_value_display, e.g. $1,400,000.00). Never round or drop the .00.",
+  "- Claude: the delivery question is mandatory even in Claude. Put it directly under the artifact as the last thing in the reply.",
   "- Email on demand, at any point: use the job's saved subs, suppliers and contacts from Athena results (including names and emails written in job answers, lookahead or open-item text) and show the email card right away with recipient, subject, body and attachment filled in. If the contact or address isn't there, leave To blank and ask in the same reply. Never guess an address.",
   "- Claude: no narration before or between steps (no \"Building...\", \"First I'll pull...\" or \"I need two things before...\"). Show the file and the email card in the same reply, To blank if needed, with one short question under it. Never hold the card back while you ask.",
   "- Never send anything yourself. The member reviews the email card and presses Send.",

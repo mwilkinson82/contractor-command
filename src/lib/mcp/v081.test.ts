@@ -19,7 +19,7 @@ describe("0.8.1 SOV table style", () => {
   });
   it("nothing after the table in the visible SOV; footer and roll-up only on request", () => {
     const txt = sovSummaryText("", sov, BRAND, "Exhibit B", ["license number"], "internal");
-    expect(txt.trim().split("\n").pop()).toBe("Total | | Contract sum | $1,400,000.00 | 100.00%");
+    expect(txt.trim().split("\n").pop()).toBe("Total | | | Contract sum | $1,400,000.00 | 100.00%");
     expect(txt).not.toMatch(/Footer still missing|Division subtotals|Logo:/);
     expect(HOST_DISPLAY_BLOCK).toContain("After the table, at most one line: no footer or license note and no roll-up offer unless the member asks.");
   });

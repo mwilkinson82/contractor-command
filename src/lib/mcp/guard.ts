@@ -68,8 +68,11 @@ export async function logWorkflow(
   }
 }
 
-/** Guard + run + log failures. */
-const ALWAYS_SWEEP = new Set(["report", "list_open_items"]);
+/** Guard + run + log failures.
+ * 0.8.3: the date sweep shows only when asked (list_open_items) or at the first call of a session (job open).
+ * report never carries it, so it is never prepended to an SOV or any other deliverable. */
+const ALWAYS_SWEEP = new Set(["list_open_items"]);
+const NEVER_SWEEP = new Set(["report"]);
 
 /** opts: a lookahead id, or { lookaheadId, jobNumber, client }. With a job number the date sweep shows that job only. */
 export async function run<R>(tool: string, ctx: ToolContext, opts: string | undefined | { lookaheadId?: string; jobNumber?: string; client?: boolean; ownerSov?: boolean }, fn: (sb: Sb) => Promise<R>): Promise<R> {
@@ -80,7 +83,7 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
   let sweep: Awaited<ReturnType<typeof runSweep>> = null;
   try {
     const fresh = await sb.rpc("mcp_session_touch");
-    if (fresh.data === true || ALWAYS_SWEEP.has(tool)) sweep = await runSweep(sb, sweepScope);
+    if (!NEVER_SWEEP.has(tool) && (fresh.data === true || ALWAYS_SWEEP.has(tool))) sweep = await runSweep(sb, sweepScope);
   } catch {
     sweep = null; // the sweep never blocks the tool itself
   }
