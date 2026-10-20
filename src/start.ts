@@ -4,6 +4,8 @@ import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 import { brandInitializeResponse, initializeRequestIds, isMcpPost } from "./lib/mcp/server-info-branding";
 import { isTrustedHost } from "./lib/trusted-hosts";
+import { checkAthenaEntitlement, NO_ENTITLEMENT_MESSAGE } from "./lib/mcp/entitlement";
+import { supabaseForToken } from "./lib/mcp/supabase";
 
 const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
   // Bypass app middleware for /lovable/* — these routes (webhooks, cron,
@@ -80,28 +82,26 @@ const csrfOriginGuard = createMiddleware().server(async ({ next, request }) => {
 });
 
 /**
- * Private MCP prototype gate: a bearer token whose email isn't on the
- * allowlist gets 403 before reaching /mcp. This only ever rejects; the MCP
- * handler still verifies every token's signature and re-checks the email.
- * Requests with no token pass through so the handler returns 401 +
- * WWW-Authenticate.
+ * Athena access gate: a bearer token whose user has no membership entitlement
+ * (src/lib/mcp/entitlement.ts, the same rule the Hub uses) gets 403 before
+ * reaching /mcp. Supabase verifies the token inside the check. Requests with
+ * no token, or where the check can't run (e.g. an expired token), pass through
+ * so the MCP handler returns 401 + WWW-Authenticate; the per-tool guard
+ * re-checks entitlement on every call.
  */
-const MCP_ALLOWED_EMAILS = new Set(["marshall@marshallwilkinson.com"]);
-const mcpAllowlistGate = createMiddleware().server(async ({ next, request }) => {
+const mcpEntitlementGate = createMiddleware().server(async ({ next, request }) => {
   const url = new URL(request.url);
   if (url.pathname !== "/mcp" && !url.pathname.startsWith("/mcp/")) return next();
   const authz = request.headers.get("authorization") ?? "";
   if (!authz.startsWith("Bearer ")) return next();
-  let email = "";
+  let ent;
   try {
-    const part = authz.slice(7).split(".")[1] ?? "";
-    const json = atob(part.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(part.length / 4) * 4, "="));
-    email = String((JSON.parse(json) as { email?: unknown }).email ?? "").trim().toLowerCase();
+    ent = await checkAthenaEntitlement(supabaseForToken(authz.slice(7).trim()));
   } catch {
     return next();
   }
-  if (!MCP_ALLOWED_EMAILS.has(email)) {
-    return new Response(JSON.stringify({ error: "forbidden" }), {
+  if (!ent.allowed && ent.reason === "no_entitlement") {
+    return new Response(JSON.stringify({ error: "forbidden", message: NO_ENTITLEMENT_MESSAGE }), {
       status: 403,
       headers: { "content-type": "application/json" },
     });
@@ -111,7 +111,7 @@ const mcpAllowlistGate = createMiddleware().server(async ({ next, request }) => 
 
 /**
  * Athena icon on the MCP initialize response (serverInfo.icons / websiteUrl).
- * Runs after the allowlist gate; only a 200 initialize result is rewritten.
+ * Runs after the entitlement gate; only a 200 initialize result is rewritten.
  */
 const mcpServerInfoBranding = createMiddleware().server(async ({ next, request }) => {
   if (!isMcpPost(request)) return next();
@@ -131,7 +131,7 @@ const mcpServerInfoBranding = createMiddleware().server(async ({ next, request }
 });
 
 export const startInstance = createStart(() => ({
-  requestMiddleware: [errorMiddleware, mcpAllowlistGate, mcpServerInfoBranding, csrfOriginGuard],
+  requestMiddleware: [errorMiddleware, mcpEntitlementGate, mcpServerInfoBranding, csrfOriginGuard],
   functionMiddleware: [attachSupabaseAuth],
 }));
 

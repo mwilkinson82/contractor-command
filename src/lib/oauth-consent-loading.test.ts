@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
   getSession: vi.fn(),
   getUser: vi.fn(),
+  rpc: vi.fn(),
   details: vi.fn(),
 }));
 vi.mock("@tanstack/react-router", () => ({
@@ -14,6 +15,7 @@ vi.mock("react", () => ({ useState: (v: unknown) => [v, vi.fn()] }));
 vi.mock("@/components/auth/auth-card", () => ({ AuthCard: () => null }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
+    rpc: (fn: string) => m.rpc(fn),
     auth: {
       getSession: m.getSession,
       getUser: m.getUser,
@@ -123,7 +125,16 @@ describe("consent loader", () => {
   it("returns details and identity on success with no timers left", async () => {
     m.details.mockResolvedValue({ data: client, error: null });
     m.getUser.mockResolvedValue({ data: { user: { id: "u1", email: "a@b.c" } }, error: null });
-    await expect(load()).resolves.toEqual({ details: client, email: "a@b.c", userId: "u1" });
+    m.rpc.mockResolvedValue({ data: true, error: null });
+    await expect(load()).resolves.toEqual({ details: client, email: "a@b.c", userId: "u1", entitled: true });
+    expect(m.rpc).toHaveBeenCalledWith("mcp_gate");
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("marks an account without membership entitlement as not entitled", async () => {
+    m.details.mockResolvedValue({ data: client, error: null });
+    m.getUser.mockResolvedValue({ data: { user: { id: "u2", email: "x@y.z" } }, error: null });
+    m.rpc.mockResolvedValue({ data: false, error: null });
+    await expect(load()).resolves.toMatchObject({ userId: "u2", entitled: false });
   });
 });
