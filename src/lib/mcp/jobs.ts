@@ -1,13 +1,15 @@
 import { FLAG_CLAUSE, effectiveFlag } from "./clauses";
 // Module 1 (Job Setup): company + job resolution and the fixed setup report.
 // Rule evaluation (applies_when, N/A suppression, resolution rules) lives in the database mcp_* functions.
-import { renderWarrantyRegister } from "./warranty";
+import { CONTRACT_WARRANTY_KEY, alignCloseoutSource, renderWarrantyRegister } from "./warranty";
 import { whoForJob } from "./people";
 import { displayRef } from "./refs";
 import { clientSafe } from "./client-safe";
 import { draftGuidance, draftIdentityText } from "./drafts";
 import { ToolError } from "@lovable.dev/mcp-js";
 import { dbError, type Sb } from "./guard";
+import { withoutClaims } from "./internal-claims";
+import { DEFAULT_TZ, dateIn, todayIn } from "./deadlines";
 
 export type Job = { job_id: string; job_number: string; name: string; company_id: string; scope?: "full" | "contract" | "super" };
 
@@ -62,6 +64,16 @@ async function resolveJobRaw(sb: Sb, jobNumber: string, companyId?: string): Pro
     throw new ToolError(`No job ${jobNumber} in this company. Create it with intake section "create_job".`);
   }
   return r as Job;
+}
+
+/** The job's stored time zone, or DEFAULT_TZ (America/New_York) when none is stored. */
+export async function jobTimeZone(sb: Sb, jobId: string): Promise<string> {
+  try {
+    const { data } = await sb.from("mcp_jobs").select("time_zone").eq("id", jobId).maybeSingle();
+    const tz = (data as { time_zone?: string | null } | null)?.time_zone?.trim();
+    if (tz) { todayIn(tz); return tz; }
+  } catch { /* unknown or invalid zone: use the default */ }
+  return DEFAULT_TZ;
 }
 
 export async function audit(sb: Sb, job: Job | null, tool: string, action: string, objectId?: string | null, companyId?: string | null) {
@@ -138,10 +150,10 @@ export function typeWord(t: string): string {
 /** Source codes in words: member_answer -> manual, other snake_case codes spaced. */
 const humanSources = (l: string) => l.replace(/\bmember_answer\b/g, "manual").replace(/(Source|Clause\/source): ([a-z]+(?:_[a-z]+)+)/g, (_m, k, v) => `${k}: ${v.replace(/_/g, " ")}`);
 
-export type LineOpts = { clientFacing?: boolean; who?: (raw: string | null | undefined) => string };
+export type LineOpts = { clientFacing?: boolean; who?: (raw: string | null | undefined) => string; tz?: string };
 
 export function itemLine(it: Item, nas: Na[], client = false, o: LineOpts = {}) {
-  const status = it.verify_state === "verified" ? `verified ${it.verified_at?.slice(0, 10) ?? ""}` : `last reported by ${it.reported_by ?? "unknown"} ${it.reported_at?.slice(0, 10) ?? ""}`;
+  const status = it.verify_state === "verified" ? `verified ${dateIn(it.verified_at, o.tz)}` : `last reported by ${it.reported_by ?? "unknown"} ${dateIn(it.reported_at, o.tz)}`;
   const effects = client
     ? `time: ${it.time_effect ?? "unknown"}`
     : `cost: ${it.cost_effect ?? "unknown"} | time: ${it.time_effect ?? "unknown"} | cash: ${it.cash_effect ?? "unknown"}${it.effect_is_estimate ? " (estimate)" : ""}`;
@@ -189,8 +201,8 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
   const contractOnly = job.scope === "contract";
   const superView = job.scope === "super";
   const hideMoney = client || contractOnly || superView;
-  const who = await whoForJob(sb, job.company_id, job.job_id);
-  const lineOpts = { clientFacing: client, who };
+  const [who, tz] = await Promise.all([whoForJob(sb, job.company_id, job.job_id), jobTimeZone(sb, job.job_id)]);
+  const lineOpts = { clientFacing: client, who, tz };
   const [co, flagsR, factsR, itemsR, nas] = await Promise.all([
     sb.from("mcp_companies").select("name, agent_name").eq("id", job.company_id).maybeSingle(),
     sb.from("mcp_job_flags").select("flag_key, value, source, set_at").eq("job_id", job.job_id),
@@ -206,9 +218,11 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
     facts = facts.filter((f) => !f.internal_only && !CLIENT_SCRUB.test(f.key));
     items = items.filter((i) => !i.internal_only && !CLIENT_SCRUB.test(`${i.action} ${i.category}`));
   }
+  // Claim notices and the claim clause are internal strategy, never client-facing.
+  if (client) { items = withoutClaims(items); facts = facts.filter((f) => !(f.module === "contract" && f.key === "claim_process")); }
   if (client) facts = facts.filter((f) => !CLIENT_COACHING.test(typeof f.value === "string" ? f.value : ""));
   const dates = [...flags.map((f) => f.set_at), ...facts.map((f) => f.updated_at), ...items.map((i) => i.updated_at)].filter(Boolean).sort();
-  const dataThrough = dates.length ? dates[dates.length - 1].slice(0, 10) : "no data yet";
+  const dataThrough = dates.length ? dateIn(dates[dates.length - 1], tz) : "no data yet";
   const sectionNa = new Set(nas.filter((n) => n.scope === "section").map((n) => n.target));
   const out: string[] = [];
   out.push(
@@ -246,13 +260,10 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
       if (!sov.length) out.push("   - none recorded");
       sov.forEach((f) => out.push(`   - ${f.key}: ${show(f.value)}`));
     } else if (mod === "warranty") {
-      const w = facts.filter((f) => f.module === "warranty");
       const cc = facts.find((f) => f.module === "contract" && f.key === "closeout" && f.status === "known");
-      const wcd = w.findIndex((f) => f.key === "closeout_documents" && f.status === "known");
-      if (cc && wcd < 0) w.push({ ...cc, module: "warranty", key: "closeout_documents" });
-      // Same text as the contract's closeout clause: it came from the contract, so show that source.
-      else if (cc && JSON.stringify(w[wcd].value).trim() === JSON.stringify(cc.value).trim()) w[wcd] = { ...w[wcd], source: cc.source };
-      out.push(...renderWarrantyRegister(w, new Date().toISOString().slice(0, 10)));
+      const w = alignCloseoutSource(facts.filter((f) => f.module === "warranty"), cc ? { ...cc, module: "warranty" } : null);
+      const cw = facts.find((f) => f.module === "contract" && f.key === "warranty_clauses" && f.status === "known");
+      out.push(...renderWarrantyRegister(cw ? [...w, { ...cw, module: "warranty", key: CONTRACT_WARRANTY_KEY }] : w, todayIn(tz)));
     } else {
       const fs = facts.filter((f) => f.module === mod);
       if (!fs.length) out.push("   Not started.");

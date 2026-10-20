@@ -2,22 +2,23 @@ import { ATHENA_VERSION } from "../server-info-branding";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
-import { ITEM_COLS, READ_ONLY_MESSAGE, activeNa, audit, flagWord, itemLine, itemType, prefix, renderSetupReport, resolveCompany, resolveJob, type Job } from "../jobs";
-import { computeDue, type DayType } from "../deadlines";
+import { ITEM_COLS, READ_ONLY_MESSAGE, activeNa, audit, flagWord, itemLine, itemType, jobTimeZone, prefix, renderSetupReport, resolveCompany, resolveJob, type Job } from "../jobs";
+import { computeDue, todayIn, type DayType } from "../deadlines";
 import { INPUT_KEYS, INPUT_LABELS, currentCheck, loadLookahead, renderReport, type InputKey } from "../workflow";
-import { WARRANTY_CHECK_PREFIX, WARRANTY_SETUP_QUESTIONS, mapTrigger, nextWarrantyQuestion, renderWarrantyRegister, warrantyAnswerFacts, warrantyHow, warrantyOpenItems, type WarrantyKey } from "../warranty";
+import { WARRANTY_CHECK_PREFIX, WARRANTY_SETUP_QUESTIONS, mapTrigger, nextWarrantyQuestion, CONTRACT_WARRANTY_KEY, alignCloseoutSource, renderWarrantyRegister, warrantyAnswerFacts, warrantyHow, warrantyOpenItems, type WarrantyKey } from "../warranty";
 import { EVIDENCE_ASK, evidenceProblem } from "../evidence";
 import { itemRef, matchRef, parseQuestionRef, questionRef, shortRef } from "../refs";
 import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
 import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
 import { guide } from "../visible";
+import { withoutClaims } from "../internal-claims";
 import { FLAGS_ASKED_LATER, noGuidance, noGuidanceText, reconcileRecommendation } from "../guidance";
 import { LOOKAHEAD_BUILD_QUESTIONS, LOOKAHEAD_EXISTS_ASK, LOOKAHEAD_PUSHBACK, LOOKAHEAD_SETUP_KEY, PUSHBACK_GUIDANCE, buildQuestionsGuidance, buildQuestionsText, pushbackText } from "../lookahead-help";
 
 const uuid = z.string().uuid();
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
 const jobNumber = z.string().trim().min(1).max(40).describe("Job number, exact match (e.g. 2417).");
-const companyId = z.string().trim().min(1).max(200).optional().describe("Only needed if you belong to more than one company: the company name as Athena lists it, or its company_id.");
+const companyId = z.string().trim().min(1).max(200).optional().describe("Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. If the member hasn't named one, call list_open_items with no job_number to list the companies.");
 const short = (d: string) => z.string().max(2000).optional().describe(d);
 const tri = z.enum(["yes", "no", "na", "unknown"]);
 const doc = (what: string) => z.string().max(20_000).optional().describe(`${what}, as plain text. Leave out if you don't have it; it is recorded as unknown.`);
@@ -38,12 +39,17 @@ async function rpc<T>(sb: Sb, fn: string, args: Record<string, unknown>): Promis
 }
 
 type ItemResult = { item_id: string; existing: boolean; item_type?: string; delivery_item?: ItemResult | null; owner_defaulted?: boolean; needed_by_defaulted?: boolean; accountable?: string; needed_by?: string };
+/** Shown when the owner was defaulted: name the PM, or say plainly that no PM is set. */
+export const ownerDefaultNote = (accountable: string | null | undefined) =>
+  !accountable?.trim() || /^unassigned\b/i.test(accountable.trim()) ? " — no PM is set on this job, so it stays unassigned until you name one" : " — defaulted to the job's PM";
+/** Open-item notes after a block of text, one per line (never run onto the block's last line). */
+export const itemNotes = (rs: (ItemResult | null | undefined)[]) => rs.filter(Boolean).map((r) => `\n-${itemNote(r)}`).join("");
 const itemNote = (r: ItemResult | null | undefined): string =>
   !r
     ? ""
     : r.existing
       ? " Already open."
-      : ` Open item created (accountable: ${r.accountable}${r.owner_defaulted ? " — defaulted to the job's PM; with no PM set it stays unassigned until you name one" : ""}; needed by ${r.needed_by}${r.needed_by_defaulted ? " — defaulted to 7 days" : ""}).${r.delivery_item ? ` Delivery method/recipient unknown:${itemNote(r.delivery_item)}` : ""}`;
+      : ` Open item created (accountable: ${r.accountable}${r.owner_defaulted ? ownerDefaultNote(r.accountable) : ""}; needed by ${r.needed_by}${r.needed_by_defaulted ? " — defaulted to 7 days" : ""}).${r.delivery_item ? ` Delivery method/recipient unknown:${itemNote(r.delivery_item)}` : ""}`;
 const itemOut = (r: ItemResult | null | undefined) => (r ? { item_id: r.item_id, item_ref: shortRef(r.item_id), item_type: r.item_type ?? "deadline" } : null);
 
 type FlagResult = { changed: string[]; confirm_items: ItemResult[]; reenable_suggestions: { na_id: string; scope: string; target: string; trigger: string }[] };
@@ -170,7 +176,7 @@ async function saveWarranty(sb: Sb, job: Job, facts: Record<string, unknown>, o:
   const made: ItemResult[] = [];
   for (const it of warrantyOpenItems(all)) {
     // In the one-at-a-time flow, only questions already asked can owe an item.
-    if (!o.fillMissing && !asked.has(it.check_key.slice(WARRANTY_CHECK_PREFIX.length))) continue;
+    if (!o.fillMissing && it.check_key !== "warranty:start_conflict" && !asked.has(it.check_key.slice(WARRANTY_CHECK_PREFIX.length))) continue;
     made.push(await rpc<ItemResult>(sb, "mcp_add_item", {
       _job: job.job_id,
       _f: {
@@ -187,14 +193,15 @@ async function warrantyFacts(sb: Sb, job: Job, synced = false): Promise<{ key: s
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as { module: string; key: string; value: unknown; status: string; source: string }[];
   const w = rows.filter((r) => r.module === "warranty");
-  // Closeout documents given with the contract terms count for the warranty register too (copied once, marked as the member's answer).
+  // Closeout documents given with the contract terms count for the warranty register too (copied once, keeping the contract's source).
   const fromContract = rows.find((r) => r.module === "contract" && r.key === "closeout" && r.status === "known" && r.value);
   const mine = w.find((r) => r.key === "closeout_documents");
   if (!synced && fromContract && (!mine || mine.status !== "known")) {
-    await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: "warranty", _facts: { closeout_documents: fromContract.value }, _source: "member_answer" });
+    await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: "warranty", _facts: { closeout_documents: fromContract.value }, _source: ["document", "member_answer", "company_default"].includes(fromContract.source) ? fromContract.source : "member_answer" });
     return warrantyFacts(sb, job, true);
   }
-  return w;
+  const cw = rows.find((r) => r.module === "contract" && r.key === "warranty_clauses" && r.status === "known");
+  return [...alignCloseoutSource(w, fromContract ?? null), ...(cw ? [{ ...cw, module: "warranty", key: CONTRACT_WARRANTY_KEY }] : [])];
 }
 
 export const intake = defineTool({
@@ -501,9 +508,9 @@ export const intake = defineTool({
         put("warranty_trigger_date", args.warranty_trigger_date);
         for (const k of ["warranty_start_basis", "closeout_documents", "punch_final_acceptance", "manufacturer_warranties", "closeout_expectations"] as const) put(k, args[k]);
         const { all, made } = await saveWarranty(sb, job, facts, { fillMissing: true, owner: args.owner ?? null, neededBy: args.needed_by ?? null, tool: "intake" });
-        const today = new Date().toISOString().slice(0, 10);
+        const today = todayIn(await jobTimeZone(sb, job.job_id));
         return {
-          ...text(`${P}Warranty and closeout setup saved.\n\nWARRANTY REGISTER\n${renderWarrantyRegister(all, today).join("\n")}${made.map((m) => itemNote(m)).join("")}`),
+          ...text(`${P}Warranty and closeout setup saved.\n\nWARRANTY REGISTER\n${renderWarrantyRegister(all, today).join("\n")}${itemNotes(made)}`),
           structuredContent: { items: made.map((m) => itemOut(m)!) },
         };
       }
@@ -640,7 +647,7 @@ async function settleFlagConfirms(sb: Sb, job: Job) {
     const k = String(it.check_key).slice(5);
     const v = flags[k];
     if (!v || v === "unknown") continue;
-    await rpc(sb, "mcp_resolve_item", { _item: it.id, _kind: "member_statement", _evidence: `Answered: ${k.replace(/_/g, " ")} = ${v}.`, _stated_by: "member answer", _stated_on: new Date().toISOString().slice(0, 10),
+    await rpc(sb, "mcp_resolve_item", { _item: it.id, _kind: "member_statement", _evidence: `Answered: ${k.replace(/_/g, " ")} = ${v}.`, _stated_by: "member answer", _stated_on: todayIn(await jobTimeZone(sb, job.job_id)),
       _reason: null, _approval: null, _billing: null, _collection: null });
   }
 }
@@ -801,10 +808,10 @@ export const answer = defineTool({
         try { facts = warrantyAnswerFacts(key, args.response, args.detail); } catch (e) { throw new ToolError((e as Error).message); }
         const { all, made } = await saveWarranty(sb, job, facts, { fillMissing: false, owner: args.owner ?? null, neededBy: args.due_date ?? null, tool: "answer" });
         await audit(sb, job, "answer", "warranty_answer", args.check_key);
-        const today = new Date().toISOString().slice(0, 10);
+        const today = todayIn(await jobTimeZone(sb, job.job_id));
         const left = nextWarrantyQuestion(all);
         return {
-          ...text(`${P}Recorded.${made.map((m) => itemNote(m)).join("")}${left ? "" : `\n\nWARRANTY REGISTER\n${renderWarrantyRegister(all, today).join("\n")}`}\nNext: next_question.`),
+          ...text(`${P}Recorded.${itemNotes(made)}${left ? "" : `\n\nWARRANTY REGISTER\n${renderWarrantyRegister(all, today).join("\n")}`}\nNext: next_question.`),
           structuredContent: { recorded: JSON.parse(JSON.stringify(facts)) as Record<string, string | number | null>, items: made.map((m) => itemOut(m)!) },
         };
       }
@@ -856,9 +863,10 @@ export const report = defineTool({
       const audience = args.audience ?? "internal";
       await audit(sb, job, "report", `view_setup_report_${audience}`, null);
       const body = await renderSetupReport(sb, job, audience);
-      let iq = sb.from("mcp_open_items").select("id, section, check_key, item_type").eq("job_id", job.job_id).eq("status", "open");
+      let iq = sb.from("mcp_open_items").select("id, section, check_key, item_type, commercial_type, category, action").eq("job_id", job.job_id).eq("status", "open");
       if (audience === "client") iq = iq.eq("internal_only", false);
-      const [{ data: its }, nas] = await Promise.all([iq, activeNa(sb, job.job_id)]);
+      const [{ data: its0 }, nas] = await Promise.all([iq, activeNa(sb, job.job_id)]);
+      const its = audience === "client" ? withoutClaims(its0 ?? []) : its0;
       // Client-facing output never carries item ids.
       const items = (its ?? []).map((i) => (audience === "client" ? { item_type: itemType(i, nas) } : { item_id: i.id, item_type: itemType(i, nas) }));
       return { ...text(body), structuredContent: { items } };
@@ -896,28 +904,63 @@ export const carryForward = defineTool({
 });
 
 // ---------- list_open_items ----------
+// The one exception to "job_number is required": with no job named, list_open_items lists the companies and jobs instead.
+const listJobNumber = z.string().trim().min(1).max(40).optional().describe("Job number, exact match (e.g. 2417). Leave out when the member hasn't named a job: Athena then lists your companies and their jobs.");
+export const NO_JOB_HINT = "If the member hasn't named a company or a job, call list_open_items with no job_number (and no company_id): Athena lists the companies and their jobs itself, so don't ask the member to guess.";
+
+/** No job named: the caller's companies and their job numbers, in plain text. */
+export async function listCompaniesAndJobs(sb: Sb, companyId?: string): Promise<string> {
+  const { data: cos, error } = await sb.from("mcp_companies").select("id, name");
+  if (error) throw new Error(error.message);
+  let companies = (cos ?? []) as { id: string; name: string | null }[];
+  if (companyId?.trim()) { const cid = await resolveCompany(sb, companyId); companies = companies.filter((c) => c.id === cid); }
+  if (!companies.length) return 'No company set up yet. Call onboarding with action "save_company" first.';
+  const { data: jobs, error: je } = await sb.from("mcp_jobs").select("job_number, name, company_id").in("company_id", companies.map((c) => c.id));
+  if (je) throw new Error(je.message);
+  const js = (jobs ?? []) as { job_number: string; name: string | null; company_id: string }[];
+  const out = ["No job named. Your companies and jobs:"];
+  for (const c of companies) {
+    const mine = js.filter((j) => j.company_id === c.id).sort((a, b) => a.job_number.localeCompare(b.job_number));
+    out.push(`- ${c.name ?? "unnamed company"}: ${mine.length ? mine.map((j) => `${j.job_number}${j.name ? ` (${j.name})` : ""}`).join(", ") : "no jobs yet"}`);
+  }
+  out.push("Which job should I list open items for?");
+  return out.join("\n");
+}
 export const listOpenItems = defineTool({
   name: "list_open_items",
   title: "List open items",
-  description: "List a job's open items with accountable person, needed-by date, verified or last-reported status, source and effects. Items under an N/A section are labeled for disposition.",
-  inputSchema: { job_number: jobNumber, company_id: companyId, lookahead_id: uuid.optional().describe("Limit to one lookahead.") },
+  description: `List a job's open items with accountable person, needed-by date, verified or last-reported status, source and effects. Items under an N/A section are labeled for disposition. ${NO_JOB_HINT}`,
+  inputSchema: {
+    job_number: listJobNumber,
+    company_id: companyId,
+    lookahead_id: uuid.optional().describe("Limit to one lookahead."),
+  },
   annotations: { ...READ, idempotentHint: true },
   handler: (args, ctx) =>
     run("list_open_items", ctx, { lookaheadId: args.lookahead_id, jobNumber: args.job_number }, async (sb) => {
+      if (!args.job_number?.trim()) return text(await listCompaniesAndJobs(sb, args.company_id));
       const job = await resolveJob(sb, args.job_number, args.company_id);
       let q = sb.from("mcp_open_items").select(ITEM_COLS).eq("job_id", job.job_id).eq("status", "open");
       if (args.lookahead_id) q = q.eq("lookahead_id", args.lookahead_id);
       const [{ data, error }, nas] = await Promise.all([q.order("needed_by", { nullsFirst: false }).limit(200), activeNa(sb, job.job_id)]);
       if (error) throw new Error(error.message);
+      const tz = await jobTimeZone(sb, job.job_id);
       await audit(sb, job, "list_open_items", "view_open_items", null);
       if (!data?.length) return text(`${prefix(job)}No open items.`);
-      const lines = (data as unknown as Parameters<typeof itemLine>[0][]).map((it) => `- ${itemLine(it, nas, job.scope !== "full")}`);
+      const lines = (data as unknown as Parameters<typeof itemLine>[0][]).map((it) => `- ${itemLine(it, nas, job.scope !== "full", { tz })}`);
       const rows = data as unknown as Parameters<typeof itemLine>[0][];
       return { ...text(`${prefix(job)}Open items (${data.length}):\n${lines.join("\n")}`), structuredContent: { items: rows.map((i) => ({ item_ref: itemRef(i), item_id: i.id, item_type: itemType(i, nas) })) } };
     }),
 });
 
 // ---------- resolve_item ----------
+/** The warranty setup question a closed confirm item answers (check_key "warranty:<key>"), if any. Gap ("no") items already have an answer. */
+export function closedWarrantyKey(checkKey: string | null | undefined, closed: boolean, kind: string): WarrantyKey | null {
+  if (!closed || (kind !== "verified" && kind !== "member_statement")) return null;
+  const k = (checkKey ?? "").startsWith(WARRANTY_CHECK_PREFIX) ? (checkKey as string).slice(WARRANTY_CHECK_PREFIX.length) : "";
+  return (WARRANTY_SETUP_QUESTIONS.slice(3).some((q) => q.key === k) ? k : null) as WarrantyKey | null;
+}
+
 export const resolveItem = defineTool({
   name: "resolve_item",
   title: "Resolve or update an open item",
@@ -963,8 +1006,20 @@ export const resolveItem = defineTool({
         _item: itemId, _kind: args.kind, _evidence: evidence, _stated_by: statedBy, _stated_on: args.stated_on ?? null,
         _reason: args.reason ?? null, _approval: args.approval ?? null, _billing: args.billing ?? null, _collection: args.collection ?? null,
       });
+      // A closed warranty/closeout confirm item answers its setup question: record the answer so the
+      // register shows it and it leaves UNKNOWNS.
+      let filled = "";
+      const wkey = closedWarrantyKey(it.check_key, r.closed, args.kind);
+      if (wkey && args.evidence?.trim()) {
+        const cur = await sb.from("mcp_job_facts").select("status").eq("job_id", job.job_id).eq("module", "warranty").eq("key", wkey).maybeSingle();
+        const st = (cur.data as { status?: string } | null)?.status;
+        if (st !== "known" && st !== "na") {
+          await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: "warranty", _facts: { [wkey]: args.evidence.trim() }, _source: "member_answer" });
+          filled = ` ${WARRANTY_SETUP_QUESTIONS.find((q) => q.key === wkey)?.label ?? wkey} recorded from the evidence.`;
+        }
+      }
       const t = itemType(it, await activeNa(sb, job.job_id));
-      const msg = r.closed ? `${prefix(job)}Item closed: ${(it.action ?? "").replace(/^\S+ – /, "")} (${r.resolution === "member_statement" ? "member statement" : r.resolution}). Evidence and history kept.` : `${prefix(job)}Item updated: ${(it.action ?? "").replace(/^\S+ – /, "")} (last reported by ${statedBy}). Still open.`;
+      const msg = r.closed ? `${prefix(job)}Item closed: ${(it.action ?? "").replace(/^\S+ – /, "")} (${r.resolution === "member_statement" ? "member statement" : r.resolution}). Evidence and history kept.${filled}` : `${prefix(job)}Item updated: ${(it.action ?? "").replace(/^\S+ – /, "")} (last reported by ${statedBy}). Still open.`;
       return { ...text(msg), structuredContent: { item_id: itemId, item_ref: ref, item_type: t, closed: r.closed } };
     }),
 });
