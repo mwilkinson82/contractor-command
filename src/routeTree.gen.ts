@@ -85,6 +85,7 @@ import { Route as ApiPublicOverwatchTierLookupRouteImport } from './routes/api/p
 import { Route as ApiPublicResendCaptureRouteImport } from './routes/api/public/resend/capture'
 import { Route as ApiPublicResendInboundRouteImport } from './routes/api/public/resend/inbound'
 import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api/public/stripe/webhook'
+import { Route as ApiPublicAthenaCheckoutRouteImport } from './routes/api/public/athena/checkout'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
@@ -478,6 +479,11 @@ const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
   path: '/api/public/stripe/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicAthenaCheckoutRoute = ApiPublicAthenaCheckoutRouteImport.update({
+  id: '/api/public/athena/checkout',
+  path: '/api/public/athena/checkout',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
   id: '/lovable/email/auth/preview',
   path: '/lovable/email/auth/preview',
@@ -584,6 +590,7 @@ export interface FileRoutesByFullPath {
   '/api/public/resend/capture': typeof ApiPublicResendCaptureRoute
   '/api/public/resend/inbound': typeof ApiPublicResendInboundRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
+  '/api/public/athena/checkout': typeof ApiPublicAthenaCheckoutRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -667,6 +674,7 @@ export interface FileRoutesByTo {
   '/api/public/resend/capture': typeof ApiPublicResendCaptureRoute
   '/api/public/resend/inbound': typeof ApiPublicResendInboundRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
+  '/api/public/athena/checkout': typeof ApiPublicAthenaCheckoutRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -751,6 +759,7 @@ export interface FileRoutesById {
   '/api/public/resend/capture': typeof ApiPublicResendCaptureRoute
   '/api/public/resend/inbound': typeof ApiPublicResendInboundRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
+  '/api/public/athena/checkout': typeof ApiPublicAthenaCheckoutRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -836,6 +845,7 @@ export interface FileRouteTypes {
     | '/api/public/resend/capture'
     | '/api/public/resend/inbound'
     | '/api/public/stripe/webhook'
+    | '/api/public/athena/checkout'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -919,6 +929,7 @@ export interface FileRouteTypes {
     | '/api/public/resend/capture'
     | '/api/public/resend/inbound'
     | '/api/public/stripe/webhook'
+    | '/api/public/athena/checkout'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -1002,6 +1013,7 @@ export interface FileRouteTypes {
     | '/api/public/resend/capture'
     | '/api/public/resend/inbound'
     | '/api/public/stripe/webhook'
+    | '/api/public/athena/checkout'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -1081,6 +1093,7 @@ export interface RootRouteChildren {
   ApiPublicResendCaptureRoute: typeof ApiPublicResendCaptureRoute
   ApiPublicResendInboundRoute: typeof ApiPublicResendInboundRoute
   ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
+  ApiPublicAthenaCheckoutRoute: typeof ApiPublicAthenaCheckoutRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
@@ -1622,6 +1635,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/athena/checkout': {
+      id: '/api/public/athena/checkout'
+      path: '/api/public/athena/checkout'
+      fullPath: '/api/public/athena/checkout'
+      preLoaderRoute: typeof ApiPublicAthenaCheckoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/lovable/email/auth/preview': {
       id: '/lovable/email/auth/preview'
       path: '/lovable/email/auth/preview'
@@ -1764,6 +1784,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicResendCaptureRoute: ApiPublicResendCaptureRoute,
   ApiPublicResendInboundRoute: ApiPublicResendInboundRoute,
   ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
+  ApiPublicAthenaCheckoutRoute: ApiPublicAthenaCheckoutRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
