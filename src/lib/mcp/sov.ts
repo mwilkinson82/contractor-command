@@ -185,10 +185,10 @@ export function sovLayout(brand: SovBrand) {
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /** Short visible summary for the PM. The full data is in structured content. */
-export function sovSummaryText(prefix: string, sov: Sov, brand: SovBrand, basis: string | null, missing: string[]): string {
+export function sovSummaryText(prefix: string, sov: Sov, brand: SovBrand, basis: string | null, missing: string[], audience: "internal" | "client" = "internal"): string {
   const s = sov.summary;
   return [
-    `${prefix}SCHEDULE OF VALUES (internal, ties out to the cent)`,
+    `${prefix}SCHEDULE OF VALUES (${audience === "client" ? "for the owner" : "internal"}, ties out to the cent)`,
     `Contract total: ${money(s.contract_total)}`,
     `Cost of work + general conditions: ${money(s.cost_of_work_gc)} (${s.cost_of_work_gc_pct.toFixed(2)}%)`,
     `Contractor's fee: ${money(s.fee)} (${s.fee_pct.toFixed(2)}%)`,

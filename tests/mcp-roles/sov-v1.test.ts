@@ -111,13 +111,30 @@ describe("role guardrails", () => {
     expect(r.isError).toBe(true);
     expect(r.structured?.sov).toBeUndefined();
   });
-  test("client-facing: the SOV is refused, and the client setup report still shows no dollars or fee", async () => {
+  test("full access may pull the SOV for the owner; the numbers are the same and still tie out", async () => {
     const r = await call("owner", "report", { job_number: "S-1", deliverable: "sov", audience: "client" });
-    expect(r.isError).toBe(true);
-    expect(r.text).toMatch(/client-facing reports never do/);
+    expect(r.isError, r.text).toBe(false);
+    expect(r.text).toMatch(/SCHEDULE OF VALUES \(for the owner/);
+    const sov = r.structured!.sov as any;
+    expect(sov.audience).toBe("client");
+    expect(sov.summary.contract_total).toBe(3897868.94);
+    expect(c(sov.end_rows.subtotal.value) + c(sov.end_rows.fee.value)).toBe(c(sov.end_rows.grand_total.value));
+    const pm = await call("pm", "report", { job_number: "S-1", deliverable: "sov", audience: "client" });
+    expect(pm.isError, pm.text).toBe(false);
+  });
+  test("Super and contract-only roles stay blocked from the client SOV", async () => {
+    for (const role of ["super", "contracts"] as const) {
+      const r = await call(role, "report", { job_number: "S-1", deliverable: "sov", audience: "client" });
+      expect(r.isError, role).toBe(true);
+      expect(r.structured?.sov).toBeUndefined();
+      expect(r.text).not.toMatch(/\$\d/);
+    }
+  });
+  test("the client setup report (non-SOV) still shows no dollars or fee", async () => {
     const cl = await call("owner", "report", { job_number: "S-1", audience: "client" });
     expect(cl.isError).toBe(false);
     expect(cl.text).not.toMatch(/\$\d|3,897,868|584,680|210000|1010842|Fee: 15/);
+    expect(cl.structured?.sov).toBeUndefined();
   });
   test("Super can't change the SOV terms", async () => {
     expect((await call("super", "intake", { section: "budget", job_number: "S-1", fee_pct: 5 })).isError).toBe(true);
