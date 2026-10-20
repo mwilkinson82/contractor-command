@@ -14,6 +14,7 @@ import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
 import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
 import { guide, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_DELIVERY_BLOCK, SOV_DELIVERY_ASK, SOV_DELIVERY_STRUCTURED, SOV_LINK_RULE_TEXT, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
 import { withoutClaims } from "../internal-claims";
+import { EMAIL_CONTACT_RULE, contactForRole, dedupeNotices, emailContact, fillNotice, jobContacts } from "../contacts";
 import { noticeRequirements } from "../notice-plain";
 import { CLAUSE_HOST_RULE, classifyClause, clauseLine, missingNotices, normSection, parseClause, NOTICE_CHECKLIST, type ClauseRow, LEGACY_SUMMARY_TAG, missingNoticeNote, SUMMARY_OFFER, SUMMARY_HEADING } from "../contract-clauses";
 import { FLAGS_ASKED_LATER, noGuidance, noGuidanceText, reconcileRecommendation } from "../guidance";
@@ -438,6 +439,8 @@ export const intake = defineTool({
         const j = (jr.data ?? {}) as { pm_name?: string | null; pm_email?: string | null; pm_title?: string | null; pm_user_id?: string | null };
         let pmName = j.pm_name ?? null;
         if (!pmName && j.pm_user_id) pmName = ((await sb.from("mcp_company_members").select("display_name").eq("company_id", job.company_id).eq("user_id", j.pm_user_id).maybeSingle()).data as { display_name?: string } | null)?.display_name ?? null;
+        // 0.8.5: the notice email goes to the contract's recipient (the saved job contact), never "Dear Project Manager".
+        const ecDelay = emailContact(contactForRole((await noticeContext(sb, job)).contacts, "Project Manager"));
         const id: PmIdentity = { name: pmName, email: j.pm_email ?? null, title: j.pm_title ?? null, isMember: !!j.pm_user_id };
         return guide({
           ...text([
@@ -446,10 +449,11 @@ export const intake = defineTool({
             termLine("Delay notice", notice, nd), `Notice item:${itemNote(r.notice_item)}`,
             termLine("Claim notice", claim, cd), `Claim item:${itemNote(r.claim_item)}`,
             "", draftIdentityText(id, { name: co.data?.name ?? null }),
+            ecDelay.text,
           ].join("\n")),
-          structuredContent: { delay_event_id: r.delay_event_id, start_known: r.start_known, notice_due: start ? nd.due : null, claim_due: start ? cd.due : null,
+          structuredContent: { email_contact: ecDelay.structured, delay_event_id: r.delay_event_id, start_known: r.start_known, notice_due: start ? nd.due : null, claim_due: start ? cd.due : null,
             items: [r.notice_item, r.notice_item?.delivery_item, r.claim_item, r.claim_item?.delivery_item].filter((x): x is ItemResult => !!x).map((x) => itemOut(x)!) },
-        }, ...draftGuidance(id, { name: co.data?.name ?? null }));
+        }, ...draftGuidance(id, { name: co.data?.name ?? null }), EMAIL_CONTACT_RULE);
       }
 
       if (args.section === "clauses") {
@@ -1143,6 +1147,16 @@ export const carryForward = defineTool({
     }),
 });
 
+/** 0.8.5: saved job contacts (other parties only) and clause text, for notice Method/Recipient and email cards. */
+async function noticeContext(sb: Sb, job: Job) {
+  const [co, cl] = await Promise.all([
+    sb.from("mcp_companies").select("name").eq("id", job.company_id).maybeSingle(),
+    sb.from("mcp_contract_clauses").select("section, verbatim_text").eq("job_id", job.job_id),
+  ]);
+  const contacts = await jobContacts(sb, job.job_id, (co.data as { name?: string | null } | null)?.name ?? null);
+  return { contacts, clauses: (cl.data ?? []) as { section: string; verbatim_text: string | null }[] };
+}
+
 // ---------- list_open_items ----------
 // The one exception to "job_number is required": with no job named, list_open_items lists the companies and jobs instead.
 const listJobNumber = z.string().trim().min(1).max(40).optional().describe("Job number, exact match (e.g. 2417). Leave out when the member hasn't named a job: Athena then lists your companies and their jobs.");
@@ -1203,9 +1217,19 @@ export const listOpenItems = defineTool({
       const tz = await jobTimeZone(sb, job.job_id);
       await audit(sb, job, "list_open_items", "view_open_items", null);
       if (!data?.length) return text(`${prefix(job)}${laHead}No open items.${laBlock}`);
-      const lines = (data as unknown as Parameters<typeof itemLine>[0][]).map((it) => `- ${itemLine(it, nas, job.scope !== "full", { tz })}`);
-      const rows = data as unknown as Parameters<typeof itemLine>[0][];
-      return { ...text(`${prefix(job)}${laHead}Open items (${data.length}):\n${lines.join("\n")}${laBlock}`), structuredContent: { items: rows.map((i) => ({ item_ref: itemRef(i), item_id: i.id, item_type: itemType(i, nas) })) } };
+      // 0.8.5: notice items take Method and Recipient from the contract clause and the saved job contacts when blank,
+      // and the same event + notice type shows once. Display only: nothing is written or deleted, so this is idempotent.
+      const { contacts, clauses: cls } = await noticeContext(sb, job);
+      const deduped = dedupeNotices((data as unknown as Parameters<typeof itemLine>[0][]).map((it) => fillNotice(it, cls, contacts)));
+      const rows = deduped.items;
+      const lines = rows.map((it) => {
+        const d = deduped.duplicates.get(it.id);
+        return `- ${itemLine(it, nas, job.scope !== "full", { tz })}${d?.length ? ` | Same notice also logged as: ${d.map((x) => itemRef(x)).join(", ")} (shown once)` : ""}`;
+      });
+      const dupCount = [...deduped.duplicates.values()].reduce((n, d) => n + d.length, 0);
+      const ec = emailContact(contactForRole(contacts, "Project Manager"));
+      const dupNote = dupCount ? `\n${dupCount} duplicate notice item${dupCount === 1 ? "" : "s"} shown once (same event and notice type); nothing was deleted.` : "";
+      return guide({ ...text(`${prefix(job)}${laHead}Open items (${rows.length}):\n${lines.join("\n")}${dupNote}\n\n${ec.text}${laBlock}`), structuredContent: { items: rows.map((i) => ({ item_ref: itemRef(i), item_id: i.id, item_type: itemType(i, nas), duplicate_refs: (deduped.duplicates.get(i.id) ?? []).map((x) => itemRef(x)) })), email_contact: ec.structured } }, EMAIL_CONTACT_RULE);
     }),
 });
 
@@ -1357,6 +1381,7 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
   ]);
   for (const r of [co, jr, facts]) if (r.error) throw new Error(r.error.message);
   const rows = (facts.data ?? []) as { module: string; key: string; value: unknown; status: string }[];
+  const ec = emailContact(contactForRole((await noticeContext(sb, job)).contacts, "Project Manager"));
   const lines = rows.filter((f) => f.module === "sov").map((f) => {
     const v = (f.value ?? {}) as { description?: string | null; billable_value?: number | null; cost_codes?: string[]; spec_section?: string | null };
     return { item_no: f.key, description: v.description ?? null, scheduled_value: typeof v.billable_value === "number" ? v.billable_value : null, cost_codes: v.cost_codes, spec_section: v.spec_section ?? null };
@@ -1380,7 +1405,7 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
   return guide(
     {
       // 0.8.4: the delivery step rides in the tool text and structuredContent, not only in guidance, so every host (Claude too) asks it.
-      ...text(`${sovSummaryText(prefix(job), sov, brand, jr.data?.sov_basis ?? null, sovFooterMissing(c), audience, view)}\n\n${SOV_DELIVERY_ASK}\n${SOV_LINK_RULE_TEXT}`),
+      ...text(`${sovSummaryText(prefix(job), sov, brand, jr.data?.sov_basis ?? null, sovFooterMissing(c), audience, view)}\n\n${SOV_DELIVERY_ASK}\nFor option 2, ${ec.text.charAt(0).toLowerCase()}${ec.text.slice(1)}\n${SOV_LINK_RULE_TEXT}`),
       structuredContent: {
         sov: {
           audience,
@@ -1395,10 +1420,13 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
           layout: sovLayout(brand),
         },
         delivery: SOV_DELIVERY_STRUCTURED,
+        // 0.8.5: who the SOV email card goes to (option 2), so the host fills To and the greeting.
+        email_contact: ec.structured,
       },
     },
     "To produce the SOV file, use structuredContent.sov exactly: numbers, column set and layout recipe come from the server. Do not recompute or reorder.",
     `Present the SOV as a spreadsheet with the line-item view by default (structuredContent.sov.line_items: line no., cost code, division, description, scheduled value, % of total, then the total that ties to the contract sum). Always include a Cost Code column right after the line no., filled from line_items cost_code (e.g. 26-010); never show the item number in its place. Money with cents everywhere, exactly as in the visible text and the *_display fields (e.g. $1,400,000.00); never round or drop the .00. Do not put a date sweep or any other block before the SOV. Claude: an artifact table built from this result with no tool calls inside it; ChatGPT: a canvas or table; elsewhere: a table plus an offer to create an Excel file. Table style: ${SOV_TABLE_STYLE} Colors: blue #2563EB and gray only, never orange, rust or red, including totals. After the table, at most ONE line. The logo, footer gaps (structuredContent.sov.notes), billing note and the division roll-up offer only when the member asks. Line items carry cost_code and spec_section; keep both columns in any file. Chart colors: ${CHART_PALETTE.join(", ")} only. REQUIRED: end the reply with the SOV delivery question below, word for word, in every host including Claude.`,
     SOV_DELIVERY_BLOCK,
+    EMAIL_CONTACT_RULE,
   );
 }
