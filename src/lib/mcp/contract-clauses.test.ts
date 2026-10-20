@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyClause, clauseLine, missingNotices, normSection, parseClause, isClaimClause } from "./contract-clauses";
+import { legacySourceLabel, missingNoticeNote, classifyClause, clauseLine, missingNotices, normSection, parseClause, isClaimClause } from "./contract-clauses";
 import { findDelayTerms } from "./delays";
 import { visibleProblems, splitGuidance } from "./visible";
 
@@ -37,5 +37,13 @@ describe("contract clauses", () => {
     expect(t.claim).toMatchObject({ n_days: 7, clause_ref: "§7.4" });
     const legacy = findDelayTerms([], { notice_timing: "§6.4 delay notice within 3 calendar days; §7.4 claim notice within 7 calendar days" });
     expect(legacy).toEqual({ notice: null, claim: null });
+  });
+  it("legacy summary label and honest Missing note", () => {
+    expect(legacySourceLabel("document")).toBe("summary, not verified against the contract text");
+    expect(legacySourceLabel("member_answer")).toBe("manual");
+    expect(legacySourceLabel("company_default")).toBe("company default");
+    expect(missingNoticeNote(false)).toContain("opens once");
+    expect(missingNoticeNote(true)).toBe("open item asks to confirm it");
+    for (const t of [legacySourceLabel("document"), missingNoticeNote(false)]) expect(visibleProblems(t)).toEqual([]);
   });
 });
