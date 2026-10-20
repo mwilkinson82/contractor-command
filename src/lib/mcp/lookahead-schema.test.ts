@@ -28,5 +28,5 @@ describe("published tools/list: lookahead fields take LA- refs or UUIDs", () => 
       }
     }
   });
-  it("version is past 0.7.0", () => expect(ATHENA_VERSION).toBe("0.7.8"));
+  it("version is past 0.7.0", () => expect(ATHENA_VERSION).toBe("0.7.9"));
 });
