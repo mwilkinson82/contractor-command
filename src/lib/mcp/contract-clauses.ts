@@ -67,11 +67,11 @@ export function missingNotices(rows: Pick<ClauseRow, "category">[]) {
 export const CLAUSE_HOST_RULE =
   "Contract clauses: pass each clause's text exactly as written in the contract (copy it, never summarize, shorten or merge), one clause per entry with its section number and heading, and pass the full contract text as contract_text so Athena can verify it. If a clause isn't in the contract, leave it out; Athena opens an item to confirm it.";
 
-/** Tag for a legacy summary-field contract term when the job has no verbatim clause rows yet. */
+/** Tag for a document-sourced summary-field contract term, with or without clause rows. */
 export const LEGACY_SUMMARY_TAG = "summary, not verified against the contract text";
-/** Source label for a contract summary field: "document" is only claimed once clause rows exist. */
-export function legacySourceLabel(source: string, hasClauses: boolean): string {
-  if (source === "document" && !hasClauses) return LEGACY_SUMMARY_TAG;
+/** Source label for a contract summary field: never "document" (only exact clause rows carry that). */
+export function legacySourceLabel(source: string): string {
+  if (source === "document") return LEGACY_SUMMARY_TAG;
   return source === "member_answer" ? "manual" : source.replace(/_/g, " ");
 }
 /** Honest Missing line: confirm items exist only after clauses are recorded. */

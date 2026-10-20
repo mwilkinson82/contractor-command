@@ -280,14 +280,14 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
       const fs = facts.filter((f) => f.module === mod && f.status === "known");
       if (fs.length) {
         out.push("   Other saved terms (summary fields):");
-        fs.forEach((f) => out.push(`   - ${f.key.replace(/_/g, " ")}: ${show(f.value)} (${f.source === "member_answer" ? "manual" : f.source.replace(/_/g, " ")})`));
+        fs.forEach((f) => out.push(`   - ${f.key.replace(/_/g, " ")}: ${show(f.value)} (${legacySourceLabel(f.source)})`));
       }
     } else {
       const fs = facts.filter((f) => f.module === mod);
       if (!fs.length) out.push("   Not started.");
-      // No clause rows yet: contract summary fields can't claim "document" (internal report; client unchanged).
-      const legacy = mod === "contract" && !client;
-      fs.forEach((f) => out.push(`   - ${f.key.replace(/_/g, " ")}: ${f.status === "known" ? `${show(f.value)} (${legacy ? legacySourceLabel(f.source, false) : f.source === "member_answer" ? "manual" : f.source.replace(/_/g, " ")})` : f.status}`));
+      // Contract summary fields never claim "document": only exact clause rows do.
+      const legacy = mod === "contract"; // summary fields never claim "document", client or internal
+      fs.forEach((f) => out.push(`   - ${f.key.replace(/_/g, " ")}: ${f.status === "known" ? `${show(f.value)} (${legacy ? legacySourceLabel(f.source) : f.source === "member_answer" ? "manual" : f.source.replace(/_/g, " ")})` : f.status}`));
     }
     if (sectionItems.length) {
       out.push("   Open items:");
