@@ -8,7 +8,8 @@ import { clientSafe } from "./client-safe";
 import { draftGuidance, draftIdentityText } from "./drafts";
 import { ToolError } from "@lovable.dev/mcp-js";
 import { dbError, type Sb } from "./guard";
-import { stripClaimText, withoutClaims } from "./internal-claims";
+import { withoutClaims } from "./internal-claims";
+import { clauseLine, isClaimClause, missingNotices, type ClauseRow } from "./contract-clauses";
 import { DEFAULT_TZ, dateIn, todayIn } from "./deadlines";
 
 export type Job = { job_id: string; job_number: string; name: string; company_id: string; scope?: "full" | "contract" | "super" };
@@ -210,6 +211,9 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
     sb.from("mcp_open_items").select(ITEM_COLS).eq("job_id", job.job_id).eq("status", "open"),
     activeNa(sb, job.job_id),
   ]);
+  const cr = superView ? { data: [] } : await sb.from("mcp_contract_clauses").select("section, heading, category, verbatim_text, n_days, day_type, trigger_desc, source").eq("job_id", job.job_id);
+  const secKey = (x: string) => x.split(".").map((n) => n.padStart(4, "0")).join(".");
+  const clauses = ((cr.data ?? []) as ClauseRow[]).sort((a, b) => secKey(a.section).localeCompare(secKey(b.section)));
   for (const r of [flagsR, factsR, itemsR]) if (r.error) throw new Error(r.error.message);
   const flags = (flagsR.data ?? []) as Flag[];
   let facts = (factsR.data ?? []) as Fact[];
@@ -221,8 +225,8 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
   // Claim notices and the claim clause are internal strategy, never client-facing.
   if (client) { items = withoutClaims(items); facts = facts
       .filter((f) => !(f.module === "contract" && f.key === "claim_process"))
-      .map((f) => (f.module === "contract" && typeof f.value === "string" ? { ...f, value: stripClaimText(f.value) } : f))
-      .filter((f) => !(f.module === "contract" && f.status === "known" && f.value === "")); }
+      // Legacy combined terms are never split: a term that mentions a claim is left out of client output whole.
+      .filter((f) => !(f.module === "contract" && typeof f.value === "string" && /\bclaims?\b/i.test(f.value))); }
   if (client) facts = facts.filter((f) => !CLIENT_COACHING.test(typeof f.value === "string" ? f.value : ""));
   const dates = [...flags.map((f) => f.set_at), ...facts.map((f) => f.updated_at), ...items.map((i) => i.updated_at)].filter(Boolean).sort();
   const dataThrough = dates.length ? dateIn(dates[dates.length - 1], tz) : "no data yet";
@@ -267,6 +271,17 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
       const w = alignCloseoutSource(facts.filter((f) => f.module === "warranty"), cc ? { ...cc, module: "warranty" } : null);
       const cw = facts.find((f) => f.module === "contract" && f.key === "warranty_clauses" && f.status === "known");
       out.push(...renderWarrantyRegister(cw ? [...w, { ...cw, module: "warranty", key: CONTRACT_WARRANTY_KEY }] : w, todayIn(tz)));
+    } else if (mod === "contract" && clauses.length) {
+      // Verbatim clauses govern; summary fields follow for anything not yet recorded as a clause.
+      const shownClauses = client ? clauses.filter((c) => !isClaimClause(c)) : clauses;
+      out.push("   Contract clauses (exact contract text):");
+      shownClauses.forEach((c) => out.push(`   - ${clauseLine(c)}`));
+      missingNotices(clauses).filter((m) => !client || m.category !== "claim_notice").forEach((m) => out.push(`   - Missing: ${m.label} (to confirm)`));
+      const fs = facts.filter((f) => f.module === mod && f.status === "known");
+      if (fs.length) {
+        out.push("   Other saved terms (summary fields):");
+        fs.forEach((f) => out.push(`   - ${f.key.replace(/_/g, " ")}: ${show(f.value)} (${f.source === "member_answer" ? "manual" : f.source.replace(/_/g, " ")})`));
+      }
     } else {
       const fs = facts.filter((f) => f.module === mod);
       if (!fs.length) out.push("   Not started.");
