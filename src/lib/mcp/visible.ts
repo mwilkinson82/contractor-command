@@ -164,6 +164,21 @@ export const SOV_DELIVERY_ASK = [
 ].join("\n");
 export const SOV_OWNER_REDIRECT = "For the owner, I'll send a clean Excel or PDF instead, since a chat link doesn't look professional.";
 export const SOV_NOT_NOW_DAYS = 3;
+/** 0.8.4: member-facing link rule, printed under the delivery question in the report text. */
+export const SOV_LINK_RULE_TEXT = "Chat links are for your team only. The owner always gets a clean Excel file or a PDF.";
+/** 0.8.4: the delivery step as data, in report sov structuredContent, so hosts can't skip it. */
+export const SOV_DELIVERY_STRUCTURED = {
+  required_next_step: true,
+  ask: SOV_DELIVERY_ASK,
+  options: [
+    { n: 1, kind: "project_software", note: "Member signs in themselves; never ask for or type a password." },
+    { n: 2, kind: "xlsx_email", note: "Build the .xlsx, then show an email card with it attached; To blank and asked in the same reply if no address." },
+    { n: 3, kind: "chat_link_team_only", note: "Artifact or canvas link for team members only." },
+  ],
+  link_rule: "Artifact or canvas links go to team members only, never to the owner or owner's rep. Refuse an owner link and offer the Excel or a PDF.",
+  owner_redirect: SOV_OWNER_REDIRECT,
+  link_rule_text: SOV_LINK_RULE_TEXT,
+} as const;
 /** 0.8.3: the delivery question is a required next step after every SOV output, in every host. */
 export const SOV_DELIVERY_REQUIRED =
   "- REQUIRED NEXT STEP, every host including Claude: every reply that shows the SOV (table, artifact, canvas or file) must end with the delivery question above, word for word, as three numbered options. Never replace it with another question (not \"Overwatch, P6, or Excel?\", not \"client copy?\"), never skip it, never shorten it, and never put a date sweep, summary or note before the table or between the table and the question.";
