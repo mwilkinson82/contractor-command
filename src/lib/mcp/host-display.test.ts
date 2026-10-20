@@ -4,7 +4,7 @@ import { HOST_DISPLAY_BLOCK, finalizeVisible, visibleProblems } from "./visible"
 
 describe("host-display block", () => {
   it("goes to hidden guidance, never the visible text", () => {
-    const r = finalizeVisible({ content: [{ type: "text", text: "Job 2701" }] }, [HOST_DISPLAY_BLOCK]) as { content: { text: string }[]; structuredContent: { assistant_guidance: string[] } };
+    const r = finalizeVisible({ content: [{ type: "text", text: "Job 2701" }] }, const r = finalizeVisible({ content: [{ type: "text", text: "Job 2701" }] }, [HOST_DISPLAY_BLOCK]) as unknown as { content: { text: string }[]; structuredContent: { assistant_guidance: string[] } }; content: { text: string }[]; structuredContent: { assistant_guidance: string[] } };
     expect(r.content[0].text).toBe("Job 2701");
     expect(visibleProblems(r.content[0].text)).toEqual([]);
     expect(r.structuredContent.assistant_guidance).toContain(HOST_DISPLAY_BLOCK);
