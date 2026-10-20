@@ -47,5 +47,5 @@ describe("0.8.3 retest fixes", () => {
     expect(HOST_DISPLAY_BLOCK).toContain(DATE_SWEEP_RULE);
     expect(src("./index.ts")).not.toContain("always on report and list_open_items");
   });
-  it("version is 0.8.6", () => expect(ATHENA_VERSION).toBe("0.8.8"));
+  it("version is 0.8.6", () => expect(ATHENA_VERSION).toBe("0.8.9"));
 });
