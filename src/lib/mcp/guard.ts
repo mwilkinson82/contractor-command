@@ -1,4 +1,4 @@
-import { HOST_DISPLAY_BLOCK, finalizeVisible, splitGuidance } from "./visible";
+import { HOST_DISPLAY_BLOCK, finalizeVisible, splitGuidance, withStyleLine } from "./visible";
 import { DB_UNAVAILABLE, MCP_DAILY_CAP, MCP_HOURLY_CAP, capMessage, type CapResult } from "./limits";
 import { ToolError, type ToolContext } from "@lovable.dev/mcp-js";
 import { supabaseForUser } from "./supabase";
@@ -87,7 +87,7 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
   try {
     const r = await fn(sb);
     // The host-display block rides on every result (assistant_guidance only; members never see it).
-    return finalizeVisible(sweep ? withSweep(r, sweep, sweepScope.client === true, o.ownerSov === true) : r, [HOST_DISPLAY_BLOCK]);
+    return withStyleLine(finalizeVisible(sweep ? withSweep(r, sweep, sweepScope.client === true, o.ownerSov === true) : r, [HOST_DISPLAY_BLOCK]));
   } catch (e) {
     await logWorkflow(sb, {
       event_type: "failure",
