@@ -153,7 +153,14 @@
       "idx": 21,
       "version": "7",
       "when": 1792030006000,
-      "tag": "0021_athena_sov_lean_v1",
+      "tag": "0021_athena_verbatim_contract_clauses",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792030007000,
+      "tag": "0022_athena_sov_lean_v1",
       "breakpoints": true
     }
   ]
