@@ -44,7 +44,7 @@ export function siteIconResponse(request: Request): Response | null {
   const asset = set[url.pathname];
   if (!asset) return null;
   const body = asset.base64 ? decode(asset.body) : asset.body;
-  return new Response(method === "HEAD" ? null : body, {
+  return new Response(method === "HEAD" ? null : (body as BodyInit), {
     status: 200,
     headers: {
       "content-type": asset.type,
