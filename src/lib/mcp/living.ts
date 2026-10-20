@@ -152,6 +152,7 @@ export function activityLine(a: Activity, showMoney: boolean): string {
 
 export const CPM_REQUIRED_TOP = [
   "REQUIRED: Use this activity list exactly as given: every ID, date, duration, logic tie, float, $ value and SOV line. Do not recompute, re-sequence, rebuild it from an earlier chat, or guess any value. Anything marked Needed stays Needed.",
+  "REQUIRED: The visual's header starts with exactly two lines, in this order, copied word for word from below: line 1 is the Count check line, line 2 is the Tie line. Nothing (no title, date or summary) goes above them, and they are never moved into a card, a footnote or the body. Then show the Owner-furnished line (the owner-furnished note) and the Contract completion date in the header.",
   "REQUIRED: Before drawing any CPM, billing forecast, drill-down, IOR or dashboard, show the count check line and the tie line below. If the count is short or it doesn't tie, say which activities are missing or the amount it's off by, and stop; never draw an over-contract total.",
   "REQUIRED: Owner-furnished activities are schedule-only: $0.00 in ALP billing. Use the one saved contract completion date and the delay result shown here; never type in your own.",
 ].join("\n");

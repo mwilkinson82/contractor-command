@@ -4,7 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { AuthCard } from "@/components/auth/auth-card";
 import { athenaAppOrigin, isLovableHost } from "@/lib/athena-host";
 import { checkAthenaEntitlement, NO_ENTITLEMENT_MESSAGE, type RpcClient } from "@/lib/mcp/entitlement";
-import { boundedStep, ConsentStepError, consentReturnPath } from "@/lib/consent-loading";
+import {
+  boundedStep, ConsentStepError, consentReturnPath, ConsentRecoverableError, classifyConsentError, logConsentFailure,
+  rememberRequest, recallRequest, forgetRequest, returnToAppUrl, EXPIRED_MESSAGE,
+} from "@/lib/consent-loading";
+
+const session = () => (typeof window !== "undefined" ? window.sessionStorage : undefined);
 
 type OAuthResult = { data: any; error: { message: string } | null };
 type OAuthApi = {
@@ -63,8 +68,14 @@ export const Route = createFileRoute("/oauth/consent")({
   },
   loader: async ({ location }) => {
     const id = new URLSearchParams(location.search).get("authorization_id")!;
+    // 0.8.11: always ask Supabase fresh for this id (never a cached copy), and
+    // turn a rejected id (expired, used, replaced, or stale after a long
+    // magic-link sign-in) into the recovery screen instead of a dead end.
     const { data, error } = await boundedStep("details", () => oauth().getAuthorizationDetails(id));
-    if (error) throw new ConsentStepError("details", "failed");
+    if (error) {
+      const detail = logConsentFailure(id, "details", error);
+      throw new ConsentRecoverableError(classifyConsentError(detail), id, detail);
+    }
     const immediate = data?.redirect_url ?? data?.redirect_to;
     if (immediate && !data?.client) {
       window.location.href = immediate;
@@ -81,6 +92,8 @@ export const Route = createFileRoute("/oauth/consent")({
     } catch {
       entitled = false;
     }
+    const ru = data?.redirect_uri ?? data?.client?.redirect_uri;
+    if (typeof ru === "string") rememberRequest(session(), { authorization_id: id, redirect_uri: ru, client_name: data?.client?.name ?? data?.client?.client_name ?? "" });
     return { details: data, email: u.user.email ?? "", userId: u.user.id, entitled };
   },
   component: Consent,
@@ -89,12 +102,55 @@ export const Route = createFileRoute("/oauth/consent")({
       <div />
     </AuthCard>
   ),
-  errorComponent: ({ error }) => (
-    <AuthCard brand="athena" title="Can't load this request." subtitle={error instanceof Error ? error.message : "It may have expired."}>
-      <p className="text-[13px] text-foreground/70">Start the connection again from the app you're connecting.</p>
-    </AuthCard>
-  ),
+  errorComponent: ({ error }) => <ConsentRecovery error={error} />,
 });
+
+export function ConsentRecovery({ error }: { error: unknown }) {
+  const [busy, setBusy] = useState(false);
+  const recoverable = error instanceof ConsentRecoverableError;
+  const reason = recoverable ? error.reason : "unknown";
+  const last = recallRequest(session());
+  const back = last ? returnToAppUrl(last.redirect_uri) : null;
+  const message = recoverable ? error.message : error instanceof Error ? error.message : EXPIRED_MESSAGE;
+  const appName = last?.client_name || "the app";
+  function tryAgain() {
+    setBusy(true);
+    if (recoverable && back) {
+      // One click back to the host with error=access_denied so it starts a fresh request.
+      forgetRequest(session());
+      window.location.href = back;
+      return;
+    }
+    // Timeouts and sign-in hiccups recover on a reload of the same id.
+    if (!recoverable) { window.location.reload(); return; }
+    // No return address known (we never saw this request): the host has to start over.
+    setBusy(false);
+  }
+  async function switchAccount() {
+    setBusy(true);
+    await supabase.auth.signOut();
+    window.location.assign(`/login`);
+  }
+  const showTry = !recoverable || !!back;
+  return (
+    <AuthCard brand="athena" title={recoverable && reason !== "wrong_account" ? "This request expired" : "Can't load this request."} subtitle={message}>
+      <div className="space-y-3 text-[13px] text-foreground/80">
+        {showTry ? (
+          <button type="button" disabled={busy} onClick={tryAgain} className="w-full rounded-lg bg-primary px-4 py-2.5 font-medium text-primary-foreground disabled:opacity-60">
+            {recoverable && back ? `Try again (return to ${appName})` : "Try again"}
+          </button>
+        ) : (
+          <p className="font-medium text-foreground">{EXPIRED_MESSAGE}</p>
+        )}
+        {reason === "wrong_account" && (
+          <button type="button" disabled={busy} onClick={switchAccount} className="w-full rounded-lg border border-border px-4 py-2.5 font-medium disabled:opacity-60">
+            Switch account
+          </button>
+        )}
+      </div>
+    </AuthCard>
+  );
+}
 
 function Consent() {
   const loaded = Route.useLoaderData();
@@ -132,6 +188,16 @@ function Consent() {
       : await oauth().denyAuthorization(authorization_id);
     if (error) {
       setBusy(false);
+      const detail = logConsentFailure(authorization_id, approve ? "approve" : "deny", error);
+      const reason = classifyConsentError(detail);
+      if (reason === "expired" || reason === "used") {
+        // Expired while the page sat open: one click back to the host to restart.
+        const back = redirectUri ? returnToAppUrl(redirectUri) : null;
+        forgetRequest(session());
+        if (back) { window.location.href = back; return; }
+        setError(EXPIRED_MESSAGE);
+        return;
+      }
       setError(error.message || (approve ? "Approval failed." : "Couldn't cancel."));
       return;
     }
@@ -141,6 +207,7 @@ function Consent() {
       setError("No return address came back. Try again from the app you're connecting.");
       return;
     }
+    forgetRequest(session());
     window.location.href = target;
   }
 

@@ -30,7 +30,8 @@ export const ATHENA_WEBSITE_URL = ORIGIN;
 /** serverInfo.version and the "Athena vX" line on onboarding. */
 // 0.8.10: fragnet wording, To: inside email cards, small CORS icons, Athena sign-in page.
 // 0.8.9: cpm_activities handoff, tie-to-contract guard, owner-furnished exclusion, living reports master copy.
-export const ATHENA_VERSION = "0.8.10";
+// 0.8.11: one-click connect (consent page recovers from expired/used/replaced requests), CPM header lines REQUIRED first.
+export const ATHENA_VERSION = "0.8.11";
 
 /** MCP 2025-11-25 Implementation.description. There is no publisher field in the spec. */
 export const ATHENA_DESCRIPTION = "Athena powered by ALP, construction agents. Built by ALP.";
