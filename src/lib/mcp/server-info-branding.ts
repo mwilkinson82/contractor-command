@@ -11,7 +11,7 @@
 
 import { ATHENA_ICON_64_PNG_BASE64 } from "./athena-icon-64";
 
-const ORIGIN = "https://app.alpcontractorcircle.com";
+const ORIGIN = "https://app.meetathena.io";
 
 // Smallest first: ChatGPT shows a broken icon when the fetched icon is too
 // large (reported for ~13 KB files; our 512 PNG is ~14 KB).
