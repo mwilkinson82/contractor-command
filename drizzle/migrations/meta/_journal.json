@@ -148,6 +148,13 @@
       "when": 1792030005000,
       "tag": "0020_athena_items_follow_pm",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792030006000,
+      "tag": "0021_athena_verbatim_contract_clauses",
+      "breakpoints": true
     }
   ]
 }

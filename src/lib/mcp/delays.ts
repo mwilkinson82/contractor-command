@@ -20,22 +20,23 @@ const fromRow = (d: DeadlineRow): ClauseTerm => ({
   label: d.label, clause_ref: d.clause_ref, n_days: d.n_days, day_type: (d.day_type as DayType | null) ?? null, recipient: d.recipient, delivery_method: d.delivery_method,
 });
 
-/** Contract deadlines first (most structured), then the typed contract terms (notice_timing, claim_process). */
-export function findDelayTerms(deadlines: DeadlineRow[], facts: { notice_timing?: unknown; claim_process?: unknown }) {
+export type ClauseDays = { section: string; category: string; n_days: number | null; day_type: string | null; heading?: string | null };
+
+/** Verbatim contract clauses first (each clause's own days), then contract deadlines, then the legacy typed terms. */
+export function findDelayTerms(deadlines: DeadlineRow[], facts: { notice_timing?: unknown; claim_process?: unknown }, clauses: ClauseDays[] = []) {
+  const fromClause = (label: string, c?: ClauseDays): ClauseTerm | null =>
+    c && c.n_days != null ? { label, clause_ref: `§${c.section}`, n_days: c.n_days, day_type: (c.day_type as DayType | null) ?? null, recipient: null, delivery_method: null } : null;
+  const cn = fromClause("Delay notice", clauses.find((c) => c.category === "delay_notice"));
+  const cc = fromClause("Claim notice", clauses.find((c) => c.category === "claim_notice"));
   const rows = deadlines.filter((d) => d.active !== false && d.n_days != null);
   const isClaim = (d: DeadlineRow) => CLAIM.test(`${d.label} ${d.trigger_desc ?? ""}`);
   const noticeRow = rows.find((d) => d.clause_key === "notice" && !isClaim(d));
   const claimRow = rows.find((d) => isClaim(d));
   const str = (v: unknown) => (typeof v === "string" ? v : null);
-  const notice = noticeRow ? fromRow(noticeRow) : parseClauseText("Delay notice", str(facts.notice_timing));
-  const claimText = str(facts.claim_process);
-  let claim = claimRow ? fromRow(claimRow) : parseClauseText("Claim notice", claimText);
-  // A notice_timing text that also states a separate claim period ("...; claims within 7 days") counts for the claim.
-  if (!claim) {
-    const nt = str(facts.notice_timing) ?? "";
-    const part = nt.split(/[;.]\s+/).find((s) => CLAIM.test(s));
-    if (part) claim = parseClauseText("Claim notice", part);
-  }
+  const legacyNotice = str(facts.notice_timing);
+  // Legacy combined text: never split it. It only counts for the delay notice when it doesn't also mention a claim.
+  const notice = cn ?? (noticeRow ? fromRow(noticeRow) : legacyNotice && !CLAIM.test(legacyNotice) ? parseClauseText("Delay notice", legacyNotice) : null);
+  const claim = cc ?? (claimRow ? fromRow(claimRow) : parseClauseText("Claim notice", str(facts.claim_process)));
   return { notice, claim };
 }
 
