@@ -90,6 +90,16 @@ export function finalizeVisible<R>(r: R, extra: string[] = []): R {
   } as unknown as R;
 }
 
+/** How the host should show every Athena result. Goes in assistant_guidance on every tool result (guard.run), never in the visible text. */
+export const HOST_DISPLAY_BLOCK = [
+  "HOW TO SHOW THIS (for the assistant, don't repeat to the member):",
+  "- Contract terms: show the clauses exactly as written with their section numbers first. Then ask: \"Do you want me to summarize this legal text so you know what it means in plain English?\" Summarize only if they say yes.",
+  "- Show tables and cards as a styled visual by default, never as an opt-in: white card background, light gray panels behind the text, blue for buttons and highlights, minimal and clean. Don't mention the colors.",
+  "- Lead with the visual, then at most 3 short lines of text. At most one plain-English caveat line, only if it changes what they should do.",
+  "- Write for contractor office staff and owners. No technical notes: nothing about artifacts, sharing settings, tools, code, files or colors.",
+  "- Keep everything private. Never publish, share or create a public link unless the member asks for it in this chat.",
+].join("\n");
+
 /** Attach guidance explicitly (preferred over writing it into the text). */
 export function guide<R>(r: R, ...lines: string[]): R {
   return finalizeVisible(r, lines.filter(Boolean));
