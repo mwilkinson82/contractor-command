@@ -3,7 +3,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthCard } from "@/components/auth/auth-card";
 import { athenaAppOrigin, isLovableHost } from "@/lib/athena-host";
-import { MCP_ALLOWED_EMAILS } from "@/lib/mcp/allowlist";
+import { checkAthenaEntitlement, NO_ENTITLEMENT_MESSAGE, type RpcClient } from "@/lib/mcp/entitlement";
 import { boundedStep, ConsentStepError, consentReturnPath } from "@/lib/consent-loading";
 
 type OAuthResult = { data: any; error: { message: string } | null };
@@ -72,7 +72,15 @@ export const Route = createFileRoute("/oauth/consent")({
     const { data: u, error: userError } = await boundedStep("identity", () => supabase.auth.getUser());
     // Fail closed: no confirmed identity means no consent screen.
     if (userError || !u?.user?.id) throw new ConsentStepError("identity", "failed");
-    return { details: data, email: u.user.email ?? "", userId: u.user.id };
+    // Same membership entitlement the /mcp server enforces. Fails closed.
+    let entitled = false;
+    try {
+      const ent = await boundedStep("identity", () => checkAthenaEntitlement(supabase as unknown as RpcClient));
+      entitled = ent.allowed;
+    } catch {
+      entitled = false;
+    }
+    return { details: data, email: u.user.email ?? "", userId: u.user.id, entitled };
   },
   component: Consent,
   pendingComponent: () => (
@@ -94,8 +102,8 @@ function Consent() {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   if (!loaded) return null;
-  const { details, email, userId } = loaded;
-  const allowed = MCP_ALLOWED_EMAILS.has(email.trim().toLowerCase());
+  const { details, email, userId, entitled } = loaded;
+  const allowed = entitled === true;
   async function switchAccount() {
     setBusy(true);
     const next = `/oauth/consent?authorization_id=${encodeURIComponent(authorization_id)}`;
@@ -153,7 +161,7 @@ function Consent() {
             <p className="text-[14px] font-semibold text-destructive">
               Signed in as {email || "an unknown account"} — switch to your Circle account
             </p>
-            <p className="text-foreground/75">This account doesn't have access to Athena, so Approve is turned off.</p>
+            <p className="text-foreground/75">{NO_ENTITLEMENT_MESSAGE} Approve is turned off.</p>
             <button
               type="button"
               disabled={busy}
