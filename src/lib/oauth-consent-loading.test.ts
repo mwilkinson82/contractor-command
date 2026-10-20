@@ -85,6 +85,7 @@ describe("consent beforeLoad", () => {
   });
   it("passes for a signed-in session and clears its timer", async () => {
     m.getSession.mockResolvedValue({ data: { session: { user: { id: "u" } } }, error: null });
+    m.getUser.mockResolvedValue({ data: { user: { id: "u" } }, error: null });
     await expect(before()).resolves.toBeUndefined();
     expect(vi.getTimerCount()).toBe(0);
   });

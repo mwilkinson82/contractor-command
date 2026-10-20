@@ -2,7 +2,6 @@ import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthCard } from "@/components/auth/auth-card";
-import { athenaAppOrigin, isLovableHost } from "@/lib/athena-host";
 import { checkAthenaEntitlement, NO_ENTITLEMENT_MESSAGE, type RpcClient } from "@/lib/mcp/entitlement";
 import { boundedStep, ConsentStepError, consentReturnPath } from "@/lib/consent-loading";
 
@@ -45,26 +44,35 @@ export const Route = createFileRoute("/oauth/consent")({
     authorization_id: typeof s.authorization_id === "string" ? s.authorization_id : "",
   }),
   beforeLoad: async ({ search }) => {
-    // Members must never see a lovable.app address: move the request to the
-    // Athena app with the same authorization_id before anything else.
-    const here = typeof window !== "undefined" ? window.location?.hostname ?? "" : "";
-    if (here && isLovableHost(here) && !here.startsWith("id-preview--")) {
-      const target = new URL("/oauth/consent", athenaAppOrigin());
-      if (search.authorization_id) target.searchParams.set("authorization_id", search.authorization_id);
-      window.location.replace(target.toString());
-      await new Promise(() => {});
-    }
+    // v0.8.9.1: no cross-domain hop. Stay on the origin Supabase sent us to so
+    // the login session and magic-link callback share one localStorage.
     if (!search.authorization_id) throw new Error("This connection request is missing its ID. Start again from the app you're connecting.");
     const { data, error } = await boundedStep("session", () => supabase.auth.getSession());
     if (error) throw new ConsentStepError("session", "failed");
-    if (!data.session) {
+    // getSession() only reads localStorage. A stale/revoked session made
+    // Supabase reject getAuthorizationDetails (403) and show "invalid or
+    // expired". Validate with the server; if not live, clear it and sign in.
+    let live = false;
+    if (data.session) {
+      const { data: u, error: userError } = await supabase.auth.getUser();
+      live = !userError && !!u?.user?.id;
+      if (!live) await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+    }
+    if (!live) {
       throw redirect({ to: "/login", search: { redirect: consentReturnPath(search.authorization_id) } });
     }
   },
   loader: async ({ location }) => {
     const id = new URLSearchParams(location.search).get("authorization_id")!;
     const { data, error } = await boundedStep("details", () => oauth().getAuthorizationDetails(id));
-    if (error) throw new ConsentStepError("details", "failed");
+    if (error) {
+      const status = (error as { status?: number }).status;
+      if (status === 401 || status === 403 || /jwt|bearer/i.test(error.message ?? "")) {
+        await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+        throw redirect({ to: "/login", search: { redirect: consentReturnPath(id) } });
+      }
+      throw new ConsentStepError("details", "failed");
+    }
     const immediate = data?.redirect_url ?? data?.redirect_to;
     if (immediate && !data?.client) {
       window.location.href = immediate;
