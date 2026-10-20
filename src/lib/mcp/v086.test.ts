@@ -41,5 +41,5 @@ describe("0.8.6 SOV delivery follow-ups", () => {
     expect(w).toContain("sovDeliveryBlock(audience),");
     expect(w).toContain("${sovSpecsMissing(sov) ? `\\n${SOV_SPECS_MISSING_NOTE}` : \"\"}");
   });
-  it("version is 0.8.6", () => expect(ATHENA_VERSION).toBe("0.8.7"));
+  it("version is 0.8.6", () => expect(ATHENA_VERSION).toBe("0.8.8"));
 });
