@@ -39,11 +39,11 @@ describe("contract clauses", () => {
     expect(legacy).toEqual({ notice: null, claim: null });
   });
   it("legacy summary label and honest Missing note", () => {
-    expect(legacySourceLabel("document", false)).toBe("summary, not verified against the contract text");
-    expect(legacySourceLabel("document", true)).toBe("document");
-    expect(legacySourceLabel("member_answer", false)).toBe("manual");
+    expect(legacySourceLabel("document")).toBe("summary, not verified against the contract text");
+    expect(legacySourceLabel("member_answer")).toBe("manual");
+    expect(legacySourceLabel("company_default")).toBe("company default");
     expect(missingNoticeNote(false)).toContain("opens once");
     expect(missingNoticeNote(true)).toBe("open item asks to confirm it");
-    for (const t of [legacySourceLabel("document", false), missingNoticeNote(false)]) expect(visibleProblems(t)).toEqual([]);
+    for (const t of [legacySourceLabel("document"), missingNoticeNote(false)]) expect(visibleProblems(t)).toEqual([]);
   });
 });

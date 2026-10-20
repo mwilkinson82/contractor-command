@@ -46,14 +46,15 @@ describe("legacy contract terms before any clause rows", () => {
     const items = await call("list_open_items", { job_number: "L-1" });
     expect(items.text).not.toMatch(/Confirm the contract'?s? (delay|claim)/i);
   });
-  test("internal report tags them as summary; client report is unchanged and has no §7.4", async () => {
+  test("internal report tags them as summary; client report tags them too and has no §7.4", async () => {
     const i = await call("report", { job_number: "L-1", audience: "internal" });
     expect(i.text).toContain(`   - retainage: §4.1 10% to 50%, then 5% ${TAG}`);
     expect(i.text).toContain(`notice timing: §6.4`);
     expect(i.text).not.toMatch(/^\s+- (retainage|notice timing):.*\(document\)$/m);
     const c = await call("report", { job_number: "L-1", audience: "client" });
     expect(c.text).not.toContain("§7.4");
-    expect(c.text).toContain("   - retainage: §4.1 10% to 50%, then 5% (document)");
+    expect(c.text).toContain(`   - retainage: §4.1 10% to 50%, then 5% ${TAG}`);
+    expect(c.text).not.toMatch(/^\s+- (retainage|notice timing):.*\(document\)$/m);
   });
   test("once a clause row exists, Missing lines point at real open items", async () => {
     const s = await call("intake", { section: "clauses", job_number: "L-1", clauses: [{ section: "6.4", heading: "Delay Notice", text: "Subcontractor shall give written notice of any delay within three (3) calendar days after the start of the event." }] });
@@ -61,6 +62,13 @@ describe("legacy contract terms before any clause rows", () => {
     const r = await call("contract_terms", { job_number: "L-1" });
     expect(r.text).toContain("- Missing: claim notice (open item asks to confirm it)");
     expect(r.text).not.toContain("a confirm item opens once");
-    expect(r.text).not.toContain(TAG);
+    // Summary fields keep the summary tag even with clause rows; only the exact clause says (document).
+    expect(r.text).toContain(`notice timing: §6.4 written delay notice within 3 calendar days; §7.4 claim notice within 7 calendar days ${TAG}`);
+    expect(r.text).toMatch(/^- §6\.4 Delay Notice: ‹.*› \(UNVERIFIED/m); // no contract text on file for L-1
+    expect(r.text).not.toMatch(/^- (retainage|notice timing):.*\(document\)$/m);
+    const i = await call("report", { job_number: "L-1", audience: "internal" });
+    expect(i.text).toContain(`   - retainage: §4.1 10% to 50%, then 5% ${TAG}`);
+    const c = await call("report", { job_number: "L-1", audience: "client" });
+    expect(c.text).toContain(`   - retainage: §4.1 10% to 50%, then 5% ${TAG}`);
   });
 });

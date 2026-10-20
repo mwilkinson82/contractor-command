@@ -1124,7 +1124,7 @@ export const contractTerms = defineTool({
         ...missingNotices(cl).map((m) => `- Missing: ${m.label} (${missingNoticeNote(cl.length > 0)})`),
         "",
         `CONTRACT TERMS (as saved${cl.length ? "; summary fields, the clauses above govern" : ""})`,
-        ...clauses.map((c) => `- ${c.key.replace(/_/g, " ")}: ${c.value ?? "UNKNOWN"}${c.value ? ` (${c.source === "document" && !cl.length ? LEGACY_SUMMARY_TAG : c.source})` : ""}`),
+        ...clauses.map((c) => `- ${c.key.replace(/_/g, " ")}: ${c.value ?? "UNKNOWN"}${c.value ? ` (${c.source === "document" ? LEGACY_SUMMARY_TAG : c.source})` : ""}`),
         "",
         "Applicability:",
         ...flags.map((f) => `- ${f.flag.replace(/_/g, " ")}: ${f.value}${f.source ? ` (${f.source})` : ""}`),
