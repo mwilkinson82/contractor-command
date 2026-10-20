@@ -2,8 +2,8 @@ import { ATHENA_VERSION } from "../server-info-branding";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
-import { ITEM_COLS, READ_ONLY_MESSAGE, activeNa, audit, flagWord, itemLine, itemType, prefix, renderSetupReport, resolveCompany, resolveJob, type Job } from "../jobs";
-import { computeDue, type DayType } from "../deadlines";
+import { ITEM_COLS, READ_ONLY_MESSAGE, activeNa, audit, flagWord, itemLine, itemType, jobTimeZone, prefix, renderSetupReport, resolveCompany, resolveJob, type Job } from "../jobs";
+import { computeDue, todayIn, type DayType } from "../deadlines";
 import { INPUT_KEYS, INPUT_LABELS, currentCheck, loadLookahead, renderReport, type InputKey } from "../workflow";
 import { WARRANTY_CHECK_PREFIX, WARRANTY_SETUP_QUESTIONS, mapTrigger, nextWarrantyQuestion, renderWarrantyRegister, warrantyAnswerFacts, warrantyHow, warrantyOpenItems, type WarrantyKey } from "../warranty";
 import { EVIDENCE_ASK, evidenceProblem } from "../evidence";
@@ -17,7 +17,7 @@ import { LOOKAHEAD_BUILD_QUESTIONS, LOOKAHEAD_EXISTS_ASK, LOOKAHEAD_PUSHBACK, LO
 const uuid = z.string().uuid();
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
 const jobNumber = z.string().trim().min(1).max(40).describe("Job number, exact match (e.g. 2417).");
-const companyId = z.string().trim().min(1).max(200).optional().describe("Only needed if you belong to more than one company: the company name as Athena lists it, or its company_id.");
+const companyId = z.string().trim().min(1).max(200).optional().describe("Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive.");
 const short = (d: string) => z.string().max(2000).optional().describe(d);
 const tri = z.enum(["yes", "no", "na", "unknown"]);
 const doc = (what: string) => z.string().max(20_000).optional().describe(`${what}, as plain text. Leave out if you don't have it; it is recorded as unknown.`);
@@ -501,7 +501,7 @@ export const intake = defineTool({
         put("warranty_trigger_date", args.warranty_trigger_date);
         for (const k of ["warranty_start_basis", "closeout_documents", "punch_final_acceptance", "manufacturer_warranties", "closeout_expectations"] as const) put(k, args[k]);
         const { all, made } = await saveWarranty(sb, job, facts, { fillMissing: true, owner: args.owner ?? null, neededBy: args.needed_by ?? null, tool: "intake" });
-        const today = new Date().toISOString().slice(0, 10);
+        const today = todayIn(await jobTimeZone(sb, job.job_id));
         return {
           ...text(`${P}Warranty and closeout setup saved.\n\nWARRANTY REGISTER\n${renderWarrantyRegister(all, today).join("\n")}${made.map((m) => itemNote(m)).join("")}`),
           structuredContent: { items: made.map((m) => itemOut(m)!) },
@@ -640,7 +640,7 @@ async function settleFlagConfirms(sb: Sb, job: Job) {
     const k = String(it.check_key).slice(5);
     const v = flags[k];
     if (!v || v === "unknown") continue;
-    await rpc(sb, "mcp_resolve_item", { _item: it.id, _kind: "member_statement", _evidence: `Answered: ${k.replace(/_/g, " ")} = ${v}.`, _stated_by: "member answer", _stated_on: new Date().toISOString().slice(0, 10),
+    await rpc(sb, "mcp_resolve_item", { _item: it.id, _kind: "member_statement", _evidence: `Answered: ${k.replace(/_/g, " ")} = ${v}.`, _stated_by: "member answer", _stated_on: todayIn(await jobTimeZone(sb, job.job_id)),
       _reason: null, _approval: null, _billing: null, _collection: null });
   }
 }
@@ -801,7 +801,7 @@ export const answer = defineTool({
         try { facts = warrantyAnswerFacts(key, args.response, args.detail); } catch (e) { throw new ToolError((e as Error).message); }
         const { all, made } = await saveWarranty(sb, job, facts, { fillMissing: false, owner: args.owner ?? null, neededBy: args.due_date ?? null, tool: "answer" });
         await audit(sb, job, "answer", "warranty_answer", args.check_key);
-        const today = new Date().toISOString().slice(0, 10);
+        const today = todayIn(await jobTimeZone(sb, job.job_id));
         const left = nextWarrantyQuestion(all);
         return {
           ...text(`${P}Recorded.${made.map((m) => itemNote(m)).join("")}${left ? "" : `\n\nWARRANTY REGISTER\n${renderWarrantyRegister(all, today).join("\n")}`}\nNext: next_question.`),
@@ -909,9 +909,10 @@ export const listOpenItems = defineTool({
       if (args.lookahead_id) q = q.eq("lookahead_id", args.lookahead_id);
       const [{ data, error }, nas] = await Promise.all([q.order("needed_by", { nullsFirst: false }).limit(200), activeNa(sb, job.job_id)]);
       if (error) throw new Error(error.message);
+      const tz = await jobTimeZone(sb, job.job_id);
       await audit(sb, job, "list_open_items", "view_open_items", null);
       if (!data?.length) return text(`${prefix(job)}No open items.`);
-      const lines = (data as unknown as Parameters<typeof itemLine>[0][]).map((it) => `- ${itemLine(it, nas, job.scope !== "full")}`);
+      const lines = (data as unknown as Parameters<typeof itemLine>[0][]).map((it) => `- ${itemLine(it, nas, job.scope !== "full", { tz })}`);
       const rows = data as unknown as Parameters<typeof itemLine>[0][];
       return { ...text(`${prefix(job)}Open items (${data.length}):\n${lines.join("\n")}`), structuredContent: { items: rows.map((i) => ({ item_ref: itemRef(i), item_id: i.id, item_type: itemType(i, nas) })) } };
     }),

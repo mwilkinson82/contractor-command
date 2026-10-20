@@ -48,11 +48,11 @@ export function renderWarrantyRegister(facts: Fact[], today: string): string[] {
   const trig = by.get("warranty_start_trigger");
   const trigOther = by.get("warranty_start_trigger_other");
   const trigDate = by.get("warranty_trigger_date");
-  const trigText = isKnown(trig)
-    ? trig!.value === "other"
-      ? `other: ${isKnown(trigOther) ? str(trigOther!.value) : "not described"}`
-      : `${TRIGGER_LABEL[trig!.value as WarrantyTrigger] ?? str(trig!.value)}${isKnown(trigOther) ? ` (${str(trigOther!.value)})` : ""}`
-    : "unknown";
+  // The trigger label and the member's own words are kept apart: template sentences use only the label.
+  const trigLabel = isKnown(trig) ? (trig!.value === "other" ? "other" : TRIGGER_LABEL[trig!.value as WarrantyTrigger] ?? str(trig!.value)) : null;
+  const trigNote = isKnown(trigOther) ? str(trigOther!.value).trim().replace(/\s+/g, " ") : null;
+  const trigText = !trigLabel ? "unknown" : trigLabel === "other" ? `other: ${trigNote ?? "not described"}` : trigLabel;
+  const event = trigLabel && trigLabel !== "other" ? trigLabel : trigLabel === "other" && trigNote ? "start trigger" : null;
 
   if (!isKnown(has)) out.push(`   - Workmanship warranty: unknown${src(has)}`);
   else if (has!.value === "no") out.push(`   - Workmanship warranty: none${src(has)}`);
@@ -61,7 +61,7 @@ export function renderWarrantyRegister(facts: Fact[], today: string): string[] {
     const start = isKnown(trigDate) ? str(trigDate!.value) : null;
     const end = start && n !== null ? addMonths(start, n) : null;
     let status: string;
-    if (!start) status = `Pending ${trigText === "unknown" ? "start trigger" : trigText} date`;
+    if (!start) status = `Pending ${event ?? "start trigger"} date`;
     else if (today < start) status = "Not yet started";
     else if (end && today > end) status = "Expired";
     else status = end ? "In warranty" : "In warranty (end date pending duration)";
@@ -70,7 +70,8 @@ export function renderWarrantyRegister(facts: Fact[], today: string): string[] {
       `     Status: ${status}`,
       `     Duration: ${n !== null ? `${n} months` : "unknown"}`,
       `     Starts at: ${trigText}`,
-      `     Start date: ${start ?? `pending ${trigText === "unknown" ? "trigger" : trigText} date`}`,
+      ...(trigNote && trigLabel !== "other" ? [`     Trigger note: ${trigNote}`] : []),
+      `     Start date: ${start ?? `pending ${event ?? "trigger"} date`}`,
       `     End date: ${end ?? (start ? "pending duration" : "pending trigger date")}`,
     );
   }
