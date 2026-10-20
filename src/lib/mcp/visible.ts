@@ -110,6 +110,10 @@ export const HOST_DISPLAY_BLOCK = [
   "- Keep everything private. Never publish, share or create a public link unless the member asks for it in this chat.",
 ].join("\n");
 
+/** Project software is a real setup step: check key, and its fixed place in next_question (2nd, right after the job number check). */
+export const PROJECT_SOFTWARE_KEY = "project_software";
+export const PROJECT_SOFTWARE_POSITION = 2;
+
 /** Job setup: where the job lives. Exact member-facing wording; the host asks it, never Athena's visible text. */
 export const JOB_SOFTWARE_ASK =
   "Is this job already set up in your project software? Which one do you use: Overwatch, Buildertrend, Procore, Primavera P6, another web tool, or Excel?";
@@ -120,7 +124,7 @@ export const JOB_SOFTWARE_NONE_FOLLOWUP =
 /** Hidden guidance on job-setup next_question results. Instruction text only: no new field, nothing stored by Athena. */
 export const JOB_SETUP_SOFTWARE_BLOCK = [
   "JOB SETUP: WHERE THIS JOB LIVES (for the assistant; don't repeat to the member):",
-  `- Ask once per job, right after the contract and SOV basics are recorded and before the CPM schedule step. Ask exactly: "${JOB_SOFTWARE_ASK}"`,
+  `- next_question returns this as setup question 2 (ref project-software), right after the job number check and before the gates; ask it then, once per job. Ask exactly: "${JOB_SOFTWARE_ASK}"`,
   `- If they name a tool, ask exactly: "${JOB_SOFTWARE_TOOL_FOLLOWUP}"`,
   `- If they say none or not sure, say exactly: "${JOB_SOFTWARE_NONE_FOLLOWUP}"`,
   "- If the member says yes, create it in their tool: use your browser (or the member's browser) to open the tool, have the MEMBER sign in themselves (never ask for or type a password), then create the job and build the SOV, the CPM schedule, cost loading and billing there from Athena's job data. Confirm each screen with the member before saving anything.",
@@ -128,7 +132,7 @@ export const JOB_SETUP_SOFTWARE_BLOCK = [
   "- If the job already exists there: open it, compare it to Athena's SOV and schedule, and list the differences. Don't overwrite anything without a yes.",
   "- If there's no tool, or you have no browser: offer to build it in chat (tables and charts) or in Excel (an SOV sheet, a schedule sheet and a cost-loaded billing forecast). Work through the choice with the member one question at a time.",
   "- Athena only supplies the job data; you do the building. Never say Athena created, built or set up anything.",
-  "- Athena has no field for this answer yet, so keep it in this chat (the tool name, or chat or Excel) and use the same place for every later step. Don't record it in job settings, an open item or a setup answer.",
+  "- Record the answer with answer check_key project_software (tool name in detail), and keep it in this chat too; use the same place for every later step. Don't record it in job settings or an open item.",
   "- Keep it plain: one question at a time, no technical notes.",
 ].join("\n");
 

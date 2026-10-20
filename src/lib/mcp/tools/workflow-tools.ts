@@ -11,7 +11,7 @@ import { EVIDENCE_ASK, evidenceProblem } from "../evidence";
 import { isUuid, itemRef, lookaheadRef, matchRef, parseLookaheadRef, parseQuestionRef, questionRef, shortRef } from "../refs";
 import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
 import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
-import { guide, JOB_SETUP_SOFTWARE_BLOCK } from "../visible";
+import { guide, JOB_SETUP_SOFTWARE_BLOCK, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
 import { withoutClaims } from "../internal-claims";
 import { noticeRequirements } from "../notice-plain";
 import { CLAUSE_HOST_RULE, classifyClause, clauseLine, missingNotices, normSection, parseClause, NOTICE_CHECKLIST, type ClauseRow, LEGACY_SUMMARY_TAG, missingNoticeNote, SUMMARY_OFFER, SUMMARY_HEADING } from "../contract-clauses";
@@ -855,6 +855,17 @@ export const nextQuestion = defineTool({
         auto = `Answered for you: ${q.label ? `${q.label} ` : ""}"${q.prompt}" — yes (job number ${job.job_number} is on record). Say so if that's wrong and I'll change it.\n\n`;
         q = await rpc<NextCheck>(sb, "mcp_next_check", { _job: job.job_id });
       }
+      // Project software is a real setup step, asked second (right after the auto-answered job number check, before the gates),
+      // so every host shows it. The answer is kept in scope facts (key project_software); no new column.
+      const { data: sw } = await sb.from("mcp_job_facts").select("status").eq("job_id", job.job_id).eq("module", "scope").eq("key", PROJECT_SOFTWARE_KEY).maybeSingle();
+      if (!sw) {
+        const after = (q ? q.total - q.index + 1 : 0) + wLeftFor(await warrantyFacts(sb, job));
+        await audit(sb, job, "next_question", "view_setup_question", PROJECT_SOFTWARE_KEY);
+        return guide({
+          ...text(`${P}${auto}Setup question ${PROJECT_SOFTWARE_POSITION} — ${after} more after this (Project software) [Job setup]\nQuestion ref: ${questionRef(PROJECT_SOFTWARE_KEY)}\n\n${JOB_SOFTWARE_ASK}\n\nAnswer with the tool's name in detail (Overwatch, Buildertrend, Procore, Primavera P6, another web tool, Excel or none), or response unknown.`),
+          structuredContent: { check_key: PROJECT_SOFTWARE_KEY, index: PROJECT_SOFTWARE_POSITION, total: after + PROJECT_SOFTWARE_POSITION, remaining_after: after, auto_answered: auto ? "job_number_assigned" : null },
+        }, JOB_SETUP_SOFTWARE_BLOCK);
+      }
       // Workmanship warranty and closeout expectations are asked up front: right after the gate questions, before the rest of the checklist.
       const wq = nextWarrantyQuestion(await warrantyFacts(sb, job));
       const wLeft = wq ? wq.remaining_after + 1 : 0;
@@ -884,6 +895,8 @@ export const nextQuestion = defineTool({
       }, JOB_SETUP_SOFTWARE_BLOCK);
     }),
 });
+
+const wLeftFor = (facts: Parameters<typeof nextWarrantyQuestion>[0]) => { const x = nextWarrantyQuestion(facts); return x ? x.remaining_after + 1 : 0; };
 
 // ---------- answer ----------
 export const answer = defineTool({
@@ -985,6 +998,13 @@ export const answer = defineTool({
         return { ...text(`${P}${addEntry ? `Added to ${lookaheadRef(la.id)}` : "Recorded"}${status === "unknown" ? " as unknown" : ""}.${itemNote(item)}\nNext: next_question.`), structuredContent: { status, item_id: item?.item_id ?? null, item_type: item?.item_type ?? null } };
       }
 
+      if (args.check_key === PROJECT_SOFTWARE_KEY) {
+        const tool = (args.detail ?? "").trim().slice(0, 200);
+        const value = tool || (args.response === "na" || args.response === "no" ? "none" : null);
+        await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: "scope", _facts: { [PROJECT_SOFTWARE_KEY]: value }, _source: "member_answer" });
+        await audit(sb, job, "answer", "project_software_answer", PROJECT_SOFTWARE_KEY);
+        return guide({ ...text(`${P}Recorded: project software ${value ?? "unknown"}.\nNext: next_question.`), structuredContent: { recorded: { [PROJECT_SOFTWARE_KEY]: value } } }, JOB_SETUP_SOFTWARE_BLOCK);
+      }
       if (args.check_key.startsWith(WARRANTY_CHECK_PREFIX)) {
         const key = args.check_key.slice(WARRANTY_CHECK_PREFIX.length) as WarrantyKey;
         if (!WARRANTY_SETUP_QUESTIONS.some((q) => q.key === key)) throw new ToolError("That isn't a setup question. Call next_question and answer the check it returns.");
