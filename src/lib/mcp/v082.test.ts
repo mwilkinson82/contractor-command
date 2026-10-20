@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { HOST_DISPLAY_BLOCK, SOV_DELIVERY_ASK, SOV_DELIVERY_BLOCK, SOV_OWNER_REDIRECT } from "./visible";
+import { HOST_DISPLAY_BLOCK, SOV_DELIVERY_ASK, SOV_DELIVERY_BLOCK } from "./visible";
 import { SOV_SPECS_MISSING_NOTE, buildSov, sovLineRows, sovSpecsMissing, sovSummaryText } from "./sov";
 import { ATHENA_VERSION } from "./server-info-branding";
 
@@ -15,15 +15,14 @@ describe("0.8.2 SOV delivery step", () => {
   it("asks the exact three-option question after the table", () => {
     expect(SOV_DELIVERY_ASK.split("\n")[0]).toBe("Where do you want this SOV to live?");
     expect(SOV_DELIVERY_ASK).toContain("1. In your project software (Overwatch, Buildertrend, Procore, or another tool).");
-    expect(SOV_DELIVERY_ASK).toContain("2. As an Excel file (.xlsx).");
-    expect(SOV_DELIVERY_ASK).toContain("3. As a shared spreadsheet in this chat (a Claude artifact, ChatGPT canvas or Grok Bot).");
+    expect(SOV_DELIVERY_ASK).toContain("2. As an Excel file (.xlsx) or a PDF.");
+    expect(SOV_DELIVERY_ASK).toContain("3. As a shared link (a Claude artifact, ChatGPT canvas or Grok Bot spreadsheet that anyone with the link can open).");
     expect(SOV_DELIVERY_BLOCK).toContain(SOV_DELIVERY_ASK);
     expect(wf).toContain("sovDeliveryBlock(audience),");
   });
-  it("links are team only, owners get Excel or PDF", () => {
-    expect(SOV_DELIVERY_BLOCK).toContain("for team members only");
-    expect(SOV_DELIVERY_BLOCK).toContain("never an artifact or canvas link");
-    expect(SOV_DELIVERY_BLOCK).toContain(SOV_OWNER_REDIRECT);
+  it("0.8.8: shared links are allowed for any audience", () => {
+    expect(SOV_DELIVERY_BLOCK).toContain("anyone with the link");
+    expect(SOV_DELIVERY_BLOCK).not.toMatch(/team members only|never an artifact or canvas link/);
   });
   it("never types passwords and never sends", () => {
     expect(SOV_DELIVERY_BLOCK).toContain("Never ask for, type or store a password");
@@ -41,7 +40,7 @@ describe("0.8.2 SOV delivery step", () => {
     expect(SOV_DELIVERY_BLOCK).toContain("Claude: no narration");
     expect(SOV_DELIVERY_BLOCK).toContain("Never hold the card back while you ask.");
   });
-  it("version is 0.8.6", () => expect(ATHENA_VERSION).toBe("0.8.7"));
+  it("version is 0.8.6", () => expect(ATHENA_VERSION).toBe("0.8.8"));
 });
 
 describe("0.8.2 cost codes and spec sections on SOV lines", () => {

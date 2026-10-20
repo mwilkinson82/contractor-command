@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { CHART_PALETTE, SOV_CHART_RULE, SOV_DELIVERY_BLOCK, SOV_DELIVERY_STRUCTURED_CLIENT, SOV_LINK_HARD_NO, SOV_LINK_RULE_TEXT, sovChart, visibleProblems } from "./visible";
+import { CHART_PALETTE, SOV_CHART_RULE, SOV_DELIVERY_BLOCK, SOV_DELIVERY_STRUCTURED_CLIENT, sovChart, visibleProblems } from "./visible";
 import { sweepDupNote } from "./sweep";
 import { dedupeNotices } from "./contacts";
 import { ATHENA_VERSION } from "./server-info-branding";
@@ -8,15 +8,12 @@ import { ATHENA_VERSION } from "./server-info-branding";
 const src = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8");
 
 describe("0.8.7 owner link hard no, SOV chart, date sweep", () => {
-  it("owner/client chat link is a hard no with no override offer", () => {
-    expect(SOV_LINK_HARD_NO).toContain("HARD NO");
-    expect(SOV_LINK_HARD_NO).toContain("never offer to override");
-    expect(SOV_DELIVERY_STRUCTURED_CLIENT.link_hard_no).toBe(true);
-    expect(SOV_DELIVERY_STRUCTURED_CLIENT.never_offer_override).toBe(true);
-    expect(SOV_DELIVERY_BLOCK).toContain(SOV_LINK_HARD_NO);
-    expect(SOV_LINK_RULE_TEXT).toContain("no exceptions");
-    expect(visibleProblems(SOV_LINK_RULE_TEXT)).toEqual([]);
-    expect(src("./tools/workflow-tools.ts")).toContain("SOV_LINK_HARD_NO,");
+  it("0.8.8: no owner-link hard no; shared link allowed for every audience", () => {
+    const sc = SOV_DELIVERY_STRUCTURED_CLIENT as Record<string, unknown>;
+    expect(sc.link_hard_no).toBeUndefined();
+    expect(sc.never_offer_override).toBeUndefined();
+    expect(SOV_DELIVERY_BLOCK).not.toMatch(/HARD NO|no exceptions|team only/i);
+    expect(src("./tools/workflow-tools.ts")).not.toContain("SOV_LINK_HARD_NO");
   });
   it("report sov carries a required bar chart in the fixed palette", () => {
     const c = sovChart([{ item_no: "26.01", cost_code: "26-010", description: "Gear", scheduled_value: 1000, scheduled_value_display: "$1,000.00" }]);
@@ -49,5 +46,5 @@ describe("0.8.7 owner link hard no, SOV chart, date sweep", () => {
     expect(w).toContain("sweep: args.date_sweep === true");
     expect(w).toContain("Same notice also logged as: ${d.map((x) => displayRef(x))");
   });
-  it("version is 0.8.7", () => expect(ATHENA_VERSION).toBe("0.8.7"));
+  it("version is 0.8.7", () => expect(ATHENA_VERSION).toBe("0.8.8"));
 });

@@ -20,6 +20,15 @@ const GATEWAY_SECTIONS = [
   },
 ] as const;
 
+const ATHENA_ACCENTS = {
+  "--color-signal": "#2563EB",
+  "--color-clay": "#2563EB",
+  "--color-primary": "#2563EB",
+  "--color-primary-foreground": "#FFFFFF",
+  "--color-ink": "#FFFFFF",
+  "--color-ring": "rgb(37 99 235 / 0.4)",
+} as React.CSSProperties;
+
 /**
  * Shared public shell for every authentication state. The Hub is the command
  * center for the complete ALP operating system, so this shell orients the user
@@ -40,18 +49,19 @@ export function AuthCard({
 }) {
   if (brand === "athena") {
     return (
-      <main className="min-h-screen bg-[#F2EFE7] px-4 py-10 text-[#171919] sm:py-16">
+      // 0.8.8: Athena blue brand. Accent tokens are re-pointed to #2563EB inside the Athena shell only; the Hub keeps its own.
+      <main
+        className="min-h-screen bg-[#EFF6FF] px-4 py-10 text-[#1F2329] sm:py-16"
+        style={ATHENA_ACCENTS}
+      >
         <div className="mx-auto w-full max-w-lg">
           <img
-            src="/brand/athena/athena-wordmark-primary.svg"
-            alt="Athena"
-            className="mx-auto h-auto w-56 sm:w-64"
+            src="/brand/athena/athena-lockup-blue.svg"
+            alt="Athena powered by ALP"
+            className="mx-auto h-auto w-64 sm:w-80"
           />
-          <p className="mt-3 text-center text-xs tracking-[0.18em] text-[#343635]">
-            POWERED BY ALP
-          </p>
-          <section className="mt-10 rounded-2xl border border-[#343635]/20 bg-background p-6 text-foreground shadow-sm sm:p-9">
-            <div className="mb-6 h-1 w-10 bg-[#B9512C]" aria-hidden="true" />
+          <section className="mt-10 rounded-2xl border border-[#2563EB]/20 bg-white p-6 text-foreground shadow-sm sm:p-9">
+            <div className="mb-6 h-1 w-10 bg-[#2563EB]" aria-hidden="true" />
             <h1 className="font-display text-3xl leading-tight">{title}</h1>
             {subtitle && (
               <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{subtitle}</p>
@@ -63,7 +73,7 @@ export function AuthCard({
           </section>
           <a
             href="mailto:support@alpcontractorcircle.com"
-            className="mt-6 block text-center text-xs text-[#343635] underline underline-offset-4"
+            className="mt-6 block text-center text-xs text-[#2563EB] underline underline-offset-4"
           >
             Need help?
           </a>

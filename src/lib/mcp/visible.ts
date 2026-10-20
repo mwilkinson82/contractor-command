@@ -47,11 +47,15 @@ function sentences(line: string): string[] {
   return line.split(/(?<=[.!?])\s+(?=[A-Z"(])/);
 }
 
+/** 0.8.8: lines that start with "REQUIRED:" are pinned host directives and are never moved into guidance. */
+export const REQUIRED_LINE_RE = /^REQUIRED:/;
+
 export function splitGuidance(text: string): { visible: string; guidance: string[] } {
   const guidance: string[] = [];
   const out: string[] = [];
   for (const line of text.split("\n")) {
-    if (!GUIDANCE_RE.test(line)) {
+    // 0.8.8: pinned REQUIRED lines stay at the top of the visible text (Claude skips guidance it can't see there).
+    if (!GUIDANCE_RE.test(line) || REQUIRED_LINE_RE.test(line)) {
       out.push(line);
       continue;
     }
@@ -159,22 +163,16 @@ export const JOB_SETUP_SOFTWARE_BLOCK = [
 export const SOV_DELIVERY_ASK = [
   "Where do you want this SOV to live?",
   "1. In your project software (Overwatch, Buildertrend, Procore, or another tool). I'll enter it there through the browser after you sign in.",
-  "2. As an Excel file (.xlsx). I'll create it and bring up an email for you to review, with the file attached.",
-  "3. As a shared spreadsheet in this chat (a Claude artifact, ChatGPT canvas or Grok Bot). I'll bring up an email with the link for your team.",
+  "2. As an Excel file (.xlsx) or a PDF. I'll create it and bring up an email for you to review, with the file attached.",
+  "3. As a shared link (a Claude artifact, ChatGPT canvas or Grok Bot spreadsheet that anyone with the link can open). I'll bring up an email with the link.",
 ].join("\n");
-/** 0.8.6: the owner/client SOV never offers the chat link; options 1 and 2 only. */
-export const SOV_DELIVERY_ASK_CLIENT = SOV_DELIVERY_ASK.split("\n").slice(0, 3).join("\n");
-export const sovDeliveryAsk = (audience: "internal" | "client") => (audience === "client" ? SOV_DELIVERY_ASK_CLIENT : SOV_DELIVERY_ASK);
-export const SOV_OWNER_REDIRECT = "For the owner, I'll send a clean Excel or PDF instead, since a chat link doesn't look professional.";
+/** 0.8.8: every audience (owner, client, CM or team) gets the same three options; the client alias stays for callers. */
+export const SOV_DELIVERY_ASK_CLIENT = SOV_DELIVERY_ASK;
+export const sovDeliveryAsk = (_audience: "internal" | "client") => SOV_DELIVERY_ASK;
 export const SOV_NOT_NOW_DAYS = 3;
-/** 0.8.4: member-facing link rule, printed under the delivery question in the report text. */
-export const SOV_LINK_RULE_TEXT = "Chat links are for your team only. The owner always gets a clean Excel file or a PDF. There are no exceptions.";
-/** 0.8.7: the owner/client chat link is a hard no. Tool text guidance and structuredContent both carry it. */
-export const SOV_LINK_HARD_NO =
-  "HARD NO, every host including Claude: an artifact, canvas or chat link never goes to the owner, the owner's rep or any client. If the member asks for one, refuse in one line and offer the Excel file or a PDF. Never offer the link anyway, never offer to override or bend the rule, never ask whether they want to override it, and never build an owner copy with a link or send button. Do not write anything like \"or the shared link anyway if you're fine overriding that rule\". The member cannot waive this.";
 /** 0.8.7: report sov always comes with a bar chart of scheduled value by line, in the fixed palette. */
 export const SOV_CHART_RULE =
-  "REQUIRED, every host (Claude, ChatGPT, Grok and any other): draw a bar chart of the SOV from structuredContent.sov.chart: one bar per line (x: the line label, y: scheduled value), in the order given, placed directly under the SOV table and before the delivery question. Set the colors explicitly: bars #2563EB; axes, gridlines and labels in the grays #6B7280, #9CA3AF, #D1D5DB and #F3F4F6. Never use the host's default palette, and never red, rose, pink, orange or amber. Money labels with cents (value_display). No chart title text beyond \"Scheduled value by line\" and no extra commentary.";
+  "REQUIRED, every host (Claude, ChatGPT, Grok and any other): draw a bar chart of the SOV from structuredContent.sov.chart: one bar per line (x: the line label, y: scheduled value), in the order given, placed directly under the SOV table and before the delivery question. Set the colors explicitly: bars #2563EB; axes, gridlines and labels in the grays #6B7280, #9CA3AF, #D1D5DB and #F3F4F6, with alternating gray bands (chart.band_colors) behind the bars; ChatGPT and every other host must show the gray as well as the blue. Never use the host's default palette, and never red, rose, pink, orange or amber. Money labels with cents (value_display). No chart title text beyond \"Scheduled value by line\" and no extra commentary.";
 export function sovChart(rows: { item_no: string; cost_code: string | null; description: string | null; scheduled_value: number; scheduled_value_display: string }[]) {
   return {
     required: true,
@@ -184,8 +182,26 @@ export function sovChart(rows: { item_no: string; cost_code: string | null; desc
     y_label: "Scheduled value",
     bar_color: CHART_PALETTE[0],
     palette: [...CHART_PALETTE],
+    // 0.8.8: gray is part of every chart, not optional: alternating gray bands behind the bars, gray grid, axes and labels.
+    band_colors: ["#F3F4F6", "#FFFFFF"],
+    grid_color: "#D1D5DB",
+    axis_color: "#6B7280",
+    label_color: "#6B7280",
+    total_bar_color: "#9CA3AF",
     bars: rows.map((r) => ({ label: `${r.item_no}${r.cost_code ? ` (${r.cost_code})` : ""}`, description: r.description, value: r.scheduled_value, value_display: r.scheduled_value_display })),
   };
+}
+/**
+ * 0.8.8: short imperative lines pinned at the TOP of the report sov text content (not only guidance or
+ * structuredContent), because Claude skips guidance. Chart data is inline;
+ * the email draft starts with its To line.
+ */
+export function sovRequiredTop(rows: { item_no: string; cost_code: string | null; scheduled_value_display: string }[], toLine: string): string {
+  const data = rows.map((r) => `${r.item_no}${r.cost_code ? ` (${r.cost_code})` : ""} ${r.scheduled_value_display}`).join("; ");
+  return [
+    `REQUIRED: Draw this bar chart now under the table. Bars blue #2563EB; gray bands #F3F4F6 behind them; gray grid #D1D5DB; gray axes and labels #6B7280. No other colors. Data: ${data}.`,
+    `REQUIRED: Any email draft for this SOV starts with "${toLine}" and shows a To field; if there is no address, leave To blank and ask for it in this same reply.`,
+  ].join("\n");
 }
 /** 0.8.4: the delivery step as data, in report sov structuredContent, so hosts can't skip it. */
 export const SOV_DELIVERY_STRUCTURED = {
@@ -193,27 +209,17 @@ export const SOV_DELIVERY_STRUCTURED = {
   ask: SOV_DELIVERY_ASK,
   options: [
     { n: 1, kind: "project_software", note: "Member signs in themselves; never ask for or type a password." },
-    { n: 2, kind: "xlsx_email", note: "Build the .xlsx, then show an email card with it attached; To blank and asked in the same reply if no address." },
-    { n: 3, kind: "chat_link_team_only", note: "Artifact or canvas link for team members only." },
+    { n: 2, kind: "xlsx_or_pdf_email", note: "Build a real .xlsx or PDF, then show an email card with it attached; To blank and asked in the same reply if no address." },
+    { n: 3, kind: "shared_link", note: "Claude artifact, ChatGPT canvas or Grok Bot spreadsheet shared as 'anyone with the link', then an email card with the link. Any audience: owner, client, CM or team." },
   ],
-  link_rule: "Artifact or canvas links go to team members only, never to the owner or owner's rep. Refuse an owner link and offer the Excel or a PDF.",
-  link_hard_no: true,
-  never_offer_override: true,
-  owner_link_rule: SOV_LINK_HARD_NO,
-  owner_redirect: SOV_OWNER_REDIRECT,
-  link_rule_text: SOV_LINK_RULE_TEXT,
+  link_rule: "Shared links are fine for any audience (owner, client, CM or team). Set sharing to anyone with the link.",
 } as const;
-/** 0.8.6: owner/client SOV delivery data: option 3 (chat link) is dropped entirely. */
-export const SOV_DELIVERY_STRUCTURED_CLIENT = {
-  ...SOV_DELIVERY_STRUCTURED,
-  audience: "client",
-  ask: SOV_DELIVERY_ASK_CLIENT,
-  options: SOV_DELIVERY_STRUCTURED.options.filter((o) => o.n !== 3),
-} as const;
+/** 0.8.8: owner/client SOV delivery data: same three options as the team SOV. */
+export const SOV_DELIVERY_STRUCTURED_CLIENT = { ...SOV_DELIVERY_STRUCTURED, audience: "client" } as const;
 export const sovDeliveryStructured = (audience: "internal" | "client") => (audience === "client" ? SOV_DELIVERY_STRUCTURED_CLIENT : SOV_DELIVERY_STRUCTURED);
 /** 0.8.3: the delivery question is a required next step after every SOV output, in every host. */
 export const SOV_DELIVERY_REQUIRED =
-  "- REQUIRED NEXT STEP, every host including Claude: every reply that shows the SOV (table, artifact, canvas or file) must end with the delivery question above, word for word, as numbered options (three for the team SOV; two for the owner/client SOV, which never offers the chat link). Never replace it with another question (not \"Overwatch, P6, or Excel?\", not \"client copy?\"), never skip it, never shorten it, and never put a date sweep, summary or note before the table or between the table and the question.";
+  "- REQUIRED NEXT STEP, every host including Claude: every reply that shows the SOV (table, artifact, canvas or file) must end with the delivery question above, word for word, as three numbered options, for every audience (owner, client, CM or team). Never replace it with another question (not \"Overwatch, P6, or Excel?\", not \"client copy?\"), never skip it, never shorten it, and never put a date sweep, summary or note before the table or between the table and the question.";
 
 /** Hidden guidance on report sov results. Instruction text only: Athena sends nothing and stores no file. */
 export const SOV_DELIVERY_BLOCK = [
@@ -221,10 +227,8 @@ export const SOV_DELIVERY_BLOCK = [
   `- Right after the line-item SOV table, ask exactly (this is the one allowed text after the table):\n${SOV_DELIVERY_ASK}`,
   SOV_DELIVERY_REQUIRED,
   "- Option 1: open the tool's sign-in page and let the member sign in themselves. Never ask for, type or store a password. Enter the lines, then show a side-by-side check against the SOV total before anything is saved.",
-  "- Option 2: build a real .xlsx in the house SOV layout: title block (company, job, owner, contract value, date), then item, division, spec section, description, cost code, scheduled value, retainage % and total, subtotals by division, retainage and a grand total that ties to the contract. Then show the email draft card with the file attached in that same reply. Ask who it goes to (team members, the owner, or both); if an address is missing, leave To blank on the card and ask for it in the same reply.",
-  "- Option 3: create the artifact, canvas or Grok Bot spreadsheet, then show an email card with the link, for team members only. Never list option 3 on an owner or client SOV (audience client): show options 1 and 2 only, exactly as in structuredContent.delivery.ask.",
-  `- Owners and owner's reps get the Excel or a PDF only, never an artifact or canvas link. If the member picks option 3 for the owner, say exactly: "${SOV_OWNER_REDIRECT}" Then offer option 2 or a PDF. Never offer the link anyway or any way to override this.`,
-  `- ${SOV_LINK_HARD_NO}`,
+  "- Option 2: build a real .xlsx (or a PDF if the member wants one) in the house SOV layout: title block (company, job, owner, contract value, date), then item, division, spec section, description, cost code, scheduled value, retainage % and total, subtotals by division, retainage and a grand total that ties to the contract. Then show the email draft card with the file attached in that same reply. Ask who it goes to (team members, the owner, or both); if an address is missing, leave To blank on the card and ask for it in the same reply.",
+  "- Option 3: create the Claude artifact, ChatGPT canvas or Grok Bot spreadsheet, set sharing to anyone with the link, then show an email card with the link. This is fine for any audience: owner, owner's rep, client, CM or team.",
   "- Spec sections: use structuredContent.sov.line_items spec_section as given. If it's blank, leave the cell blank; never invent a section number. When structuredContent.sov.specs_note is set, it is the one line allowed under the table (chat and file): spec sections will be cited once specs are uploaded.",
   "- Cost codes: always show a Cost Code column right after the line no. (item number) in the chat table, the artifact or canvas, and the file, filled from line_items cost_code exactly as given (e.g. 26-010). Never replace the cost code with the item number. Blank only when Athena has none for that line.",
   "- Money: every scheduled value and total with cents (line_items scheduled_value_display, e.g. $1,400,000.00). Never round or drop the .00.",
@@ -234,9 +238,9 @@ export const SOV_DELIVERY_BLOCK = [
   "- Never send anything yourself. The member reviews the email card and presses Send.",
   `- If the member says "not now", leave the SOV in the chat and add an open item to deliver it within ${SOV_NOT_NOW_DAYS} days (intake section open_item).`,
 ].join("\n");
-/** 0.8.6: the owner/client SOV guidance asks the two-option question. */
-export const SOV_DELIVERY_BLOCK_CLIENT = SOV_DELIVERY_BLOCK.replace(SOV_DELIVERY_ASK, SOV_DELIVERY_ASK_CLIENT);
-export const sovDeliveryBlock = (audience: "internal" | "client") => (audience === "client" ? SOV_DELIVERY_BLOCK_CLIENT : SOV_DELIVERY_BLOCK);
+/** 0.8.8: one guidance block for every audience. */
+export const SOV_DELIVERY_BLOCK_CLIENT = SOV_DELIVERY_BLOCK;
+export const sovDeliveryBlock = (_audience: "internal" | "client") => SOV_DELIVERY_BLOCK;
 
 /** One short, member-safe display line kept in the visible text, for hosts that read only the visible text. */
 export const VISIBLE_STYLE_LINE = "Display: blue (#2563EB) accent only, no orange; one caveat line at most.";
@@ -266,6 +270,7 @@ export function guide<R>(r: R, ...lines: string[]): R {
 export function visibleProblems(text: string): string[] {
   const bad: string[] = [];
   for (const line of text.split("\n")) {
+    if (REQUIRED_LINE_RE.test(line)) continue;
     const g = line.match(GUIDANCE_RE);
     if (g) bad.push(`instruction: "${g[0]}" in: ${line.trim().slice(0, 160)}`);
     const c = line.match(INTERNAL_CODE_RE) ?? line.match(SNAKE_RE);

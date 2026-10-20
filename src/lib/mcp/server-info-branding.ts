@@ -13,20 +13,21 @@ import { ATHENA_ICON_64_PNG_BASE64 } from "./athena-icon-64";
 
 const ORIGIN = "https://app.meetathena.io";
 
+// 0.8.8: blue mono mark (new URLs so ChatGPT/Claude drop the cached orange icon).
 // Smallest first: ChatGPT shows a broken icon when the fetched icon is too
 // large (reported for ~13 KB files; our 512 PNG is ~14 KB).
 export const ATHENA_SERVER_ICONS = Object.freeze([
-  { src: `${ORIGIN}/brand/athena/athena-icon-64.png`, mimeType: "image/png", sizes: ["64x64"] },
+  { src: `${ORIGIN}/brand/athena/athena-mono-blue-64.png`, mimeType: "image/png", sizes: ["64x64"] },
   // Same 64px mark inline (SEP-973 allows data: URIs) for clients that won't fetch a cross-origin icon.
   { src: `data:image/png;base64,${ATHENA_ICON_64_PNG_BASE64}`, mimeType: "image/png", sizes: ["64x64"] },
-  { src: `${ORIGIN}/brand/athena/athena-primary-512.png`, mimeType: "image/png", sizes: ["512x512"] },
-  { src: `${ORIGIN}/brand/athena/athena-mark-primary.svg`, mimeType: "image/svg+xml", sizes: ["any"] },
+  { src: `${ORIGIN}/brand/athena/athena-mono-blue-512.png`, mimeType: "image/png", sizes: ["512x512"] },
+  { src: `${ORIGIN}/brand/athena/athena-mark-mono-blue.svg`, mimeType: "image/svg+xml", sizes: ["any"] },
 ]);
 
 export const ATHENA_WEBSITE_URL = ORIGIN;
 
 /** serverInfo.version and the "Athena vX" line on onboarding. */
-export const ATHENA_VERSION = "0.8.7";
+export const ATHENA_VERSION = "0.8.8";
 
 /** MCP 2025-11-25 Implementation.description. There is no publisher field in the spec. */
 export const ATHENA_DESCRIPTION = "Athena powered by ALP, construction agents. Built by ALP.";

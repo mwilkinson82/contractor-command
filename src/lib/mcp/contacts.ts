@@ -117,20 +117,29 @@ export function dedupeNotices<T extends { id: string; action: string; clause_sou
   return { items: keep, duplicates: dups };
 }
 
-/** Email card recipient for any result that leads to an email: the known contact, or an honest ask. Never "Dear Project Manager". */
+/**
+ * Email card recipient for any result that leads to an email: the known contact, or an honest ask. Never "Dear Project Manager".
+ * 0.8.8: the first line is always "To: <email>" or "To: (ask: ...)", and structuredContent carries to_field so every
+ * host (Claude included) shows a To field on the draft and asks for a missing address in the same reply.
+ */
 export function emailContact(c: JobContact | null) {
   if (c) {
     const first = c.name.split(/\s+/)[0];
+    const ask = c.email ? null : `What's ${c.name}'s email?`;
+    const toLine = c.email ? `To: ${c.email}` : `To: (ask: what's ${c.name}'s email?)`;
     return {
-      structured: { known: true, name: c.name, role: c.role, company: c.company, email: c.email, greeting: `Hi ${first},`, to: c.email ?? null, ask: c.email ? null : `What's ${c.name}'s email?` },
-      text: `Send to: ${contactText(c)}${c.email ? "" : ` (no email on file — what's ${c.name}'s email?)`}. Greeting: "Hi ${first},"`,
+      structured: { known: true, name: c.name, role: c.role, company: c.company, email: c.email, greeting: `Hi ${first},`, to: c.email ?? null, ask,
+        to_line: toLine, to_field: { show: true, label: "To", value: c.email ?? "", blank: !c.email }, ask_in_same_reply: !c.email },
+      text: `${toLine}\nSend to: ${contactText(c)}${c.email ? "" : ` (no email on file — what's ${c.name}'s email?)`}. Greeting: "Hi ${first},"`,
     };
   }
+  const ask = "Who should this go to? (name and email)";
   return {
-    structured: { known: false, name: null, role: null, company: null, email: null, greeting: null, to: null, ask: "Who should this go to? (name and email)" },
-    text: "No contact saved for this job. Who should this go to? (name and email)",
+    structured: { known: false, name: null, role: null, company: null, email: null, greeting: null, to: null, ask,
+      to_line: "To: (ask: who should this go to? name and email)", to_field: { show: true, label: "To", value: "", blank: true }, ask_in_same_reply: true },
+    text: `To: (ask: who should this go to? name and email)\nNo contact saved for this job. ${ask}`,
   };
 }
 
 export const EMAIL_CONTACT_RULE =
-  "- Email cards: fill To and the greeting from structuredContent.email_contact (name, role, email). If email_contact.known is false or email is empty, leave To blank and ask who to send to in the same reply. Never write \"Dear Project Manager\", \"Dear Sir/Madam\" or any role in place of a name.";
+  "- Email cards: fill To and the greeting from structuredContent.email_contact (name, role, email). If email_contact.known is false or email is empty, leave To blank and ask who to send to in the same reply. Never write \"Dear Project Manager\", \"Dear Sir/Madam\" or any role in place of a name. REQUIRED in every host, Claude included: every email draft or card shows a To field (email_contact.to_field), filled or blank. Never show a draft without a To field and never offer a send button with no recipient. If the address is missing, show To blank and ask for it in that same reply.";

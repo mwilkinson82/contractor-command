@@ -1,3 +1,4 @@
+import { siteIconResponse } from "../site-icons";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -57,7 +58,7 @@ describe("brandInitializeResponse", () => {
     const res = new Response(sse, { status: 200, headers: { "content-type": "text/event-stream" } });
     const text = await (await brandInitializeResponse(res, [3])).text();
     const data = JSON.parse(text.split("\n").find((l) => l.startsWith("data:"))!.slice(5));
-    expect(data.result.serverInfo.icons[0].src).toBe("https://app.meetathena.io/brand/athena/athena-icon-64.png");
+    expect(data.result.serverInfo.icons[0].src).toBe("https://app.meetathena.io/brand/athena/athena-mono-blue-64.png");
     expect(text.startsWith("event: message\n")).toBe(true);
     expect(text.endsWith("\n\n")).toBe(true);
   });
@@ -139,10 +140,16 @@ describe("icon files", () => {
     expect(b.readUInt32BE(16)).toBe(size);
     expect(b.readUInt32BE(20)).toBe(size);
   });
-  it("every declared icon points at a file in public/brand/athena", () => {
+  it("every declared icon is served (public file, site-icons PNG or inline)", () => {
     for (const icon of ATHENA_SERVER_ICONS) {
-      if (icon.src.endsWith("/athena-icon-64.png") || icon.src.startsWith("data:")) continue; // served by a route / inline, not public/
-      const name = icon.src.split("/brand/athena/")[1];
+      if (icon.src.startsWith("data:")) continue;
+      const path = new URL(icon.src).pathname;
+      if (icon.mimeType === "image/png") {
+        const res = siteIconResponse(new Request(`https://app.meetathena.io${path}`));
+        expect(res?.headers.get("content-type")).toBe("image/png");
+        continue;
+      }
+      const name = path.split("/brand/athena/")[1];
       expect(() => png(name)).not.toThrow();
     }
   });

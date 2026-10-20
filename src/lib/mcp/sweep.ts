@@ -48,7 +48,7 @@ export async function runSweep(sb: Sb, scope_: SweepScope = {}): Promise<{ text:
   const byJob = new Map(js.filter((j) => scope.get(j.id)).map((j) => [j.id, j]));
   const single = scope_.jobNumber && byJob.size === 1 ? [...byJob.values()][0] : null;
   const who = single ? await whoForJob(sb, single.company_id, single.id) : (v: string | null) => v ?? "unknown";
-  const lines: { bucket: SweepItem["bucket"]; days: number; text: string; extra: string[] }[] = [];
+  const lines: { bucket: SweepItem["bucket"]; days: number; title: string; when: string; due: string; meta: string; extra: string[] }[] = [];
   const out: SweepItem[] = [];
   const tzNotes: string[] = [];
   const clauseItems = new Set<string>();
@@ -76,7 +76,7 @@ export async function runSweep(sb: Sb, scope_: SweepScope = {}): Promise<{ text:
     const zone = j.time_zone ? tz : `${tz}, assumed`;
     lines.push({
       bucket, days,
-      text: `${j.job_number} – ${d.label}${d.clause_ref ? ` (${d.clause_ref})` : ""}: ${when(days)} — ${c.due} (${zone})`,
+      title: `${j.job_number} – ${d.label}${d.clause_ref ? ` (${d.clause_ref})` : ""}`, when: when(days), due: `${c.due} (${zone})`, meta: "",
       extra: [`Math: ${c.math}.`, ...c.alternatives.map((a) => `Also shown: ${a}.`), ...c.precautions],
     });
     out.push({ job_id: j.id, job_number: j.job_number, ref: `deadline:${d.id}`, item_id: d.item_id, item_type: "deadline", due: c.due, days, bucket });
@@ -98,25 +98,31 @@ export async function runSweep(sb: Sb, scope_: SweepScope = {}): Promise<{ text:
     if (client || scope.get(j.id) !== "full") action = action.replace(MONEY, "[amount withheld]");
     lines.push({
       bucket, days,
-      text: `${action}: ${when(days)} — ${it.needed_by} (${j.time_zone ? tz : `${tz}, assumed`})${client ? "" : ` | Accountable: ${who(it.accountable)}`}${sweepDupNote(swept.duplicates.get(it.id), client)}`,
+      title: action, when: when(days), due: `${it.needed_by} (${j.time_zone ? tz : `${tz}, assumed`})`,
+      meta: `${client ? "" : `Accountable: ${who(it.accountable)}`}${sweepDupNote(swept.duplicates.get(it.id), client)}`.replace(/^ \| /, ""),
       extra: [],
     });
     out.push({ job_id: j.id, job_number: j.job_number, item_ref: itemRef(it), ref: `item:${it.id}`, item_id: it.id, item_type: it.item_type ?? "deadline", due: it.needed_by, days, bucket });
   }
 
-  if (!lines.length && !tzNotes.length) return { text: "DATE SWEEP: nothing overdue, due today, or due in the next 14 days.", items: [] };
+  // 0.8.8: the sweep is a short card list (heading, one bold line per date, a quiet detail line), not a text dump.
+  if (!lines.length && !tzNotes.length) return { text: "**Date sweep** · nothing overdue, due today, or due in the next 14 days.", items: [] };
   lines.sort((a, b) => a.days - b.days);
   const section = (b: SweepItem["bucket"], title: string) => {
     const ls = lines.filter((l) => l.bucket === b);
     if (!ls.length) return [];
-    return [title, ...ls.flatMap((l) => [`- ${l.text}`, ...l.extra.map((e) => `    ${e}`)])];
+    return [`**${title} (${ls.length})**`, ...ls.flatMap((l) => [
+      `- **${l.title}** · ${l.when} · ${l.due}`,
+      ...(l.meta ? [`  ${l.meta}`] : []),
+      ...l.extra.map((e) => `  ${e}`),
+    ])];
   };
   const body = [
-    "DATE SWEEP (every date in the job's time zone)",
+    "**Date sweep** · dates in the job's time zone",
     ...tzNotes.map((t) => `- ${t}`),
-    ...section("overdue", "OVERDUE"),
-    ...section("today", "DUE TODAY"),
-    ...section("upcoming", "UPCOMING (next 14 days)"),
+    ...section("overdue", "Overdue"),
+    ...section("today", "Due today"),
+    ...section("upcoming", "Next 14 days"),
   ];
   try {
     await sb.rpc("mcp_log_surfaced", {
