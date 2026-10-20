@@ -3,6 +3,7 @@ import { createStart, createMiddleware } from "@tanstack/react-start";
 import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 import { brandInitializeResponse, initializeRequestIds, isMcpPost } from "./lib/mcp/server-info-branding";
+import { isTrustedHost } from "./lib/trusted-hosts";
 
 const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
   // Bypass app middleware for /lovable/* — these routes (webhooks, cron,
@@ -36,21 +37,6 @@ const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
  *   - external webhook + cron endpoints under /api/public/* and /lovable/*
  *     which authenticate themselves via signatures / shared secrets.
  */
-const TRUSTED_HOST_SUFFIXES = [
-  ".lovable.app",
-  ".lovableproject.com",
-  ".lovable.dev",
-];
-const TRUSTED_HOSTS = new Set([
-  "app.alpcontractorcircle.com",
-  "contractor-command.lovable.app",
-]);
-
-function isTrustedHost(host: string): boolean {
-  if (TRUSTED_HOSTS.has(host)) return true;
-  return TRUSTED_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix));
-}
-
 const csrfOriginGuard = createMiddleware().server(async ({ next, request }) => {
   const method = request.method.toUpperCase();
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") {
