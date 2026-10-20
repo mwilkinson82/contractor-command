@@ -13,7 +13,7 @@
   "mcp": {
     "server": {
       "name": "athena",
-      "version": "0.8.9",
+      "version": "0.8.10",
       "title": "Athena powered by ALP, construction agents"
     },
     "tools": [
@@ -1840,13 +1840,14 @@
               ]
             },
             "tia": {
-              "description": "cpm: the delay analysis dates from the forward pass.",
+              "description": "cpm: the delay fragnet analysis dates from the forward pass.",
               "type": "object",
               "properties": {
-                "fragment": {
+                "fragnet": {
                   "type": "string",
                   "minLength": 1,
-                  "maxLength": 40
+                  "maxLength": 40,
+                  "description": "The delay fragnet ID, e.g. FRAG-01."
                 },
                 "prior_completion": {
                   "type": "string",
@@ -1856,7 +1857,8 @@
                   "type": "string",
                   "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
                 },
-                "fragment_only_completion": {
+                "fragnet_only_completion": {
+                  "description": "Completion with only this delay fragnet inserted.",
                   "anyOf": [
                     {
                       "type": "string",
@@ -1869,7 +1871,7 @@
                 }
               },
               "required": [
-                "fragment",
+                "fragnet",
                 "prior_completion",
                 "updated_completion"
               ]

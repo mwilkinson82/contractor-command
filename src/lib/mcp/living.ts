@@ -31,7 +31,8 @@ export type Activity = {
   owner_furnished?: boolean;
 };
 export type BillingMonth = { month: string; amount: number; kind: "actual" | "forecast" };
-export type Tia = { fragment: string; prior_completion: string; updated_completion: string; fragment_only_completion?: string | null };
+// 0.8.10: the scheduling term is "fragnet" (delay fragnet), never "fragment". Legacy saved keys are still read.
+export type Tia = { fragnet?: string; prior_completion: string; updated_completion: string; fragnet_only_completion?: string | null; /** legacy */ fragment?: string; /** legacy */ fragment_only_completion?: string | null };
 export type LivingData = {
   activities?: Activity[];
   billing?: { billed_to_date?: number | null; months?: BillingMonth[] };
@@ -84,15 +85,17 @@ export const forecastTotal = (b: LivingData["billing"]) => fromCents((b?.months 
 const day = (s: string) => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
 export const calendarDays = (from: string, to: string) => Math.round((day(to) - day(from)) / 86_400_000);
 const short = (s: string) => new Date(day(s)).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
-export type TiaResult = { fragment: string; prior_completion: string; updated_completion: string; impact_cd: number; fragment_only_cd: number | null; math: string; statement: string };
+export type TiaResult = { fragnet: string; prior_completion: string; updated_completion: string; impact_cd: number; fragnet_only_cd: number | null; math: string; statement: string };
 /** Computed server-side from the saved dates; never typed in by the host. */
 export function tiaResult(t: Tia | null | undefined): TiaResult | null {
   if (!t?.prior_completion || !t.updated_completion) return null;
   const impact = calendarDays(t.prior_completion, t.updated_completion);
-  const frag = t.fragment_only_completion ? calendarDays(t.fragment_only_completion, t.updated_completion) : null;
-  const math = `Updated completion ${short(t.updated_completion)} − prior completion ${short(t.prior_completion)} = ${impact} calendar days.${frag !== null ? ` Fragment-only impact: ${short(t.updated_completion)} − ${short(t.fragment_only_completion!)} = ${frag} CD.` : ""}`;
+  const fragnet = t.fragnet ?? t.fragment ?? "";
+  const only = t.fragnet_only_completion ?? t.fragment_only_completion ?? null;
+  const frag = only ? calendarDays(only, t.updated_completion) : null;
+  const math = `Updated completion ${short(t.updated_completion)} − prior completion ${short(t.prior_completion)} = ${impact} calendar days.${frag !== null ? ` Fragnet-only impact: ${short(t.updated_completion)} − ${short(only!)} = ${frag} CD.` : ""}`;
   const statement = impact > 0 ? `Impact pushes completion out ${impact} calendar days.` : `0 CD: float absorbed it.`;
-  return { fragment: t.fragment, prior_completion: t.prior_completion, updated_completion: t.updated_completion, impact_cd: impact, fragment_only_cd: frag, math, statement };
+  return { fragnet, prior_completion: t.prior_completion, updated_completion: t.updated_completion, impact_cd: impact, fragnet_only_cd: frag, math, statement };
 }
 
 // ---------- save checks ----------
