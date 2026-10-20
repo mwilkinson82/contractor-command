@@ -1,4 +1,4 @@
-import { SovMismatch, buildSov, retainagePct, sovLayout, sovSummaryText, type SovBrand } from "../sov";
+import { SovMismatch, buildSov, retainagePct, sovLayout, sovLineRows, sovSummaryText, type SovBrand, type SovView } from "../sov";
 import { ATHENA_VERSION } from "../server-info-branding";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
@@ -1035,6 +1035,7 @@ export const report = defineTool({
     audience: z.enum(["internal", "client"]).optional().describe("Default internal."),
     lookahead_id: laArg.optional().describe(`Only for a two-week lookahead report. ${LA_DESC}`),
     deliverable: z.enum(["setup", "sov"]).optional().describe("Default setup. sov: the schedule of values data and its layout recipe (full job access only; audience client for the copy sent to the owner)."),
+    sov_view: z.enum(["lines", "divisions"]).optional().describe("SOV only. Default lines: every SOV line item with its % of total. divisions: the division subtotal roll-up, only when the member asks for it."),
     include_summary: z.boolean().optional().describe("Setup report only. Default false: contract clauses word for word, then an offer to summarize. Set true only after the member asks for a plain-English summary."),
   },
   annotations: { ...READ, idempotentHint: true },
@@ -1048,7 +1049,7 @@ export const report = defineTool({
         return text(`${prefix(job)}${await renderReport(sb, la)}${revs.length ? `\n\n${revs.join("\n")}` : ""}`);
       }
       const audience = args.audience ?? "internal";
-      if (args.deliverable === "sov") return sovResult(sb, job, audience);
+      if (args.deliverable === "sov") return sovResult(sb, job, audience, args.sov_view ?? "lines");
       await audit(sb, job, "report", `view_setup_report_${audience}`, null);
       const body = await renderSetupReport(sb, job, audience, { includeSummary: args.include_summary === true });
       let iq = sb.from("mcp_open_items").select("id, section, check_key, item_type, commercial_type, category, action").eq("job_id", job.job_id).eq("status", "open");
@@ -1297,7 +1298,7 @@ export const contractTerms = defineTool({
 const sovFooterMissing = (c: { license_number?: string | null; contact_name?: string | null; contact_phone?: string | null; website?: string | null }) =>
   [["license number", c.license_number], ["contact name", c.contact_name], ["phone", c.contact_phone], ["website", c.website]].filter(([, v]) => !v).map(([k]) => k as string);
 
-async function sovResult(sb: Sb, job: Job, audience: "internal" | "client") {
+async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view: SovView = "lines") {
   // Dollars: full job access only (internal or for the owner, per Marshall 2026-10-19). Never the Super view or contract-only roles.
   // This is the only client-facing output that carries dollars; the client setup report keeps its no-dollars rule.
   if (job.scope === "super") throw new ToolError(READ_ONLY_MESSAGE);
@@ -1331,10 +1332,12 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client") {
   const today = new Date().toISOString().slice(0, 10);
   return guide(
     {
-      ...text(sovSummaryText(prefix(job), sov, brand, jr.data?.sov_basis ?? null, sovFooterMissing(c), audience)),
+      ...text(sovSummaryText(prefix(job), sov, brand, jr.data?.sov_basis ?? null, sovFooterMissing(c), audience, view)),
       structuredContent: {
         sov: {
           audience,
+          view,
+          line_items: sovLineRows(sov),
           header: { project: `${job.job_number} – ${job.name}`, prepared: today, contractor: c.name, basis: jr.data?.sov_basis ?? null, contract_sum: sov.summary.contract_total },
           ...sov,
           footer: sovLayout(brand).footer,
@@ -1343,5 +1346,6 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client") {
       },
     },
     "To produce the SOV file, use structuredContent.sov exactly: numbers, column set and layout recipe come from the server. Do not recompute or reorder.",
+    "Present the SOV as a spreadsheet with the line-item view by default (structuredContent.sov.line_items: line no., division, description, scheduled value, % of total, then the total that ties to the contract sum). Claude: an artifact table built from this result with no tool calls inside it; ChatGPT: a canvas or table; elsewhere: a table plus an offer to create an Excel file. White background, light gray header and division rows, blue #2563EB only on the total. Offer the division roll-up only if asked (report sov_view divisions).",
   );
 }
