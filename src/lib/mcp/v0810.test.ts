@@ -15,7 +15,7 @@ function files(dir: string): string[] {
 }
 
 describe("0.8.10", () => {
-  it("version is 0.8.10", () => expect(ATHENA_VERSION).toBe("0.8.10"));
+  it("version is 0.8.10", () => expect(ATHENA_VERSION).toBe("0.8.11"));
 
   it("fragnet, never fragment: delay result wording and tool schema", () => {
     const t = tiaResult({ fragnet: "FRAG-01", prior_completion: "2027-06-04", updated_completion: "2027-06-19", fragnet_only_completion: "2027-06-11" })!;
