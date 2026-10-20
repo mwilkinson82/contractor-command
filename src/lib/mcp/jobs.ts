@@ -10,6 +10,7 @@ import { ToolError } from "@lovable.dev/mcp-js";
 import { dbError, type Sb } from "./guard";
 import { withoutClaims } from "./internal-claims";
 import { clauseLine, isClaimClause, missingNotices, type ClauseRow, legacySourceLabel } from "./contract-clauses";
+import { noticeRequirements } from "./notice-plain";
 import { DEFAULT_TZ, dateIn, todayIn } from "./deadlines";
 
 export type Job = { job_id: string; job_number: string; name: string; company_id: string; scope?: "full" | "contract" | "super" };
@@ -289,6 +290,8 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
       out.push("   Contract clauses (exact contract text):");
       shownClauses.forEach((c) => out.push(`   - ${clauseLine(c)}`));
       if (!client) missingNotices(clauses).forEach((m) => out.push(`   - Missing: ${m.label} (to confirm)`));
+      // The PM always gets the notice requirements in plain words; the client copy never shows the gaps.
+      if (!client) noticeRequirements(clauses).lines.forEach((l) => out.push(`   ${l}`));
       const fs = facts.filter((f) => f.module === mod && f.status === "known");
       if (fs.length) {
         out.push("   Other saved terms (summary fields):");
@@ -300,6 +303,11 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
       // Contract summary fields never claim "document": only exact clause rows do.
       const legacy = mod === "contract"; // summary fields never claim "document", client or internal
       fs.forEach((f) => out.push(`   - ${f.key.replace(/_/g, " ")}: ${f.status === "known" ? `${show(f.value)} (${legacy ? legacySourceLabel(f.source) : f.source === "member_answer" ? "manual" : f.source.replace(/_/g, " ")})` : f.status}`));
+      if (legacy && !client) {
+        const nf = flags.find((f) => f.flag_key === "notice_requirements");
+        const flagNo = !!nf && effectiveFlag(nf.value, facts.find((x) => x.module === "contract" && x.key === FLAG_CLAUSE.notice_requirements)) === "no";
+        noticeRequirements([], { noticeFlagNo: flagNo }).lines.forEach((l) => out.push(`   ${l}`));
+      }
     }
     if (sectionItems.length) {
       out.push("   Open items:");

@@ -1237,7 +1237,7 @@
       {
         "name": "contract_terms",
         "title": "Read contract terms",
-        "description": "Read back a job's contract terms exactly as saved: each clause with its value and source (manual = typed by the member, document = read from the contract), unknown clauses, and the applicability flags (ON / OFF / UNKNOWN). Use this, not the setup report, when the member asks what terms are on file or to confirm terms they just entered. Read-only.",
+        "description": "Read back a job's contract terms exactly as saved: each clause with its value and source (manual = typed by the member, document = read from the contract), unknown clauses, the applicability flags (ON / OFF / UNKNOWN), and the notice requirements in plain words (for each event type: days to give notice and who it goes to, or exactly what the contract leaves out). Relay the notice requirements as written. Use this, not the setup report, when the member asks what terms are on file or to confirm terms they just entered. Read-only.",
         "annotations": {
           "readOnlyHint": true,
           "openWorldHint": false,
