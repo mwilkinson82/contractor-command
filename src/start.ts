@@ -4,6 +4,7 @@ import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 import { brandInitializeResponse, initializeRequestIds, isMcpPost } from "./lib/mcp/server-info-branding";
 import { isTrustedHost } from "./lib/trusted-hosts";
+import { appsRequests, rewriteAppsResponse } from "./lib/mcp/apps/rpc";
 
 const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
   // Bypass app middleware for /lovable/* — these routes (webhooks, cron,
@@ -130,8 +131,28 @@ const mcpServerInfoBranding = createMiddleware().server(async ({ next, request }
   }
 });
 
+/**
+ * Athena card views (MCP Apps / ChatGPT Apps SDK): resources capability, contract_terms UI _meta and the
+ * card templates. Runs after the allowlist gate; only 200 JSON-RPC results are rewritten.
+ */
+const mcpAppsResources = createMiddleware().server(async ({ next, request }) => {
+  if (!isMcpPost(request)) return next();
+  let reqs: ReturnType<typeof appsRequests> = new Map();
+  try {
+    reqs = appsRequests(await request.clone().text());
+  } catch {
+    reqs = new Map();
+  }
+  const result = await next();
+  if (reqs.size === 0) return result;
+  try {
+    return { ...result, response: await rewriteAppsResponse(result.response, reqs) };
+  } catch {
+    return result;
+  }
+});
+
 export const startInstance = createStart(() => ({
-  requestMiddleware: [errorMiddleware, mcpAllowlistGate, mcpServerInfoBranding, csrfOriginGuard],
+  requestMiddleware: [errorMiddleware, mcpAllowlistGate, mcpServerInfoBranding, mcpAppsResources, csrfOriginGuard],
   functionMiddleware: [attachSupabaseAuth],
 }));
-
