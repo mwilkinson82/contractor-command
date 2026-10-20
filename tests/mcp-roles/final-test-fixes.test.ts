@@ -145,3 +145,24 @@ describe("resolve_item: evidence prompt matches the rule", () => {
     expect(line).toMatch(/Needs confirming evidence or a dated member statement/);
   });
 });
+
+describe("client report: internal follow-up dates stay internal", () => {
+  test("Client-Facing Open Items keep contract dates and drop Athena's 'Needed by' dates", async () => {
+    await call("intake", { section: "create_job", job_number: "F-3", job_name: "TEST F-3" });
+    const d = await call("intake", { section: "deadline", job_number: "F-3", clause_key: "completion", clause_ref: "§5.1", label: "TEST substantial completion", fixed_date: "2026-12-04" });
+    expect(d.isError, d.text).toBe(false);
+    const o = await call("intake", { section: "open_item", job_number: "F-3", action: "TEST confirm owner walk date", needed_by: "2026-10-22" });
+    expect(o.isError, o.text).toBe(false);
+    const internal = await call("report", { job_number: "F-3" });
+    expect(internal.text).toContain("Needed by: 2026-10-22");
+    const cl = await call("report", { job_number: "F-3", audience: "client" });
+    expect(cl.isError, cl.text).toBe(false);
+    const body = cl.text.slice(cl.text.indexOf("\n\n====\n\n"));
+    const walk = body.split("\n").find((l) => l.includes("TEST confirm owner walk date"))!;
+    expect(walk).toBeTruthy();
+    expect(walk).not.toMatch(/Needed by|2026-10-22/);
+    const comp = body.split("\n").find((l) => l.includes("TEST substantial completion") && l.includes("Accountable"))!;
+    expect(comp).toMatch(/Contract due date: 2026-12-04/);
+    expect(body).not.toMatch(/Needed by/);
+  });
+});
