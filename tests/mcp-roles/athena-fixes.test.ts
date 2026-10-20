@@ -325,7 +325,9 @@ describe("live retest 2026-10-19", () => {
     for (const audience of ["client", "internal"]) {
       const rep = await call("report", { job_number: "R-2", audience });
       const sweep = rep.text.split("====")[0];
-      expect(sweep).toContain("TEST R-2 owner walk");
+      // Retest 2: the client copy shows contract dates only, so Athena's follow-up is internal-only.
+      if (audience === "internal") expect(sweep).toContain("TEST R-2 owner walk");
+      else expect(sweep).not.toContain("TEST R-2 owner walk");
       expect(sweep).not.toContain("TEST R-1");
       expect(sweep).not.toMatch(/\bJ-\d|R-1 –/);
       expect(((rep.structured?.sweep ?? []) as { job_number: string }[]).every((s) => s.job_number === "R-2")).toBe(true);
