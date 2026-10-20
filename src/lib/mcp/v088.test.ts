@@ -63,8 +63,9 @@ describe("0.8.8 blue brand, To field, pinned REQUIRED lines, sweep cards", () =>
     expect(lines[0]).toContain("26.01 (26-010) $100,000.00");
     expect(lines[0]).toContain("#2563EB");
     expect(lines[0]).toContain("gray bands");
-    expect(lines[1]).toContain("Owners get the Excel file or a PDF, no exceptions. Do not create the link.");
-    expect(lines[2]).toContain("To: (ask:");
+    expect(lines).toHaveLength(2);
+    expect(top).not.toMatch(/owner|no exceptions/i);
+    expect(lines[1]).toContain("To: (ask:");
     expect(splitGuidance(top + "\nShow the email card now.").visible.startsWith(top)).toBe(true);
     expect(src("./tools/workflow-tools.ts")).toContain("...text(`${sovRequiredTop(");
   });
