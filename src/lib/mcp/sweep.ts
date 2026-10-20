@@ -2,7 +2,8 @@
 // (never another job's dates); company-wide only for tools with no job (onboarding).
 import type { Sb } from "./guard";
 import { whoForJob } from "./people";
-import { itemRef, shortRef } from "./refs";
+import { displayRef, itemRef, shortRef } from "./refs";
+import { dedupeNotices } from "./contacts";
 import { isContractDate } from "./jobs";
 import { isClaimDeadline, withoutClaims } from "./internal-claims";
 import { computeDue, diffDays, todayIn, type Clause } from "./deadlines";
@@ -20,6 +21,12 @@ function when(days: number) {
   if (days < 0) return `overdue by ${-days} day${days === -1 ? "" : "s"}`;
   if (days === 0) return "due today";
   return `due in ${days} day${days === 1 ? "" : "s"}`;
+}
+
+/** 0.8.7: " | Same notice also logged as: Ref 263AC (shown once)". Client copies never show refs. */
+export function sweepDupNote(dups: { id: string; action?: string | null; check_key?: string | null }[] | undefined, client = false): string {
+  if (!dups?.length || client) return "";
+  return ` | Same notice also logged as: ${dups.map((x) => displayRef(x)).join(", ")} (shown once)`;
 }
 
 export type SweepScope = { jobNumber?: string; client?: boolean };
@@ -75,8 +82,9 @@ export async function runSweep(sb: Sb, scope_: SweepScope = {}): Promise<{ text:
     out.push({ job_id: j.id, job_number: j.job_number, ref: `deadline:${d.id}`, item_id: d.item_id, item_type: "deadline", due: c.due, days, bucket });
   }
 
-  const sweepItems = (itemsR.data ?? []) as ItemRow[];
-  for (const it of client ? withoutClaims(sweepItems) : sweepItems) {
+  // 0.8.7: same dedupe as list_open_items (same event + notice type shows once); duplicates are named by Ref, never a #hash.
+  const swept = dedupeNotices(client ? withoutClaims((itemsR.data ?? []) as ItemRow[]) : ((itemsR.data ?? []) as ItemRow[]));
+  for (const it of swept.items) {
     const j = byJob.get(it.job_id);
     if (!j || !it.needed_by || clauseItems.has(it.id)) continue;
     if ((client || scope.get(j.id) !== "full") && it.internal_only) continue;
@@ -90,7 +98,7 @@ export async function runSweep(sb: Sb, scope_: SweepScope = {}): Promise<{ text:
     if (client || scope.get(j.id) !== "full") action = action.replace(MONEY, "[amount withheld]");
     lines.push({
       bucket, days,
-      text: `${action}: ${when(days)} — ${it.needed_by} (${j.time_zone ? tz : `${tz}, assumed`})${client ? "" : ` | Accountable: ${who(it.accountable)}`}`,
+      text: `${action}: ${when(days)} — ${it.needed_by} (${j.time_zone ? tz : `${tz}, assumed`})${client ? "" : ` | Accountable: ${who(it.accountable)}`}${sweepDupNote(swept.duplicates.get(it.id), client)}`,
       extra: [],
     });
     out.push({ job_id: j.id, job_number: j.job_number, item_ref: itemRef(it), ref: `item:${it.id}`, item_id: it.id, item_type: it.item_type ?? "deadline", due: it.needed_by, days, bucket });

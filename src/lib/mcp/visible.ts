@@ -168,7 +168,25 @@ export const sovDeliveryAsk = (audience: "internal" | "client") => (audience ===
 export const SOV_OWNER_REDIRECT = "For the owner, I'll send a clean Excel or PDF instead, since a chat link doesn't look professional.";
 export const SOV_NOT_NOW_DAYS = 3;
 /** 0.8.4: member-facing link rule, printed under the delivery question in the report text. */
-export const SOV_LINK_RULE_TEXT = "Chat links are for your team only. The owner always gets a clean Excel file or a PDF.";
+export const SOV_LINK_RULE_TEXT = "Chat links are for your team only. The owner always gets a clean Excel file or a PDF. There are no exceptions.";
+/** 0.8.7: the owner/client chat link is a hard no. Tool text guidance and structuredContent both carry it. */
+export const SOV_LINK_HARD_NO =
+  "HARD NO, every host including Claude: an artifact, canvas or chat link never goes to the owner, the owner's rep or any client. If the member asks for one, refuse in one line and offer the Excel file or a PDF. Never offer the link anyway, never offer to override or bend the rule, never ask whether they want to override it, and never build an owner copy with a link or send button. Do not write anything like \"or the shared link anyway if you're fine overriding that rule\". The member cannot waive this.";
+/** 0.8.7: report sov always comes with a bar chart of scheduled value by line, in the fixed palette. */
+export const SOV_CHART_RULE =
+  "REQUIRED, every host (Claude, ChatGPT, Grok and any other): draw a bar chart of the SOV from structuredContent.sov.chart: one bar per line (x: the line label, y: scheduled value), in the order given, placed directly under the SOV table and before the delivery question. Set the colors explicitly: bars #2563EB; axes, gridlines and labels in the grays #6B7280, #9CA3AF, #D1D5DB and #F3F4F6. Never use the host's default palette, and never red, rose, pink, orange or amber. Money labels with cents (value_display). No chart title text beyond \"Scheduled value by line\" and no extra commentary.";
+export function sovChart(rows: { item_no: string; cost_code: string | null; description: string | null; scheduled_value: number; scheduled_value_display: string }[]) {
+  return {
+    required: true,
+    type: "bar",
+    title: "Scheduled value by line",
+    x_label: "SOV line",
+    y_label: "Scheduled value",
+    bar_color: CHART_PALETTE[0],
+    palette: [...CHART_PALETTE],
+    bars: rows.map((r) => ({ label: `${r.item_no}${r.cost_code ? ` (${r.cost_code})` : ""}`, description: r.description, value: r.scheduled_value, value_display: r.scheduled_value_display })),
+  };
+}
 /** 0.8.4: the delivery step as data, in report sov structuredContent, so hosts can't skip it. */
 export const SOV_DELIVERY_STRUCTURED = {
   required_next_step: true,
@@ -179,6 +197,9 @@ export const SOV_DELIVERY_STRUCTURED = {
     { n: 3, kind: "chat_link_team_only", note: "Artifact or canvas link for team members only." },
   ],
   link_rule: "Artifact or canvas links go to team members only, never to the owner or owner's rep. Refuse an owner link and offer the Excel or a PDF.",
+  link_hard_no: true,
+  never_offer_override: true,
+  owner_link_rule: SOV_LINK_HARD_NO,
   owner_redirect: SOV_OWNER_REDIRECT,
   link_rule_text: SOV_LINK_RULE_TEXT,
 } as const;
@@ -202,7 +223,8 @@ export const SOV_DELIVERY_BLOCK = [
   "- Option 1: open the tool's sign-in page and let the member sign in themselves. Never ask for, type or store a password. Enter the lines, then show a side-by-side check against the SOV total before anything is saved.",
   "- Option 2: build a real .xlsx in the house SOV layout: title block (company, job, owner, contract value, date), then item, division, spec section, description, cost code, scheduled value, retainage % and total, subtotals by division, retainage and a grand total that ties to the contract. Then show the email draft card with the file attached in that same reply. Ask who it goes to (team members, the owner, or both); if an address is missing, leave To blank on the card and ask for it in the same reply.",
   "- Option 3: create the artifact, canvas or Grok Bot spreadsheet, then show an email card with the link, for team members only. Never list option 3 on an owner or client SOV (audience client): show options 1 and 2 only, exactly as in structuredContent.delivery.ask.",
-  `- Owners and owner's reps get the Excel or a PDF only, never an artifact or canvas link. If the member picks option 3 for the owner, say exactly: "${SOV_OWNER_REDIRECT}" Then offer option 2 or a PDF.`,
+  `- Owners and owner's reps get the Excel or a PDF only, never an artifact or canvas link. If the member picks option 3 for the owner, say exactly: "${SOV_OWNER_REDIRECT}" Then offer option 2 or a PDF. Never offer the link anyway or any way to override this.`,
+  `- ${SOV_LINK_HARD_NO}`,
   "- Spec sections: use structuredContent.sov.line_items spec_section as given. If it's blank, leave the cell blank; never invent a section number. When structuredContent.sov.specs_note is set, it is the one line allowed under the table (chat and file): spec sections will be cited once specs are uploaded.",
   "- Cost codes: always show a Cost Code column right after the line no. (item number) in the chat table, the artifact or canvas, and the file, filled from line_items cost_code exactly as given (e.g. 26-010). Never replace the cost code with the item number. Blank only when Athena has none for that line.",
   "- Money: every scheduled value and total with cents (line_items scheduled_value_display, e.g. $1,400,000.00). Never round or drop the .00.",
