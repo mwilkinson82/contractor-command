@@ -86,8 +86,9 @@ export function renderWarrantyRegister(facts: Fact[], today: string): string[] {
   const by = new Map(facts.map((f) => [f.key, f]));
   if (!WARRANTY_SETUP_QUESTIONS.some((q) => by.has(q.key)) && !by.has("warranty_trigger_date")) return ["   Not set up yet. Athena asks the workmanship warranty and closeout questions in job setup."];
   const out: string[] = [];
-  // Closeout documents copied from the contract's closeout summary are a summary, not exact contract text.
-  const src = (f?: Fact) => (isKnown(f) && f?.source ? ` (${f.key === "closeout_documents" && f.source === "document" ? CLOSEOUT_SUMMARY_TAG : f.source === "member_answer" ? "manual" : f.source.replace(/_/g, " ")})` : "");
+  // Warranty values read from the contract (closeout documents copied from its closeout summary, or warranty answers saved
+  // with the contract document named) are a summary, not exact contract text — never "manual".
+  const src = (f?: Fact) => (isKnown(f) && f?.source ? ` (${f.source === "document" ? CLOSEOUT_SUMMARY_TAG : f.source === "member_answer" ? "manual" : f.source.replace(/_/g, " ")})` : "");
   const has = by.get("workmanship_warranty");
   const months = by.get("workmanship_warranty_months");
   const trig = by.get("warranty_start_trigger");

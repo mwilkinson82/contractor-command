@@ -41,18 +41,23 @@ export function isNoticeAddressClause(c: Pick<C, "heading" | "verbatim_text">): 
 }
 
 const PARTY = "(Owner's Representative|Construction Manager|Contractor|Subcontractor|Owner|Architect|Engineer|Design Professional)";
+/** A role named after the party's possessive, as written: "Contractor's Project Manager". */
+const ROLE = "(?:'s|’s)\\s+((?:[A-Z][A-Za-z]*\\s+){0,3}(?:Manager|Representative|Superintendent|Officer|Director|Engineer|Administrator|Coordinator|Agent))";
 
 /** Who the notice goes to, only when the clause's own words name the party. Returns the party word as written. */
 export function recipientIn(text: string): string | null {
   const t = strip(text);
+  // "delivered by email to Contractor's Project Manager": the delivery verb names who receives it, however long the sentence before it.
+  const deliv = t.match(new RegExp(`\\b(?:delivered|sent|given|submitted|addressed|directed|served|mailed|emailed|provided)\\s+(?:(?:by|via)\\s+(?:e-?mail|certified mail|hand|courier|[a-z]+ mail)(?:\\s+(?:and|or)\\s+(?:e-?mail|certified mail|hand|courier|[a-z]+ mail))?\\s+)?to\\s+(?:the\\s+)?${PARTY}(?:${ROLE})?`));
+  if (deliv) return deliv[2] ? `${deliv[1]}'s ${deliv[2]}` : deliv[1];
   const pats = [
     new RegExp(`\\b(?:give|gives|deliver|send|provide|furnish|serve|submit)\\s+(?:the\\s+)?${PARTY}\\s+(?:with\\s+)?(?:prompt\\s+)?(?:written\\s+)?notice`),
     new RegExp(`\\bnotify\\s+(?:the\\s+)?${PARTY}\\b`),
     new RegExp(`\\b(?:notice|notices|notification)\\b[^.;]{0,80}?\\b(?:to|upon|on)\\s+(?:the\\s+)?${PARTY}\\b`),
   ];
   for (const p of pats) {
-    const m = t.match(p);
-    if (m) return m[1];
+    const m = t.match(new RegExp(`${p.source}(?:${ROLE})?`));
+    if (m) return m[2] ? `${m[1]}'s ${m[2]}` : m[1];
   }
   return null;
 }

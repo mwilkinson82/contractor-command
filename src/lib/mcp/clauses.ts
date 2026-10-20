@@ -1,6 +1,6 @@
 /** Typed answers that mean "this clause is not in the contract" ("No LDs", "None.", "N/A", "0%", "not included"). "No later than 7 days" is a real term, not an absence. */
 export const CLAUSE_ABSENT =
-  /^(?:none|no|n\/?a|nil|zero|0\s*%?|not (?:included|applicable|in (?:the )?contract)|there (?:is|are) no\b.*|no(?:\s+\S+){0,3}?\s+(?:clause|clauses|lds?|liquidated damages?|beneficial use|retainage|retention|notice requirements?)\b.*)\.?$/i;
+  /^(?:none|no|n\/?a|nil|zero|0\s*%?|not (?:included|applicable|in (?:the )?(?:sub)?contract)|(?:none|nothing|no clause|no provision)\s+(?:in|under|within|stated in|found in|listed in|provided in)\s+(?:the |this )?(?:sub)?contract\b.*|there (?:is|are) no\b.*|no(?:\s+\S+){0,3}?\s+(?:clause|clauses|lds?|liquidated damages?|beneficial use|retainage|retention|notice requirements?)\b.*)\.?$/i;
 
 /** "Not specified", "unknown", "TBD": the term is unknown. No fact value, no flag. */
 export const CLAUSE_UNKNOWN =
@@ -18,7 +18,7 @@ export function clauseCore(v: string): string {
   return t || v.trim();
 }
 
-/** "yes" / "no" for a typed clause, undefined when blank or unknown. "None", "N/A", "Not applicable" read "no". */
+/** "yes" / "no" for a typed clause, undefined when blank or unknown. "None", "N/A", "Not applicable", "None in the subcontract." read "no". */
 export function clauseFlag(v: string | undefined | null): "yes" | "no" | undefined {
   if (v === undefined || v === null || !v.trim()) return undefined;
   const t = clauseCore(v);

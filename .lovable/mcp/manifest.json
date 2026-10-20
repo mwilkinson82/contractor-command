@@ -635,11 +635,11 @@
               }
             },
             "contract_document_provided": {
-              "description": "contract/deadline: true ONLY if you read these terms from the contract document itself in this conversation (and give contract_document_name). Terms the member typed or told you are manual: leave this out.",
+              "description": "contract/deadline/warranty: true ONLY if you read these terms from the contract document itself in this conversation (and give contract_document_name). Terms the member typed or told you are manual: leave this out.",
               "type": "boolean"
             },
             "contract_document_name": {
-              "description": "contract/deadline: the contract document the terms were read from (file name or title). Required for source document; without it the terms are saved as manual.",
+              "description": "contract/deadline/warranty: the contract document the terms were read from (file name or title). Required for source document; without it the terms are saved as manual.",
               "type": "string",
               "maxLength": 300
             },
@@ -905,7 +905,7 @@
               }
             },
             "fee_pct": {
-              "description": "budget: contractor's fee as a percent of the contract total (e.g. 15).",
+              "description": "budget: contractor's fee as a percent of the contract total (e.g. 15). The SOV adds this fee on top of the SOV lines, so give it only when the lines are cost of work + GC before fee. If the lines already add up to the contract sum (e.g. a lump-sum subcontract), give 0.",
               "type": "number"
             },
             "sov_basis": {
