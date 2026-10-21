@@ -1,6 +1,7 @@
 // 0.8.16: team invite email. Sent through Resend from the meetathena.io domain ONLY when ATHENA_INVITE_EMAIL_ENABLED
 // is "true" (default OFF: the domain's DNS verification isn't confirmed). With the flag off, no email is sent and the
 // owner is told to let the person know to sign in at app.meetathena.io. Tests inject a stub sender; never real addresses.
+import { outboundEmailDisabled } from "./email-safety";
 export const INVITE_SIGNIN_URL = "https://app.meetathena.io/login";
 export const INVITE_FROM_DEFAULT = "Athena <team@meetathena.io>";
 
@@ -10,7 +11,8 @@ export type InviteSender = (m: InviteEmail) => Promise<{ id?: string }>;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
 export function inviteEnabled(env: Record<string, string | undefined> = process.env): boolean {
-  return env.ATHENA_INVITE_EMAIL_ENABLED === "true";
+  // P0 kill switch wins over the invite flag.
+  return env.ATHENA_INVITE_EMAIL_ENABLED === "true" && !outboundEmailDisabled(env);
 }
 
 export function buildInviteEmail(a: { to: string; inviteeName: string; ownerName: string; companyName: string; roleLabel: string }, env: Record<string, string | undefined> = process.env): InviteEmail {

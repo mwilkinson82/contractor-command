@@ -26,7 +26,7 @@ describe("0.8.2 SOV delivery step", () => {
   });
   it("never types passwords and never sends", () => {
     expect(SOV_DELIVERY_BLOCK).toContain("Never ask for, type or store a password");
-    expect(SOV_DELIVERY_BLOCK).toContain("presses Send");
+    expect(SOV_DELIVERY_BLOCK).toContain("send only after a separate yes");
     expect(SOV_DELIVERY_BLOCK).toContain("within 3 days");
   });
   it("email card on demand: To blank and asked in the same reply, never guessed", () => {
