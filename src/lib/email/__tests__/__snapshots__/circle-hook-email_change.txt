@@ -1,0 +1,16 @@
+Account security
+
+Contractor Circle / Secure access
+
+
+CONFIRM YOUR EMAIL CHANGE
+
+You requested to change your email address for Contractor Circle from old@example.test to new@example.test.
+
+Confirm email change https://qcbbjjjxcacrscfhgfmf.supabase.co/auth/v1/verify?token=inert&type=magiclink&redirect_to=https%3A%2F%2Fapp.alpcontractorcircle.com%2Fauth%2Fcallback
+
+If you didn't request this change, secure your account immediately.
+
+Build the company behind the projects.
+
+AN ALP COMMUNITY
