@@ -5,6 +5,7 @@ import { ToolError, type ToolContext } from "@lovable.dev/mcp-js";
 import { supabaseForUser } from "./supabase";
 import { runSweep, type SweepScope } from "./sweep";
 import { clientSafe } from "./client-safe";
+import { SEAT_LIMIT_MESSAGE, seatLimitFromError } from "./team";
 
 // Access: the shared membership entitlement (./entitlement), checked on every call.
 import { checkAthenaEntitlement } from "./entitlement";
@@ -54,6 +55,8 @@ export function dbError(error: { message?: string } | null): never {
   if (m.includes("MCP_NO_JOB")) throw new ToolError("Job not found.");
   if (m.includes("MCP_NO_ITEM")) throw new ToolError("Item not found.");
   if (m.includes("MCP_NO_COMPANY")) throw new ToolError("You aren't a member of that company.");
+  const seat = seatLimitFromError(m);
+  if (seat) throw new ToolError(SEAT_LIMIT_MESSAGE(seat.used, seat.limit));
   throw new Error(m || "database error");
 }
 
