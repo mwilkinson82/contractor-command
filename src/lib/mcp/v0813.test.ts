@@ -144,3 +144,56 @@ describe("0.8.13 house rules", () => {
     expect(ALL_TEXT).toContain("#2563EB");
   });
 });
+
+import { CONNECT_CHECK_RULE, REMINDER_DELIVERY_ASK, REMINDER_DELIVERY_DEFAULT, REMINDER_DELIVERY_OPTIONS, REMINDER_DELIVERY_RULE, REPORT_ATTACHMENT_RULE, REPORT_SEND_GUIDANCE } from "./coach";
+import { EMAIL_ATTACHMENT_RULE } from "./visible";
+
+describe("0.8.13 connect check", () => {
+  it("covers calendar and email steps, one line, pause and resume, never pretend", () => {
+    for (const s of ["cadence reminders", "overnight-email summary", "drafting or sending an email", "sending a report"]) expect(CONNECT_CHECK_RULE).toContain(s);
+    expect(CONNECT_CHECK_RULE).toContain("say in one line what's missing");
+    expect(CONNECT_CHECK_RULE).toContain("pick up exactly where you left off");
+    expect(CONNECT_CHECK_RULE).toContain("Never pretend it was done.");
+  });
+  it("is in the server instructions, cadence setup, reminders and the briefing", () => {
+    expect(src("./index.ts")).toContain("CONNECT_CHECK_RULE");
+    expect(CADENCE_SETUP_SPEC).toContain(CONNECT_CHECK_RULE);
+    expect(src("./tools/cadence-tools.ts")).toContain("CONNECT_CHECK_RULE");
+    expect(src("./tools/morning-tools.ts")).toContain("CONNECT_CHECK_RULE");
+    expect(MORNING_BRIEFING_VIEW_SPEC.join("\n")).toContain("connect check");
+  });
+  it("cadence asks calendar / AI reminders / both, default calendar", () => {
+    expect(REMINDER_DELIVERY_ASK).toBe("Calendar events, AI reminders, or both? (Default: calendar.)");
+    expect([...REMINDER_DELIVERY_OPTIONS]).toEqual(["calendar", "ai_reminders", "both"]);
+    expect(REMINDER_DELIVERY_DEFAULT).toBe("calendar");
+    expect(CADENCE_SETUP_SPEC).toContain(REMINDER_DELIVERY_RULE);
+    expect(REMINDER_DELIVERY_RULE).toContain("if it has none, say so and use the calendar");
+    const t = manifest.mcp.tools.find((x) => x.name === "job_cadence_reminders") as unknown as { inputSchema: { properties: Record<string, { enum?: string[] }> } };
+    expect(t.inputSchema.properties.delivery.enum).toEqual(["calendar", "ai_reminders", "both"]);
+  });
+});
+
+describe("0.8.13 report attachments", () => {
+  it("real file, chip, never claims attached, fallback with file + draft + share link, send on yes", () => {
+    expect(REPORT_ATTACHMENT_RULE).toContain("real file first, PDF by default");
+    expect(REPORT_ATTACHMENT_RULE).toContain('"Attachment: <filename>" chip');
+    expect(REPORT_ATTACHMENT_RULE).toContain('never say "attached" unless the file is on the draft');
+    expect(REPORT_ATTACHMENT_RULE).toContain("offer the downloadable file plus a draft");
+    expect(REPORT_ATTACHMENT_RULE).toContain("file_share link");
+    expect(REPORT_ATTACHMENT_RULE).toContain("send only on the member's clear yes");
+  });
+  it("consistent with the honest-attachment rule", () => {
+    expect(EMAIL_ATTACHMENT_RULE).toContain("Only say a file is attached if your email tool actually attached it.");
+    expect(EMAIL_ATTACHMENT_RULE).toContain("file_share");
+  });
+  it("rides in report, SOV and living report results and the server instructions", () => {
+    expect(REPORT_SEND_GUIDANCE).toEqual([CONNECT_CHECK_RULE, REPORT_ATTACHMENT_RULE]);
+    expect(src("./tools/workflow-tools.ts").match(/REPORT_SEND_GUIDANCE/g)!.length).toBeGreaterThanOrEqual(3);
+    expect(src("./tools/living-tools.ts")).toContain("...REPORT_SEND_GUIDANCE");
+    expect(src("./index.ts")).toContain("REPORT_ATTACHMENT_RULE");
+  });
+  it("house rules", () => {
+    const t = [CONNECT_CHECK_RULE, REMINDER_DELIVERY_RULE, REPORT_ATTACHMENT_RULE].join("\n");
+    expect(t).not.toMatch(/Lovable|Supabase|prompt/i);
+  });
+});

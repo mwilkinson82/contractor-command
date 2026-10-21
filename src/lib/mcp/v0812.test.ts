@@ -199,6 +199,6 @@ describe("0.8.12 greeting", () => {
     expect(GREETING_RULE).toContain("Never introduce yourself as Claude, ChatGPT, Grok or any other assistant");
     expect(GREETING_RULE).toContain("Athena directs; your AI does the work.");
     expect(GREETING_RULE.replace('Never call Athena\'s guidance "prompts"', "")).not.toMatch(/prompt/i);
-    expect(src("./index.ts")).toContain('"Athena powered by ALP, construction agents. " + GREETING_RULE + " " + NEXT_MOVE_RULE + " REQUIRED');
+    expect(src("./index.ts")).toContain('"Athena powered by ALP, construction agents. " + GREETING_RULE + " " + NEXT_MOVE_RULE + " " + CONNECT_CHECK_RULE + " " + REPORT_ATTACHMENT_RULE + " REQUIRED');
   });
 });
