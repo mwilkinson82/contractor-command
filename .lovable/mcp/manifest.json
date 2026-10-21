@@ -13,7 +13,7 @@
   "mcp": {
     "server": {
       "name": "athena",
-      "version": "0.8.14",
+      "version": "0.8.16",
       "title": "Athena powered by ALP, construction agents"
     },
     "tools": [
@@ -2153,6 +2153,263 @@
           },
           "required": [
             "link"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "team_list",
+        "title": "Team: people, roles and jobs",
+        "description": "Owners only. Lists the company's people with their roles and job access, pending invites, seats used, and the roles the plan includes. Use it before inviting, changing or removing anyone.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. The company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "team_invite",
+        "title": "Invite a person to the team",
+        "description": "Owners only. Invites one person by email with a role and job access. Ask first: name, email, role (show the numbered role list) and jobs, then ask \"Invite <name> as <role> with access to jobs ...? Yes or no?\" and call with confirmed true only after yes. The invite counts toward seats right away. Old role name Finance is accepted and saved as AP.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. The company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "email": {
+              "type": "string",
+              "maxLength": 320,
+              "format": "email",
+              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+              "description": "The person's email; they sign in with it."
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "description": "Their name as the team should see it."
+            },
+            "role": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Owner, PM, All-access, AP, Estimating, Contracts or Super."
+            },
+            "job_numbers": {
+              "description": "Job numbers this person can open, exact match. Leave out to keep current access.",
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              }
+            },
+            "confirmed": {
+              "type": "boolean",
+              "const": true,
+              "description": "true only after the owner answered yes to the exact confirm question."
+            }
+          },
+          "required": [
+            "email",
+            "name",
+            "role",
+            "confirmed"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "team_update_member",
+        "title": "Change a person's role or job access",
+        "description": "Owners only. Changes one person's role and/or which jobs they can open. Ask \"Change <name> to <role> with access to jobs ...? Yes or no?\" and call with confirmed true only after yes. job_numbers replaces their job list; leave it out to keep it.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. The company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "person": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 320,
+              "description": "The person: their email, their name as the team list shows it, or their list number."
+            },
+            "user_id": {
+              "description": "Set by the selection card.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "role": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "job_numbers": {
+              "description": "Job numbers this person can open, exact match. Leave out to keep current access.",
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              }
+            },
+            "confirmed": {
+              "type": "boolean",
+              "const": true,
+              "description": "true only after the owner answered yes to the exact confirm question."
+            }
+          },
+          "required": [
+            "confirmed"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "team_remove_member",
+        "title": "Remove a person from the team",
+        "description": "Owners only. Removes a person (or cancels a pending invite by email). They lose access right away; job history stays. Ask \"Remove <name> from your team? Yes or no?\" and call with confirmed true only after yes.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. The company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "person": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 320,
+              "description": "The person: their email, their name as the team list shows it, or their list number."
+            },
+            "confirmed": {
+              "type": "boolean",
+              "const": true,
+              "description": "true only after the owner answered yes to the exact confirm question."
+            }
+          },
+          "required": [
+            "person",
+            "confirmed"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "team_add_seats",
+        "title": "Add seats",
+        "description": "Owners only, after they hit the seat limit and say they want more seats. Ask how many, then \"Add <n> seats at $49 per seat per month? Yes or no?\" and call with confirmed true only after yes.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. The company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "seats": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            },
+            "confirmed": {
+              "type": "boolean",
+              "const": true,
+              "description": "true only after the owner answered yes to the exact confirm question."
+            }
+          },
+          "required": [
+            "seats",
+            "confirmed"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "set_current_company",
+        "title": "Set my current company",
+        "description": "For people in more than one company: saves which company Athena uses when they don't name one. Call after they say which company.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "The company name exactly as Athena lists it."
+            }
+          },
+          "required": [
+            "company_id"
           ],
           "additionalProperties": false
         },
