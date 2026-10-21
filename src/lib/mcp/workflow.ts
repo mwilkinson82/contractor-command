@@ -112,7 +112,11 @@ type Item = {
   carry_count: number;
 };
 
-export async function renderReport(sb: Sb, la: Lookahead) {
+/**
+ * 0.8.19: opts.atRisk = the lookahead model's risk lines, so this At-Risk section is the same list the header counts
+ * (Khan's 2701 test: header "0 risks", At-Risk listed RFI-001). opts.asOf marks open items due before it OVERDUE.
+ */
+export async function renderReport(sb: Sb, la: Lookahead, opts: { atRisk?: string[]; asOf?: string | null } = {}) {
   const [{ data: job }, { data: itemsRaw, error: ie }, answers, checks] = await Promise.all([
     sb.from("mcp_jobs").select("name, job_number").eq("id", la.job_id).maybeSingle(),
     sb.from("mcp_open_items").select("id, action, owner, due_date, severity, trade, category, status, carry_count").eq("lookahead_id", la.id).eq("status", "open"),
@@ -126,13 +130,14 @@ export async function renderReport(sb: Sb, la: Lookahead) {
   const byKey = new Map(checks.map((c) => [c.key, c]));
   const answered = new Map(answers.map((a) => [a.check_key, a]));
   const due = (d: string | null) => d ?? "unknown";
+  const od = (d: string | null) => (opts.asOf && d && d < opts.asOf ? "OVERDUE · " : "");
   const out: string[] = [];
   const window = `${la.start_date ?? "unknown"} to ${la.end_date ?? "unknown"}`;
   out.push(`TWO-WEEK LOOKAHEAD REPORT`, `Job: ${job?.name ?? "unknown"}${job?.job_number ? ` (#${job.job_number})` : ""}`, `Window: ${window}`, `Lookahead ref: ${lookaheadRef(la.id)}`, "");
 
   out.push("1. HIT LIST");
   if (!items.length) out.push("   None.");
-  items.forEach((it, i) => out.push(`   ${i + 1}. ${it.action} | Owner: ${it.owner} | Due: ${due(it.due_date)}${it.carry_count ? ` | Carried ${it.carry_count}x` : ""}`));
+  items.forEach((it, i) => out.push(`   ${i + 1}. ${od(it.due_date)}${it.action} | Owner: ${it.owner} | Due: ${due(it.due_date)}${it.carry_count ? ` | Carried ${it.carry_count}x` : ""}`));
   out.push("");
 
   out.push("2. QUESTIONS BY TRADE");
@@ -152,15 +157,20 @@ export async function renderReport(sb: Sb, la: Lookahead) {
   out.push("");
 
   out.push("3. AT-RISK ITEMS");
-  const risk = items.filter((i) => i.severity === "high");
-  if (!risk.length) out.push("   None.");
-  risk.forEach((it) => out.push(`   - ${it.category}: ${it.action} | Owner: ${it.owner} | Due: ${due(it.due_date)}`));
+  if (opts.atRisk) {
+    if (!opts.atRisk.length) out.push("   None.");
+    opts.atRisk.forEach((l) => out.push(`   - ${l}`));
+  } else {
+    const risk = items.filter((i) => i.severity === "high");
+    if (!risk.length) out.push("   None.");
+    risk.forEach((it) => out.push(`   - ${od(it.due_date)}${it.category}: ${it.action} | Owner: ${it.owner} | Due: ${due(it.due_date)}`));
+  }
   out.push("");
 
   out.push("4. DATED FOLLOW-UPS");
   const dated = items.filter((i) => i.due_date).sort((a, b) => a.due_date!.localeCompare(b.due_date!));
   if (!dated.length) out.push("   None.");
-  dated.forEach((it) => out.push(`   - ${it.due_date}: ${it.action} | Owner: ${it.owner}`));
+  dated.forEach((it) => out.push(`   - ${it.due_date}: ${od(it.due_date)}${it.action} | Owner: ${it.owner}`));
   out.push("");
 
   out.push("5. UNKNOWNS");

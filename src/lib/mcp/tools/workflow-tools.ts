@@ -15,7 +15,7 @@ import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
 import { guide, EMAIL_TO_LABEL_REQUIRED, SHARE_OPTIONS_REQUIRED, REPORT_SHARE_ASK, REPORT_SHARE_STRUCTURED, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_CHART_RULE, sovChart, sovRequiredTop, sovDeliveryAsk, sovDeliveryBlock, sovDeliveryStructured, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
 import { withoutClaims } from "../internal-claims";
 import { LOOKAHEAD_EMAIL_LINE } from "../email-safety";
-import { briefingView, dataDateRule, pickLatestLookahead, type LaRow, emptyCard, lookaheadView, lookaheadWindow, pageLine, windowActivities, type LaItem, type SAct } from "../styled-views";
+import { briefingView, dataDateRule, pickLatestLookahead, type LaRow, emptyCard, lookaheadView, lookaheadModel, entryLine, lookaheadWindow, pageLine, windowActivities, type LaItem, type LaModel, type SAct } from "../styled-views";
 import { pageUrl } from "../../report-pages";
 import { EMAIL_VIEW_SPEC, LOOKAHEAD_VIEW_SPEC, REMINDERS_VIEW_SPEC, highlightLine, lookaheadHighlight } from "../views";
 import { EMAIL_CONTACT_RULE, contactForRole, dedupeNotices, emailContact, fillNotice, jobContacts } from "../contacts";
@@ -1110,9 +1110,11 @@ export const report = defineTool({
         const revs = revisionLines(await loadRevisions(sb, la.id));
         // 0.8.12: highlight today, or the saved CPM data date when that is later; then the required lookahead view.
         const hl = lookaheadHighlight(todayIn(await jobTimeZone(sb, job.job_id)), await cpmDataDate(sb, job));
-        const view = await styledLookahead(sb, job, la, hl.date);
+        const { view, model } = await styledLookahead(sb, job, la, hl.date);
         // 0.8.18: the view spec sits right under the view (like CPM_GANTT_SPEC after the Tie line) so Claude builds an artifact.
-        return text(`${prefix(job)}${view}\n\n${highlightLine(hl)}\n${LOOKAHEAD_VIEW_SPEC.join("\n")}\n\n---\nSource detail:\n${await renderReport(sb, la)}${revs.length ? `\n\n${revs.join("\n")}` : ""}`);
+        // 0.8.19: the At-Risk section is the model's risk list, the same one the header counts.
+        const detail = await renderReport(sb, la, model ? { atRisk: model.risks.map(entryLine), asOf: model.asOf } : {});
+        return text(`${prefix(job)}${view}\n\n${highlightLine(hl)}\n${LOOKAHEAD_VIEW_SPEC.join("\n")}\n\n---\nSource detail:\n${detail}${revs.length ? `\n\n${revs.join("\n")}` : ""}`);
       }
       const audience = args.audience ?? "internal";
       if (args.deliverable === "sov") return sovResult(sb, job, audience, args.sov_view ?? "lines");
@@ -1496,18 +1498,20 @@ export async function lookaheadData(sb: Sb, job: Job, laInput: string | { id: st
       .map((r) => ({ action: r.action, owner: r.accountable ?? r.owner ?? null, due: (r.needed_by ?? r.due_date ?? null)?.slice(0, 10) ?? null }))
       .filter((r) => !r.due || r.due <= win.end);
   }
-  return { la, ref: lookaheadRef(la.id), win, note: found?.note ?? null, dataDate, version: cpm?.version ?? null, acts, items };
+  const today = todayIn(await jobTimeZone(sb, job.job_id));
+  return { la, ref: lookaheadRef(la.id), win, note: found?.note ?? null, dataDate, version: cpm?.version ?? null, acts, items, today };
 }
 
 /** 0.8.17: the lookahead as a finished view, filled from the saved CPM window when no schedule export was sent. */
-async function styledLookahead(sb: Sb, job: Job, la: { id: string; start_date?: string | null; end_date?: string | null }, highlight: string | null): Promise<string> {
+async function styledLookahead(sb: Sb, job: Job, la: { id: string; start_date?: string | null; end_date?: string | null }, highlight: string | null): Promise<{ view: string; model: LaModel | null }> {
   const d = await lookaheadData(sb, job, la);
   const title = `${job.job_number} – ${job.name}`;
   const url = job.scope === "full" || job.scope === "super" ? pageUrl("lookahead", job.job_id) : null;
   if (!d.win)
-    return `${url ? `${pageLine("lookahead", url)}\n\n` : ""}${emptyCard("lookahead", title, d.acts.length ? "Pick a window that overlaps the saved schedule, or send this window's schedule export." : "Send the schedule export (or save the CPM) and Athena fills the lookahead from it.", d.acts.length ? [] : ["Schedule export or saved CPM"])}`;
-  const view = lookaheadView({ title, ref: d.ref, start: d.win.start, end: d.win.end, dataDate: d.dataDate, acts: d.acts, items: d.items, highlight, pageUrl: url });
-  return [view, ...(d.note ? ["", d.note] : []), ...(d.dataDate ? ["", dataDateRule(d.dataDate, d.version)] : []), "", LOOKAHEAD_EMAIL_LINE].join("\n");
+    return { model: null, view: `${url ? `${pageLine("lookahead", url)}\n\n` : ""}${emptyCard("lookahead", title, d.acts.length ? "Pick a window that overlaps the saved schedule, or send this window's schedule export." : "Send the schedule export (or save the CPM) and Athena fills the lookahead from it.", d.acts.length ? [] : ["Schedule export or saved CPM"])}` };
+  const view = lookaheadView({ title, ref: d.ref, start: d.win.start, end: d.win.end, dataDate: d.dataDate, acts: d.acts, items: d.items, highlight, pageUrl: url, today: d.today });
+  const model = lookaheadModel(d.win.start, d.win.end, d.acts, d.items, { today: d.today, dataDate: d.dataDate });
+  return { model, view: [view, ...(d.note ? ["", d.note] : []), ...(d.dataDate ? ["", dataDateRule(d.dataDate, d.version)] : []), "", LOOKAHEAD_EMAIL_LINE].join("\n") };
 }
 
 /** 0.8.12: the saved CPM data date (null when none is saved or the living reports schema isn't there). */

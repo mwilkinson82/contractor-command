@@ -133,18 +133,80 @@ const isInspection = (a: SAct) => /inspection|hold point/i.test(a.name);
 const isDelivery = (a: SAct) => /deliver/i.test(a.name);
 const isMilestone = (a: SAct) => num(a.duration) === 0;
 const critical = (a: SAct) => a.critical === true || num(a.total_float) === 0;
-const itemHits = (a: SAct, it: LaItem) => it.action.includes(a.id) || (isInspection(a) && /inspection/i.test(it.action) && !!a.finish && it.action.includes(a.finish.slice(0, 10)));
+
+// 0.8.19: Khan's 2701 test (LA-31BE8, Oct 21 1:05 AM). (1) The header said "0 risks" while the At-Risk section listed
+// RFI-001: two different risk rules. Now one list (model.risks) feeds the count, the risk cards and the At-Risk section.
+// (2) RFI-001 said "Sent 2026-11-10", after the data date and today: flagged "date looks wrong, check it", never hidden.
+// (3) Delay and claim notices due Oct 6 and Oct 11 weren't marked overdue: any open item due before today (or the data
+// date, whichever is later) is OVERDUE, red, and sorted first. "Confirm start date — " now reads as a trailing note.
+// (4) The FA underground inspection item said Nov 18 while A1130 is Nov 5: a linked item whose date differs from its
+// CPM activity is flagged with both dates.
+const STOP = new Set(["inspection", "inspections", "point", "hold", "request", "requested", "submit", "notice", "schedule", "phase", "level", "final", "rough", "start", "finish", "install", "complete"]);
+const words = (s: string) => new Set((s.toLowerCase().match(/[a-z]{5,}/g) ?? []).filter((w) => !STOP.has(w)));
+const ISO = /\b(\d{4}-\d{2}-\d{2})\b/g;
+const DONE_DATE = /\b(sent|submitted|closed|answered|returned|issued|completed|done)\s*(?:on\s*)?:?\s*(\d{4}-\d{2}-\d{2})\b/gi;
+/** The CPM activity an item is about: its id named in the text, or an inspection the item names by a distinctive word. */
+export function linkedActivity(it: LaItem, acts: SAct[]): SAct | null {
+  const byId = acts.filter((a) => new RegExp(`\\b${a.id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(it.action)).sort((a, b) => b.id.length - a.id.length)[0];
+  if (byId) return byId;
+  if (!/inspection|hold point/i.test(it.action)) return null;
+  const w = words(it.action);
+  return acts.filter(isInspection).find((a) => [...words(a.name)].some((x) => w.has(x))) ?? null;
+}
+export type LaFlag = { kind: "bad_date" | "date_mismatch"; text: string };
+export type LaEntry = { item: LaItem; label: string; overdue: boolean; flags: LaFlag[]; a: SAct | null };
+/** "Confirm start date — Submit delay notice …" → "Submit delay notice … (delay start date unknown; confirm it)". */
+export function itemLabel(action: string): string {
+  const t = action.replace(/\s+/g, " ").trim();
+  const m = /^confirm (?:the )?start date\s*[—–:-]\s*/i.exec(t);
+  return m ? `${t.slice(m[0].length).replace(/[.\s]+$/, "")} (delay start date unknown; confirm it)` : t;
+}
+/** Data-quality flags for one item: a done date in the future, and a date that disagrees with its CPM activity. */
+export function itemFlags(it: LaItem, a: SAct | null, asOf: string): LaFlag[] {
+  const out: LaFlag[] = [];
+  const done = new Set<string>();
+  for (const m of it.action.matchAll(DONE_DATE)) {
+    done.add(m[2]);
+    if (m[2] > asOf) out.push({ kind: "bad_date", text: `${m[1][0].toUpperCase()}${m[1].slice(1).toLowerCase()} ${shortDate(m[2])} is after ${shortDate(asOf)}: date looks wrong, check it` });
+  }
+  if (a && (a.start || a.finish)) {
+    const ok = new Set([a.start?.slice(0, 10), a.finish?.slice(0, 10)].filter(Boolean) as string[]);
+    // Dates tied to the activity: after "on", or next to the activity id / "inspection". "by"/"needed" dates are deadlines, not the activity date.
+    const said = [...it.action.matchAll(ISO)].filter((m) => {
+      if (done.has(m[1])) return false;
+      const before = it.action.slice(Math.max(0, m.index! - 16), m.index!).toLowerCase();
+      if (/\b(by|before|needed|due|until)\s*$/.test(before)) return false;
+      const near = it.action.slice(Math.max(0, m.index! - 60), m.index! + 60);
+      return near.includes(a.id) || /inspection|hold point/i.test(near) || /\bon\s*$/.test(before);
+    }).map((m) => m[1]);
+    const bad = [...new Set(said)].filter((d) => !ok.has(d));
+    if (bad.length && a.finish) out.push({ kind: "date_mismatch", text: `Item says ${bad.map(shortDate).join(", ")}; schedule ${a.id} ${a.name} is ${shortDate(a.finish.slice(0, 10))}. Dates don't match, check which is right` });
+  }
+  return out;
+}
 
 export type Cell = "crit" | "non" | "insp" | "deliv" | "mile" | "";
-export type LaModel = { days: string[]; rows: { a: SAct; cells: { kind: Cell; risk: boolean }[] }[]; top: LaItem[]; risks: { item: LaItem; a: SAct }[]; counts: { activities: number; critical: number; inspections: number; deliveries: number; risks: number } };
-/** One model behind both the chat view and the hosted page, so they always agree. */
-export function lookaheadModel(start: string, end: string, allActs: SAct[], items: LaItem[]): LaModel {
+export type LaModel = {
+  days: string[]; asOf: string; rows: { a: SAct; cells: { kind: Cell; risk: boolean }[] }[];
+  entries: LaEntry[]; top: LaEntry[]; risks: LaEntry[]; overdue: LaEntry[]; flagged: LaEntry[];
+  counts: { activities: number; critical: number; inspections: number; deliveries: number; risks: number; overdue: number; flags: number };
+};
+/**
+ * One model behind the chat view, the hosted page, the PDF and the At-Risk section, so they always agree.
+ * asOf = the later of today and the data date. Every count is the length of the list that is rendered.
+ */
+export function lookaheadModel(start: string, end: string, allActs: SAct[], items: LaItem[], opts: { today?: string | null; dataDate?: string | null } = {}): LaModel {
   const days = workdays(start, end);
   const acts = windowActivities(allActs, start, end);
-  const risks = items.flatMap((item) => { const a = acts.find((x) => itemHits(x, item)); return a ? [{ item, a }] : []; });
-  const top = [...items].sort((a, b) => (a.due ?? "9999").localeCompare(b.due ?? "9999")).slice(0, 3);
+  const asOf = [opts.today, opts.dataDate?.slice(0, 10)].filter((x): x is string => !!x).sort().pop() ?? new Date().toISOString().slice(0, 10);
+  const entries: LaEntry[] = items.map((item) => {
+    const linked = linkedActivity(item, allActs);
+    return { item, label: itemLabel(item.action), overdue: !!item.due && item.due < asOf, flags: itemFlags(item, linked, asOf), a: linked };
+  }).sort((x, y) => Number(y.overdue) - Number(x.overdue) || (x.item.due ?? "9999").localeCompare(y.item.due ?? "9999"));
+  const risks = entries.filter((e) => e.a && acts.includes(e.a));
+  const top = entries.slice(0, 3);
   const rows = acts.map((a) => {
-    const risky = items.some((it) => itemHits(a, it));
+    const risky = risks.some((e) => e.a === a);
     const cells = days.map((d) => {
       if (d < a.start!.slice(0, 10) || d > a.finish!.slice(0, 10)) return { kind: "" as Cell, risk: false };
       const onEnd = d === a.finish!.slice(0, 10);
@@ -155,34 +217,49 @@ export function lookaheadModel(start: string, end: string, allActs: SAct[], item
     });
     return { a, cells };
   });
-  return { days, rows, top, risks, counts: { activities: acts.length, critical: acts.filter(critical).length, inspections: acts.filter(isInspection).length, deliveries: acts.filter(isDelivery).length, risks: risks.length } };
+  const overdue = entries.filter((e) => e.overdue);
+  const flagged = entries.filter((e) => e.flags.length);
+  return { days, asOf, rows, entries, top, risks, overdue, flagged, counts: { activities: acts.length, critical: acts.filter(critical).length, inspections: acts.filter(isInspection).length, deliveries: acts.filter(isDelivery).length, risks: risks.length, overdue: overdue.length, flags: flagged.reduce((n, e) => n + e.flags.length, 0) } };
+}
+/** One plain line per item for text outputs (At-Risk section, PDF): label, owner, due, OVERDUE and flags. */
+export function entryLine(e: LaEntry): string {
+  return `${e.overdue ? "OVERDUE · " : ""}${e.label} · Owner: ${e.item.owner ?? "Needed"} · Due ${e.item.due ? shortDate(e.item.due) : "Needed"}${e.a ? ` · Impact: ${e.a.id} ${e.a.name}${num(e.a.total_float) !== null ? ` (float ${num(e.a.total_float)} WD)` : ""}` : ""}${e.flags.map((f) => ` · ⚠ ${f.text}`).join("")}`;
 }
 const ICON: Record<Cell, string> = { crit: "🔵", non: "⚪", insp: "📋", deliv: "🚚", mile: "◆", "": "" };
 export const dayHead = (d: string) => `${DOW[dow(d)]} ${md(d)}`;
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const RED_MD = (s: string) => `🔴 **${s}**`;
 
-/** The lookahead as a finished markdown view: header and counts, top 3, calendar strip, risk cards, legend. */
-export function lookaheadView(v: { title: string; ref: string; start: string; end: string; dataDate: string | null; acts: SAct[]; items: LaItem[]; highlight?: string | null; pageUrl?: string | null }): string {
-  const m = lookaheadModel(v.start, v.end, v.acts, v.items);
+/** The lookahead as a finished markdown view: header and counts, top 3, calendar strip, overdue, risk cards, data checks, legend. */
+export function lookaheadView(v: { title: string; ref: string; start: string; end: string; dataDate: string | null; acts: SAct[]; items: LaItem[]; highlight?: string | null; pageUrl?: string | null; today?: string | null }): string {
+  const m = lookaheadModel(v.start, v.end, v.acts, v.items, { today: v.today, dataDate: v.dataDate });
   const L: string[] = [];
   if (v.pageUrl) L.push(pageLine("lookahead", v.pageUrl), "");
   L.push(LOOKAHEAD_ARTIFACT_LINE, "", `## ${v.title} · Two-Week Lookahead`);
   L.push(`**Window:** ${shortDate(v.start)} – ${shortDate(v.end)}${v.dataDate ? ` · **Data date:** ${shortDate(v.dataDate)}` : ""} · **Ref:** ${v.ref}`);
   const c = m.counts;
-  L.push(`**Counts:** ${plural(c.activities, "activity", "activities")} · ${c.critical} critical · ${plural(c.inspections, "inspection", "inspections")} · ${plural(c.deliveries, "delivery", "deliveries")} · ${plural(c.risks, "risk", "risks")}`, "");
+  L.push(`**Counts:** ${plural(c.activities, "activity", "activities")} · ${c.critical} critical · ${plural(c.inspections, "inspection", "inspections")} · ${plural(c.deliveries, "delivery", "deliveries")} · ${plural(c.risks, "risk", "risks")} · ${c.overdue} overdue${c.flags ? ` · ${plural(c.flags, "date to check", "dates to check")}` : ""}`, "");
   L.push("### Top 3 priorities", "| # | Action | Owner | Due |", "|---|---|---|---|");
-  if (m.top.length) m.top.forEach((t, i) => L.push(`| ${i + 1} | ${t.action.replace(/\|/g, "/")} | ${t.owner ?? "Needed"} | ${t.due ? shortDate(t.due) : "Needed"} |`));
+  if (m.top.length) m.top.forEach((t, i) => L.push(`| ${i + 1} | ${t.overdue ? `${RED_MD("OVERDUE")} ` : ""}${t.label.replace(/\|/g, "/")}${t.flags.map((f) => ` ⚠ ${f.text}`).join("")} | ${t.item.owner ?? "Needed"} | ${t.item.due ? (t.overdue ? RED_MD(shortDate(t.item.due)) : shortDate(t.item.due)) : "Needed"} |`));
   else L.push("| – | No open items in this window | – | – |");
   L.push("", "### Calendar strip", "🔵 critical (blue #2563EB) · ⚪ non-critical (gray #9CA3AF) · 📋 inspection · 🚚 delivery · ◆ milestone · 🚩 risk (red #DC2626)", "");
   const head = m.days.map((d, i) => `${i === 0 ? "**Week 1:** " : i === 5 ? "**Week 2:** " : ""}${d === v.highlight ? "**" : ""}${DOW[dow(d)].charAt(0)} ${md(d)}${d === v.highlight ? "**" : ""}`);
   L.push(`| Activity | Float | ${head.join(" | ")} |`, `|---|---|${m.days.map(() => "---").join("|")}|`);
   for (const r of m.rows) L.push(`| ${r.a.id} ${r.a.name.replace(/\|/g, "/")} | ${num(r.a.total_float) ?? ""} | ${r.cells.map((x) => `${ICON[x.kind]}${x.risk ? "🚩" : ""}`).join(" | ")} |`);
   if (!m.rows.length) L.push(`| No saved CPM activities fall in this window | | ${m.days.map(() => "").join(" | ")} |`);
+  if (m.overdue.length) {
+    L.push("", "### Overdue (red #DC2626)");
+    for (const e of m.overdue) L.push(`> ${RED_MD("OVERDUE")} ${e.label.slice(0, 160)} — Owner: ${e.item.owner ?? "Needed"} · Due ${shortDate(e.item.due!)}.`, "");
+  }
   if (m.risks.length) {
     L.push("", "### Risk cards");
-    for (const { item: r, a } of m.risks) L.push(`> 🚩 **${r.action.replace(/\s+/g, " ").slice(0, 140)}** — Impact: ${a.id} ${a.name}${num(a.total_float) !== null ? ` (float ${num(a.total_float)} WD)` : ""}. Owner: ${r.owner ?? "Needed"} · Due ${r.due ? shortDate(r.due) : "Needed"}.`, "");
+    for (const e of m.risks) L.push(`> 🚩 **${e.label.slice(0, 140)}** — Impact: ${e.a!.id} ${e.a!.name}${num(e.a!.total_float) !== null ? ` (float ${num(e.a!.total_float)} WD)` : ""}. Owner: ${e.item.owner ?? "Needed"} · Due ${e.item.due ? shortDate(e.item.due) : "Needed"}${e.overdue ? " · OVERDUE" : ""}.`, "");
   }
-  L.push("", "**Legend:** 🔵 Critical · ⚪ Non-critical · 📋 Inspection · 🚚 Delivery · ◆ Milestone · 🚩 Risk");
+  if (m.flagged.length) {
+    L.push("", "### Dates to check");
+    for (const e of m.flagged) for (const f of e.flags) L.push(`> ⚠ ${e.label.slice(0, 90)}: ${f.text}.`);
+  }
+  L.push("", "**Legend:** 🔵 Critical · ⚪ Non-critical · 📋 Inspection · 🚚 Delivery · ◆ Milestone · 🚩 Risk · 🔴 Overdue · ⚠ Date to check");
   return L.join("\n");
 }
 
