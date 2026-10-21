@@ -3,6 +3,7 @@
 // draws them and never recomputes, rebuilds or guesses them.
 import { money } from "./sov";
 import { ALERT_COLOR } from "./alert-color";
+import { addDays, federalHolidays } from "./deadlines";
 
 export const LIVING_REPORT_TYPES = ["cpm", "billing_forecast", "ior", "dashboard"] as const;
 export type LivingReportType = (typeof LIVING_REPORT_TYPES)[number];
@@ -33,7 +34,7 @@ export type Activity = {
 };
 export type BillingMonth = { month: string; amount: number; kind: "actual" | "forecast" };
 // 0.8.10: the scheduling term is "fragnet" (delay fragnet), never "fragment". Legacy saved keys are still read.
-export type Tia = { fragnet?: string; prior_completion: string; updated_completion: string; fragnet_only_completion?: string | null; /** legacy */ fragment?: string; /** legacy */ fragment_only_completion?: string | null };
+export type Tia = { fragnet?: string; prior_completion: string; updated_completion: string; fragnet_only_completion?: string | null; /** job calendar holidays (ISO dates); default US federal */ holidays?: string[] | null; /** legacy */ fragment?: string; /** legacy */ fragment_only_completion?: string | null };
 export type LivingData = {
   activities?: Activity[];
   billing?: { billed_to_date?: number | null; months?: BillingMonth[] };
@@ -86,7 +87,7 @@ export const forecastTotal = (b: LivingData["billing"]) => fromCents((b?.months 
 const day = (s: string) => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
 export const calendarDays = (from: string, to: string) => Math.round((day(to) - day(from)) / 86_400_000);
 const short = (s: string) => new Date(day(s)).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
-export type TiaResult = { fragnet: string; prior_completion: string; updated_completion: string; impact_cd: number; fragnet_only_cd: number | null; math: string; statement: string };
+export type TiaResult = { fragnet: string; prior_completion: string; updated_completion: string; impact_cd: number; impact_wd: number; completion_delay: string; fragnet_only_cd: number | null; math: string; statement: string };
 /** Computed server-side from the saved dates; never typed in by the host. */
 export function tiaResult(t: Tia | null | undefined): TiaResult | null {
   if (!t?.prior_completion || !t.updated_completion) return null;
@@ -94,9 +95,13 @@ export function tiaResult(t: Tia | null | undefined): TiaResult | null {
   const fragnet = t.fragnet ?? t.fragment ?? "";
   const only = t.fragnet_only_completion ?? t.fragment_only_completion ?? null;
   const frag = only ? calendarDays(only, t.updated_completion) : null;
-  const math = `Updated completion ${short(t.updated_completion)} − prior completion ${short(t.prior_completion)} = ${impact} calendar days.${frag !== null ? ` Fragnet-only impact: ${short(t.updated_completion)} − ${short(only!)} = ${frag} CD.` : ""}`;
-  const statement = impact > 0 ? `Impact pushes completion out ${impact} calendar days.` : `0 CD: float absorbed it.`;
-  return { fragnet, prior_completion: t.prior_completion, updated_completion: t.updated_completion, impact_cd: impact, fragnet_only_cd: frag, math, statement };
+  // 0.8.12: both units. The delay window is the day after the prior completion through the updated completion,
+  // counted inclusively like delayCallout (CD), and in working days on the job calendar (WD).
+  const wd = impact > 0 ? jobWorkingDays(addDays(t.prior_completion.slice(0, 10), 1), t.updated_completion.slice(0, 10), t.holidays) : 0;
+  const completion_delay = impact > 0 ? completionDelayLine(wd, addDays(t.prior_completion.slice(0, 10), 1), t.updated_completion.slice(0, 10)) : "Completion delay: +0 WD (0 CD)";
+  const math = `Updated completion ${short(t.updated_completion)} − prior completion ${short(t.prior_completion)}.${frag !== null ? ` Fragnet-only impact: ${short(t.updated_completion)} − ${short(only!)} = ${frag} CD.` : ""}`;
+  const statement = impact > 0 ? `${completion_delay}.` : `${completion_delay}: float absorbed it.`;
+  return { fragnet, prior_completion: t.prior_completion, updated_completion: t.updated_completion, impact_cd: impact, impact_wd: wd, completion_delay, fragnet_only_cd: frag, math, statement };
 }
 
 /** 0.8.12: delay callout, always both units. CD = start to finish inclusive (Nov 27 to Dec 17 = 21). */
@@ -107,6 +112,23 @@ export function inclusiveCalendarDays(start: string, finish: string): number {
 }
 export function delayCallout(workingDays: number, start: string, finish: string): string {
   return `Delay: +${workingDays} WD (${inclusiveCalendarDays(start, finish)} CD)`;
+}
+/** Same counting as delayCallout, labeled for the completion-to-completion result. */
+export function completionDelayLine(workingDays: number, start: string, finish: string): string {
+  return delayCallout(workingDays, start, finish).replace(/^Delay:/, "Completion delay:");
+}
+/** Working days (Mon–Fri, excluding the job's holidays; US federal holidays when none are saved), start to finish inclusive. */
+export function jobWorkingDays(start: string, finish: string, holidays?: string[] | null): number {
+  if (finish < start) return 0;
+  const years = new Set<number>();
+  for (let y = +start.slice(0, 4); y <= +finish.slice(0, 4); y++) years.add(y);
+  const hol = new Set(holidays ?? [...years].flatMap(federalHolidays));
+  let n = 0;
+  for (let d = start; d <= finish; d = addDays(d, 1)) {
+    const w = new Date(`${d}T00:00:00Z`).getUTCDay();
+    if (w !== 0 && w !== 6 && !hol.has(d)) n++;
+  }
+  return n;
 }
 
 // ---------- save checks ----------
