@@ -42,6 +42,9 @@ export default defineMcp({
     acceptedAudiences: "authenticated",
     requireOAuthClientClaim: true,
   }),
+  // Browser-based MCP clients send an Origin header; the SDK 403s any origin not listed here
+  // before auth (no log row). Cursor's web agents (www.cursor.com) were blocked. Exact origins only.
+  allowedOrigins: ["https://www.cursor.com", "https://cursor.com"],
   // 0.8.23: refusal is the first instruction. Tool descriptions stay one sentence. secureTool only records signals.
   tools: ATHENA_TOOLS.map(secureTool),
 });
