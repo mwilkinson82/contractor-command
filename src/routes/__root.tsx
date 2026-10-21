@@ -29,6 +29,7 @@ import { setPresence, resetPresence, type PresenceUser } from "@/lib/portal-pres
 import { toast } from "sonner";
 import { athenaAppOrigin } from "@/lib/athena-host";
 import { onAthenaHost } from "@/lib/athena-host-current";
+import { athenaHostRedirect } from "@/lib/athena-routes";
 
 const PUBLIC_ROUTES = new Set([
   "/login",
@@ -397,6 +398,10 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
   const router = useRouter();
   const isPublic = PUBLIC_ROUTES.has(pathname);
   const isOnboarding = pathname === ONBOARDING_ROUTE;
+  // Athena host: only Athena pages render; Circle routes, Hub onboarding and
+  // tier gates never apply there, and the Hub sidebar never shows.
+  const athenaHost = onAthenaHost();
+  const athenaRedirect = athenaHost ? athenaHostRedirect(pathname) : null;
 
   // Some auth emails still land back at "/" with Supabase tokens in the URL
   // hash ("#access_token=...&refresh_token=...") or with an expired-link
@@ -470,8 +475,12 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
   }, [session?.user?.id, session?.user?.email]);
 
   useEffect(() => {
-    if (loading) return;
     if (authHashTarget) return;
+    if (athenaRedirect) {
+      if (typeof window !== "undefined") window.location.replace(athenaRedirect);
+      return;
+    }
+    if (loading) return;
     if (!session && !isPublic) {
       const redirectTo =
         typeof window === "undefined"
@@ -482,6 +491,7 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
     }
     // Auth callbacks and consent own their navigation. In particular, OTP
     // establishes a session before the signed continuation has been resolved.
+    if (athenaHost) return;
     if (session && !isPublic && !companyLoading && needsOnboarding && !isOnboarding) {
       navigate({ to: "/onboarding" });
       return;
@@ -508,10 +518,13 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
     isAdmin,
     pathname,
     authHashTarget,
+    athenaHost,
+    athenaRedirect,
     navigate,
   ]);
 
   if (authHashTarget) return <LoadingWorkspace />;
+  if (athenaRedirect) return <LoadingWorkspace />;
 
   if (isPublic) {
     // Signed-out redirect to a public page: render nothing until the public
@@ -525,6 +538,8 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
   }
 
   if (!session) return null;
+  // Athena pages own their layout and never wait on the Hub company/onboarding.
+  if (athenaHost) return <>{children(false)}</>;
   if (companyLoading) return <LoadingWorkspace />;
   if (companyError) {
     return (
