@@ -5,6 +5,7 @@ import { AuthCard } from "@/components/auth/auth-card";
 import { checkAthenaEntitlement, NO_ENTITLEMENT_MESSAGE, type RpcClient } from "@/lib/mcp/entitlement";
 import { boundedStep, ConsentStepError, consentReturnPath, isAppHandoff } from "@/lib/consent-loading";
 import { getAuthorizationDetails, decideAuthorization, getAuthUser } from "@/lib/oauth-consent-api";
+import { TERMS_LINK_TEXT, TERMS_REQUIRED_MESSAGE, TERMS_TEXT_AFTER, TERMS_TEXT_BEFORE, TERMS_URL, canApproveConnect, recordTermsAcceptance, type AccountDb } from "@/lib/account-team";
 
 
 const SCOPE_LABELS: Record<string, string> = {
@@ -109,10 +110,12 @@ function Consent() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [handoff, setHandoff] = useState<string | null>(null);
+  const [termsChecked, setTermsChecked] = useState(false);
   const navigate = useNavigate();
   if (!loaded) return null;
   const { details, email, userId, entitled, accessToken } = loaded;
   const allowed = entitled === true;
+  const canApprove = canApproveConnect(allowed, termsChecked);
   async function switchAccount() {
     setBusy(true);
     const next = `/oauth/consent?authorization_id=${encodeURIComponent(authorization_id)}`;
@@ -136,6 +139,12 @@ function Consent() {
         : "Your signed-in account changed. Reload this request before approving.");
       setBusy(false);
       return;
+    }
+    if (approve) {
+      // v0.8.22: the Terms box is required, and the agreement (who + when) is recorded before the connect goes through.
+      if (!termsChecked) { setError(TERMS_REQUIRED_MESSAGE); setBusy(false); return; }
+      const saved = await recordTermsAcceptance(supabase as unknown as AccountDb, authorization_id, typeof navigator === "undefined" ? null : navigator.userAgent);
+      if (!saved.ok) { setError(saved.error); setBusy(false); return; }
     }
     const { data, error } = await decideAuthorization(authorization_id, accessToken, approve);
     if (error) {
@@ -215,6 +224,22 @@ function Consent() {
           </ul>
         )}
         <p className="text-foreground/60">Your company's Athena access rules still apply.</p>
+        <label className="flex items-start gap-2 rounded-lg border border-border p-3 text-foreground/85">
+          <input
+            type="checkbox"
+            required
+            checked={termsChecked}
+            disabled={busy || !allowed}
+            onChange={(e) => { setTermsChecked(e.target.checked); if (e.target.checked) setError(null); }}
+            className="mt-0.5 h-4 w-4"
+            aria-describedby="athena-terms"
+          />
+          <span id="athena-terms">
+            {TERMS_TEXT_BEFORE}
+            <a href={TERMS_URL} target="_blank" rel="noreferrer" className="font-medium text-primary underline underline-offset-2">{TERMS_LINK_TEXT}</a>
+            {TERMS_TEXT_AFTER}
+          </span>
+        </label>
         {error && (
           <p role="alert" className="text-destructive">
             {error}
@@ -223,9 +248,9 @@ function Consent() {
         <div className="flex gap-3 pt-2">
           <button
             type="button"
-            disabled={busy || !allowed}
+            disabled={busy || !canApprove}
             onClick={() => decide(true)}
-            className={`flex-1 rounded-lg px-4 py-2.5 font-medium disabled:opacity-60 ${allowed ? "bg-primary text-primary-foreground" : "border border-border"}`}
+            className={`flex-1 rounded-lg px-4 py-2.5 font-medium disabled:opacity-60 ${canApprove ? "bg-primary text-primary-foreground" : "border border-border"}`}
           >
             Approve
           </button>
