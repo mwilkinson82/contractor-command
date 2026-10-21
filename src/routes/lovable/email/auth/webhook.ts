@@ -5,6 +5,7 @@ import { parseEmailWebhookPayload } from '@lovable.dev/email-js'
 import { WebhookError, verifyWebhookRequest } from '@lovable.dev/webhooks-js'
 import { createClient } from '@supabase/supabase-js'
 import { createFileRoute } from '@tanstack/react-router'
+import { emailSiteFor } from '@/lib/auth-origins'
 import { SignupEmail } from '@/lib/email-templates/signup'
 import { InviteEmail } from '@/lib/email-templates/invite'
 import { MagicLinkEmail } from '@/lib/email-templates/magic-link'
@@ -133,9 +134,11 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
         }
 
         // Build template props from payload.data (HookData structure)
+        // Brand and site link follow where the email's link goes (its redirect_to), never the Auth Site URL.
+        const site = emailSiteFor(payload.data.url)
         const templateProps = {
-          siteName: SITE_NAME,
-          siteUrl: `https://${ROOT_DOMAIN}`,
+          siteName: site.siteName,
+          siteUrl: site.siteUrl,
           recipient: payload.data.email,
           confirmationUrl: payload.data.url,
           token: payload.data.token,

@@ -8,6 +8,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { hubOrigin } from "@/lib/auth-origins";
 
 async function assertAdmin(userId: string) {
   const { data: roles } = await supabaseAdmin
@@ -19,10 +20,7 @@ async function assertAdmin(userId: string) {
 }
 
 function welcomeRedirectUrl(): string {
-  const origin =
-    process.env.PUBLIC_APP_ORIGIN ||
-    process.env.APP_ORIGIN ||
-    "https://app.alpcontractorcircle.com";
+  const origin = hubOrigin();
   return `${origin.replace(/\/$/, "")}/welcome`;
 }
 

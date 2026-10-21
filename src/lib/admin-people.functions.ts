@@ -13,6 +13,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
+import { hubOrigin } from "@/lib/auth-origins";
 
 async function getSupabaseAdmin() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -31,10 +32,7 @@ async function assertAdmin(userId: string, supabaseAdmin: SupabaseAdmin) {
 }
 
 function originRoot(): string {
-  const o =
-    process.env.PUBLIC_APP_ORIGIN ||
-    process.env.APP_ORIGIN ||
-    "https://app.alpcontractorcircle.com";
+  const o = hubOrigin();
   return o.replace(/\/$/, "");
 }
 

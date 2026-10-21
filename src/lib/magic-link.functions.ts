@@ -11,6 +11,7 @@ import { z } from "zod";
 import { oauthConsentReturn } from "@/lib/oauth-return-path";
 import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
 import { athenaAppOrigin } from "@/lib/athena-host";
+import { hubOrigin } from "@/lib/auth-origins";
 
 type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
 
@@ -20,11 +21,7 @@ const Input = z.object({
 });
 
 function fallbackAppOrigin(): string {
-  return (
-    process.env.PUBLIC_APP_ORIGIN ||
-    process.env.APP_ORIGIN ||
-    "https://app.alpcontractorcircle.com"
-  ).replace(/\/$/, "");
+  return hubOrigin();
 }
 
 function allowedRequestOrigin(origin: string | null): string | null {

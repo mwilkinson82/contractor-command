@@ -26,6 +26,7 @@ import {
   stripeRefId,
   type HubTier,
 } from "@/lib/stripe/paid-product-map";
+import { hubOrigin } from "@/lib/auth-origins";
 
 type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
 
@@ -887,11 +888,7 @@ async function invitePaidMemberIfNeeded(supabaseAdmin: SupabaseAdminClient, emai
     if (users.length < perPage) break;
   }
 
-  const origin = (
-    process.env.PUBLIC_APP_ORIGIN ||
-    process.env.APP_ORIGIN ||
-    "https://app.alpcontractorcircle.com"
-  ).replace(/\/$/, "");
+  const origin = hubOrigin();
   const { error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
     data: { source: "stripe_purchase", invited_at: new Date().toISOString() },
     redirectTo: `${origin}/welcome`,
