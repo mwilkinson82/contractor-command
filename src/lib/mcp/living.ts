@@ -99,6 +99,16 @@ export function tiaResult(t: Tia | null | undefined): TiaResult | null {
   return { fragnet, prior_completion: t.prior_completion, updated_completion: t.updated_completion, impact_cd: impact, fragnet_only_cd: frag, math, statement };
 }
 
+/** 0.8.12: delay callout, always both units. CD = start to finish inclusive (Nov 27 to Dec 17 = 21). */
+export function inclusiveCalendarDays(start: string, finish: string): number {
+  const a = Date.UTC(+start.slice(0, 4), +start.slice(5, 7) - 1, +start.slice(8, 10));
+  const b = Date.UTC(+finish.slice(0, 4), +finish.slice(5, 7) - 1, +finish.slice(8, 10));
+  return Math.round((b - a) / 86_400_000) + 1;
+}
+export function delayCallout(workingDays: number, start: string, finish: string): string {
+  return `Delay: +${workingDays} WD (${inclusiveCalendarDays(start, finish)} CD)`;
+}
+
 // ---------- save checks ----------
 export type SaveCheck = { ok: boolean; problems: string[]; tie: Tie | null; count: CountCheck | null; forecast_total: number | null };
 /** Refuse a save that drops activities, loses its count, or doesn't tie to the contract to the cent. */
@@ -170,7 +180,7 @@ export const CPM_GANTT_SPEC: string[] = [
   "4. Logic: thin predecessor connector lines, and the critical path highlighted end to end.",
   "5. Today line: a dashed vertical line at the data date (or today if the data date is Needed), labeled.",
   "6. Contract completion: a dashed vertical line labeled with the saved date.",
-  `7. Delay fragnets (only when a delay result exists): a hatched bar labeled \"Fragnet\", plus a ${DELAY_CALLOUT_COLOR} callout reading \"Delay: +X CD\" using X from the saved delay result, and baseline ghost bars under the updated bars.`,
+  `7. Delay fragnets (only when a delay result exists): a hatched bar labeled \"Fragnet\", plus a ${DELAY_CALLOUT_COLOR} callout reading \"Delay: +X WD (Y CD)\", always both units: X = the fragnet duration in working days on the job calendar, Y = calendar days from the fragnet start to its finish, counting both days (e.g. 15 WD Nov 27 to Dec 17 = \"Delay: +15 WD (21 CD)\"), taken from the saved activities and delay result, and baseline ghost bars under the updated bars.`,
   "8. Legend under the chart: Critical, Non-critical, Float, Milestone, Owner-furnished, Fragnet, Today.",
   `9. Order rows by start date, keep IDs exactly as given and show all activities. All other colors are blue and gray only; the callout color is only for delays, risks and overdue items. No technical notes; one caveat line at most.`,
 ];

@@ -103,7 +103,7 @@ describe("0.8.10 CPM Gantt spec + desktop return", () => {
     expect(all).toContain("#2563EB");
     expect(all).toContain("#9CA3AF");
     expect(all).toContain('"Fragnet"');
-    expect(all).toContain('"Delay: +X CD"');
+    expect(all).toContain('"Delay: +X WD (Y CD)"');
     expect(all).not.toMatch(/fragment/i);
   });
   it("delay callout color comes from one constant", () => {

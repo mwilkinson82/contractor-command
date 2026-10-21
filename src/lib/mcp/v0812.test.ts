@@ -15,7 +15,7 @@ describe("0.8.12 alert color", () => {
     expect(ALERT_COLOR).toBe("red #DC2626");
     expect(ALERT_HEX).toBe("#DC2626");
     expect(DELAY_CALLOUT_COLOR).toBe(ALERT_COLOR);
-    expect(CPM_GANTT_SPEC.join("\n")).toContain(`${ALERT_COLOR} callout reading "Delay: +X CD"`);
+    expect(CPM_GANTT_SPEC.join("\n")).toContain(`${ALERT_COLOR} callout reading "Delay: +X WD (Y CD)", always both units`);
   });
   it("switching is one line: alert-color.ts holds the only literal", () => {
     const lit = /"red #DC2626"|"charcoal #374151"/;
@@ -150,5 +150,18 @@ describe("0.8.12 view-only asks never touch the shared master", () => {
     expect(CPM_REQUIRED_TOP.split("\n")[0]).toContain('"pull up the schedule"');
     expect(CPM_REQUIRED_TOP).toContain("build a NEW private view or artifact");
     expect(src("./tools/living-tools.ts")).toContain('"View-only asks (e.g. \\"pull up the schedule\\"): build a NEW private view or artifact;');
+  });
+});
+
+import { delayCallout, inclusiveCalendarDays } from "./living";
+describe("0.8.12 delay callout: WD and CD", () => {
+  it("D1060: 15 WD Nov 27 to Dec 17 = 21 CD inclusive", () => {
+    expect(inclusiveCalendarDays("2026-11-27", "2026-12-17")).toBe(21);
+    expect(delayCallout(15, "2026-11-27", "2026-12-17")).toBe("Delay: +15 WD (21 CD)");
+  });
+  it("specs never show the CD-only callout", () => {
+    for (const f of ["./living.ts", "./views.ts"]) expect(src(f), f).not.toMatch(/\+X CD/);
+    expect(CPM_GANTT_SPEC.join("\n")).toContain('15 WD Nov 27 to Dec 17 = "Delay: +15 WD (21 CD)"');
+    expect(PORTFOLIO_VIEW_SPEC.join("\n")).toContain("Delayed +X WD (Y CD), always both units");
   });
 });

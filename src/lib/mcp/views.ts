@@ -51,7 +51,7 @@ export const PORTFOLIO_VIEW_SPEC: string[] = [
   "REQUIRED VIEW – COMPANY PORTFOLIO DASHBOARD: When the user asks for the company, portfolio or all-jobs dashboard, always build ONE styled artifact. Spec:",
   "1. Access: only for owner/leadership roles. A PM sees only their own jobs, with no other jobs' dollars or billing; say so in one line. Use only the jobs and dollars Athena returns for this user.",
   "2. KPI tiles across the top: active jobs, total contract value, total indicated GP $ and %, GP change vs budget, billed to date, left to bill, and retainage held.",
-  `3. Job cards grid, one per job: job number and name, PM, contract, % complete, indicated GP %, GP change (${ALERT_COLOR} if down), schedule status chip (On track / At risk / Delayed +X CD, ${ALERT_COLOR} only when delayed or at risk), and the next deadline with a countdown.`,
+  `3. Job cards grid, one per job: job number and name, PM, contract, % complete, indicated GP %, GP change (${ALERT_COLOR} if down), schedule status chip (On track / At risk / Delayed +X WD (Y CD), always both units, ${ALERT_COLOR} only when delayed or at risk), and the next deadline with a countdown.`,
   "4. Bar chart of GP % by job (budgeted in gray #9CA3AF, indicated in blue #2563EB).",
   `5. \"Needs attention\" list: overdue notices, delays and top risks across jobs, each with job, owner and due date, ${ALERT_COLOR} flagged.`,
   "6. Monthly billing forecast chart across all jobs for the next 6 months.",
