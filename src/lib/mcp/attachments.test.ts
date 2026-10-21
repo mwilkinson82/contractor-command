@@ -32,4 +32,9 @@ describe("0.8.10 email attachments", () => {
     const all = [EMAIL_ATTACHMENT_RULE, JSON.stringify(EMAIL_ATTACHMENT_STRUCTURED), SOV_DELIVERY_ASK, REPORT_SHARE_ASK].join(" ");
     expect(all).not.toMatch(/lovable|\bred\b|fragment/i);
   });
+  it("0.8.11: rule and data point hosts at file_share links", () => {
+    expect(EMAIL_ATTACHMENT_RULE).toMatch(/file_share .*app\.meetathena\.io\/f\//);
+    expect(EMAIL_ATTACHMENT_STRUCTURED.share_link_tool).toBe("file_share");
+    expect(SOV_DELIVERY_BLOCK).toMatch(/ChatGPT: .*call file_share and put its link in the body/);
+  });
 });

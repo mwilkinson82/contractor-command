@@ -181,11 +181,13 @@ export const SHARE_OPTIONS_REQUIRED =
  * create_draft takes base64 attachments, Grok Bot attaches to a Gmail draft. Never claim an attachment that isn't there.
  */
 export const EMAIL_ATTACHMENT_RULE =
-  "REQUIRED: Only say a file is attached if your email tool actually attached it. If your email tool can't attach files (ChatGPT's email today), put a link to the file in the email body instead (a canvas or file shared as anyone with the link, or a Google Drive or OneDrive link), and say so in one line under the card. Never send an email that says \"attached\" without the file.";
+  "REQUIRED: Only say a file is attached if your email tool actually attached it. If your email tool can't attach files (ChatGPT's email today), put a link to the file in the email body instead (a canvas or file shared as anyone with the link, or a Google Drive or OneDrive link), and say so in one line under the card. Best link: call Athena's file_share with the file you built and use the app.meetathena.io/f/ link it returns (opens for anyone with it, 30 days). Never send an email that says \"attached\" without the file.";
 export const EMAIL_ATTACHMENT_STRUCTURED = {
   never_claim_missing_attachment: true,
   attach_when_supported: "Use the email tool's attachments field when it has one (Claude Gmail create_draft attachments, base64, 25 MB total; Grok Bot Gmail draft attachment).",
   fallback_when_unsupported: "ChatGPT Gmail/Outlook email action has no attachments field: put a link to the file in the body (canvas or file shared as anyone with the link, or a Drive/OneDrive link) and tell the member in one line. Or save a draft and tell the member to attach the downloaded file in Gmail before sending.",
+  share_link_tool: "file_share",
+  share_link_how: "Call file_share with job_number, kind, filename and content_base64 (the bytes of the file you built). Put the returned link in the email body. Works in every host.",
   rule: EMAIL_ATTACHMENT_RULE,
 } as const;
 /** 0.8.9: pinned at the top of every date sweep. */
@@ -266,7 +268,7 @@ export const SOV_DELIVERY_BLOCK = [
   "- Claude: the delivery question is mandatory even in Claude. Put it directly under the artifact as the last thing in the reply.",
   "- Email on demand, at any point: use the job's saved subs, suppliers and contacts from Athena results (including names and emails written in job answers, lookahead or open-item text) and show the email card right away with recipient, subject, body and attachment filled in. If the contact or address isn't there, leave To blank and ask in the same reply. Never guess an address.",
   "- Claude: no narration before or between steps (no \"Building...\", \"First I'll pull...\" or \"I need two things before...\"). Show the file and the email card in the same reply, To blank if needed, with one short question under it. Never hold the card back while you ask.",
-  `- Attachments: ${EMAIL_ATTACHMENT_RULE.replace(/^REQUIRED: /, "")} Claude: pass the file in the Gmail draft's attachments. ChatGPT: its email action can't attach files, so use the link.`,
+  `- Attachments: ${EMAIL_ATTACHMENT_RULE.replace(/^REQUIRED: /, "")} Claude: pass the file in the Gmail draft's attachments. ChatGPT: its email action can't attach files, so call file_share and put its link in the body.`,
   "- Never send anything yourself. The member reviews the email card and presses Send.",
   `- If the member says "not now", leave the SOV in the chat and add an open item to deliver it within ${SOV_NOT_NOW_DAYS} days (intake section open_item).`,
 ].join("\n");
