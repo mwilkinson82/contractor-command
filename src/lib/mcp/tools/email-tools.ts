@@ -1,6 +1,7 @@
 // P0: the only email path Athena offers the host. email_draft shows the card (read-only, sends nothing);
 // email_confirm_send is the separate, destructive confirm step that must follow an explicit yes.
 // Athena itself never sends these emails; the host's own email tool does, and only after the confirm.
+import { EMAIL_DRAFT_VIEW_SPEC } from "../views";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { run, text, type Sb } from "../guard";
@@ -8,6 +9,7 @@ import { resolveJob, type Job } from "../jobs";
 import { whoForJob } from "../people";
 import { draftIdentity } from "../drafts";
 import { guide } from "../visible";
+import { fileLinkLive } from "./file-tools";
 import {
   confirmQuestion,
   draftCardText,
@@ -15,6 +17,7 @@ import {
   deliverableProblems,
   emailRules,
   EMAIL_CARD_RULE,
+  ATHENA_FILE_LINK_RE,
   signatureProblem,
   outboundEmailDisabled,
   type EmailDraft,
@@ -66,8 +69,11 @@ const toDraft = (a: {
   link: a.link ?? null,
   attachment: a.attachment ?? null,
 });
-const checkDeliverable = (d: EmailDraft) => {
+const checkDeliverable = async (d: EmailDraft, sb?: Sb) => {
   const p = deliverableProblems(d);
+  // 0.8.18: an Athena file link must actually open (exists, not turned off, not expired).
+  if (!p.length && sb && d.link && ATHENA_FILE_LINK_RE.test(d.link.trim()) && !(await fileLinkLive(sb, d.link.trim())))
+    p.push("That file link doesn't work (turned off, expired or never made). Call lookahead_pdf (or file_share) again for a fresh link.");
   if (p.length) throw new ToolError(`Fix the draft first. Nothing was sent.\n${p.map((x) => `- ${x}`).join("\n")}`);
 };
 
@@ -75,7 +81,7 @@ export const emailDraft = defineTool({
   name: "email_draft",
   title: "Show an email draft for review",
   description:
-    'Call this whenever the member asks to email or send anything ("send the lookahead to ...", "email this to the sub"). Deliverables: build a PDF and attach it with your own email tool (pass attachment); only if you can\'t attach, use a file_share link (pass link); never HTML, never say "attached" unless it is. Returns the draft card only; nothing is sent. Show the card, then ask the confirm question it returns. Never call any send action in the same reply.',
+    'Call this whenever the member asks to email or send anything ("send the lookahead to ...", "email this to the sub"). Deliverables need a real file: for a lookahead call lookahead_pdf first (other files: file_share) and pass its download_url as link, in the body too. Pass attachment only if your email tool actually attached that PDF; if it can\'t attach from a URL, leave attachment out and say "link", never "attached". Never HTML. Returns the draft card only; nothing is sent. Show the card, then ask the confirm question it returns. Never call any send action in the same reply.',
   inputSchema: {
     ...fields,
     job_number: z.string().trim().max(40).optional().describe("The job this email is about. Athena signs it as that job's PM."),
@@ -91,7 +97,7 @@ export const emailDraft = defineTool({
   handler: (args, ctx) =>
     run("email_draft", ctx, {}, async (sb) => {
       const d = toDraft(args);
-      checkDeliverable(d);
+      await checkDeliverable(d, sb as Sb);
       // 0.8.17: signed as the job's PM by default (not the person chatting), from the member's current company.
       const sig = args.job_number ? await pmSignature(sb as Sb, await resolveJob(sb as Sb, args.job_number, args.company_id)) : null;
       const sp = signatureProblem(d.body, sig, args.sign_as ?? null);
@@ -100,7 +106,7 @@ export const emailDraft = defineTool({
       const off = outboundEmailDisabled();
       return guide(
         {
-          ...text(draftCardText(d)),
+          ...text([draftCardText(d), "", ...EMAIL_DRAFT_VIEW_SPEC, ...(off ? [] : ["", `Confirm question: ${confirmQuestion(d)}`])].join("\n")),
           structuredContent: {
             draft: d,
             signature: args.sign_as ?? sig?.signature ?? null,
@@ -140,7 +146,7 @@ export const emailConfirmSend = defineTool({
     openWorldHint: true,
   },
   handler: (args, ctx) =>
-    run("email_confirm_send", ctx, {}, async () => {
+    run("email_confirm_send", ctx, {}, async (sb) => {
       if (outboundEmailDisabled())
         throw new ToolError(
           "Sending email from Athena is turned off right now. Nothing was sent; copy the draft into your email app.",
@@ -148,7 +154,7 @@ export const emailConfirmSend = defineTool({
       if (args.confirmed !== true) throw new ToolError("Ask the member first. Nothing was sent.");
       const d = toDraft(args);
       if (!d.to) throw new ToolError("The draft has no recipient. Nothing was sent.");
-      checkDeliverable(d);
+      await checkDeliverable(d, sb as Sb);
       if (draftKey(d) !== args.draft_key)
         throw new ToolError(
           "This draft changed after it was reviewed. Show the new draft and ask again. Nothing was sent.",

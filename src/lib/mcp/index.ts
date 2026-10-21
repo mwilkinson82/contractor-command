@@ -16,7 +16,7 @@ import {
   contractTerms,
 } from "./tools/workflow-tools";
 import { cpmActivities, livingReportGet, livingReportSave } from "./tools/living-tools";
-import { fileShare, fileShareRevoke } from "./tools/file-tools";
+import { fileShare, fileShareRevoke, lookaheadPdfTool } from "./tools/file-tools";
 import { reportPageLink, reportPageShare, reportPageShareRevoke } from "./tools/report-page-tools";
 import { setCurrentCompany, teamAddSeats, teamInvite, teamList, teamRemoveMember, teamUpdateMember } from "./tools/team-tools";
 
@@ -34,6 +34,6 @@ export default defineMcp({
     acceptedAudiences: "authenticated",
     requireOAuthClientClaim: true,
   }),
-  tools: [onboarding, intake, nextQuestion, answer, report, contractTerms, carryForward, listOpenItems, resolveItem, cpmActivities, livingReportGet, livingReportSave, fileShare, fileShareRevoke, reportPageLink, reportPageShare, reportPageShareRevoke, teamList, teamInvite, teamUpdateMember, teamRemoveMember, teamAddSeats, setCurrentCompany, emailDraft, emailConfirmSend],
+  tools: [onboarding, intake, nextQuestion, answer, report, contractTerms, carryForward, listOpenItems, resolveItem, cpmActivities, livingReportGet, livingReportSave, fileShare, fileShareRevoke, lookaheadPdfTool, reportPageLink, reportPageShare, reportPageShareRevoke, teamList, teamInvite, teamUpdateMember, teamRemoveMember, teamAddSeats, setCurrentCompany, emailDraft, emailConfirmSend],
 });
 

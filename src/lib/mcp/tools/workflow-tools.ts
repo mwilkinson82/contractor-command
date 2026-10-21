@@ -14,6 +14,7 @@ import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
 import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
 import { guide, EMAIL_TO_LABEL_REQUIRED, SHARE_OPTIONS_REQUIRED, REPORT_SHARE_ASK, REPORT_SHARE_STRUCTURED, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_CHART_RULE, sovChart, sovRequiredTop, sovDeliveryAsk, sovDeliveryBlock, sovDeliveryStructured, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
 import { withoutClaims } from "../internal-claims";
+import { LOOKAHEAD_EMAIL_LINE } from "../email-safety";
 import { briefingView, dataDateRule, pickLatestLookahead, type LaRow, emptyCard, lookaheadView, lookaheadWindow, pageLine, windowActivities, type LaItem, type SAct } from "../styled-views";
 import { pageUrl } from "../../report-pages";
 import { EMAIL_VIEW_SPEC, LOOKAHEAD_VIEW_SPEC, REMINDERS_VIEW_SPEC, highlightLine, lookaheadHighlight } from "../views";
@@ -1110,7 +1111,8 @@ export const report = defineTool({
         // 0.8.12: highlight today, or the saved CPM data date when that is later; then the required lookahead view.
         const hl = lookaheadHighlight(todayIn(await jobTimeZone(sb, job.job_id)), await cpmDataDate(sb, job));
         const view = await styledLookahead(sb, job, la, hl.date);
-        return text(`${prefix(job)}${view}\n\n---\nSource detail:\n${await renderReport(sb, la)}${revs.length ? `\n\n${revs.join("\n")}` : ""}\n\n${highlightLine(hl)}\n${LOOKAHEAD_VIEW_SPEC.join("\n")}`);
+        // 0.8.18: the view spec sits right under the view (like CPM_GANTT_SPEC after the Tie line) so Claude builds an artifact.
+        return text(`${prefix(job)}${view}\n\n${highlightLine(hl)}\n${LOOKAHEAD_VIEW_SPEC.join("\n")}\n\n---\nSource detail:\n${await renderReport(sb, la)}${revs.length ? `\n\n${revs.join("\n")}` : ""}`);
       }
       const audience = args.audience ?? "internal";
       if (args.deliverable === "sov") return sovResult(sb, job, audience, args.sov_view ?? "lines");
@@ -1473,9 +1475,10 @@ async function lookaheadRows(sb: Sb, job: Job): Promise<LaRow[]> {
   return visibleLookaheads((las ?? []) as { id: string; start_date: string | null; end_date: string | null; created_at: string; inputs?: unknown }[]).map((l) => ({ id: l.id, start_date: l.start_date, end_date: l.end_date, created_at: l.created_at, items: n.get(l.id) ?? 0 }));
 }
 
-/** 0.8.17: the lookahead as a finished view, filled from the saved CPM window when no schedule export was sent. */
-async function styledLookahead(sb: Sb, job: Job, la: { id: string; start_date?: string | null; end_date?: string | null }, highlight: string | null): Promise<string> {
-  type Cpm = { found?: boolean; data_date?: string | null; data?: { activities?: SAct[] } };
+/** 0.8.18: the lookahead's data (window from the saved CPM data date, activities, open items); shared by the view and the PDF. */
+export async function lookaheadData(sb: Sb, job: Job, laInput: string | { id: string; start_date?: string | null; end_date?: string | null }) {
+  const la = typeof laInput === "string" ? await lookaheadForJob(sb, job, laInput) : laInput;
+  type Cpm = { found?: boolean; data_date?: string | null; version?: number | null; data?: { activities?: SAct[] } };
   const cpm: Cpm | null = await (async () => {
     try {
       const { data, error } = await sb.rpc("mcp_living_report_get", { _job: job.job_id, _type: "cpm", _version: null });
@@ -1483,18 +1486,28 @@ async function styledLookahead(sb: Sb, job: Job, la: { id: string; start_date?: 
     } catch { return null; }
   })();
   const acts = (cpm?.found ? cpm.data?.activities ?? [] : []) as SAct[];
-  const dd = cpm?.found ? cpm.data_date ?? null : null;
-  const win = lookaheadWindow(la, dd);
+  const dataDate = cpm?.found ? cpm.data_date ?? null : null;
+  const found = lookaheadWindow(la, dataDate);
+  const win = found && windowActivities(acts, found.start, found.end).length ? found : null;
+  let items: LaItem[] = [];
+  if (win) {
+    const { data: rows } = await sb.from("mcp_open_items").select("action, owner, accountable, due_date, needed_by").eq("job_id", job.job_id).eq("status", "open");
+    items = ((rows ?? []) as { action: string; owner?: string | null; accountable?: string | null; due_date?: string | null; needed_by?: string | null }[])
+      .map((r) => ({ action: r.action, owner: r.accountable ?? r.owner ?? null, due: (r.needed_by ?? r.due_date ?? null)?.slice(0, 10) ?? null }))
+      .filter((r) => !r.due || r.due <= win.end);
+  }
+  return { la, ref: lookaheadRef(la.id), win, note: found?.note ?? null, dataDate, version: cpm?.version ?? null, acts, items };
+}
+
+/** 0.8.17: the lookahead as a finished view, filled from the saved CPM window when no schedule export was sent. */
+async function styledLookahead(sb: Sb, job: Job, la: { id: string; start_date?: string | null; end_date?: string | null }, highlight: string | null): Promise<string> {
+  const d = await lookaheadData(sb, job, la);
   const title = `${job.job_number} – ${job.name}`;
   const url = job.scope === "full" || job.scope === "super" ? pageUrl("lookahead", job.job_id) : null;
-  if (!win || !windowActivities(acts, win.start, win.end).length)
-    return `${url ? `${pageLine("lookahead", url)}\n\n` : ""}${emptyCard("lookahead", title, acts.length ? "Pick a window that overlaps the saved schedule, or send this window's schedule export." : "Send the schedule export (or save the CPM) and Athena fills the lookahead from it.", acts.length ? [] : ["Schedule export or saved CPM"])}`;
-  const { data: rows } = await sb.from("mcp_open_items").select("action, owner, accountable, due_date, needed_by").eq("job_id", job.job_id).eq("status", "open");
-  const items: LaItem[] = ((rows ?? []) as { action: string; owner?: string | null; accountable?: string | null; due_date?: string | null; needed_by?: string | null }[])
-    .map((r) => ({ action: r.action, owner: r.accountable ?? r.owner ?? null, due: (r.needed_by ?? r.due_date ?? null)?.slice(0, 10) ?? null }))
-    .filter((r) => !r.due || r.due <= win.end);
-  const view = lookaheadView({ title, ref: lookaheadRef(la.id), start: win.start, end: win.end, dataDate: dd, acts, items, highlight, pageUrl: url });
-  return [view, ...(win.note ? ["", win.note] : []), ...(dd ? ["", dataDateRule(dd, (cpm as { version?: number } | null)?.version ?? null)] : [])].join("\n");
+  if (!d.win)
+    return `${url ? `${pageLine("lookahead", url)}\n\n` : ""}${emptyCard("lookahead", title, d.acts.length ? "Pick a window that overlaps the saved schedule, or send this window's schedule export." : "Send the schedule export (or save the CPM) and Athena fills the lookahead from it.", d.acts.length ? [] : ["Schedule export or saved CPM"])}`;
+  const view = lookaheadView({ title, ref: d.ref, start: d.win.start, end: d.win.end, dataDate: d.dataDate, acts: d.acts, items: d.items, highlight, pageUrl: url });
+  return [view, ...(d.note ? ["", d.note] : []), ...(d.dataDate ? ["", dataDateRule(d.dataDate, d.version)] : []), "", LOOKAHEAD_EMAIL_LINE].join("\n");
 }
 
 /** 0.8.12: the saved CPM data date (null when none is saved or the living reports schema isn't there). */

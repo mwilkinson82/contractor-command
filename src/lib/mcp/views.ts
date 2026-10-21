@@ -7,7 +7,7 @@ import { ALERT_COLOR } from "./alert-color";
 const SHARED = `White cards, blue #2563EB accent, gray #9CA3AF secondary, ${ALERT_COLOR} only for risks, delays and overdue items, no orange. The visual comes first; no technical notes and one caveat line at most.`;
 
 export const LOOKAHEAD_VIEW_SPEC: string[] = [
-  "REQUIRED VIEW – LOOKAHEAD: When the user asks for a lookahead, build ONE styled artifact or canvas, never plain text. Spec:",
+  "REQUIRED VIEW – LOOKAHEAD: When the user asks for a lookahead, build ONE styled artifact or canvas, never plain text or a markdown table. In Claude this is always an artifact built from this result with no tool calls inside it, exactly like the schedule Gantt. Spec:",
   "1. Header: the job name, the window (start to end date), the data date, and counts (activities, inspections, deliveries, risks).",
   "2. Top-3 priorities box first: three numbered cards, each with the action, owner and due date.",
   "3. Two-week calendar strip: 10 workday columns grouped Week 1 / Week 2, with the \"Highlight:\" date given above highlighted (today, or the data date when it is later), and weekends shaded or omitted.",
@@ -94,3 +94,15 @@ export function reminderSource(it: SourceFields): string | null {
   if (src && !GENERIC.test(src)) return src.replace(/_/g, " ");
   return null;
 }
+
+/** 0.8.18: Claude showed the email_draft card as a plain markdown block. Same pattern as the schedule: a REQUIRED VIEW in the result text. */
+export const EMAIL_DRAFT_VIEW_SPEC: string[] = [
+  "REQUIRED VIEW – EMAIL DRAFT: show this draft as ONE styled email card, never a plain text or markdown block. In Claude: an artifact built only from this result (no tool calls inside it). In ChatGPT: a canvas or the host's email card. Spec:",
+  "1. Header bar in navy with the title \"Email draft\" and a gray \"Not sent\" status pill.",
+  "2. Rows: From (the suggested From, if given), To, Cc (only if any) and Subject, labels in gray #6B7280, values in navy.",
+  "3. The full body exactly as written, on a light-gray #F3F4F6 panel, with the signature.",
+  "4. Under the body: an attachment chip (PDF icon and the file name) only when an attachment is listed; otherwise a link row with the download link. Never show an attachment chip without a real attachment.",
+  "5. Footer: the confirm question word for word, with a blue #2563EB \"Yes, send\" button and a gray \"No\" button. The buttons are for show; the member answers yes or no in chat.",
+  `6. White card, navy, blue #2563EB and gray only; ${ALERT_COLOR} only if the email itself is about a delay, risk or overdue item, and then only for that one flag. No technical notes.`,
+  "7. After the card, ask the confirm question as the last line of the reply and stop. Send nothing.",
+];

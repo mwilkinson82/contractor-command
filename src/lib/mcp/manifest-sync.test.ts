@@ -18,7 +18,7 @@ type Tool = { name: string; description?: string; inputSchema: { properties: Rec
 const manifest = JSON.parse(readFileSync(".lovable/mcp/manifest.json", "utf8")) as { mcp: { server: { version: string }; tools: Tool[] } };
 
 async function liveTools(): Promise<Tool[]> {
-  const m = defineMcp({ name: "athena", title: "A", version: "t", instructions: "i", tools: [W.onboarding, W.intake, W.nextQuestion, W.answer, W.report, W.contractTerms, W.carryForward, W.listOpenItems, W.resolveItem, L.cpmActivities, L.livingReportGet, L.livingReportSave, F.fileShare, F.fileShareRevoke, R.reportPageLink, R.reportPageShare, R.reportPageShareRevoke, T.teamList, T.teamInvite, T.teamUpdateMember, T.teamRemoveMember, T.teamAddSeats, T.setCurrentCompany, E.emailDraft, E.emailConfirmSend], metrics: false } as never);
+  const m = defineMcp({ name: "athena", title: "A", version: "t", instructions: "i", tools: [W.onboarding, W.intake, W.nextQuestion, W.answer, W.report, W.contractTerms, W.carryForward, W.listOpenItems, W.resolveItem, L.cpmActivities, L.livingReportGet, L.livingReportSave, F.fileShare, F.fileShareRevoke, F.lookaheadPdfTool, R.reportPageLink, R.reportPageShare, R.reportPageShareRevoke, T.teamList, T.teamInvite, T.teamUpdateMember, T.teamRemoveMember, T.teamAddSeats, T.setCurrentCompany, E.emailDraft, E.emailConfirmSend], metrics: false } as never);
   const h = createTanStackMcpHandler(m, { resourcePath: "/mcp" });
   const post = (b: unknown) => h({ request: new Request("https://x/mcp", { method: "POST", headers: { "content-type": "application/json", accept: "application/json, text/event-stream" }, body: JSON.stringify(b) }) });
   await post({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } } });
@@ -42,7 +42,7 @@ describe("MCP manifest is in sync with source", () => {
           expect(p.pattern, `${t.name}.${k}`).toBeUndefined();
           expect(p.description, `${t.name}.${k}`).toMatch(/LA-/);
         }
-    expect(n).toBe(6);
+    expect(n).toBe(7);
   });
 
   it("manifest tool schemas equal the source tools/list", async () => {

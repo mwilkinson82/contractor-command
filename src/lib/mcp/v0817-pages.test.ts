@@ -141,7 +141,7 @@ describe("lookahead window comes from the CPM data date", () => {
 describe("email deliverables: attached PDF first, file_share link second, never HTML", () => {
   const base = { to: "pm@example.test", cc: [], subject: "2701 lookahead", body: "Hi Jordan, the lookahead for Oct 26 – Nov 6 is attached." };
   it("attached PDF passes and shows on the card", () => {
-    const d = { ...base, attachment: "2701-lookahead.pdf" };
+    const d = { ...base, body: `${base.body}\nhttps://app.meetathena.io/f/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-AbCde`, link: "https://app.meetathena.io/f/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-AbCde", attachment: "2701-lookahead.pdf" };
     expect(deliverableProblems(d)).toEqual([]);
     expect(draftCardText(d, {})).toContain("Attachment: 2701-lookahead.pdf");
     expect(draftKey(d)).not.toBe(draftKey(base));
@@ -153,11 +153,11 @@ describe("email deliverables: attached PDF first, file_share link second, never 
   });
   it("'attached' without an attachment is refused; file_share link without 'attached' passes", () => {
     expect(deliverableProblems(base)[0]).toMatch(/says "attached" but nothing is attached/);
-    expect(deliverableProblems({ ...base, body: "The lookahead PDF is at the link below.", link: "https://app.meetathena.io/f/abc" })).toEqual([]);
+    expect(deliverableProblems({ ...base, body: "The lookahead PDF is at the link below.\nhttps://app.meetathena.io/f/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-AbCde", link: "https://app.meetathena.io/f/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-AbCde" })).toEqual([]);
   });
   it("the deliverable order rides on every email result", () => {
     expect(emailRules({})).toContain(EMAIL_DELIVERABLE_RULE);
-    expect(EMAIL_DELIVERABLE_RULE).toMatch(/\(1\) Build the deliverable as a PDF and attach it.*\(2\) Only if your email tool can't attach files: call file_share.*\(3\) Never attach HTML/);
+    expect(EMAIL_DELIVERABLE_RULE).toMatch(/\(1\) Get a real file from Athena: lookahead_pdf.*\(2\) If your email tool can attach a file from that URL.*\(3\) If it can't attach from a URL.*never "attached"/);
   });
 });
 

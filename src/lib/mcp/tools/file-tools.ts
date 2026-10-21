@@ -5,6 +5,9 @@ import { z } from "zod";
 import { dbError, run, text, type Sb } from "../guard";
 import { FULL_ACCESS_MESSAGE, READ_ONLY_MESSAGE, audit, prefix, resolveJob } from "../jobs";
 import { guide } from "../visible";
+import { lookaheadPdf, lookaheadPdfName } from "../lookahead-pdf";
+import { lookaheadData } from "./workflow-tools";
+import { LOOKAHEAD_PDF_EMAIL_RULE } from "../email-safety";
 import {
   FILE_B64_MAX_CHARS, FILE_BUCKET, FILE_DEFAULT_DAYS, FILE_KINDS, FILE_LINK_RULE, FILE_MAX_BYTES, FILE_MAX_DAYS,
   FileRejected, allowedDownloadUrl, decodeBase64, expiry, fmtDate, kindAllowed, newToken, sha256Hex, shareLink,
@@ -43,6 +46,41 @@ async function fetchFile(url: string): Promise<Uint8Array> {
   return out;
 }
 
+/** Store a checked file privately for the job and make its share link (used by file_share and lookahead_pdf). */
+export async function storeFile(sb: Sb, job: { job_id: string; company_id: string }, kind: FileKind, f: { name: string; mime: string; size: number }, bytes: Uint8Array, days?: number) {
+  const id = crypto.randomUUID();
+  const path = storagePath(job.company_id, job.job_id, id, f.name);
+  const token = newToken();
+  const exp = expiry(days);
+  const seconds = Math.ceil((exp.getTime() - Date.now()) / 1000);
+  const up = await sb.storage.from(FILE_BUCKET).upload(path, bytes, { contentType: f.mime, upsert: false, cacheControl: "no-store" });
+  if (up.error) throw new ToolError("Athena couldn't store that file right now. Nothing was shared. Try again in a moment.");
+  const signed = await sb.storage.from(FILE_BUCKET).createSignedUrl(path, seconds);
+  if (signed.error || !signed.data?.signedUrl) {
+    await sb.storage.from(FILE_BUCKET).remove([path]);
+    throw new ToolError("Athena couldn't make a link for that file right now. Nothing was shared. Try again in a moment.");
+  }
+  try {
+    await rpc(sb, "mcp_file_share_create", {
+      _id: id, _job: job.job_id, _kind: kind, _filename: f.name, _mime: f.mime, _size: f.size, _sha256: await sha256Hex(bytes),
+      _path: path, _token_hash: await tokenHash(token), _signed_url: signed.data.signedUrl, _expires_at: exp.toISOString(),
+    });
+  } catch (e) {
+    await sb.storage.from(FILE_BUCKET).remove([path]);
+    throw e;
+  }
+  return { id, link: shareLink(token), exp };
+}
+
+/** True when an Athena file link (app.meetathena.io/f/...) is live: exists, not turned off, not expired. Doesn't count a download. */
+export async function fileLinkLive(sb: Sb, link: string): Promise<{ filename: string; mime_type: string } | null> {
+  const token = tokenFromLink(link);
+  if (!token) return null;
+  const { data, error } = await (sb.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>)("mcp_file_share_open", { _token_hash: await tokenHash(token), _count: false });
+  if (error || !data) return null;
+  return data as { filename: string; mime_type: string };
+}
+
 const KIND_LABEL: Record<FileKind, string> = { sov: "SOV", schedule: "Schedule", report: "Report", notice: "Notice", other: "File" };
 
 export const fileShare = defineTool({
@@ -76,29 +114,8 @@ export const fileShare = defineTool({
         if (e instanceof FileRejected) throw new ToolError(e.message);
         throw e;
       }
-      const id = crypto.randomUUID();
-      const path = storagePath(job.company_id, job.job_id, id, f.name);
-      const token = newToken();
-      const exp = expiry(args.expires_in_days);
-      const seconds = Math.ceil((exp.getTime() - Date.now()) / 1000);
-      const up = await sb.storage.from(FILE_BUCKET).upload(path, bytes, { contentType: f.mime, upsert: false, cacheControl: "no-store" });
-      if (up.error) throw new ToolError("Athena couldn't store that file right now. Nothing was shared. Try again in a moment.");
-      const signed = await sb.storage.from(FILE_BUCKET).createSignedUrl(path, seconds);
-      if (signed.error || !signed.data?.signedUrl) {
-        await sb.storage.from(FILE_BUCKET).remove([path]);
-        throw new ToolError("Athena couldn't make a link for that file right now. Nothing was shared. Try again in a moment.");
-      }
-      try {
-        await rpc(sb, "mcp_file_share_create", {
-          _id: id, _job: job.job_id, _kind: kind, _filename: f.name, _mime: f.mime, _size: f.size, _sha256: await sha256Hex(bytes),
-          _path: path, _token_hash: await tokenHash(token), _signed_url: signed.data.signedUrl, _expires_at: exp.toISOString(),
-        });
-      } catch (e) {
-        await sb.storage.from(FILE_BUCKET).remove([path]);
-        throw e;
-      }
+      const { id, link, exp } = await storeFile(sb, job, kind, f, bytes, args.expires_in_days);
       await audit(sb, job, "file_share", `share_file_${kind}`, id);
-      const link = shareLink(token);
       return guide(
         {
           ...text([FILE_LINK_RULE, `${prefix(job)}${KIND_LABEL[kind]} link ready: ${f.name}`, `Link: ${link}`, `Anyone with this link can download the file until ${fmtDate(exp)}.`].join("\n")),
@@ -127,6 +144,40 @@ export const fileShareRevoke = defineTool({
       return guide(
         { ...text(`${prefix(job)}Link turned off: ${r.filename}. Anyone who opens it now sees that it's no longer available.`), structuredContent: { revoked: true, filename: r.filename } },
         "Tell the member the link is off. To share the file again, call file_share for a new link.",
+      );
+    }),
+});
+
+// ---------- lookahead_pdf ----------
+export const lookaheadPdfTool = defineTool({
+  name: "lookahead_pdf",
+  title: "Lookahead as a PDF file (for email)",
+  description:
+    "Call this whenever the member wants the two-week lookahead emailed, attached or downloaded. Athena builds the styled lookahead PDF on the server (the latest lookahead with content, dated from the saved CPM data date), stores it, and returns download_url, a real PDF anyone with the link can download until it expires. Then: if your email tool can attach a file from a URL, attach that PDF and pass attachment (the filename) and link (download_url) to email_draft. If it can't, put download_url in the body, pass only link, and never write \"attached\".",
+  inputSchema: {
+    job_number: jobNumber,
+    company_id: companyId,
+    lookahead_id: z.string().trim().min(1).max(64).optional().describe("A lookahead ref (LA-...). Default: the latest lookahead with content."),
+    expires_in_days: z.number().int().min(1).max(FILE_MAX_DAYS).optional().describe(`Days the link works, default ${FILE_DEFAULT_DAYS}.`),
+  },
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  handler: (args, ctx) =>
+    run("lookahead_pdf", ctx, { jobNumber: args.job_number }, async (sb) => {
+      const job = await resolveJob(sb, args.job_number, args.company_id);
+      if (!kindAllowed("schedule", job.scope)) throw new ToolError(FULL_ACCESS_MESSAGE);
+      const data = await lookaheadData(sb, job, args.lookahead_id ?? "latest");
+      if (!data.win) throw new ToolError(`${prefix(job)}There's no lookahead window or saved schedule to put in a PDF yet. Send the schedule export (or save the CPM) first. Nothing was made.`);
+      const bytes = lookaheadPdf({ title: `${job.job_number} - ${job.name}`, ref: data.ref, start: data.win.start, end: data.win.end, dataDate: data.dataDate, acts: data.acts, items: data.items });
+      let f: ReturnType<typeof validateFile>;
+      try { f = validateFile(bytes, lookaheadPdfName(job.job_number, data.win.start, data.win.end)); } catch (e) { if (e instanceof FileRejected) throw new ToolError(e.message); throw e; }
+      const { id, link, exp } = await storeFile(sb, job, "schedule", f, bytes, args.expires_in_days);
+      await audit(sb, job, "lookahead_pdf", "share_lookahead_pdf", id);
+      return guide(
+        {
+          ...text([`${prefix(job)}Lookahead PDF ready: ${f.name} (${Math.max(1, Math.round(f.size / 1024))} KB, ${data.ref}, ${data.win.start} to ${data.win.end}).`, `Download: ${link}`, `The link works until ${fmtDate(exp)}.`].join("\n")),
+          structuredContent: { pdf: true, download_url: link, filename: f.name, mime_type: f.mime, size_bytes: f.size, lookahead_ref: data.ref, window: data.win, data_date: data.dataDate, expires_at: exp.toISOString(), attached: false },
+        },
+        LOOKAHEAD_PDF_EMAIL_RULE(link, f.name),
       );
     }),
 });
