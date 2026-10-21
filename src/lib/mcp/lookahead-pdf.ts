@@ -58,9 +58,17 @@ export function lookaheadPdf(v: { title: string; ref: string; start: string; end
     d.setFont("helvetica", "bold"); d.setFontSize(8); color(NAVY); d.text(pdfText(r.a.id), X, y + 11);
     d.setFont("helvetica", "normal"); d.text(d.splitTextToSize(pdfText(r.a.name), nameW - 6)[0] ?? "", X + idW, y + 11);
     color(Number(r.a.total_float) === 0 ? BLUE : G1); d.text(String(r.a.total_float ?? ""), X + idW + nameW, y + 11);
+    // 0.8.21: ONE continuous rounded bar per run of bar days (Marshall: the per-day blocks looked cut into pieces).
+    for (let i = 0; i < r.cells.length; i++) {
+      const k = r.cells[i].kind;
+      if (k !== "crit" && k !== "non") continue;
+      let j = i; while (j + 1 < r.cells.length && r.cells[j + 1].kind === k) j++;
+      d.setFillColor(...(k === "crit" ? BLUE : GRAY)); d.roundedRect(gx + i * dayW + 1, y + 4, (j - i + 1) * dayW - 2, 9, 3, 3, "F");
+      i = j;
+    }
     r.cells.forEach((cell, i) => {
       const cx = gx + i * dayW;
-      if (cell.kind === "crit" || cell.kind === "non") { d.setFillColor(...(cell.kind === "crit" ? BLUE : GRAY)); d.roundedRect(cx + 1, y + 4, dayW - 2, 9, 2, 2, "F"); }
+      if (cell.kind === "crit" || cell.kind === "non") { /* drawn above as one bar */ }
       else if (cell.kind) { d.setFont("helvetica", "bold"); color(NAVY); d.text(cell.kind === "insp" ? "INSP" : cell.kind === "deliv" ? "DLV" : "MS", cx + 2, y + 11); d.setFont("helvetica", "normal"); }
       if (cell.risk) { d.setFillColor(...RED); d.triangle(cx + dayW - 9, y + 3, cx + dayW - 2, y + 3, cx + dayW - 9, y + 9, "F"); }
     });

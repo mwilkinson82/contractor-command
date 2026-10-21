@@ -11,7 +11,7 @@ export const LOOKAHEAD_VIEW_SPEC: string[] = [
   "1. Header: the job name, the window (start to end date), the data date, and counts (activities, inspections, deliveries, risks).",
   "2. Top-3 priorities box first: three numbered cards, each with the action, owner and due date.",
   "3. Two-week calendar strip: 10 workday columns grouped Week 1 / Week 2, with the \"Highlight:\" date given above highlighted (today, or the data date when it is later), and weekends shaded or omitted.",
-  "4. One row per activity, using the ID and name exactly as given. Critical activities (float 0) get solid blue #2563EB bars, others gray #9CA3AF, spanning their days in the window.",
+  "4. One row per activity, using the ID and name exactly as given. Critical activities (float 0) get ONE continuous rounded blue #2563EB bar, others ONE continuous rounded gray #9CA3AF bar, from the first to the last of their workdays in the window with no gaps or breaks between days (never one block per day). Short inspections and deliveries (2 WD or less) keep their INSP/DLV marker instead of a bar.",
   "5. Icons on the day they fall: inspection/hold point = clipboard-check icon, material delivery = truck icon, milestone = diamond. Each has a small label.",
   `6. Risk flags: a ${ALERT_COLOR} flag on the bar or day for any risk (late submittal, long lead, open RFI, an inspection that isn't scheduled yet, low float).`,
   "7. Risk cards below the strip, one per risk: what's at risk, its impact (activity and float), owner, due date, and the next action.",
