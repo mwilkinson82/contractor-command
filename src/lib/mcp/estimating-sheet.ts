@@ -135,17 +135,19 @@ const HEAD = ["Group", "Item", "Unit", "Qty", "Basis", "Verify", "Math", "Sheet"
 export function groupedCsv(rows: SheetRow[]): string {
   const lines = ["group,item,unit,qty,basis,verify,math,sheet,spec,ref"];
   for (const r of rows) {
+    if (!r.item.trim() && !r.ref.trim()) continue;
     lines.push(
       [r.group, r.item, r.unit, r.qty, r.basis, r.verify, r.math, r.sheet, r.spec, r.ref]
         .map(csvCell)
         .join(","),
     );
   }
-  return lines.join("\n");
+  return lines.filter((line) => line.trim().length > 0).join("\n");
 }
 
 function csvCell(v: string): string {
-  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+  const flat = v.replace(/\r?\n/g, " ").trim();
+  return /[",]/.test(flat) ? `"${flat.replace(/"/g, '""')}"` : flat;
 }
 
 export function takeoffXlsx(rows: SheetRow[]): Uint8Array {
