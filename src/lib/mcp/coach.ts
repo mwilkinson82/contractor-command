@@ -92,3 +92,21 @@ export function nextCadenceDate(value: string, today: string): string {
   }
   return today;
 }
+
+// 0.8.13: connect check before any calendar or email step, and real report attachments.
+export const CONNECT_CHECK_RULE =
+  "REQUIRED CONNECT CHECK: before any step that needs the member's calendar or email (cadence reminders or events, the morning briefing's overnight-email summary, drafting or sending an email, sending a report), check that this app has that connector. If it doesn't, stop and say in one line what's missing and why, e.g. \"To put this on your calendar, connect your Google or Outlook calendar first. Here's how in this app.\" Pause until they connect it, then pick up exactly where you left off. If they skip, keep going without that part and say so once. Never pretend it was done.";
+
+export const REMINDER_DELIVERY_OPTIONS = ["calendar", "ai_reminders", "both"] as const;
+export type ReminderDelivery = (typeof REMINDER_DELIVERY_OPTIONS)[number];
+export const REMINDER_DELIVERY_DEFAULT: ReminderDelivery = "calendar";
+export const REMINDER_DELIVERY_ASK = "Calendar events, AI reminders, or both? (Default: calendar.)";
+export const REMINDER_DELIVERY_RULE =
+  `Cadence reminders: ask "${REMINDER_DELIVERY_ASK}" Calendar = real recurring events with alerts on the member's calendar (connect check first). AI reminders = this app's own scheduled task, if it has one; if it has none, say so and use the calendar. Athena also keeps each one as a reminder on the job.`;
+
+export const REPORT_ATTACHMENT_RULE =
+  "REQUIRED ATTACHMENT: when the member says to send or share a report (schedule, lookahead, pay app, IOR, dashboard, billing forecast, SOV) with someone: 1) build it as a real file first, PDF by default (Excel for pay apps and SOVs if asked), named \"<Job#> <Report> <date>.pdf\"; 2) connect check for email; 3) attach that file to the email draft and show the email card with To:, Cc:, Subject:, Body and an \"Attachment: <filename>\" chip; never paste a summary instead and never say \"attached\" unless the file is on the draft; 4) if this app can't attach files, say so plainly and offer the downloadable file plus a draft to attach it to, and put the file_share link (app.meetathena.io/f/, opens for anyone with it) in the body; 5) send only on the member's clear yes.";
+
+export const REPORT_SEND_GUIDANCE: string[] = [CONNECT_CHECK_RULE, REPORT_ATTACHMENT_RULE];
+
+CADENCE_SETUP_SPEC.push(REMINDER_DELIVERY_RULE, CONNECT_CHECK_RULE);

@@ -19,7 +19,7 @@ export const MORNING_BRIEFING_VIEW_SPEC: string[] = [
   "REQUIRED VIEW – MORNING BRIEFING: build ONE styled card stack, never plain text, in this order:",
   "1. Header: date, job(s), and the \"Today's top 3\" box first (action, owner, due).",
   `2. Overdue items and risks: ${ALERT_COLOR} flags, each with owner, due date and days late.`,
-  "3. Overnight emails: only if the member's own email is connected in this app, read it yourself (read-only) and summarize sender, subject and the one-line ask, with a suggested reply offered as a draft. Never send anything. If no email is connected, leave this card out without comment.",
+  "3. Overnight emails: only if the member's own email is connected in this app, read it yourself (read-only) and summarize sender, subject and the one-line ask, with a suggested reply offered as a draft. Never send anything. If no email is connected, run the connect check: one line on connecting Google or Outlook email, then continue the briefing without this card.",
   "4. Today on the lookahead: activities starting or finishing today, critical in blue #2563EB and others in gray #9CA3AF.",
   "5. Inspections and deliveries due today or tomorrow, with clipboard-check and truck icons.",
   `6. Open RFIs and submittals: number, subject, days open, ball-in-court, ${ALERT_COLOR} when past due.`,

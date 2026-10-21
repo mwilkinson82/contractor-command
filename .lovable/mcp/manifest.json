@@ -2142,6 +2142,15 @@
               "const": true,
               "description": "true only after the PM said yes to setting up these reminders."
             },
+            "delivery": {
+              "description": "calendar (default): you create real recurring calendar events with alerts; ai_reminders: this app's own scheduled task; both. Run the connect check for the calendar first.",
+              "type": "string",
+              "enum": [
+                "calendar",
+                "ai_reminders",
+                "both"
+              ]
+            },
             "items": {
               "description": "Only these cadence items; default all six that are saved.",
               "maxItems": 6,
