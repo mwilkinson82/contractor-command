@@ -9,9 +9,9 @@ import { guide } from "../visible";
 import { newToken, tokenHash } from "../file-share";
 import { PAGE_LABEL, REPORT_PAGES, SHARE_DEFAULT_DAYS, SHARE_MAX_DAYS, pageAllowed, pageUrl, shareExpiry, shareTokenFromLink, shareUrl, type ReportPage } from "../../report-pages";
 
-const jobNumber = z.string().trim().min(1).max(40).optional().describe("Job number, exact match (e.g. 2701). Required for ior and schedule; leave out for portfolio.");
-const companyId = z.string().trim().min(1).max(200).optional().describe("Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.");
-const page = z.enum(REPORT_PAGES).describe("ior, schedule (the CPM gantt) or portfolio (owners and leadership only).");
+const jobNumber = z.string().trim().min(1).max(40).optional();
+const companyId = z.string().trim().min(1).max(200).optional();
+const page = z.enum(REPORT_PAGES);
 
 async function rpc<T>(sb: Sb, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await (sb.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>)(fn, args);
@@ -36,8 +36,7 @@ async function target(sb: Sb, args: { page: string; job_number?: string; company
 export const reportPageLink = defineTool({
   name: "report_page_link",
   title: "Permanent report page link",
-  description:
-    "Call only after the member says yes to \"Want this as a permanent link I keep updated?\". Returns the private page for a job's IOR or schedule, or the company portfolio, at app.meetathena.io. The page always shows the latest saved version and is viewable only by signed-in members of the company with access to that job (supers: schedule without dollars; portfolio: owners and leadership). It is not a public link.",
+  description: "Returns the private page for a saved report.",
   inputSchema: { page, job_number: jobNumber, company_id: companyId },
   annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   handler: (args, ctx) =>
@@ -58,12 +57,11 @@ export const reportPageLink = defineTool({
 export const reportPageShare = defineTool({
   name: "report_page_share",
   title: "Share a report page (expiring link)",
-  description:
-    "Only when the member explicitly asks to share a report page with someone who can't sign in. Makes a link anyone with it can open, that shows the latest saved version until it expires (30 days by default, at most 90) or is turned off. IOR and portfolio: owners and leadership only. Schedule: supers' links never show dollars.",
+  description: "Makes an expiring link to a report page.",
   inputSchema: {
     page, job_number: jobNumber, company_id: companyId,
-    confirmed: z.literal(true).describe("true only after the member confirmed they want a link anyone with it can open."),
-    expires_in_days: z.number().int().min(1).max(SHARE_MAX_DAYS).optional().describe(`Days the link works, default ${SHARE_DEFAULT_DAYS}.`),
+    confirmed: z.literal(true),
+    expires_in_days: z.number().int().min(1).max(SHARE_MAX_DAYS).optional(),
   },
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   handler: (args, ctx) =>
@@ -88,8 +86,8 @@ export const reportPageShare = defineTool({
 export const reportPageShareRevoke = defineTool({
   name: "report_page_share_revoke",
   title: "Turn off a report share link",
-  description: "Turns off a report page share link right away. Call only after the member asks. The member who made it, or an owner or leadership member.",
-  inputSchema: { link: z.string().trim().min(1).max(300).describe("The share link (https://app.meetathena.io/r/s/...).") },
+  description: "Turns off a report page share link.",
+  inputSchema: { link: z.string().trim().min(1).max(300) },
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
   handler: (args, ctx) =>
     run("report_page_share_revoke", ctx, {}, async (sb) => {

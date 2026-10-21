@@ -13,10 +13,10 @@ import { CHECKOUT_OFF_MESSAGE, billingConfig, createAthenaCheckout } from "../..
 
 export const OWNER_ONLY_MESSAGE = "Only a company owner can manage the team. Ask your owner to make this change.";
 
-const companyId = z.string().trim().min(1).max(200).optional().describe("Only needed if you belong to more than one company. The company name exactly as Athena lists it.");
-const confirmed = z.literal(true).describe("true only after the owner answered yes to the exact confirm question.");
-const jobNumbers = z.array(z.string().trim().min(1).max(40)).max(200).optional().describe("Job numbers this person can open, exact match. Leave out to keep current access.");
-const person = z.string().trim().min(1).max(320).describe("The person: their email, their name as the team list shows it, or their list number.");
+const companyId = z.string().trim().min(1).max(200).optional();
+const confirmed = z.literal(true);
+const jobNumbers = z.array(z.string().trim().min(1).max(40)).max(200).optional();
+const person = z.string().trim().min(1).max(320);
 
 type RpcErr = { message: string } | null;
 async function rpc<T>(sb: Sb, fn: string, args: Record<string, unknown>): Promise<{ data: T | null; error: RpcErr }> {
@@ -67,7 +67,7 @@ export const TEAM_WIDGET = { uri: TEAM_WIDGET_URI, mimeType: TEAM_WIDGET_MIME, h
 export const teamList = defineTool({
   name: "team_list",
   title: "Team: people, roles and jobs",
-  description: "Owners only. Lists the company's people with their roles and job access, pending invites, seats used, and the roles the plan includes. Use it before inviting, changing or removing anyone.",
+  description: "Lists the company's people, roles, and seats.",
   inputSchema: { company_id: companyId },
   annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   handler: (args, ctx) =>
@@ -84,12 +84,12 @@ export const teamList = defineTool({
 export const teamInvite = defineTool({
   name: "team_invite",
   title: "Invite a person to the team",
-  description: "Owners only. Invites one person by email with a role and job access. Ask first: name, email, role (show the numbered role list) and jobs, then ask \"Invite <name> as <role> with access to jobs ...? Yes or no?\" and call with confirmed true only after yes. The invite counts toward seats right away. Old role name Finance is accepted and saved as AP.",
+  description: "Invites a person to the company.",
   inputSchema: {
     company_id: companyId,
-    email: z.string().trim().email().max(320).describe("The person's email; they sign in with it."),
-    name: z.string().trim().min(1).max(120).describe("Their name as the team should see it."),
-    role: z.string().trim().min(1).max(40).describe("Owner, PM, All-access, AP, Estimating, Contracts or Super."),
+    email: z.string().trim().email().max(320),
+    name: z.string().trim().min(1).max(120),
+    role: z.string().trim().min(1).max(40),
     job_numbers: jobNumbers,
     confirmed,
   },
@@ -128,8 +128,8 @@ export const teamInvite = defineTool({
 export const teamUpdateMember = defineTool({
   name: "team_update_member",
   title: "Change a person's role or job access",
-  description: "Owners only. Changes one person's role and/or which jobs they can open. Ask \"Change <name> to <role> with access to jobs ...? Yes or no?\" and call with confirmed true only after yes. job_numbers replaces their job list; leave it out to keep it.",
-  inputSchema: { company_id: companyId, person: person.optional(), user_id: z.string().uuid().optional().describe("Set by the selection card."), role: z.string().trim().min(1).max(40).optional(), job_numbers: jobNumbers, confirmed },
+  description: "Changes a person's role or job access.",
+  inputSchema: { company_id: companyId, person: person.optional(), user_id: z.string().uuid().optional(), role: z.string().trim().min(1).max(40).optional(), job_numbers: jobNumbers, confirmed },
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   handler: (args, ctx) =>
     run("team_update_member", ctx, {}, async (sb) => {
@@ -153,7 +153,7 @@ export const teamUpdateMember = defineTool({
 export const teamRemoveMember = defineTool({
   name: "team_remove_member",
   title: "Remove a person from the team",
-  description: "Owners only. Removes a person (or cancels a pending invite by email). They lose access right away; job history stays. Ask \"Remove <name> from your team? Yes or no?\" and call with confirmed true only after yes.",
+  description: "Removes a person from the company.",
   inputSchema: { company_id: companyId, person, confirmed },
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
   handler: (args, ctx) =>
@@ -176,7 +176,7 @@ export const teamRemoveMember = defineTool({
 export const teamAddSeats = defineTool({
   name: "team_add_seats",
   title: "Add seats",
-  description: "Owners only, after they hit the seat limit and say they want more seats. Ask how many, then \"Add <n> seats at $49 per seat per month? Yes or no?\" and call with confirmed true only after yes.",
+  description: "Adds company seats at $49 per seat per month.",
   inputSchema: { company_id: companyId, seats: z.number().int().min(1).max(500), confirmed },
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   handler: (args, ctx) =>
@@ -198,8 +198,8 @@ export const teamAddSeats = defineTool({
 export const setCurrentCompany = defineTool({
   name: "set_current_company",
   title: "Set my current company",
-  description: "For people in more than one company: saves which company Athena uses when they don't name one. Call after they say which company.",
-  inputSchema: { company_id: z.string().trim().min(1).max(200).describe("The company name exactly as Athena lists it.") },
+  description: "Sets which company to use when the member belongs to more than one.",
+  inputSchema: { company_id: z.string().trim().min(1).max(200) },
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   handler: (args, ctx) =>
     run("set_current_company", ctx, {}, async (sb) => {

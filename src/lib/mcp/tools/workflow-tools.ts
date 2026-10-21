@@ -1,5 +1,5 @@
 import { companyScopeDefaults, scopeAlias, SECTOR_ALIASES, PRICING_ALIASES, POSITION_ALIASES } from "../scope-defaults";
-import { SovMismatch, SOV_SPECS_MISSING_NOTE, SOV_TABLE_STYLE, buildSov, sovSpecsMissing, retainagePct, sovLayout, sovLineRows, sovNotes, sovSummaryText, money, type SovBrand, type SovView } from "../sov";
+import { SovMismatch, SOV_SPECS_MISSING_NOTE, buildSov, sovSpecsMissing, retainagePct, sovLayout, sovLineRows, sovNotes, sovSummaryText, money, type SovBrand, type SovView } from "../sov";
 import { ATHENA_VERSION } from "../server-info-branding";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
@@ -12,7 +12,7 @@ import { EVIDENCE_ASK, evidenceProblem } from "../evidence";
 import { displayRef, isUuid, itemRef, lookaheadRef, matchRef, parseLookaheadRef, parseQuestionRef, questionRef, shortRef } from "../refs";
 import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
 import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
-import { guide, EMAIL_TO_LABEL_REQUIRED, SHARE_OPTIONS_REQUIRED, REPORT_SHARE_ASK, REPORT_SHARE_STRUCTURED, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_CHART_RULE, sovChart, sovRequiredTop, sovDeliveryAsk, sovDeliveryBlock, sovDeliveryStructured, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
+import { guide, EMAIL_TO_LABEL_REQUIRED, SHARE_OPTIONS_REQUIRED, REPORT_SHARE_ASK, REPORT_SHARE_STRUCTURED, JOB_SETUP_SOFTWARE_BLOCK, SOV_CHART_RULE, sovChart, sovRequiredTop, sovDeliveryAsk, sovDeliveryBlock, sovDeliveryStructured, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
 import { withoutClaims } from "../internal-claims";
 import { LOOKAHEAD_EMAIL_LINE } from "../email-safety";
 import { briefingView, dataDateRule, pickLatestLookahead, type LaRow, emptyCard, lookaheadView, lookaheadModel, entryLine, lookaheadWindow, pageLine, windowActivities, type LaItem, type LaModel, type SAct } from "../styled-views";
@@ -20,7 +20,7 @@ import { pageUrl } from "../../report-pages";
 import { EMAIL_VIEW_SPEC, LOOKAHEAD_VIEW_SPEC, REMINDERS_VIEW_SPEC, highlightLine, lookaheadHighlight } from "../views";
 import { EMAIL_CONTACT_RULE, contactForRole, dedupeNotices, emailContact, fillNotice, jobContacts } from "../contacts";
 import { noticeRequirements } from "../notice-plain";
-import { CLAUSE_HOST_RULE, classifyClause, clauseLine, missingNotices, normSection, parseClause, NOTICE_CHECKLIST, type ClauseRow, LEGACY_SUMMARY_TAG, missingNoticeNote, SUMMARY_OFFER, SUMMARY_HEADING } from "../contract-clauses";
+import { classifyClause, clauseLine, missingNotices, normSection, parseClause, NOTICE_CHECKLIST, type ClauseRow, LEGACY_SUMMARY_TAG, missingNoticeNote, SUMMARY_OFFER, SUMMARY_HEADING } from "../contract-clauses";
 import { FLAGS_ASKED_LATER, noGuidance, noGuidanceText, reconcileRecommendation } from "../guidance";
 import { isNoneAnswer, mergeScopeFacts, visibleLookaheads } from "../lookahead-items";
 import { addRevision, currentRev, loadRevisions, lookaheadSourceFor, revisionLines, stampItemRev } from "../lookahead-revisions";
@@ -28,13 +28,12 @@ import { LOOKAHEAD_BUILD_QUESTIONS, LOOKAHEAD_EXISTS_ASK, LOOKAHEAD_PUSHBACK, LO
 
 const uuid = z.string().uuid();
 const laArg = z.string().trim().min(1).max(64);
-const LA_DESC = "The lookahead ref as printed (e.g. LA-3F2A1) or its lookahead_id, or \"latest\" for the newest lookahead that has content.";
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
-const jobNumber = z.string().trim().min(1).max(40).describe("Job number, exact match (e.g. 2417).");
-const companyId = z.string().trim().min(1).max(200).optional().describe("Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. Leave it out otherwise: Athena uses the member's current company, so don't make an extra call to list companies first.");
-const short = (d: string) => z.string().max(2000).optional().describe(d);
+const jobNumber = z.string().trim().min(1).max(40);
+const companyId = z.string().trim().min(1).max(200).optional();
+const short = (_note?: string) => z.string().max(2000).optional();
 const tri = z.enum(["yes", "no", "na", "unknown"]);
-const doc = (what: string) => z.string().max(20_000).optional().describe(`${what}, as plain text. Leave out if you don't have it; it is recorded as unknown.`);
+const doc = (_note?: string) => z.string().max(20_000).optional();
 const WRITE = { readOnlyHint: false, destructiveHint: false, openWorldHint: false } as const;
 const READ = { readOnlyHint: true, openWorldHint: false } as const;
 const MAX_INPUT = 20_000;
@@ -82,30 +81,30 @@ const rightsList = z.array(z.string().trim().min(1).max(100)).max(20);
 export const onboarding = defineTool({
   name: "onboarding",
   title: "Company profile and members",
-  description: "Read or save the company profile Athena works for (role, work types, trades, tool stack, decision rights, default applicability), and add members as Owner, PM or All-access. Athena is for contractors running their own construction company: never offer a consulting option or frame anything as consulting. No job number is needed here; it is required when you create a job.",
+  description: "Reads or saves the company profile and its members.",
   inputSchema: {
-    action: z.enum(["read", "save_company", "add_member", "save_brand"]).describe("read, save_company (create or update), add_member, or save_brand (SOV logo link and footer)."),
+    action: z.enum(["read", "save_company", "add_member", "save_brand"]),
     company_id: companyId,
-    name: z.string().trim().max(200).optional().describe("Company name (required to create)."),
-    your_name: z.string().trim().max(120).optional().describe("Your display name on the company (when creating)."),
-    agent_name: z.string().trim().max(60).optional().describe("What to call the agent. Default 'Athena PM'."),
+    name: z.string().trim().max(200).optional(),
+    your_name: z.string().trim().max(120).optional(),
+    agent_name: z.string().trim().max(60).optional(),
     company_role: short("Company role, e.g. mechanical prime / specialty sub."),
     work_types: z.array(z.enum(["commercial", "public", "residential"])).max(3).optional(),
     trades: z.array(z.string().trim().min(1).max(80)).max(30).optional(),
-    tool_stack: z.record(z.string().max(60), z.string().max(200)).optional().describe("Tools by function, e.g. {schedule: 'P6', accounting: '...'}."),
+    tool_stack: z.record(z.string().max(60), z.string().max(200)).optional(),
     decision_rights: z
       .object({ buyout: rightsList.optional(), change_orders: rightsList.optional(), claims: rightsList.optional(), write_offs: rightsList.optional(), waive_items: rightsList.optional() })
       .optional()
-      .describe("Who may approve each: roles (owner, pm, all_access) or member names."),
-    default_flags: z.record(z.string().regex(/^[a-z_]{1,40}$/), tri).optional().describe("Company default applicability flags, e.g. {residential: 'no'}."),
-    member_email: z.string().email().optional().describe("add_member: the person's sign-in email."),
-    member_name: z.string().trim().max(120).optional().describe("add_member: display name."),
-    member_role: z.enum(["owner", "pm", "all_access"]).optional().describe("add_member: launch role."),
-    logo_url: z.string().trim().url().max(2000).optional().describe("save_brand: https link to the company logo (PNG, JPG or SVG). Leave out if there is none; the company name prints in bold."),
+      ,
+    default_flags: z.record(z.string().regex(/^[a-z_]{1,40}$/), tri).optional(),
+    member_email: z.string().email().optional(),
+    member_name: z.string().trim().max(120).optional(),
+    member_role: z.enum(["owner", "pm", "all_access"]).optional(),
+    logo_url: z.string().trim().url().max(2000).optional(),
     license_number: short("save_brand: license designation and number as it should print on the SOV footer."),
     contact_name: short("save_brand: named contact on the SOV footer."),
-    contact_phone: z.string().trim().max(40).optional().describe("save_brand: the contact's phone."),
-    website: z.string().trim().max(200).optional().describe("save_brand: website printed in the SOV footer (plain text)."),
+    contact_phone: z.string().trim().max(40).optional(),
+    website: z.string().trim().max(200).optional(),
   },
   annotations: { ...WRITE, idempotentHint: true },
   handler: (args, ctx) =>
@@ -172,7 +171,7 @@ export const onboarding = defineTool({
 // ---------- intake ----------
 const workPackage = z.object({ name: z.string().trim().min(1).max(120), mode: z.enum(["self_perform", "subcontract"]) });
 const budgetLine = z.object({ cost_code: z.string().trim().min(1).max(40), description: z.string().max(200).optional(), amount: z.number().optional() });
-const sovLine = z.object({ line: z.string().trim().min(1).max(40), description: z.string().max(200).optional(), billable_value: z.number().optional(), cost_codes: z.array(z.string().max(40)).max(50).optional(), spec_section: z.string().trim().max(40).optional().describe("Spec section number from the job's specs (e.g. 26 05 19). Only when the specs give one; never invent it.") });
+const sovLine = z.object({ line: z.string().trim().min(1).max(40), description: z.string().max(200).optional(), billable_value: z.number().optional(), cost_codes: z.array(z.string().max(40)).max(50).optional(), spec_section: z.string().trim().max(40).optional() });
 const gap = z.object({ gap: z.string().trim().min(1).max(1000), owner: z.string().trim().min(1).max(120), needed_by: date.optional() });
 import { CLAUSE_ABSENT, CLAUSE_UNKNOWN, FLAG_CLAUSE, clauseFlag, effectiveFlag } from "../clauses";
 export { CLAUSE_ABSENT, CLAUSE_UNKNOWN };
@@ -272,49 +271,48 @@ async function syncClauseItems(sb: Sb, job: Job, saved: ClauseRow[]): Promise<It
 export const intake = defineTool({
   name: "intake",
   title: "Job setup intake",
-  description:
-    "Create a job (keyed by job number) and record its setup: job settings (time zone, PM), step 0 scoping, contract terms, contract deadlines, estimate handoff, budget and SOV, open items, a delay event, or a two-week lookahead. Missing data is recorded as unknown, never guessed. Record every delay, slip or schedule impact the member mentions with section delay_event before answering.",
+  description: "Records a job and its setup.",
   inputSchema: {
-    section: z.enum(["create_job", "job_settings", "scope", "contract", "deadline", "handoff", "budget", "warranty", "open_item", "lookahead", "delay_event", "clauses"]).describe("Which part of setup to record. Use clauses for contract notice and time clauses, copied word for word."),
+    section: z.enum(["create_job", "job_settings", "scope", "contract", "deadline", "handoff", "budget", "warranty", "open_item", "lookahead", "delay_event", "clauses"]),
     job_number: jobNumber,
     company_id: companyId,
-    job_name: z.string().trim().max(200).optional().describe("create_job: job name."),
-    restrict_to: z.array(z.string().trim().min(1).max(120)).max(30).optional().describe("create_job: member names who may see this job (leave out for all members)."),
+    job_name: z.string().trim().max(200).optional(),
+    restrict_to: z.array(z.string().trim().min(1).max(120)).max(30).optional(),
     // Job settings
-    time_zone: z.string().trim().max(60).optional().describe("job_settings: IANA time zone, e.g. America/Chicago. Deadlines are computed in it."),
-    pm: z.string().trim().max(120).optional().describe("job_settings: the job PM's name only (put the email in pm_email; no notes such as \"non-member\"). A company member is linked; anyone else is saved as a contact (name + email) with no Athena access."),
-    pm_email: z.string().trim().max(200).optional().describe("job_settings: the PM's email. Used as the suggested From on drafts. No Athena access is granted."),
-    pm_title: z.string().trim().max(120).optional().describe("job_settings: the PM's title for draft signatures. Default 'Project Manager'."),
+    time_zone: z.string().trim().max(60).optional(),
+    pm: z.string().trim().max(120).optional(),
+    pm_email: z.string().trim().max(200).optional(),
+    pm_title: z.string().trim().max(120).optional(),
     // Delay event
-    delay_description: z.string().trim().max(500).optional().describe("delay_event: what slipped, in the member's words, e.g. 'Lighting rough-in slipped 3 weeks'."),
-    delay_activity: z.string().trim().max(200).optional().describe("delay_event: the schedule activity affected, if named."),
-    delay_start_date: date.optional().describe("delay_event: the date the delay began. Leave out if the member doesn't know; Athena flags both notices due today with 'confirm start date'."),
-    delay_days: z.number().int().min(0).max(3650).optional().describe("delay_event: estimated impact in calendar days, if stated."),
-    delay_cause: z.string().trim().max(500).optional().describe("delay_event: cause, if stated. Never guess it."),
+    delay_description: z.string().trim().max(500).optional(),
+    delay_activity: z.string().trim().max(200).optional(),
+    delay_start_date: date.optional(),
+    delay_days: z.number().int().min(0).max(3650).optional(),
+    delay_cause: z.string().trim().max(500).optional(),
     // Verbatim contract clauses
     clauses: z.array(z.object({
-      section: z.string().trim().min(1).max(40).describe("Section number as printed, e.g. 6.4."),
-      heading: z.string().trim().max(200).optional().describe("The clause heading as printed, e.g. Delay Notice. Leave out if the clause has none."),
-      text: z.string().trim().min(1).max(10_000).describe("The clause text copied exactly as written in the contract. Never summarize, shorten or merge clauses."),
-      category: z.enum(["delay_notice", "claim_notice", "nonpayment_notice", "cure_notice", "schedule_disagreement", "other"]).optional().describe("Optional; Athena classifies from the heading and text when left out."),
-    })).max(60).optional().describe(`clauses: ${CLAUSE_HOST_RULE}`),
-    contract_text: z.string().max(400_000).optional().describe("clauses: the full contract text as uploaded (copied, not summarized). Used to verify each clause word for word; stored with the job, readable by members with contract access."),
+      section: z.string().trim().min(1).max(40),
+      heading: z.string().trim().max(200).optional(),
+      text: z.string().trim().min(1).max(10_000),
+      category: z.enum(["delay_notice", "claim_notice", "nonpayment_notice", "cure_notice", "schedule_disagreement", "other"]).optional(),
+    })).max(60).optional(),
+    contract_text: z.string().max(400_000).optional(),
     // Deadline (contract time clause)
     clause_key: z.enum(["notice", "submittal_turnaround", "rfi_turnaround", "liquidated_damages", "completion", "other"]).optional(),
     label: short("deadline: what is due, e.g. 'Delay notice: utility shutdown denied'."),
-    clause_ref: z.string().max(200).optional().describe("deadline: clause reference, e.g. §8.3."),
+    clause_ref: z.string().max(200).optional(),
     trigger_desc: short("deadline: the event that starts the clock."),
-    trigger_date: date.optional().describe("deadline: date of the triggering event."),
-    trigger_alternatives: z.array(date).max(5).optional().describe("deadline: other plausible trigger dates if the trigger is ambiguous."),
-    n_days: z.number().int().min(0).max(3650).optional().describe("deadline: number of days in the clause."),
-    day_type: z.enum(["calendar", "business", "working"]).optional().describe("deadline: only if the contract defines it. Leave out otherwise."),
-    holidays: z.array(date).max(60).optional().describe("deadline: holidays listed in the contract. Leave out otherwise."),
-    weekend_roll: z.boolean().optional().describe("deadline: true only if the contract moves weekend/holiday deadlines later."),
-    fixed_date: date.optional().describe("deadline: a fixed contract date (e.g. substantial completion)."),
+    trigger_date: date.optional(),
+    trigger_alternatives: z.array(date).max(5).optional(),
+    n_days: z.number().int().min(0).max(3650).optional(),
+    day_type: z.enum(["calendar", "business", "working"]).optional(),
+    holidays: z.array(date).max(60).optional(),
+    weekend_roll: z.boolean().optional(),
+    fixed_date: date.optional(),
     delivery_method: short("deadline / open_item: how it must be sent, per the contract."),
     recipient: short("deadline / open_item: who it must go to."),
     // Open item typing
-    item_type: z.enum(["unknown", "no", "pending_document", "deadline"]).optional().describe("open_item: type. na_disposition is applied automatically under N/A sections."),
+    item_type: z.enum(["unknown", "no", "pending_document", "deadline"]).optional(),
     waiting_on_document: short("open_item pending_document: the named document."),
     waiting_on_who: short("open_item pending_document: who it is coming from."),
     waiting_since: date.optional(),
@@ -328,28 +326,28 @@ export const intake = defineTool({
     client_type: short("scope: client type."),
     pricing_model: z.preprocess(scopeAlias(PRICING_ALIASES), z.enum(["lump_sum", "unit_price", "cost_plus", "gmp"]).optional()),
     position: z.preprocess(scopeAlias(POSITION_ALIASES), z.enum(["prime", "sub", "sub_sub"]).optional()),
-    use_defaults: z.boolean().optional().describe("scope: true when the member says 'use the defaults' (or similar). Athena fills job type, sector and position from the company profile where it can, leaves everything else (e.g. client type, pricing model) unconfirmed, saves and moves on. Fields you also send win."),
+    use_defaults: z.boolean().optional(),
     work_packages: z.array(workPackage).max(50).optional(),
-    major_equipment: z.array(z.string().trim().min(1).max(120)).max(50).optional().describe("scope: major equipment; [] means none."),
+    major_equipment: z.array(z.string().trim().min(1).max(120)).max(50).optional(),
     key_clauses: z
       .object({ retainage: tri.optional(), beneficial_use: tri.optional(), liquidated_damages: tri.optional(), notice: tri.optional() })
       .optional()
-      .describe("scope: which key clauses the job has."),
+      ,
     job_tool_stack: z.record(z.string().max(60), z.string().max(200)).optional(),
     // Contract (A)
-    contract_document_provided: z.boolean().optional().describe("contract/deadline/warranty: true ONLY if you read these terms from the contract document itself in this conversation (and give contract_document_name). Terms the member typed or told you are manual: leave this out."),
-    contract_document_name: z.string().max(300).optional().describe("contract/deadline/warranty: the contract document the terms were read from (file name or title). Required for source document; without it the terms are saved as manual."),
+    contract_document_provided: z.boolean().optional(),
+    contract_document_name: z.string().max(300).optional(),
     pay_terms: short("contract"), notice_timing: short("contract: notice deadline and clause, as written"), tia_timing: short("contract"),
     change_process: short("contract"), claim_process: short("contract"), retainage: short("contract: % and clause"),
     retainage_reduction: short("contract"), beneficial_use_clause: short("contract"), liquidated_damages: short("contract"),
     savings_split: short("contract"), closeout: short("contract"), warranty_clauses: short("contract"),
     // Warranty and closeout (job setup)
-    workmanship_warranty: tri.optional().describe("warranty: is there a workmanship warranty?"),
-    workmanship_warranty_months: z.number().int().min(0).max(240).optional().describe("warranty: how long the workmanship warranty runs, in months."),
-    warranty_start_trigger: z.enum(["substantial_completion", "final_acceptance", "other"]).optional().describe("warranty: what starts the workmanship warranty. Owner acceptance = final_acceptance. Prefer warranty_start_trigger_text with the member's own words."),
+    workmanship_warranty: tri.optional(),
+    workmanship_warranty_months: z.number().int().min(0).max(240).optional(),
+    warranty_start_trigger: z.enum(["substantial_completion", "final_acceptance", "other"]).optional(),
     warranty_start_trigger_text: short("warranty: the member's own words for what starts the warranty (e.g. \"owner acceptance\"). Mapped for you and wins over warranty_start_trigger."),
     warranty_start_trigger_other: short("warranty: describe the trigger when warranty_start_trigger is other"),
-    warranty_trigger_date: date.optional().describe("warranty: the actual date of the trigger event, once it has happened. Leave out until then."),
+    warranty_trigger_date: date.optional(),
     warranty_start_basis: short("warranty: what sets the warranty start date (clause or document)"),
     closeout_documents: short("warranty: required closeout documents (O&Ms, as-builts, etc.); \"unknown\" if not known"),
     punch_final_acceptance: short("warranty: punch list and final acceptance requirements"),
@@ -358,19 +356,19 @@ export const intake = defineTool({
     // Handoff (C)
     sold_scope: short("handoff"), carried_scope: short("handoff"), exclusions: short("handoff"), allowances: short("handoff"), addenda: short("handoff"),
     concessions: short("handoff"), quantities: short("handoff"), production_rates: short("handoff"), crew_assumptions: short("handoff"), sub_qualifications: short("handoff"),
-    gaps: z.array(gap).max(50).optional().describe("handoff: each gap becomes an open item with its named owner."),
+    gaps: z.array(gap).max(50).optional(),
     // Budget (F)
-    budget_lines: z.array(budgetLine).max(300).optional().describe("budget: internal cost budget by cost code (internal only)."),
-    sov_lines: z.array(sovLine).max(300).optional().describe("budget: owner SOV lines at billable value, with the cost codes each maps to. For the SOV, number lines 01.01-style (CSI division, dot, line)."),
-    fee_pct: z.number().optional().describe("budget: contractor's fee as a percent of the contract total (e.g. 15). The SOV adds this fee on top of the SOV lines, so give it only when the lines are cost of work + GC before fee. If the lines already add up to the contract sum (e.g. a lump-sum subcontract), give 0."),
-    sov_basis: z.string().trim().max(200).optional().describe("budget: the contract document the SOV numbers come from, e.g. \"Schedule A, Total Investment\"."),
+    budget_lines: z.array(budgetLine).max(300).optional(),
+    sov_lines: z.array(sovLine).max(300).optional(),
+    fee_pct: z.number().optional(),
+    sov_basis: z.string().trim().max(200).optional(),
     // Open item
     action: short("open_item: what has to happen"), kind: z.enum(["general", "commercial", "warranty"]).optional(),
     commercial_type: z.enum(["co", "rea", "claim", "retainage"]).optional(), owner: short("open_item: accountable named person"), needed_by: date.optional(),
     cost_effect: short("open_item"), time_effect: short("open_item"), cash_effect: short("open_item"), effect_is_estimate: z.boolean().optional(),
     next_action: short("open_item"), next_action_approved_by: short("open_item"), internal_only: z.boolean().optional(),
     // Lookahead
-    lookahead_exists: z.enum(["yes", "no", "build"]).optional().describe("lookahead: the member's answer to \"is there a two-week look-ahead on this job?\" Leave out the first time; Athena asks. yes = they have one, build = they want Athena to build it from the schedule, no = they don't (Athena pushes back)."),
+    lookahead_exists: z.enum(["yes", "no", "build"]).optional(),
         start_date: date.optional(), end_date: date.optional(),
     schedule_export: doc("lookahead: schedule export"), crews: doc("lookahead: crews/subs by day"), submittal_log: doc("lookahead: submittal log"),
     rfi_log: doc("lookahead: RFI log"), inspection_list: doc("lookahead: inspection list"), deliveries: doc("lookahead: deliveries list"),
@@ -861,8 +859,8 @@ type NextCheck = { key: string; label: string | null; section: string | null; ca
 export const nextQuestion = defineTool({
   name: "next_question",
   title: "Next question",
-  description: "Get the next setup question for a job, one at a time (or the next lookahead question when lookahead_id is given). Skips anything marked N/A or already answered.",
-  inputSchema: { job_number: jobNumber, company_id: companyId, lookahead_id: laArg.optional().describe(`Only for a two-week lookahead. ${LA_DESC}`) },
+  description: "Returns the next setup question for a job.",
+  inputSchema: { job_number: jobNumber, company_id: companyId, lookahead_id: laArg.optional() },
   annotations: { ...WRITE, idempotentHint: true },
   handler: (args, ctx) =>
     run("next_question", ctx, { lookaheadId: args.lookahead_id, jobNumber: args.job_number }, async (sb) => {
@@ -944,22 +942,21 @@ const wLeftFor = (facts: Parameters<typeof nextWarrantyQuestion>[0]) => { const 
 export const answer = defineTool({
   name: "answer",
   title: "Answer or mark N/A",
-  description:
-    "Answer the current question (yes / no / na / unknown), mark an item or section N/A, re-enable it, or decline a re-enable suggestion. N/A only stops future questions; it never closes open items. Unknown opens a confirm item.",
+  description: "Records the answer to the current setup question.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
-    action: z.enum(["answer", "mark_na", "reenable", "decline_reenable"]).optional().describe("Default answer."),
-    check_key: z.string().min(1).max(100).optional().describe("answer: the question ref shown by next_question (e.g. gate-role-gc) or check_key from structured content. mark_na/reenable with scope item: the same ref."),
-    lookahead_help: z.enum(["accept", "decline"]).optional().describe(`answer on check ${"bss_lookahead"} with response "no": "accept" if the member wants help building a look-ahead, "decline" if not (logs an open item). Leave out the first time; Athena asks.`),
-    response: tri.optional().describe("answer: yes / no / na / unknown."),
-    detail: z.string().max(10_000).optional().describe("Details, or the N/A reason (max 10,000 characters)."),
-    owner: z.string().max(200).optional().describe("Accountable person for a follow-up. Leave out if unknown."),
-    due_date: date.optional().describe("Needed-by date (YYYY-MM-DD)."),
-    scope: z.enum(["item", "section"]).optional().describe("mark_na / reenable: item or section."),
-    section: z.string().max(60).optional().describe("mark_na / reenable with scope section: section name, e.g. bid_documents, insurance_bonding, contract_time, self_perform_premob."),
-    na_id: uuid.optional().describe("decline_reenable: na_id from the suggestion."),
-    lookahead_id: laArg.optional().describe(`Only for a two-week lookahead question. ${LA_DESC}`),
+    action: z.enum(["answer", "mark_na", "reenable", "decline_reenable"]).optional(),
+    check_key: z.string().min(1).max(100).optional(),
+    lookahead_help: z.enum(["accept", "decline"]).optional(),
+    response: tri.optional(),
+    detail: z.string().max(10_000).optional(),
+    owner: z.string().max(200).optional(),
+    due_date: date.optional(),
+    scope: z.enum(["item", "section"]).optional(),
+    section: z.string().max(60).optional(),
+    na_id: uuid.optional(),
+    lookahead_id: laArg.optional(),
   },
   annotations: { ...WRITE, idempotentHint: false },
   handler: (args, ctx) =>
@@ -1090,15 +1087,15 @@ export const answer = defineTool({
 export const report = defineTool({
   name: "report",
   title: "Job report",
-  description: "Render the full job setup report (internal or client-facing), or the two-week lookahead report when lookahead_id is given. Client-facing reports leave out internal cost and strategy detail. To read back just the contract terms, use contract_terms instead. Contract clauses stay word for word; summaries only on request (include_summary true).",
+  description: "Returns the job setup report or a two-week lookahead.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
-    audience: z.enum(["internal", "client"]).optional().describe("Default internal."),
-    lookahead_id: laArg.optional().describe(`Only for a two-week lookahead report. ${LA_DESC}`),
-    deliverable: z.enum(["setup", "sov"]).optional().describe("Default setup. sov: the schedule of values data and its layout recipe (full job access only; audience client for the copy sent to the owner)."),
-    sov_view: z.enum(["lines", "divisions"]).optional().describe("SOV only. Default lines: every SOV line item with its % of total. divisions: the division subtotal roll-up, only when the member asks for it."),
-    include_summary: z.boolean().optional().describe("Setup report only. Default false: contract clauses word for word, then an offer to summarize. Set true only after the member asks for a plain-English summary."),
+    audience: z.enum(["internal", "client"]).optional(),
+    lookahead_id: laArg.optional(),
+    deliverable: z.enum(["setup", "sov"]).optional(),
+    sov_view: z.enum(["lines", "divisions"]).optional(),
+    include_summary: z.boolean().optional(),
   },
   annotations: { ...READ, idempotentHint: true },
   handler: (args, ctx) =>
@@ -1135,8 +1132,8 @@ export const report = defineTool({
 export const carryForward = defineTool({
   name: "carry_forward",
   title: "Carry forward open items",
-  description: "Move open items from last week's lookahead into this week's lookahead for the same job, with history.",
-  inputSchema: { job_number: jobNumber, company_id: companyId, from_lookahead_id: laArg.describe(`Previous lookahead. ${LA_DESC}`), to_lookahead_id: laArg.describe(`New lookahead from intake. ${LA_DESC}`) },
+  description: "Moves open items from one lookahead into the next.",
+  inputSchema: { job_number: jobNumber, company_id: companyId, from_lookahead_id: laArg, to_lookahead_id: laArg },
   annotations: { ...WRITE, idempotentHint: true },
   handler: (args, ctx) =>
     run("carry_forward", ctx, { lookaheadId: args.to_lookahead_id, jobNumber: args.job_number }, async (sb) => {
@@ -1177,8 +1174,7 @@ async function noticeContext(sb: Sb, job: Job) {
 
 // ---------- list_open_items ----------
 // The one exception to "job_number is required": with no job named, list_open_items lists the companies and jobs instead.
-const listJobNumber = z.string().trim().min(1).max(40).optional().describe("Job number, exact match (e.g. 2417). Leave out when the member hasn't named a job: Athena then lists your companies and their jobs.");
-export const NO_JOB_HINT = "If the member hasn't named a company or a job, call list_open_items with no job_number (and no company_id): Athena lists the companies and their jobs itself, so don't ask the member to guess.";
+const listJobNumber = z.string().trim().min(1).max(40).optional();
 
 /** No job named: the caller's companies and their job numbers, in plain text. */
 export async function listCompaniesAndJobs(sb: Sb, companyId?: string): Promise<string> {
@@ -1208,12 +1204,12 @@ export async function listCompaniesAndJobs(sb: Sb, companyId?: string): Promise<
 export const listOpenItems = defineTool({
   name: "list_open_items",
   title: "List open items",
-  description: `List a job's open items with accountable person, needed-by date, verified or last-reported status, source and effects. Items under an N/A section are labeled for disposition. ${NO_JOB_HINT}`,
+  description: "Lists a job's open items.",
   inputSchema: {
     job_number: listJobNumber,
     company_id: companyId,
-    lookahead_id: laArg.optional().describe(`Limit to one lookahead. ${LA_DESC}`),
-    date_sweep: z.boolean().optional().describe("true only when the member asks for the date sweep (overdue, due today, next 14 days). It also shows on its own when a job is first opened in a session."),
+    lookahead_id: laArg.optional(),
+    date_sweep: z.boolean().optional(),
   },
   annotations: { ...READ, idempotentHint: true },
   handler: (args, ctx) =>
@@ -1275,20 +1271,19 @@ export function closedWarrantyKey(checkKey: string | null | undefined, closed: b
 export const resolveItem = defineTool({
   name: "resolve_item",
   title: "Resolve or update an open item",
-  description:
-    "Close an open item with evidence, close a confirm item with a dated statement, waive it (decision right and reason required), close a commercial item on approval + billing + collection, or record a last-reported status update. N/A is not a resolution.",
+  description: "Closes or updates an open item.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
-    item_id: z.string().min(1).max(64).describe("The item: the ref shown on its line in list_open_items (e.g. A1 or 36C31, with or without \"Ref\") or the item_id from structured content."),
-    kind: z.enum(["verified", "member_statement", "waive", "commercial_close", "update", "na"]).describe("How it is being closed or updated."),
-    evidence: z.string().trim().max(10_000).optional().describe("Evidence: a document (name or number), or for member_statement what was said. A bare \"we're good\" is not evidence; the item stays open."),
-    stated_by: z.string().max(200).optional().describe("member_statement / update: who said it, only if the member named someone. Leave out and it is attributed to the calling user."),
-    stated_on: date.optional().describe("member_statement / update: date of the statement."),
-    reason: z.string().max(2000).optional().describe("waive: reason (logged)."),
-    approval: z.string().max(1000).optional().describe("commercial_close: approval reference."),
-    billing: z.string().max(1000).optional().describe("commercial_close: billing reference."),
-    collection: z.string().max(1000).optional().describe("commercial_close: collection reference."),
+    item_id: z.string().min(1).max(64),
+    kind: z.enum(["verified", "member_statement", "waive", "commercial_close", "update", "na"]),
+    evidence: z.string().trim().max(10_000).optional(),
+    stated_by: z.string().max(200).optional(),
+    stated_on: date.optional(),
+    reason: z.string().max(2000).optional(),
+    approval: z.string().max(1000).optional(),
+    billing: z.string().max(1000).optional(),
+    collection: z.string().max(1000).optional(),
   },
   annotations: { ...WRITE, idempotentHint: false },
   handler: (args, ctx) =>
@@ -1342,12 +1337,11 @@ const CONTRACT_FLAGS = ["has_retainage", "has_lds", "beneficial_use", "notice_re
 export const contractTerms = defineTool({
   name: "contract_terms",
   title: "Read contract terms",
-  description:
-    "Read back a job's contract clauses word for word with section numbers, missing clauses and the applicability flags (ON / OFF / UNKNOWN). Show the clauses word for word first, then offer: 'Do you want me to summarize this legal text so you know what it means in plain English?' Only if the member says yes, call again with include_summary true for the plain-language notice requirements and saved summary fields. Never paraphrase a clause in place of its text. Use this, not the setup report, when the member asks what terms are on file or to confirm terms they just entered. Read-only.",
+  description: "Reads back a job's contract clauses.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
-    include_summary: z.boolean().optional().describe("Default false: the clauses word for word only, then an offer to summarize. Set true only after the member asks for a plain-English summary."),
+    include_summary: z.boolean().optional(),
   },
   annotations: { ...READ, idempotentHint: true },
   handler: (args, ctx) =>
@@ -1448,7 +1442,7 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
           contract_total_display: money(sov.summary.contract_total),
           ...sov,
           footer: sovLayout(brand).footer,
-          layout: sovLayout(brand),
+          layout: (({ colors: _colors, accent_use: _accent, no_orange: _noOrange, table_style: _tableStyle, color_rule: _colorRule, ...rest }) => rest)(sovLayout(brand)),
         },
         // 0.8.7: the host draws this bar chart (scheduled value by line) in the fixed palette, every host.
         chart: sovChart(sovLineRows(sov)),
@@ -1459,7 +1453,7 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
       },
     },
     "To produce the SOV file, use structuredContent.sov exactly: numbers, column set and layout recipe come from the server. Do not recompute or reorder.",
-    `Present the SOV as a spreadsheet with the line-item view by default (structuredContent.sov.line_items: line no., cost code, division, description, scheduled value, % of total, then the total that ties to the contract sum). Always include a Cost Code column right after the line no., filled from line_items cost_code (e.g. 26-010); never show the item number in its place. Money with cents everywhere, exactly as in the visible text and the *_display fields (e.g. $1,400,000.00); never round or drop the .00. Do not put a date sweep or any other block before the SOV. Claude: an artifact table built from this result with no tool calls inside it; ChatGPT: a canvas or table; elsewhere: a table plus an offer to create an Excel file. Table style: ${SOV_TABLE_STYLE} Colors: blue #2563EB and gray only, never orange, rust or the alert color, including totals. After the table, at most ONE line. The logo, footer gaps (structuredContent.sov.notes), billing note and the division roll-up offer only when the member asks. Line items carry cost_code and spec_section; keep both columns in any file. Chart colors: ${CHART_PALETTE.join(", ")} only. REQUIRED: end the reply with the SOV delivery question below, word for word, in every host including Claude.${audience === "client" ? " This is the owner/client SOV: offer options 1 and 2 only; never offer a chat link." : ""}`,
+    `Show the SOV from this result, including the Cost Code column next to the line no. Show money with cents. End with the delivery question word for word.`,
     SOV_CHART_RULE,
     sovDeliveryBlock(audience),
     EMAIL_CONTACT_RULE,

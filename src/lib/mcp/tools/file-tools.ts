@@ -14,8 +14,8 @@ import {
   storagePath, tokenFromLink, tokenHash, validateFile, type FileKind,
 } from "../file-share";
 
-const jobNumber = z.string().trim().min(1).max(40).describe("Job number, exact match (e.g. 2701).");
-const companyId = z.string().trim().min(1).max(200).optional().describe("Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.");
+const jobNumber = z.string().trim().min(1).max(40);
+const companyId = z.string().trim().min(1).max(200).optional();
 
 async function rpc<T>(sb: Sb, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await (sb.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>)(fn, args);
@@ -86,16 +86,15 @@ const KIND_LABEL: Record<FileKind, string> = { sov: "SOV", schedule: "Schedule",
 export const fileShare = defineTool({
   name: "file_share",
   title: "Share a file as a link",
-  description:
-    "Use this when an email needs a file you built (SOV, schedule or CPM PDF, report, notice, Excel or CSV) and your email tool can't attach it, or the member wants a link. Send the file's bytes as content_base64 (or, in ChatGPT, a chat file as file) with the job_number, kind and filename. Athena checks the file type (PDF, .xlsx, .docx, CSV or PNG, up to 10 MB), stores it privately for this job and returns a link anyone with it can open until it expires (30 days by default). Put the link in the email body; never say the file is attached unless your email tool attached it. Supers can share schedules only.",
+  description: "Stores a file for a job and returns a download link.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
-    kind: z.enum(FILE_KINDS).describe("sov, schedule (CPM or Gantt), report, notice or other."),
-    filename: z.string().trim().min(1).max(120).describe("File name with its extension, e.g. 2701 SOV.pdf. Allowed: .pdf, .xlsx, .docx, .csv, .png."),
-    content_base64: z.string().max(FILE_B64_MAX_CHARS).optional().describe("The file's bytes, base64 encoded (a data: prefix is fine). Required unless file is given."),
-    file: z.object({ download_url: z.string(), file_id: z.string(), mime_type: z.string().optional(), file_name: z.string().optional() }).optional().describe("ChatGPT only: a chat file reference. Use content_base64 everywhere else."),
-    expires_in_days: z.number().int().min(1).max(FILE_MAX_DAYS).optional().describe(`Days the link works, default ${FILE_DEFAULT_DAYS}, at most ${FILE_MAX_DAYS}.`),
+    kind: z.enum(FILE_KINDS),
+    filename: z.string().trim().min(1).max(120),
+    content_base64: z.string().max(FILE_B64_MAX_CHARS).optional(),
+    file: z.object({ download_url: z.string(), file_id: z.string(), mime_type: z.string().optional(), file_name: z.string().optional() }).optional(),
+    expires_in_days: z.number().int().min(1).max(FILE_MAX_DAYS).optional(),
   },
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   handler: (args, ctx) =>
@@ -129,8 +128,8 @@ export const fileShare = defineTool({
 export const fileShareRevoke = defineTool({
   name: "file_share_revoke",
   title: "Turn off a file link",
-  description: "Turns off a file link Athena made, right away, and deletes the stored file. Call only after the member asks to turn off that link. Full job access, or the member who shared it.",
-  inputSchema: { job_number: jobNumber, company_id: companyId, link: z.string().trim().min(1).max(300).describe("The link Athena returned (https://app.meetathena.io/f/...).") },
+  description: "Turns off a file link and deletes the stored file.",
+  inputSchema: { job_number: jobNumber, company_id: companyId, link: z.string().trim().min(1).max(300) },
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
   handler: (args, ctx) =>
     run("file_share_revoke", ctx, { jobNumber: args.job_number }, async (sb) => {
@@ -152,13 +151,12 @@ export const fileShareRevoke = defineTool({
 export const lookaheadPdfTool = defineTool({
   name: "lookahead_pdf",
   title: "Lookahead as a PDF file (for email)",
-  description:
-    "Builds the job's two-week lookahead as a styled PDF on the server (the latest lookahead with content, dated from the saved CPM data date), stores it privately for the job, and returns download_url: a link to the PDF that works until it expires. Use it when the member wants the lookahead emailed, attached or downloaded. The result explains how to use the link with email_draft.",
+  description: "Builds the job's two-week lookahead as a PDF and returns a download link.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
-    lookahead_id: z.string().trim().min(1).max(64).optional().describe("A lookahead ref (LA-...). Default: the latest lookahead with content."),
-    expires_in_days: z.number().int().min(1).max(FILE_MAX_DAYS).optional().describe(`Days the link works, default ${FILE_DEFAULT_DAYS}.`),
+    lookahead_id: z.string().trim().min(1).max(64).optional(),
+    expires_in_days: z.number().int().min(1).max(FILE_MAX_DAYS).optional(),
   },
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   handler: (args, ctx) =>

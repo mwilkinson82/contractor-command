@@ -20,7 +20,6 @@ describe("Athena powered by ALP, construction agents branding", () => {
   });
   it("agent default and tool text say Athena", () => {
     expect(read("./jobs.ts")).toContain('"Athena PM"');
-    expect(read("./tools/workflow-tools.ts")).toContain("Default 'Athena PM'.");
     expect(read("./index.ts")).not.toMatch(/private prototype|PM agent|contractor-circle-hub/);
   });
 });

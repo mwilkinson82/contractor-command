@@ -20,13 +20,13 @@ import {
   CPM_GANTT_SPEC,
 } from "../living";
 
-const jobNumber = z.string().trim().min(1).max(40).describe("Job number, exact match (e.g. 2701).");
-const companyId = z.string().trim().min(1).max(200).optional().describe("Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.");
+const jobNumber = z.string().trim().min(1).max(40);
+const companyId = z.string().trim().min(1).max(200).optional();
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
 const READ = { readOnlyHint: true, openWorldHint: false } as const;
 // Ask-first: ChatGPT and Claude confirm destructive tools with the member before calling.
 const SAVE = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false } as const;
-const reportType = z.enum(LIVING_REPORT_TYPES).describe("cpm (cost-loaded CPM), billing_forecast, ior or dashboard.");
+const reportType = z.enum(LIVING_REPORT_TYPES);
 
 const activity = z.object({
   id: z.string().trim().min(1).max(20),
@@ -41,7 +41,7 @@ const activity = z.object({
   value: z.number().min(0).nullable(),
   sov_line: z.string().trim().max(20).nullable(),
   cost_code: z.string().trim().max(20).nullable(),
-  owner_furnished: z.boolean().optional().describe("true for owner-furnished work (schedule-only, $0.00 in ALP billing)."),
+  owner_furnished: z.boolean().optional(),
 });
 
 type Got = {
@@ -92,9 +92,8 @@ const logLines = (g: Got) => (g.change_log ?? []).slice(0, 5).map((c) => `- v${c
 export const cpmActivities = defineTool({
   name: "cpm_activities",
   title: "Full CPM activity list",
-  description:
-    "REQUIRED: call this before drawing or updating any cost-loaded CPM, billing forecast, billing drill-down, coaching, IOR or dashboard. Returns every saved activity on the job (ID, name, duration, start/finish, predecessors and logic, total float, critical flag, % complete, $ value, SOV line, cost code), the count check (e.g. 39 of 39), the tie to the contract, the ONE saved contract completion date and the computed delay (TIA) result. Use these values exactly; never recompute, rebuild from an earlier chat, or guess them. Owner-furnished activities are $0.00 in ALP billing. Supers get the schedule with no dollars.",
-  inputSchema: { job_number: jobNumber, company_id: companyId, version: z.number().int().min(1).optional().describe("A past CPM version to view; default the latest saved one.") },
+  description: "Returns the saved CPM activities for a job.",
+  inputSchema: { job_number: jobNumber, company_id: companyId, version: z.number().int().min(1).optional() },
   annotations: { ...READ, idempotentHint: true },
   handler: (args, ctx) =>
     run("cpm_activities", ctx, { jobNumber: args.job_number }, async (sb) => {
@@ -152,8 +151,8 @@ export const cpmActivities = defineTool({
             activities: acts.map((a) => ({ ...a, owner_furnished: isOwnerFurnished(a), billable_value: showMoney ? (isOwnerFurnished(a) ? 0 : a.value) : null })),
           },
         },
-        "View-only asks (e.g. \"pull up the schedule\"): build a NEW private view or artifact; never update or replace the saved shared master or an existing shared artifact unless the user explicitly asks to update or save it, and confirm first. Use structuredContent.activities, count_check, tie, contract_completion_date and tia exactly. Split billing by each activity's working days from these dates; never invent a date, duration, float or dollar figure. Remaining forecast after a % complete or pay app update = contract − the higher of billed and earned to date, spread over open activities; never add earned dollars on top of the old remaining spread.",
-        showMoney ? "" : "Super view: no dollars. Never show or estimate any $ value, billing or forecast.",
+        "View-only asks (e.g. \"pull up the schedule\"): build a NEW private view or artifact; never update or replace the saved shared master or an existing shared artifact unless the user explicitly asks to update or save it, and confirm first. Use the activities, dates, and amounts in this result exactly.",
+        showMoney ? "" : "Do not add dollar figures.",
       );
     }),
 });
@@ -162,9 +161,8 @@ export const cpmActivities = defineTool({
 export const livingReportGet = defineTool({
   name: "living_report_get",
   title: "Living report master copy",
-  description:
-    "REQUIRED: call this before updating a cost-loaded CPM, billing forecast, IOR or PM dashboard, and when a new chat picks one up. Returns the saved master copy (latest or a named version) with its version, last-updated stamp, data date, data and change log. Viewing: build a new private view from it and never change the saved master. Updating (only when the user explicitly asks, after confirming): update that copy in place; never start a second saved one. Supers: CPM only, no dollars.",
-  inputSchema: { job_number: jobNumber, company_id: companyId, report_type: reportType, version: z.number().int().min(1).optional().describe("A past version (for v6 vs v7 or a rollback view); default the latest.") },
+  description: "Returns the saved living report for a job.",
+  inputSchema: { job_number: jobNumber, company_id: companyId, report_type: reportType, version: z.number().int().min(1).optional() },
   annotations: { ...READ, idempotentHint: true },
   handler: (args, ctx) =>
     run("living_report_get", ctx, { jobNumber: args.job_number }, async (sb) => {
@@ -208,23 +206,22 @@ export const livingReportGet = defineTool({
 export const livingReportSave = defineTool({
   name: "living_report_save",
   title: "Save living report version (after approval)",
-  description:
-    "REQUIRED: ask the PM first and call this only after they say yes to this exact update. Saves a new version of the job's cost-loaded CPM, billing forecast, IOR or PM dashboard as the master copy, with what changed and why. Athena refuses the save if any activity is dropped, an activity is undated, or (CPM and billing forecast) the total doesn't equal the contract to the cent. Owner-furnished work is $0.00 in ALP billing. Full job access only.",
+  description: "Saves a new version of a living report after approval.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
     report_type: reportType,
-    base_version: z.number().int().min(0).describe("The version you loaded with living_report_get (0 for the first save)."),
-    approved: z.literal(true).describe("true only after the PM said yes to saving this exact update."),
-    data_date: date.optional().describe("The update's data date."),
-    what_changed: z.string().trim().min(1).max(500).describe("One line: what changed since the last version."),
-    why: z.string().trim().max(500).optional().describe("Why it changed."),
-    activities: z.array(activity).max(400).optional().describe("The FULL activity list (every activity, none dropped). Required for cpm."),
-    billing: z.object({ billed_to_date: z.number().min(0).nullable().optional(), months: z.array(z.object({ month: z.string().regex(/^\d{4}-\d{2}$/), amount: z.number(), kind: z.enum(["actual", "forecast"]) })).max(120) }).optional().describe("Billing forecast: every month, billed actuals and forecast. Months must total the contract."),
-    tia: z.object({ fragnet: z.string().trim().min(1).max(40).describe("The delay fragnet ID, e.g. FRAG-01."), prior_completion: date, updated_completion: date, fragnet_only_completion: date.nullable().optional().describe("Completion with only this delay fragnet inserted.") }).optional().describe("cpm: the delay fragnet analysis dates from the forward pass."),
-    details: z.record(z.string(), z.unknown()).optional().describe("ior items or dashboard KPIs, as given."),
-    contract_completion_date: date.optional().describe("cpm: the contract completion date. Saved once per job."),
-    replace_completion_date: z.boolean().optional().describe("true only when the PM confirmed changing the saved contract completion date."),
+    base_version: z.number().int().min(0),
+    approved: z.literal(true),
+    data_date: date.optional(),
+    what_changed: z.string().trim().min(1).max(500),
+    why: z.string().trim().max(500).optional(),
+    activities: z.array(activity).max(400).optional(),
+    billing: z.object({ billed_to_date: z.number().min(0).nullable().optional(), months: z.array(z.object({ month: z.string().regex(/^\d{4}-\d{2}$/), amount: z.number(), kind: z.enum(["actual", "forecast"]) })).max(120) }).optional(),
+    tia: z.object({ fragnet: z.string().trim().min(1).max(40), prior_completion: date, updated_completion: date, fragnet_only_completion: date.nullable().optional() }).optional(),
+    details: z.record(z.string(), z.unknown()).optional(),
+    contract_completion_date: date.optional(),
+    replace_completion_date: z.boolean().optional(),
   },
   annotations: SAVE,
   handler: (args, ctx) =>
