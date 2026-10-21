@@ -28,11 +28,12 @@ export const ATHENA_SERVER_ICONS = Object.freeze([
 export const ATHENA_WEBSITE_URL = ORIGIN;
 
 /** serverInfo.version and the "Athena vX" line on onboarding. */
+// 0.8.14: living report pages at app.meetathena.io/r/ (job IOR, schedule, company portfolio; optional owner share link).
 // 0.8.12: required styled views (lookahead, pay app, reminders, emails), one alert color (alert-color.ts).
 // 0.8.11: file_share links (host uploads the file it built; Athena returns an app.meetathena.io/f/ link).
 // 0.8.10: fragnet wording, To: inside email cards, small CORS icons, Athena sign-in page.
 // 0.8.9: cpm_activities handoff, tie-to-contract guard, owner-furnished exclusion, living reports master copy.
-export const ATHENA_VERSION = "0.8.12";
+export const ATHENA_VERSION = "0.8.14";
 
 /** MCP 2025-11-25 Implementation.description. There is no publisher field in the spec. */
 export const ATHENA_DESCRIPTION = "Athena powered by ALP, construction agents. Built by ALP.";
@@ -135,3 +136,4 @@ export function isMcpPost(request: Request): boolean {
   const path = new URL(request.url).pathname;
   return path === "/mcp" || path === "/mcp/";
 }
+

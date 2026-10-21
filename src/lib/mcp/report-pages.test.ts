@@ -153,3 +153,16 @@ describe("0.8.14 guidance and migration", () => {
     expect(m).toMatch(/REVOKE ALL ON public\.mcp_report_shares FROM anon, authenticated, public/);
   });
 });
+
+
+describe("0.8.14 page refresh", () => {
+  it("refreshes only while visible and skips the full read when the stamp is unchanged", () => {
+    const c = readFileSync("src/components/athena/ReportPage.tsx", "utf8");
+    expect(c).toMatch(/document\.visibilityState === "visible"/);
+    expect(c).toMatch(/refetchInterval: visible \? REFRESH_MS : false/);
+    expect(c).toMatch(/mcp_report_page_stamp/);
+    expect(c).toMatch(/prev\.stamp === stamp\) return prev/);
+    const m = readFileSync("supabase/migrations/20261021120000_athena_report_pages.sql", "utf8");
+    expect(m).toMatch(/GRANT EXECUTE ON FUNCTION public\.mcp_report_page_stamp\(text, uuid, uuid\) TO authenticated;/);
+  });
+});

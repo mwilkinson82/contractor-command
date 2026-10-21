@@ -1,7 +1,7 @@
 -- Athena 0.8.14: living report pages at app.meetathena.io/r/... (job IOR, job schedule, company portfolio).
 -- Pages read the saved living reports; nothing new is stored for a private page. The optional owner share link
 -- reuses the 0.8.11 pattern: only a SHA-256 of the token is stored, it expires, it can be turned off. Off by default.
--- Additive only: one table, four functions. No drops, no deletes, no data changes.
+-- Additive only: one table, seven functions. No drops, no deletes, no data changes.
 -- Depends on 20261020213000_athena_living_reports.sql. NOT APPLIED. Apply only after Marshall's yes.
 
 CREATE TABLE IF NOT EXISTS public.mcp_report_shares (
@@ -72,6 +72,30 @@ END $$;
 REVOKE EXECUTE ON FUNCTION public.mcp_report_page_get(text, uuid, uuid) FROM anon, public;
 GRANT EXECUTE ON FUNCTION public.mcp_report_page_get(text, uuid, uuid) TO authenticated;
 
+-- Lightweight refresh check for the signed-in page (0.8.14): returns only "<version>|<saved at>" for what the page shows,
+-- under the same access rules as mcp_report_page_get, so the page skips the full read when nothing changed.
+CREATE OR REPLACE FUNCTION public.mcp_report_page_stamp(_page text, _job uuid, _company uuid DEFAULT NULL) RETURNS text
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO 'public' AS $$
+DECLARE sc text; s text;
+BEGIN
+  PERFORM public.mcp_assert_active();
+  IF _page = 'portfolio' THEN
+    IF _company IS NULL OR NOT public.mcp_is_company_leader(_company) THEN RAISE EXCEPTION 'MCP_BAD:The portfolio is for owners and leadership.'; END IF;
+    SELECT count(*)::text || '|' || coalesce(max(r.created_at)::text, '') || '|' || (SELECT count(*) FROM public.mcp_jobs WHERE company_id = _company)::text INTO s
+      FROM public.mcp_living_reports r JOIN public.mcp_jobs j ON j.id = r.job_id WHERE j.company_id = _company;
+    RETURN s;
+  END IF;
+  IF _page NOT IN ('ior', 'schedule') THEN RAISE EXCEPTION 'MCP_BAD:Unknown page.'; END IF;
+  sc := public.mcp_job_scope(_job);
+  IF sc IS NULL THEN RAISE EXCEPTION 'MCP_NO_JOB'; END IF;
+  IF (_page = 'ior' AND sc <> 'full') OR (_page = 'schedule' AND sc NOT IN ('full', 'super')) THEN RAISE EXCEPTION 'MCP_BAD:No access.'; END IF;
+  SELECT r.version::text || '|' || r.created_at::text INTO s FROM public.mcp_living_reports r
+    WHERE r.job_id = _job AND r.report_type = CASE WHEN _page = 'schedule' THEN 'cpm' ELSE 'ior' END ORDER BY r.version DESC LIMIT 1;
+  RETURN coalesce(s, 'none');
+END $$;
+REVOKE EXECUTE ON FUNCTION public.mcp_report_page_stamp(text, uuid, uuid) FROM anon, public;
+GRANT EXECUTE ON FUNCTION public.mcp_report_page_stamp(text, uuid, uuid) TO authenticated;
+
 -- Owner share link. ior/portfolio: owner/leadership with full scope. schedule: full scope (with $) or super (no $).
 CREATE OR REPLACE FUNCTION public.mcp_report_share_create(_page text, _job uuid, _company uuid, _token_hash text, _expires_at timestamptz) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
@@ -137,3 +161,4 @@ BEGIN
 END $$;
 REVOKE EXECUTE ON FUNCTION public.mcp_report_share_open(text) FROM public;
 GRANT EXECUTE ON FUNCTION public.mcp_report_share_open(text) TO anon, authenticated;
+
