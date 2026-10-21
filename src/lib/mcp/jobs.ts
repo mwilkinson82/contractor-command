@@ -38,6 +38,10 @@ export async function resolveCompany(sb: Sb, companyId?: string): Promise<string
   }
   if (!mine.length) throw new ToolError('No company set up yet. Call onboarding with action "save_company" first.');
   if (mine.length > 1) {
+    // 0.8.15: the member's saved current company (set_current_company) is used when they didn't name one.
+    const cur = await sb.from("mcp_user_settings").select("current_company").maybeSingle();
+    const curId = (cur.data as { current_company?: string | null } | null)?.current_company;
+    if (curId && mine.some((m) => m.company_id === curId)) return curId;
     // Never pick one silently.
     throw new ToolError(`You belong to more than one company: ${companyNames(mine)}. Which company is this for? Nothing was changed.`);
   }

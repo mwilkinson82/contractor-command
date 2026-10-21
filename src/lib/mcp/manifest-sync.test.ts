@@ -5,6 +5,8 @@ import { defineMcp } from "@lovable.dev/mcp-js";
 import * as W from "./tools/workflow-tools";
 import * as L from "./tools/living-tools";
 import * as F from "./tools/file-tools";
+import * as R from "./tools/report-page-tools";
+import * as T from "./tools/team-tools";
 import { ATHENA_VERSION } from "./server-info-branding";
 
 type Prop = { format?: string; pattern?: string; description?: string };
@@ -15,7 +17,7 @@ type Tool = { name: string; description?: string; inputSchema: { properties: Rec
 const manifest = JSON.parse(readFileSync(".lovable/mcp/manifest.json", "utf8")) as { mcp: { server: { version: string }; tools: Tool[] } };
 
 async function liveTools(): Promise<Tool[]> {
-  const m = defineMcp({ name: "athena", title: "A", version: "t", instructions: "i", tools: [W.onboarding, W.intake, W.nextQuestion, W.answer, W.report, W.contractTerms, W.carryForward, W.listOpenItems, W.resolveItem, L.cpmActivities, L.livingReportGet, L.livingReportSave, F.fileShare, F.fileShareRevoke], metrics: false } as never);
+  const m = defineMcp({ name: "athena", title: "A", version: "t", instructions: "i", tools: [W.onboarding, W.intake, W.nextQuestion, W.answer, W.report, W.contractTerms, W.carryForward, W.listOpenItems, W.resolveItem, L.cpmActivities, L.livingReportGet, L.livingReportSave, F.fileShare, F.fileShareRevoke, R.reportPageLink, R.reportPageShare, R.reportPageShareRevoke, T.teamList, T.teamInvite, T.teamUpdateMember, T.teamRemoveMember, T.teamAddSeats, T.setCurrentCompany], metrics: false } as never);
   const h = createTanStackMcpHandler(m, { resourcePath: "/mcp" });
   const post = (b: unknown) => h({ request: new Request("https://x/mcp", { method: "POST", headers: { "content-type": "application/json", accept: "application/json, text/event-stream" }, body: JSON.stringify(b) }) });
   await post({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } } });
