@@ -40,7 +40,7 @@ describe("0.8.8 blue brand, To field, pinned REQUIRED lines, sweep cards", () =>
       new Request("https://app.alpcontractorcircle.com/favicon.svg"),
     )!;
     expect(circle.headers.get("access-control-allow-origin")).toBeNull();
-    expect(await circle.text()).toContain("#F5F1E8");
+    expect(await circle.text()).toContain("Contractor Circle linked-C symbol");
     const athena = await siteIconResponse(
       new Request("https://app.meetathena.io/favicon.svg"),
     )!.text();
