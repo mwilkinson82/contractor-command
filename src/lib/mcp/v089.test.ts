@@ -131,7 +131,7 @@ describe("0.8.9 CPM activity handoff, tie guard, owner-furnished, living reports
 
   it("server wires the three tools and the instructions lead with the CPM rule; palette unchanged (no red)", () => {
     const idx = src("./index.ts");
-    expect(idx).toContain("cpmActivities, livingReportGet, livingReportSave, fileShare, fileShareRevoke]");
+    expect(idx).toContain("cpmActivities, livingReportGet, livingReportSave, fileShare, fileShareRevoke, reportPageLink");
     expect(idx).toContain('construction agents. " + GREETING_RULE + " REQUIRED: before drawing or updating a cost-loaded CPM');
     expect(idx).toContain("never rose, pink or orange");
     expect(idx).toContain("ALERT_PALETTE_RULE");
