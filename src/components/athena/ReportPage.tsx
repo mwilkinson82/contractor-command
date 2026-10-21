@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { renderReportBody, type PagePayload, type ReportPage } from "@/lib/report-pages";
+import { renderReportBody, type PagePayload, type AnyPage } from "@/lib/report-pages";
 
 type Rpc = (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
 const rpc = (f: string, a: Record<string, unknown>) => (supabase.rpc as unknown as Rpc)(f, a);
@@ -22,7 +22,7 @@ type Cached = { stamp: string | null; payload: PagePayload };
 
 // Signed-in living report page. The app's auth gate already sends signed-out visitors to /login?redirect=<this page>
 // and back. The database decides access (company membership + job scope); this only renders what it returns.
-export function ReportPageView({ page, jobId, companyId }: { page: ReportPage; jobId?: string; companyId?: string }) {
+export function ReportPageView({ page, jobId, companyId }: { page: AnyPage; jobId?: string; companyId?: string }) {
   const visible = usePageVisible();
   const qc = useQueryClient();
   const key = ["athena-report-page", page, jobId ?? null, companyId ?? null] as const;
