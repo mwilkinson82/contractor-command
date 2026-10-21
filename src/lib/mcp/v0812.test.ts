@@ -1,0 +1,93 @@
+import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { ALERT_COLOR, ALERT_HEX, ALERT_PALETTE_RULE } from "./alert-color";
+import { CPM_GANTT_SPEC, DELAY_CALLOUT_COLOR } from "./living";
+import { EMAIL_VIEW_SPEC, LOOKAHEAD_VIEW_SPEC, PAY_APP_VIEW_SPEC, REMINDERS_VIEW_SPEC, highlightLine, lookaheadHighlight, reminderSource } from "./views";
+import { CHART_PALETTE_RULE, HOST_DISPLAY_BLOCK } from "./visible";
+import { ATHENA_VERSION } from "./server-info-branding";
+
+const src = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8");
+const ALL_VIEWS = [LOOKAHEAD_VIEW_SPEC, PAY_APP_VIEW_SPEC, REMINDERS_VIEW_SPEC, EMAIL_VIEW_SPEC];
+
+describe("0.8.12 alert color", () => {
+  it("version is 0.8.12", () => expect(ATHENA_VERSION).toBe("0.8.12"));
+  it("one constant, defaulting to red #DC2626, drives the delay callout", () => {
+    expect(ALERT_COLOR).toBe("red #DC2626");
+    expect(ALERT_HEX).toBe("#DC2626");
+    expect(DELAY_CALLOUT_COLOR).toBe(ALERT_COLOR);
+    expect(CPM_GANTT_SPEC.join("\n")).toContain(`${ALERT_COLOR} callout reading "Delay: +X CD"`);
+  });
+  it("switching is one line: alert-color.ts holds the only literal", () => {
+    const lit = /"red #DC2626"|"charcoal #374151"/;
+    expect(src("./alert-color.ts").match(/^export const ALERT_COLOR = "[^"]+";$/gm)).toHaveLength(1);
+    for (const f of ["./living.ts", "./views.ts", "./visible.ts", "./index.ts", "./sov.ts"]) expect(src(f), f).not.toMatch(lit);
+  });
+  it("server instructions and house style allow the alert color only for delays, risks and overdue items; never 'never red'", () => {
+    expect(ALERT_PALETTE_RULE).toBe("Colors: navy, blue #2563EB and gray only, except red #DC2626 (the alert color), used only for delays, risks and overdue items.");
+    const idx = src("./index.ts");
+    expect(idx).toContain("ALERT_PALETTE_RULE");
+    expect(idx).not.toMatch(/never red|no red/i);
+    expect(HOST_DISPLAY_BLOCK).toContain(ALERT_PALETTE_RULE);
+    expect(HOST_DISPLAY_BLOCK).not.toMatch(/never red|no red/i);
+    expect(CHART_PALETTE_RULE).toContain(ALERT_COLOR);
+  });
+});
+
+describe("0.8.12 required views", () => {
+  it("each spec starts with REQUIRED VIEW and uses the alert color only for risk/overdue", () => {
+    for (const v of ALL_VIEWS) {
+      expect(v[0]).toMatch(/^REQUIRED VIEW – /);
+      const all = v.join("\n");
+      expect(all).toContain("#2563EB");
+      expect(all).not.toMatch(/lovable|supabase|fragment|orange #/i);
+    }
+    expect(LOOKAHEAD_VIEW_SPEC.join("\n")).toContain(`${ALERT_COLOR} flag on the bar or day for any risk`);
+    expect(REMINDERS_VIEW_SPEC.join("\n")).toContain(`Overdue (${ALERT_COLOR} flag)`);
+    expect(EMAIL_VIEW_SPEC.join("\n")).toContain("Ready for your review");
+    expect(PAY_APP_VIEW_SPEC.join("\n")).toContain("Forecast total $X = contract $X");
+  });
+  it("wired into the matching tool results", () => {
+    const w = src("./tools/workflow-tools.ts");
+    expect(w).toContain('${highlightLine(hl)}\\n${LOOKAHEAD_VIEW_SPEC.join("\\n")}');
+    expect(w).toContain('${REMINDERS_VIEW_SPEC.join("\\n")}\\n\\n${ec.text}\\n${EMAIL_VIEW_SPEC.join("\\n")}');
+    expect(w).toContain("...EMAIL_VIEW_SPEC,");
+    expect(w).toContain('${ec.text}\\n${EMAIL_VIEW_SPEC.join("\\n")}');
+    expect(src("./guard.ts")).toContain('${SWEEP_CARD_REQUIRED}\\n${REMINDERS_VIEW_SPEC.join("\\n")}');
+    expect(src("./tools/living-tools.ts")).toContain('type === "billing_forecast" && job.scope === "full" ? PAY_APP_VIEW_SPEC');
+  });
+});
+
+describe("0.8.12 lookahead highlight", () => {
+  it("today, or the data date when later", () => {
+    expect(lookaheadHighlight("2026-10-20", null)).toEqual({ date: "2026-10-20", basis: "today" });
+    expect(lookaheadHighlight("2026-10-20", "2026-10-15")).toEqual({ date: "2026-10-20", basis: "today" });
+    expect(lookaheadHighlight("2026-10-20", "2026-10-26")).toEqual({ date: "2026-10-26", basis: "data date" });
+    expect(lookaheadHighlight("2026-10-20", "garbage")).toEqual({ date: "2026-10-20", basis: "today" });
+    expect(highlightLine({ date: "2026-10-26", basis: "data date" })).toBe("Highlight: 2026-10-26 (data date)");
+  });
+});
+
+describe("0.8.12 reminder source", () => {
+  it("contract section from clause_source beats 'manual'", () => {
+    expect(reminderSource({ source: "member_answer", clause_source: "§6.2 (contract)" })).toBe("Contract §6.2");
+  });
+  it("RFI number from the action", () => {
+    expect(reminderSource({ source: "member_answer", action: "Answer RFI #021 before pour" })).toBe("RFI 021");
+  });
+  it("section in the action text", () => {
+    expect(reminderSource({ source: "setup_check", action: "Send written delay notice (§ 6.2) for: rain" })).toBe("Contract § 6.2");
+  });
+  it("document and delay keys", () => {
+    expect(reminderSource({ source: "setup_check", waiting_on_document: "insurance certificate" })).toBe("Waiting on insurance certificate");
+    expect(reminderSource({ source: "member_answer", check_key: "delay_notice:abc" })).toBe("Delay notice");
+  });
+  it("generic sources fall back to null (caller keeps the old wording)", () => {
+    expect(reminderSource({ source: "member_answer" })).toBeNull();
+    expect(reminderSource({ source: "setup_check", clause_source: "due date set by member" })).toBeNull();
+    expect(reminderSource({ source: "schedule_import" })).toBe("schedule import");
+  });
+  it("wired into item lines and the date sweep", () => {
+    expect(src("./jobs.ts")).toContain("Source: ${reminderSource(it) ?? it.source");
+    expect(src("./sweep.ts")).toContain("srcNote(it, client)");
+  });
+});

@@ -2,6 +2,7 @@
 // Pure logic only (no database); the tools live in tools/living-tools.ts. Athena hands the saved values; the host
 // draws them and never recomputes, rebuilds or guesses them.
 import { money } from "./sov";
+import { ALERT_COLOR } from "./alert-color";
 
 export const LIVING_REPORT_TYPES = ["cpm", "billing_forecast", "ior", "dashboard"] as const;
 export type LivingReportType = (typeof LIVING_REPORT_TYPES)[number];
@@ -156,8 +157,8 @@ export const CPM_REQUIRED_TOP = [
   "REQUIRED: Owner-furnished activities are schedule-only: $0.00 in ALP billing. Use the one saved contract completion date and the delay result shown here; never type in your own.",
 ].join("\n");
 
-/** Delay callout color. Switch to "charcoal #374151" to go back to blue/gray only. */
-export const DELAY_CALLOUT_COLOR = "red #DC2626";
+/** Delay callout color: the shared alert color (alert-color.ts), so the Gantt and the server instructions never conflict. */
+export const DELAY_CALLOUT_COLOR = ALERT_COLOR;
 
 /** v0.8.10: full Gantt spec, sent right after the Tie line so every host draws the same view. Blue and gray only, except the delay callout (DELAY_CALLOUT_COLOR). */
 export const CPM_GANTT_SPEC: string[] = [
@@ -170,7 +171,7 @@ export const CPM_GANTT_SPEC: string[] = [
   "6. Contract completion: a dashed vertical line labeled with the saved date.",
   `7. Delay fragnets (only when a delay result exists): a hatched bar labeled \"Fragnet\", plus a ${DELAY_CALLOUT_COLOR} callout reading \"Delay: +X CD\" using X from the saved delay result, and baseline ghost bars under the updated bars.`,
   "8. Legend under the chart: Critical, Non-critical, Float, Milestone, Owner-furnished, Fragnet, Today.",
-  "9. Order rows by start date, keep IDs exactly as given and show all activities. All other colors are blue and gray only. No technical notes; one caveat line at most.",
+  `9. Order rows by start date, keep IDs exactly as given and show all activities. All other colors are blue and gray only; the callout color is only for delays, risks and overdue items. No technical notes; one caveat line at most.`,
 ];
 
 
