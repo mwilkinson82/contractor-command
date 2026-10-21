@@ -13,7 +13,7 @@
   "mcp": {
     "server": {
       "name": "athena",
-      "version": "0.8.16",
+      "version": "0.8.18",
       "title": "Athena powered by ALP, construction agents"
     },
     "tools": [
@@ -2033,6 +2033,52 @@
         "outputSchema": null
       },
       {
+        "name": "lookahead_pdf",
+        "title": "Lookahead as a PDF file (for email)",
+        "description": "Call this whenever the member wants the two-week lookahead emailed, attached or downloaded. Athena builds the styled lookahead PDF on the server (the latest lookahead with content, dated from the saved CPM data date), stores it, and returns download_url, a real PDF anyone with the link can download until it expires. Then: if your email tool can attach a file from a URL, attach that PDF and pass attachment (the filename) and link (download_url) to email_draft. If it can't, put download_url in the body, pass only link, and never write \"attached\".",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "lookahead_id": {
+              "description": "A lookahead ref (LA-...). Default: the latest lookahead with content.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "expires_in_days": {
+              "description": "Days the link works, default 30.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
         "name": "report_page_link",
         "title": "Permanent report page link",
         "description": "Call only after the member says yes to \"Want this as a permanent link I keep updated?\". Returns the private page for a job's IOR or schedule, or the company portfolio, at app.meetathena.io. The page always shows the latest saved version and is viewable only by signed-in members of the company with access to that job (supers: schedule without dollars; portfolio: owners and leadership). It is not a public link.",
@@ -2418,7 +2464,7 @@
       {
         "name": "email_draft",
         "title": "Show an email draft for review",
-        "description": "Call this whenever the member asks to email or send anything (\"send the lookahead to ...\", \"email this to the sub\"). Deliverables: build a PDF and attach it with your own email tool (pass attachment); only if you can't attach, use a file_share link (pass link); never HTML, never say \"attached\" unless it is. Returns the draft card only; nothing is sent. Show the card, then ask the confirm question it returns. Never call any send action in the same reply.",
+        "description": "Call this whenever the member asks to email or send anything (\"send the lookahead to ...\", \"email this to the sub\"). Deliverables need a real file: for a lookahead call lookahead_pdf first (other files: file_share) and pass its download_url as link, in the body too. Pass attachment only if your email tool actually attached that PDF; if it can't attach from a URL, leave attachment out and say \"link\", never \"attached\". Never HTML. Returns the draft card only; nothing is sent. Show the card, then ask the confirm question it returns. Never call any send action in the same reply.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,

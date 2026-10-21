@@ -41,9 +41,18 @@ export type EmailDraft = {
 
 /** 0.8.17: deliverables are a real attached PDF first; a file_share link only when the host can't attach; never HTML. */
 export const EMAIL_DELIVERABLE_RULE =
-  "REQUIRED (email deliverables, in this order): (1) Build the deliverable as a PDF and attach it with your own email tool (ChatGPT and Codex can attach files in Gmail); pass its file name as attachment, and the draft must show the real attachment before Send. (2) Only if your email tool can't attach files: call file_share for the PDF and pass that link as link, with no attachment. (3) Never attach HTML, never tell the recipient to open a file in a browser, and never write \"attached\" unless step 1 actually happened. Private app.meetathena.io/r/ pages only open for signed-in company members, so don't send them to people outside the company.";
+  "REQUIRED (email deliverables, in this order): (1) Get a real file from Athena: lookahead_pdf for the lookahead, file_share for a file you already have. Don't tell yourself to \"build a PDF\"; Athena makes it and returns download_url. (2) If your email tool can attach a file from that URL, attach it and pass attachment (the file name) and link (download_url); the draft must show the real attachment chip before Send. (3) If it can't attach from a URL, put download_url in the body, pass only link, and say \"link\", never \"attached\". Never attach HTML or tell the recipient to open a file in a browser. Private app.meetathena.io/r/ pages only open for signed-in company members, so don't send them to people outside the company.";
 
 const HTML_RE = /\.(x?html?|mht(ml)?)\b/i;
+/** 0.8.18: shown on every lookahead result, so the host never "builds a PDF" it can't attach. */
+export const LOOKAHEAD_EMAIL_LINE =
+  "To email, attach or download this lookahead: call lookahead_pdf. Athena builds the real PDF and returns download_url. Never write that a file is attached unless your email tool actually attached it.";
+export const LOOKAHEAD_PDF_EMAIL_RULE = (link: string, name: string) =>
+  `Next: (1) If your email tool can attach a file from a URL, attach the PDF from ${link} as "${name}", then call email_draft with attachment "${name}" and link "${link}". (2) If it can't attach from a URL (or you're not sure it did), put ${link} on its own line in the body with the file name, call email_draft with link "${link}" and no attachment, and say "link" — never "attached". Don't build your own PDF or HTML file.`;
+/** Deliverable words in an email: if the email carries a report, it needs a real file or an Athena file link. */
+export const DELIVERABLE_RE = /\b(look-?ahead|pdf|pay app|schedule of values|sov|cpm|gantt|report|briefing|attach(ed|ment)?)\b/i;
+export const ATHENA_FILE_LINK_RE = /^https:\/\/app\.meetathena\.io\/f\/[A-Za-z0-9_-]{43}$/;
+
 /** Problems that block the draft (empty = OK). */
 export function deliverableProblems(d: EmailDraft): string[] {
   const out: string[] = [];
@@ -52,6 +61,11 @@ export function deliverableProblems(d: EmailDraft): string[] {
   if (d.link && HTML_RE.test(d.link)) out.push("The link points at an HTML file. Use a file_share link to the PDF instead.");
   if (/open (it|this|the (file|attachment))? ?in (a|your) (web )?browser|\bhtml (file|attachment)\b/i.test(d.body)) out.push("Don't ask the recipient to open an HTML file in a browser. Attach the PDF instead.");
   if (!att && /\battach(ed|ment)\b/i.test(d.body)) out.push(d.link ? "The body says \"attached\" but nothing is attached; say the file is at the link instead." : "The body says \"attached\" but nothing is attached. Attach the PDF with your email tool and pass its name as attachment, or (only if you can't attach) use a file_share link.");
+  // 0.8.18: a declared attachment has to be a real file Athena made (lookahead_pdf / file_share), so its link travels too.
+  if (att && !d.link) out.push(`"${att}" has no source. Get the file from lookahead_pdf (or file_share) and pass its download link as link, so the recipient still gets it if the attachment doesn't go through.`);
+  if (d.link && !HTML_RE.test(d.link) && !ATHENA_FILE_LINK_RE.test(d.link.trim()) && DELIVERABLE_RE.test(`${d.subject} ${d.body}`) && !/meetathena\.io\/r\//.test(d.link)) out.push("That link isn't an Athena file link. Use the download_url from lookahead_pdf or file_share.");
+  if (!att && !d.link && DELIVERABLE_RE.test(`${d.subject} ${d.body}`)) out.push("This email carries a report or file but has no attachment and no link. Call lookahead_pdf (or file_share) for a real PDF link, then pass it as link (and as attachment only if your email tool attached it).");
+  if (d.link && !d.body.includes(d.link.trim())) out.push(`Put the link ${d.link.trim()} in the email body on its own line, so the recipient can download the file.`);
   return out;
 }
 
