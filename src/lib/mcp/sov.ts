@@ -158,7 +158,7 @@ export function sovLayout(brand: SovBrand) {
     accent_use: ["contract total callout", "share bars", "one rule under the page header"],
     no_orange: true,
     table_style: SOV_TABLE_STYLE,
-    color_rule: "blue #2563EB and gray only, never orange, rust or red, including totals",
+    color_rule: "blue #2563EB and gray only, never orange, rust or the alert color, including totals",
     default_view: "lines",
     fonts: { body_pt: "9-10", tabular_figures: true },
     formats: { money: "$#,##0.00", percent: "0.00%", date: "MMMM d, yyyy" },

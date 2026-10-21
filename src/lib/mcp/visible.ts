@@ -1,3 +1,4 @@
+import { ALERT_COLOR, ALERT_PALETTE_RULE } from "./alert-color";
 // What the PM reads vs. what only the assistant needs.
 // Tool results' visible text is what a PM should read. Steps for the assistant (which tool to call next,
 // what to ask, how to present it) and internal codes go in structuredContent.assistant_guidance,
@@ -97,7 +98,7 @@ export function finalizeVisible<R>(r: R, extra: string[] = []): R {
 /** 0.8.3 chart palette: every chart, table and artifact in every host. */
 export const CHART_PALETTE = ["#2563EB", "#6B7280", "#9CA3AF", "#D1D5DB", "#F3F4F6"] as const;
 export const CHART_PALETTE_RULE =
-  "- Chart palette (every chart, graph, bar, table and artifact, in Claude, ChatGPT, Grok and any other host): set the colors explicitly to blue #2563EB for the main series plus grays #6B7280, #9CA3AF, #D1D5DB and #F3F4F6 for everything else. Never red, rose, pink, orange, amber or the host's default palette. In Claude artifacts, write these hex values into the chart config; never leave colors to the library default.";
+  `- Chart palette (every chart, graph, bar, table and artifact, in Claude, ChatGPT, Grok and any other host): set the colors explicitly to blue #2563EB for the main series plus grays #6B7280, #9CA3AF, #D1D5DB and #F3F4F6 for everything else. Never rose, pink, orange, amber or the host's default palette; ${ALERT_COLOR} only for delays, risks and overdue items (the alert color). In Claude artifacts, write these hex values into the chart config; never leave colors to the library default.`;
 /** 0.8.3 money rule. */
 export const MONEY_CENTS_RULE =
   "- Money: always show dollars with cents exactly as Athena gives them, e.g. $1,400,000.00 and $700,000.00, in every line and every total. Never round, never drop the .00, never abbreviate ($1.4M). Use the *_display strings in structuredContent when present.";
@@ -116,9 +117,9 @@ export const HOST_DISPLAY_BLOCK = [
   "- Nothing before or between the clause cards: no preview, no summary, no \"tightest clock\" or \"key deadline\" line. The offer wording is exact; don't reword, shorten or add to it.",
   "- In Claude, build any artifact only from the data already in this chat. Never call Athena (or any tool) from inside an artifact.",
   "- Visual first, by default (never an opt-in): put tables and cards in white cards with light gray panels behind any text. Minimal and clean.",
-  "- Charts, tables, totals and highlights: blue #2563EB and gray only, never orange, rust or red, including totals.",
-  "- Colors: blue #2563EB is the only accent, for buttons and the one item that needs action. Charts, bars and KPI numbers use blue #2563EB for the main series and gray for everything secondary. Never orange, terracotta, red or the host's default chart palette. Don't mention colors.",
-  "- Warnings: no red and no amber. Mark the one item that needs action in blue #2563EB; everything else stays dark or gray text.",
+  `- Charts, tables, totals and highlights: blue #2563EB and gray only, never orange, rust or the alert color, including totals. ${ALERT_PALETTE_RULE}`,
+  "- Colors: blue #2563EB is the only accent, for buttons and the one item that needs action. Charts, bars and KPI numbers use blue #2563EB for the main series and gray for everything secondary. Never orange, terracotta or the host's default chart palette; the alert color only for delays, risks and overdue items. Don't mention colors.",
+  `- Warnings: no amber. Delays, risks and overdue items get the alert color (${ALERT_COLOR}); mark the one item that needs action in blue #2563EB; everything else stays dark or gray text.`,
   "- After the visual, at most 3 short lines of text, and at most one plain-English caveat line, only if it changes what they should do. Dashboards: one caveat line at most and never a \"Priority:\" block.",
   "- Contract output order: clause cards, then ONE line for any missing or partial notices (fold them all into that line), then the exact summary offer as the very last line. Nothing after the offer.",
   "- Never write \"No changes were made\", \"No items were changed\" or similar lines, and no filler openers such as \"Pulling up...\", \"Let me...\" or \"Here's...\". Start with the visual.",
@@ -126,7 +127,7 @@ export const HOST_DISPLAY_BLOCK = [
   CHART_PALETTE_RULE,
   MONEY_CENTS_RULE,
   DATE_SWEEP_RULE,
-  "- Schedule of values (report deliverable sov): present it as a spreadsheet, line-item view by default: one row per line with line no., cost code, division, description, scheduled value and % of total (the Cost Code column always sits right after the line no.), then the grand total that ties to the contract sum. Claude: an artifact table built from this result; ChatGPT: a canvas or table; elsewhere: a clean table plus an offer to create an Excel file. Table style: header row blue #2563EB with white bold text; alternating light-gray (#F3F4F6) and white row bands; bold total row with a blue #2563EB top rule. Blue #2563EB and gray only, never orange, rust or red, including totals. After the table, at most one line: no footer or license note and no roll-up offer unless the member asks.",
+  "- Schedule of values (report deliverable sov): present it as a spreadsheet, line-item view by default: one row per line with line no., cost code, division, description, scheduled value and % of total (the Cost Code column always sits right after the line no.), then the grand total that ties to the contract sum. Claude: an artifact table built from this result; ChatGPT: a canvas or table; elsewhere: a clean table plus an offer to create an Excel file. Table style: header row blue #2563EB with white bold text; alternating light-gray (#F3F4F6) and white row bands; bold total row with a blue #2563EB top rule. Blue #2563EB and gray only, never orange, rust or the alert color, including totals. After the table, at most one line: no footer or license note and no roll-up offer unless the member asks.",
   `- Summary offer: use this wording verbatim, never paraphrased or shortened: "${SUMMARY_OFFER_TEXT}"`,
   "- Write for contractor office staff and owners. No technical notes: nothing about artifacts, canvas, sharing settings, code, files, tools or colors (the exact SOV delivery question is the one exception).",
   "- Email on demand: whenever the member asks to email something (\"also email this sub\", \"send this to the supplier\"), show the email card in that same reply with recipient, subject, body and attachment filled in from Athena's saved job data. If the address isn't in Athena's results, leave To blank on the card and ask for it in the same reply. Never guess an address. The member presses Send.",
@@ -198,7 +199,7 @@ export const EMAIL_TO_LABEL_REQUIRED =
   'REQUIRED: Inside every email card, the first line of the card itself is the literal label "To:" followed by the address (or blank and ask in this same reply), above Subject. Never put To: outside the card, above or below it.';
 /** 0.8.7: report sov always comes with a bar chart of scheduled value by line, in the fixed palette. */
 export const SOV_CHART_RULE =
-  "REQUIRED, every host (Claude, ChatGPT, Grok and any other): draw a bar chart of the SOV from structuredContent.sov.chart: one bar per line (x: the line label, y: scheduled value), in the order given, placed directly under the SOV table and before the delivery question. Set the colors explicitly: bars #2563EB; axes, gridlines and labels in the grays #6B7280, #9CA3AF, #D1D5DB and #F3F4F6, with alternating gray bands (chart.band_colors) behind the bars; ChatGPT and every other host must show the gray as well as the blue. Never use the host's default palette, and never red, rose, pink, orange or amber. Money labels with cents (value_display). No chart title text beyond \"Scheduled value by line\" and no extra commentary. Bars alternate blue #2563EB and gray #9CA3AF (chart.bars[].color).";
+  "REQUIRED, every host (Claude, ChatGPT, Grok and any other): draw a bar chart of the SOV from structuredContent.sov.chart: one bar per line (x: the line label, y: scheduled value), in the order given, placed directly under the SOV table and before the delivery question. Set the colors explicitly: bars #2563EB; axes, gridlines and labels in the grays #6B7280, #9CA3AF, #D1D5DB and #F3F4F6, with alternating gray bands (chart.band_colors) behind the bars; ChatGPT and every other host must show the gray as well as the blue. Never use the host's default palette, and never the alert color, rose, pink, orange or amber. Money labels with cents (value_display). No chart title text beyond \"Scheduled value by line\" and no extra commentary. Bars alternate blue #2563EB and gray #9CA3AF (chart.bars[].color).";
 export function sovChart(rows: { item_no: string; cost_code: string | null; description: string | null; scheduled_value: number; scheduled_value_display: string }[]) {
   return {
     required: true,
