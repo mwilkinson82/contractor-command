@@ -32,10 +32,10 @@ export function overdueBack(due: string | null, returned: string | null, asOf: s
 
 export function emailCardSpec(t: { job_number: string; number: string; to: string; subject: string; file_name: string }): string[] {
   return [
-    "EMAIL CARD (host builds it; Athena never sends):",
+    "EMAIL CARD (call email_draft for the draft card; Athena never sends):",
     `To: ${t.to}. Subject: ${t.subject}.`,
     `Attachment chip: ${t.file_name} attached as a real file (the generated PDF), not a link. If the host can't attach files, use file_share and put the link in the body.`,
-    "Buttons: Send and Edit. Only the user presses Send.",
+    "Only a separate yes on the draft card (email_confirm_send) sends it. Never send it in the same reply.",
     `After the host confirms the send, call transmittal_mark_sent with host_confirmed true. Until then ${t.number} stays "Ready to send", never "Sent".`,
   ];
 }

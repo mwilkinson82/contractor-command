@@ -71,7 +71,8 @@ describe("overdue follow-up and escalation", () => {
   it("the draft attaches the real file and never sends", () => {
     const s = collectionDraftSpec(followupOffers([R({})], "2027-03-10")[0]).join("\n");
     expect(s).toContain("Attach 2701-PayApp-03-2027-01-31.pdf as a real file");
-    expect(s).toMatch(/Nothing sends without the user's yes\. Never send it yourself\./);
+    expect(s).toMatch(/email_draft/);
+    expect(s).toMatch(/separate yes on the draft card \(email_confirm_send\)\. Never send it yourself\./);
   });
 });
 

@@ -104,9 +104,9 @@ export function followupOffers(items: Receivable[], asOf: string, offered: Recor
 /** Direction for the collection draft. Athena directs; the host builds the email card with the real file attached. */
 export function collectionDraftSpec(o: FollowupOffer): string[] {
   return [
-    `Draft a short, firm AR collection follow-up for ${o.ref} on job ${o.job_number}, ${o.days_overdue} days overdue. Show it as an email card with To, Cc, Subject and body.`,
+    `Draft a short, firm AR collection follow-up for ${o.ref} on job ${o.job_number}, ${o.days_overdue} days overdue. Call email_draft and show its draft card (To, Cc, Subject, body).`,
     o.attach ? `Attach ${o.attach} as a real file (an "Attachment:" chip). If your email tool can't attach files, call file_share with the file and put the link in the body; never say "attached" unless it really is.` : "No file is on record for this item; ask which file to attach.",
-    "Nothing sends without the user's yes. Never send it yourself.",
+    "Nothing sends without the user's separate yes on the draft card (email_confirm_send). Never send it yourself.",
   ];
 }
 
