@@ -6,7 +6,12 @@ import {
   ESTIMATE_QUANTITY_REQUIRED,
   ESTIMATE_VIEW_SPEC,
   EstimateError,
+  NOT_RELEVANT_ASK,
   assignGapRefs,
+  conventionFor,
+  normalizeInputName,
+  normalizeScale,
+  normalizeSchedules,
   autoGaps,
   checkBids,
   estimateLayout,
@@ -64,9 +69,30 @@ const basis = z.enum([
   "READ",
   "DERIVED",
 ]);
-const checkKey = z.enum(["cf", "if", "fs", "fr", "fd", "tp", "cp", "ts", "td", "sg", "us", "ew"]);
+const checkKey = z.enum([
+  "cf",
+  "if",
+  "fs",
+  "fr",
+  "fd",
+  "tp",
+  "cp",
+  "ts",
+  "td",
+  "sg",
+  "us",
+  "ew",
+  "pi",
+  "pt",
+  "fg",
+  "bc",
+  "bt",
+  "dw",
+  "kw",
+  "ef",
+]);
 const qtyInput = z.object({
-  name: z.string().trim().min(1).max(80),
+  name: z.any(),
   value: z.number().finite().nullable(),
   unit: z.string().trim().max(20).optional(),
   sheet: z.string().trim().max(80).optional(),
@@ -98,6 +124,8 @@ const lineIn = z.object({
   missing_input: z.string().trim().max(120).optional(),
   exclusion: z.string().trim().max(300).optional(),
   checklist_key: checkKey.optional(),
+  forms_faces: z.union([z.literal(1), z.literal(2)]).optional(),
+  area_basis: z.enum(["net", "gross"]).optional(),
   element: z.string().trim().max(80).optional(),
   trade: z.string().trim().max(80).optional(),
   note: z.string().trim().max(500).optional(),
@@ -199,7 +227,7 @@ const asLine = (l: LineArg): LineIn => ({
   ...l,
   value: l.value ?? null,
   inputs: l.inputs?.map((i) => ({
-    name: i.name,
+    name: normalizeInputName(i.name),
     value: i.value,
     unit: i.unit ?? null,
     sheet: i.sheet ?? null,
@@ -307,7 +335,7 @@ export const estimateDocReview = defineTool({
           date: date.optional(),
           scale: z.string().trim().max(40).optional(),
           notes: z.array(z.string().trim().max(500)).max(40).optional(),
-          schedules: z.array(z.string().trim().max(120)).max(40).optional(),
+          schedules: z.any().optional(),
         }),
       )
       .max(400),
@@ -341,7 +369,7 @@ export const estimateDocReview = defineTool({
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const prior = await load(sb, job.job_id);
       const review: DocReview = {
-        sheets: args.sheets,
+        sheets: args.sheets.map((s) => ({ ...s, schedules: normalizeSchedules(s.schedules) })),
         specs: args.specs,
         pairs: args.pairs,
         context: args.context ?? null,
@@ -368,12 +396,14 @@ export const estimateTakeoffSave = defineTool({
       .array(
         z.object({
           sheet: z.string().trim().min(1).max(80),
-          scale: z.string().trim().min(1).max(40),
+          scale: z.any(),
           source: z.enum(["title_block", "dimensioned_string"]).optional(),
         }),
       )
       .max(200)
       .optional(),
+    profile: z.enum(["as_drawn", "estimator"]).optional(),
+    forms_faces: z.union([z.literal(1), z.literal(2)]).optional(),
     lines: z.array(lineIn).min(1).max(400),
   },
   annotations: SAVE,
@@ -382,12 +412,23 @@ export const estimateTakeoffSave = defineTool({
       try {
         const job = await resolveJob(sb, args.job_number, args.company_id, "write");
         const prior = await load(sb, job.job_id);
-        const lines: StoredLine[] = prepareLines(args.lines.map(asLine));
+        const convention = conventionFor(args.profile ?? "as_drawn", args.forms_faces);
+        if (args.profile)
+          await rpc(sb, "mcp_estimate_profile_save", {
+            _job: job.job_id,
+            _profile: args.profile,
+            _faces: args.forms_faces ?? convention.forms_faces,
+          }).catch((e: unknown) => {
+            if (e instanceof ToolError && /not available/.test(e.message)) return null;
+            throw e;
+          });
+        const lines: StoredLine[] = prepareLines(args.lines.map(asLine), convention);
         const revision = args.revision ?? revisionUsed(prior.setup.documents);
+        const scales = (args.scales ?? []).map((s) => ({ ...s, scale: normalizeScale(s.scale) }));
         await rpc(sb, "mcp_estimate_takeoff_save", {
           _job: job.job_id,
           _revision: revision,
-          _scales: args.scales ?? [],
+          _scales: scales,
           _lines: lines,
         });
         const loaded = await load(sb, job.job_id);
@@ -590,7 +631,7 @@ export const estimateItemMark = defineTool({
           return reply(view);
         }
         if (args.mark === "not_relevant" && !args.note?.trim())
-          throw new ToolError("Say why this is not relevant. Nothing was changed.");
+          throw new ToolError(NOT_RELEVANT_ASK);
         if (args.corrected_qty != null)
           formatQty(args.corrected_qty, line?.unit ?? gap?.unit ?? null);
         await rpc(sb, "mcp_estimate_verdict_save", {
