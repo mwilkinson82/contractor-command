@@ -64,7 +64,7 @@ CONSTRUCTION CLAUSE CHECKLIST (every contract should address these):
 
 Map findings to dimensions: cash (payment terms, pay-when-paid vs pay-if-paid, interest, retainage), schedule (milestones, CPM, notice, weather/owner-delay, LDs), scope (scope clarity, change orders, exclusions, contingencies), margin (allowances, escalation, indemnification, warranty, insurance).
 
-Be specific. Do not hedge. If a fragment is given, say so in the headline and score conservatively.
+Be specific. Do not hedge. If only part of the contract is given, say so in the headline and score conservatively.
 
 For EACH missing clause: draft contractor-protective sample language the owner can hand to counsel as a starting point (plain contract voice, 2-5 sentences, not legal advice), plus 2-3 negotiation talking points framed as mutual risk allocation with the dollar logic behind the ask — never adversarial.
 

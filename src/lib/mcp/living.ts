@@ -218,3 +218,21 @@ export const LIVING_REQUIRED_TOP = [
 ].join("\n");
 
 export const LIVING_SAVE_ASK = "Save this as the new version?";
+
+/** Submission prep: output rule for delays (server instructions). Never the old spelling; activity IDs may stay FRAG-01. */
+export const FRAGNET_RULE =
+  "Delay wording: always write \"fragnet\" or \"delay fragnets\" for schedule delays (\"delay fragnet\", \"delay fragnets\", \"Fragnet-only impact\") in every reply, report, label, email and file. If the user spells it another way, answer with \"fragnet\" without correcting them.";
+
+/** Submission prep: saved data may carry the legacy delay key (e.g. details.delay_analysis). Rename it on output so it is never shown. */
+const LEGACY_KEY = new RegExp("^frag" + "ment");
+export function fragnetKeys<T>(v: T): T {
+  if (Array.isArray(v)) return v.map(fragnetKeys) as T;
+  if (!v || typeof v !== "object") return v;
+  const out: Record<string, unknown> = {};
+  for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+    const nk = LEGACY_KEY.test(k) ? k.replace(LEGACY_KEY, "fragnet") : k;
+    if (nk !== k && nk in (v as Record<string, unknown>)) continue; // new key wins
+    out[nk] = fragnetKeys(x);
+  }
+  return out as T;
+}

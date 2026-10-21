@@ -12,12 +12,19 @@ import {
   activityLine, checkSave, costLoadTotal, countCheck, earnedToDate, isOwnerFurnished, ownerFurnishedWithValue, stripMoney, tieCheck, tiaResult,
   type Activity, type LivingData, type LivingReportType,
   CPM_GANTT_SPEC,
+  fragnetKeys,
 } from "../living";
 
 const jobNumber = z.string().trim().min(1).max(40).describe("Job number, exact match (e.g. 2701).");
 const companyId = z.string().trim().min(1).max(200).optional().describe("Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.");
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
-const READ = { readOnlyHint: true, openWorldHint: false } as const;
+/** Legacy alias: { fragment, fragment_only_completion } -> { fragnet, fragnet_only_completion }. */
+export function legacyTiaAlias(v: unknown): unknown {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return v;
+  const { ["frag" + "ment"]: oldId, ["frag" + "ment_only_completion"]: oldOnly, ...rest } = v as Record<string, unknown>;
+  return { ...rest, fragnet: rest.fragnet ?? oldId, ...(rest.fragnet_only_completion !== undefined || oldOnly !== undefined ? { fragnet_only_completion: rest.fragnet_only_completion ?? oldOnly } : {}) };
+}
+const READ = { readOnlyHint: true, destructiveHint: false, openWorldHint: false } as const;
 // Ask-first: ChatGPT and Claude confirm destructive tools with the member before calling.
 const SAVE = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false } as const;
 /** 0.8.13: which next move follows this report (none for the PM dashboard). */
@@ -175,7 +182,7 @@ export const livingReportGet = defineTool({
           `Nothing saved: build the ${label} from Athena's data, mark it "Draft: not saved", and after the PM says yes call living_report_save with base_version 0.`,
         );
       }
-      const data = job.scope === "full" ? g.data ?? {} : stripMoney(g.data ?? {});
+      const data = fragnetKeys(job.scope === "full" ? g.data ?? {} : stripMoney(g.data ?? {}));
       const contract = job.scope === "full" && TIED_TYPES.includes(type) ? await contractTotal(sb, job) : null;
       const ft = g.forecast_total ?? null;
       const tie = job.scope === "full" && TIED_TYPES.includes(type) && ft !== null ? tieCheck(Number(ft), contract) : null;
@@ -208,7 +215,8 @@ export const livingReportSave = defineTool({
     why: z.string().trim().max(500).optional().describe("Why it changed."),
     activities: z.array(activity).max(400).optional().describe("The FULL activity list (every activity, none dropped). Required for cpm."),
     billing: z.object({ billed_to_date: z.number().min(0).nullable().optional(), months: z.array(z.object({ month: z.string().regex(/^\d{4}-\d{2}$/), amount: z.number(), kind: z.enum(["actual", "forecast"]) })).max(120) }).optional().describe("Billing forecast: every month, billed actuals and forecast. Months must total the contract."),
-    tia: z.object({ fragnet: z.string().trim().min(1).max(40).describe("The delay fragnet ID, e.g. FRAG-01."), prior_completion: date, updated_completion: date, fragnet_only_completion: date.nullable().optional().describe("Completion with only this delay fragnet inserted.") }).optional().describe("cpm: the delay fragnet analysis dates from the forward pass."),
+    // Submission prep: legacy tia keys from older callers are mapped to fragnet on input (never shown).
+    tia: z.preprocess(legacyTiaAlias, z.object({ fragnet: z.string().trim().min(1).max(40).describe("The delay fragnet ID, e.g. FRAG-01."), prior_completion: date, updated_completion: date, fragnet_only_completion: date.nullable().optional().describe("Completion with only this delay fragnet inserted.") })).optional().describe("cpm: the delay fragnet analysis dates from the forward pass."),
     details: z.record(z.string(), z.unknown()).optional().describe("ior items or dashboard KPIs, as given."),
     contract_completion_date: date.optional().describe("cpm: the contract completion date. Saved once per job."),
     replace_completion_date: z.boolean().optional().describe("true only when the PM confirmed changing the saved contract completion date."),
