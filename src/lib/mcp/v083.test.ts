@@ -38,7 +38,8 @@ describe("0.8.3 retest fixes", () => {
   it("4. explicit chart palette, never red/rose/pink/orange", () => {
     expect(CHART_PALETTE[0]).toBe("#2563EB");
     expect(HOST_DISPLAY_BLOCK).toContain(CHART_PALETTE_RULE);
-    expect(CHART_PALETTE_RULE).toContain("Never red, rose, pink, orange");
+    expect(CHART_PALETTE_RULE).toContain("Never rose, pink, orange, amber");
+    expect(CHART_PALETTE_RULE).toMatch(/only for delays, risks and overdue items/);
   });
   it("5. date sweep never on report, only when asked or at job open", () => {
     const g = src("./guard.ts");
@@ -47,5 +48,5 @@ describe("0.8.3 retest fixes", () => {
     expect(HOST_DISPLAY_BLOCK).toContain(DATE_SWEEP_RULE);
     expect(src("./index.ts")).not.toContain("always on report and list_open_items");
   });
-  it("version is 0.8.6", () => expect(ATHENA_VERSION).toBe("0.8.9"));
+  it("version is 0.8.6", () => expect(ATHENA_VERSION).toBe("0.8.12"));
 });

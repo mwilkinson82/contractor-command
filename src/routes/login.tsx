@@ -8,6 +8,7 @@ import { requestMemberMagicLink } from "@/lib/magic-link.functions";
 
 import { oauthReturnPath, oauthConsentReturn } from "@/lib/oauth-return-path";
 import { onAthenaHost } from "@/lib/athena-host-current";
+import { loginCopy } from "@/lib/login-copy";
 
 const safeRedirect = oauthReturnPath;
 
@@ -126,21 +127,14 @@ function LoginPage() {
     setBusy(false);
   }
 
+  const athenaBrand = fromConnect || onAthenaHost();
+  const copy = loginCopy({ athena: athenaBrand, fromConnect, magicRequested, email });
+
   return (
     <AuthCard
-      brand={fromConnect || onAthenaHost() ? "athena" : "hub"}
-      title={
-        magicRequested
-          ? "Request received."
-          : fromConnect
-            ? "Sign in to approve the connection."
-            : "Sign in to the Hub."
-      }
-      subtitle={
-        magicRequested
-          ? `If this address is eligible and email delivery is available, you will receive a secure sign-in link. Check the spelling of ${email}, or sign in with your password.`
-          : "No password required. Use the email associated with your membership."
-      }
+      brand={athenaBrand ? "athena" : "hub"}
+      title={copy.title}
+      subtitle={copy.subtitle}
     >
       {magicRequested ? (
         <div>

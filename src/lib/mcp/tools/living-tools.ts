@@ -1,4 +1,5 @@
 // 0.8.9: cpm_activities (full activity handoff), living_report_get and living_report_save (master copy per job).
+import { IOR_VIEW_SPEC, PAY_APP_VIEW_SPEC, PORTFOLIO_VIEW_SPEC } from "../views";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { dbError, run, text, type Sb } from "../guard";
@@ -9,6 +10,7 @@ import {
   CPM_REQUIRED_TOP, LIVING_LABEL, LIVING_REPORT_TYPES, LIVING_REQUIRED_TOP, LIVING_SAVE_ASK, TIED_TYPES,
   activityLine, checkSave, costLoadTotal, countCheck, earnedToDate, isOwnerFurnished, ownerFurnishedWithValue, stripMoney, tieCheck, tiaResult,
   type Activity, type LivingData, type LivingReportType,
+  CPM_GANTT_SPEC,
 } from "../living";
 
 const jobNumber = z.string().trim().min(1).max(40).describe("Job number, exact match (e.g. 2701).");
@@ -114,9 +116,10 @@ export const cpmActivities = defineTool({
         `Contract completion: ${g.contract_completion_date ?? "Needed"}`,
         `Count check: ${showMoney ? count.line : `${count.dated} of ${count.expected} activities dated.`}${count.complete ? "" : ` Missing dates: ${count.missing.join(", ")}.`}`,
         ...(tie ? [`Tie: ${tie.line}`] : []),
+        ...CPM_GANTT_SPEC,
         ...(showMoney && of.length ? [`Owner-furnished (schedule-only, $0.00 in ALP billing): ${of.map((a) => a.id).join(", ")}.${ofValued.length ? ` Saved with a value that is excluded here: ${ofValued.map((a) => `${a.id} ${money(a.value ?? 0)}`).join(", ")}.` : ""}`] : []),
         ...(showMoney ? [`Earned to date: ${money(earnedToDate(acts))}`] : []),
-        ...(tia ? [`Delay result (${tia.fragment}): ${tia.math} ${tia.statement}`] : []),
+        ...(tia ? [`Delay fragnet result (${tia.fragnet}): ${tia.math} ${tia.statement}`] : []),
         "",
         `Activities (${acts.length}):`,
         ...acts.map((a) => activityLine(a, showMoney)),
@@ -138,7 +141,7 @@ export const cpmActivities = defineTool({
             activities: acts.map((a) => ({ ...a, owner_furnished: isOwnerFurnished(a), billable_value: showMoney ? (isOwnerFurnished(a) ? 0 : a.value) : null })),
           },
         },
-        "Use structuredContent.activities, count_check, tie, contract_completion_date and tia exactly. Split billing by each activity's working days from these dates; never invent a date, duration, float or dollar figure. Remaining forecast after a % complete or pay app update = contract − the higher of billed and earned to date, spread over open activities; never add earned dollars on top of the old remaining spread.",
+        "View-only asks (e.g. \"pull up the schedule\"): build a NEW private view or artifact; never update or replace the saved shared master or an existing shared artifact unless the user explicitly asks to update or save it, and confirm first. Use structuredContent.activities, count_check, tie, contract_completion_date and tia exactly. Split billing by each activity's working days from these dates; never invent a date, duration, float or dollar figure. Remaining forecast after a % complete or pay app update = contract − the higher of billed and earned to date, spread over open activities; never add earned dollars on top of the old remaining spread.",
         showMoney ? "" : "Super view: no dollars. Never show or estimate any $ value, billing or forecast.",
       );
     }),
@@ -149,7 +152,7 @@ export const livingReportGet = defineTool({
   name: "living_report_get",
   title: "Living report master copy",
   description:
-    "REQUIRED: call this before updating a cost-loaded CPM, billing forecast, IOR or PM dashboard, and when a new chat picks one up. Returns the saved master copy (latest or a named version) with its version, last-updated stamp, data date, data and change log. Update that copy in place; never start a second one. Supers: CPM only, no dollars.",
+    "REQUIRED: call this before updating a cost-loaded CPM, billing forecast, IOR or PM dashboard, and when a new chat picks one up. Returns the saved master copy (latest or a named version) with its version, last-updated stamp, data date, data and change log. Viewing: build a new private view from it and never change the saved master. Updating (only when the user explicitly asks, after confirming): update that copy in place; never start a second saved one. Supers: CPM only, no dollars.",
   inputSchema: { job_number: jobNumber, company_id: companyId, report_type: reportType, version: z.number().int().min(1).optional().describe("A past version (for v6 vs v7 or a rollback view); default the latest.") },
   annotations: { ...READ, idempotentHint: true },
   handler: (args, ctx) =>
@@ -174,10 +177,10 @@ export const livingReportGet = defineTool({
       const log = logLines(g);
       return guide(
         {
-          ...text([LIVING_REQUIRED_TOP, `${prefix(job)}${job.name} · ${label}`, stamp(g), ...(tie ? [`Tie: ${tie.line}`] : []), "", "Change log (latest 5):", ...(log.length ? log : ["- None yet."])].join("\n")),
+          ...text([LIVING_REQUIRED_TOP, `${prefix(job)}${job.name} · ${label}`, stamp(g), ...(tie ? [`Tie: ${tie.line}`] : []), ...(type === "billing_forecast" && job.scope === "full" ? PAY_APP_VIEW_SPEC : []), ...(type === "ior" && job.scope === "full" ? IOR_VIEW_SPEC : []), ...(type === "dashboard" && job.scope === "full" ? PORTFOLIO_VIEW_SPEC : []), "", "Change log (latest 5):", ...(log.length ? log : ["- None yet."])].join("\n")),
           structuredContent: { found: true, report_type: type, version: g.version, data_date: g.data_date ?? null, updated_at: g.updated_at ?? null, updated_by: g.updated_by_name ?? null, contract_completion_date: g.contract_completion_date ?? null, tie, data: data as never, change_log: g.change_log ?? [], no_financials: job.scope !== "full" },
         },
-        `Say "Picked up v${g.version}${g.updated_by_name ? `, last updated by ${g.updated_by_name}` : ""}." Redraw the same layout from structuredContent.data. To save the update, ask "${LIVING_SAVE_ASK}" and only after a yes call living_report_save with base_version ${g.version}.`,
+        `Say "Picked up v${g.version}${g.updated_by_name ? `, last updated by ${g.updated_by_name}` : ""}." For a view-only ask, build a NEW private view or artifact from structuredContent.data in the same layout; never update or replace the saved shared master or an existing shared artifact. Only when the user explicitly asks to update or save it, confirm first, then to save the update ask "${LIVING_SAVE_ASK}" and only after a yes call living_report_save with base_version ${g.version}.`,
       );
     }),
 });
@@ -199,7 +202,7 @@ export const livingReportSave = defineTool({
     why: z.string().trim().max(500).optional().describe("Why it changed."),
     activities: z.array(activity).max(400).optional().describe("The FULL activity list (every activity, none dropped). Required for cpm."),
     billing: z.object({ billed_to_date: z.number().min(0).nullable().optional(), months: z.array(z.object({ month: z.string().regex(/^\d{4}-\d{2}$/), amount: z.number(), kind: z.enum(["actual", "forecast"]) })).max(120) }).optional().describe("Billing forecast: every month, billed actuals and forecast. Months must total the contract."),
-    tia: z.object({ fragment: z.string().trim().min(1).max(40), prior_completion: date, updated_completion: date, fragment_only_completion: date.nullable().optional() }).optional().describe("cpm: the delay analysis dates from the forward pass."),
+    tia: z.object({ fragnet: z.string().trim().min(1).max(40).describe("The delay fragnet ID, e.g. FRAG-01."), prior_completion: date, updated_completion: date, fragnet_only_completion: date.nullable().optional().describe("Completion with only this delay fragnet inserted.") }).optional().describe("cpm: the delay fragnet analysis dates from the forward pass."),
     details: z.record(z.string(), z.unknown()).optional().describe("ior items or dashboard KPIs, as given."),
     contract_completion_date: date.optional().describe("cpm: the contract completion date. Saved once per job."),
     replace_completion_date: z.boolean().optional().describe("true only when the PM confirmed changing the saved contract completion date."),

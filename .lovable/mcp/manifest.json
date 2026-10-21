@@ -13,7 +13,7 @@
   "mcp": {
     "server": {
       "name": "athena",
-      "version": "0.8.9",
+      "version": "0.8.12",
       "title": "Athena powered by ALP, construction agents"
     },
     "tools": [
@@ -1840,13 +1840,14 @@
               ]
             },
             "tia": {
-              "description": "cpm: the delay analysis dates from the forward pass.",
+              "description": "cpm: the delay fragnet analysis dates from the forward pass.",
               "type": "object",
               "properties": {
-                "fragment": {
+                "fragnet": {
                   "type": "string",
                   "minLength": 1,
-                  "maxLength": 40
+                  "maxLength": 40,
+                  "description": "The delay fragnet ID, e.g. FRAG-01."
                 },
                 "prior_completion": {
                   "type": "string",
@@ -1856,7 +1857,8 @@
                   "type": "string",
                   "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
                 },
-                "fragment_only_completion": {
+                "fragnet_only_completion": {
+                  "description": "Completion with only this delay fragnet inserted.",
                   "anyOf": [
                     {
                       "type": "string",
@@ -1869,7 +1871,7 @@
                 }
               },
               "required": [
-                "fragment",
+                "fragnet",
                 "prior_completion",
                 "updated_completion"
               ]
@@ -1898,6 +1900,133 @@
             "base_version",
             "approved",
             "what_changed"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "file_share",
+        "title": "Share a file as a link",
+        "description": "Use this when an email needs a file you built (SOV, schedule or CPM PDF, report, notice, Excel or CSV) and your email tool can't attach it, or the member wants a link. Send the file's bytes as content_base64 (or, in ChatGPT, a chat file as file) with the job_number, kind and filename. Athena checks the file type (PDF, .xlsx, .docx, CSV or PNG, up to 10 MB), stores it privately for this job and returns a link anyone with it can open until it expires (30 days by default). Put the link in the email body; never say the file is attached unless your email tool attached it. Supers can share schedules only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "sov",
+                "schedule",
+                "report",
+                "notice",
+                "other"
+              ],
+              "description": "sov, schedule (CPM or Gantt), report, notice or other."
+            },
+            "filename": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "description": "File name with its extension, e.g. 2701 SOV.pdf. Allowed: .pdf, .xlsx, .docx, .csv, .png."
+            },
+            "content_base64": {
+              "description": "The file's bytes, base64 encoded (a data: prefix is fine). Required unless file is given.",
+              "type": "string",
+              "maxLength": 13981024
+            },
+            "file": {
+              "description": "ChatGPT only: a chat file reference. Use content_base64 everywhere else.",
+              "type": "object",
+              "properties": {
+                "download_url": {
+                  "type": "string"
+                },
+                "file_id": {
+                  "type": "string"
+                },
+                "mime_type": {
+                  "type": "string"
+                },
+                "file_name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "download_url",
+                "file_id"
+              ]
+            },
+            "expires_in_days": {
+              "description": "Days the link works, default 30, at most 90.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90
+            }
+          },
+          "required": [
+            "job_number",
+            "kind",
+            "filename"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "file_share_revoke",
+        "title": "Turn off a file link",
+        "description": "Turns off a file link Athena made, right away, and deletes the stored file. Call only after the member asks to turn off that link. Full job access, or the member who shared it.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "link": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300,
+              "description": "The link Athena returned (https://app.meetathena.io/f/...)."
+            }
+          },
+          "required": [
+            "job_number",
+            "link"
           ],
           "additionalProperties": false
         },

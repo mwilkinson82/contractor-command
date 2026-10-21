@@ -374,7 +374,7 @@ const playbookSections = [
       ],
       proof: [
         "Change orders move faster from issue to approval to billing.",
-        "Schedule exposure gets notices, fragments, or escalation before it becomes unrecoverable.",
+        "Schedule exposure gets notices, delay fragnets, or escalation before it becomes unrecoverable.",
         "Time-related exposure is translated into dollars through burn rate.",
       ],
       module: "Delivery Systems Sprint",

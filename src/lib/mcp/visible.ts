@@ -1,3 +1,4 @@
+import { ALERT_COLOR, ALERT_PALETTE_RULE } from "./alert-color";
 // What the PM reads vs. what only the assistant needs.
 // Tool results' visible text is what a PM should read. Steps for the assistant (which tool to call next,
 // what to ask, how to present it) and internal codes go in structuredContent.assistant_guidance,
@@ -97,7 +98,7 @@ export function finalizeVisible<R>(r: R, extra: string[] = []): R {
 /** 0.8.3 chart palette: every chart, table and artifact in every host. */
 export const CHART_PALETTE = ["#2563EB", "#6B7280", "#9CA3AF", "#D1D5DB", "#F3F4F6"] as const;
 export const CHART_PALETTE_RULE =
-  "- Chart palette (every chart, graph, bar, table and artifact, in Claude, ChatGPT, Grok and any other host): set the colors explicitly to blue #2563EB for the main series plus grays #6B7280, #9CA3AF, #D1D5DB and #F3F4F6 for everything else. Never red, rose, pink, orange, amber or the host's default palette. In Claude artifacts, write these hex values into the chart config; never leave colors to the library default.";
+  `- Chart palette (every chart, graph, bar, table and artifact, in Claude, ChatGPT, Grok and any other host): set the colors explicitly to blue #2563EB for the main series plus grays #6B7280, #9CA3AF, #D1D5DB and #F3F4F6 for everything else. Never rose, pink, orange, amber or the host's default palette; ${ALERT_COLOR} only for delays, risks and overdue items (the alert color). In Claude artifacts, write these hex values into the chart config; never leave colors to the library default.`;
 /** 0.8.3 money rule. */
 export const MONEY_CENTS_RULE =
   "- Money: always show dollars with cents exactly as Athena gives them, e.g. $1,400,000.00 and $700,000.00, in every line and every total. Never round, never drop the .00, never abbreviate ($1.4M). Use the *_display strings in structuredContent when present.";
@@ -116,9 +117,9 @@ export const HOST_DISPLAY_BLOCK = [
   "- Nothing before or between the clause cards: no preview, no summary, no \"tightest clock\" or \"key deadline\" line. The offer wording is exact; don't reword, shorten or add to it.",
   "- In Claude, build any artifact only from the data already in this chat. Never call Athena (or any tool) from inside an artifact.",
   "- Visual first, by default (never an opt-in): put tables and cards in white cards with light gray panels behind any text. Minimal and clean.",
-  "- Charts, tables, totals and highlights: blue #2563EB and gray only, never orange, rust or red, including totals.",
-  "- Colors: blue #2563EB is the only accent, for buttons and the one item that needs action. Charts, bars and KPI numbers use blue #2563EB for the main series and gray for everything secondary. Never orange, terracotta, red or the host's default chart palette. Don't mention colors.",
-  "- Warnings: no red and no amber. Mark the one item that needs action in blue #2563EB; everything else stays dark or gray text.",
+  `- Charts, tables, totals and highlights: blue #2563EB and gray only, never orange, rust or the alert color, including totals. ${ALERT_PALETTE_RULE}`,
+  "- Colors: blue #2563EB is the only accent, for buttons and the one item that needs action. Charts, bars and KPI numbers use blue #2563EB for the main series and gray for everything secondary. Never orange, terracotta or the host's default chart palette; the alert color only for delays, risks and overdue items. Don't mention colors.",
+  `- Warnings: no amber. Delays, risks and overdue items get the alert color (${ALERT_COLOR}); mark the one item that needs action in blue #2563EB; everything else stays dark or gray text.`,
   "- After the visual, at most 3 short lines of text, and at most one plain-English caveat line, only if it changes what they should do. Dashboards: one caveat line at most and never a \"Priority:\" block.",
   "- Contract output order: clause cards, then ONE line for any missing or partial notices (fold them all into that line), then the exact summary offer as the very last line. Nothing after the offer.",
   "- Never write \"No changes were made\", \"No items were changed\" or similar lines, and no filler openers such as \"Pulling up...\", \"Let me...\" or \"Here's...\". Start with the visual.",
@@ -126,7 +127,7 @@ export const HOST_DISPLAY_BLOCK = [
   CHART_PALETTE_RULE,
   MONEY_CENTS_RULE,
   DATE_SWEEP_RULE,
-  "- Schedule of values (report deliverable sov): present it as a spreadsheet, line-item view by default: one row per line with line no., cost code, division, description, scheduled value and % of total (the Cost Code column always sits right after the line no.), then the grand total that ties to the contract sum. Claude: an artifact table built from this result; ChatGPT: a canvas or table; elsewhere: a clean table plus an offer to create an Excel file. Table style: header row blue #2563EB with white bold text; alternating light-gray (#F3F4F6) and white row bands; bold total row with a blue #2563EB top rule. Blue #2563EB and gray only, never orange, rust or red, including totals. After the table, at most one line: no footer or license note and no roll-up offer unless the member asks.",
+  "- Schedule of values (report deliverable sov): present it as a spreadsheet, line-item view by default: one row per line with line no., cost code, division, description, scheduled value and % of total (the Cost Code column always sits right after the line no.), then the grand total that ties to the contract sum. Claude: an artifact table built from this result; ChatGPT: a canvas or table; elsewhere: a clean table plus an offer to create an Excel file. Table style: header row blue #2563EB with white bold text; alternating light-gray (#F3F4F6) and white row bands; bold total row with a blue #2563EB top rule. Blue #2563EB and gray only, never orange, rust or the alert color, including totals. After the table, at most one line: no footer or license note and no roll-up offer unless the member asks.",
   `- Summary offer: use this wording verbatim, never paraphrased or shortened: "${SUMMARY_OFFER_TEXT}"`,
   "- Write for contractor office staff and owners. No technical notes: nothing about artifacts, canvas, sharing settings, code, files, tools or colors (the exact SOV delivery question is the one exception).",
   "- Email on demand: whenever the member asks to email something (\"also email this sub\", \"send this to the supplier\"), show the email card in that same reply with recipient, subject, body and attachment filled in from Athena's saved job data. If the address isn't in Athena's results, leave To blank on the card and ask for it in the same reply. Never guess an address. The member presses Send.",
@@ -163,7 +164,7 @@ export const JOB_SETUP_SOFTWARE_BLOCK = [
 export const SOV_DELIVERY_ASK = [
   "Where do you want this SOV to live?",
   "1. In your project software (Overwatch, Buildertrend, Procore, or another tool). I'll enter it there through the browser after you sign in.",
-  "2. As an Excel file (.xlsx) or a PDF. I'll create it and bring up an email for you to review, with the file attached.",
+  "2. As an Excel file (.xlsx) or a PDF. I'll create it and bring up an email for you to review, with the file attached (or a link to it if your email can't carry files from here).",
   "3. As a shared link (a Claude artifact, ChatGPT canvas or Grok Bot spreadsheet that anyone with the link can open). I'll bring up an email with the link.",
 ].join("\n");
 /** 0.8.8: every audience (owner, client, CM or team) gets the same three options; the client alias stays for callers. */
@@ -175,15 +176,27 @@ export const SOV_ALT_GRAY = "#9CA3AF";
 /** 0.8.9: pinned at the top of every SOV and report result: list all three options, never recommend one. */
 export const SHARE_OPTIONS_REQUIRED =
   "REQUIRED: When this is shared with the team or the owner (any audience), list all 3 sharing options below, numbered 1, 2 and 3, word for word, and let the member pick. Never recommend, pre-select or offer only one (not just a Google Sheets link, not just a PDF).";
-/** 0.8.9: pinned at the top of every date sweep. */
-export const SWEEP_CARD_REQUIRED =
-  "REQUIRED: Show this date sweep as a card with a table (columns: Due, Item, Precaution, Ref), one row per item, grouped Overdue, Due today, Next 14 days. Never as plain bullets or a plain list, in every host including Claude.";
-/** 0.8.9: email cards carry a literal To: label. */
+/**
+ * 0.8.10: attachments. Athena returns no files; the host builds the file and the host's email tool must carry it.
+ * ChatGPT's Gmail/Outlook email action has no attachment field (drafts and sends go out bare), Claude's Gmail
+ * create_draft takes base64 attachments, Grok Bot attaches to a Gmail draft. Never claim an attachment that isn't there.
+ */
+export const EMAIL_ATTACHMENT_RULE =
+  "REQUIRED: Only say a file is attached if your email tool actually attached it. If your email tool can't attach files (ChatGPT's email today), put a link to the file in the email body instead (a canvas or file shared as anyone with the link, or a Google Drive or OneDrive link), and say so in one line under the card. Best link: call Athena's file_share with the file you built and use the app.meetathena.io/f/ link it returns (opens for anyone with it, 30 days). Never send an email that says \"attached\" without the file.";
+export const EMAIL_ATTACHMENT_STRUCTURED = {
+  never_claim_missing_attachment: true,
+  attach_when_supported: "Use the email tool's attachments field when it has one (Claude Gmail create_draft attachments, base64, 25 MB total; Grok Bot Gmail draft attachment).",
+  fallback_when_unsupported: "ChatGPT Gmail/Outlook email action has no attachments field: put a link to the file in the body (canvas or file shared as anyone with the link, or a Drive/OneDrive link) and tell the member in one line. Or save a draft and tell the member to attach the downloaded file in Gmail before sending.",
+  share_link_tool: "file_share",
+  share_link_how: "Call file_share with job_number, kind, filename and content_base64 (the bytes of the file you built). Put the returned link in the email body. Works in every host.",
+  rule: EMAIL_ATTACHMENT_RULE,
+} as const;
+/** 0.8.9: email cards carry a literal To: label. 0.8.10: as the first line inside the card. */
 export const EMAIL_TO_LABEL_REQUIRED =
-  'REQUIRED: Every email card shows a line that starts with the literal label "To:" followed by the address (or blank and ask in this same reply), above Subject.';
+  'REQUIRED: Inside every email card, the first line of the card itself is the literal label "To:" followed by the address (or blank and ask in this same reply), above Subject. Never put To: outside the card, above or below it.';
 /** 0.8.7: report sov always comes with a bar chart of scheduled value by line, in the fixed palette. */
 export const SOV_CHART_RULE =
-  "REQUIRED, every host (Claude, ChatGPT, Grok and any other): draw a bar chart of the SOV from structuredContent.sov.chart: one bar per line (x: the line label, y: scheduled value), in the order given, placed directly under the SOV table and before the delivery question. Set the colors explicitly: bars #2563EB; axes, gridlines and labels in the grays #6B7280, #9CA3AF, #D1D5DB and #F3F4F6, with alternating gray bands (chart.band_colors) behind the bars; ChatGPT and every other host must show the gray as well as the blue. Never use the host's default palette, and never red, rose, pink, orange or amber. Money labels with cents (value_display). No chart title text beyond \"Scheduled value by line\" and no extra commentary. Bars alternate blue #2563EB and gray #9CA3AF (chart.bars[].color).";
+  "REQUIRED, every host (Claude, ChatGPT, Grok and any other): draw a bar chart of the SOV from structuredContent.sov.chart: one bar per line (x: the line label, y: scheduled value), in the order given, placed directly under the SOV table and before the delivery question. Set the colors explicitly: bars #2563EB; axes, gridlines and labels in the grays #6B7280, #9CA3AF, #D1D5DB and #F3F4F6, with alternating gray bands (chart.band_colors) behind the bars; ChatGPT and every other host must show the gray as well as the blue. Never use the host's default palette, and never the alert color, rose, pink, orange or amber. Money labels with cents (value_display). No chart title text beyond \"Scheduled value by line\" and no extra commentary. Bars alternate blue #2563EB and gray #9CA3AF (chart.bars[].color).";
 export function sovChart(rows: { item_no: string; cost_code: string | null; description: string | null; scheduled_value: number; scheduled_value_display: string }[]) {
   return {
     required: true,
@@ -213,8 +226,9 @@ export function sovRequiredTop(rows: { item_no: string; cost_code: string | null
   const data = rows.map((r) => `${r.item_no}${r.cost_code ? ` (${r.cost_code})` : ""} ${r.scheduled_value_display}`).join("; ");
   return [
     `REQUIRED: Draw this bar chart now under the table. Bars alternate blue #2563EB and gray #9CA3AF (1st bar blue, 2nd gray, 3rd blue, and so on; each bar's color is in structuredContent.chart.bars[].color); gray bands #F3F4F6 behind them; gray grid #D1D5DB; gray axes and labels #6B7280. No other colors. Data: ${data}.`,
-    `REQUIRED: Any email card for this SOV shows the literal label "To:" as its first line: ${toLine}. If there is no address, leave To: blank and ask for it in this same reply.`,
+    `REQUIRED: Any email card for this SOV shows the literal label "To:" as the first line inside the card itself (not above or below it): ${toLine}. If there is no address, leave To: blank and ask for it in this same reply.`,
     SHARE_OPTIONS_REQUIRED,
+    EMAIL_ATTACHMENT_RULE,
   ].join("\n");
 }
 /** 0.8.4: the delivery step as data, in report sov structuredContent, so hosts can't skip it. */
@@ -223,12 +237,13 @@ export const SOV_DELIVERY_STRUCTURED = {
   ask: SOV_DELIVERY_ASK,
   options: [
     { n: 1, kind: "project_software", note: "Member signs in themselves; never ask for or type a password." },
-    { n: 2, kind: "xlsx_or_pdf_email", note: "Build a real .xlsx or PDF, then show an email card with it attached; To blank and asked in the same reply if no address." },
+    { n: 2, kind: "xlsx_or_pdf_email", note: "Build a real .xlsx or PDF, then show an email card with it attached; if the email tool can't attach files (ChatGPT), put a link to the file in the body instead (see attachments). To blank and asked in the same reply if no address." },
     { n: 3, kind: "shared_link", note: "Claude artifact, ChatGPT canvas or Grok Bot spreadsheet shared as 'anyone with the link', then an email card with the link. Any audience: owner, client, CM or team." },
   ],
   list_all_options: true,
   never_recommend_one: true,
   link_rule: "Shared links are fine for any audience (owner, client, CM or team). Set sharing to anyone with the link.",
+  attachments: EMAIL_ATTACHMENT_STRUCTURED,
 } as const;
 /** 0.8.8: owner/client SOV delivery data: same three options as the team SOV. */
 export const SOV_DELIVERY_STRUCTURED_CLIENT = { ...SOV_DELIVERY_STRUCTURED, audience: "client" } as const;
@@ -251,6 +266,7 @@ export const SOV_DELIVERY_BLOCK = [
   "- Claude: the delivery question is mandatory even in Claude. Put it directly under the artifact as the last thing in the reply.",
   "- Email on demand, at any point: use the job's saved subs, suppliers and contacts from Athena results (including names and emails written in job answers, lookahead or open-item text) and show the email card right away with recipient, subject, body and attachment filled in. If the contact or address isn't there, leave To blank and ask in the same reply. Never guess an address.",
   "- Claude: no narration before or between steps (no \"Building...\", \"First I'll pull...\" or \"I need two things before...\"). Show the file and the email card in the same reply, To blank if needed, with one short question under it. Never hold the card back while you ask.",
+  `- Attachments: ${EMAIL_ATTACHMENT_RULE.replace(/^REQUIRED: /, "")} Claude: pass the file in the Gmail draft's attachments. ChatGPT: its email action can't attach files, so call file_share and put its link in the body.`,
   "- Never send anything yourself. The member reviews the email card and presses Send.",
   `- If the member says "not now", leave the SOV in the chat and add an open item to deliver it within ${SOV_NOT_NOW_DAYS} days (intake section open_item).`,
 ].join("\n");
@@ -299,7 +315,7 @@ export function visibleProblems(text: string): string[] {
 export const REPORT_SHARE_ASK = [
   "If you want to share this report, where should it go?",
   "1. In your project software (Overwatch, Buildertrend, Procore, or another tool). I'll enter it there through the browser after you sign in.",
-  "2. As a PDF or Word file. I'll create it and bring up an email for you to review, with the file attached.",
+  "2. As a PDF or Word file. I'll create it and bring up an email for you to review, with the file attached (or a link to it if your email can't carry files from here).",
   "3. As a shared link (a Claude artifact, ChatGPT canvas or Grok Bot document that anyone with the link can open). I'll bring up an email with the link.",
 ].join("\n");
 export const REPORT_SHARE_STRUCTURED = {
@@ -312,4 +328,5 @@ export const REPORT_SHARE_STRUCTURED = {
     { n: 2, kind: "pdf_or_docx_email" },
     { n: 3, kind: "shared_link" },
   ],
+  attachments: EMAIL_ATTACHMENT_STRUCTURED,
 };

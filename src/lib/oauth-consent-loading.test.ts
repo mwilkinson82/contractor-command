@@ -86,7 +86,7 @@ describe("consent beforeLoad", () => {
   it("passes for a signed-in session and clears its timer", async () => {
     m.getSession.mockResolvedValue({ data: { session: { user: { id: "u" } } }, error: null });
     m.getUser.mockResolvedValue({ data: { user: { id: "u" } }, error: null });
-    await expect(before()).resolves.toBeUndefined();
+    await expect(before()).resolves.toEqual({ consentUser: { id: "u", email: null } });
     expect(vi.getTimerCount()).toBe(0);
   });
 });
@@ -137,5 +137,15 @@ describe("consent loader", () => {
     m.getUser.mockResolvedValue({ data: { user: { id: "u2", email: "x@y.z" } }, error: null });
     m.rpc.mockResolvedValue({ data: false, error: null });
     await expect(load()).resolves.toMatchObject({ userId: "u2", entitled: false });
+  });
+});
+
+describe("v0.8.12 consent load speed", () => {
+  it("loader reuses the identity from beforeLoad and starts entitlement in parallel with details", () => {
+    const s = require("node:fs").readFileSync(require("node:path").resolve(__dirname, "../routes/oauth.consent.tsx"), "utf8") as string;
+    expect(s).toContain('boundedStep("identity", () => supabase.auth.getUser())');
+    expect(s).toContain("return { consentUser };");
+    expect(s.indexOf("const entP =")).toBeLessThan(s.indexOf("oauth().getAuthorizationDetails(id)"));
+    expect(s).toContain("throw redirect({ to: \"/login\", search: { redirect: consentReturnPath(search.authorization_id) } });");
   });
 });

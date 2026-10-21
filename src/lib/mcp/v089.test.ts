@@ -19,7 +19,7 @@ const act = (id: string, value: number, extra: Partial<Activity> = {}): Activity
 const job2701 = (): Activity[] => [...Array.from({ length: 38 }, (_, i) => act(`A${1000 + i * 10}`, 35_000)), act("A1390", 70_000)];
 
 describe("0.8.9 CPM activity handoff, tie guard, owner-furnished, living reports", () => {
-  it("version is 0.8.9", () => expect(ATHENA_VERSION).toBe("0.8.9"));
+  it("version is 0.8.9", () => expect(ATHENA_VERSION).toBe("0.8.12"));
 
   it("count check reads 39 of 39 with the allocated total, and names undated activities", () => {
     const acts = job2701();
@@ -87,11 +87,11 @@ describe("0.8.9 CPM activity handoff, tie guard, owner-furnished, living reports
 
   it("TIA result is computed from the saved dates, never typed in", () => {
     expect(calendarDays("2027-06-04", "2027-06-19")).toBe(15);
-    const t = tiaResult({ fragment: "FRAG-01", prior_completion: "2027-06-04", updated_completion: "2027-06-19", fragment_only_completion: "2027-06-11" })!;
+    const t = tiaResult({ fragnet: "FRAG-01", prior_completion: "2027-06-04", updated_completion: "2027-06-19", fragnet_only_completion: "2027-06-11" })!;
     expect(t.impact_cd).toBe(15);
-    expect(t.fragment_only_cd).toBe(8);
-    expect(t.math).toBe("Updated completion Jun 19, 2027 − prior completion Jun 4, 2027 = 15 calendar days. Fragment-only impact: Jun 19, 2027 − Jun 11, 2027 = 8 CD.");
-    expect(tiaResult({ fragment: "FRAG-02", prior_completion: "2027-06-04", updated_completion: "2027-06-04" })!.statement).toBe("0 CD: float absorbed it.");
+    expect(t.fragnet_only_cd).toBe(8);
+    expect(t.math).toBe("Updated completion Jun 19, 2027 − prior completion Jun 4, 2027. Fragnet-only impact: Jun 19, 2027 − Jun 11, 2027 = 8 CD.");
+    expect(tiaResult({ fragnet: "FRAG-02", prior_completion: "2027-06-04", updated_completion: "2027-06-04" })!.statement).toBe("Completion delay: +0 WD (0 CD): float absorbed it.");
     expect(tiaResult(null)).toBeNull();
   });
 
@@ -131,9 +131,11 @@ describe("0.8.9 CPM activity handoff, tie guard, owner-furnished, living reports
 
   it("server wires the three tools and the instructions lead with the CPM rule; palette unchanged (no red)", () => {
     const idx = src("./index.ts");
-    expect(idx).toContain("cpmActivities, livingReportGet, livingReportSave]");
-    expect(idx).toContain('construction agents. REQUIRED: before drawing or updating a cost-loaded CPM');
-    expect(idx).toContain("never red, rose, pink or orange");
+    expect(idx).toContain("cpmActivities, livingReportGet, livingReportSave, fileShare, fileShareRevoke]");
+    expect(idx).toContain('construction agents. " + GREETING_RULE + " REQUIRED: before drawing or updating a cost-loaded CPM');
+    expect(idx).toContain("never rose, pink or orange");
+    expect(idx).toContain("ALERT_PALETTE_RULE");
+    expect(idx).not.toMatch(/never red/i);
     expect([...CHART_PALETTE]).toEqual(["#2563EB", "#6B7280", "#9CA3AF", "#D1D5DB", "#F3F4F6"]);
   });
 
@@ -149,7 +151,7 @@ describe("0.8.9 CPM activity handoff, tie guard, owner-furnished, living reports
   });
 });
 
-import { REPORT_SHARE_STRUCTURED, SHARE_OPTIONS_REQUIRED, SWEEP_CARD_REQUIRED, EMAIL_TO_LABEL_REQUIRED, sovChart, SOV_DELIVERY_STRUCTURED } from "./visible";
+import { REPORT_SHARE_STRUCTURED, SHARE_OPTIONS_REQUIRED, EMAIL_TO_LABEL_REQUIRED, sovChart, SOV_DELIVERY_STRUCTURED } from "./visible";
 describe("0.8.9 retest fixes", () => {
   it("SOV bars alternate blue and gray", () => {
     const c = sovChart([1, 2, 3].map((n) => ({ item_no: `${n}`, cost_code: null, description: null, scheduled_value: n, scheduled_value_display: `$${n}.00` })));
@@ -157,7 +159,6 @@ describe("0.8.9 retest fixes", () => {
   });
   it("share, sweep and To: REQUIRED lines", () => {
     expect(SHARE_OPTIONS_REQUIRED).toMatch(/^REQUIRED: .*all 3 sharing options.*Never recommend/);
-    expect(SWEEP_CARD_REQUIRED).toMatch(/^REQUIRED: .*card with a table.*Never as plain bullets/);
     expect(EMAIL_TO_LABEL_REQUIRED).toContain('"To:"');
     expect(REPORT_SHARE_STRUCTURED.options).toHaveLength(3);
     expect(SOV_DELIVERY_STRUCTURED.never_recommend_one).toBe(true);

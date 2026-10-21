@@ -118,6 +118,24 @@ export function dedupeNotices<T extends { id: string; action: string; clause_sou
 }
 
 /**
+ * 0.8.10: the To: field is part of the email card itself: the first structured field and the first line of the card's
+ * rendered text (inside the card, never above or below it). ChatGPT showed no To: label in the card; Claude put it under the card.
+ */
+export function emailCardFields(email: string | null, greeting: string | null) {
+  const toValue = email ?? "";
+  const toLine = email ? `To: ${email}` : "To: ";
+  return {
+    placement: "inside_card_first_line" as const,
+    fields: [
+      { key: "to", label: "To:", value: toValue, blank: !email, order: 1 },
+      { key: "subject", label: "Subject:", value: "", blank: true, order: 2 },
+    ],
+    first_line: toLine,
+    rendered_text: [toLine, "Subject: <subject>", "", greeting ?? "<greeting>", "<body>"].join("\n"),
+  };
+}
+
+/**
  * Email card recipient for any result that leads to an email: the known contact, or an honest ask. Never "Dear Project Manager".
  * 0.8.8: the first line is always "To: <email>" or "To: (ask: ...)", and structuredContent carries to_field so every
  * host (Claude included) shows a To field on the draft and asks for a missing address in the same reply.
@@ -129,17 +147,19 @@ export function emailContact(c: JobContact | null) {
     const toLine = c.email ? `To: ${c.email}` : `To: (ask: what's ${c.name}'s email?)`;
     return {
       structured: { known: true, name: c.name, role: c.role, company: c.company, email: c.email, greeting: `Hi ${first},`, to: c.email ?? null, ask,
-        to_line: toLine, to_label: "To:", to_field: { show: true, label: "To", value: c.email ?? "", blank: !c.email }, ask_in_same_reply: !c.email },
+        to_line: toLine, to_label: "To:", to_field: { show: true, label: "To", value: c.email ?? "", blank: !c.email }, ask_in_same_reply: !c.email,
+        email_card: emailCardFields(c.email ?? null, `Hi ${first},`) },
       text: `${toLine}\nSend to: ${contactText(c)}${c.email ? "" : ` (no email on file — what's ${c.name}'s email?)`}. Greeting: "Hi ${first},"`,
     };
   }
   const ask = "Who should this go to? (name and email)";
   return {
     structured: { known: false, name: null, role: null, company: null, email: null, greeting: null, to: null, ask,
-      to_line: "To: (ask: who should this go to? name and email)", to_label: "To:", to_field: { show: true, label: "To", value: "", blank: true }, ask_in_same_reply: true },
+      to_line: "To: (ask: who should this go to? name and email)", to_label: "To:", to_field: { show: true, label: "To", value: "", blank: true }, ask_in_same_reply: true,
+      email_card: emailCardFields(null, null) },
     text: `To: (ask: who should this go to? name and email)\nNo contact saved for this job. ${ask}`,
   };
 }
 
 export const EMAIL_CONTACT_RULE =
-  "- Email cards: fill To and the greeting from structuredContent.email_contact (name, role, email). If email_contact.known is false or email is empty, leave To blank and ask who to send to in the same reply. Never write \"Dear Project Manager\", \"Dear Sir/Madam\" or any role in place of a name. REQUIRED in every host, Claude included: every email draft or card shows a To field (email_contact.to_field), filled or blank. Never show a draft without a To field and never offer a send button with no recipient. If the address is missing, show To blank and ask for it in that same reply.";
+  "- Email cards: fill To and the greeting from structuredContent.email_contact (name, role, email). If email_contact.known is false or email is empty, leave To blank and ask who to send to in the same reply. Never write \"Dear Project Manager\", \"Dear Sir/Madam\" or any role in place of a name. REQUIRED in every host, Claude included: every email draft or card shows a To field (email_contact.to_field), filled or blank. Never show a draft without a To field and never offer a send button with no recipient. If the address is missing, show To blank and ask for it in that same reply. Inside the card itself, the first line is the literal label \"To:\" and the address (email_contact.email_card.fields[0]), above Subject; never put To: above or below the card.";

@@ -1,3 +1,4 @@
+import { reminderSource } from "./views";
 import { FLAG_CLAUSE, effectiveFlag } from "./clauses";
 // Module 1 (Job Setup): company + job resolution and the fixed setup report.
 // Rule evaluation (applies_when, N/A suppression, resolution rules) lives in the database mcp_* functions.
@@ -175,7 +176,7 @@ export function itemLine(it: Item, nas: Na[], client = false, o: LineOpts = {}) 
   // Client-facing: Athena's internal follow-up dates stay internal; only dates the contract sets are shown.
   const needed = cf && !isContractDate(it) ? "" : ` | ${cf ? "Contract due date" : "Needed by"}: ${it.needed_by ?? it.due_date ?? "unknown"}`;
   // Client-facing: who is accountable is internal staffing, so it stays out of the owner's copy.
-  return humanSources(`[${typeWord(t)}] ${it.action}${cf ? "" : ` | Accountable: ${who}`}${needed} | ${status.trim()}${cf ? "" : ` | Source: ${it.source ?? "unknown"}`} | ${effects}${next}${typeDetail(it, t, client, cf)}${na ? ` | ${na}` : ""}${cf ? "" : ` | ${displayRef(it)}`}`);
+  return humanSources(`[${typeWord(t)}] ${it.action}${cf ? "" : ` | Accountable: ${who}`}${needed} | ${status.trim()}${cf ? "" : ` | Source: ${reminderSource(it) ?? it.source ?? "unknown"}`} | ${effects}${next}${typeDetail(it, t, client, cf)}${na ? ` | ${na}` : ""}${cf ? "" : ` | ${displayRef(it)}`}`);
 }
 
 const SECTION_TITLES: Record<string, string> = {

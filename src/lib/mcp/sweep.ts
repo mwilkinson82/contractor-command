@@ -7,12 +7,13 @@ import { dedupeNotices } from "./contacts";
 import { isContractDate } from "./jobs";
 import { isClaimDeadline, withoutClaims } from "./internal-claims";
 import { computeDue, diffDays, todayIn, type Clause } from "./deadlines";
+import { reminderSource } from "./views";
 
 const ASSUMED_TZ = "America/New_York";
 const MONEY = /\$\s?[\d,.]+[kKmM]?|\b\d[\d,.]*\s?(dollars|usd)\b/gi;
 
 type JobRow = { id: string; job_number: string; name: string; time_zone: string | null; company_id: string };
-type ItemRow = { id: string; job_id: string; action: string; needed_by: string | null; item_type: string | null; internal_only: boolean; check_key: string; accountable: string | null; cost_effect: string | null; cash_effect: string | null; commercial_type?: string | null; category?: string | null; clause_source: string | null };
+type ItemRow = { id: string; job_id: string; action: string; needed_by: string | null; item_type: string | null; internal_only: boolean; check_key: string; accountable: string | null; cost_effect: string | null; cash_effect: string | null; commercial_type?: string | null; category?: string | null; clause_source: string | null; source?: string | null; waiting_on_document?: string | null };
 type DeadlineRow = Clause & { job_id: string; item_id: string | null; internal_only: boolean; clause_key: string };
 
 export type SweepItem = { job_id: string; job_number: string; item_ref?: string; ref: string; item_id: string | null; item_type: string; due: string; days: number; bucket: "overdue" | "today" | "upcoming" };
@@ -29,6 +30,13 @@ export function sweepDupNote(dups: { id: string; action?: string | null; check_k
   return ` | Same notice also logged as: ${dups.map((x) => displayRef(x)).join(", ")} (shown once)`;
 }
 
+/** 0.8.12: the real source (contract §, RFI, notice) instead of "manual"; client copies show contract sections only. */
+function srcNote(it: ItemRow, client: boolean): string {
+  const src = reminderSource(it);
+  if (!src || (client && !/^Contract /.test(src))) return "";
+  return ` | Source: ${src}`;
+}
+
 export type SweepScope = { jobNumber?: string; client?: boolean };
 
 export async function runSweep(sb: Sb, scope_: SweepScope = {}): Promise<{ text: string; items: SweepItem[] } | null> {
@@ -41,7 +49,7 @@ export async function runSweep(sb: Sb, scope_: SweepScope = {}): Promise<{ text:
   const ids = js.map((j) => j.id);
   const [scopesR, itemsR, dlR] = await Promise.all([
     Promise.all(js.map((j) => sb.rpc("mcp_job_scope", { _job: j.id }))),
-    sb.from("mcp_open_items").select("id, job_id, action, needed_by, item_type, internal_only, check_key, accountable, cost_effect, cash_effect, commercial_type, category, clause_source").in("job_id", ids).eq("status", "open").not("needed_by", "is", null),
+    sb.from("mcp_open_items").select("id, job_id, action, needed_by, item_type, internal_only, check_key, accountable, cost_effect, cash_effect, commercial_type, category, clause_source, source, waiting_on_document").in("job_id", ids).eq("status", "open").not("needed_by", "is", null),
     sb.from("mcp_job_deadlines").select("id, job_id, item_id, label, clause_ref, clause_key, trigger_desc, trigger_date, trigger_alternatives, n_days, day_type, holidays, weekend_roll, fixed_date, internal_only").in("job_id", ids).eq("active", true),
   ]);
   const scope = new Map(js.map((j, i) => [j.id, (scopesR[i].data as string | null) ?? null]));
@@ -99,7 +107,7 @@ export async function runSweep(sb: Sb, scope_: SweepScope = {}): Promise<{ text:
     lines.push({
       bucket, days,
       title: action, when: when(days), due: `${it.needed_by} (${j.time_zone ? tz : `${tz}, assumed`})`,
-      meta: `${client ? "" : `Accountable: ${who(it.accountable)}`}${sweepDupNote(swept.duplicates.get(it.id), client)}`.replace(/^ \| /, ""),
+      meta: `${client ? "" : `Accountable: ${who(it.accountable)}`}${srcNote(it, client)}${sweepDupNote(swept.duplicates.get(it.id), client)}`.replace(/^ \| /, ""),
       extra: [],
     });
     out.push({ job_id: j.id, job_number: j.job_number, item_ref: itemRef(it), ref: `item:${it.id}`, item_id: it.id, item_type: it.item_type ?? "deadline", due: it.needed_by, days, bucket });

@@ -17,16 +17,22 @@ const ORIGIN = "https://app.meetathena.io";
 // large (reported for ~13 KB files; our 512 PNG is ~14 KB).
 // 0.8.9: PNG only, absolute public URLs on the canonical origin. The data: URI and SVG entries were dropped:
 // ChatGPT's chip proxies icon URLs and showed a broken image for them, and Claude does not render SVG icons.
+// 0.8.10: 64/128/256 only (1.7/3.3/6.7 KB). The 512 PNG (14.3 KB) is over the ~13 KB size ChatGPT's in-chat chip
+// breaks on, and hosts that pick the largest listed icon picked it. Same absolute app.meetathena.io URLs on both domains.
 export const ATHENA_SERVER_ICONS = Object.freeze([
   { src: `${ORIGIN}/brand/athena/athena-mono-blue-64.png`, mimeType: "image/png", sizes: ["64x64"] },
-  { src: `${ORIGIN}/brand/athena/athena-mono-blue-512.png`, mimeType: "image/png", sizes: ["512x512"] },
+  { src: `${ORIGIN}/brand/athena/athena-mono-blue-128.png`, mimeType: "image/png", sizes: ["128x128"] },
+  { src: `${ORIGIN}/brand/athena/athena-mono-blue-256.png`, mimeType: "image/png", sizes: ["256x256"] },
 ]);
 
 export const ATHENA_WEBSITE_URL = ORIGIN;
 
 /** serverInfo.version and the "Athena vX" line on onboarding. */
+// 0.8.12: required styled views (lookahead, pay app, reminders, emails), one alert color (alert-color.ts).
+// 0.8.11: file_share links (host uploads the file it built; Athena returns an app.meetathena.io/f/ link).
+// 0.8.10: fragnet wording, To: inside email cards, small CORS icons, Athena sign-in page.
 // 0.8.9: cpm_activities handoff, tie-to-contract guard, owner-furnished exclusion, living reports master copy.
-export const ATHENA_VERSION = "0.8.9";
+export const ATHENA_VERSION = "0.8.12";
 
 /** MCP 2025-11-25 Implementation.description. There is no publisher field in the spec. */
 export const ATHENA_DESCRIPTION = "Athena powered by ALP, construction agents. Built by ALP.";
