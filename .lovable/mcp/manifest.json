@@ -3361,6 +3361,611 @@
         "outputSchema": null
       },
       {
+        "name": "estimate_pricing",
+        "title": "Pricing walkthrough",
+        "description": "Computes labor cost from the contractor's production and rates for a job.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "labor": {
+              "maxItems": 400,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "production_per_man_hour": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "man_hours": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "man_days": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "crew_size": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "hours_per_day": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "exclusiveMinimum": 0,
+                        "maximum": 24
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "hourly_rate": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "crew_rate": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "confirmed": {
+                    "type": "boolean"
+                  },
+                  "apply_factor": {
+                    "type": "boolean"
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "rsmeans",
+                      "neca",
+                      "smacna",
+                      "mcaa"
+                    ]
+                  }
+                },
+                "required": [
+                  "ref"
+                ]
+              }
+            },
+            "material": {
+              "maxItems": 400,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "unit_price": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "confirmed": {
+                    "type": "boolean"
+                  },
+                  "apply_factor": {
+                    "type": "boolean"
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "rsmeans",
+                      "neca",
+                      "smacna",
+                      "mcaa"
+                    ]
+                  }
+                },
+                "required": [
+                  "ref"
+                ]
+              }
+            },
+            "quotes": {
+              "maxItems": 80,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "sub": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "amount": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "ref": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "trade": {
+                    "type": "string",
+                    "maxLength": 80
+                  }
+                },
+                "required": [
+                  "sub",
+                  "description"
+                ]
+              }
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_rate_sources",
+        "title": "Rate references",
+        "description": "Saves which rate references the contractor chooses to carry for a job.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "sources": {
+              "maxItems": 8,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "rsmeans",
+                      "neca",
+                      "smacna",
+                      "mcaa"
+                    ]
+                  },
+                  "carry": {
+                    "type": "boolean"
+                  },
+                  "metro": {
+                    "type": "string",
+                    "enum": [
+                      "NYC",
+                      "Chicago",
+                      "Miami",
+                      "Austin",
+                      "Dallas",
+                      "LA",
+                      "SF",
+                      "Boston",
+                      "Philly",
+                      "DC"
+                    ]
+                  },
+                  "location_factor": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "work_type": {
+                    "type": "string",
+                    "enum": [
+                      "commercial",
+                      "residential",
+                      "industrial",
+                      "healthcare"
+                    ]
+                  },
+                  "work_factor": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "confirmed": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "source",
+                  "carry"
+                ]
+              }
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_general_conditions",
+        "title": "General conditions",
+        "description": "Builds the general conditions adder from the contractor's figures.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "start_date": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "finish_date": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "duration_days": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5000
+            },
+            "lines": {
+              "maxItems": 12,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "enum": [
+                      "trailer",
+                      "office",
+                      "cad",
+                      "water",
+                      "supplies",
+                      "supervision"
+                    ]
+                  },
+                  "amount": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "qty": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "rate": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "confirmed": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "key"
+                ]
+              }
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_requirements",
+        "title": "Special requirements",
+        "description": "Lists third-party and special requirements and keeps them out of labor and material.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "findings": {
+              "maxItems": 80,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "consultants",
+                      "testing",
+                      "arborist",
+                      "specialty_report",
+                      "permits",
+                      "special_safety",
+                      "site_safety",
+                      "scheduler",
+                      "security"
+                    ]
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "source_type": {
+                    "type": "string",
+                    "enum": [
+                      "sheet",
+                      "spec",
+                      "contract"
+                    ]
+                  },
+                  "source_ref": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "citation": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "kind",
+                  "title",
+                  "source_type",
+                  "source_ref",
+                  "citation"
+                ]
+              }
+            },
+            "prices": {
+              "maxItems": 80,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "maxLength": 12
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "consultants",
+                      "testing",
+                      "arborist",
+                      "specialty_report",
+                      "permits",
+                      "special_safety",
+                      "site_safety",
+                      "scheduler",
+                      "security"
+                    ]
+                  },
+                  "source_ref": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "amount": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "confirmed": {
+                    "type": "boolean"
+                  },
+                  "placement": {
+                    "type": "string",
+                    "enum": [
+                      "gc",
+                      "own_line"
+                    ]
+                  },
+                  "excluded": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_bid_summary",
+        "title": "Bid summary",
+        "description": "Compounds overhead and profit and returns the bid total for a job.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "overhead_pct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "profit_pct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
         "name": "email_draft",
         "title": "Show an email draft for review",
         "description": "Shows an email draft for review.",

@@ -1,6 +1,13 @@
 // Estimating tools. Athena keeps the record and the math. The host reads the sheets.
 // Quantity labels are MEASURED (spec READ: straight off a sheet) and DEDUCED (spec DERIVED: computed here).
 import { ALERT_COLOR, ALERT_HEX } from "./alert-color";
+import {
+  bytesToBase64,
+  groupedCsv,
+  takeoffCard,
+  takeoffXlsx,
+  type SheetRow,
+} from "./estimating-sheet";
 import { ATHENA_SERVER_ICONS } from "./server-info-branding";
 import { money } from "./sov";
 
@@ -12,7 +19,7 @@ export const ESTIMATE_LOGO_URL =
 
 /** Server instructions. No hex: the instruction source check rejects a color code there. */
 export const ESTIMATE_SERVER_RULE =
-  " Takeoff quantities are MEASURED or DEDUCED. MEASURED is straight off a sheet (READ). DEDUCED is computed (DERIVED): multiply the MEASURED inputs, show the math, and cite the sheet and the detail or grid. Leave a quantity blank only when one named input is missing on every sheet. A vendor or shop-drawing note is not a reason for a blank. Addenda override the base documents. Do not invent quantities, dimensions, unit prices or vendor numbers. Every estimating report (takeoff, Estimate Analysis, estimator loop, Estimate Summary) is landscape, 17 by 11 inches, with the Athena logo at the top right. Portrait only if the member asks. Red only for risks and gaps that hold up the bid. Questions go back to the estimator. Do not price until the takeoff is settled, and never supply a typical unit price.";
+  " Takeoff quantities are MEASURED or DEDUCED. MEASURED is straight off a sheet (READ). DEDUCED is computed (DERIVED): multiply the MEASURED inputs, show the math, and cite the sheet and the detail or grid. Leave a quantity blank only when one named input is missing on every sheet. A vendor or shop-drawing note is not a reason for a blank. Addenda override the base documents. Do not invent quantities, dimensions, unit prices or vendor numbers. Every estimating report (takeoff, Estimate Analysis, estimator loop, Estimate Summary, bid summary) is landscape, 17 by 11 inches, with the Athena logo at the top right. Portrait only if the member asks. Red only for risks and gaps that hold up the bid. Questions go back to the estimator. Do not price a final bid until the takeoff is settled. A rate is the contractor's own figure, or a PLACEHOLDER the contractor supplies and then confirms. Do not attribute a number to RSMeans, NECA, SMACNA or MCAA, and do not reproduce their tables. Special requirements stay out of construction labor and material. Overhead is applied first, then profit on top. The bid summary shows direct cost, general conditions, special requirements, overhead and profit, and the total.";
 
 export const ESTIMATE_QUANTITY_REQUIRED = [
   "REQUIRED: Quantities are MEASURED or DEDUCED. Compute every DEDUCED quantity from the MEASURED inputs and show the math and the sheet. Leave a quantity blank only when one named input is missing on every sheet.",
@@ -1190,6 +1197,8 @@ export function renderTakeoff(
     ),
   ];
   const checklist = state.checklist.filter((c) => c.state !== "not used");
+  const sheetRows = sheetFrom(rows);
+  const grouped = groupedCsv(sheetRows);
   const text = frame("Takeoff", [
     `${job} · Takeoff`,
     coverageLine(linesIn),
@@ -1210,6 +1219,14 @@ export function renderTakeoff(
     "One fact each",
     "- Contact area is listed ahead of concrete and reinforcing.",
     "- A markup image is included only when a line names one.",
+    "",
+    ...takeoffCard(sheetRows),
+    "",
+    "Spreadsheet",
+    "```",
+    grouped,
+    "```",
+    "Next move: settle open lines, then send production and rates for labor.",
   ]);
   return {
     text,
@@ -1222,15 +1239,34 @@ export function renderTakeoff(
         ...r,
         basis_label: r.basis,
         spec_term: r.basis === "MEASURED" ? "READ" : r.basis === "DEDUCED" ? "DERIVED" : null,
+        verify: r.status === "open" || r.holdsBid || r.confidence === "low" || Boolean(r.missing),
       })),
       checklist: state.checklist,
       settled: state.settled,
+      spreadsheet: { grouped_csv: grouped, xlsx_base64: bytesToBase64(takeoffXlsx(sheetRows)) },
     },
     guidance: [
+      "Show the takeoff card grouped by trade or system, with MEASURED or DEDUCED and a Verify flag. Offer the CSV and the xlsx from spreadsheet.",
       "Show basis_label. READ means MEASURED. DERIVED means DEDUCED.",
-      "Do not price from this takeoff until settled is true.",
+      "Do not price a final bid from this takeoff until settled is true.",
     ],
   };
+}
+
+function sheetFrom(rows: SettledView[]): SheetRow[] {
+  return rows.map((r) => ({
+    group: (r.trade || r.element || "General").trim() || "General",
+    ref: r.ref,
+    item: r.title,
+    unit: r.unit ?? "",
+    qty: r.qty == null ? "" : showQty(r.qty, r.unit),
+    basis: r.basis ?? "",
+    verify:
+      r.status === "open" || r.holdsBid || r.confidence === "low" || r.missing ? "Verify" : "",
+    math: r.math ?? "",
+    sheet: cite(r.sheet, r.detail),
+    spec: r.spec ?? "",
+  }));
 }
 
 function takeoffNarrative(lines: StoredLine[], state: ReturnType<typeof settle>): string {
@@ -1700,13 +1736,32 @@ export function renderExport(
     ),
   ].join("\n");
   const body = format === "csv" ? simple : book;
+  const groupedRows: SheetRow[] = ordered.map((l) => ({
+    group: (l.trade || l.element || "General").trim() || "General",
+    ref: `T-${l.line_no}`,
+    item: l.item,
+    unit: l.unit ?? "",
+    qty: l.qty == null ? "" : showQty(l.qty, l.unit),
+    basis: basisLabel(l.basis),
+    verify: l.qty == null || l.confidence === "low" || Boolean(l.missing_input) ? "Verify" : "",
+    math: l.math,
+    sheet: cite(l.sheet, l.detail),
+    spec: l.spec_section ?? "",
+  }));
+  const grouped = groupedCsv(groupedRows);
   return {
     text: frame("Takeoff", [
       `${job} · Takeoff export`,
       coverageLine(lines),
+      ...takeoffCard(groupedRows),
       "",
       "```",
       body,
+      "```",
+      "",
+      "Grouped spreadsheet",
+      "```",
+      grouped,
       "```",
     ]),
     structured: {
@@ -1715,8 +1770,11 @@ export function renderExport(
       format,
       csv: simple,
       workbook: book,
+      spreadsheet: { grouped_csv: grouped, xlsx_base64: bytesToBase64(takeoffXlsx(groupedRows)) },
     },
-    guidance: ["Build the sheet from this text. Do not add a quantity that is blank here."],
+    guidance: [
+      "Build the sheet from this text. Do not add a quantity that is blank here. The xlsx bytes are on spreadsheet.",
+    ],
   };
 }
 

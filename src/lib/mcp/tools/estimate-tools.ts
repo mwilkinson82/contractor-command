@@ -1,6 +1,7 @@
 // Estimating role. Same gate as the other tools: run() checks auth, the call cap and the membership entitlement.
 import { ToolError, defineTool, type JsonValueInput } from "@lovable.dev/mcp-js";
 import { z } from "zod";
+import { requirementGaps, scanProject } from "../estimating-bid";
 import {
   ESTIMATE_QUANTITY_REQUIRED,
   ESTIMATE_VIEW_SPEC,
@@ -466,9 +467,20 @@ export const estimateGapAnalysis = defineTool({
         const job = await resolveJob(sb, args.job_number, args.company_id, "write");
         const prior = await load(sb, job.job_id);
         const implied = autoGaps(prior.lines, prior.setup.doc_review?.pairs ?? []);
+        let clauses: { section: string; verbatim_text: string }[] = [];
+        const cq = await sb
+          .from("mcp_contract_clauses")
+          .select("section, verbatim_text")
+          .eq("job_id", job.job_id);
+        if (!cq.error && Array.isArray(cq.data))
+          clauses = cq.data as { section: string; verbatim_text: string }[];
+        const found = requirementGaps(
+          scanProject({ setup: prior.setup, clauses }),
+          prior.setup.role,
+        );
         const merged = assignGapRefs(
           prior.gaps,
-          dedupeGaps([...(args.items as GapIn[]), ...implied]),
+          dedupeGaps([...(args.items as GapIn[]), ...implied, ...found]),
         );
         const gaps = prepareGaps(merged);
         await rpc(sb, "mcp_estimate_gaps_save", { _job: job.job_id, _items: gaps });
