@@ -2,6 +2,11 @@
 import { IOR_VIEW_SPEC, PAY_APP_VIEW_SPEC, PORTFOLIO_VIEW_SPEC } from "../views";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
+import { PERMANENT_LINK_ASK, type ReportPage } from "../../report-pages";
+
+/** Which permanent page a living report maps to (0.8.14). Dashboard → company portfolio is offered separately. */
+const pageFor = (type: string, scope: string | undefined): ReportPage | null =>
+  type === "cpm" && (scope === "full" || scope === "super") ? "schedule" : type === "ior" && scope === "full" ? "ior" : null;
 import { dbError, run, text, type Sb } from "../guard";
 import { FULL_ACCESS_MESSAGE, READ_ONLY_MESSAGE, audit, prefix, resolveJob, type Job } from "../jobs";
 import { SovMismatch, buildSov, money } from "../sov";
@@ -181,6 +186,7 @@ export const livingReportGet = defineTool({
           structuredContent: { found: true, report_type: type, version: g.version, data_date: g.data_date ?? null, updated_at: g.updated_at ?? null, updated_by: g.updated_by_name ?? null, contract_completion_date: g.contract_completion_date ?? null, tie, data: data as never, change_log: g.change_log ?? [], no_financials: job.scope !== "full" },
         },
         `Say "Picked up v${g.version}${g.updated_by_name ? `, last updated by ${g.updated_by_name}` : ""}." For a view-only ask, build a NEW private view or artifact from structuredContent.data in the same layout; never update or replace the saved shared master or an existing shared artifact. Only when the user explicitly asks to update or save it, confirm first, then to save the update ask "${LIVING_SAVE_ASK}" and only after a yes call living_report_save with base_version ${g.version}.`,
+        ...(pageFor(type, job.scope) ? [`After you show the ${label}, ask once: "${PERMANENT_LINK_ASK}" On a yes, call report_page_link with page ${pageFor(type, job.scope)} and give the member the link it returns. Never make a share link unless they ask.`] : []),
       );
     }),
 });
@@ -243,6 +249,8 @@ export const livingReportSave = defineTool({
           structuredContent: { saved: true, report_type: type, version: r.version, count_check: chk.count, tie: chk.tie },
         },
         `Update the view's header to v${r.version} with the Last updated stamp and remove "Draft: not saved".`,
+        ...(pageFor(type, job.scope) ? [`Then ask once: "${PERMANENT_LINK_ASK}" On a yes, call report_page_link with page ${pageFor(type, job.scope)}.`] : []),
       );
     }),
 });
+

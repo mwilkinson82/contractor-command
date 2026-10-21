@@ -40,7 +40,7 @@ describe("0.8.2 SOV delivery step", () => {
     expect(SOV_DELIVERY_BLOCK).toContain("Claude: no narration");
     expect(SOV_DELIVERY_BLOCK).toContain("Never hold the card back while you ask.");
   });
-  it("version is 0.8.6", () => expect(ATHENA_VERSION).toBe("0.8.12"));
+  it("version is 0.8.6", () => expect(ATHENA_VERSION).toBe("0.8.14"));
 });
 
 describe("0.8.2 cost codes and spec sections on SOV lines", () => {
@@ -69,3 +69,4 @@ describe("0.8.2 cost codes and spec sections on SOV lines", () => {
     expect(sovSummaryText("", sov, BRAND, "Exhibit B", [], "internal").trim().split("\n").pop()).toBe("Total | | | Contract sum | $1,400,000.00 | 100.00%");
   });
 });
+
