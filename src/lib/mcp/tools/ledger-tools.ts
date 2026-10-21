@@ -17,9 +17,9 @@ const money = z.union([z.number(), z.string()]);
 
 type Stored = { version: number; at: string | null; by: string | null; contract_sum: number; estimate_total: number; retainage_held: number; lines: LedgerLine[]; import: { rows: CostRow[]; control_total: number; source: string } | null };
 
-async function stored(sb: Sb, job: Job): Promise<Stored | null> { return rpcSoft<Stored>(sb, "mcp_ledger_get", { _job: job.job_id }); }
+export async function stored(sb: Sb, job: Job): Promise<Stored | null> { return rpcSoft<Stored>(sb, "mcp_ledger_get", { _job: job.job_id }); }
 
-async function compute(sb: Sb, job: Job, s: Pick<Stored, "contract_sum" | "estimate_total" | "retainage_held" | "lines" | "import">) {
+export async function compute(sb: Sb, job: Job, s: Pick<Stored, "contract_sum" | "estimate_total" | "retainage_held" | "lines" | "import">) {
   const cert = (await payAppsFor(sb, job)).filter((a) => a.certified).sort((a, b) => b.app_no - a.app_no)[0];
   return ledgerMath({ contract_sum: s.contract_sum, estimate_total: s.estimate_total, lines: s.lines, costs: s.import?.rows ?? [], import_control_total: s.import?.control_total ?? 0, certified_billed_to_date: cert?.g702.l4 ?? 0, certified_retainage: cert?.g702.l5 ?? 0, retainage_held: s.retainage_held });
 }
