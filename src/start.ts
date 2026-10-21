@@ -53,6 +53,13 @@ const csrfOriginGuard = createMiddleware().server(async ({ next, request }) => {
     return next();
   }
 
+  // /mcp authenticates with OAuth bearer tokens (not cookies) and enforces its
+  // own origin allow-list in @lovable.dev/mcp-js, so browser MCP clients such
+  // as Cursor's web agents must be able to POST cross-site.
+  if (url.pathname === "/mcp" || url.pathname.startsWith("/mcp/")) {
+    return next();
+  }
+
   // Sec-Fetch-Site is set by all modern browsers and cannot be forged by
   // cross-site attackers. Trust it as the primary signal.
   const fetchSite = request.headers.get("sec-fetch-site");
