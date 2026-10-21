@@ -7,7 +7,9 @@ import { sendTransactionalEmail } from "@/lib/email/send";
 import { requestMemberMagicLink } from "@/lib/magic-link.functions";
 
 import { oauthReturnPath, oauthConsentReturn } from "@/lib/oauth-return-path";
-import { onAthenaHost } from "@/lib/athena-host-current";
+import { onAthenaHost, currentHostname } from "@/lib/athena-host-current";
+import { isLovableHost } from "@/lib/athena-host";
+import { normalizeOtpCode } from "@/lib/login-otp";
 import { loginCopy } from "@/lib/login-copy";
 import { boundedStep } from "@/lib/consent-loading";
 
@@ -17,7 +19,7 @@ export const Route = createFileRoute("/login")({
   // Context typed loosely to avoid a circular inference with validateSearch.
   head: (ctx: { match?: { search?: unknown } }) => {
     const redirectTo = (ctx.match?.search as { redirect?: string } | undefined)?.redirect;
-    if (onAthenaHost() || oauthConsentReturn(redirectTo)) {
+    if (onAthenaHost() || isLovableHost(currentHostname()) || oauthConsentReturn(redirectTo)) {
       return { meta: [{ title: "Sign in — Athena" }, { name: "robots", content: "noindex, nofollow" }] };
     }
     return {
@@ -59,6 +61,7 @@ function LoginPage() {
   const [mode, setMode] = useState<"magic" | "password">("magic");
   const [magicRequested, setMagicRequested] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [code, setCode] = useState("");
 
   function requestMagicLinkWithTimeout(emailAddress: string) {
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -109,6 +112,29 @@ function LoginPage() {
     }
   }
 
+  // v0.8.19: finish the connect in this same tab with the code from the email,
+  // so a phone never has to switch tabs, browsers or hosts.
+  async function onCodeSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    const token = normalizeOtpCode(code);
+    if (busy || !token) {
+      setErr("Enter the code from the email.");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      const { error } = await boundedStep("session", () =>
+        supabase.auth.verifyOtp({ email: email.trim(), token, type: "email" }),
+      );
+      if (error) throw error;
+      window.location.assign(redirectTo ?? "/");
+    } catch {
+      setErr("That code didn't work. Use the newest email, or tap the link in it.");
+      setBusy(false);
+    }
+  }
+
   async function onPasswordSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (busy || !isHydrated) return;
@@ -136,7 +162,8 @@ function LoginPage() {
     setBusy(false);
   }
 
-  const athenaBrand = fromConnect || onAthenaHost();
+  // The lovable.app host only serves Athena connects; never show the Hub brand there.
+  const athenaBrand = fromConnect || onAthenaHost() || isLovableHost(currentHostname());
   const copy = loginCopy({ athena: athenaBrand, fromConnect, magicRequested, email });
 
   return (
@@ -151,6 +178,21 @@ function LoginPage() {
             Check your inbox and spam folder. Open the newest email only; each secure link works
             once.
           </div>
+          {fromConnect && (
+            <form onSubmit={onCodeSubmit} className="mt-5 space-y-4">
+              <AuthField
+                id="otp"
+                label="Or type the code from the email"
+                type="text"
+                value={code}
+                onChange={setCode}
+                placeholder="123456"
+                required
+              />
+              {err && <p className="text-[12px] text-[color:var(--danger-warm)]">{err}</p>}
+              <AuthSubmit busy={busy} label="Continue" busyLabel="Checking code" />
+            </form>
+          )}
           <button
             type="button"
             className="mx-auto mt-5 block text-[12px] font-medium text-clay hover:underline"
