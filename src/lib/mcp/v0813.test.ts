@@ -1,0 +1,146 @@
+import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { ATHENA_VERSION } from "./server-info-branding";
+import { CADENCE_FACT_KEY, CADENCE_ITEMS, CADENCE_SETUP_SPEC, NEXT_MOVES, NEXT_MOVE_CHOICES, NEXT_MOVE_RULE, cadenceCardLines, nextCadenceDate, nextCadenceItem, nextMoveGuidance, withNextMove, type CoachStep } from "./coach";
+import { FIELD_UPDATE_QUESTIONS, MORNING_BRIEFING_RULE, MORNING_BRIEFING_VIEW_SPEC, MORNING_CHECKIN_RULE, isMorningAsk, stripDollars, todaysActivities, visibleForRole } from "./morning";
+import { GREETING_RULE } from "./greeting";
+import { guide } from "./visible";
+import { coachStepFor } from "./tools/living-tools";
+import { jobCadence, jobCadenceReminders } from "./tools/cadence-tools";
+import { morningBriefing } from "./tools/morning-tools";
+
+const src = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8");
+const manifest = JSON.parse(readFileSync(".lovable/mcp/manifest.json", "utf8")) as { mcp: { tools: { name: string; annotations: Record<string, boolean> }[] } };
+const ALL_TEXT = [NEXT_MOVE_RULE, ...CADENCE_SETUP_SPEC, ...Object.values(NEXT_MOVES).flatMap((m) => [m.action, m.why]), ...MORNING_BRIEFING_VIEW_SPEC, MORNING_CHECKIN_RULE, GREETING_RULE].join("\n");
+
+describe("0.8.13 version", () => {
+  it("is 0.8.13", () => expect(ATHENA_VERSION).toBe("0.8.13"));
+});
+
+describe("0.8.13 next move card", () => {
+  const steps: CoachStep[] = ["setup", "cpm", "sov", "notice", "pay_app", "ior", "tia", "briefing"];
+  it("every step has one action and a why", () => {
+    for (const s of steps) {
+      expect(NEXT_MOVES[s].action.length).toBeGreaterThan(5);
+      expect(NEXT_MOVES[s].why).toMatch(/^we should .+ so /);
+    }
+  });
+  it("rule: one card, two choices, no action without a yes", () => {
+    expect(NEXT_MOVE_RULE).toContain('ONE styled "Next move" card');
+    expect(NEXT_MOVE_CHOICES).toEqual(["Yes, let's do it", "Not now"]);
+    expect(NEXT_MOVE_RULE).toContain("Never create reminders, send emails or save anything without a clear yes.");
+    expect(NEXT_MOVE_RULE).toContain("Athena directs; your AI does the work.");
+  });
+  it("is in the server instructions", () => expect(src("./index.ts")).toContain("NEXT_MOVE_RULE"));
+  it("withNextMove adds structured data and guidance, keeps prior guidance", () => {
+    const r = withNextMove(guide({ content: [{ type: "text" as const, text: "x" }] }, "prior"), "sov", guide) as unknown as { structuredContent: { next_move: { step: string }; assistant_guidance: string[] } };
+    expect(r.structuredContent.next_move.step).toBe("sov");
+    expect(r.structuredContent.assistant_guidance[0]).toBe("prior");
+    expect(r.structuredContent.assistant_guidance.join("\n")).toContain("Why it matters: we should cost-load");
+  });
+  it("cpm next move carries the cadence setup", () => {
+    expect(nextMoveGuidance("cpm").join("\n")).toContain("JOB CADENCE SETUP");
+    expect(nextMoveGuidance("sov").join("\n")).not.toContain("JOB CADENCE SETUP");
+  });
+  it("wired into setup, CPM, SOV, notices, pay app, IOR and TIA results", () => {
+    const w = src("./tools/workflow-tools.ts");
+    for (const s of ['"setup", guide', '"sov", guide', '"notice", guide']) expect(w).toContain(s);
+    expect(coachStepFor("cpm", {})).toBe("cpm");
+    expect(coachStepFor("cpm", { tia: { fragnet: "D1060" } } as never)).toBe("tia");
+    expect(coachStepFor("billing_forecast")).toBe("pay_app");
+    expect(coachStepFor("ior")).toBe("ior");
+    expect(coachStepFor("dashboard")).toBeNull();
+  });
+});
+
+describe("0.8.13 job cadence", () => {
+  it("six items in order with defaults", () => {
+    expect(CADENCE_ITEMS.map((i) => i.key)).toEqual(["pm_meeting", "lookahead_day", "daily_update_time", "morning_briefing_time", "pay_app_dates", "update_cycle"]);
+    expect(CADENCE_ITEMS.map((i) => i.default)).toEqual(["Tue 10:00", "Thu, issued to subs Fri", "4:00 PM daily", "7:00 AM workdays", "From the contract (pencil draft day, cutoff, submission day)", "Monthly, data date = pay app cutoff"]);
+  });
+  it("asks one at a time", () => {
+    expect(nextCadenceItem({})!.key).toBe("pm_meeting");
+    expect(nextCadenceItem({ pm_meeting: "Tue 10:00", lookahead_day: "Thu" })!.key).toBe("daily_update_time");
+    expect(nextCadenceItem(Object.fromEntries(CADENCE_ITEMS.map((i) => [i.key, i.default])))).toBeNull();
+  });
+  it("card lists all six", () => {
+    const l = cadenceCardLines({ pm_meeting: "Tue 10:00" });
+    expect(l[0]).toBe("Job cadence");
+    expect(l).toHaveLength(7);
+    expect(l[2]).toContain("not set");
+  });
+  it("reuses job facts, no new table", () => {
+    expect(CADENCE_FACT_KEY).toBe("job_cadence");
+    const c = src("./tools/cadence-tools.ts");
+    expect(c).toContain('"mcp_set_facts"');
+    expect(c).toContain('_module: "scope"');
+    expect(c).toContain('"mcp_add_item"');
+  });
+  it("next reminder date", () => {
+    expect(nextCadenceDate("Tue 10:00", "2026-10-20")).toBe("2026-10-27");
+    expect(nextCadenceDate("Thu, issued to subs Fri", "2026-10-20")).toBe("2026-10-22");
+    expect(nextCadenceDate("4:00 PM daily", "2026-10-23")).toBe("2026-10-26");
+  });
+  it("reminders need an explicit yes and are ask-first", () => {
+    expect(jobCadenceReminders.name).toBe("job_cadence_reminders");
+    const t = manifest.mcp.tools.find((x) => x.name === "job_cadence_reminders")!;
+    expect(t.annotations.destructiveHint).toBe(true);
+    expect(src("./tools/cadence-tools.ts")).toContain('approved: z.literal(true)');
+    expect(manifest.mcp.tools.find((x) => x.name === "job_cadence")!.annotations.destructiveHint).toBe(false);
+    expect(jobCadence.name).toBe("job_cadence");
+  });
+  it("morning briefing time offers the daily check-in only on a yes", () => {
+    expect(CADENCE_SETUP_SPEC.join("\n")).toContain(MORNING_CHECKIN_RULE);
+    expect(MORNING_CHECKIN_RULE).toContain("Only on a clear yes");
+  });
+});
+
+describe("0.8.13 morning briefing", () => {
+  it("good morning triggers it; bare hi/hey/hello stays the short greeting", () => {
+    for (const s of ["good morning", "Athena, good morning", "Good morning Athena", "morning briefing"]) expect(isMorningAsk(s)).toBe(true);
+    for (const s of ["Hi Athena", "Hey Athena", "Hello Athena"]) expect(isMorningAsk(s)).toBe(false);
+    expect(GREETING_RULE).toContain('bare "Hi Athena", "Hey Athena" or "Hello Athena"');
+    expect(GREETING_RULE).not.toMatch(/"Good morning" and similar/);
+    expect(GREETING_RULE).toContain(MORNING_BRIEFING_RULE);
+    expect(MORNING_BRIEFING_RULE).toContain("Athena, good morning");
+  });
+  it("read-only tool, registered", () => {
+    expect(morningBriefing.name).toBe("morning_briefing");
+    const t = manifest.mcp.tools.find((x) => x.name === "morning_briefing")!;
+    expect(t.annotations.readOnlyHint).toBe(true);
+    const m = src("./tools/morning-tools.ts");
+    expect(m).toContain('"mcp_job_scope"');
+    expect(m).not.toMatch(/\.(insert|update|upsert|delete)\(/);
+    expect(src("./index.ts")).toContain("morningBriefing");
+  });
+  it("view has all sections in order, email read-only via the host", () => {
+    const v = MORNING_BRIEFING_VIEW_SPEC.join("\n");
+    const order = ["Today's top 3", "Overdue items and risks", "Overnight emails", "Today on the lookahead", "Inspections and deliveries", "RFIs and submittals", "countdown chip", "field updates"];
+    let at = -1;
+    for (const o of order) { const i = v.indexOf(o); expect(i).toBeGreaterThan(at); at = i; }
+    expect(v).toContain("read-only");
+    expect(v).toContain("Never send anything.");
+    expect(FIELD_UPDATE_QUESTIONS).toHaveLength(3);
+  });
+  it("role scope: PMs only their jobs, no dollars outside full scope", () => {
+    const jobs = [{ id: "a", pm_user_id: "me" }, { id: "b", pm_user_id: "x" }];
+    expect(visibleForRole(jobs, "pm", "me").map((j) => j.id)).toEqual(["a"]);
+    expect(visibleForRole(jobs, "owner", "me")).toHaveLength(2);
+    expect(visibleForRole(jobs, "pm", null)).toHaveLength(0);
+    expect(stripDollars("Pay app $1,400,000.00 due")).toBe("Pay app [amount withheld] due");
+  });
+  it("today's activities", () => {
+    const a = todaysActivities([{ id: "A1", name: "Pour", start: "2026-10-21", finish: "2026-10-23", critical: true }, { id: "A2", name: "Paint", start: "2026-10-01", finish: "2026-10-21", critical: false }, { id: "A3", name: "X", start: "2026-11-01", finish: null, critical: null }], "2026-10-21");
+    expect(a).toEqual([{ id: "A1", name: "Pour", event: "starts", critical: true }, { id: "A2", name: "Paint", event: "finishes", critical: false }]);
+  });
+});
+
+describe("0.8.13 house rules", () => {
+  it("palette, wording, no vendor names", () => {
+    expect(ALL_TEXT).toContain("fragnet");
+    expect(ALL_TEXT).not.toMatch(/orange|Lovable|Supabase/i);
+    expect(ALL_TEXT.replace(/Never call Athena's guidance "prompts"/g, "")).not.toMatch(/prompt/i);
+    expect(ALL_TEXT).toMatch(/navy/);
+    expect(ALL_TEXT).toContain("#2563EB");
+  });
+});

@@ -6,6 +6,7 @@ import { dbError, run, text, type Sb } from "../guard";
 import { FULL_ACCESS_MESSAGE, READ_ONLY_MESSAGE, audit, prefix, resolveJob, type Job } from "../jobs";
 import { SovMismatch, buildSov, money } from "../sov";
 import { guide } from "../visible";
+import { withNextMove, type CoachStep } from "../coach";
 import {
   CPM_REQUIRED_TOP, LIVING_LABEL, LIVING_REPORT_TYPES, LIVING_REQUIRED_TOP, LIVING_SAVE_ASK, TIED_TYPES,
   activityLine, checkSave, costLoadTotal, countCheck, earnedToDate, isOwnerFurnished, ownerFurnishedWithValue, stripMoney, tieCheck, tiaResult,
@@ -19,6 +20,10 @@ const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
 const READ = { readOnlyHint: true, openWorldHint: false } as const;
 // Ask-first: ChatGPT and Claude confirm destructive tools with the member before calling.
 const SAVE = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false } as const;
+/** 0.8.13: which next move follows this report (none for the PM dashboard). */
+export const coachStepFor = (type: LivingReportType, data?: LivingData | null): CoachStep | null =>
+  type === "cpm" ? (data && (data as { tia?: unknown }).tia ? "tia" : "cpm") : type === "billing_forecast" ? "pay_app" : type === "ior" ? "ior" : null;
+const coach = <R,>(r: R, step: CoachStep | null): R => (step ? withNextMove(r, step, guide) : r);
 const reportType = z.enum(LIVING_REPORT_TYPES).describe("cpm (cost-loaded CPM), billing_forecast, ior or dashboard.");
 
 const activity = z.object({
@@ -175,13 +180,13 @@ export const livingReportGet = defineTool({
       const ft = g.forecast_total ?? null;
       const tie = job.scope === "full" && TIED_TYPES.includes(type) && ft !== null ? tieCheck(Number(ft), contract) : null;
       const log = logLines(g);
-      return guide(
+      return coach(guide(
         {
           ...text([LIVING_REQUIRED_TOP, `${prefix(job)}${job.name} · ${label}`, stamp(g), ...(tie ? [`Tie: ${tie.line}`] : []), ...(type === "billing_forecast" && job.scope === "full" ? PAY_APP_VIEW_SPEC : []), ...(type === "ior" && job.scope === "full" ? IOR_VIEW_SPEC : []), ...(type === "dashboard" && job.scope === "full" ? PORTFOLIO_VIEW_SPEC : []), "", "Change log (latest 5):", ...(log.length ? log : ["- None yet."])].join("\n")),
           structuredContent: { found: true, report_type: type, version: g.version, data_date: g.data_date ?? null, updated_at: g.updated_at ?? null, updated_by: g.updated_by_name ?? null, contract_completion_date: g.contract_completion_date ?? null, tie, data: data as never, change_log: g.change_log ?? [], no_financials: job.scope !== "full" },
         },
         `Say "Picked up v${g.version}${g.updated_by_name ? `, last updated by ${g.updated_by_name}` : ""}." For a view-only ask, build a NEW private view or artifact from structuredContent.data in the same layout; never update or replace the saved shared master or an existing shared artifact. Only when the user explicitly asks to update or save it, confirm first, then to save the update ask "${LIVING_SAVE_ASK}" and only after a yes call living_report_save with base_version ${g.version}.`,
-      );
+      ), coachStepFor(type, g.data ?? null));
     }),
 });
 
@@ -237,12 +242,12 @@ export const livingReportSave = defineTool({
         _what: args.what_changed, _why: args.why ?? null, _who: who, _completion: args.contract_completion_date ?? null, _replace_completion: args.replace_completion_date === true,
       });
       await audit(sb, job, "living_report_save", `save_living_${type}`, r.id);
-      return guide(
+      return coach(guide(
         {
           ...text([`${prefix(job)}${LIVING_LABEL[type]} saved as v${r.version}.`, `What changed since v${args.base_version}: ${args.what_changed}`, ...(chk.count ? [`Count check: ${chk.count.line}`] : []), ...(chk.tie ? [`Tie: ${chk.tie.line}`] : [])].join("\n")),
           structuredContent: { saved: true, report_type: type, version: r.version, count_check: chk.count, tie: chk.tie },
         },
         `Update the view's header to v${r.version} with the Last updated stamp and remove "Draft: not saved".`,
-      );
+      ), coachStepFor(type, next));
     }),
 });

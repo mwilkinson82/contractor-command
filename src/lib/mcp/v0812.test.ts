@@ -10,7 +10,7 @@ const src = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8");
 const ALL_VIEWS = [LOOKAHEAD_VIEW_SPEC, PAY_APP_VIEW_SPEC, REMINDERS_VIEW_SPEC, EMAIL_VIEW_SPEC, IOR_VIEW_SPEC, PORTFOLIO_VIEW_SPEC];
 
 describe("0.8.12 alert color", () => {
-  it("version is 0.8.12", () => expect(ATHENA_VERSION).toBe("0.8.12"));
+  it("version is 0.8.12 or later", () => expect(ATHENA_VERSION).toBe("0.8.13"));
   it("one constant, defaulting to red #DC2626, drives the delay callout", () => {
     expect(ALERT_COLOR).toBe("red #DC2626");
     expect(ALERT_HEX).toBe("#DC2626");
@@ -199,6 +199,6 @@ describe("0.8.12 greeting", () => {
     expect(GREETING_RULE).toContain("Never introduce yourself as Claude, ChatGPT, Grok or any other assistant");
     expect(GREETING_RULE).toContain("Athena directs; your AI does the work.");
     expect(GREETING_RULE.replace('Never call Athena\'s guidance "prompts"', "")).not.toMatch(/prompt/i);
-    expect(src("./index.ts")).toContain('"Athena powered by ALP, construction agents. " + GREETING_RULE + " REQUIRED');
+    expect(src("./index.ts")).toContain('"Athena powered by ALP, construction agents. " + GREETING_RULE + " " + NEXT_MOVE_RULE + " REQUIRED');
   });
 });
