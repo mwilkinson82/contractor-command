@@ -3,5 +3,6 @@ import { paymentTermsSave, retainageRuleSave } from "./accounting-tools";
 import { PAYAPP_TOOLS } from "./payapp-tools";
 import { AR_TOOLS } from "./ar-tools";
 import { LOG_TOOLS } from "./log-tools";
+import { TRANSMITTAL_TOOLS } from "./transmittal-tools";
 
-export const ACCOUNTING_TOOLS = [retainageRuleSave, paymentTermsSave, ...PAYAPP_TOOLS, ...AR_TOOLS, ...LOG_TOOLS];
+export const ACCOUNTING_TOOLS = [retainageRuleSave, paymentTermsSave, ...PAYAPP_TOOLS, ...AR_TOOLS, ...LOG_TOOLS, ...TRANSMITTAL_TOOLS];
