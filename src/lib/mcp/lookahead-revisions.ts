@@ -74,9 +74,12 @@ const inputKeys = (i: Record<string, unknown>) => Object.keys(i ?? {}).filter((k
 export function revisionLines(revs: Revision[]): string[] {
   if (!revs.length) return [];
   const cur = revs[revs.length - 1];
+  // 0.8.21: a revision's window is history ("as sent"). The window in use is the one in the view header, from the saved CPM
+  // data date, so a host never reads an old revision window (2701 Rev 0: Oct 26 - Nov 6) as the current window.
   return [
     "REVISIONS",
     `   Current: Rev ${cur.rev} (source: ${sourceWord(cur)}, ${cur.created_at.slice(0, 10)})`,
-    ...[...revs].reverse().map((r) => `   - Rev ${r.rev}${r === cur ? " (current)" : ""}: source ${sourceWord(r)} | ${r.created_at.slice(0, 10)} | window ${r.start_date ?? "?"} to ${r.end_date ?? "?"} | inputs sent: ${inputKeys(r.inputs)}`),
+    "   The windows below are as sent with each revision (history). The window in use is the one at the top of this report, from the saved CPM data date; never use a revision window as the current window or data date.",
+    ...[...revs].reverse().map((r) => `   - Rev ${r.rev}${r === cur ? " (current)" : ""}: source ${sourceWord(r)} | ${r.created_at.slice(0, 10)} | window as sent ${r.start_date ?? "?"} to ${r.end_date ?? "?"} | inputs sent: ${inputKeys(r.inputs)}`),
   ];
 }

@@ -129,8 +129,11 @@ export function windowActivities(acts: SAct[], start: string, end: string): SAct
     .sort((a, b) => a.start!.localeCompare(b.start!) || a.id.localeCompare(b.id));
 }
 export type LaItem = { action: string; owner?: string | null; due?: string | null };
-const isInspection = (a: SAct) => /inspection|hold point/i.test(a.name);
-const isDelivery = (a: SAct) => /deliver/i.test(a.name);
+// 0.8.21: a marker (INSP/DLV) only for a short event; a long activity that happens to say "deliver" (2701 A1070
+// "Fabricate & deliver generator & ATS", 130 WD) is work and gets a bar, or its row is blank for the whole window.
+const shortEvent = (a: SAct) => (num(a.duration) ?? 0) <= 2;
+const isInspection = (a: SAct) => /inspection|hold point/i.test(a.name) && shortEvent(a);
+const isDelivery = (a: SAct) => /deliver/i.test(a.name) && shortEvent(a);
 const isMilestone = (a: SAct) => num(a.duration) === 0;
 const critical = (a: SAct) => a.critical === true || num(a.total_float) === 0;
 
@@ -273,11 +276,11 @@ export function lookaheadView(v: { title: string; ref: string; start: string; en
   if (!m.rows.length) L.push(`| No saved CPM activities fall in this window | | ${m.days.map(() => "").join(" | ")} |`);
   if (m.overdue.length) {
     L.push("", "### Overdue (red #DC2626)");
-    for (const e of m.overdue) L.push(`> ${RED_MD("OVERDUE")} ${e.label.slice(0, 160)} — Owner: ${e.item.owner ?? "Needed"} · Due ${shortDate(e.item.due!)}.`, "");
+    for (const e of m.overdue) L.push(`> ${RED_MD("OVERDUE")} ${e.label} — Owner: ${e.item.owner ?? "Needed"} · Due ${shortDate(e.item.due!)}.`, "");
   }
   if (m.risks.length) {
     L.push("", "### Risk cards");
-    for (const e of m.risks) L.push(`> 🚩 **${e.label.slice(0, 140)}** — Impact: ${e.a!.id} ${e.a!.name}${num(e.a!.total_float) !== null ? ` (float ${num(e.a!.total_float)} WD)` : ""}. Owner: ${e.item.owner ?? "Needed"} · Due ${e.item.due ? shortDate(e.item.due) : "Needed"}${e.overdue ? " · OVERDUE" : ""}.`, "");
+    for (const e of m.risks) L.push(`> 🚩 **${e.label}** — Impact: ${e.a!.id} ${e.a!.name}${num(e.a!.total_float) !== null ? ` (float ${num(e.a!.total_float)} WD)` : ""}. Owner: ${e.item.owner ?? "Needed"} · Due ${e.item.due ? shortDate(e.item.due) : "Needed"}${e.overdue ? " · OVERDUE" : ""}.`, "");
   }
   if (m.flagged.length) {
     L.push("", "### Dates to check");

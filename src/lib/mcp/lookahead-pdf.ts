@@ -8,6 +8,8 @@ const BLUE: [number, number, number] = [37, 99, 235], GRAY: [number, number, num
 const RED: [number, number, number] = [220, 38, 38], G1: [number, number, number] = [107, 114, 128], G3: [number, number, number] = [209, 213, 219];
 /** Standard PDF fonts are Latin-1: keep dashes and quotes readable, drop anything else (emoji, symbols). */
 export const pdfText = (s: string) => s.replace(/[\u2013\u2014]/g, "-").replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/\u00B7/g, "-").replace(/[^\x20-\x7E\xA0-\xFF]/g, "").replace(/\s+/g, " ").trim();
+/** 0.8.21: "1 risk", "2 risks" (LA-31BE8 said "1 risks"). */
+const plural = (k: number, one: string, many = `${one}s`) => `${k} ${k === 1 ? one : many}`;
 export const lookaheadPdfName = (jobNumber: string, start: string, end: string) => `${jobNumber} Two-Week Lookahead ${start} to ${end}.pdf`.replace(/[\\/:*?"<>|]/g, "-");
 
 export function lookaheadPdf(v: { title: string; ref: string; start: string; end: string; dataDate: string | null; acts: SAct[]; items: LaItem[]; today?: string | null }): Uint8Array {
@@ -22,22 +24,27 @@ export function lookaheadPdf(v: { title: string; ref: string; start: string; end
   d.setFont("helvetica", "normal"); d.setFontSize(10); color(G1);
   d.text(pdfText(`Window ${shortDate(v.start)} - ${shortDate(v.end)}${v.dataDate ? ` - Data date ${shortDate(v.dataDate)}` : ""} - Ref ${v.ref}`), X, y); y += 14;
   const c = m.counts;
-  d.text(pdfText(`${c.activities} activities - ${c.critical} critical - ${c.inspections} inspections - ${c.deliveries} deliveries - ${c.risks} risks - ${c.overdue} overdue${c.flags ? ` - ${c.flags} dates to check` : ""}`), X, y); y += 22;
+  d.text(pdfText(`${plural(c.activities, "activity", "activities")} - ${c.critical} critical - ${plural(c.inspections, "inspection")} - ${plural(c.deliveries, "delivery", "deliveries")} - ${plural(c.risks, "risk")} - ${c.overdue} overdue${c.flags ? ` - ${plural(c.flags, "date to check", "dates to check")}` : ""}`), X, y); y += 22;
 
   d.setFont("helvetica", "bold"); d.setFontSize(11); color(NAVY); d.text("TOP 3 PRIORITIES", X, y); y += 8;
   const cw = (W - 2 * X - 16) / 3;
-  (m.top.length ? m.top : [null]).forEach((t, i) => {
+  // 0.8.21: wrap priority titles in full (LA-31BE8 card 1 was cut at "...exposure from"); every card grows to the tallest one.
+  d.setFont("helvetica", "bold"); d.setFontSize(9);
+  const cards = (m.top.length ? m.top : [null]).map((t, i) => ({ t, lines: d.splitTextToSize(pdfText(`${i + 1}. ${t ? t.label : "No open items in this window"}`), cw - 14) as string[] }));
+  const ch = Math.max(54, ...cards.map(({ t, lines }) => (t?.overdue ? 22 : 13) + lines.length * 10 + 16));
+  newPageIfNeeded(ch + 18);
+  cards.forEach(({ t, lines }, i) => {
     const bx = X + i * (cw + 8);
-    d.setDrawColor(...G3); d.roundedRect(bx, y, cw, 54, 4, 4);
-    d.setFillColor(...(t?.overdue || t?.flags.length ? RED : BLUE)); d.rect(bx, y, 3, 54, "F");
+    d.setDrawColor(...G3); d.roundedRect(bx, y, cw, ch, 4, 4);
+    d.setFillColor(...(t?.overdue || t?.flags.length ? RED : BLUE)); d.rect(bx, y, 3, ch, "F");
     d.setFont("helvetica", "bold"); d.setFontSize(9);
     if (t?.overdue) { color(RED); d.text("OVERDUE", bx + 9, y + 11); }
     color(NAVY);
-    d.text(d.splitTextToSize(pdfText(`${i + 1}. ${t ? t.label : "No open items in this window"}`), cw - 14).slice(0, t?.overdue ? 2 : 3), bx + 9, y + (t?.overdue ? 22 : 13));
+    d.text(lines, bx + 9, y + (t?.overdue ? 22 : 13), { lineHeightFactor: 10 / 9 });
     d.setFont("helvetica", "normal"); d.setFontSize(8); color(t?.overdue ? RED : G1);
-    if (t) d.text(pdfText(`Owner: ${t.item.owner ?? "Needed"} - Due ${t.item.due ? shortDate(t.item.due) : "Needed"}${t.flags.length ? " - date to check" : ""}`), bx + 9, y + 48);
+    if (t) d.text(pdfText(`Owner: ${t.item.owner ?? "Needed"} - Due ${t.item.due ? shortDate(t.item.due) : "Needed"}${t.flags.length ? " - date to check" : ""}`), bx + 9, y + ch - 6);
   });
-  y += 72;
+  y += ch + 18;
 
   d.setFont("helvetica", "bold"); d.setFontSize(11); color(NAVY); d.text("CALENDAR", X, y); y += 14;
   const idW = 52, nameW = 200, flW = 34, gx = X + idW + nameW + flW, dayW = (W - X - gx) / Math.max(m.days.length, 1);
@@ -51,9 +58,17 @@ export function lookaheadPdf(v: { title: string; ref: string; start: string; end
     d.setFont("helvetica", "bold"); d.setFontSize(8); color(NAVY); d.text(pdfText(r.a.id), X, y + 11);
     d.setFont("helvetica", "normal"); d.text(d.splitTextToSize(pdfText(r.a.name), nameW - 6)[0] ?? "", X + idW, y + 11);
     color(Number(r.a.total_float) === 0 ? BLUE : G1); d.text(String(r.a.total_float ?? ""), X + idW + nameW, y + 11);
+    // 0.8.21: ONE continuous rounded bar per run of bar days (Marshall: the per-day blocks looked cut into pieces).
+    for (let i = 0; i < r.cells.length; i++) {
+      const k = r.cells[i].kind;
+      if (k !== "crit" && k !== "non") continue;
+      let j = i; while (j + 1 < r.cells.length && r.cells[j + 1].kind === k) j++;
+      d.setFillColor(...(k === "crit" ? BLUE : GRAY)); d.roundedRect(gx + i * dayW + 1, y + 4, (j - i + 1) * dayW - 2, 9, 3, 3, "F");
+      i = j;
+    }
     r.cells.forEach((cell, i) => {
       const cx = gx + i * dayW;
-      if (cell.kind === "crit" || cell.kind === "non") { d.setFillColor(...(cell.kind === "crit" ? BLUE : GRAY)); d.roundedRect(cx + 1, y + 4, dayW - 2, 9, 2, 2, "F"); }
+      if (cell.kind === "crit" || cell.kind === "non") { /* drawn above as one bar */ }
       else if (cell.kind) { d.setFont("helvetica", "bold"); color(NAVY); d.text(cell.kind === "insp" ? "INSP" : cell.kind === "deliv" ? "DLV" : "MS", cx + 2, y + 11); d.setFont("helvetica", "normal"); }
       if (cell.risk) { d.setFillColor(...RED); d.triangle(cx + dayW - 9, y + 3, cx + dayW - 2, y + 3, cx + dayW - 9, y + 9, "F"); }
     });
@@ -68,6 +83,7 @@ export function lookaheadPdf(v: { title: string; ref: string; start: string; end
 
   const section = (title: string, list: typeof m.entries, red: boolean, lineOf: (e: (typeof m.entries)[number]) => string) => {
     if (!list.length) return;
+    y += 6; // 0.8.21: room above each heading (RISKS sat on the last OVERDUE line)
     newPageIfNeeded(30);
     d.setFont("helvetica", "bold"); d.setFontSize(11); color(NAVY); d.text(title, X, y); y += 12;
     for (const e of list) {
