@@ -15,8 +15,9 @@ vi.mock("@tanstack/react-start", () => ({
     }),
   }),
 }));
+const req = vi.hoisted(() => ({ url: "https://app.alpcontractorcircle.com/login" }));
 vi.mock("@tanstack/react-start/server", () => ({
-  getRequest: () => new Request("https://app.alpcontractorcircle.com/login"),
+  getRequest: () => new Request(req.url),
 }));
 vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: {
@@ -55,6 +56,7 @@ beforeEach(() => {
   });
 });
 afterEach(() => {
+  req.url = "https://app.alpcontractorcircle.com/login";
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.clearAllMocks();
@@ -168,3 +170,25 @@ it.each(["/hub", "https://evil.example/oauth/consent?authorization_id=x", "/oaut
     expect(m.send).not.toHaveBeenCalled();
   },
 );
+
+it("a sign-in started on app.meetathena.io gets the Athena email and lands on the Athena host", async () => {
+  req.url = "https://app.meetathena.io/login";
+  const promise = requestMemberMagicLink({ data: { email: "member@example.test" } });
+  await vi.advanceTimersByTimeAsync(600);
+  await promise;
+  const args = m.send.mock.calls[0][0];
+  expect(args.variant).toBe("athena");
+  expect(args.connecting).toBeUndefined();
+  expect(new URL(args.confirmationUrl).origin).toBe("https://app.meetathena.io");
+  expect(m.generateLink.mock.calls[0][0].options.redirectTo).toBe("https://app.meetathena.io/auth/callback");
+});
+
+it("a consent continuation marks the Athena email as connecting", async () => {
+  vi.stubEnv("OAUTH_CONTINUATION_SECRET", "synthetic-test-secret-at-least-32-characters");
+  const promise = requestMemberMagicLink({
+    data: { email: "member@example.test", continuation: "/oauth/consent?authorization_id=test-request" },
+  });
+  await vi.advanceTimersByTimeAsync(600);
+  await promise;
+  expect(m.send.mock.calls[0][0].connecting).toBe(true);
+});

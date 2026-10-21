@@ -5,6 +5,7 @@ import { AuthCard } from "@/components/auth/auth-card";
 import { oauthReturnPath } from "@/lib/oauth-return-path";
 import { resolveOAuthContinuation } from "@/lib/oauth-continuation.functions";
 import { onAthenaHost } from "@/lib/athena-host-current";
+import { postSignInDefault } from "@/lib/athena-routes";
 
 const CALLBACK_TIMEOUT_MS = 10_000;
 const AUTH_STEP_TIMEOUT_MS = 8_000;
@@ -52,7 +53,9 @@ function AuthCallbackPage() {
   const { redirect } = Route.useSearch();
   const verification = useRef<ReturnType<typeof supabase.auth.verifyOtp> | null>(null);
   const [phase, setPhase] = useState<"checking" | "signed-in" | "expired">("checking");
-  const [continueTo, setContinueTo] = useState(redirect ?? "/");
+  // Athena host lands on /account; the Hub keeps "/".
+  const signedInDefault = postSignInDefault(onAthenaHost());
+  const [continueTo, setContinueTo] = useState(redirect ?? signedInDefault);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,7 +99,7 @@ function AuthCallbackPage() {
       setPhase("expired");
     };
 
-    const finishSignedIn = (destination = redirect ?? "/") => {
+    const finishSignedIn = (destination = redirect ?? signedInDefault) => {
       if (cancelled || settled) return;
       settled = true;
       clearDeadline();
@@ -224,7 +227,7 @@ function AuthCallbackPage() {
       clearDeadline();
       clearNavigation();
     };
-  }, [redirect]);
+  }, [redirect, signedInDefault]);
 
   if (phase === "expired") {
     return (
@@ -250,7 +253,7 @@ function AuthCallbackPage() {
           href={continueTo}
           className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-signal px-5 text-[13px] font-semibold text-ink transition-opacity hover:opacity-90"
         >
-          Continue to command center →
+          {onAthenaHost() ? "Continue to Athena →" : "Continue to command center →"}
         </a>
       </AuthCard>
     );

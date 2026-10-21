@@ -11,6 +11,7 @@ import { z } from "zod";
 import { oauthConsentReturn } from "@/lib/oauth-return-path";
 import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
 import { hubOrigin } from "@/lib/auth-origins";
+import { isAthenaHost } from "@/lib/site-icons";
 
 type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
 
@@ -63,6 +64,14 @@ function appOrigin(): string {
     allowedRequestOrigin(originFromUrl(request?.url));
 
   return requestOrigin ?? fallbackAppOrigin();
+}
+
+function isAthenaOrigin(origin: string): boolean {
+  try {
+    return isAthenaHost(new URL(origin).hostname);
+  } catch {
+    return false;
+  }
 }
 
 function redactEmail(email: string): string {
@@ -217,9 +226,11 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
             ...(continuation && link.properties?.email_otp
               ? { otpCode: String(link.properties.email_otp) }
               : {}),
-            // Presentation only, derived from the validated canonical consent
-            // path after signing. Not proof of client identity.
-            ...(continuation ? { variant: "athena" as const } : {}),
+            // Presentation only: a validated consent continuation, or a sign-in
+            // started on the Athena host, gets the Athena email. Not proof of
+            // client identity; the link and checks are the same for both.
+            ...(continuation || isAthenaOrigin(origin) ? { variant: "athena" as const } : {}),
+            ...(continuation ? { connecting: true } : {}),
           });
           internalAction =
             sendResult.status === "sent"

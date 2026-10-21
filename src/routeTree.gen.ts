@@ -89,6 +89,7 @@ import { Route as ApiPublicOverwatchTierLookupRouteImport } from './routes/api/p
 import { Route as ApiPublicResendCaptureRouteImport } from './routes/api/public/resend/capture'
 import { Route as ApiPublicResendInboundRouteImport } from './routes/api/public/resend/inbound'
 import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api/public/stripe/webhook'
+import { Route as BrandAthenaEmailAthenaMark180DotpngRouteImport } from './routes/brand.athena.email.athena-mark-180[.]png'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
@@ -504,6 +505,12 @@ const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
   path: '/api/public/stripe/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BrandAthenaEmailAthenaMark180DotpngRoute =
+  BrandAthenaEmailAthenaMark180DotpngRouteImport.update({
+    id: '/brand/athena/email/athena-mark-180.png',
+    path: '/brand/athena/email/athena-mark-180.png',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
   id: '/lovable/email/auth/preview',
   path: '/lovable/email/auth/preview',
@@ -619,6 +626,7 @@ export interface FileRoutesByFullPath {
   '/api/public/resend/capture': typeof ApiPublicResendCaptureRoute
   '/api/public/resend/inbound': typeof ApiPublicResendInboundRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
+  '/brand/athena/email/athena-mark-180.png': typeof BrandAthenaEmailAthenaMark180DotpngRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -707,6 +715,7 @@ export interface FileRoutesByTo {
   '/api/public/resend/capture': typeof ApiPublicResendCaptureRoute
   '/api/public/resend/inbound': typeof ApiPublicResendInboundRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
+  '/brand/athena/email/athena-mark-180.png': typeof BrandAthenaEmailAthenaMark180DotpngRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -796,6 +805,7 @@ export interface FileRoutesById {
   '/api/public/resend/capture': typeof ApiPublicResendCaptureRoute
   '/api/public/resend/inbound': typeof ApiPublicResendInboundRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
+  '/brand/athena/email/athena-mark-180.png': typeof BrandAthenaEmailAthenaMark180DotpngRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -886,6 +896,7 @@ export interface FileRouteTypes {
     | '/api/public/resend/capture'
     | '/api/public/resend/inbound'
     | '/api/public/stripe/webhook'
+    | '/brand/athena/email/athena-mark-180.png'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -974,6 +985,7 @@ export interface FileRouteTypes {
     | '/api/public/resend/capture'
     | '/api/public/resend/inbound'
     | '/api/public/stripe/webhook'
+    | '/brand/athena/email/athena-mark-180.png'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -1062,6 +1074,7 @@ export interface FileRouteTypes {
     | '/api/public/resend/capture'
     | '/api/public/resend/inbound'
     | '/api/public/stripe/webhook'
+    | '/brand/athena/email/athena-mark-180.png'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -1146,6 +1159,7 @@ export interface RootRouteChildren {
   ApiPublicResendCaptureRoute: typeof ApiPublicResendCaptureRoute
   ApiPublicResendInboundRoute: typeof ApiPublicResendInboundRoute
   ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
+  BrandAthenaEmailAthenaMark180DotpngRoute: typeof BrandAthenaEmailAthenaMark180DotpngRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
@@ -1716,6 +1730,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/brand/athena/email/athena-mark-180.png': {
+      id: '/brand/athena/email/athena-mark-180.png'
+      path: '/brand/athena/email/athena-mark-180.png'
+      fullPath: '/brand/athena/email/athena-mark-180.png'
+      preLoaderRoute: typeof BrandAthenaEmailAthenaMark180DotpngRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/lovable/email/auth/preview': {
       id: '/lovable/email/auth/preview'
       path: '/lovable/email/auth/preview'
@@ -1869,6 +1890,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicResendCaptureRoute: ApiPublicResendCaptureRoute,
   ApiPublicResendInboundRoute: ApiPublicResendInboundRoute,
   ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
+  BrandAthenaEmailAthenaMark180DotpngRoute:
+    BrandAthenaEmailAthenaMark180DotpngRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,

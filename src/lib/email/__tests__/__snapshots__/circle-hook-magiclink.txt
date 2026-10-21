@@ -1,0 +1,16 @@
+Secure login
+
+Contractor Circle / Secure access
+
+
+YOUR LOGIN LINK
+
+Click the button below to log in to Contractor Circle. This link will expire shortly.
+
+Log in https://qcbbjjjxcacrscfhgfmf.supabase.co/auth/v1/verify?token=inert&type=magiclink&redirect_to=https%3A%2F%2Fapp.alpcontractorcircle.com%2Fauth%2Fcallback
+
+If you didn't request this link, you can safely ignore this email.
+
+Build the company behind the projects.
+
+AN ALP COMMUNITY

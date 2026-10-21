@@ -55,9 +55,10 @@ describe("0.8.8 blue brand, To field, pinned REQUIRED lines, sweep cards", () =>
     expect(src("../login-copy.ts")).toContain("/brand/athena/athena-lockup-blue.svg");
     expect(card).toContain("ATHENA_LOGIN_LOGO");
     expect(card).not.toContain("#B9512C");
-    const mail = src("../email-templates/athena-magic-link.tsx");
-    expect(mail).toContain("athena-mono-blue-512.png");
-    expect(mail).toContain("#2563EB");
+    const mail = src("../email-templates/athena-auth-email.tsx");
+    expect(mail).toContain("app.meetathena.io/brand/athena/email/athena-mark-180.png");
+    expect(mail).toContain("#1E5FED");
+    expect(mail).not.toContain("#B9512C");
   });
   it("email contact: To line first and a To field, filled or asked", () => {
     const none = emailContact(jordan);

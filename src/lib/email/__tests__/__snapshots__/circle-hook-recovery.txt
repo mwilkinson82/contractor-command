@@ -1,0 +1,16 @@
+Account recovery
+
+Contractor Circle / Secure access
+
+
+RESET YOUR PASSWORD
+
+We received a request to reset your password for Contractor Circle. Choose a new password to get back into the Command Center.
+
+Reset password https://qcbbjjjxcacrscfhgfmf.supabase.co/auth/v1/verify?token=inert&type=magiclink&redirect_to=https%3A%2F%2Fapp.alpcontractorcircle.com%2Fauth%2Fcallback
+
+If you didn't request a password reset, you can safely ignore this email. Your password will not be changed.
+
+Build the company behind the projects.
+
+AN ALP COMMUNITY
