@@ -21,14 +21,24 @@ const GATEWAY_SECTIONS = [
   },
 ] as const;
 
-const ATHENA_ACCENTS = {
-  "--color-signal": "#2563EB",
-  "--color-clay": "#2563EB",
-  "--color-primary": "#2563EB",
-  "--color-primary-foreground": "#FFFFFF",
-  "--color-ink": "#FFFFFF",
-  "--color-foreground": "#1F2329",
-  "--color-ring": "rgb(37 99 235 / 0.4)",
+// styles.css uses `@theme inline`, so utilities like bg-signal / text-clay / ring-clay compile to var(--signal),
+// var(--clay), etc. directly. Overriding the --color-* aliases does nothing; the raw tokens must be re-pointed.
+// Custom properties resolve where declared, so --foreground/--primary (defined at :root via var(--ink)) keep
+// their computed values; only direct text-ink/bg-ink uses inside this shell turn white (button labels).
+// Allowed Athena colors: navy, blue, gray; red only for errors and risks.
+export const ATHENA_ACCENTS = {
+  "--signal": "#2563EB",
+  "--clay": "#1D4ED8",
+  "--rail-active": "#2563EB",
+  "--gold": "#2563EB",
+  "--ink": "#FFFFFF",
+  "--primary": "#2563EB",
+  "--primary-foreground": "#FFFFFF",
+  "--accent": "rgb(37 99 235 / 0.1)",
+  "--accent-foreground": "#1D4ED8",
+  "--ring": "rgb(37 99 235 / 0.4)",
+  "--danger-warm": "#B91C1C",
+  "--chart-1": "#2563EB",
 } as React.CSSProperties;
 
 /**
@@ -51,10 +61,10 @@ export function AuthCard({
 }) {
   if (brand === "athena") {
     return (
-      // 0.8.8: Athena blue brand. Accent tokens are re-pointed to #2563EB inside the Athena shell only; the Hub keeps its own.
+      // 0.8.8: Athena blue brand. Raw accent tokens are re-pointed to blue inside the Athena shell only; the Hub keeps its orange.
       <main
         data-brand="athena"
-        className="min-h-screen px-4 py-10 sm:py-16 [&_button[type=submit]:hover]:bg-[#1D4ED8] [&_button[type=submit]:hover]:opacity-100"
+        className="min-h-screen px-4 py-10 sm:py-16 [&_.bg-signal:hover]:bg-[#1D4ED8] [&_.bg-signal:hover]:opacity-100 [&_.bg-primary:hover]:bg-[#1D4ED8]"
         style={{ ...ATHENA_ACCENTS, backgroundColor: C.paleBlue, color: C.ink }}
       >
         <div className="mx-auto w-full max-w-lg">
