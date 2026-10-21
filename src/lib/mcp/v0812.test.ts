@@ -165,3 +165,40 @@ describe("0.8.12 delay callout: WD and CD", () => {
     expect(PORTFOLIO_VIEW_SPEC.join("\n")).toContain("Delayed +X WD (Y CD), always both units");
   });
 });
+
+import { completionDelayLine, jobWorkingDays, tiaResult } from "./living";
+import { GREETING_RULE } from "./greeting";
+describe("0.8.12 completion delay: WD and CD", () => {
+  it("tiaResult states \"Completion delay: +X WD (Y CD)\" from the helpers", () => {
+    const t = tiaResult({ fragnet: "FRAG-01", prior_completion: "2027-06-04", updated_completion: "2027-06-19" })!;
+    // Jun 5–Jun 19 inclusive = 15 CD; Mon–Fri less Juneteenth (observed Fri Jun 18) = 9 WD.
+    expect(t.impact_cd).toBe(15);
+    expect(t.impact_wd).toBe(9);
+    expect(t.completion_delay).toBe("Completion delay: +9 WD (15 CD)");
+    expect(t.statement).toBe("Completion delay: +9 WD (15 CD).");
+    expect(completionDelayLine(9, "2027-06-05", "2027-06-19")).toBe(delayCallout(9, "2027-06-05", "2027-06-19").replace("Delay:", "Completion delay:"));
+  });
+  it("uses the job calendar's holidays when saved", () => {
+    expect(jobWorkingDays("2027-06-05", "2027-06-19", [])).toBe(10);
+    const t = tiaResult({ prior_completion: "2027-06-04", updated_completion: "2027-06-19", holidays: [] })!;
+    expect(t.completion_delay).toBe("Completion delay: +10 WD (15 CD)");
+  });
+  it("D1060 window: 15 WD Nov 27 to Dec 17 (Thanksgiving excluded) = 21 CD", () => {
+    expect(jobWorkingDays("2026-11-27", "2026-12-17")).toBe(15);
+    expect(delayCallout(jobWorkingDays("2026-11-27", "2026-12-17"), "2026-11-27", "2026-12-17")).toBe("Delay: +15 WD (21 CD)");
+  });
+  it("no old CD-only completion wording", () => {
+    expect(src("./living.ts")).not.toContain("Impact pushes completion out");
+  });
+});
+
+describe("0.8.12 greeting", () => {
+  it("answers as Athena with a short ready message, never as the host", () => {
+    expect(GREETING_RULE).toContain('"Hi Athena"');
+    expect(GREETING_RULE).toContain("Welcome back. Athena is ready.");
+    expect(GREETING_RULE).toContain("Never introduce yourself as Claude, ChatGPT, Grok or any other assistant");
+    expect(GREETING_RULE).toContain("Athena directs; your AI does the work.");
+    expect(GREETING_RULE.replace('Never call Athena\'s guidance "prompts"', "")).not.toMatch(/prompt/i);
+    expect(src("./index.ts")).toContain('"Athena powered by ALP, construction agents. " + GREETING_RULE + " REQUIRED');
+  });
+});

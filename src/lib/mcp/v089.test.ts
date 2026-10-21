@@ -90,8 +90,8 @@ describe("0.8.9 CPM activity handoff, tie guard, owner-furnished, living reports
     const t = tiaResult({ fragnet: "FRAG-01", prior_completion: "2027-06-04", updated_completion: "2027-06-19", fragnet_only_completion: "2027-06-11" })!;
     expect(t.impact_cd).toBe(15);
     expect(t.fragnet_only_cd).toBe(8);
-    expect(t.math).toBe("Updated completion Jun 19, 2027 − prior completion Jun 4, 2027 = 15 calendar days. Fragnet-only impact: Jun 19, 2027 − Jun 11, 2027 = 8 CD.");
-    expect(tiaResult({ fragnet: "FRAG-02", prior_completion: "2027-06-04", updated_completion: "2027-06-04" })!.statement).toBe("0 CD: float absorbed it.");
+    expect(t.math).toBe("Updated completion Jun 19, 2027 − prior completion Jun 4, 2027. Fragnet-only impact: Jun 19, 2027 − Jun 11, 2027 = 8 CD.");
+    expect(tiaResult({ fragnet: "FRAG-02", prior_completion: "2027-06-04", updated_completion: "2027-06-04" })!.statement).toBe("Completion delay: +0 WD (0 CD): float absorbed it.");
     expect(tiaResult(null)).toBeNull();
   });
 
@@ -132,7 +132,7 @@ describe("0.8.9 CPM activity handoff, tie guard, owner-furnished, living reports
   it("server wires the three tools and the instructions lead with the CPM rule; palette unchanged (no red)", () => {
     const idx = src("./index.ts");
     expect(idx).toContain("cpmActivities, livingReportGet, livingReportSave, fileShare, fileShareRevoke]");
-    expect(idx).toContain('construction agents. REQUIRED: before drawing or updating a cost-loaded CPM');
+    expect(idx).toContain('construction agents. " + GREETING_RULE + " REQUIRED: before drawing or updating a cost-loaded CPM');
     expect(idx).toContain("never rose, pink or orange");
     expect(idx).toContain("ALERT_PALETTE_RULE");
     expect(idx).not.toMatch(/never red/i);
