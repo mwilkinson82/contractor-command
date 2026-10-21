@@ -13,7 +13,7 @@
   "mcp": {
     "server": {
       "name": "athena",
-      "version": "0.8.14",
+      "version": "0.8.15",
       "title": "Athena powered by ALP, construction agents"
     },
     "tools": [
@@ -1470,6 +1470,174 @@
         "outputSchema": null
       },
       {
+        "name": "job_cadence",
+        "title": "Job cadence",
+        "description": "Read or save the job cadence after the CPM is built: weekly PM/OAC meeting, two-week lookahead day, daily update time, morning briefing time, pay app dates (ONE question with defaults: pay apps due the 25th, billing period ends the last day of the month, OK?) and the schedule update cycle. Ask the six one at a time with the suggested default; save each answer as you go. When all six are set, show the Job cadence card and ask whether to set them up as reminders. Saving the cadence never creates reminders.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "get",
+                "save"
+              ],
+              "description": "get: the saved cadence and the next question. save: record the answers given (any of the six)."
+            },
+            "pm_meeting": {
+              "description": "Weekly PM/OAC meeting day and time, e.g. Tue 10:00.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "lookahead_day": {
+              "description": "Two-week lookahead day, e.g. Thu, issued to subs Fri.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "daily_update_time": {
+              "description": "When daily updates are due from the field, e.g. 4:00 PM daily.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "morning_briefing_time": {
+              "description": "Morning briefing time, e.g. 7:00 AM workdays.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "pay_app_dates": {
+              "description": "Pay app due day and billing period end, as one answer, e.g. Pay apps due the 25th; billing period ends the last day of the month.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "update_cycle": {
+              "description": "Schedule update cycle, e.g. monthly, data date = pay app cutoff.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "job_number",
+            "action"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "job_cadence_reminders",
+        "title": "Set up job cadence reminders (after a yes)",
+        "description": "REQUIRED: ask the PM first and call this only after they say yes to setting up the cadence reminders. Creates one open-item reminder per saved cadence item on the job (already-open reminders are kept, not duplicated). Never call it on your own.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true,
+              "description": "true only after the PM said yes to setting up these reminders."
+            },
+            "delivery": {
+              "description": "calendar (default): you create real recurring calendar events with alerts; ai_reminders: this app's own scheduled task; both. Run the connect check for the calendar first.",
+              "type": "string",
+              "enum": [
+                "calendar",
+                "ai_reminders",
+                "both"
+              ]
+            },
+            "items": {
+              "description": "Only these cadence items; default all six that are saved.",
+              "maxItems": 6,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "pm_meeting",
+                  "lookahead_day",
+                  "daily_update_time",
+                  "morning_briefing_time",
+                  "pay_app_dates",
+                  "update_cycle"
+                ]
+              }
+            }
+          },
+          "required": [
+            "job_number",
+            "approved"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "morning_briefing",
+        "title": "Morning briefing",
+        "description": "Read-only. Call once when the member says \"good morning\" (or \"Athena, good morning\", \"morning briefing\") or the daily check-in fires. Returns, scoped to the caller's role: today's top 3, overdue items and risks, today's lookahead activities, inspections and deliveries, the open RFI and submittal logs (or \"No open RFIs\" / \"No open submittals\"), reminders with countdowns, and the field-update questions. Supers and field roles get no dollars; PMs get only their own jobs. Changes nothing.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false,
+          "idempotentHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "description": "One job; leave out for every job the member can see.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
         "name": "cpm_activities",
         "title": "Full CPM activity list",
         "description": "REQUIRED: call this before drawing or updating any cost-loaded CPM, billing forecast, billing drill-down, coaching, IOR or dashboard. Returns every saved activity on the job (ID, name, duration, start/finish, predecessors and logic, total float, critical flag, % complete, $ value, SOV line, cost code), the count check (e.g. 39 of 39), the tie to the contract, the ONE saved contract completion date and the computed delay (TIA) result. Use these values exactly; never recompute, rebuild from an earlier chat, or guess them. Owner-furnished activities are $0.00 in ALP billing. Supers get the schedule with no dollars.",
@@ -1511,7 +1679,7 @@
       {
         "name": "living_report_get",
         "title": "Living report master copy",
-        "description": "REQUIRED: call this before updating a cost-loaded CPM, billing forecast, IOR or PM dashboard, and when a new chat picks one up. Returns the saved master copy (latest or a named version) with its version, last-updated stamp, data date, data and change log. Update that copy in place; never start a second one. Supers: CPM only, no dollars.",
+        "description": "REQUIRED: call this before updating a cost-loaded CPM, billing forecast, IOR or PM dashboard, and when a new chat picks one up. Returns the saved master copy (latest or a named version) with its version, last-updated stamp, data date, data and change log. Viewing: build a new private view from it and never change the saved master. Updating (only when the user explicitly asks, after confirming): update that copy in place; never start a second saved one. Supers: CPM only, no dollars.",
         "annotations": {
           "readOnlyHint": true,
           "openWorldHint": false,
@@ -1916,8 +2084,8 @@
           "openWorldHint": true
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -2002,8 +2170,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -2026,6 +2194,132 @@
           },
           "required": [
             "job_number",
+            "link"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "report_page_link",
+        "title": "Permanent report page link",
+        "description": "Call only after the member says yes to \"Want this as a permanent link I keep updated?\". Returns the private page for a job's IOR or schedule, or the company portfolio, at app.meetathena.io. The page always shows the latest saved version and is viewable only by signed-in members of the company with access to that job (supers: schedule without dollars; portfolio: owners and leadership). It is not a public link.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "page": {
+              "type": "string",
+              "enum": [
+                "ior",
+                "schedule",
+                "portfolio"
+              ],
+              "description": "ior, schedule (the CPM gantt) or portfolio (owners and leadership only)."
+            },
+            "job_number": {
+              "description": "Job number, exact match (e.g. 2701). Required for ior and schedule; leave out for portfolio.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "page"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "report_page_share",
+        "title": "Share a report page (expiring link)",
+        "description": "Only when the member explicitly asks to share a report page with someone who can't sign in. Makes a link anyone with it can open, that shows the latest saved version until it expires (30 days by default, at most 90) or is turned off. IOR and portfolio: owners and leadership only. Schedule: supers' links never show dollars.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "page": {
+              "type": "string",
+              "enum": [
+                "ior",
+                "schedule",
+                "portfolio"
+              ],
+              "description": "ior, schedule (the CPM gantt) or portfolio (owners and leadership only)."
+            },
+            "job_number": {
+              "description": "Job number, exact match (e.g. 2701). Required for ior and schedule; leave out for portfolio.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "confirmed": {
+              "type": "boolean",
+              "const": true,
+              "description": "true only after the member confirmed they want a link anyone with it can open."
+            },
+            "expires_in_days": {
+              "description": "Days the link works, default 30.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90
+            }
+          },
+          "required": [
+            "page",
+            "confirmed"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "report_page_share_revoke",
+        "title": "Turn off a report share link",
+        "description": "Turns off a report page share link right away. Call only after the member asks. The member who made it, or an owner or leadership member.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "link": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300,
+              "description": "The share link (https://app.meetathena.io/r/s/...)."
+            }
+          },
+          "required": [
             "link"
           ],
           "additionalProperties": false
