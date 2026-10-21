@@ -68,6 +68,7 @@ import { Route as AskNewRouteImport } from './routes/ask.new'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as ControlPlanPacketIdRouteImport } from './routes/control-plan.$packetId'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
+import { Route as FTokenRouteImport } from './routes/f.$token'
 import { Route as OauthConsentRouteImport } from './routes/oauth.consent'
 import { Route as SchedulerProjectIdRouteImport } from './routes/scheduler.$projectId'
 import { Route as ToolsCosNavigatorRouteImport } from './routes/tools.cos-navigator'
@@ -78,6 +79,8 @@ import { Route as Char91DotwellKnownChar93OauthProtectedResourceMcpRouteImport }
 import { Route as ApiPublicAosFpRouteImport } from './routes/api/public/aos-fp'
 import { Route as BrandAthenaAthenaIcon64DotpngRouteImport } from './routes/brand.athena.athena-icon-64[.]png'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
+import { Route as RPortfolioCompanyIdRouteImport } from './routes/r.portfolio.$companyId'
+import { Route as RSTokenRouteImport } from './routes/r.s.$token'
 import { Route as ToolsSopEditPacketIdRouteImport } from './routes/tools.sop-edit.$packetId'
 import { Route as ApiPublicAosTierLookupRouteImport } from './routes/api/public/aos/tier-lookup'
 import { Route as ApiPublicCircleReconcileRouteImport } from './routes/api/public/circle/reconcile'
@@ -90,6 +93,7 @@ import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/em
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
+import { Route as RJobJobIdPageRouteImport } from './routes/r.job.$jobId.$page'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -389,6 +393,11 @@ const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
   path: '/email/unsubscribe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FTokenRoute = FTokenRouteImport.update({
+  id: '/f/$token',
+  path: '/f/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OauthConsentRoute = OauthConsentRouteImport.update({
   id: '/oauth/consent',
   path: '/oauth/consent',
@@ -439,6 +448,16 @@ const BrandAthenaAthenaIcon64DotpngRoute =
 const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   id: '/lovable/email/suppression',
   path: '/lovable/email/suppression',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RPortfolioCompanyIdRoute = RPortfolioCompanyIdRouteImport.update({
+  id: '/r/portfolio/$companyId',
+  path: '/r/portfolio/$companyId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RSTokenRoute = RSTokenRouteImport.update({
+  id: '/r/s/$token',
+  path: '/r/s/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ToolsSopEditPacketIdRoute = ToolsSopEditPacketIdRouteImport.update({
@@ -506,6 +525,11 @@ const LovableEmailTransactionalSendRoute =
     path: '/lovable/email/transactional/send',
     getParentRoute: () => rootRouteImport,
   } as any)
+const RJobJobIdPageRoute = RJobJobIdPageRouteImport.update({
+  id: '/r/job/$jobId/$page',
+  path: '/r/job/$jobId/$page',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -564,6 +588,7 @@ export interface FileRoutesByFullPath {
   '/auth/callback': typeof AuthCallbackRoute
   '/control-plan/$packetId': typeof ControlPlanPacketIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/f/$token': typeof FTokenRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/scheduler/$projectId': typeof SchedulerProjectIdRoute
   '/tools/cos-navigator': typeof ToolsCosNavigatorRoute
@@ -577,6 +602,8 @@ export interface FileRoutesByFullPath {
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/brand/athena/athena-icon-64.png': typeof BrandAthenaAthenaIcon64DotpngRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
+  '/r/portfolio/$companyId': typeof RPortfolioCompanyIdRoute
+  '/r/s/$token': typeof RSTokenRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/circle/reconcile': typeof ApiPublicCircleReconcileRoute
@@ -589,6 +616,7 @@ export interface FileRoutesByFullPath {
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
+  '/r/job/$jobId/$page': typeof RJobJobIdPageRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -647,6 +675,7 @@ export interface FileRoutesByTo {
   '/auth/callback': typeof AuthCallbackRoute
   '/control-plan/$packetId': typeof ControlPlanPacketIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/f/$token': typeof FTokenRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/scheduler/$projectId': typeof SchedulerProjectIdRoute
   '/tools/cos-navigator': typeof ToolsCosNavigatorRoute
@@ -660,6 +689,8 @@ export interface FileRoutesByTo {
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/brand/athena/athena-icon-64.png': typeof BrandAthenaAthenaIcon64DotpngRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
+  '/r/portfolio/$companyId': typeof RPortfolioCompanyIdRoute
+  '/r/s/$token': typeof RSTokenRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/circle/reconcile': typeof ApiPublicCircleReconcileRoute
@@ -672,6 +703,7 @@ export interface FileRoutesByTo {
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
+  '/r/job/$jobId/$page': typeof RJobJobIdPageRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -731,6 +763,7 @@ export interface FileRoutesById {
   '/auth/callback': typeof AuthCallbackRoute
   '/control-plan/$packetId': typeof ControlPlanPacketIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/f/$token': typeof FTokenRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/scheduler/$projectId': typeof SchedulerProjectIdRoute
   '/tools/cos-navigator': typeof ToolsCosNavigatorRoute
@@ -744,6 +777,8 @@ export interface FileRoutesById {
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/brand/athena/athena-icon-64.png': typeof BrandAthenaAthenaIcon64DotpngRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
+  '/r/portfolio/$companyId': typeof RPortfolioCompanyIdRoute
+  '/r/s/$token': typeof RSTokenRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/circle/reconcile': typeof ApiPublicCircleReconcileRoute
@@ -756,6 +791,7 @@ export interface FileRoutesById {
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
+  '/r/job/$jobId/$page': typeof RJobJobIdPageRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -816,6 +852,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/control-plan/$packetId'
     | '/email/unsubscribe'
+    | '/f/$token'
     | '/oauth/consent'
     | '/scheduler/$projectId'
     | '/tools/cos-navigator'
@@ -829,6 +866,8 @@ export interface FileRouteTypes {
     | '/api/public/aos-fp'
     | '/brand/athena/athena-icon-64.png'
     | '/lovable/email/suppression'
+    | '/r/portfolio/$companyId'
+    | '/r/s/$token'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
     | '/api/public/circle/reconcile'
@@ -841,6 +880,7 @@ export interface FileRouteTypes {
     | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
+    | '/r/job/$jobId/$page'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -899,6 +939,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/control-plan/$packetId'
     | '/email/unsubscribe'
+    | '/f/$token'
     | '/oauth/consent'
     | '/scheduler/$projectId'
     | '/tools/cos-navigator'
@@ -912,6 +953,8 @@ export interface FileRouteTypes {
     | '/api/public/aos-fp'
     | '/brand/athena/athena-icon-64.png'
     | '/lovable/email/suppression'
+    | '/r/portfolio/$companyId'
+    | '/r/s/$token'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
     | '/api/public/circle/reconcile'
@@ -924,6 +967,7 @@ export interface FileRouteTypes {
     | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
+    | '/r/job/$jobId/$page'
   id:
     | '__root__'
     | '/'
@@ -982,6 +1026,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/control-plan/$packetId'
     | '/email/unsubscribe'
+    | '/f/$token'
     | '/oauth/consent'
     | '/scheduler/$projectId'
     | '/tools/cos-navigator'
@@ -995,6 +1040,8 @@ export interface FileRouteTypes {
     | '/api/public/aos-fp'
     | '/brand/athena/athena-icon-64.png'
     | '/lovable/email/suppression'
+    | '/r/portfolio/$companyId'
+    | '/r/s/$token'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
     | '/api/public/circle/reconcile'
@@ -1007,6 +1054,7 @@ export interface FileRouteTypes {
     | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
+    | '/r/job/$jobId/$page'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1066,6 +1114,7 @@ export interface RootRouteChildren {
   AuthCallbackRoute: typeof AuthCallbackRoute
   ControlPlanPacketIdRoute: typeof ControlPlanPacketIdRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
+  FTokenRoute: typeof FTokenRoute
   OauthConsentRoute: typeof OauthConsentRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AosIndexRoute: typeof AosIndexRoute
@@ -1075,6 +1124,8 @@ export interface RootRouteChildren {
   ApiPublicAosFpRoute: typeof ApiPublicAosFpRoute
   BrandAthenaAthenaIcon64DotpngRoute: typeof BrandAthenaAthenaIcon64DotpngRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
+  RPortfolioCompanyIdRoute: typeof RPortfolioCompanyIdRoute
+  RSTokenRoute: typeof RSTokenRoute
   ApiPublicAosTierLookupRoute: typeof ApiPublicAosTierLookupRoute
   ApiPublicCircleReconcileRoute: typeof ApiPublicCircleReconcileRoute
   ApiPublicOverwatchTierLookupRoute: typeof ApiPublicOverwatchTierLookupRoute
@@ -1086,6 +1137,7 @@ export interface RootRouteChildren {
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
   LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
   LovableEmailTransactionalSendRoute: typeof LovableEmailTransactionalSendRoute
+  RJobJobIdPageRoute: typeof RJobJobIdPageRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1503,6 +1555,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmailUnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/f/$token': {
+      id: '/f/$token'
+      path: '/f/$token'
+      fullPath: '/f/$token'
+      preLoaderRoute: typeof FTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/oauth/consent': {
       id: '/oauth/consent'
       path: '/oauth/consent'
@@ -1571,6 +1630,20 @@ declare module '@tanstack/react-router' {
       path: '/lovable/email/suppression'
       fullPath: '/lovable/email/suppression'
       preLoaderRoute: typeof LovableEmailSuppressionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/r/portfolio/$companyId': {
+      id: '/r/portfolio/$companyId'
+      path: '/r/portfolio/$companyId'
+      fullPath: '/r/portfolio/$companyId'
+      preLoaderRoute: typeof RPortfolioCompanyIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/r/s/$token': {
+      id: '/r/s/$token'
+      path: '/r/s/$token'
+      fullPath: '/r/s/$token'
+      preLoaderRoute: typeof RSTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tools/sop-edit/$packetId': {
@@ -1655,6 +1728,13 @@ declare module '@tanstack/react-router' {
       path: '/lovable/email/transactional/send'
       fullPath: '/lovable/email/transactional/send'
       preLoaderRoute: typeof LovableEmailTransactionalSendRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/r/job/$jobId/$page': {
+      id: '/r/job/$jobId/$page'
+      path: '/r/job/$jobId/$page'
+      fullPath: '/r/job/$jobId/$page'
+      preLoaderRoute: typeof RJobJobIdPageRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -1748,6 +1828,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthCallbackRoute: AuthCallbackRoute,
   ControlPlanPacketIdRoute: ControlPlanPacketIdRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
+  FTokenRoute: FTokenRoute,
   OauthConsentRoute: OauthConsentRoute,
   AdminIndexRoute: AdminIndexRoute,
   AosIndexRoute: AosIndexRoute,
@@ -1758,6 +1839,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAosFpRoute: ApiPublicAosFpRoute,
   BrandAthenaAthenaIcon64DotpngRoute: BrandAthenaAthenaIcon64DotpngRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
+  RPortfolioCompanyIdRoute: RPortfolioCompanyIdRoute,
+  RSTokenRoute: RSTokenRoute,
   ApiPublicAosTierLookupRoute: ApiPublicAosTierLookupRoute,
   ApiPublicCircleReconcileRoute: ApiPublicCircleReconcileRoute,
   ApiPublicOverwatchTierLookupRoute: ApiPublicOverwatchTierLookupRoute,
@@ -1769,6 +1852,7 @@ const rootRouteChildren: RootRouteChildren = {
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
   LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
   LovableEmailTransactionalSendRoute: LovableEmailTransactionalSendRoute,
+  RJobJobIdPageRoute: RJobJobIdPageRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
