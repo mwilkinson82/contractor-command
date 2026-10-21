@@ -8,6 +8,7 @@ import { clientSafe } from "./client-safe";
 
 // Access: the shared membership entitlement (./entitlement), checked on every call.
 import { checkAthenaEntitlement } from "./entitlement";
+import { enforceTouch, getCallSignals, securityTouch, stampCanary } from "./security";
 export const FOOTER = "\n\n---\nAthena powered by ALP, construction agents";
 export const INACTIVE_MESSAGE = "Your membership isn't active, so Athena is paused. Your job data is saved.";
 
@@ -81,6 +82,10 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
   const lookaheadId = o.lookaheadId;
   const sweepScope: SweepScope = { jobNumber: o.jobNumber, client: o.client };
   const sb = await guard(ctx);
+  // 0.8.22: success-call log, heavy-tool cap, security flags, optional soft lock and the company canary.
+  const sig = getCallSignals(ctx as unknown as object);
+  const touch = await securityTouch(sb as never, tool, o.jobNumber ?? sig?.jobNumber ?? null, sig?.signals ?? []);
+  enforceTouch(touch);
   let sweep: Awaited<ReturnType<typeof runSweep>> = null;
   try {
     const fresh = await sb.rpc("mcp_session_touch");
@@ -91,7 +96,7 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
   try {
     const r = await fn(sb);
     // The host-display block rides on every result (assistant_guidance only; members never see it).
-    return withStyleLine(finalizeVisible(sweep ? withSweep(r, sweep, sweepScope.client === true, o.ownerSov === true) : r, [HOST_DISPLAY_BLOCK]));
+    return stampCanary(withStyleLine(finalizeVisible(sweep ? withSweep(r, sweep, sweepScope.client === true, o.ownerSov === true) : r, [HOST_DISPLAY_BLOCK])), touch.canary);
   } catch (e) {
     await logWorkflow(sb, {
       event_type: "failure",

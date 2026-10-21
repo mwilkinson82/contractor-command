@@ -99,5 +99,22 @@ export function lookaheadPdf(v: { title: string; ref: string; start: string; end
   section("RISKS", m.risks, true, (e) => `${e.overdue ? "OVERDUE - " : ""}${e.label} - Impact: ${e.a!.id} ${e.a!.name}${e.a!.total_float != null ? ` (float ${e.a!.total_float} WD)` : ""}. ${who(e)}`);
   section("DATES TO CHECK", m.flagged, false, (e) => `${e.label.slice(0, 90)}: ${e.flags.map((f) => f.text).join("; ")}`);
   d.setFontSize(7); color(GRAY); d.text("Athena by ALP", W - X - 50, H - 20);
-  return new Uint8Array(d.output("arraybuffer"));
+  d.setProperties({ title: pdfText(`${v.title} Two-Week Lookahead`), creator: "Athena", author: "Athena" });
+  return scrubProducer(new Uint8Array(d.output("arraybuffer")));
+}
+
+/** 0.8.22: the PDF library writes its own name into /Producer. Overwrite it in place with "Athena" padded to the
+ * same byte length, so every xref offset stays valid. */
+export function scrubProducer(bytes: Uint8Array): Uint8Array {
+  const key = [...new TextEncoder().encode("/Producer (")];
+  outer: for (let i = 0; i + key.length < bytes.length; i++) {
+    for (let k = 0; k < key.length; k++) if (bytes[i + k] !== key[k]) continue outer;
+    const start = i + key.length;
+    let end = start;
+    while (end < bytes.length && bytes[end] !== 0x29) end++;
+    const name = new TextEncoder().encode("Athena");
+    for (let p = start; p < end; p++) bytes[p] = p - start < name.length ? name[p - start] : 0x20;
+    break;
+  }
+  return bytes;
 }
