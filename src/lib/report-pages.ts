@@ -4,7 +4,7 @@
 // risks and overdue items. Scheduling term: "fragnet".
 import { ALERT_HEX } from "./mcp/alert-color";
 import { delayCallout, jobWorkingDays } from "./mcp/living";
-import { addDays } from "./mcp/deadlines";
+import { DEFAULT_TZ, addDays, todayIn } from "./mcp/deadlines";
 import { briefingModel, dayHead, lookaheadModel, payModel, shortDate, lookaheadWindow, type BriefItem, type Billing, type LaItem, type LaEntry, type SAct } from "./mcp/styled-views";
 
 export const REPORT_PAGES = ["ior", "schedule", "portfolio"] as const;
@@ -177,7 +177,8 @@ function lookaheadPageView(p: LookaheadPayload): string {
   const la = p.lookahead ?? null;
   const win = lookaheadWindow(la, dd);
   if (!win) return card(`<p style="margin:0;color:${G1}">No lookahead window or saved schedule yet.</p><p style="margin:8px 0 0;color:${NAVY}"><strong>Next move:</strong> send the schedule export (or save the CPM) and Athena fills the lookahead from it.</p>`);
-  const today = p.today ?? new Date().toISOString().slice(0, 10);
+  // 0.8.20: never UTC; the page payload's job-zone today, else the default job zone.
+  const today = p.today?.slice(0, 10) || todayIn(DEFAULT_TZ);
   const m = lookaheadModel(win.start, win.end, acts, p.items ?? [], { today, dataDate: dd });
   const hl = dd && dd > today ? dd : today;
   const out: string[] = [];
