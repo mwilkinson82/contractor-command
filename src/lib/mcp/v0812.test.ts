@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { ALERT_COLOR, ALERT_HEX, ALERT_PALETTE_RULE } from "./alert-color";
 import { CPM_GANTT_SPEC, DELAY_CALLOUT_COLOR } from "./living";
-import { EMAIL_VIEW_SPEC, LOOKAHEAD_VIEW_SPEC, PAY_APP_VIEW_SPEC, REMINDERS_VIEW_SPEC, highlightLine, lookaheadHighlight, reminderSource } from "./views";
+import { IOR_VIEW_SPEC, PORTFOLIO_VIEW_SPEC, EMAIL_VIEW_SPEC, LOOKAHEAD_VIEW_SPEC, PAY_APP_VIEW_SPEC, REMINDERS_VIEW_SPEC, highlightLine, lookaheadHighlight, reminderSource } from "./views";
 import { CHART_PALETTE_RULE, HOST_DISPLAY_BLOCK } from "./visible";
 import { ATHENA_VERSION } from "./server-info-branding";
 
 const src = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8");
-const ALL_VIEWS = [LOOKAHEAD_VIEW_SPEC, PAY_APP_VIEW_SPEC, REMINDERS_VIEW_SPEC, EMAIL_VIEW_SPEC];
+const ALL_VIEWS = [LOOKAHEAD_VIEW_SPEC, PAY_APP_VIEW_SPEC, REMINDERS_VIEW_SPEC, EMAIL_VIEW_SPEC, IOR_VIEW_SPEC, PORTFOLIO_VIEW_SPEC];
 
 describe("0.8.12 alert color", () => {
   it("version is 0.8.12", () => expect(ATHENA_VERSION).toBe("0.8.12"));
@@ -52,7 +52,7 @@ describe("0.8.12 required views", () => {
     expect(w).toContain('${REMINDERS_VIEW_SPEC.join("\\n")}\\n\\n${ec.text}\\n${EMAIL_VIEW_SPEC.join("\\n")}');
     expect(w).toContain("...EMAIL_VIEW_SPEC,");
     expect(w).toContain('${ec.text}\\n${EMAIL_VIEW_SPEC.join("\\n")}');
-    expect(src("./guard.ts")).toContain('${SWEEP_CARD_REQUIRED}\\n${REMINDERS_VIEW_SPEC.join("\\n")}');
+    expect(src("./guard.ts")).toContain('text: `${REMINDERS_VIEW_SPEC.join("\\n")}\\n${sweepText}');
     expect(src("./tools/living-tools.ts")).toContain('type === "billing_forecast" && job.scope === "full" ? PAY_APP_VIEW_SPEC');
   });
 });
@@ -89,5 +89,47 @@ describe("0.8.12 reminder source", () => {
   it("wired into item lines and the date sweep", () => {
     expect(src("./jobs.ts")).toContain("Source: ${reminderSource(it) ?? it.source");
     expect(src("./sweep.ts")).toContain("srcNote(it, client)");
+  });
+});
+
+describe("0.8.12 date sweep: grouped reminders only", () => {
+  it("old card-with-table instruction is gone", () => {
+    const g = src("./guard.ts");
+    expect(g).not.toContain("SWEEP_CARD_REQUIRED");
+    expect(g).not.toContain("card_table");
+    expect(src("./visible.ts")).not.toMatch(/SWEEP_CARD_REQUIRED|card with a table/);
+    expect(g).toContain('render: "grouped_cards", groups: ["Overdue", "Due this week", "Later"], countdown_chips: true');
+    const r = REMINDERS_VIEW_SPEC.join("\n");
+    expect(r).toContain("Due this week, Later");
+    expect(r).toContain("countdown chip");
+  });
+});
+
+describe("0.8.12 IOR and portfolio views", () => {
+  it("IOR spec: tie line, waterfall, red flags on top-3 risks via the shared constant", () => {
+    const s = IOR_VIEW_SPEC.join("\n");
+    expect(IOR_VIEW_SPEC[0]).toMatch(/^REQUIRED VIEW – IOR DASHBOARD/);
+    expect(s).toContain("Forecast total $X = contract $X");
+    expect(s).toContain("Waterfall chart");
+    expect(s).toContain(`${ALERT_COLOR} flags on the top 3 by weighted $`);
+    expect(s).toContain("never recompute");
+  });
+  it("portfolio spec: access line, job cards, alert color only for down/delayed/at risk", () => {
+    const s = PORTFOLIO_VIEW_SPEC.join("\n");
+    expect(PORTFOLIO_VIEW_SPEC[0]).toMatch(/^REQUIRED VIEW – COMPANY PORTFOLIO DASHBOARD/);
+    expect(s).toContain("only for owner/leadership roles. A PM sees only their own jobs");
+    expect(s).toContain(`${ALERT_COLOR} only when delayed or at risk`);
+    expect(s).toContain("budgeted in gray #9CA3AF, indicated in blue #2563EB");
+  });
+  it("no color literal in the specs besides the shared constant", () => {
+    const raw = src("./views.ts");
+    expect(raw).not.toMatch(/#DC2626|red #/);
+  });
+  it("wired into living_report_get for full-access users only", () => {
+    const l = src("./tools/living-tools.ts");
+    expect(l).toContain('type === "ior" && job.scope === "full" ? IOR_VIEW_SPEC');
+    expect(l).toContain('type === "dashboard" && job.scope === "full" ? PORTFOLIO_VIEW_SPEC');
+    expect(l).toContain('if (job.scope === "super" && type !== "cpm") throw');
+    expect(l).toContain('if (job.scope === "contract") throw');
   });
 });
