@@ -1,6 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { CHART_PALETTE, SOV_CHART_RULE, SOV_DELIVERY_BLOCK, SOV_DELIVERY_STRUCTURED_CLIENT, sovChart, visibleProblems } from "./visible";
+import {
+  CHART_PALETTE,
+  SOV_CHART_RULE,
+  SOV_DELIVERY_BLOCK,
+  SOV_DELIVERY_STRUCTURED_CLIENT,
+  sovChart,
+  visibleProblems,
+} from "./visible";
 import { sweepDupNote } from "./sweep";
 import { dedupeNotices } from "./contacts";
 import { ATHENA_VERSION } from "./server-info-branding";
@@ -16,19 +23,41 @@ describe("0.8.7 owner link hard no, SOV chart, date sweep", () => {
     expect(src("./tools/workflow-tools.ts")).not.toContain("SOV_LINK_HARD_NO");
   });
   it("report sov carries a required bar chart in the fixed palette", () => {
-    const c = sovChart([{ item_no: "26.01", cost_code: "26-010", description: "Gear", scheduled_value: 1000, scheduled_value_display: "$1,000.00" }]);
+    const c = sovChart([
+      {
+        item_no: "26.01",
+        cost_code: "26-010",
+        description: "Gear",
+        scheduled_value: 1000,
+        scheduled_value_display: "$1,000.00",
+      },
+    ]);
     expect(c).toMatchObject({ required: true, type: "bar", bar_color: "#2563EB" });
     expect(c.palette).toEqual([...CHART_PALETTE]);
-    expect(c.bars[0]).toMatchObject({ label: "26.01 (26-010)", value: 1000, value_display: "$1,000.00" });
-    expect(SOV_CHART_RULE).toContain("#2563EB");
+    expect(c.bars[0]).toMatchObject({
+      label: "26.01 (26-010)",
+      value: 1000,
+      value_display: "$1,000.00",
+    });
+    expect(SOV_CHART_RULE).not.toMatch(/#[0-9A-Fa-f]{3,8}/);
     const w = src("./tools/workflow-tools.ts");
     expect(w).toContain("chart: sovChart(sovLineRows(sov)),");
     expect(w).toContain("SOV_CHART_RULE,");
   });
   it("date sweep uses the same dedupe and names duplicates by Ref", () => {
     const items = [
-      { id: "263acb11-0000-0000-0000-000000000000", action: "Send written delay notice (§6.2) for: Weather delay occurred today", clause_source: "§6.2 (contract)", needed_by: "2026-10-25" },
-      { id: "11111111-0000-0000-0000-000000000000", action: "Send written delay notice (§6.2) for: Weather delay", clause_source: "§6.2 (contract)", needed_by: "2026-10-25" },
+      {
+        id: "263acb11-0000-0000-0000-000000000000",
+        action: "Send written delay notice (§6.2) for: Weather delay occurred today",
+        clause_source: "§6.2 (contract)",
+        needed_by: "2026-10-25",
+      },
+      {
+        id: "11111111-0000-0000-0000-000000000000",
+        action: "Send written delay notice (§6.2) for: Weather delay",
+        clause_source: "§6.2 (contract)",
+        needed_by: "2026-10-25",
+      },
     ];
     const d = dedupeNotices(items);
     expect(d.items).toHaveLength(1);
@@ -48,4 +77,3 @@ describe("0.8.7 owner link hard no, SOV chart, date sweep", () => {
   });
   it("version is 0.8.7", () => expect(ATHENA_VERSION).toBe("0.8.18"));
 });
-

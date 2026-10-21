@@ -47,8 +47,8 @@ describe("P0: no email is sent without a draft and a separate yes", () => {
     expect(SRC).toMatch(/emailDraft, emailConfirmSend\]/);
     expect(SRC).toContain("EMAIL_DRAFT_ONLY_RULE");
     expect(SRC).not.toMatch(/tell the member which account that is before sending/);
-    expect(EMAIL_DRAFT_ONLY_RULE).toMatch(/never send an email in the same reply/);
-    expect(EMAIL_DRAFT_ONLY_RULE).toMatch(/send_email/);
+    expect(EMAIL_DRAFT_ONLY_RULE).toMatch(/Never send an email in the same reply/);
+    expect(EMAIL_DRAFT_ONLY_RULE).toMatch(/email_confirm_send/);
     expect(EMAIL_DRAFT_ONLY_RULE).toMatch(/Yes or no\?/);
   });
 

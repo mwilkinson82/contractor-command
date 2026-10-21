@@ -30,9 +30,7 @@ const fields = {
     .email()
     .max(320)
     .optional()
-    .describe(
-      "Recipient address exactly as the member gave it or as Athena's job data shows it. Leave out if unknown; never guess.",
-    ),
+    ,
   cc: z.array(z.string().trim().email().max(320)).max(20).optional(),
   subject: z.string().trim().min(1).max(300),
   body: z.string().min(1).max(20000),
@@ -42,17 +40,13 @@ const fields = {
     .url()
     .max(2000)
     .optional()
-    .describe(
-      "Only when your email tool can't attach files: a file_share link to the PDF, put under the body.",
-    ),
+    ,
   attachment: z
     .string()
     .trim()
     .max(200)
     .optional()
-    .describe(
-      "First choice for deliverables: the file name of the PDF you built and will attach with your own email tool (e.g. 2701-lookahead.pdf). PDF only, never HTML.",
-    ),
+    ,
 };
 const toDraft = (a: {
   to?: string;
@@ -80,13 +74,12 @@ const checkDeliverable = async (d: EmailDraft, sb?: Sb) => {
 export const emailDraft = defineTool({
   name: "email_draft",
   title: "Show an email draft for review",
-  description:
-    'Call this whenever the member asks to email or send anything ("send the lookahead to ...", "email this to the sub"). Deliverables need a real file: for a lookahead call lookahead_pdf first (other files: file_share) and pass its download_url as link, in the body too. Pass attachment only if your email tool actually attached that PDF; if it can\'t attach from a URL, leave attachment out and say "link", never "attached". Never HTML. Returns the draft card only; nothing is sent. Show the card, then ask the confirm question it returns. Never call any send action in the same reply.',
+  description: "Shows an email draft for review.",
   inputSchema: {
     ...fields,
-    job_number: z.string().trim().max(40).optional().describe("The job this email is about. Athena signs it as that job's PM."),
-    company_id: z.string().trim().max(200).optional().describe("Leave out: Athena uses the member's current company."),
-    sign_as: z.string().trim().max(200).optional().describe("Only when the member explicitly asks to sign as someone other than the job's PM: that name."),
+    job_number: z.string().trim().max(40).optional(),
+    company_id: z.string().trim().max(200).optional(),
+    sign_as: z.string().trim().max(200).optional(),
   },
   annotations: {
     readOnlyHint: true,
@@ -127,8 +120,7 @@ export const emailDraft = defineTool({
 export const emailConfirmSend = defineTool({
   name: "email_confirm_send",
   title: "Confirm sending one reviewed email",
-  description:
-    "Only after the member answered yes to the exact confirm question for a draft from email_draft, in a later message. Pass the same fields and draft_key with confirmed true. Athena sends nothing; on success you may send that one email, unchanged, with your email tool.",
+  description: "Confirms that one reviewed email may be sent.",
   inputSchema: {
     ...fields,
     draft_key: z
@@ -137,7 +129,7 @@ export const emailConfirmSend = defineTool({
       .regex(/^D[0-9A-F]{8}$/),
     confirmed: z
       .literal(true)
-      .describe("true only after the member said yes to the exact confirm question."),
+      ,
   },
   annotations: {
     readOnlyHint: false,
