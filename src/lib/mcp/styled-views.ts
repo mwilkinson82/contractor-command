@@ -16,6 +16,9 @@ const dow = (d: string) => new Date(`${d.slice(0, 10)}T00:00:00Z`).getUTCDay();
 
 /** Shown first in the visible text, so the styled view never depends on how the host words or formats its reply. */
 export const SHOW_AS_IS = "Show the view below exactly as written (tables, icons and colors included). Do not turn it into bullets or a summary.";
+/** 0.8.18: Claude pasted the lookahead as plain markdown with emoji. Like the schedule's REQUIRED VIEW (CPM_GANTT_SPEC), the lookahead now asks for an artifact. */
+export const LOOKAHEAD_ARTIFACT_LINE =
+  "REQUIRED VIEW: build ONE styled lookahead artifact from the data below, the same way you build the schedule Gantt. In Claude: an artifact built only from this result (no tool calls inside it). In ChatGPT: a canvas. Never paste the markdown below as your answer: the emoji are data markers only, so draw real bars, icons and cards. Follow the REQUIRED VIEW – LOOKAHEAD spec.";
 export const pageLine = (label: string, url: string) => `Styled ${label} (always current, private to your company): ${url}`;
 
 // ---------- delay result (one reader for every saved shape) ----------
@@ -163,7 +166,7 @@ export function lookaheadView(v: { title: string; ref: string; start: string; en
   const m = lookaheadModel(v.start, v.end, v.acts, v.items);
   const L: string[] = [];
   if (v.pageUrl) L.push(pageLine("lookahead", v.pageUrl), "");
-  L.push(SHOW_AS_IS, "", `## ${v.title} · Two-Week Lookahead`);
+  L.push(LOOKAHEAD_ARTIFACT_LINE, "", `## ${v.title} · Two-Week Lookahead`);
   L.push(`**Window:** ${shortDate(v.start)} – ${shortDate(v.end)}${v.dataDate ? ` · **Data date:** ${shortDate(v.dataDate)}` : ""} · **Ref:** ${v.ref}`);
   const c = m.counts;
   L.push(`**Counts:** ${plural(c.activities, "activity", "activities")} · ${c.critical} critical · ${plural(c.inspections, "inspection", "inspections")} · ${plural(c.deliveries, "delivery", "deliveries")} · ${plural(c.risks, "risk", "risks")}`, "");

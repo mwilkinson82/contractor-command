@@ -1,6 +1,7 @@
 // P0: the only email path Athena offers the host. email_draft shows the card (read-only, sends nothing);
 // email_confirm_send is the separate, destructive confirm step that must follow an explicit yes.
 // Athena itself never sends these emails; the host's own email tool does, and only after the confirm.
+import { EMAIL_DRAFT_VIEW_SPEC } from "../views";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { run, text, type Sb } from "../guard";
@@ -105,7 +106,7 @@ export const emailDraft = defineTool({
       const off = outboundEmailDisabled();
       return guide(
         {
-          ...text(draftCardText(d)),
+          ...text([draftCardText(d), "", ...EMAIL_DRAFT_VIEW_SPEC, ...(off ? [] : ["", `Confirm question: ${confirmQuestion(d)}`])].join("\n")),
           structuredContent: {
             draft: d,
             signature: args.sign_as ?? sig?.signature ?? null,

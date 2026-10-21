@@ -1111,7 +1111,8 @@ export const report = defineTool({
         // 0.8.12: highlight today, or the saved CPM data date when that is later; then the required lookahead view.
         const hl = lookaheadHighlight(todayIn(await jobTimeZone(sb, job.job_id)), await cpmDataDate(sb, job));
         const view = await styledLookahead(sb, job, la, hl.date);
-        return text(`${prefix(job)}${view}\n\n---\nSource detail:\n${await renderReport(sb, la)}${revs.length ? `\n\n${revs.join("\n")}` : ""}\n\n${highlightLine(hl)}\n${LOOKAHEAD_VIEW_SPEC.join("\n")}`);
+        // 0.8.18: the view spec sits right under the view (like CPM_GANTT_SPEC after the Tie line) so Claude builds an artifact.
+        return text(`${prefix(job)}${view}\n\n${highlightLine(hl)}\n${LOOKAHEAD_VIEW_SPEC.join("\n")}\n\n---\nSource detail:\n${await renderReport(sb, la)}${revs.length ? `\n\n${revs.join("\n")}` : ""}`);
       }
       const audience = args.audience ?? "internal";
       if (args.deliverable === "sov") return sovResult(sb, job, audience, args.sov_view ?? "lines");
