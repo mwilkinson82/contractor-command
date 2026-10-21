@@ -4,6 +4,7 @@ import { sendLovableEmail } from "@lovable.dev/email-js";
 import { TEMPLATES } from "@/lib/email-templates/registry";
 import { MEMBER_REPLY_TO } from "@/lib/email/reply-to";
 import { template as athenaMagicLinkTemplate } from "@/lib/email-templates/athena-magic-link";
+import { hubOrigin } from "@/lib/auth-origins";
 
 type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
 
@@ -20,11 +21,7 @@ export type DirectLoginNudgeResult =
   | { status: "failed"; messageId: string; reason: string };
 
 function appOrigin(): string {
-  return (
-    process.env.PUBLIC_APP_ORIGIN ||
-    process.env.APP_ORIGIN ||
-    "https://app.alpcontractorcircle.com"
-  ).replace(/\/$/, "");
+  return hubOrigin();
 }
 
 function redactEmail(email: string): string {
@@ -103,6 +100,7 @@ export async function sendLoginNudgeNow({
   channel,
   siteUrl = appOrigin(),
   variant = "circle",
+  otpCode,
 }: {
   supabaseAdmin: SupabaseAdminClient;
   email: string;
@@ -112,6 +110,8 @@ export async function sendLoginNudgeNow({
   channel: "public_magic_link" | "admin_people_signin";
   siteUrl?: string;
   variant?: LoginEmailVariant;
+  /** Athena only: one-time code shown in the email for same-tab entry. */
+  otpCode?: string;
 }): Promise<DirectLoginNudgeResult> {
   const TEMPLATE_NAME = variant === "athena" ? "athena-magic-link" : "magic-link";
   const apiKey = process.env.LOVABLE_API_KEY;
@@ -185,6 +185,7 @@ export async function sendLoginNudgeNow({
     siteName: SITE_NAME,
     siteUrl,
     confirmationUrl,
+    ...(variant === "athena" && otpCode ? { otpCode } : {}),
   };
   const element = React.createElement(entry.component, props);
   const html = await render(element);

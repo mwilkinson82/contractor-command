@@ -4,14 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { AuthCard } from "@/components/auth/auth-card";
 import { checkAthenaEntitlement, NO_ENTITLEMENT_MESSAGE, type RpcClient } from "@/lib/mcp/entitlement";
 import { boundedStep, ConsentStepError, consentReturnPath, isAppHandoff } from "@/lib/consent-loading";
+import { getAuthorizationDetails, decideAuthorization, getAuthUser } from "@/lib/oauth-consent-api";
 
-type OAuthResult = { data: any; error: { message: string } | null };
-type OAuthApi = {
-  getAuthorizationDetails(id: string): Promise<OAuthResult>;
-  approveAuthorization(id: string): Promise<OAuthResult>;
-  denyAuthorization(id: string): Promise<OAuthResult>;
-};
-const oauth = () => (supabase.auth as unknown as { oauth: OAuthApi }).oauth;
 
 const SCOPE_LABELS: Record<string, string> = {
   openid: "Confirm who you are",
@@ -52,50 +46,49 @@ export const Route = createFileRoute("/oauth/consent")({
     // getSession() only reads localStorage. A stale/revoked session made
     // Supabase reject getAuthorizationDetails (403) and show "invalid or
     // expired". Validate with the server; if not live, clear it and sign in.
+    // v0.8.18: validate with the server by a direct, bounded /user call using
+    // the stored token (no auth-lock wait). A stale/revoked token signs in again.
     let live = false;
     let consentUser: { id: string; email?: string | null } | null = null;
-    if (data.session) {
-      // v0.8.12: bounded (was unbounded) and the confirmed user is handed to the loader,
-      // so the loader no longer makes a second getUser round trip.
-      const { data: u, error: userError } = await boundedStep("identity", () => supabase.auth.getUser());
-      live = !userError && !!u?.user?.id;
-      if (live) consentUser = { id: u.user!.id, email: u.user!.email ?? null };
+    const accessToken = data.session?.access_token ?? "";
+    if (accessToken) {
+      const u = await getAuthUser(accessToken);
+      if (u.error?.status === 408 || u.error?.status === 0) throw new ConsentStepError("identity", "timeout");
+      live = !u.error && !!u.data?.id;
+      if (live) consentUser = { id: u.data.id, email: u.data.email ?? null };
       if (!live) await supabase.auth.signOut({ scope: "local" }).catch(() => {});
     }
     if (!live) {
       throw redirect({ to: "/login", search: { redirect: consentReturnPath(search.authorization_id) } });
     }
-    return { consentUser };
+    return { consentUser, accessToken };
   },
   loader: async ({ location, context }) => {
     const id = new URLSearchParams(location.search).get("authorization_id")!;
     // v0.8.12: the entitlement read starts in parallel with the details call instead of after it.
     const entP = boundedStep("identity", () => checkAthenaEntitlement(supabase as unknown as RpcClient)).then((e) => e.allowed === true, () => false);
-    const { data, error } = await boundedStep("details", () => oauth().getAuthorizationDetails(id));
+    const ctx = context as { consentUser?: { id: string; email?: string | null } | null; accessToken?: string } | undefined;
+    const accessToken = ctx?.accessToken ?? "";
+    const user = ctx?.consentUser ?? null;
+    // Fail closed: no confirmed identity means no consent screen.
+    if (!user?.id || !accessToken) throw new ConsentStepError("identity", "failed");
+    const { data, error } = await getAuthorizationDetails(id, accessToken);
     if (error) {
-      const status = (error as { status?: number }).status;
+      const status = error.status;
       if (status === 401 || status === 403 || /jwt|bearer/i.test(error.message ?? "")) {
         await supabase.auth.signOut({ scope: "local" }).catch(() => {});
         throw redirect({ to: "/login", search: { redirect: consentReturnPath(id) } });
       }
-      throw new ConsentStepError("details", "failed");
+      throw new ConsentStepError("details", status === 408 || status === 0 ? "timeout" : "failed");
     }
     const immediate = data?.redirect_url ?? data?.redirect_to;
     if (immediate && !data?.client) {
       window.location.href = immediate;
       return null;
     }
-    // Identity confirmed with the server in beforeLoad; only re-ask if it isn't there.
-    let user = (context as { consentUser?: { id: string; email?: string | null } | null } | undefined)?.consentUser ?? null;
-    if (!user?.id) {
-      const { data: u, error: userError } = await boundedStep("identity", () => supabase.auth.getUser());
-      // Fail closed: no confirmed identity means no consent screen.
-      if (userError || !u?.user?.id) throw new ConsentStepError("identity", "failed");
-      user = { id: u.user.id, email: u.user.email ?? null };
-    }
     // Same membership entitlement the /mcp server enforces. Fails closed.
     const entitled = await entP;
-    return { details: data, email: user.email ?? "", userId: user.id, entitled };
+    return { details: data, email: user.email ?? "", userId: user.id, entitled, accessToken };
   },
   component: Consent,
   pendingComponent: () => (
@@ -118,7 +111,7 @@ function Consent() {
   const [handoff, setHandoff] = useState<string | null>(null);
   const navigate = useNavigate();
   if (!loaded) return null;
-  const { details, email, userId, entitled } = loaded;
+  const { details, email, userId, entitled, accessToken } = loaded;
   const allowed = entitled === true;
   async function switchAccount() {
     setBusy(true);
@@ -136,15 +129,15 @@ function Consent() {
   async function decide(approve: boolean) {
     setBusy(true);
     setError(null);
-    const { data: identity, error: identityError } = await supabase.auth.getUser();
-    if (identityError || !identity.user || identity.user.id !== userId) {
-      setError("Your signed-in account changed. Reload this request before approving.");
+    const identity = await getAuthUser(accessToken);
+    if (identity.error || identity.data?.id !== userId) {
+      setError(identity.error?.status === 408 || identity.error?.status === 0
+        ? "That took too long. Check your connection and tap again."
+        : "Your signed-in account changed. Reload this request before approving.");
       setBusy(false);
       return;
     }
-    const { data, error } = approve
-      ? await oauth().approveAuthorization(authorization_id)
-      : await oauth().denyAuthorization(authorization_id);
+    const { data, error } = await decideAuthorization(authorization_id, accessToken, approve);
     if (error) {
       setBusy(false);
       setError(error.message || (approve ? "Approval failed." : "Couldn't cancel."));
@@ -190,7 +183,7 @@ function Consent() {
         {!allowed && (
           <div role="alert" className="space-y-3 rounded-lg border-2 border-destructive/60 bg-destructive/5 p-4">
             <p className="text-[14px] font-semibold text-destructive">
-              Signed in as {email || "an unknown account"} — switch to your Circle account
+              Signed in as {email || "an unknown account"} — switch accounts
             </p>
             <p className="text-foreground/75">{NO_ENTITLEMENT_MESSAGE} Approve is turned off.</p>
             <button
@@ -221,7 +214,7 @@ function Consent() {
             ))}
           </ul>
         )}
-        <p className="text-foreground/60">This doesn't get around the Hub's own access rules.</p>
+        <p className="text-foreground/60">Your company's Athena access rules still apply.</p>
         {error && (
           <p role="alert" className="text-destructive">
             {error}

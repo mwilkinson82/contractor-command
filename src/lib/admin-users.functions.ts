@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { membershipDb } from "@/lib/membership/circle.server";
 import { drainCircleAudienceSync } from "@/lib/membership/reconcile.server";
 import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
+import { hubOrigin } from "@/lib/auth-origins";
 
 async function assertAdmin(userId: string) {
   const { data: roles } = await supabaseAdmin
@@ -323,11 +324,7 @@ export const sendMemberAccessLink = createServerFn({ method: "POST" })
 
     if (!sub) throw new Error("No active paid or comped membership found for that email.");
 
-    const origin = (
-      process.env.PUBLIC_APP_ORIGIN ||
-      process.env.APP_ORIGIN ||
-      "https://app.alpcontractorcircle.com"
-    ).replace(/\/$/, "");
+    const origin = hubOrigin();
     const existing = await findAuthUserByEmail(data.email);
 
     if (existing) {
@@ -364,7 +361,7 @@ export const adminGenerateMagicLink = createServerFn({ method: "POST" })
   .inputValidator((d: { email: string; redirectTo?: string }) => d)
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
-    const fallbackOrigin = "https://app.alpcontractorcircle.com";
+    const fallbackOrigin = hubOrigin();
     const origin = (() => {
       try {
         return new URL(data.redirectTo ?? fallbackOrigin).origin;

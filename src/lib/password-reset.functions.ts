@@ -15,17 +15,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { hubOrigin } from "@/lib/auth-origins";
 
 const Input = z.object({
   email: z.string().trim().toLowerCase().email().max(255),
 });
 
 function appOrigin(): string {
-  return (
-    process.env.PUBLIC_APP_ORIGIN ||
-    process.env.APP_ORIGIN ||
-    "https://app.alpcontractorcircle.com"
-  ).replace(/\/$/, "");
+  return hubOrigin();
 }
 
 async function findAuthUserByEmail(email: string) {
