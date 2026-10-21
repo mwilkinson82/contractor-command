@@ -32,12 +32,13 @@ import {
   estimateTakeoffGet,
   estimateTakeoffSave,
 } from "./tools/estimate-tools";
+import { estimateBidSummary, estimateGeneralConditions, estimatePricing, estimateRateSources, estimateRequirements } from "./tools/estimate-bid-tools";
 
 // Vite inlines the stable ref; the runtime backend URL may be a proxy.
 const projectRef = import.meta.env["VITE_SUPABASE_PROJECT_ID"] ?? "project-ref-unset";
 
-/** All 36 Athena tools, in tools/list order. */
-export const ATHENA_TOOLS = [onboarding, intake, nextQuestion, answer, report, contractTerms, carryForward, listOpenItems, resolveItem, cpmActivities, livingReportGet, livingReportSave, fileShare, fileShareRevoke, lookaheadPdfTool, reportPageLink, reportPageShare, reportPageShareRevoke, teamList, teamInvite, teamUpdateMember, teamRemoveMember, teamAddSeats, setCurrentCompany, estimateIntake, estimateDocReview, estimateTakeoffSave, estimateTakeoffGet, estimateTakeoffExport, estimateGapAnalysis, estimateBidCheck, estimateItemMark, estimateBuild, estimateStatus, emailDraft, emailConfirmSend];
+/** All 41 Athena tools, in tools/list order. */
+export const ATHENA_TOOLS = [onboarding, intake, nextQuestion, answer, report, contractTerms, carryForward, listOpenItems, resolveItem, cpmActivities, livingReportGet, livingReportSave, fileShare, fileShareRevoke, lookaheadPdfTool, reportPageLink, reportPageShare, reportPageShareRevoke, teamList, teamInvite, teamUpdateMember, teamRemoveMember, teamAddSeats, setCurrentCompany, estimateIntake, estimateDocReview, estimateTakeoffSave, estimateTakeoffGet, estimateTakeoffExport, estimateGapAnalysis, estimateBidCheck, estimateItemMark, estimateBuild, estimateStatus, estimatePricing, estimateRateSources, estimateGeneralConditions, estimateRequirements, estimateBidSummary, emailDraft, emailConfirmSend];
 
 export default defineMcp({
   name: "athena",
