@@ -100,6 +100,7 @@ export async function sendLoginNudgeNow({
   channel,
   siteUrl = appOrigin(),
   variant = "circle",
+  otpCode,
 }: {
   supabaseAdmin: SupabaseAdminClient;
   email: string;
@@ -109,6 +110,8 @@ export async function sendLoginNudgeNow({
   channel: "public_magic_link" | "admin_people_signin";
   siteUrl?: string;
   variant?: LoginEmailVariant;
+  /** Athena only: one-time code shown in the email for same-tab entry. */
+  otpCode?: string;
 }): Promise<DirectLoginNudgeResult> {
   const TEMPLATE_NAME = variant === "athena" ? "athena-magic-link" : "magic-link";
   const apiKey = process.env.LOVABLE_API_KEY;
@@ -182,6 +185,7 @@ export async function sendLoginNudgeNow({
     siteName: SITE_NAME,
     siteUrl,
     confirmationUrl,
+    ...(variant === "athena" && otpCode ? { otpCode } : {}),
   };
   const element = React.createElement(entry.component, props);
   const html = await render(element);

@@ -10,7 +10,6 @@ import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { oauthConsentReturn } from "@/lib/oauth-return-path";
 import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
-import { athenaAppOrigin } from "@/lib/athena-host";
 import { hubOrigin } from "@/lib/auth-origins";
 
 type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
@@ -155,7 +154,11 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
     // the Athena app, whatever page the request came from. Hub sign-ins keep
     // the request-derived origin. Identity and the live-member check below are
     // the same for both.
-    const origin = oauthConsentReturn(data.continuation) ? athenaAppOrigin() : appOrigin();
+    // v0.8.19: the link lands on the same host that started the connect. Forcing
+    // app.meetathena.io moved phones to a second host mid-connect, and the auth
+    // server rejects consent calls from that origin ("unauthorized request
+    // origin") while the Site URL is elsewhere, so the authorization never got a user.
+    const origin = appOrigin();
     const minDelay = new Promise((resolve) => setTimeout(resolve, 600));
     let internalAction:
       | "sent"
@@ -209,6 +212,11 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
             idempotencyKey: `public-signin-${email}-${Date.now()}`,
             channel: "public_magic_link",
             siteUrl: origin,
+            // v0.8.19: the same one-time code, typed in the tab that started the
+            // connect, so a phone never has to switch tabs or browsers.
+            ...(continuation && link.properties?.email_otp
+              ? { otpCode: String(link.properties.email_otp) }
+              : {}),
             // Presentation only, derived from the validated canonical consent
             // path after signing. Not proof of client identity.
             ...(continuation ? { variant: "athena" as const } : {}),
