@@ -44,6 +44,7 @@ export function ruleProblems(r: RetainageRule, contractText?: string | null): st
     if (!r.threshold_basis) p.push("Say what the threshold is measured against: the contract sum to date or the original contract.");
     if (r.reduced_rate_bp === null || r.reduced_rate_bp < 0 || r.reduced_rate_bp > r.base_rate_bp) p.push("A reduction needs the reduced rate, no higher than the starting rate.");
   }
+  if (r.stored_rate_bp != null && (!Number.isInteger(r.stored_rate_bp) || r.stored_rate_bp < 0 || r.stored_rate_bp > 10000)) p.push("The stored-materials rate must be between 0% and 100%.");
   if (r.source === "contract") {
     if (!r.clause_text?.trim() || !r.clause_section?.trim()) p.push("Quote the retainage clause exactly, with its section number.");
     else if (contractText && !norm(contractText).includes(norm(r.clause_text))) p.push(`The clause text for §${r.clause_section} isn't found word for word in the contract. Copy it exactly.`);
@@ -66,10 +67,11 @@ export function ruleLine(r: RetainageRule): string {
           ? `${fmtBp(r.base_rate_bp)} until ${fmtBp(r.threshold_bp!)} complete (measured on ${basis}), then ${fmtBp(r.reduced_rate_bp!)} on the whole balance held`
           : `${fmtBp(r.base_rate_bp)} until ${fmtBp(r.threshold_bp!)} complete (measured on ${basis}) at the start of a period, then ${fmtBp(r.reduced_rate_bp!)} for the whole period`;
   const src = r.source === "contract" ? `§${r.clause_section} ‹${r.clause_text}› (document)` : `the contract is silent; per ${r.answered_by} (PM answer)`;
-  return `${how}. Release: ${r.release_terms?.trim() || "Needed"}. Source: ${src}.`;
+  const stored = r.stored_rate_bp == null ? "" : ` Stored materials: ${fmtBp(r.stored_rate_bp)} (contract).`;
+  return `${how}.${stored} Release: ${r.release_terms?.trim() || "Needed"}. Source: ${src}.`;
 }
 
-export type RetLineIn = { id: string; c: number; prev_g: number; g: number; f: number; prev_i: number };
+export type RetLineIn = { id: string; c: number; prev_g: number; g: number; f: number; prev_i: number; prev_f?: number; prev_i_stored?: number };
 export type RetResult = {
   threshold_amount: number | null;
   below: number; // part of the period amount held at the base rate
@@ -77,7 +79,7 @@ export type RetResult = {
   period_amount: number;
   period_retainage: number;
   total_retainage: number;
-  lines: { id: string; period_amount: number; period_retainage: number; i: number }[];
+  lines: { id: string; period_amount: number; period_retainage: number; i: number; i_stored: number }[];
   note: string; // the one-line retainage note for the pay app view
 };
 
@@ -94,17 +96,33 @@ export function thresholdAmount(r: RetainageRule, contractSumToDate: number, ori
  * with the largest remainders, so the lines always sum to the tier total exactly. I = I last certified + period retainage.
  */
 export function computeRetainage(r: RetainageRule, lines: RetLineIn[], contractSumToDate: number, originalContract: number): RetResult {
+  if (r.stored_rate_bp == null) return computeRule(r, lines, contractSumToDate, originalContract);
+  // D2 with a separate contract rate: completed work follows the rule (the threshold still counts work plus stored, G);
+  // stored materials still in F are held at the stored rate on their whole balance.
+  const offPrev = sum(lines.map((l) => l.prev_f ?? 0));
+  const offNew = sum(lines.map((l) => l.f));
+  const work = computeRule(r, lines.map((l) => ({ ...l, prev_g: l.prev_g - (l.prev_f ?? 0), g: l.g - l.f, prev_i: l.prev_i - (l.prev_i_stored ?? 0) })), contractSumToDate, originalContract, { prev: offPrev, next: offNew });
+  const st = lines.map((l) => applyBp(l.f, r.stored_rate_bp!));
+  const out = work.lines.map((w, k) => ({ id: w.id, period_amount: lines[k].g - lines[k].prev_g, period_retainage: w.period_retainage + st[k] - (lines[k].prev_i_stored ?? 0), i: w.i + st[k], i_stored: st[k] }));
+  const total = sum(out.map((o) => o.i));
+  const prevI = sum(lines.map((l) => l.prev_i));
+  return { ...work, period_amount: sum(out.map((o) => o.period_amount)), period_retainage: total - prevI, total_retainage: total, lines: out,
+    note: `${work.note.replace(/ This period: .*$/, "")} Stored materials at ${fmtBp(r.stored_rate_bp)}. This period: ${fmt(total - prevI)}.` };
+}
+
+function computeRule(r: RetainageRule, lines: RetLineIn[], contractSumToDate: number, originalContract: number, off: { prev: number; next: number } = { prev: 0, next: 0 }): RetResult {
+  // The threshold is measured on G (work plus stored); with a separate stored rate the work-only amounts are shifted by stored.
   const T = thresholdAmount(r, contractSumToDate, originalContract);
-  const prevG = sum(lines.map((l) => l.prev_g));
-  const newG = sum(lines.map((l) => l.g));
-  const period = newG - prevG;
+  const prevG = sum(lines.map((l) => l.prev_g)) + off.prev;
+  const newG = sum(lines.map((l) => l.g)) + off.next;
+  const period = newG - prevG - (off.next - off.prev);
   const prevI = sum(lines.map((l) => l.prev_i));
   const base = r.base_rate_bp;
   const reduced = r.reduced_rate_bp ?? base;
 
   if (r.reduction === "whole_balance" && T !== null && newG >= T) {
     // Whole balance at the reduced rate: each line's I is its G at the reduced rate.
-    const out = lines.map((l) => { const i = applyBp(l.g, reduced); return { id: l.id, period_amount: l.g - l.prev_g, period_retainage: i - l.prev_i, i }; });
+    const out = lines.map((l) => { const i = applyBp(l.g, reduced); return { id: l.id, period_amount: l.g - l.prev_g, period_retainage: i - l.prev_i, i, i_stored: 0 }; });
     const total = sum(out.map((o) => o.i));
     return { threshold_amount: T, below: 0, above: period, period_amount: period, period_retainage: total - prevI, total_retainage: total, lines: out,
       note: `Held at ${fmtBp(reduced)} on the whole ${fmt(newG)} completed (at or above ${fmt(T)}). This period: ${fmt(total - prevI)}.` };
@@ -112,7 +130,8 @@ export function computeRetainage(r: RetainageRule, lines: RetLineIn[], contractS
 
   let below = period, above = 0;
   if (T !== null && r.reduction === "prospective") {
-    below = Math.max(0, Math.min(newG, T) - Math.min(prevG, T));
+    // Work crosses the threshold in G terms: the work slice sits between prevG and prevG + period.
+    below = Math.max(0, Math.min(prevG + period, T) - Math.min(prevG, T));
     if (period < 0) below = period; // a reversal comes back at the starting rate
     above = period - below;
   } else if (T !== null && r.reduction === "period_start_status" && prevG >= T) {
@@ -131,7 +150,7 @@ export function computeRetainage(r: RetainageRule, lines: RetLineIn[], contractS
 
 function spread(lines: RetLineIn[], period: number, periodRet: number) {
   const amts = lines.map((l) => l.g - l.prev_g);
-  if (period === 0) return lines.map((l, k) => ({ id: l.id, period_amount: amts[k], period_retainage: 0, i: l.prev_i }));
+  if (period === 0) return lines.map((l, k) => ({ id: l.id, period_amount: amts[k], period_retainage: 0, i: l.prev_i, i_stored: 0 }));
   const raw = amts.map((a) => (a * periodRet) / period);
   const shares = amts.map((a) => (period > 0 ? divHalfUp(a * periodRet, period) : divHalfUp(-a * periodRet, -period)));
   let diff = periodRet - sum(shares);
@@ -142,7 +161,7 @@ function spread(lines: RetLineIn[], period: number, periodRet: number) {
     shares[k] += diff > 0 ? 1 : -1;
     diff += diff > 0 ? -1 : 1;
   }
-  return lines.map((l, k) => ({ id: l.id, period_amount: amts[k], period_retainage: shares[k], i: l.prev_i + shares[k] }));
+  return lines.map((l, k) => ({ id: l.id, period_amount: amts[k], period_retainage: shares[k], i: l.prev_i + shares[k], i_stored: 0 }));
 }
 
 /** How the host is directed to set the rule at job setup (D1). Athena directs; the host does the reading. */
