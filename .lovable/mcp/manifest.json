@@ -3587,6 +3587,1076 @@
           "additionalProperties": false
         },
         "outputSchema": null
+      },
+      {
+        "name": "log_get",
+        "title": "Show a living log, or what's overdue across all logs",
+        "description": "One log (RFI, submittal, change order, transmittal, pay app, notice) as one styled view with its summary strip, or every log with the overdue list across all of them (\"What's overdue on 2701?\"). Viewing never changes the master. Supers can see logs (no dollars). Read-only.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "log_type": {
+              "description": "Leave out for all logs.",
+              "type": "string",
+              "enum": [
+                "rfi",
+                "submittal",
+                "change_order",
+                "transmittal",
+                "pay_app",
+                "notice"
+              ]
+            },
+            "as_of": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "log_save",
+        "title": "Add or update a log entry (after approval)",
+        "description": "Adds an entry (the next per-job number is assigned) or updates one (answer, close, ball in court, due date, notice sent). Call only after the user says yes, with the log's current version as base_version. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true
+            },
+            "base_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "log_type": {
+              "type": "string",
+              "enum": [
+                "rfi",
+                "submittal",
+                "change_order",
+                "transmittal",
+                "pay_app",
+                "notice"
+              ]
+            },
+            "id": {
+              "description": "Entry to update; leave out to add.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "opened": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "due": {
+              "description": "From the contract clause. Null shows Needed.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "closed": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "status": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "ball_in_court": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "company": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 120
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "name"
+              ]
+            },
+            "condition_precedent": {
+              "type": "boolean"
+            },
+            "sent": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "spec_section": {
+              "type": "string",
+              "maxLength": 20
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 99
+            },
+            "change": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300,
+              "description": "What changed, for the change log."
+            }
+          },
+          "required": [
+            "job_number",
+            "approved",
+            "base_version",
+            "log_type",
+            "change"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "transmittal_draft",
+        "title": "Draft a transmittal",
+        "description": "Builds the next transmittal (per-job number, due back from its purpose, item check against the logs) for the user to review. Saves nothing and sends nothing. Read-only.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "to": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "purpose": {
+              "type": "string",
+              "enum": [
+                "for_approval",
+                "for_review",
+                "for_information",
+                "for_record",
+                "as_requested"
+              ]
+            },
+            "sent_on": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "items": {
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "copies": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 99
+                  }
+                },
+                "required": [
+                  "ref"
+                ]
+              }
+            },
+            "remarks": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "due_back_days": {
+              "description": "Working days from the contract clause, when on file.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90
+            }
+          },
+          "required": [
+            "job_number",
+            "to",
+            "purpose",
+            "items"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "transmittal_save",
+        "title": "Save a transmittal as ready to send (after approval)",
+        "description": "Saves the transmittal with the next per-job number and status Ready to send, and returns the email card spec. Does not send; \"Sent\" is recorded only through transmittal_mark_sent after the host confirms. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "to": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "purpose": {
+              "type": "string",
+              "enum": [
+                "for_approval",
+                "for_review",
+                "for_information",
+                "for_record",
+                "as_requested"
+              ]
+            },
+            "sent_on": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "items": {
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "copies": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 99
+                  }
+                },
+                "required": [
+                  "ref"
+                ]
+              }
+            },
+            "remarks": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "due_back_days": {
+              "description": "Working days from the contract clause, when on file.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true
+            },
+            "base_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "job_number",
+            "to",
+            "purpose",
+            "items",
+            "approved",
+            "base_version"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "transmittal_mark_sent",
+        "title": "Record a transmittal as sent (after the host confirms)",
+        "description": "Records Sent only when the host has confirmed the user sent the email. Without that confirmation nothing changes. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "base_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "host_confirmed": {
+              "type": "boolean",
+              "const": true
+            },
+            "sent_on": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          "required": [
+            "job_number",
+            "id",
+            "base_version",
+            "host_confirmed",
+            "sent_on"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "job_costs_import",
+        "title": "Import job costs (after approval)",
+        "description": "Stores the job cost rows from the accounting export (the host reads the file) with the export's printed control total. Replaces the previous import; the ledger re-ties on the next preview. Call only after the user says yes. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true
+            },
+            "source": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "File name of the export."
+            },
+            "control_total": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "rows": {
+              "minItems": 1,
+              "maxItems": 5000,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20
+                  },
+                  "amount": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "date": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "vendor": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "ref": {
+                    "type": "string",
+                    "maxLength": 60
+                  }
+                },
+                "required": [
+                  "code",
+                  "amount",
+                  "date"
+                ]
+              }
+            }
+          },
+          "required": [
+            "job_number",
+            "approved",
+            "source",
+            "control_total",
+            "rows"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "ledger_get",
+        "title": "Show the job cost ledger",
+        "description": "The saved ledger with cost-to-cost earned, over/under billing, fade and ties T1–T7. Files: Excel by default; a Google Sheet only when Drive is connected and the user asks. Dollars: supers can't see it. Read-only.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "google_sheet": {
+              "description": "The user asked for a Google Sheet.",
+              "type": "boolean"
+            },
+            "drive_connected": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "ledger_preview",
+        "title": "Preview a ledger update",
+        "description": "Computes the ledger from these lines, the latest cost import and the last certified pay app, with every tie. Saves nothing. Read-only.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "contract_sum": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "estimate_total": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "retainage_held": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "lines": {
+              "minItems": 1,
+              "maxItems": 500,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "contract": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "estimate": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "cost_to_date": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "billed_to_date": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "code",
+                  "description",
+                  "contract",
+                  "estimate",
+                  "cost_to_date",
+                  "billed_to_date"
+                ]
+              }
+            }
+          },
+          "required": [
+            "job_number",
+            "contract_sum",
+            "estimate_total",
+            "retainage_held",
+            "lines"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "ledger_save",
+        "title": "Save the ledger (after approval)",
+        "description": "Saves the next ledger version. Refuses when any tie misses by even $0.01. Call only after the user says yes, with base_version. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "contract_sum": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "estimate_total": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "retainage_held": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "lines": {
+              "minItems": 1,
+              "maxItems": 500,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "contract": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "estimate": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "cost_to_date": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "billed_to_date": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "code",
+                  "description",
+                  "contract",
+                  "estimate",
+                  "cost_to_date",
+                  "billed_to_date"
+                ]
+              }
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true
+            },
+            "base_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "change": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "job_number",
+            "contract_sum",
+            "estimate_total",
+            "retainage_held",
+            "lines",
+            "approved",
+            "base_version",
+            "change"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "project_record_get",
+        "title": "Show the Project Record",
+        "description": "The job's Project Record, sections in a fixed order. Owner, all-access and accounting see dollars on every job; a PM sees dollars on their own jobs (D9); supers see it with no dollar sections. If a super asks for dollars, pass their question as question and Athena declines. Read-only.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "question": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "project_record_save",
+        "title": "Save a Project Record version (after approval)",
+        "description": "Saves the current Project Record as the next version with a change log line. Call only after the user says yes, with base_version. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true
+            },
+            "base_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "change": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "job_number",
+            "approved",
+            "base_version",
+            "change"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "form_map_save",
+        "title": "Save a licensed form field map (after approval)",
+        "description": "Saves the field map for the company's own licensed G702 or G703: form field id to Athena value key. Licensed form maps hold only field ids and value keys. The company supplies its own licensed form; the host fills it. Athena never stores, copies or reproduces the form. Call only after the user says yes. Owner or all-access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true
+            },
+            "form": {
+              "type": "string",
+              "enum": [
+                "G702",
+                "G703"
+              ]
+            },
+            "edition": {
+              "type": "string",
+              "maxLength": 4
+            },
+            "fields": {
+              "minItems": 1,
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "field_id": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "value": {
+                    "type": "string",
+                    "enum": [
+                      "g702.l1",
+                      "g702.l2",
+                      "g702.l3",
+                      "g702.l4",
+                      "g702.l5a",
+                      "g702.l5b",
+                      "g702.l5",
+                      "g702.l6",
+                      "g702.l7",
+                      "g702.l8",
+                      "g702.l9",
+                      "app.no",
+                      "app.period_to",
+                      "app.date",
+                      "job.number",
+                      "job.name",
+                      "owner.name",
+                      "contractor.name",
+                      "architect.name",
+                      "g703.a",
+                      "g703.b",
+                      "g703.c",
+                      "g703.d",
+                      "g703.e",
+                      "g703.f",
+                      "g703.g",
+                      "g703.pct",
+                      "g703.h",
+                      "g703.i"
+                    ]
+                  }
+                },
+                "required": [
+                  "field_id",
+                  "value"
+                ]
+              }
+            }
+          },
+          "required": [
+            "approved",
+            "form",
+            "edition",
+            "fields"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
       }
     ]
   }
