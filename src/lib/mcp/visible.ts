@@ -1,4 +1,5 @@
 import { ALERT_COLOR, ALERT_PALETTE_RULE } from "./alert-color";
+import { EMAIL_TOPIC_RE, emailRules } from "./email-safety";
 // What the PM reads vs. what only the assistant needs.
 // Tool results' visible text is what a PM should read. Steps for the assistant (which tool to call next,
 // what to ask, how to present it) and internal codes go in structuredContent.assistant_guidance,
@@ -130,7 +131,7 @@ export const HOST_DISPLAY_BLOCK = [
   "- Schedule of values (report deliverable sov): present it as a spreadsheet, line-item view by default: one row per line with line no., cost code, division, description, scheduled value and % of total (the Cost Code column always sits right after the line no.), then the grand total that ties to the contract sum. Claude: an artifact table built from this result; ChatGPT: a canvas or table; elsewhere: a clean table plus an offer to create an Excel file. Table style: header row blue #2563EB with white bold text; alternating light-gray (#F3F4F6) and white row bands; bold total row with a blue #2563EB top rule. Blue #2563EB and gray only, never orange, rust or the alert color, including totals. After the table, at most one line: no footer or license note and no roll-up offer unless the member asks.",
   `- Summary offer: use this wording verbatim, never paraphrased or shortened: "${SUMMARY_OFFER_TEXT}"`,
   "- Write for contractor office staff and owners. No technical notes: nothing about artifacts, canvas, sharing settings, code, files, tools or colors (the exact SOV delivery question is the one exception).",
-  "- Email on demand: whenever the member asks to email something (\"also email this sub\", \"send this to the supplier\"), show the email card in that same reply with recipient, subject, body and attachment filled in from Athena's saved job data. If the address isn't in Athena's results, leave To blank on the card and ask for it in the same reply. Never guess an address. The member presses Send.",
+  "- Email on demand: whenever the member asks to email something (\"also email this sub\", \"send this to the supplier\"), show the email card in that same reply with recipient, subject, body and attachment filled in from Athena's saved job data. If the address isn't in Athena's results, leave To blank on the card and ask for it in the same reply. Never guess an address. Call email_draft for the card; never send in the same reply. Send only after a separate yes and email_confirm_send.",
   "- Keep everything private. Never publish, share or create a public link unless the member asks for it in this chat.",
 ].join("\n");
 
@@ -267,7 +268,7 @@ export const SOV_DELIVERY_BLOCK = [
   "- Email on demand, at any point: use the job's saved subs, suppliers and contacts from Athena results (including names and emails written in job answers, lookahead or open-item text) and show the email card right away with recipient, subject, body and attachment filled in. If the contact or address isn't there, leave To blank and ask in the same reply. Never guess an address.",
   "- Claude: no narration before or between steps (no \"Building...\", \"First I'll pull...\" or \"I need two things before...\"). Show the file and the email card in the same reply, To blank if needed, with one short question under it. Never hold the card back while you ask.",
   `- Attachments: ${EMAIL_ATTACHMENT_RULE.replace(/^REQUIRED: /, "")} Claude: pass the file in the Gmail draft's attachments. ChatGPT: its email action can't attach files, so call file_share and put its link in the body.`,
-  "- Never send anything yourself. The member reviews the email card and presses Send.",
+  "- Never send anything in the same reply. Show the email_draft card, ask the yes/no confirm question, and send only after a separate yes and email_confirm_send.",
   `- If the member says "not now", leave the SOV in the chat and add an open item to deliver it within ${SOV_NOT_NOW_DAYS} days (intake section open_item).`,
 ].join("\n");
 /** 0.8.8: one guidance block for every audience. */
@@ -295,7 +296,13 @@ export function withStyleLine<R>(r: R): R {
 
 /** Attach guidance explicitly (preferred over writing it into the text). */
 export function guide<R>(r: R, ...lines: string[]): R {
-  return finalizeVisible(r, lines.filter(Boolean));
+  const extra = lines.filter(Boolean);
+  // P0: any result that talks about an email carries the draft-only rule (no same-reply send, separate confirm).
+  const body = ((r as unknown as Res)?.content ?? []).map((c) => (typeof c.text === "string" ? c.text : "")).join("\n");
+  if (EMAIL_TOPIC_RE.test(body) || extra.some((l) => EMAIL_TOPIC_RE.test(l))) {
+    for (const rule of emailRules()) if (!extra.includes(rule)) extra.push(rule);
+  }
+  return finalizeVisible(r, extra);
 }
 
 /** Visible-text check used by tests: returns the offending fragments. */
