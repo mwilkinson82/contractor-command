@@ -1388,6 +1388,77 @@ export type Database = {
           },
         ]
       }
+      mcp_file_shares: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          download_count: number
+          expires_at: string
+          filename: string
+          id: string
+          job_id: string
+          kind: string
+          last_downloaded_at: string | null
+          mime_type: string
+          revoked_at: string | null
+          revoked_by: string | null
+          sha256: string
+          signed_url: string
+          size_bytes: number
+          storage_path: string
+          token_hash: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string
+          download_count?: number
+          expires_at: string
+          filename: string
+          id: string
+          job_id: string
+          kind: string
+          last_downloaded_at?: string | null
+          mime_type: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          sha256: string
+          signed_url: string
+          size_bytes: number
+          storage_path: string
+          token_hash: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          download_count?: number
+          expires_at?: string
+          filename?: string
+          id?: string
+          job_id?: string
+          kind?: string
+          last_downloaded_at?: string | null
+          mime_type?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          sha256?: string
+          signed_url?: string
+          size_bytes?: number
+          storage_path?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_file_shares_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_gate_cache: {
         Row: {
           active: boolean
@@ -1758,6 +1829,7 @@ export type Database = {
       mcp_jobs: {
         Row: {
           company_id: string | null
+          contract_completion_date: string | null
           created_at: string
           id: string
           job_number: string | null
@@ -1775,6 +1847,7 @@ export type Database = {
         }
         Insert: {
           company_id?: string | null
+          contract_completion_date?: string | null
           created_at?: string
           id?: string
           job_number?: string | null
@@ -1792,6 +1865,7 @@ export type Database = {
         }
         Update: {
           company_id?: string | null
+          contract_completion_date?: string | null
           created_at?: string
           id?: string
           job_number?: string | null
@@ -1813,6 +1887,68 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_living_reports: {
+        Row: {
+          activity_count: number | null
+          change_what: string
+          change_why: string | null
+          contract_total: number | null
+          created_at: string
+          data: Json
+          data_date: string | null
+          forecast_total: number | null
+          id: string
+          job_id: string
+          report_type: string
+          status: string
+          updated_by: string
+          updated_by_name: string | null
+          version: number
+        }
+        Insert: {
+          activity_count?: number | null
+          change_what: string
+          change_why?: string | null
+          contract_total?: number | null
+          created_at?: string
+          data?: Json
+          data_date?: string | null
+          forecast_total?: number | null
+          id?: string
+          job_id: string
+          report_type: string
+          status?: string
+          updated_by?: string
+          updated_by_name?: string | null
+          version: number
+        }
+        Update: {
+          activity_count?: number | null
+          change_what?: string
+          change_why?: string | null
+          contract_total?: number | null
+          created_at?: string
+          data?: Json
+          data_date?: string | null
+          forecast_total?: number | null
+          id?: string
+          job_id?: string
+          report_type?: string
+          status?: string
+          updated_by?: string
+          updated_by_name?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_living_reports_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
             referencedColumns: ["id"]
           },
         ]
@@ -2181,6 +2317,62 @@ export type Database = {
             columns: ["na_id"]
             isOneToOne: false
             referencedRelation: "mcp_job_na"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_report_shares: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          expires_at: string
+          id: string
+          job_id: string | null
+          last_viewed_at: string | null
+          page: string
+          revoked_at: string | null
+          revoked_by: string | null
+          show_money: boolean
+          token_hash: string
+          view_count: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string
+          expires_at: string
+          id?: string
+          job_id?: string | null
+          last_viewed_at?: string | null
+          page: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          show_money?: boolean
+          token_hash: string
+          view_count?: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          expires_at?: string
+          id?: string
+          job_id?: string | null
+          last_viewed_at?: string | null
+          page?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          show_money?: boolean
+          token_hash?: string
+          view_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_report_shares_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
             referencedColumns: ["id"]
           },
         ]
@@ -3442,6 +3634,7 @@ export type Database = {
         Args: { _job: string }
         Returns: {
           company_id: string | null
+          contract_completion_date: string | null
           created_at: string
           id: string
           job_number: string | null
@@ -3511,6 +3704,32 @@ export type Database = {
         Returns: Json
       }
       mcp_eval_cond: { Args: { _c: Json; _flags: Json }; Returns: boolean }
+      mcp_file_path_scope: { Args: { _name: string }; Returns: string }
+      mcp_file_share_create: {
+        Args: {
+          _expires_at: string
+          _filename: string
+          _id: string
+          _job: string
+          _kind: string
+          _mime: string
+          _path: string
+          _sha256: string
+          _signed_url: string
+          _size: number
+          _token_hash: string
+        }
+        Returns: Json
+      }
+      mcp_file_share_list: { Args: { _job: string }; Returns: Json }
+      mcp_file_share_open: {
+        Args: { _count?: boolean; _token_hash: string }
+        Returns: Json
+      }
+      mcp_file_share_revoke: {
+        Args: { _job: string; _token_hash: string }
+        Returns: Json
+      }
       mcp_flags_unknown: {
         Args: { _job: string; _keys: string[] }
         Returns: Json
@@ -3520,6 +3739,7 @@ export type Database = {
         Args: { _company: string; _right: string }
         Returns: boolean
       }
+      mcp_is_company_leader: { Args: { _company: string }; Returns: boolean }
       mcp_is_company_member: { Args: { _company: string }; Returns: boolean }
       mcp_is_company_viewer: { Args: { _company: string }; Returns: boolean }
       mcp_is_pm_ref: { Args: { _label: string; _pm: string }; Returns: boolean }
@@ -3584,6 +3804,29 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      mcp_living_report_get: {
+        Args: { _job: string; _type: string; _version?: number }
+        Returns: Json
+      }
+      mcp_living_report_save: {
+        Args: {
+          _activity_count: number
+          _base_version: number
+          _completion?: string
+          _contract_total: number
+          _data: Json
+          _data_date: string
+          _forecast_total: number
+          _job: string
+          _replace_completion?: boolean
+          _type: string
+          _what: string
+          _who: string
+          _why: string
+        }
+        Returns: Json
+      }
+      mcp_living_strip_money: { Args: { _data: Json }; Returns: Json }
       mcp_log_surfaced: { Args: { _refs: Json }; Returns: undefined }
       mcp_mark_na: {
         Args: { _job: string; _reason: string; _scope: string; _target: string }
@@ -3609,6 +3852,30 @@ export type Database = {
         Returns: Json
       }
       mcp_repoint_pm_items: { Args: { _job: string }; Returns: number }
+      mcp_report_page_get: {
+        Args: { _company?: string; _job: string; _page: string }
+        Returns: Json
+      }
+      mcp_report_page_stamp: {
+        Args: { _company?: string; _job: string; _page: string }
+        Returns: string
+      }
+      mcp_report_portfolio_rows: {
+        Args: { _company: string; _money: boolean }
+        Returns: Json
+      }
+      mcp_report_share_create: {
+        Args: {
+          _company: string
+          _expires_at: string
+          _job: string
+          _page: string
+          _token_hash: string
+        }
+        Returns: Json
+      }
+      mcp_report_share_open: { Args: { _token_hash: string }; Returns: Json }
+      mcp_report_share_revoke: { Args: { _token_hash: string }; Returns: Json }
       mcp_resolve_item: {
         Args: {
           _approval: string
