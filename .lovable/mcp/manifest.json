@@ -2189,7 +2189,7 @@
         "description": "Owners only. Invites one person by email with a role and job access. Ask first: name, email, role (show the numbered role list) and jobs, then ask \"Invite <name> as <role> with access to jobs ...? Yes or no?\" and call with confirmed true only after yes. The invite counts toward seats right away. Old role name Finance is accepted and saved as AP.",
         "annotations": {
           "readOnlyHint": false,
-          "destructiveHint": false,
+          "destructiveHint": true,
           "idempotentHint": false,
           "openWorldHint": true
         },
@@ -2410,6 +2410,133 @@
           },
           "required": [
             "company_id"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "email_draft",
+        "title": "Show an email draft for review",
+        "description": "Call this whenever the member asks to email or send anything (\"send the lookahead to ...\", \"email this to the sub\"). Returns the draft card only; nothing is sent. Show the card, then ask the confirm question it returns. Never call any send action in the same reply.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "to": {
+              "description": "Recipient address exactly as the member gave it or as Athena's job data shows it. Leave out if unknown; never guess.",
+              "type": "string",
+              "maxLength": 320,
+              "format": "email",
+              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+            },
+            "cc": {
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 320,
+                "format": "email",
+                "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              }
+            },
+            "subject": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "body": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000
+            },
+            "link": {
+              "description": "A file_share or report page link to put under the body, when the email tool can't attach the file.",
+              "type": "string",
+              "maxLength": 2000,
+              "format": "uri"
+            },
+            "job_number": {
+              "type": "string",
+              "maxLength": 40
+            }
+          },
+          "required": [
+            "subject",
+            "body"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "email_confirm_send",
+        "title": "Confirm sending one reviewed email",
+        "description": "Only after the member answered yes to the exact confirm question for a draft from email_draft, in a later message. Pass the same fields and draft_key with confirmed true. Athena sends nothing; on success you may send that one email, unchanged, with your email tool.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "to": {
+              "description": "Recipient address exactly as the member gave it or as Athena's job data shows it. Leave out if unknown; never guess.",
+              "type": "string",
+              "maxLength": 320,
+              "format": "email",
+              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+            },
+            "cc": {
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 320,
+                "format": "email",
+                "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              }
+            },
+            "subject": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "body": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000
+            },
+            "link": {
+              "description": "A file_share or report page link to put under the body, when the email tool can't attach the file.",
+              "type": "string",
+              "maxLength": 2000,
+              "format": "uri"
+            },
+            "draft_key": {
+              "type": "string",
+              "pattern": "^D[0-9A-F]{8}$"
+            },
+            "confirmed": {
+              "type": "boolean",
+              "const": true,
+              "description": "true only after the member said yes to the exact confirm question."
+            }
+          },
+          "required": [
+            "subject",
+            "body",
+            "draft_key",
+            "confirmed"
           ],
           "additionalProperties": false
         },
