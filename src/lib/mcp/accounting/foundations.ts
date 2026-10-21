@@ -17,7 +17,7 @@ export function requireBase(label: string, current: number, base: number): void 
  * - "dollars": reads that carry money (pay apps, retainage, ledger). Full job access only.
  * - "write": every save. Full job access only.
  * - "schedule_logs": logs and schedule without dollars. Anyone with job access except the contract-only role.
- * Which roles see dollars in the Project Record is decision D9 (open); phase 1 does not widen "dollars".
+ * D9 (closed): PMs see dollars on their own jobs because mcp_job_scope already gives a PM 'full' on own jobs; supers never.
  * The database re-checks the same scope (mcp_job_scope) on every read and write.
  */
 export type AccountingNeed = "dollars" | "write" | "schedule_logs";
