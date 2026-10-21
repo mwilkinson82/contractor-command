@@ -24,7 +24,7 @@ describe("host output rules (0.8.0, v0.7.8 retest fixes)", () => {
     expect(src).toContain("line_items: sovLineRows(sov)");
   });
   it("color rule covers charts, tables, totals and highlights everywhere they are styled", () => {
-    const rule = "blue #2563EB and gray only, never orange, rust or red, including totals";
+    const rule = "blue #2563EB and gray only, never orange, rust or the alert color, including totals";
     expect(HOST_DISPLAY_BLOCK).toContain(`Charts, tables, totals and highlights: ${rule}`);
     const src = readFileSync(new URL("./tools/workflow-tools.ts", import.meta.url), "utf8");
     expect(src).toContain(`${rule}`);

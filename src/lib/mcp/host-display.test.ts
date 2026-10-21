@@ -25,8 +25,9 @@ describe("host-display block", () => {
   });
   it("one blue accent for charts, KPIs and the action item; no orange, red or amber", () => {
     expect(HOST_DISPLAY_BLOCK).toMatch(/Charts, bars and KPI numbers use blue #2563EB/);
-    expect(HOST_DISPLAY_BLOCK).toMatch(/Never orange, terracotta, red or the host's default chart palette/);
-    expect(HOST_DISPLAY_BLOCK).toMatch(/Warnings: no red and no amber/);
+    expect(HOST_DISPLAY_BLOCK).toMatch(/Never orange, terracotta or the host's default chart palette; the alert color only for delays, risks and overdue items/);
+    expect(HOST_DISPLAY_BLOCK).toMatch(/Warnings: no amber\. Delays, risks and overdue items get the alert color/);
+    expect(HOST_DISPLAY_BLOCK).not.toMatch(/never red|no red/i);
   });
   it("no preview or reworded offer; artifacts use chat data only", () => {
     expect(HOST_DISPLAY_BLOCK).toMatch(/Nothing before or between the clause cards/);
