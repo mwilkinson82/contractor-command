@@ -2236,6 +2236,1131 @@
         "outputSchema": null
       },
       {
+        "name": "estimate_intake",
+        "title": "Estimating intake",
+        "description": "Saves the estimating role, trades, bid date and document list for a job.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "gc",
+                "self_performer"
+              ]
+            },
+            "trades": {
+              "maxItems": 40,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              }
+            },
+            "bid_due": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "delivery_method": {
+              "type": "string",
+              "maxLength": 80
+            },
+            "documents": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "base",
+                      "addendum",
+                      "sheet",
+                      "spec"
+                    ]
+                  },
+                  "revision": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "date": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "sheets": {
+                    "maxItems": 400,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 40
+                    }
+                  }
+                },
+                "required": [
+                  "name",
+                  "kind"
+                ]
+              }
+            },
+            "sub_bids": {
+              "maxItems": 40,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "sub": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "trade": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "total": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "lines": {
+                    "maxItems": 80,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "description": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 300
+                        },
+                        "qty": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "unit": {
+                          "type": "string",
+                          "maxLength": 20
+                        },
+                        "amount": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "exclusion": {
+                          "type": "string",
+                          "maxLength": 500
+                        }
+                      },
+                      "required": [
+                        "description"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "sub",
+                  "trade"
+                ]
+              }
+            },
+            "workbook_note": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "in_scope": {
+              "maxItems": 40,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "out_scope": {
+              "maxItems": 40,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "assumptions": {
+              "maxItems": 40,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              }
+            }
+          },
+          "required": [
+            "job_number",
+            "role",
+            "trades",
+            "documents"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_doc_review",
+        "title": "Estimating document review",
+        "description": "Saves the sheet index, revisions and spec-versus-drawing list for a job.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "sheets": {
+              "maxItems": 400,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "sheet": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "revision": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "date": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "scale": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "notes": {
+                    "maxItems": 40,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 500
+                    }
+                  },
+                  "schedules": {
+                    "maxItems": 40,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 120
+                    }
+                  }
+                },
+                "required": [
+                  "sheet",
+                  "title"
+                ]
+              }
+            },
+            "specs": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "section": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "part1": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "part2": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "part3": {
+                    "type": "string",
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "section",
+                  "title"
+                ]
+              }
+            },
+            "pairs": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "spec_section": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "requirement": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "sheet": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "detail": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "drawing_shows": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "spec_section",
+                  "requirement",
+                  "sheet"
+                ]
+              }
+            },
+            "context": {
+              "type": "string",
+              "maxLength": 1000
+            }
+          },
+          "required": [
+            "job_number",
+            "sheets",
+            "specs",
+            "pairs"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_takeoff_save",
+        "title": "Save a takeoff",
+        "description": "Saves takeoff lines and computes deduced quantities from measured inputs.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "revision": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "scales": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "sheet": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "scale": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "title_block",
+                      "dimensioned_string"
+                    ]
+                  }
+                },
+                "required": [
+                  "sheet",
+                  "scale"
+                ]
+              }
+            },
+            "lines": {
+              "minItems": 1,
+              "maxItems": 400,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "line_no": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9999
+                  },
+                  "item": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "material": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "unit": {
+                    "type": "string",
+                    "maxLength": 20
+                  },
+                  "basis": {
+                    "type": "string",
+                    "enum": [
+                      "measured",
+                      "deduced",
+                      "read",
+                      "derived",
+                      "MEASURED",
+                      "DEDUCED",
+                      "READ",
+                      "DERIVED"
+                    ]
+                  },
+                  "op": {
+                    "type": "string",
+                    "enum": [
+                      "product",
+                      "sum",
+                      "net",
+                      "quotient",
+                      "cy_from_area",
+                      "rebar_lb",
+                      "scale",
+                      "as_read"
+                    ]
+                  },
+                  "inputs": {
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 80
+                        },
+                        "value": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "unit": {
+                          "type": "string",
+                          "maxLength": 20
+                        },
+                        "sheet": {
+                          "type": "string",
+                          "maxLength": 80
+                        },
+                        "detail": {
+                          "type": "string",
+                          "maxLength": 80
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "value"
+                      ]
+                    }
+                  },
+                  "divisor": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "bar_size": {
+                    "type": "string",
+                    "maxLength": 8
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "range": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "measure_type": {
+                    "type": "string",
+                    "enum": [
+                      "count",
+                      "linear",
+                      "area",
+                      "volume"
+                    ]
+                  },
+                  "sheet": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "detail": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "spec_section": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "confidence": {
+                    "type": "string",
+                    "enum": [
+                      "high",
+                      "medium",
+                      "low"
+                    ]
+                  },
+                  "scale": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "method": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "markup_ref": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "location_text": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "missing_input": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "exclusion": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "checklist_key": {
+                    "type": "string",
+                    "enum": [
+                      "cf",
+                      "if",
+                      "fs",
+                      "fr",
+                      "fd",
+                      "tp",
+                      "cp",
+                      "ts",
+                      "td",
+                      "sg",
+                      "us",
+                      "ew"
+                    ]
+                  },
+                  "element": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "trade": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "item",
+                  "basis",
+                  "sheet"
+                ]
+              }
+            }
+          },
+          "required": [
+            "job_number",
+            "lines"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_takeoff_get",
+        "title": "Read a takeoff",
+        "description": "Returns the saved takeoff for a job.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_takeoff_export",
+        "title": "Export a takeoff",
+        "description": "Exports the saved takeoff as CSV or a workbook layout.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "format": {
+              "type": "string",
+              "enum": [
+                "csv",
+                "workbook"
+              ]
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_gap_analysis",
+        "title": "Estimate gap analysis",
+        "description": "Saves gap items that cite the drawing sheet and the spec section.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "items": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "maxLength": 12
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "seen",
+                      "verify"
+                    ]
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "missing_on_drawings",
+                      "conflict",
+                      "scale_or_dimension",
+                      "scope_seam",
+                      "allowance_or_alternate"
+                    ]
+                  },
+                  "severity": {
+                    "type": "string",
+                    "enum": [
+                      "hard",
+                      "soft",
+                      "cannot_know"
+                    ]
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "reasoning": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "sheet": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "detail": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "spec_section": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "holds_bid": {
+                    "type": "boolean"
+                  },
+                  "qty": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "unit": {
+                    "type": "string",
+                    "maxLength": 20
+                  },
+                  "element": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "line_no": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9999
+                  }
+                },
+                "required": [
+                  "kind",
+                  "category",
+                  "title",
+                  "reasoning",
+                  "sheet",
+                  "spec_section"
+                ]
+              }
+            }
+          },
+          "required": [
+            "job_number",
+            "items"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_bid_check",
+        "title": "Sub bid check",
+        "description": "Checks each sub bid line against the takeoff for a general contractor job.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "bids": {
+              "maxItems": 40,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "sub": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "trade": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "total": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "lines": {
+                    "maxItems": 80,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "description": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 300
+                        },
+                        "qty": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "unit": {
+                          "type": "string",
+                          "maxLength": 20
+                        },
+                        "amount": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "exclusion": {
+                          "type": "string",
+                          "maxLength": 500
+                        }
+                      },
+                      "required": [
+                        "description"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "sub",
+                  "trade"
+                ]
+              }
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_item_mark",
+        "title": "Estimator mark",
+        "description": "Records the estimator mark on a takeoff line or a gap.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "item_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "mark": {
+              "type": "string",
+              "enum": [
+                "relevant",
+                "not_relevant",
+                "good_catch"
+              ]
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "corrected_qty": {
+              "type": "number",
+              "minimum": 0
+            },
+            "owner": {
+              "type": "string",
+              "maxLength": 120
+            }
+          },
+          "required": [
+            "job_number",
+            "item_id",
+            "mark"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_build",
+        "title": "Estimate summary",
+        "description": "Builds the estimate summary from settled quantities and the contractor rates.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "rates": {
+              "maxItems": 400,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "line_no": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9999
+                  },
+                  "item": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "trade": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "system": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "cost_type": {
+                    "type": "string",
+                    "enum": [
+                      "labor",
+                      "material",
+                      "equipment",
+                      "sub",
+                      "other"
+                    ]
+                  },
+                  "rate": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "bought": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_status",
+        "title": "Estimate status",
+        "description": "Returns the open, settled and dropped counts for an estimate.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
         "name": "email_draft",
         "title": "Show an email draft for review",
         "description": "Shows an email draft for review.",

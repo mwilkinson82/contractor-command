@@ -8,6 +8,7 @@ import * as F from "./tools/file-tools";
 import * as R from "./tools/report-page-tools";
 import * as T from "./tools/team-tools";
 import * as E from "./tools/email-tools";
+import * as Est from "./tools/estimate-tools";
 import { ATHENA_VERSION } from "./server-info-branding";
 
 type Prop = { format?: string; pattern?: string; description?: string };
@@ -54,6 +55,16 @@ async function liveTools(): Promise<Tool[]> {
       T.teamRemoveMember,
       T.teamAddSeats,
       T.setCurrentCompany,
+      Est.estimateIntake,
+      Est.estimateDocReview,
+      Est.estimateTakeoffSave,
+      Est.estimateTakeoffGet,
+      Est.estimateTakeoffExport,
+      Est.estimateGapAnalysis,
+      Est.estimateBidCheck,
+      Est.estimateItemMark,
+      Est.estimateBuild,
+      Est.estimateStatus,
       E.emailDraft,
       E.emailConfirmSend,
     ],

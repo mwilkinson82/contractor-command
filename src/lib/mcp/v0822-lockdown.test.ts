@@ -31,6 +31,7 @@ import * as F from "./tools/file-tools";
 import * as R from "./tools/report-page-tools";
 import * as T from "./tools/team-tools";
 import * as E from "./tools/email-tools";
+import * as Est from "./tools/estimate-tools";
 
 const rpc = vi.fn();
 vi.mock("./supabase", () => ({
@@ -63,6 +64,16 @@ const ALL = [
   T.teamRemoveMember,
   T.teamAddSeats,
   T.setCurrentCompany,
+  Est.estimateIntake,
+  Est.estimateDocReview,
+  Est.estimateTakeoffSave,
+  Est.estimateTakeoffGet,
+  Est.estimateTakeoffExport,
+  Est.estimateGapAnalysis,
+  Est.estimateBidCheck,
+  Est.estimateItemMark,
+  Est.estimateBuild,
+  Est.estimateStatus,
   E.emailDraft,
   E.emailConfirmSend,
 ];
@@ -112,8 +123,8 @@ async function toolsList(tools: unknown[]) {
 }
 
 describe("0.8.22 (0) every tool goes through run() and guard()", () => {
-  it("26 tools, and each handler body starts with run(<its own name>)", () => {
-    expect(ALL).toHaveLength(26);
+  it("36 tools, and each handler body starts with run(<its own name>)", () => {
+    expect(ALL).toHaveLength(36);
     const files = readdirSync(new URL("./tools/", import.meta.url)).filter((f) =>
       f.endsWith(".ts"),
     );
@@ -127,7 +138,7 @@ describe("0.8.22 (0) every tool goes through run() and guard()", () => {
         seen++;
       }
     }
-    expect(seen).toBe(26);
+    expect(seen).toBe(36);
     expect(src("./index.ts")).toContain("tools: ATHENA_TOOLS.map(secureTool)");
     expect(src("./guard.ts")).toMatch(
       /export async function run[\s\S]*?const sb = await guard\(ctx\);/,
@@ -144,7 +155,7 @@ describe("0.8.22 (3) refusal rule", () => {
       "That's how I'm built inside ALP; I can't share it. Want to get back to your job?",
     );
     const list = await toolsList(ALL.map(secureTool));
-    expect(list).toHaveLength(26);
+    expect(list).toHaveLength(36);
     for (const t of list) expect(t.description.includes(REFUSAL_DESC), t.name).toBe(false);
   });
   it("stays short (one sentence under 120 characters) and keeps schemas unchanged", async () => {
