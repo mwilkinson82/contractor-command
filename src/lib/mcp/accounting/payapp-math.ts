@@ -1,7 +1,7 @@
 // Accounting phase 1 (D1): the pay app math in AIA G702/G703 format and the blocking checks that enforce the saved
 // retainage rule. Pure functions on integer cents; the pay app tools (phase 2) call these and refuse to save on any failure.
 // Not an AIA document: Athena's own labels and column letters only.
-import { applyBp, fmt, fmtBp, pct2, sum } from "./cents";
+import { applyBp, divHalfUp, fmt, fmtBp, pct2, sum } from "./cents";
 import { computeRetainage, type RetainageRule, type RetResult } from "./retainage";
 
 export type PayLine = {
@@ -14,7 +14,16 @@ export type PayLine = {
   prev_g: number; // G on the last certified app
   prev_i: number; // I (retainage) on the last certified app
   typed_i?: number; // retainage on this line as typed on the draft, when checking a typed app
+  prev_f?: number; // F on the last certified app (D2 separate stored rate)
+  prev_i_stored?: number; // stored-materials part of prev I (D2 separate stored rate)
+  // D3 (Marshall, 2026-10-20): only the owner or all-access may approve G over C on a line.
+  overbill_approved_by?: { name: string; role: string } | null;
 };
+
+/** D3: roles that may approve an overbill. */
+export const OVERBILL_APPROVER_ROLES = ["owner", "all_access"] as const;
+/** D4 (Marshall, 2026-10-20): footer on every Athena pay app view and file. */
+export const PAYAPP_FOOTER = "Prepared in AIA G702/G703 format. Not an AIA document.";
 
 export type PayAppIn = {
   original_contract: number;
@@ -39,21 +48,22 @@ export type PayAppResult = {
 
 /**
  * 3 = 1 + 2. Per line G = D + E + F, H = C − G, I from the saved rule. 4 = ΣG, 5 = ΣI.
- * 5b = retainage on stored materials still in F, at the line's period rate. Decision D2 (a separate stored-materials
- * rate) is still open with Marshall, so this uses the same rate as completed work and only splits 5 into 5a and 5b;
- * the total 5 never depends on D2. 6 = 4 − 5, 7 = the certified record, 8 = 6 − 7, 9 = 3 − 6.
+ * 5b = retainage on stored materials still in F: the same rate as completed work, or the contract's own stored rate (D2). 6 = 4 − 5, 7 = the certified record, 8 = 6 − 7, 9 = 3 − 6.
  */
 export function payAppMath(rule: RetainageRule, a: PayAppIn): PayAppResult {
   const l3 = a.original_contract + a.net_change_orders;
   const gs = a.lines.map((l) => l.d + l.e + l.f);
-  const ret = computeRetainage(rule, a.lines.map((l, k) => ({ id: l.id, c: l.c, prev_g: l.prev_g, g: gs[k], f: l.f, prev_i: l.prev_i })), l3, a.original_contract);
+  const ret = computeRetainage(rule, a.lines.map((l, k) => ({ id: l.id, c: l.c, prev_g: l.prev_g, g: gs[k], f: l.f, prev_i: l.prev_i, prev_f: l.prev_f, prev_i_stored: l.prev_i_stored })), l3, a.original_contract);
   const g703 = a.lines.map((l, k) => {
     const r = ret.lines[k];
     return { id: l.id, c: l.c, d: l.d, e: l.e, f: l.f, g: gs[k], pct: pct2(gs[k], l.c), h: l.c - gs[k], i: r.i, period_retainage: r.period_retainage };
   });
   const l4 = sum(gs);
   const l5 = ret.total_retainage;
-  const l5b = sum(a.lines.map((l, k) => (l.f && g703[k].g ? Math.min(g703[k].i, Math.round((g703[k].i * l.f) / g703[k].g)) : 0)));
+  // D2: same rate as completed work -> 5b is the stored share of each line's I; a separate contract rate -> its own amount.
+  const l5b = rule.stored_rate_bp != null
+    ? sum(ret.lines.map((r) => r.i_stored))
+    : sum(a.lines.map((l, k) => (l.f && g703[k].g ? Math.min(g703[k].i, divHalfUp(g703[k].i * l.f, g703[k].g)) : 0)));
   const l6 = l4 - l5;
   const l7 = a.previous_certificates;
   const g702: G702 = { l1: a.original_contract, l2: a.net_change_orders, l3, l4, l5a: l5 - l5b, l5b, l5, l6, l7, l8: l6 - l7, l9: l3 - l6 };
@@ -82,14 +92,13 @@ function b2(a: PayAppIn, g: G702): Check {
   return pass("B2");
 }
 
-/**
- * B3: G ≤ C on every line. Who may approve an overbill is decision D3, still open with Marshall, so phase 1 has no
- * approval path: any line over its scheduled value blocks.
- */
+/** B3: G ≤ C on every line, unless an owner or all-access member approved that overbill by name (D3). */
 function b3(a: PayAppIn, gs: number[]): Check {
-  const k = a.lines.findIndex((l, n) => gs[n] > l.c);
+  const ok = (l: PayLine) => !!l.overbill_approved_by?.name?.trim() && (OVERBILL_APPROVER_ROLES as readonly string[]).includes(l.overbill_approved_by.role);
+  const k = a.lines.findIndex((l, n) => gs[n] > l.c && !ok(l));
   if (k < 0) return pass("B3");
-  return fail("B3", `Line ${a.lines[k].id} is ${fmt(gs[k] - a.lines[k].c)} over its scheduled value.`);
+  const by = a.lines[k].overbill_approved_by;
+  return fail("B3", `Line ${a.lines[k].id} is ${fmt(gs[k] - a.lines[k].c)} over its scheduled value.${by?.name ? ` ${by.name} can't approve an overbill; only the owner or an all-access member can.` : ""}`);
 }
 
 /** B4: retainage = the saved contract rule, to the cent, line by line and in total. */

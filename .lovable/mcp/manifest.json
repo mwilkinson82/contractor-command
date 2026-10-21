@@ -2521,6 +2521,12 @@
               "type": "string",
               "maxLength": 160
             },
+            "stored_rate_pct": {
+              "description": "Only when the contract sets a different retainage rate for stored materials. Leave out otherwise: stored materials are held at the same rate as completed work.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
             "what_changed": {
               "type": "string",
               "minLength": 1,
@@ -2659,6 +2665,700 @@
             "day_type",
             "source",
             "what_changed"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "payapp_draft",
+        "title": "Draft the next pay app",
+        "description": "Builds the next application for payment in AIA G702/G703 format from the last certified app plus this period's entries, runs the five checks against the saved retainage rule (zero tolerance) and returns the due date from the saved payment terms. Saves nothing: show it as \"Draft: not saved\". Full job access only.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "period_to": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Period end date."
+            },
+            "entries": {
+              "maxItems": 300,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20,
+                    "description": "SOV line (26.01) or CO line (CO-001)."
+                  },
+                  "this_period": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  },
+                  "stored": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  },
+                  "overbill_approved": {
+                    "description": "true only when an owner or all-access member approved this line going over its scheduled value.",
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "this_period"
+                ]
+              },
+              "description": "This period's work (E) and materials presently stored (F) per line. Lines left out are $0.00 this period."
+            },
+            "co_lines": {
+              "description": "Approved change order lines to bill, each as its own line.",
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20
+                  },
+                  "scheduled_value": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  }
+                },
+                "required": [
+                  "id",
+                  "scheduled_value"
+                ]
+              }
+            }
+          },
+          "required": [
+            "job_number",
+            "period_to",
+            "entries"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "payapp_check",
+        "title": "Check a pay app before it goes out",
+        "description": "Runs the five blocking checks (SOV ties to the contract, G703 totals equal G702, no line over its value without an owner or all-access approval, retainage equals the saved rule to the cent, previous equals the certified record) on a typed pay app. Returns pass, or the line and the amount off. Read-only.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "period_to": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Period end date."
+            },
+            "entries": {
+              "maxItems": 300,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20,
+                    "description": "SOV line (26.01) or CO line (CO-001)."
+                  },
+                  "this_period": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  },
+                  "stored": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  },
+                  "overbill_approved": {
+                    "description": "true only when an owner or all-access member approved this line going over its scheduled value.",
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "this_period"
+                ]
+              },
+              "description": "This period's work (E) and materials presently stored (F) per line. Lines left out are $0.00 this period."
+            },
+            "co_lines": {
+              "description": "Approved change order lines to bill, each as its own line.",
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20
+                  },
+                  "scheduled_value": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  }
+                },
+                "required": [
+                  "id",
+                  "scheduled_value"
+                ]
+              }
+            },
+            "typed": {
+              "description": "G702 amounts as typed on the user's pay app.",
+              "type": "object",
+              "properties": {
+                "line4": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ],
+                  "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                },
+                "line5": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ],
+                  "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                },
+                "line5a": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ],
+                  "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                },
+                "line5b": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ],
+                  "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                },
+                "line7": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ],
+                  "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                }
+              }
+            },
+            "typed_retainage": {
+              "description": "Column I per line as typed.",
+              "maxItems": 300,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20
+                  },
+                  "retainage": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  }
+                },
+                "required": [
+                  "id",
+                  "retainage"
+                ]
+              }
+            }
+          },
+          "required": [
+            "job_number",
+            "period_to",
+            "entries"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "payapp_get",
+        "title": "Pay app or pay app log",
+        "description": "One saved pay app (G702/G703 format, checks, due date, file spec) or the job's pay app log with due dates and AR aging. Read-only. Full job access only.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "app_no": {
+              "description": "One app; leave out for the log.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "payapp_save",
+        "title": "Save a pay app (after approval)",
+        "description": "Saves the drafted pay app, or marks it submitted. Refused if any of the five checks fails. Call only after the user says yes to this exact app. Needs approved true and base_version. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "period_to": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Period end date."
+            },
+            "entries": {
+              "maxItems": 300,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20,
+                    "description": "SOV line (26.01) or CO line (CO-001)."
+                  },
+                  "this_period": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  },
+                  "stored": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  },
+                  "overbill_approved": {
+                    "description": "true only when an owner or all-access member approved this line going over its scheduled value.",
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "this_period"
+                ]
+              },
+              "description": "This period's work (E) and materials presently stored (F) per line. Lines left out are $0.00 this period."
+            },
+            "co_lines": {
+              "description": "Approved change order lines to bill, each as its own line.",
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20
+                  },
+                  "scheduled_value": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  }
+                },
+                "required": [
+                  "id",
+                  "scheduled_value"
+                ]
+              }
+            },
+            "period_from": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true,
+              "description": "true only after the user said yes to saving this exact app."
+            },
+            "base_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The app's version (0 for a new app)."
+            },
+            "submitted_on": {
+              "description": "The date it went to the GC or owner, when marking it submitted.",
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          "required": [
+            "job_number",
+            "period_to",
+            "entries",
+            "approved",
+            "base_version"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "payapp_certify",
+        "title": "Record the certified pay app (after approval)",
+        "description": "Records the GC's or architect's certified amounts line by line. Athena recomputes retainage on the certified amounts with the saved rule; a cut becomes the starting point for the next app. Logs the approval date (and the GC's paid date when given), which sets the due date. Needs approved true and base_version. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "app_no": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true,
+              "description": "true only after the user said yes to recording this certification."
+            },
+            "base_version": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "certified_by": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "certified_on": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "cuts": {
+              "description": "Only lines the certifier changed.",
+              "maxItems": 300,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20
+                  },
+                  "certified_this_period": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  },
+                  "certified_stored": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  },
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 300
+                  }
+                },
+                "required": [
+                  "id",
+                  "reason"
+                ]
+              }
+            },
+            "gc_paid_on": {
+              "description": "The date the GC was paid by the owner, when known (pay-when-paid due dates).",
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          "required": [
+            "job_number",
+            "app_no",
+            "approved",
+            "base_version",
+            "certified_by",
+            "certified_on"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "payment_record",
+        "title": "Record a payment received (after approval)",
+        "description": "Records money received against a pay app. A payment that differs from the certified amount needs a short-pay reason, or Athena asks \"typo or short pay?\" first. Logging the GC's paid date turns an Estimated due date into a firm one. Needs approved true. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "app_no": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true,
+              "description": "true only after the user said yes to recording this payment."
+            },
+            "amount": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+            },
+            "received_on": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "reference": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "short_pay_reason": {
+              "description": "Required when the amount differs from the certified amount.",
+              "type": "string",
+              "maxLength": 300
+            },
+            "gc_paid_on": {
+              "description": "The date the GC was paid by the owner, if learned now.",
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          "required": [
+            "job_number",
+            "app_no",
+            "approved",
+            "amount",
+            "received_on"
           ],
           "additionalProperties": false
         },
