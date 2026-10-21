@@ -1,21 +1,26 @@
-# Athena accounting phase 1 + D1 (staged, not published)
+# Athena v0.8.17 accounting P1–P7 + AR (staged, not published)
 
-Branch `codex/athena-accounting-p1` off `a03ceabf`. Migration `20261022000000_athena_accounting_p1.sql` is NOT APPLIED.
+Branch `codex/athena-accounting-p2-7` off the deploy base `codex/athena-passwordless-login-only` at `ff02ec2` (after PR 113).
+All migrations are additive and NOT APPLIED. Nothing here is merged or published.
 
-## Built
-- `accounting/cents.ts`: integer-cent money, basis-point rates, half-up rounding. No floating-point money.
-- `accounting/retainage.ts`: D1 rule per job (rate, reduction method, threshold and its basis, reduced rate, release terms, quoted clause or PM answer). No default. Computes prospective, whole-balance, period-start-status and flat readings; lines always sum to the tier total.
-- `accounting/payapp-math.ts`: G702/G703-format math and blocking checks B1 to B5. B4 enforces the saved rule to the cent, line by line and in total.
-- `accounting/foundations.ts`: approved + base_version guard, one role scope check, job-time-zone stamp, sequence labels.
-- `retainage_rule_save` tool (ask-first write). `contract_terms` returns the saved rule (or "Needed") in text and structuredContent.
-- Server instructions direct the host to read the retainage clause at job setup, or ask the PM when the contract is silent.
+## Decisions (all closed, Marshall 2026-10-20)
+D1 retainage rule per job, no default · D2 stored materials at the same rate unless the contract says otherwise · D3 only owner or all-access approve an overbill · D4 footer "Prepared in AIA G702/G703 format. Not an AIA document." · D5 fade alert at more than 5 points · D6 condition-precedent notices alert at 3 days or less · D7 Excel by default, Google Sheet when Drive is connected and asked · D8 over/under is cost-to-cost · D9 PMs see dollars on their own jobs · D10 transmittals numbered per job · D11 payment-term rule per job (pay-when-paid with an Estimated date that recomputes, or N days after approval/submission), no default; due dates drive AR aging.
 
-## Later phases and the open decisions they wait on
-| Phase | Waits on | Estimate |
+## Phases and migrations
+| Phase | Built | Migration |
 |---|---|---|
-| 2 Pay app tools | D2 stored-materials rate (5a/5b), D3 overbill approver (B3 approval path), D4 footer wording, D11 pay date when pay-when-paid | 2.5 to 3 days |
-| 3 Living logs | D6 condition-precedent red timing, D11 pay app log due date, D10 if the transmittal log rides here | 3 days |
-| 4 Transmittals | D10 numbering per job or per company | 1.5 to 2 days |
-| 5 Job ledger | D5 fade points, D7 Excel vs Google Sheet, D8 over/under billing basis, D11 days late, D2 retainage tab | 3 days |
-| 6 Project Record | D9 who sees dollars, D4 footer, plus phases 2 to 5 | 2 days |
-| 7 Licensed AIA form fill | D4 counsel review, D2 for the 5a/5b fields | 1.5 days |
+| 1 Foundations + D1/D2/D11 | cents, retainage rule, payment-term rule, numbering, record versions | 20261022000000_athena_accounting_p1.sql |
+| 2 Pay apps | payapp_draft/check/get/save/certify, payment_record; B1–B5 | 20261022010000_athena_accounting_p2_payapps.sql |
+| 2b AR | ar_aging, ar_settings_save, ar_invoice_save, ar_followup_log; standing AR in every greeting/briefing | 20261022020000_athena_accounting_ar.sql |
+| 3 Living logs | log_get, log_save | 20261022030000_athena_accounting_p3_logs.sql |
+| 4 Transmittals | transmittal_draft/save/mark_sent | (uses the P3 log tables) |
+| 5 Ledger | job_costs_import, ledger_get/preview/save; ties T1–T7 | 20261022040000_athena_accounting_p5_ledger.sql |
+| 6 Project Record | project_record_get/save; fixed section order; count check; super view without dollars | 20261022050000_athena_accounting_p6_record.sql |
+| 7 Licensed form maps | form_map_save (field map only) | 20261022060000_athena_accounting_p7_form_maps.sql |
+
+## Still open (not decisions)
+- Morning briefing / PM meeting tools live in coach PR 112 (not on the base). AR is wired through the server rule, the ar_aging description and the pure arSection/standingAr helpers; the briefing tool call-in needs a small follow-up once PR 112 lands.
+- Pay app lines are stored as jsonb on mcp_pay_apps rather than a separate lines table.
+- ar_aging's default as_of uses America/New_York when no job is given (per-job calls use the job time zone elsewhere).
+- New log numbers are taken before the save, so a failed save skips a number.
+- The SQL has not been run on a real Postgres; apply to a staging database first.
