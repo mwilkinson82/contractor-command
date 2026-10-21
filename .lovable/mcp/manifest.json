@@ -42,7 +42,7 @@
               "description": "read, save_company (create or update), add_member, or save_brand (SOV logo link and footer)."
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. If the member hasn't named one, call list_open_items with no job_number to list the companies.",
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. Leave it out otherwise: Athena uses the member's current company, so don't make an extra call to list companies first.",
               "type": "string",
               "minLength": 1,
               "maxLength": 200
@@ -261,7 +261,7 @@
               "description": "Job number, exact match (e.g. 2417)."
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. If the member hasn't named one, call list_open_items with no job_number to list the companies.",
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. Leave it out otherwise: Athena uses the member's current company, so don't make an extra call to list companies first.",
               "type": "string",
               "minLength": 1,
               "maxLength": 200
@@ -1061,13 +1061,13 @@
               "description": "Job number, exact match (e.g. 2417)."
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. If the member hasn't named one, call list_open_items with no job_number to list the companies.",
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. Leave it out otherwise: Athena uses the member's current company, so don't make an extra call to list companies first.",
               "type": "string",
               "minLength": 1,
               "maxLength": 200
             },
             "lookahead_id": {
-              "description": "Only for a two-week lookahead. The lookahead ref as printed (e.g. LA-3F2A1) or its lookahead_id.",
+              "description": "Only for a two-week lookahead. The lookahead ref as printed (e.g. LA-3F2A1) or its lookahead_id, or \"latest\" for the newest lookahead that has content.",
               "type": "string",
               "minLength": 1,
               "maxLength": 64
@@ -1101,7 +1101,7 @@
               "description": "Job number, exact match (e.g. 2417)."
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. If the member hasn't named one, call list_open_items with no job_number to list the companies.",
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. Leave it out otherwise: Athena uses the member's current company, so don't make an extra call to list companies first.",
               "type": "string",
               "minLength": 1,
               "maxLength": 200
@@ -1175,7 +1175,7 @@
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             },
             "lookahead_id": {
-              "description": "Only for a two-week lookahead question. The lookahead ref as printed (e.g. LA-3F2A1) or its lookahead_id.",
+              "description": "Only for a two-week lookahead question. The lookahead ref as printed (e.g. LA-3F2A1) or its lookahead_id, or \"latest\" for the newest lookahead that has content.",
               "type": "string",
               "minLength": 1,
               "maxLength": 64
@@ -1208,7 +1208,7 @@
               "description": "Job number, exact match (e.g. 2417)."
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. If the member hasn't named one, call list_open_items with no job_number to list the companies.",
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. Leave it out otherwise: Athena uses the member's current company, so don't make an extra call to list companies first.",
               "type": "string",
               "minLength": 1,
               "maxLength": 200
@@ -1222,7 +1222,7 @@
               ]
             },
             "lookahead_id": {
-              "description": "Only for a two-week lookahead report. The lookahead ref as printed (e.g. LA-3F2A1) or its lookahead_id.",
+              "description": "Only for a two-week lookahead report. The lookahead ref as printed (e.g. LA-3F2A1) or its lookahead_id, or \"latest\" for the newest lookahead that has content.",
               "type": "string",
               "minLength": 1,
               "maxLength": 64
@@ -1275,7 +1275,7 @@
               "description": "Job number, exact match (e.g. 2417)."
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. If the member hasn't named one, call list_open_items with no job_number to list the companies.",
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. Leave it out otherwise: Athena uses the member's current company, so don't make an extra call to list companies first.",
               "type": "string",
               "minLength": 1,
               "maxLength": 200
@@ -1313,7 +1313,7 @@
               "description": "Job number, exact match (e.g. 2417)."
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. If the member hasn't named one, call list_open_items with no job_number to list the companies.",
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. Leave it out otherwise: Athena uses the member's current company, so don't make an extra call to list companies first.",
               "type": "string",
               "minLength": 1,
               "maxLength": 200
@@ -1322,13 +1322,13 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 64,
-              "description": "Previous lookahead. The lookahead ref as printed (e.g. LA-3F2A1) or its lookahead_id."
+              "description": "Previous lookahead. The lookahead ref as printed (e.g. LA-3F2A1) or its lookahead_id, or \"latest\" for the newest lookahead that has content."
             },
             "to_lookahead_id": {
               "type": "string",
               "minLength": 1,
               "maxLength": 64,
-              "description": "New lookahead from intake. The lookahead ref as printed (e.g. LA-3F2A1) or its lookahead_id."
+              "description": "New lookahead from intake. The lookahead ref as printed (e.g. LA-3F2A1) or its lookahead_id, or \"latest\" for the newest lookahead that has content."
             }
           },
           "required": [
@@ -1360,13 +1360,13 @@
               "maxLength": 40
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. If the member hasn't named one, call list_open_items with no job_number to list the companies.",
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. Leave it out otherwise: Athena uses the member's current company, so don't make an extra call to list companies first.",
               "type": "string",
               "minLength": 1,
               "maxLength": 200
             },
             "lookahead_id": {
-              "description": "Limit to one lookahead. The lookahead ref as printed (e.g. LA-3F2A1) or its lookahead_id.",
+              "description": "Limit to one lookahead. The lookahead ref as printed (e.g. LA-3F2A1) or its lookahead_id, or \"latest\" for the newest lookahead that has content.",
               "type": "string",
               "minLength": 1,
               "maxLength": 64
@@ -1401,7 +1401,7 @@
               "description": "Job number, exact match (e.g. 2417)."
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. If the member hasn't named one, call list_open_items with no job_number to list the companies.",
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. Leave it out otherwise: Athena uses the member's current company, so don't make an extra call to list companies first.",
               "type": "string",
               "minLength": 1,
               "maxLength": 200
@@ -2418,7 +2418,7 @@
       {
         "name": "email_draft",
         "title": "Show an email draft for review",
-        "description": "Call this whenever the member asks to email or send anything (\"send the lookahead to ...\", \"email this to the sub\"). Returns the draft card only; nothing is sent. Show the card, then ask the confirm question it returns. Never call any send action in the same reply.",
+        "description": "Call this whenever the member asks to email or send anything (\"send the lookahead to ...\", \"email this to the sub\"). Deliverables: build a PDF and attach it with your own email tool (pass attachment); only if you can't attach, use a file_share link (pass link); never HTML, never say \"attached\" unless it is. Returns the draft card only; nothing is sent. Show the card, then ask the confirm question it returns. Never call any send action in the same reply.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -2457,14 +2457,30 @@
               "maxLength": 20000
             },
             "link": {
-              "description": "A file_share or report page link to put under the body, when the email tool can't attach the file.",
+              "description": "Only when your email tool can't attach files: a file_share link to the PDF, put under the body.",
               "type": "string",
               "maxLength": 2000,
               "format": "uri"
             },
+            "attachment": {
+              "description": "First choice for deliverables: the file name of the PDF you built and will attach with your own email tool (e.g. 2701-lookahead.pdf). PDF only, never HTML.",
+              "type": "string",
+              "maxLength": 200
+            },
             "job_number": {
+              "description": "The job this email is about. Athena signs it as that job's PM.",
               "type": "string",
               "maxLength": 40
+            },
+            "company_id": {
+              "description": "Leave out: Athena uses the member's current company.",
+              "type": "string",
+              "maxLength": 200
+            },
+            "sign_as": {
+              "description": "Only when the member explicitly asks to sign as someone other than the job's PM: that name.",
+              "type": "string",
+              "maxLength": 200
             }
           },
           "required": [
@@ -2517,10 +2533,15 @@
               "maxLength": 20000
             },
             "link": {
-              "description": "A file_share or report page link to put under the body, when the email tool can't attach the file.",
+              "description": "Only when your email tool can't attach files: a file_share link to the PDF, put under the body.",
               "type": "string",
               "maxLength": 2000,
               "format": "uri"
+            },
+            "attachment": {
+              "description": "First choice for deliverables: the file name of the PDF you built and will attach with your own email tool (e.g. 2701-lookahead.pdf). PDF only, never HTML.",
+              "type": "string",
+              "maxLength": 200
             },
             "draft_key": {
               "type": "string",
