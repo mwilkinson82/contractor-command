@@ -86,17 +86,6 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
   SELECT _role = 'owner' OR coalesce((SELECT p.roles IS NULL OR _role = ANY(p.roles)
     FROM public.mcp_team_plans p WHERE p.tier = public.mcp_company_tier(_company)), true)
 $$;
-CREATE OR REPLACE FUNCTION public.mcp_seat_usage(_company uuid) RETURNS jsonb
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-  SELECT jsonb_build_object(
-    'tier', public.mcp_company_tier(_company),
-    'limit', (SELECT 1 + coalesce((SELECT e.included_seats FROM public.mcp_company_entitlements e WHERE e.company_id = _company
-                AND e.status IN ('active','trialing') AND e.plan = p.tier), p.included_seats) + public.mcp_extra_seats(_company)
-              FROM public.mcp_team_plans p WHERE p.tier = public.mcp_company_tier(_company)),
-    'extra_seats', public.mcp_extra_seats(_company),
-    'members', (SELECT count(*) FROM public.mcp_company_members WHERE company_id = _company),
-    'pending', (SELECT count(*) FROM public.mcp_team_invites WHERE company_id = _company AND status = 'pending'))
-$$;
 
 -- 3. Invites, current company, team audit -------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.mcp_team_invites (
@@ -114,6 +103,18 @@ CREATE TABLE IF NOT EXISTS public.mcp_team_invites (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS mcp_team_invites_one_pending ON public.mcp_team_invites (company_id, lower(email)) WHERE status = 'pending';
 ALTER TABLE public.mcp_team_invites ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.mcp_seat_usage(_company uuid) RETURNS jsonb
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT jsonb_build_object(
+    'tier', public.mcp_company_tier(_company),
+    'limit', (SELECT 1 + coalesce((SELECT e.included_seats FROM public.mcp_company_entitlements e WHERE e.company_id = _company
+                AND e.status IN ('active','trialing') AND e.plan = p.tier), p.included_seats) + public.mcp_extra_seats(_company)
+              FROM public.mcp_team_plans p WHERE p.tier = public.mcp_company_tier(_company)),
+    'extra_seats', public.mcp_extra_seats(_company),
+    'members', (SELECT count(*) FROM public.mcp_company_members WHERE company_id = _company),
+    'pending', (SELECT count(*) FROM public.mcp_team_invites WHERE company_id = _company AND status = 'pending'))
+$$;
 
 CREATE TABLE IF NOT EXISTS public.mcp_user_settings (
   user_id uuid PRIMARY KEY,
