@@ -49,7 +49,7 @@ export const jobCadence = defineTool({
   name: "job_cadence",
   title: "Job cadence",
   description:
-    "Read or save the job cadence after the CPM is built: weekly PM/OAC meeting, two-week lookahead day, daily update time, morning briefing time, pay app dates (pencil draft, cutoff, submission) and the schedule update cycle. Ask the six one at a time with the suggested default; save each answer as you go. When all six are set, show the Job cadence card and ask whether to set them up as reminders. Saving the cadence never creates reminders.",
+    "Read or save the job cadence after the CPM is built: weekly PM/OAC meeting, two-week lookahead day, daily update time, morning briefing time, pay app dates (ONE question with defaults: pay apps due the 25th, billing period ends the last day of the month, OK?) and the schedule update cycle. Ask the six one at a time with the suggested default; save each answer as you go. When all six are set, show the Job cadence card and ask whether to set them up as reminders. Saving the cadence never creates reminders.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
@@ -58,7 +58,7 @@ export const jobCadence = defineTool({
     lookahead_day: item("Two-week lookahead day, e.g. Thu, issued to subs Fri."),
     daily_update_time: item("When daily updates are due from the field, e.g. 4:00 PM daily."),
     morning_briefing_time: item("Morning briefing time, e.g. 7:00 AM workdays."),
-    pay_app_dates: item("Pay app pencil draft day, cutoff and submission day, from the contract."),
+    pay_app_dates: item("Pay app due day and billing period end, as one answer, e.g. Pay apps due the 25th; billing period ends the last day of the month."),
     update_cycle: item("Schedule update cycle, e.g. monthly, data date = pay app cutoff."),
   },
   annotations: READ_WRITE,

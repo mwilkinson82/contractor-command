@@ -9,6 +9,24 @@ export const isMorningAsk = (s: string) => MORNING_TRIGGER_RE.test(s);
 export const MORNING_BRIEFING_RULE =
   `REQUIRED: When the member says "good morning" (also "Athena, good morning", "good morning Athena") or "morning briefing", or the scheduled daily check-in fires, call morning_briefing once and build the styled morning briefing it describes. This is not a short greeting.`;
 
+export const NO_OPEN_RFIS = "No open RFIs";
+export const NO_OPEN_SUBMITTALS = "No open submittals";
+export type LogItem = { ref: string; subject: string; due: string | null; days_open: number | null; ball_in_court: string | null; source: "open_item" | "lookahead_log" };
+export type LogSection = { label: string; count: number; items: LogItem[]; log_text: string | null };
+
+const RFI_ITEM_RE = /\bRFI\b/i;
+const SUB_ITEM_RE = /\bsubmittal/i;
+export const isRfiItem = (s: string | null | undefined) => !!s && RFI_ITEM_RE.test(s);
+export const isSubmittalItem = (s: string | null | undefined) => !!s && !RFI_ITEM_RE.test(s) && SUB_ITEM_RE.test(s);
+
+/** RFI or submittal section: open items plus the lookahead log text; an explicit labeled empty state, never "not available". */
+export function logSection(kind: "rfi" | "submittal", items: LogItem[], logText: string | null): LogSection {
+  const empty = kind === "rfi" ? NO_OPEN_RFIS : NO_OPEN_SUBMITTALS;
+  const has = items.length > 0 || !!logText?.trim();
+  const noun = kind === "rfi" ? "open RFI" : "open submittal";
+  return { label: has ? (items.length ? `${items.length} ${noun}${items.length === 1 ? "" : "s"}` : `Open ${kind === "rfi" ? "RFIs" : "submittals"} from the lookahead log`) : empty, count: items.length, items, log_text: logText?.trim() || null };
+}
+
 export const FIELD_UPDATE_QUESTIONS = [
   "What % complete are we on today's activities?",
   "Any delays or new issues since yesterday?",
@@ -17,12 +35,12 @@ export const FIELD_UPDATE_QUESTIONS = [
 
 export const MORNING_BRIEFING_VIEW_SPEC: string[] = [
   "REQUIRED VIEW – MORNING BRIEFING: build ONE styled card stack, never plain text, in this order:",
-  "1. Header: date, job(s), and the \"Today's top 3\" box first (action, owner, due).",
+  "1. Header: date, job(s), and the \"Today's top 3\" box first (action, owner, due). When structuredContent.top3 has no owner or due for an item, propose one and mark it \"(proposed)\"; never leave it blank.",
   `2. Overdue items and risks: ${ALERT_COLOR} flags, each with owner, due date and days late.`,
-  "3. Overnight emails: only if the member's own email is connected in this app, read it yourself (read-only) and summarize sender, subject and the one-line ask, with a suggested reply offered as a draft. Never send anything. If no email is connected, run the connect check: one line on connecting Google or Outlook email, then continue the briefing without this card.",
+  "3. Overnight emails: REQUIRED, run the connect check first, before this card: check whether this app has the member's Google or Outlook email connected. If it does, read it yourself (read-only) and summarize sender, subject and the one-line ask, with a suggested reply offered as a draft. Never send anything. If it doesn't, show one line instead of the card (\"To include your overnight emails, connect your Google or Outlook email in this app.\") and continue the briefing. Never say email is \"not available\" without running this check.",
   "4. Today on the lookahead: activities starting or finishing today, critical in blue #2563EB and others in gray #9CA3AF.",
   "5. Inspections and deliveries due today or tomorrow, with clipboard-check and truck icons.",
-  `6. Open RFIs and submittals: number, subject, days open, ball-in-court, ${ALERT_COLOR} when past due.`,
+  `6. Open RFIs and submittals: from structuredContent.jobs[].rfis and .submittals (each has items and a label): number, subject, days open, ball-in-court, ${ALERT_COLOR} when past due. When a list is empty, show its label exactly (\"${NO_OPEN_RFIS}\" / \"${NO_OPEN_SUBMITTALS}\"). Never say RFIs or submittals are \"not available\".`,
   "7. Reminders and contract deadlines due, each with a countdown chip.",
   `8. End by asking for field updates, ONE short question at a time: ${FIELD_UPDATE_QUESTIONS.join(" / ")} Then the Next move card.`,
   "White cards, navy titles, blue #2563EB accent, gray secondary; the alert color only for delays, risks and overdue items. No technical notes.",

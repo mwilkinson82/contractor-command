@@ -3,6 +3,7 @@
 // the same view. Colors come from one place (alert-color.ts): navy/blue/gray, plus the alert color only for
 // delays, risks and overdue items.
 import { ALERT_COLOR } from "./alert-color";
+import { IOR_TOP3_RULE, PAY_APP_NEXT_MOVE_RULE, WHY_LABEL } from "./coach";
 
 const SHARED = `White cards, blue #2563EB accent, gray #9CA3AF secondary, ${ALERT_COLOR} only for risks, delays and overdue items, no orange. The visual comes first; no technical notes and one caveat line at most.`;
 
@@ -26,6 +27,7 @@ export const PAY_APP_VIEW_SPEC: string[] = [
   "3. SOV table: line, description, scheduled value, previous, this period, stored, total, %, balance, with the totals row tying to the contract. Money with cents exactly as given.",
   "4. Offer Excel or PDF.",
   `5. ${SHARED}`,
+  `6. REQUIRED, last thing in the reply: the Next move card from structuredContent.next_move, with its literal "${WHY_LABEL}" line. ${PAY_APP_NEXT_MOVE_RULE}`,
 ];
 
 export const REMINDERS_VIEW_SPEC: string[] = [
@@ -40,7 +42,7 @@ export const IOR_VIEW_SPEC: string[] = [
   "1. Header: the job name, the as-of date, the contract, and the \"Forecast total $X = contract $X\" tie line word for word.",
   `2. KPI tiles: Indicated revenue, Indicated cost, Indicated GP $ and %, Budgeted GP $ and %, and GP change vs budget (${ALERT_COLOR} if down).`,
   "3. Waterfall chart: from Budgeted GP, through each pending CO (weighted), each risk hold (E-Hold/C-Hold) and cost variances, to Indicated GP.",
-  `4. Risk register table: risk, exposure $, probability %, weighted $, owner, next action, due date. ${ALERT_COLOR} flags on the top 3 by weighted $.`,
+  `4. Risk register table: risk, exposure $, probability %, weighted $, owner, next action, due date. ${ALERT_COLOR} flags on the top 3 by weighted $. ${IOR_TOP3_RULE}`,
   "5. Change order table: CO, status, revenue, cost, probability, weighted margin.",
   "6. Billing strip: billed, % billed, retainage held, paid, and left to bill.",
   "7. Use Athena's numbers exactly; never recompute them with other math.",
