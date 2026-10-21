@@ -354,7 +354,7 @@ describe("latest non-empty lookahead", () => {
 describe("email card and signature", () => {
   it("card must show in the chat, not only in the permission prompt", () => {
     expect(EMAIL_CARD_RULE).toMatch(
-      /Show this draft in the chat first, with To, Cc, Subject, the full body/,
+      /show this draft in the chat as a styled email card or artifact first \(To, Cc, Subject, the full body, and an Attachment line/,
     );
     expect(EMAIL_CARD_RULE).toMatch(/Never show it only inside the permission prompt/);
   });

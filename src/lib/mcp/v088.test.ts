@@ -77,12 +77,12 @@ describe("0.8.8 blue brand, To field, pinned REQUIRED lines, sweep cards", () =>
       "To: (ask: what's Jordan Reyes's email?)",
     );
     const lines = top.split("\n");
-    expect(lines[0]).toMatch(/^Draw the bar chart from the chart data under the table/);
+    expect(lines[0]).toMatch(/^REQUIRED: Draw this bar chart now under the table/);
     expect(lines[0]).toContain("26.01 (26-010) $100,000.00");
-    expect(lines[0]).not.toMatch(/#[0-9A-Fa-f]{3,8}/);
+    expect(lines[0]).toContain("#2563EB");
     expect(lines).toHaveLength(4);
     expect(lines.slice(0, 2).join("\n")).not.toMatch(/owner|no exceptions/i);
-    expect(lines[2]).toMatch(/^List all 3 sharing options/);
+    expect(lines[2]).toMatch(/^REQUIRED: .*all 3 sharing options/);
     expect(lines[1]).toContain("To: (ask:");
     expect(splitGuidance(top + "\nShow the email card now.").visible.startsWith(top)).toBe(true);
     expect(src("./tools/workflow-tools.ts")).toContain("...text(`${sovRequiredTop(");

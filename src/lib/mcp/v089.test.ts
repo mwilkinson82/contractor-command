@@ -173,7 +173,7 @@ describe("0.8.9 CPM activity handoff, tie guard, owner-furnished, living reports
 
   it("REQUIRED lines lead the visible text and stay visible", () => {
     for (const top of [CPM_REQUIRED_TOP, LIVING_REQUIRED_TOP]) {
-      for (const l of top.split("\n")) expect(l).not.toMatch(/^REQUIRED:/);
+      for (const l of top.split("\n")) expect(l).toMatch(/^REQUIRED: /);
       expect(splitGuidance(`${top}\nbody`).visible.startsWith(top)).toBe(true);
       expect(visibleProblems(top)).toEqual([]);
     }
@@ -275,7 +275,7 @@ describe("0.8.9 retest fixes", () => {
     expect(c.bars.map((b) => b.color)).toEqual(["#2563EB", "#9CA3AF", "#2563EB"]);
   });
   it("share, sweep and To: REQUIRED lines", () => {
-    expect(SHARE_OPTIONS_REQUIRED).toMatch(/^List all 3 sharing options.*Never recommend/);
+    expect(SHARE_OPTIONS_REQUIRED).toMatch(/^REQUIRED: .*all 3 sharing options.*Never recommend/);
     expect(EMAIL_TO_LABEL_REQUIRED).toContain('"To:"');
     expect(REPORT_SHARE_STRUCTURED.options).toHaveLength(3);
     expect(SOV_DELIVERY_STRUCTURED.never_recommend_one).toBe(true);

@@ -34,16 +34,18 @@ describe("0.8.1 SOV table style", () => {
     expect(SOV_TABLE_STYLE).toContain("alternating light-gray");
     expect(SOV_TABLE_STYLE).toContain("bold total row with a blue #2563EB top rule");
     expect(sovLayout(BRAND).table_style).toBe(SOV_TABLE_STYLE);
-    expect(HOST_DISPLAY_BLOCK).not.toContain("#2563EB");
+    expect(HOST_DISPLAY_BLOCK).toContain("header row blue #2563EB with white bold text");
     expect(
       readFileSync(new URL("./tools/workflow-tools.ts", import.meta.url), "utf8"),
-    ).not.toContain("Table style:");
+    ).toContain("Table style: ${SOV_TABLE_STYLE}");
   });
   it("nothing after the table in the visible SOV; footer and roll-up only on request", () => {
     const txt = sovSummaryText("", sov, BRAND, "Exhibit B", ["license number"], "internal");
     expect(txt.trim().split("\n").pop()).toBe("Total | | | Contract sum | $1,400,000.00 | 100.00%");
     expect(txt).not.toMatch(/Footer still missing|Division subtotals|Logo:/);
-    expect(HOST_DISPLAY_BLOCK).not.toContain("roll-up offer");
+    expect(HOST_DISPLAY_BLOCK).toContain(
+      "After the table, at most one line: no footer or license note and no roll-up offer unless the member asks.",
+    );
   });
 });
 
@@ -53,7 +55,9 @@ describe("0.8.1 exact summary offer", () => {
       "Do you want me to summarize this legal text so you know what it means in plain English?",
     );
     expect(SUMMARY_OFFER_TEXT).toBe(SUMMARY_OFFER);
-    expect(HOST_DISPLAY_BLOCK).toContain(SUMMARY_OFFER_TEXT);
+    expect(HOST_DISPLAY_BLOCK).toContain(
+      `use this wording verbatim, never paraphrased or shortened: "${SUMMARY_OFFER_TEXT}"`,
+    );
   });
 });
 

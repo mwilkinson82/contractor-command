@@ -14,7 +14,7 @@ import {
 describe("0.8.10 email attachments", () => {
   it("rule is a pinned REQUIRED line that forbids claiming a missing attachment", () => {
     expect(EMAIL_ATTACHMENT_RULE).toMatch(
-      /^Only say a file is attached if your email tool actually attached it/,
+      /^REQUIRED: Only say a file is attached if your email tool actually attached it/,
     );
     expect(EMAIL_ATTACHMENT_RULE).toMatch(/link to the file in the email body/);
     expect(EMAIL_ATTACHMENT_STRUCTURED.never_claim_missing_attachment).toBe(true);
@@ -24,7 +24,7 @@ describe("0.8.10 email attachments", () => {
       [{ item_no: "1", cost_code: "01-000", scheduled_value_display: "$1.00" }],
       "To: a@b.com",
     ).split("\n");
-    expect(lines[2]).toMatch(/^List all 3 sharing options/);
+    expect(lines[2]).toMatch(/^REQUIRED: .*all 3 sharing options/);
     expect(lines[3]).toBe(EMAIL_ATTACHMENT_RULE);
   });
   it("SOV and report delivery data carry the attachment fallback", () => {
@@ -52,10 +52,8 @@ describe("0.8.10 email attachments", () => {
     expect(all).not.toMatch(/lovable|\bred\b|fragment/i);
   });
   it("0.8.11: rule and data point hosts at file_share links", () => {
-    expect(EMAIL_ATTACHMENT_RULE).toMatch(
-      /file_share and put a link to the file in the email body/,
-    );
+    expect(EMAIL_ATTACHMENT_RULE).toMatch(/file_share .*app\.meetathena\.io\/f\//);
     expect(EMAIL_ATTACHMENT_STRUCTURED.share_link_tool).toBe("file_share");
-    expect(SOV_DELIVERY_BLOCK).toMatch(/file_share and put a link to the file in the email body/);
+    expect(SOV_DELIVERY_BLOCK).toMatch(/ChatGPT: .*call file_share and put its link in the body/);
   });
 });
