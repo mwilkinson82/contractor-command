@@ -53,17 +53,24 @@ export const Route = createFileRoute("/oauth/consent")({
     // Supabase reject getAuthorizationDetails (403) and show "invalid or
     // expired". Validate with the server; if not live, clear it and sign in.
     let live = false;
+    let consentUser: { id: string; email?: string | null } | null = null;
     if (data.session) {
-      const { data: u, error: userError } = await supabase.auth.getUser();
+      // v0.8.12: bounded (was unbounded) and the confirmed user is handed to the loader,
+      // so the loader no longer makes a second getUser round trip.
+      const { data: u, error: userError } = await boundedStep("identity", () => supabase.auth.getUser());
       live = !userError && !!u?.user?.id;
+      if (live) consentUser = { id: u.user!.id, email: u.user!.email ?? null };
       if (!live) await supabase.auth.signOut({ scope: "local" }).catch(() => {});
     }
     if (!live) {
       throw redirect({ to: "/login", search: { redirect: consentReturnPath(search.authorization_id) } });
     }
+    return { consentUser };
   },
-  loader: async ({ location }) => {
+  loader: async ({ location, context }) => {
     const id = new URLSearchParams(location.search).get("authorization_id")!;
+    // v0.8.12: the entitlement read starts in parallel with the details call instead of after it.
+    const entP = boundedStep("identity", () => checkAthenaEntitlement(supabase as unknown as RpcClient)).then((e) => e.allowed === true, () => false);
     const { data, error } = await boundedStep("details", () => oauth().getAuthorizationDetails(id));
     if (error) {
       const status = (error as { status?: number }).status;
@@ -78,18 +85,17 @@ export const Route = createFileRoute("/oauth/consent")({
       window.location.href = immediate;
       return null;
     }
-    const { data: u, error: userError } = await boundedStep("identity", () => supabase.auth.getUser());
-    // Fail closed: no confirmed identity means no consent screen.
-    if (userError || !u?.user?.id) throw new ConsentStepError("identity", "failed");
-    // Same membership entitlement the /mcp server enforces. Fails closed.
-    let entitled = false;
-    try {
-      const ent = await boundedStep("identity", () => checkAthenaEntitlement(supabase as unknown as RpcClient));
-      entitled = ent.allowed;
-    } catch {
-      entitled = false;
+    // Identity confirmed with the server in beforeLoad; only re-ask if it isn't there.
+    let user = (context as { consentUser?: { id: string; email?: string | null } | null } | undefined)?.consentUser ?? null;
+    if (!user?.id) {
+      const { data: u, error: userError } = await boundedStep("identity", () => supabase.auth.getUser());
+      // Fail closed: no confirmed identity means no consent screen.
+      if (userError || !u?.user?.id) throw new ConsentStepError("identity", "failed");
+      user = { id: u.user.id, email: u.user.email ?? null };
     }
-    return { details: data, email: u.user.email ?? "", userId: u.user.id, entitled };
+    // Same membership entitlement the /mcp server enforces. Fails closed.
+    const entitled = await entP;
+    return { details: data, email: user.email ?? "", userId: user.id, entitled };
   },
   component: Consent,
   pendingComponent: () => (

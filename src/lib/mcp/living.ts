@@ -152,6 +152,7 @@ export function activityLine(a: Activity, showMoney: boolean): string {
 }
 
 export const CPM_REQUIRED_TOP = [
+  "REQUIRED: When the user only asks to see the schedule (e.g. \"pull up the schedule\"), build a NEW private view or artifact. Never update, overwrite or replace the saved shared master or an existing shared artifact unless the user explicitly asks to update or save it, and confirm with them first.",
   "REQUIRED: Use this activity list exactly as given: every ID, date, duration, logic tie, float, $ value and SOV line. Do not recompute, re-sequence, rebuild it from an earlier chat, or guess any value. Anything marked Needed stays Needed.",
   "REQUIRED: Before drawing any CPM, billing forecast, drill-down, IOR or dashboard, show the count check line and the tie line below. If the count is short or it doesn't tie, say which activities are missing or the amount it's off by, and stop; never draw an over-contract total.",
   "REQUIRED: Owner-furnished activities are schedule-only: $0.00 in ALP billing. Use the one saved contract completion date and the delay result shown here; never type in your own.",
@@ -175,8 +176,12 @@ export const CPM_GANTT_SPEC: string[] = [
 ];
 
 
+/** 0.8.12: viewing never touches the shared master. */
+export const LIVING_VIEW_RULE =
+  "REQUIRED: When the user only asks to see it (e.g. \"pull up the schedule\"), build a NEW private view or artifact from this data. Never update, overwrite or replace the saved shared master or an existing shared artifact unless the user explicitly asks to update or save it, and confirm with them first.";
 export const LIVING_REQUIRED_TOP = [
-  "REQUIRED: This is the saved master copy. Update it in place: change only what moved, keep the layout, show the version, Last updated and \"What changed since last version\" line, and mark it \"Draft: not saved\" until the PM approves.",
+  LIVING_VIEW_RULE,
+  "REQUIRED: This is the saved master copy. When the user asks to update it: change only what moved, keep the layout, show the version, Last updated and \"What changed since last version\" line, and mark it \"Draft: not saved\" until the PM approves.",
   "REQUIRED: Save a new version only after the PM says yes to this exact update. The forecast total must equal the contract to the cent and every activity must stay; Athena refuses the save otherwise.",
 ].join("\n");
 
