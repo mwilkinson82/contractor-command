@@ -3,13 +3,19 @@
 // Athena itself never sends these emails; the host's own email tool does, and only after the confirm.
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
-import { run, text } from "../guard";
+import { run, text, type Sb } from "../guard";
+import { resolveJob, type Job } from "../jobs";
+import { whoForJob } from "../people";
+import { draftIdentity } from "../drafts";
 import { guide } from "../visible";
 import {
   confirmQuestion,
   draftCardText,
   draftKey,
+  deliverableProblems,
   emailRules,
+  EMAIL_CARD_RULE,
+  signatureProblem,
   outboundEmailDisabled,
   type EmailDraft,
 } from "../email-safety";
@@ -34,7 +40,15 @@ const fields = {
     .max(2000)
     .optional()
     .describe(
-      "A file_share or report page link to put under the body, when the email tool can't attach the file.",
+      "Only when your email tool can't attach files: a file_share link to the PDF, put under the body.",
+    ),
+  attachment: z
+    .string()
+    .trim()
+    .max(200)
+    .optional()
+    .describe(
+      "First choice for deliverables: the file name of the PDF you built and will attach with your own email tool (e.g. 2701-lookahead.pdf). PDF only, never HTML.",
     ),
 };
 const toDraft = (a: {
@@ -43,20 +57,31 @@ const toDraft = (a: {
   subject: string;
   body: string;
   link?: string;
+  attachment?: string;
 }): EmailDraft => ({
   to: a.to ?? null,
   cc: a.cc ?? [],
   subject: a.subject,
   body: a.body,
   link: a.link ?? null,
+  attachment: a.attachment ?? null,
 });
+const checkDeliverable = (d: EmailDraft) => {
+  const p = deliverableProblems(d);
+  if (p.length) throw new ToolError(`Fix the draft first. Nothing was sent.\n${p.map((x) => `- ${x}`).join("\n")}`);
+};
 
 export const emailDraft = defineTool({
   name: "email_draft",
   title: "Show an email draft for review",
   description:
-    'Call this whenever the member asks to email or send anything ("send the lookahead to ...", "email this to the sub"). Returns the draft card only; nothing is sent. Show the card, then ask the confirm question it returns. Never call any send action in the same reply.',
-  inputSchema: { ...fields, job_number: z.string().trim().max(40).optional() },
+    'Call this whenever the member asks to email or send anything ("send the lookahead to ...", "email this to the sub"). Deliverables: build a PDF and attach it with your own email tool (pass attachment); only if you can\'t attach, use a file_share link (pass link); never HTML, never say "attached" unless it is. Returns the draft card only; nothing is sent. Show the card, then ask the confirm question it returns. Never call any send action in the same reply.',
+  inputSchema: {
+    ...fields,
+    job_number: z.string().trim().max(40).optional().describe("The job this email is about. Athena signs it as that job's PM."),
+    company_id: z.string().trim().max(200).optional().describe("Leave out: Athena uses the member's current company."),
+    sign_as: z.string().trim().max(200).optional().describe("Only when the member explicitly asks to sign as someone other than the job's PM: that name."),
+  },
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
@@ -64,8 +89,13 @@ export const emailDraft = defineTool({
     openWorldHint: false,
   },
   handler: (args, ctx) =>
-    run("email_draft", ctx, {}, async () => {
+    run("email_draft", ctx, {}, async (sb) => {
       const d = toDraft(args);
+      checkDeliverable(d);
+      // 0.8.17: signed as the job's PM by default (not the person chatting), from the member's current company.
+      const sig = args.job_number ? await pmSignature(sb as Sb, await resolveJob(sb as Sb, args.job_number, args.company_id)) : null;
+      const sp = signatureProblem(d.body, sig, args.sign_as ?? null);
+      if (sp) throw new ToolError(`Fix the draft first. Nothing was sent.\n- ${sp}`);
       const key = draftKey(d);
       const off = outboundEmailDisabled();
       return guide(
@@ -73,6 +103,7 @@ export const emailDraft = defineTool({
           ...text(draftCardText(d)),
           structuredContent: {
             draft: d,
+            signature: args.sign_as ?? sig?.signature ?? null,
             draft_key: key,
             sent: false,
             requires_confirm: true,
@@ -80,6 +111,7 @@ export const emailDraft = defineTool({
             confirm_question: off ? null : confirmQuestion(d),
           },
         },
+        EMAIL_CARD_RULE,
         ...emailRules(),
         off ? "" : `Ask exactly: "${confirmQuestion(d)}" and stop. Send nothing in this reply.`,
       );
@@ -116,6 +148,7 @@ export const emailConfirmSend = defineTool({
       if (args.confirmed !== true) throw new ToolError("Ask the member first. Nothing was sent.");
       const d = toDraft(args);
       if (!d.to) throw new ToolError("The draft has no recipient. Nothing was sent.");
+      checkDeliverable(d);
       if (draftKey(d) !== args.draft_key)
         throw new ToolError(
           "This draft changed after it was reviewed. Show the new draft and ask again. Nothing was sent.",
@@ -133,3 +166,17 @@ export const emailConfirmSend = defineTool({
       );
     }),
 });
+
+/** The job's PM as the default signer: "Name, Title, Company". */
+export async function pmSignature(sb: Sb, job: Job): Promise<{ name: string; signature: string } | null> {
+  const [who, jr, co] = await Promise.all([
+    whoForJob(sb, job.company_id, job.job_id),
+    sb.from("mcp_jobs").select("pm_name, pm_email, pm_title").eq("id", job.job_id).maybeSingle(),
+    sb.from("mcp_companies").select("name").eq("id", job.company_id).maybeSingle(),
+  ]);
+  const j = (jr.error ? {} : jr.data ?? {}) as { pm_name?: string | null; pm_email?: string | null; pm_title?: string | null };
+  const label = who("unknown").replace(/ \(PM\)$/, "");
+  const name = label.startsWith("Unassigned") || label === "unknown" ? j.pm_name ?? null : label;
+  const d = draftIdentity({ name, email: j.pm_email ?? null, title: j.pm_title ?? null, isMember: false }, { name: (co.data as { name?: string | null } | null)?.name ?? null });
+  return name && d.signature ? { name, signature: d.signature.replace(/\n/g, ", ") } : null;
+}

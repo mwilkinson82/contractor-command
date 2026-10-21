@@ -18,6 +18,36 @@ export type Job = { job_id: string; job_number: string; name: string; company_id
 
 const companyNames = (m: { mcp_companies: { name: string | null } }[]) => m.map((c) => c.mcp_companies.name ?? "unnamed company").join("; ");
 
+export const MULTI_COMPANY_ASK = "You belong to more than one company. Which one should Athena use? I'll remember it, so you only answer this once (call set_current_company with that name).";
+
+// Per-server-instance cache of the member's current company, so a session doesn't re-read it on every call.
+const CURRENT = new Map<string, { id: string; at: number }>();
+const CURRENT_TTL_MS = 10 * 60_000;
+async function callerId(sb: Sb): Promise<string | null> {
+  try { const { data } = await sb.auth.getUser(); return data.user?.id ?? null; } catch { return null; }
+}
+/** The member's saved current company (mcp_user_settings), cached for the session. */
+export async function currentCompany(sb: Sb): Promise<string | null> {
+  const uid = await callerId(sb);
+  const c = uid ? CURRENT.get(uid) : undefined;
+  if (c && Date.now() - c.at < CURRENT_TTL_MS) return c.id;
+  const cur = await sb.from("mcp_user_settings").select("current_company").maybeSingle();
+  const id = (cur.data as { current_company?: string | null } | null)?.current_company ?? null;
+  if (uid && id) CURRENT.set(uid, { id, at: Date.now() });
+  return id;
+}
+/** Save (best effort) the company the member just named as their current one. Never blocks the call. */
+export async function rememberCompany(sb: Sb, companyId: string): Promise<void> {
+  const uid = await callerId(sb);
+  const c = uid ? CURRENT.get(uid) : undefined;
+  if (c?.id === companyId) return;
+  try {
+    const { error } = await (sb.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ error: unknown }>)("mcp_set_current_company", { _company: companyId });
+    if (!error && uid) CURRENT.set(uid, { id: companyId, at: Date.now() });
+  } catch { /* the call still works with the named company */ }
+}
+export const _resetCurrentCompanyCache = () => CURRENT.clear();
+
 export async function resolveCompany(sb: Sb, companyId?: string): Promise<string> {
   // Companies are only visible to their members (RLS), so this is "my companies".
   const { data, error } = await sb.from("mcp_companies").select("id, name");
@@ -27,9 +57,13 @@ export async function resolveCompany(sb: Sb, companyId?: string): Promise<string
     // Accept the company's id or its name (plain-text hosts only see names).
     const want = companyId.trim().toLowerCase();
     const byId = mine.find((m) => m.company_id === want);
-    if (byId) return byId.company_id;
     const byName = mine.filter((m) => (m.mcp_companies.name ?? "").trim().toLowerCase() === want);
-    if (byName.length === 1) return byName[0].company_id;
+    const hit = byId?.company_id ?? (byName.length === 1 ? byName[0].company_id : null);
+    if (hit) {
+      // 0.8.17: naming a company makes it the member's current company, so later calls don't ask again.
+      if (mine.length > 1) await rememberCompany(sb, hit);
+      return hit;
+    }
     throw new ToolError(mine.length > 1 ? `You aren't a member of a company called "${companyId.trim()}". Your companies: ${companyNames(mine)}.` : "You aren't a member of that company.");
   }
   if (!mine.length) {
@@ -39,11 +73,10 @@ export async function resolveCompany(sb: Sb, companyId?: string): Promise<string
   if (!mine.length) throw new ToolError('No company set up yet. Call onboarding with action "save_company" first.');
   if (mine.length > 1) {
     // 0.8.15: the member's saved current company (set_current_company) is used when they didn't name one.
-    const cur = await sb.from("mcp_user_settings").select("current_company").maybeSingle();
-    const curId = (cur.data as { current_company?: string | null } | null)?.current_company;
+    const curId = await currentCompany(sb);
     if (curId && mine.some((m) => m.company_id === curId)) return curId;
-    // Never pick one silently.
-    throw new ToolError(`You belong to more than one company: ${companyNames(mine)}. Which company is this for? Nothing was changed.`);
+    // Never pick one silently. Ask once; the answer is saved (set_current_company, or naming it on the next call).
+    throw new ToolError(`${MULTI_COMPANY_ASK} Your companies: ${companyNames(mine)}. Nothing was changed.`);
   }
   return mine[0].company_id;
 }

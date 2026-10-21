@@ -5,10 +5,16 @@
 import { ALERT_HEX } from "./mcp/alert-color";
 import { delayCallout, jobWorkingDays } from "./mcp/living";
 import { addDays } from "./mcp/deadlines";
+import { briefingModel, dayHead, lookaheadModel, payModel, shortDate, lookaheadWindow, type BriefItem, type Billing, type LaItem, type SAct } from "./mcp/styled-views";
 
 export const REPORT_PAGES = ["ior", "schedule", "portfolio"] as const;
 export type ReportPage = (typeof REPORT_PAGES)[number];
-export const PAGE_LABEL: Record<ReportPage, string> = { ior: "IOR", schedule: "Schedule", portfolio: "Portfolio dashboard" };
+/** 0.8.17: private-only pages (no share links). */
+export const VIEW_PAGES = ["lookahead", "payapp", "briefing"] as const;
+export type ViewPage = (typeof VIEW_PAGES)[number];
+export type AnyPage = ReportPage | ViewPage;
+export const JOB_PAGES = ["ior", "schedule", ...VIEW_PAGES] as const;
+export const PAGE_LABEL: Record<AnyPage, string> = { ior: "IOR", schedule: "Schedule", portfolio: "Portfolio dashboard", lookahead: "Two-Week Lookahead", payapp: "Pay App", briefing: "Morning Briefing" };
 export const PAGE_ORIGIN = "https://app.meetathena.io";
 export const PERMANENT_LINK_ASK = "Want this as a permanent link I keep updated?";
 export const SHARE_DEFAULT_DAYS = 30;
@@ -18,11 +24,11 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export const isUuid = (s: unknown): s is string => typeof s === "string" && UUID_RE.test(s);
 
 /** Private page path. Job pages: /r/job/<job_id>/<ior|schedule>. Portfolio: /r/portfolio/<company_id>. */
-export function pagePath(page: ReportPage, id: string): string {
+export function pagePath(page: AnyPage, id: string): string {
   if (!isUuid(id)) throw new Error("bad id");
   return page === "portfolio" ? `/r/portfolio/${id}` : `/r/job/${id}/${page}`;
 }
-export const pageUrl = (page: ReportPage, id: string, origin = PAGE_ORIGIN) => `${origin.replace(/\/$/, "")}${pagePath(page, id)}`;
+export const pageUrl = (page: AnyPage, id: string, origin = PAGE_ORIGIN) => `${origin.replace(/\/$/, "")}${pagePath(page, id)}`;
 export const shareUrl = (token: string, origin = PAGE_ORIGIN) => `${origin.replace(/\/$/, "")}/r/s/${token}`;
 export function shareTokenFromLink(s: string): string | null {
   const t = s.trim().replace(/[?#].*$/, "").replace(/\/+$/, "").split("/").pop() ?? "";
@@ -34,9 +40,9 @@ export function shareExpiry(days: number | undefined, now = new Date()): Date {
 }
 
 /** Who may hold a private page link (mirrors the database checks; the database decides). */
-export function pageAllowed(page: ReportPage, scope: "full" | "contract" | "super" | null | undefined, leader: boolean): boolean {
+export function pageAllowed(page: AnyPage, scope: "full" | "contract" | "super" | null | undefined, leader: boolean): boolean {
   if (page === "portfolio") return leader;
-  if (page === "ior") return scope === "full";
+  if (page === "ior" || page === "payapp") return scope === "full";
   return scope === "full" || scope === "super";
 }
 
@@ -53,7 +59,11 @@ export type PortfolioJob = { job_id: string; job_number: string; name: string; p
   cpm?: { version: number; data_date?: string | null; updated_at?: string; tia?: Tia | null; contract_total?: number | null; forecast_total?: number | null } | null;
   ior?: { version: number; data_date?: string | null; updated_at?: string; data?: Record<string, unknown> } | null };
 export type PortfolioPayload = { page: "portfolio"; company?: string; jobs: PortfolioJob[]; money?: boolean; shared?: boolean; expires_at?: string };
-export type PagePayload = JobPayload | PortfolioPayload;
+export type LookaheadPayload = { page: "lookahead"; company?: string; job_number?: string; job_name?: string; lookahead?: { id: string; start_date: string | null; end_date: string | null } | null; report: Report; items?: LaItem[] };
+export type PayAppPayload = { page: "payapp"; company?: string; job_number?: string; job_name?: string; report: Report };
+export type BriefingPayload = { page: "briefing"; company?: string; job_number?: string; job_name?: string; today: string; items?: BriefItem[]; report?: Report };
+type ViewExtras = { shared?: boolean; expires_at?: string };
+export type PagePayload = JobPayload | PortfolioPayload | ((LookaheadPayload | PayAppPayload | BriefingPayload) & ViewExtras);
 
 // ---------- helpers ----------
 export const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -150,14 +160,74 @@ function portfolioView(p: PortfolioPayload): string {
   return out.join("");
 }
 
+// ---------- 0.8.17 views ----------
+const CELL_HTML: Record<string, string> = {
+  crit: `<div style="height:12px;border-radius:3px;background:${BLUE}"></div>`,
+  non: `<div style="height:12px;border-radius:3px;background:${G2}"></div>`,
+  insp: "📋", deliv: "🚚", mile: `<span style="color:${NAVY}">◆</span>`, "": "",
+};
+const legend = (items: [string, string][]) => `<p style="margin:12px 0 0;font-size:12px;color:${G1}">${items.map(([sw, l]) => `${sw} ${esc(l)}`).join(" &nbsp; ")}</p>`;
+const sw = (c: string) => `<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${c}"></span>`;
+const h2 = (t: string) => `<h2 style="margin:0 0 12px;font-size:13px;letter-spacing:.06em;color:${NAVY}">${esc(t)}</h2>`;
+
+function lookaheadPageView(p: LookaheadPayload): string {
+  const r = p.report ?? { found: false };
+  const acts = ((r.found ? r.data?.activities : []) ?? []) as SAct[];
+  const dd = r.found ? r.data_date ?? null : null;
+  const la = p.lookahead ?? null;
+  const win = lookaheadWindow(la, dd);
+  if (!win) return card(`<p style="margin:0;color:${G1}">No lookahead window or saved schedule yet.</p><p style="margin:8px 0 0;color:${NAVY}"><strong>Next move:</strong> send the schedule export (or save the CPM) and Athena fills the lookahead from it.</p>`);
+  const m = lookaheadModel(win.start, win.end, acts, p.items ?? []);
+  const today = new Date().toISOString().slice(0, 10);
+  const hl = dd && dd > today ? dd : today;
+  const out: string[] = [];
+  out.push(`<p style="margin:0 0 12px;font-size:13px;color:${G1}">Window ${esc(shortDate(win.start))} – ${esc(shortDate(win.end))}${dd ? ` · Data date ${esc(shortDate(dd))}` : ""}</p>`);
+  out.push(tiles([tile("Activities", String(m.counts.activities)), tile("Critical", String(m.counts.critical)), tile("Inspections", String(m.counts.inspections)), tile("Deliveries", String(m.counts.deliveries)), tile("Risks", String(m.counts.risks), m.counts.risks > 0)]));
+  out.push(card(h2("TOP 3 PRIORITIES") + `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">${(m.top.length ? m.top : [{ action: "No open items in this window" } as LaItem]).map((t, i) => `<div style="border:1px solid ${G3};border-left:4px solid ${i === 0 && m.risks.length ? RED : BLUE};border-radius:10px;padding:12px"><div style="font-size:18px;font-weight:700;color:${i === 0 && m.risks.length ? RED : BLUE}">${i + 1}</div><div style="font-weight:600;color:${NAVY};margin:4px 0">${esc(t.action)}</div><div style="font-size:12px;color:${G1}">Owner: ${esc(t.owner ?? "Needed")} · Due ${esc(t.due ? shortDate(t.due) : "Needed")}</div></div>`).join("")}</div>`));
+  if (!m.rows.length) out.push(card(`<p style="margin:0;color:${G1}">No saved schedule activities fall in this window.</p><p style="margin:8px 0 0;color:${NAVY}"><strong>Next move:</strong> pick a window that overlaps the saved schedule, or send this window's schedule export.</p>`));
+  else {
+    const th = m.days.map((d, i) => `<th style="padding:4px 2px;font-size:11px;color:${d === hl ? BLUE : G1};text-align:center;${i === 5 ? `border-left:2px solid ${G3};` : ""}">${i === 0 ? "WEEK 1<br>" : i === 5 ? "WEEK 2<br>" : "<br>"}${esc(dayHead(d))}</th>`).join("");
+    const rows = m.rows.map((row) => `<tr style="border-top:1px solid ${G4}"><td style="padding:6px 8px;font-size:12px;font-weight:600;color:${NAVY};white-space:nowrap">${esc(row.a.id)}</td><td style="padding:6px 8px;font-size:12px;color:${NAVY}">${esc(row.a.name)}</td><td style="padding:6px 8px;font-size:12px;color:${Number(row.a.total_float) === 0 ? BLUE : G1};text-align:center">${esc(row.a.total_float ?? "")}</td>${row.cells.map((c, i) => `<td style="padding:4px 2px;min-width:44px;text-align:center;${i === 5 ? `border-left:2px solid ${G3};` : ""}">${CELL_HTML[c.kind]}${c.risk ? `<span style="color:${RED}">⚑</span>` : ""}</td>`).join("")}</tr>`).join("");
+    out.push(card(h2("CALENDAR") + `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><thead><tr style="text-align:left;font-size:12px;color:${G1}"><th style="padding:4px 8px"></th><th style="padding:4px 8px">Activity</th><th style="padding:4px 8px">Float</th>${th}</tr></thead><tbody>${rows}</tbody></table></div>` + legend([[sw(BLUE), "Critical"], [sw(G2), "Non-critical"], ["📋", "Inspection"], ["🚚", "Delivery"], ["◆", "Milestone"], [`<span style="color:${RED}">⚑</span>`, "Risk"]])));
+  }
+  if (m.risks.length) out.push(card(h2("RISKS") + m.risks.map(({ item, a }) => `<div style="border:1px solid #FECACA;border-left:4px solid ${RED};border-radius:10px;padding:12px;margin:0 0 8px"><strong style="color:${RED}">${esc(item.action)}</strong><span style="color:${NAVY}"> · Impact: ${esc(a.id)} ${esc(a.name)}${a.total_float !== undefined && a.total_float !== null ? ` (float ${esc(a.total_float)} WD)` : ""}. Owner: ${esc(item.owner ?? "Needed")} · Due ${esc(item.due ? shortDate(item.due) : "Needed")}</span></div>`).join("")));
+  return out.join("");
+}
+
+function payAppPageView(p: PayAppPayload): string {
+  const r = p.report;
+  if (!r?.found) return card(`<p style="margin:0;color:${G1}">No billing has been saved for this job yet.</p><p style="margin:8px 0 0;color:${NAVY}"><strong>Next move:</strong> send the billed-to-date figure and the latest pay app, and Athena builds the forecast from the saved schedule.</p>`);
+  const m = payModel((r.data?.billing ?? null) as Billing | null, isNum(r.contract_total) ? r.contract_total : null);
+  const out: string[] = [];
+  if (m.tie) out.push(`<p style="margin:0 0 12px;font-weight:600;color:${m.tie.startsWith("Doesn't") ? RED : NAVY}">${esc(m.tie)}</p>`);
+  out.push(tiles([tile("Billed to date", money(m.billed)), tile("Forecast remaining", money(m.forecast)), tile("Contract", m.contract === null ? "Needed" : money(m.contract)), tile("Left to bill", m.left === null ? "Needed" : money(m.left))]));
+  const max = Math.max(1, ...m.months.map((x) => x.amount));
+  out.push(card(h2("MONTHLY BILLING") + `<table style="border-collapse:collapse;width:100%">${m.months.map((x) => `<tr style="border-top:1px solid ${G4}"><td style="padding:6px 8px;font-size:12px;color:${NAVY};white-space:nowrap">${esc(x.month)}</td><td style="padding:6px 8px;width:50%"><div style="height:12px;border-radius:3px;width:${((x.amount / max) * 100).toFixed(1)}%;background:${x.kind === "actual" ? BLUE : G2}"></div></td><td style="padding:6px 8px;font-size:12px;color:${NAVY};text-align:right">${money(x.amount)}</td><td style="padding:6px 8px;font-size:12px;color:${G1};text-align:right">${money(x.cum)}</td></tr>`).join("")}<tr style="border-top:2px solid ${G3}"><td style="padding:6px 8px;font-weight:600">Total</td><td></td><td style="padding:6px 8px;font-weight:600;text-align:right">${money(m.total)}</td><td></td></tr></table>` + legend([[sw(BLUE), "Billed"], [sw(G2), "Forecast"]])));
+  return out.join("");
+}
+
+function briefingPageView(p: BriefingPayload): string {
+  const m = briefingModel(p.items ?? [], p.today);
+  const out = [tiles([tile("Overdue", String(m.overdue.length), m.overdue.length > 0), tile("Due today", String(m.today.length)), tile("Next 7 days", String(m.week.length)), tile("8–14 days", String(m.next.length))])];
+  const sec = (t: string, list: BriefItem[], flag = false) => list.length ? card(h2(t) + list.map((i) => `<div style="padding:8px 0;border-top:1px solid ${G4};${flag ? `border-left:4px solid ${RED};padding-left:8px;` : ""}"><div style="color:${flag ? RED : NAVY};font-weight:600">${esc(i.action)}</div><div style="font-size:12px;color:${G1}">Owner: ${esc(i.owner ?? "Needed")} · Due ${esc(i.due ? shortDate(i.due.slice(0, 10)) : "Needed")}</div></div>`).join("")) : "";
+  out.push(sec("OVERDUE", m.overdue, true), sec("DUE TODAY", m.today), sec("NEXT 7 DAYS", m.week), sec("8–14 DAYS", m.next));
+  if (!m.overdue.length && !m.today.length && !m.week.length && !m.next.length) out.push(card(`<p style="margin:0;color:${G1}">Nothing due in the next 14 days.</p>`));
+  return out.join("");
+}
+
 /** Page body (no <html>). Used inside the signed-in page and the share page. */
 export function renderReportBody(p: PagePayload): string {
   const title = p.page === "portfolio" ? `${esc(p.company ?? "")} · Portfolio dashboard` : `${esc(p.job_number ?? "")} ${esc(p.job_name ?? "")} · ${PAGE_LABEL[p.page]}`;
   let body: string;
   let st = "";
   if (p.page === "portfolio") body = portfolioView(p);
+  else if (p.page === "lookahead") body = lookaheadPageView(p);
+  else if (p.page === "payapp") body = payAppPageView(p);
+  else if (p.page === "briefing") body = briefingPageView(p);
   else if (!p.report?.found) body = card(`<p style="margin:0;color:${G1}">Nothing saved yet. Once the ${PAGE_LABEL[p.page]} is saved in Athena, it shows here and stays up to date.</p>`);
-  else { st = stamp(p.report); body = p.page === "schedule" ? scheduleView(p) : iorView(p); }
+  else { st = stamp(p.report); body = p.page === "schedule" ? scheduleView(p as JobPayload) : iorView(p as JobPayload); }
+  if (p.page === "payapp" && p.report?.found) st = stamp(p.report);
+  if (p.page === "briefing") st = `<p style="margin:4px 0 16px;font-size:12px;color:${G1}">${esc(shortDate(p.today))}</p>`;
   const foot = p.shared ? `Shared view${p.expires_at ? ` · link works until ${esc(p.expires_at.slice(0, 10))}` : ""} · Athena powered by ALP` : "Private to your company · updates when Athena saves a new version · Athena powered by ALP";
   return `<div style="max-width:1100px;margin:0 auto;padding:24px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:${NAVY}"><h1 style="margin:0;font-size:22px;color:${NAVY}">${title}</h1>${st || `<p style="margin:4px 0 16px;font-size:12px;color:${G1}">Live view</p>`}${body}<p style="margin:24px 0 0;font-size:12px;color:${G2}">${foot}</p></div>`;
 }
