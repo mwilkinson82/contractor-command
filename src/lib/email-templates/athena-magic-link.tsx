@@ -18,9 +18,10 @@ const ATHENA_BLUE = "#2563EB";
 
 interface AthenaMagicLinkEmailProps {
   confirmationUrl: string;
+  otpCode?: string;
 }
 
-export const AthenaMagicLinkEmail = ({ confirmationUrl }: AthenaMagicLinkEmailProps) => (
+export const AthenaMagicLinkEmail = ({ confirmationUrl, otpCode }: AthenaMagicLinkEmailProps) => (
   <Html lang="en" dir="ltr">
     <ResponsiveEmailHead />
     <Preview>{ATHENA_SIGN_IN_SUBJECT}</Preview>
@@ -42,6 +43,12 @@ export const AthenaMagicLinkEmail = ({ confirmationUrl }: AthenaMagicLinkEmailPr
             <Button style={{ ...responsiveEmail.button, backgroundColor: ATHENA_BLUE, borderColor: ATHENA_BLUE, color: "#FFFFFF" }} href={confirmationUrl}>
               {ATHENA_SIGN_IN_SUBJECT}
             </Button>
+            {otpCode ? (
+              <>
+                <Text style={emailStyles.text}>Or type this code on the sign-in page you already have open:</Text>
+                <Text style={styles.code}>{otpCode}</Text>
+              </>
+            ) : null}
             <Text style={styles.footer}>
               If you didn't request this link, you can safely ignore this email.
             </Text>
@@ -77,6 +84,14 @@ const styles = {
     letterSpacing: "1.35px",
     textTransform: "uppercase",
     margin: "18px 0 0",
+  },
+  code: {
+    color: "#0F1E3D",
+    fontFamily: "Menlo, Consolas, monospace",
+    fontSize: 28,
+    fontWeight: 700,
+    letterSpacing: "6px",
+    margin: "4px 0 0",
   },
   footer: {
     ...emailStyles.footer,
