@@ -1511,7 +1511,7 @@
       {
         "name": "living_report_get",
         "title": "Living report master copy",
-        "description": "REQUIRED: call this before updating a cost-loaded CPM, billing forecast, IOR or PM dashboard, and when a new chat picks one up. Returns the saved master copy (latest or a named version) with its version, last-updated stamp, data date, data and change log. Update that copy in place; never start a second one. Supers: CPM only, no dollars.",
+        "description": "REQUIRED: call this before updating a cost-loaded CPM, billing forecast, IOR or PM dashboard, and when a new chat picks one up. Returns the saved master copy (latest or a named version) with its version, last-updated stamp, data date, data and change log. Viewing: build a new private view from it and never change the saved master. Updating (only when the user explicitly asks, after confirming): update that copy in place; never start a second saved one. Supers: CPM only, no dollars.",
         "annotations": {
           "readOnlyHint": true,
           "openWorldHint": false,
@@ -1916,8 +1916,8 @@
           "openWorldHint": true
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -2002,8 +2002,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -2027,6 +2027,132 @@
           "required": [
             "job_number",
             "link"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "retainage_rule_save",
+        "title": "Save the job's retainage rule (after approval)",
+        "description": "Retainage is set per job from the contract; there is no default rate. At job setup, read the contract's retainage clause and save it with retainage_rule_save: the rate, any reduction (the % complete where it starts, whether that is measured on the contract sum to date or the original contract, the reduced rate, and whether the reduced rate applies only to later payments or to the whole balance held), and the release terms, with the clause copied exactly and its section number. If the contract says nothing about retainage, ask the PM for the rule and save their answer with source pm_answer. Never assume a rate. Show the rule and the exact clause to the PM, and call this only after they say yes to saving it. Athena refuses a rule that leaves out a needed part, a clause that isn't word for word in the contract text, or a stale base_version. Pay app checks enforce the saved rule to the cent. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true,
+              "description": "true only after the PM said yes to saving this exact rule."
+            },
+            "base_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The rule version shown by contract_terms (0 when none is saved)."
+            },
+            "rate_pct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "The retainage rate held on each payment, e.g. 10. Use 0 when the contract holds no retainage."
+            },
+            "reduction": {
+              "type": "string",
+              "enum": [
+                "prospective",
+                "whole_balance",
+                "period_start_status",
+                "none"
+              ],
+              "description": "prospective: later payments at the reduced rate. whole_balance: the whole balance held drops to the reduced rate. period_start_status: the rate for a period depends on where the job stood at its start. none: one rate, no reduction."
+            },
+            "threshold_pct": {
+              "description": "% complete where the reduction starts, e.g. 50. Leave out when reduction is none.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "threshold_basis": {
+              "description": "What the % complete is measured against, as the contract says. Leave out when reduction is none.",
+              "type": "string",
+              "enum": [
+                "contract_sum_to_date",
+                "original_contract"
+              ]
+            },
+            "reduced_rate_pct": {
+              "description": "The reduced rate, e.g. 5. Leave out when reduction is none.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "release_terms": {
+              "description": "When retainage is released, in the contract's words or the PM's answer.",
+              "type": "string",
+              "maxLength": 1000
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "contract",
+                "pm_answer"
+              ],
+              "description": "contract when read from the contract; pm_answer when the contract is silent and the PM gave the rule."
+            },
+            "clause_section": {
+              "description": "Section number of the retainage clause, e.g. 4.1. Required for source contract.",
+              "type": "string",
+              "maxLength": 40
+            },
+            "clause_text": {
+              "description": "The retainage clause copied exactly from the contract. Required for source contract.",
+              "type": "string",
+              "maxLength": 4000
+            },
+            "contract_text": {
+              "description": "The full contract text, so Athena can confirm the clause is word for word.",
+              "type": "string",
+              "maxLength": 400000
+            },
+            "answered_by": {
+              "description": "pm_answer: who gave the rule.",
+              "type": "string",
+              "maxLength": 160
+            },
+            "what_changed": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300,
+              "description": "One line: what this saves or changes."
+            }
+          },
+          "required": [
+            "job_number",
+            "approved",
+            "base_version",
+            "rate_pct",
+            "reduction",
+            "source",
+            "what_changed"
           ],
           "additionalProperties": false
         },
