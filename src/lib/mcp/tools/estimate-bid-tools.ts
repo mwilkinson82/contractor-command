@@ -5,8 +5,8 @@ import {
   GC_ITEMS,
   METROS,
   RATE_SOURCE_IDS,
-  REQUIREMENT_KINDS,
   WORK_TYPES,
+  BidError,
   applyFactors,
   assembleBid,
   basisCheck,
@@ -24,12 +24,12 @@ import {
   type RateChoice,
   type RateSourceId,
   type RequirementHit,
-  type RequirementKind,
   type RequirementPrice,
 } from "../estimating-bid";
 import {
   ESTIMATE_QUANTITY_REQUIRED,
   ESTIMATE_VIEW_SPEC,
+  REQUIREMENT_OPEN_LIST,
   estimateLayout,
   parseState,
   settle,
@@ -111,7 +111,8 @@ function parseBid(raw: unknown): BidState {
     duration: num(gc.duration_days),
     requirements: reqs.map((r) => ({
       ref: String(r.ref),
-      kind: r.kind as RequirementKind,
+      kind: String(r.kind ?? "other"),
+      description: typeof r.description === "string" ? r.description : null,
       label: String(r.label ?? ""),
       sourceType: (r.source_type as RequirementHit["sourceType"]) ?? "spec",
       sourceRef: String(r.source_ref ?? ""),
@@ -442,14 +443,15 @@ export const estimateRequirements = defineTool({
   name: "estimate_requirements",
   title: "Special requirements",
   description:
-    "Lists third-party and special requirements and keeps them out of labor and material.",
+    "Lists every non-installation project requirement, not only the examples, and keeps it out of labor and material.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
     findings: z
       .array(
         z.object({
-          kind: z.enum(REQUIREMENT_KINDS),
+          kind: z.string().trim().min(1).max(80),
+          description: z.string().trim().max(200).optional(),
           title: z.string().trim().min(1).max(200),
           source_type: z.enum(["sheet", "spec", "contract"]),
           source_ref: z.string().trim().min(1).max(80),
@@ -462,7 +464,7 @@ export const estimateRequirements = defineTool({
       .array(
         z.object({
           ref: z.string().trim().max(12).optional(),
-          kind: z.enum(REQUIREMENT_KINDS).optional(),
+          kind: z.string().trim().max(80).optional(),
           source_ref: z.string().trim().max(80).optional(),
           amount: moneyIn.nullable().optional(),
           confirmed: z.boolean().optional(),
@@ -486,7 +488,13 @@ export const estimateRequirements = defineTool({
         .eq("job_id", job.job_id);
       if (!cq.error && Array.isArray(cq.data))
         clauses = cq.data as { section: string; verbatim_text: string }[];
-      const hits = scanProject({ setup: loaded.setup, clauses, findings: args.findings });
+      let hits;
+      try {
+        hits = scanProject({ setup: loaded.setup, clauses, findings: args.findings });
+      } catch (e) {
+        if (e instanceof BidError) throw new ToolError(e.message);
+        throw e;
+      }
       let n = prior.requirements.reduce((m, r) => Math.max(m, Number(r.ref.slice(2)) || 0), 0);
       const priced = hits.map((hit) => {
         const prev = prior.requirements.find(
@@ -517,6 +525,7 @@ export const estimateRequirements = defineTool({
           ref: r.ref,
           kind: r.kind,
           label: r.label,
+          description: r.description,
           source_type: r.sourceType,
           source_ref: r.sourceRef,
           citation: r.citation,
@@ -530,7 +539,8 @@ export const estimateRequirements = defineTool({
       const gaps = requirementGaps(hits, loaded.setup.role);
       const body = [
         `${prefix(job)}${job.name} · Special requirements`,
-        "These stay out of construction labor and material. Price each one, or confirm it, and say whether it sits in general conditions or on its own line.",
+        REQUIREMENT_OPEN_LIST,
+        "These stay out of installation labor and material. Price each one, or confirm it, and say whether it sits in general conditions or on its own line.",
         ...(priced.length
           ? priced.map(
               (r) =>

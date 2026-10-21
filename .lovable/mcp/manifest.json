@@ -3068,6 +3068,54 @@
                   "spec_section"
                 ]
               }
+            },
+            "requirements": {
+              "maxItems": 80,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "source_type": {
+                    "type": "string",
+                    "enum": [
+                      "sheet",
+                      "spec",
+                      "contract"
+                    ]
+                  },
+                  "source_ref": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "citation": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "kind",
+                  "title",
+                  "source_type",
+                  "source_ref",
+                  "citation"
+                ]
+              }
             }
           },
           "required": [
@@ -3786,7 +3834,7 @@
       {
         "name": "estimate_requirements",
         "title": "Special requirements",
-        "description": "Lists third-party and special requirements and keeps them out of labor and material.",
+        "description": "Lists every non-installation project requirement, not only the examples, and keeps it out of labor and material.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -3815,17 +3863,12 @@
                 "properties": {
                   "kind": {
                     "type": "string",
-                    "enum": [
-                      "consultants",
-                      "testing",
-                      "arborist",
-                      "specialty_report",
-                      "permits",
-                      "special_safety",
-                      "site_safety",
-                      "scheduler",
-                      "security"
-                    ]
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 200
                   },
                   "title": {
                     "type": "string",
@@ -3872,17 +3915,7 @@
                   },
                   "kind": {
                     "type": "string",
-                    "enum": [
-                      "consultants",
-                      "testing",
-                      "arborist",
-                      "specialty_report",
-                      "permits",
-                      "special_safety",
-                      "site_safety",
-                      "scheduler",
-                      "security"
-                    ]
+                    "maxLength": 80
                   },
                   "source_ref": {
                     "type": "string",

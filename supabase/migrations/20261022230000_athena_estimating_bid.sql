@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS public.mcp_estimate_requirements (
   job_id uuid NOT NULL REFERENCES public.mcp_jobs(id) ON DELETE CASCADE,
   company_id uuid NOT NULL,
   ref text NOT NULL CHECK (ref ~ '^R-[0-9]+$'),
-  kind text NOT NULL CHECK (kind IN ('consultants','testing','arborist','specialty_report','permits','special_safety','site_safety','scheduler','security')),
+  kind text NOT NULL CHECK (length(btrim(kind)) BETWEEN 1 AND 80),
+  description text,
   label text NOT NULL CHECK (length(btrim(label)) BETWEEN 1 AND 200),
   source_type text NOT NULL CHECK (source_type IN ('sheet','spec','contract')),
   source_ref text NOT NULL CHECK (length(btrim(source_ref)) BETWEEN 1 AND 80),
@@ -90,7 +91,7 @@ BEGIN
   SELECT * INTO g FROM public.mcp_estimate_general_conditions WHERE job_id = _job;
   SELECT * INTO b FROM public.mcp_estimate_bids WHERE job_id = _job;
   SELECT coalesce(jsonb_agg(jsonb_build_object(
-    'ref', ref, 'kind', kind, 'label', label, 'source_type', source_type, 'source_ref', source_ref,
+    'ref', ref, 'kind', kind, 'description', description, 'label', label, 'source_type', source_type, 'source_ref', source_ref,
     'citation', citation, 'placement', placement, 'amount', amount, 'confirmed', confirmed, 'excluded', excluded
   ) ORDER BY ref), '[]'::jsonb) INTO req
   FROM public.mcp_estimate_requirements WHERE job_id = _job AND active;
@@ -151,16 +152,22 @@ BEGIN
     IF length(btrim(coalesce(it->>'citation', ''))) < 1 OR length(btrim(coalesce(it->>'source_ref', ''))) < 1 THEN
       RAISE EXCEPTION 'MCP_BAD:Each requirement cites a sheet, a spec section, or a contract clause. Nothing was saved.';
     END IF;
+    IF length(btrim(coalesce(it->>'kind', ''))) < 1 OR length(btrim(it->>'kind')) > 80 THEN
+      RAISE EXCEPTION 'MCP_BAD:Name the requirement category, or use other with a description. Nothing was saved.';
+    END IF;
+    IF lower(btrim(it->>'kind')) = 'other' AND length(btrim(coalesce(it->>'description', ''))) < 1 THEN
+      RAISE EXCEPTION 'MCP_BAD:A requirement marked other needs a description. Nothing was saved.';
+    END IF;
     INSERT INTO public.mcp_estimate_requirements (
-      job_id, company_id, ref, kind, label, source_type, source_ref, citation, placement, amount, confirmed, excluded, active
+      job_id, company_id, ref, kind, description, label, source_type, source_ref, citation, placement, amount, confirmed, excluded, active
     ) VALUES (
-      _job, cid, it->>'ref', it->>'kind', left(btrim(it->>'label'), 200), it->>'source_type', left(btrim(it->>'source_ref'), 80),
+      _job, cid, it->>'ref', left(btrim(it->>'kind'), 80), nullif(left(btrim(coalesce(it->>'description', '')), 200), ''), left(btrim(it->>'label'), 200), it->>'source_type', left(btrim(it->>'source_ref'), 80),
       left(btrim(it->>'citation'), 500), coalesce(nullif(it->>'placement', ''), 'own_line'),
       CASE WHEN it->>'amount' IS NULL OR it->>'amount' = '' THEN NULL ELSE (it->>'amount')::numeric END,
       coalesce((it->>'confirmed')::boolean, false), coalesce((it->>'excluded')::boolean, false), true
     )
     ON CONFLICT (job_id, ref) DO UPDATE SET
-      kind = EXCLUDED.kind, label = EXCLUDED.label, source_type = EXCLUDED.source_type, source_ref = EXCLUDED.source_ref,
+      kind = EXCLUDED.kind, description = EXCLUDED.description, label = EXCLUDED.label, source_type = EXCLUDED.source_type, source_ref = EXCLUDED.source_ref,
       citation = EXCLUDED.citation, placement = EXCLUDED.placement, amount = EXCLUDED.amount,
       confirmed = EXCLUDED.confirmed, excluded = EXCLUDED.excluded, active = true;
     n := n + 1;

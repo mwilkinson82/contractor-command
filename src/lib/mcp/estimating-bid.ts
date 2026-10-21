@@ -329,6 +329,7 @@ export function gcLineAmount(input: {
   };
 }
 
+/** Examples the scan recognizes. Not a closed set. */
 export const REQUIREMENT_KINDS = [
   "consultants",
   "testing",
@@ -340,49 +341,76 @@ export const REQUIREMENT_KINDS = [
   "scheduler",
   "security",
 ] as const;
-export type RequirementKind = (typeof REQUIREMENT_KINDS)[number];
+export type RequirementKind = string;
 
-const REQUIREMENT_RULES: { kind: RequirementKind; label: string; re: RegExp; gcOnly?: boolean }[] =
-  [
-    { kind: "consultants", label: "Consultants", re: /\bconsultants?\b|third[- ]party/i },
-    {
-      kind: "testing",
-      label: "Testing and special inspections",
-      re: /special inspections?|testing laboratory|inspection agency|material testing/i,
-    },
-    { kind: "arborist", label: "Arborist", re: /\barborists?\b/i },
-    {
-      kind: "specialty_report",
-      label: "Specialty testing or reports",
-      re: /specialty (testing|report)/i,
-    },
-    { kind: "permits", label: "Permits", re: /\bpermits?\b/i },
-    {
-      kind: "special_safety",
-      label: "Special safety requirements",
-      re: /special safety|site safety plan/i,
-    },
-    {
-      kind: "site_safety",
-      label: "Full-time site safety person",
-      re: /full[- ]time site safety|site safety (person|officer|manager)/i,
-    },
-    {
-      kind: "scheduler",
-      label: "Full-time CPM scheduler",
-      re: /full[- ]time\s+(cpm\s+)?scheduler|cpm scheduler/i,
-    },
-    { kind: "security", label: "Security", re: /\bsecurity\b/i, gcOnly: true },
-  ];
+const REQUIREMENT_RULES: { kind: string; label: string; re: RegExp; gcOnly?: boolean }[] = [
+  { kind: "consultants", label: "Consultants", re: /\bconsultants?\b|third[- ]party/i },
+  {
+    kind: "testing",
+    label: "Testing and special inspections",
+    re: /special inspections?|testing laboratory|inspection agency|material testing/i,
+  },
+  { kind: "arborist", label: "Arborist", re: /\barborists?\b/i },
+  {
+    kind: "specialty_report",
+    label: "Specialty testing or reports",
+    re: /specialty (testing|report)/i,
+  },
+  { kind: "permits", label: "Permits", re: /\bpermits?\b/i },
+  {
+    kind: "special_safety",
+    label: "Special safety requirements",
+    re: /special safety|site safety plan/i,
+  },
+  {
+    kind: "site_safety",
+    label: "Full-time site safety person",
+    re: /full[- ]time site safety|site safety (person|officer|manager)/i,
+  },
+  {
+    kind: "scheduler",
+    label: "Full-time CPM scheduler",
+    re: /full[- ]time\s+(cpm\s+)?scheduler|cpm scheduler/i,
+  },
+  { kind: "security", label: "Security", re: /\bsecurity\b/i, gcOnly: true },
+];
 
 export type RequirementHit = {
-  kind: RequirementKind;
+  kind: string;
   label: string;
+  description: string | null;
   sourceType: "sheet" | "spec" | "contract";
   sourceRef: string;
   citation: string;
   gcOnly: boolean;
 };
+
+/** A free-form category, or other plus a description. The example list is not required. */
+export function normalizeRequirement(input: {
+  kind: string;
+  title?: string | null;
+  description?: string | null;
+}): { kind: string; label: string; description: string | null } {
+  const raw = input.kind
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_|_$/g, "")
+    .slice(0, 80);
+  const description = (input.description ?? "").trim() || null;
+  const title = (input.title ?? "").trim();
+  if (!raw || raw === "other") {
+    if (!description)
+      throw new BidError("A requirement marked other needs a description. Nothing was saved.");
+    return { kind: "other", label: description.slice(0, 200), description };
+  }
+  const rule = REQUIREMENT_RULES.find((r) => r.kind === raw);
+  return {
+    kind: raw,
+    label: (title || description || rule?.label || input.kind.trim()).slice(0, 200),
+    description,
+  };
+}
 
 function sentenceAround(text: string, index: number): string {
   const start = Math.max(
@@ -412,6 +440,7 @@ export function scanText(
     hits.push({
       kind: rule.kind,
       label: rule.label,
+      description: null,
       sourceType,
       sourceRef,
       citation: sentenceAround(text, m.index),
@@ -426,7 +455,8 @@ export function scanProject(input: {
   clauses?: { section: string; verbatim_text: string }[];
   findings?: {
     title: string;
-    kind: RequirementKind;
+    kind: string;
+    description?: string | null;
     source_type: RequirementHit["sourceType"];
     source_ref: string;
     citation: string;
@@ -454,10 +484,12 @@ export function scanProject(input: {
     hits.push(...scanText(clause.verbatim_text, "contract", clause.section));
   }
   for (const f of input.findings ?? []) {
-    const rule = REQUIREMENT_RULES.find((r) => r.kind === f.kind);
+    const named = normalizeRequirement(f);
+    const rule = REQUIREMENT_RULES.find((r) => r.kind === named.kind);
     hits.push({
-      kind: f.kind,
-      label: f.title || rule?.label || f.kind,
+      kind: named.kind,
+      label: named.label,
+      description: named.description,
       sourceType: f.source_type,
       sourceRef: f.source_ref,
       citation: f.citation,
@@ -497,7 +529,7 @@ export function requirementGaps(hits: RequirementHit[], role: Setup["role"]): Ga
           ? ("hard" as const)
           : ("soft" as const),
       title: h.label,
-      reasoning: `${h.label} is separate from construction labor and material. ${where}. ${h.citation}${gcNote} Price it or confirm it. Sheet ${sheet}. Spec ${spec}.`,
+      reasoning: `${h.label} is separate from installation labor and material. ${where}. ${h.citation}${gcNote} Price it or confirm it. Sheet ${sheet}. Spec ${spec}.`,
       sheet,
       spec_section: spec,
       holds_bid: h.kind === "permits" || h.kind === "special_safety",
@@ -508,7 +540,8 @@ export function requirementGaps(hits: RequirementHit[], role: Setup["role"]): Ga
 
 export type RequirementPrice = {
   ref: string;
-  kind: RequirementKind;
+  kind: string;
+  description: string | null;
   label: string;
   sourceType: RequirementHit["sourceType"];
   sourceRef: string;
@@ -535,6 +568,7 @@ export function priceRequirement(
   return {
     ref: `R-${index}`,
     kind: hit.kind,
+    description: hit.description,
     label: hit.label,
     sourceType: hit.sourceType,
     sourceRef: hit.sourceRef,

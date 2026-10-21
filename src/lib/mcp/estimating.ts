@@ -18,8 +18,14 @@ export const ESTIMATE_LOGO_URL =
   "https://app.meetathena.io/brand/athena/athena-mono-blue-256.png";
 
 /** Server instructions. No hex: the instruction source check rejects a color code there. */
+/** Examples only. Any non-installation requirement belongs in the same bucket. */
+export const REQUIREMENT_OPEN_LIST =
+  "Look beyond the examples. Consultants, testing, an arborist, permits, safety, a scheduler, and security are examples only. Any requirement that is not installation labor or material belongs in this bucket. Give it a category, or mark it other and describe it.";
+
 export const ESTIMATE_SERVER_RULE =
-  " Takeoff quantities are MEASURED or DEDUCED. MEASURED is straight off a sheet (READ). DEDUCED is computed (DERIVED): multiply the MEASURED inputs, show the math, and cite the sheet and the detail or grid. Leave a quantity blank only when one named input is missing on every sheet. A vendor or shop-drawing note is not a reason for a blank. Addenda override the base documents. Do not invent quantities, dimensions, unit prices or vendor numbers. Every estimating report (takeoff, Estimate Analysis, estimator loop, Estimate Summary, bid summary) is landscape, 17 by 11 inches, with the Athena logo at the top right. Portrait only if the member asks. Red only for risks and gaps that hold up the bid. Questions go back to the estimator. Do not price a final bid until the takeoff is settled. A rate is the contractor's own figure, or a PLACEHOLDER the contractor supplies and then confirms. Do not attribute a number to RSMeans, NECA, SMACNA or MCAA, and do not reproduce their tables. Special requirements stay out of construction labor and material. Overhead is applied first, then profit on top. The bid summary shows direct cost, general conditions, special requirements, overhead and profit, and the total.";
+  " Takeoff quantities are MEASURED or DEDUCED. MEASURED is straight off a sheet (READ). DEDUCED is computed (DERIVED): multiply the MEASURED inputs, show the math, and cite the sheet and the detail or grid. Leave a quantity blank only when one named input is missing on every sheet. A vendor or shop-drawing note is not a reason for a blank. Addenda override the base documents. Do not invent quantities, dimensions, unit prices or vendor numbers. Every estimating report (takeoff, Estimate Analysis, estimator loop, Estimate Summary, bid summary) is landscape, 17 by 11 inches, with the Athena logo at the top right. Portrait only if the member asks. Red only for risks and gaps that hold up the bid. Questions go back to the estimator. Do not price a final bid until the takeoff is settled. A rate is the contractor's own figure, or a PLACEHOLDER the contractor supplies and then confirms. Do not attribute a number to RSMeans, NECA, SMACNA or MCAA, and do not reproduce their tables. " +
+  REQUIREMENT_OPEN_LIST +
+  " Special requirements stay out of installation labor and material. Overhead is applied first, then profit on top. The bid summary shows direct cost, general conditions, special requirements, overhead and profit, and the total.";
 
 export const ESTIMATE_QUANTITY_REQUIRED = [
   "REQUIRED: Quantities are MEASURED or DEDUCED. Compute every DEDUCED quantity from the MEASURED inputs and show the math and the sheet. Leave a quantity blank only when one named input is missing on every sheet.",
@@ -1296,6 +1302,8 @@ export function renderGaps(
     "",
     "Needs estimator verification",
     ...(verify.length ? verify.map(lineFor) : ["- None."]),
+    "",
+    REQUIREMENT_OPEN_LIST,
     "",
     "Punch list",
     ...(punch.length

@@ -1,7 +1,7 @@
 // Estimating role. Same gate as the other tools: run() checks auth, the call cap and the membership entitlement.
 import { ToolError, defineTool, type JsonValueInput } from "@lovable.dev/mcp-js";
 import { z } from "zod";
-import { requirementGaps, scanProject } from "../estimating-bid";
+import { BidError, requirementGaps, scanProject } from "../estimating-bid";
 import {
   ESTIMATE_QUANTITY_REQUIRED,
   ESTIMATE_VIEW_SPEC,
@@ -230,7 +230,7 @@ function reply(view: { text: string; structured: Record<string, unknown>; guidan
   );
 }
 function caught(e: unknown): never {
-  if (e instanceof EstimateError) throw new ToolError(e.message);
+  if (e instanceof EstimateError || e instanceof BidError) throw new ToolError(e.message);
   throw e;
 }
 
@@ -459,7 +459,24 @@ export const estimateGapAnalysis = defineTool({
   name: "estimate_gap_analysis",
   title: "Estimate gap analysis",
   description: "Saves gap items that cite the drawing sheet and the spec section.",
-  inputSchema: { job_number: jobNumber, company_id: companyId, items: z.array(gapIn).max(200) },
+  inputSchema: {
+    job_number: jobNumber,
+    company_id: companyId,
+    items: z.array(gapIn).max(200),
+    requirements: z
+      .array(
+        z.object({
+          kind: z.string().trim().min(1).max(80),
+          description: z.string().trim().max(200).optional(),
+          title: z.string().trim().min(1).max(200),
+          source_type: z.enum(["sheet", "spec", "contract"]),
+          source_ref: z.string().trim().min(1).max(80),
+          citation: z.string().trim().min(1).max(500),
+        }),
+      )
+      .max(80)
+      .optional(),
+  },
   annotations: SAVE,
   handler: (args, ctx) =>
     run("estimate_gap_analysis", ctx, { jobNumber: args.job_number }, async (sb) => {
@@ -475,7 +492,7 @@ export const estimateGapAnalysis = defineTool({
         if (!cq.error && Array.isArray(cq.data))
           clauses = cq.data as { section: string; verbatim_text: string }[];
         const found = requirementGaps(
-          scanProject({ setup: prior.setup, clauses }),
+          scanProject({ setup: prior.setup, clauses, findings: args.requirements }),
           prior.setup.role,
         );
         const merged = assignGapRefs(

@@ -15,7 +15,14 @@ import {
   scanProject,
   scanText,
 } from "./estimating-bid";
-import { renderTakeoff, settle, prepareLines } from "./estimating";
+import {
+  ESTIMATE_SERVER_RULE,
+  REQUIREMENT_OPEN_LIST,
+  renderGaps,
+  renderTakeoff,
+  settle,
+  prepareLines,
+} from "./estimating";
 
 describe("labor, markup, and the basis", () => {
   it("computes labor dollars from production and an hourly rate", () => {
@@ -144,6 +151,53 @@ describe("rate references and special requirements", () => {
     expect(scanText("no requirements here", "spec", "01 00 00")).toEqual([]);
   });
 
+  it("accepts a requirement outside the examples, including other with a description", () => {
+    const hits = scanProject({
+      setup: null,
+      findings: [
+        {
+          title: "Dewatering",
+          kind: "dewatering",
+          description: "Continuous dewatering of the excavation",
+          source_type: "spec",
+          source_ref: "31 23 19",
+          citation: "Provide continuous dewatering for the duration of excavation.",
+        },
+        {
+          title: "Street work",
+          kind: "other",
+          description: "Flagger for the street closure",
+          source_type: "contract",
+          source_ref: "8.4",
+          citation: "Contractor shall furnish flaggers during the street closure.",
+        },
+      ],
+    });
+    expect(hits.map((h) => h.kind).sort()).toEqual(["dewatering", "other"]);
+    expect(hits.find((h) => h.kind === "other")!.label).toBe("Flagger for the street closure");
+    const gaps = requirementGaps(hits, "self_performer");
+    expect(gaps.map((g) => g.title).sort()).toEqual([
+      "Dewatering",
+      "Flagger for the street closure",
+    ]);
+    expect(gaps.every((g) => g.reasoning.includes("installation labor and material"))).toBe(true);
+    expect(gaps.find((g) => g.title === "Dewatering")!.spec_section).toBe("31 23 19");
+    expect(() =>
+      scanProject({
+        setup: null,
+        findings: [
+          {
+            title: "Misc",
+            kind: "other",
+            source_type: "sheet",
+            source_ref: "G-001",
+            citation: "See note.",
+          },
+        ],
+      }),
+    ).toThrow(/other needs a description/);
+  });
+
   it("puts special requirements on their own line in the bid summary", () => {
     const bid = assembleBid({
       direct: 1000,
@@ -157,6 +211,7 @@ describe("rate references and special requirements", () => {
           sourceType: "sheet",
           sourceRef: "L-101",
           citation: "Arborist report required.",
+          description: null,
           placement: "own_line",
           amount: 500,
           confirmed: true,
@@ -184,6 +239,7 @@ describe("rate references and special requirements", () => {
             ref: "R-1",
             kind: "permits",
             label: "Permits",
+            description: null,
             sourceType: "spec",
             sourceRef: "01 41 00",
             citation: "Permits by contractor.",
@@ -274,5 +330,10 @@ describe("migration", () => {
     expect(sql).toContain("REVOKE INSERT, UPDATE, DELETE");
     expect(sql).not.toMatch(/\bDROP\s+TABLE\b|\bALTER\s+TABLE\s+public\.mcp_estimate_takeoff/i);
     expect(sql).not.toMatch(/fragment/i);
+    expect(sql).not.toMatch(/kind IN \('consultants'/);
+    expect(sql).toContain("length(btrim(kind)) BETWEEN 1 AND 80");
+    expect(sql).toContain("description text");
+    expect(ESTIMATE_SERVER_RULE).toContain(REQUIREMENT_OPEN_LIST);
+    expect(REQUIREMENT_OPEN_LIST).toContain("Look beyond the examples");
   });
 });
