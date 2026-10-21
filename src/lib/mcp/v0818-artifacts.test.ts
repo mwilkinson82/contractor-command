@@ -78,10 +78,10 @@ describe("Claude renders lookahead and email draft as artifacts, like the schedu
   it("email_draft result text carries the card, the view spec and the yes/no question", async () => {
     const r = await call(emailDraft, { to: "pm@example.test", cc: [], subject: "2701 two-week lookahead", body: `Download the lookahead PDF:\n${L}`, link: L });
     const t: string = r.content[0].text;
-    expect(t).toMatch(/^To: pm@example.test/);
+    expect(t).toMatch(/^REQUIRED VIEW: build ONE styled email-draft artifact[^\n]*\n\nTo: pm@example.test/);
     expect(t).toContain(EMAIL_DRAFT_VIEW_SPEC[0]);
     expect(t).toMatch(/Confirm question: Send this email to pm@example.test from your connected email account\? Yes or no\?$/);
-    expect(t.indexOf("Ready for your review. Not sent.")).toBeLessThan(t.indexOf("REQUIRED VIEW – EMAIL DRAFT"));
+    expect(t.indexOf("Ready for your review. Not sent.")).toBeLessThan(t.indexOf("REQUIRED VIEW – EMAIL DRAFT:"));
     expect(r.structuredContent.sent).toBe(false);
   });
 });

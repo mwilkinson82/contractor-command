@@ -96,6 +96,9 @@ export function reminderSource(it: SourceFields): string | null {
 }
 
 /** 0.8.18: Claude showed the email_draft card as a plain markdown block. Same pattern as the schedule: a REQUIRED VIEW in the result text. */
+/** 0.8.20: first line of the email_draft result, same pattern as the schedule Gantt and the lookahead (artifact ask first). */
+export const EMAIL_DRAFT_ARTIFACT_LINE =
+  "REQUIRED VIEW: build ONE styled email-draft artifact from this result, the same way you build the schedule Gantt. In Claude: an artifact built only from this result (no tool calls inside it). In ChatGPT: a canvas or the host's email card. Never paste the draft below as plain text or markdown. Follow the REQUIRED VIEW – EMAIL DRAFT spec.";
 export const EMAIL_DRAFT_VIEW_SPEC: string[] = [
   "REQUIRED VIEW – EMAIL DRAFT: show this draft as ONE styled email card, never a plain text or markdown block. In Claude: an artifact built only from this result (no tool calls inside it). In ChatGPT: a canvas or the host's email card. Spec:",
   "1. Header bar in navy with the title \"Email draft\" and a gray \"Not sent\" status pill.",

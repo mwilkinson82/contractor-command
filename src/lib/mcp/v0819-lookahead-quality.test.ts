@@ -25,7 +25,7 @@ describe("0.8.19 lookahead data quality (2701 LA-31BE8)", () => {
     expect(m.counts.risks).toBe(m.risks.length);
     expect(m.counts.overdue).toBe(m.overdue.length);
     expect(m.risks.map((e) => e.item.action)).toEqual(expect.arrayContaining([ITEMS[2].action]));
-    const v = lookaheadView({ title: "2701 – Harbor Point", ref: "LA-31BE8", start: START, end: END, dataDate: "2026-10-19", acts: ACTS, items: ITEMS, ...OPTS });
+    const v = lookaheadView({ title: "2701 – Harbor Point", ref: "LA-31BE8", start: START, end: END, acts: ACTS, items: ITEMS, ...OPTS });
     const cards = (v.split("### Risk cards")[1] ?? "").split("\n").filter((l) => l.startsWith("> 🚩")).length;
     expect(v).toContain(`${m.risks.length} risks`);
     expect(cards).toBe(m.risks.length);
@@ -45,11 +45,11 @@ describe("0.8.19 lookahead data quality (2701 LA-31BE8)", () => {
     expect(m.top[0].item.due).toBe("2026-10-06");
     expect(m.top[0].label).toBe("Submit delay notice for the storm line conflict (Section 8.3, 7 calendar days) (delay start date unknown; confirm it)");
     expect(itemLabel("Plain action")).toBe("Plain action");
-    const v = lookaheadView({ title: "2701", ref: "LA-31BE8", start: START, end: END, dataDate: "2026-10-19", acts: ACTS, items: ITEMS, ...OPTS });
+    const v = lookaheadView({ title: "2701", ref: "LA-31BE8", start: START, end: END, acts: ACTS, items: ITEMS, ...OPTS });
     expect(v).toMatch(/\| 1 \| 🔴 \*\*OVERDUE\*\* Submit delay notice/);
     expect(v).not.toMatch(/\| 1 \| Confirm start date/);
-    // The data date counts when it's later than today.
-    expect(lookaheadModel(START, END, ACTS, [{ action: "x", due: "2026-10-25" }], { today: "2026-10-21", dataDate: "2026-10-26" }).overdue.length).toBe(1);
+    // 0.8.20: only today counts, never a later data date.
+    expect(lookaheadModel(START, END, ACTS, [{ action: "x", due: "2026-10-25" }], { today: "2026-10-21", dataDate: "2026-10-26" }).overdue.length).toBe(0);
     expect(lookaheadModel(START, END, ACTS, [{ action: "x", due: "2026-10-21" }], OPTS).overdue.length).toBe(0);
   });
 
