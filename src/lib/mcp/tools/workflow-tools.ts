@@ -21,6 +21,7 @@ import { CLAUSE_HOST_RULE, classifyClause, clauseLine, missingNotices, normSecti
 import { FLAGS_ASKED_LATER, noGuidance, noGuidanceText, reconcileRecommendation } from "../guidance";
 import { isNoneAnswer, mergeScopeFacts, visibleLookaheads } from "../lookahead-items";
 import { addRevision, currentRev, loadRevisions, lookaheadSourceFor, revisionLines, stampItemRev } from "../lookahead-revisions";
+import { REPORT_SEND_GUIDANCE, withNextMove } from "../coach";
 import { LOOKAHEAD_BUILD_QUESTIONS, LOOKAHEAD_EXISTS_ASK, LOOKAHEAD_PUSHBACK, LOOKAHEAD_SETUP_KEY, PUSHBACK_GUIDANCE, buildQuestionsGuidance, buildQuestionsText, pushbackText } from "../lookahead-help";
 
 const uuid = z.string().uuid();
@@ -443,7 +444,7 @@ export const intake = defineTool({
         // 0.8.5: the notice email goes to the contract's recipient (the saved job contact), never "Dear Project Manager".
         const ecDelay = emailContact(contactForRole((await noticeContext(sb, job)).contacts, "Project Manager"));
         const id: PmIdentity = { name: pmName, email: j.pm_email ?? null, title: j.pm_title ?? null, isMember: !!j.pm_user_id };
-        return guide({
+        return withNextMove(guide({
           // 0.8.8: email-card results lead with the To line.
           ...text([
             ecDelay.structured.to_line,
@@ -457,7 +458,7 @@ export const intake = defineTool({
           ].join("\n")),
           structuredContent: { email_contact: ecDelay.structured, delay_event_id: r.delay_event_id, start_known: r.start_known, notice_due: start ? nd.due : null, claim_due: start ? cd.due : null,
             items: [r.notice_item, r.notice_item?.delivery_item, r.claim_item, r.claim_item?.delivery_item].filter((x): x is ItemResult => !!x).map((x) => itemOut(x)!) },
-        }, ...draftGuidance(id, { name: co.data?.name ?? null }), EMAIL_CONTACT_RULE);
+        }, ...draftGuidance(id, { name: co.data?.name ?? null }), EMAIL_CONTACT_RULE), "notice", guide);
       }
 
       if (args.section === "clauses") {
@@ -706,9 +707,9 @@ export const intake = defineTool({
             await rpc(sb, "mcp_resolve_item", { _item: it.id, _kind: "verified", _evidence: `Budget and SOV saved: every SOV line maps to a cost code, every cost code is on an SOV line, and every SOV code is in the budget.`, _stated_by: null, _stated_on: null, _reason: null, _approval: null, _billing: null, _collection: null });
           if (open?.length) note = "\nClosed the open item to map SOV lines to cost codes: everything maps now.";
         }
-        return text(
+        return withNextMove(text(
           `${P}Budget and SOV saved. Budget is internal only.\nCost codes: ${codes.size} | SOV lines: ${sovRows.length}\nSOV lines not mapped to a cost code: ${unmappedLines.join(", ") || "none"}\nCost codes not on any SOV line: ${unmappedCodes.join(", ") || "none"}\nSOV codes missing from the budget: ${badRefs.join(", ") || "none"}\nFee: ${terms?.sov_fee_pct == null ? "not recorded" : `${Number(terms.sov_fee_pct).toFixed(2)}% of contract total`} | Basis: ${terms?.sov_basis ?? "not recorded"}${note}`,
-        );
+        ), "sov", guide);
       }
 
       if (args.section === "open_item") {
@@ -918,7 +919,7 @@ export const nextQuestion = defineTool({
         const { data: mods } = await sb.from("mcp_job_facts").select("module").eq("job_id", job.job_id);
         const have = new Set((mods ?? []).map((m) => m.module));
         const todo = ["scope", "contract", "handoff", "budget", "warranty"].filter((m) => !have.has(m));
-        return guide(text(`${P}${auto}No setup questions left.${todo.length ? ` Intake sections not started: ${todo.join(", ")}.` : ""} Call report.`), JOB_SETUP_SOFTWARE_BLOCK);
+        return withNextMove(guide(text(`${P}${auto}No setup questions left.${todo.length ? ` Intake sections not started: ${todo.join(", ")}.` : ""} Call report.`), JOB_SETUP_SOFTWARE_BLOCK), "setup", guide);
       }
       const confirm = q.record_value != null;
       const ask = confirm ? `The record shows: ${typeof q.record_value === "string" ? q.record_value : JSON.stringify(q.record_value)}\nConfirm this is right (yes), or say no / unknown.` : q.prompt;
@@ -1116,7 +1117,7 @@ export const report = defineTool({
       // Client-facing output never carries item ids.
       const items = (its ?? []).map((i) => (audience === "client" ? { item_type: itemType(i, nas) } : { item_id: i.id, item_type: itemType(i, nas) }));
       // 0.8.9: sharing a report with the team or owner always lists all three options.
-      return { ...text(`${SHARE_OPTIONS_REQUIRED}\n${body}\n\n${REPORT_SHARE_ASK}`), structuredContent: { items, delivery: { ...REPORT_SHARE_STRUCTURED, audience } } };
+      return guide({ ...text(`${SHARE_OPTIONS_REQUIRED}\n${body}\n\n${REPORT_SHARE_ASK}`), structuredContent: { items, delivery: { ...REPORT_SHARE_STRUCTURED, audience } } }, ...REPORT_SEND_GUIDANCE);
     }),
 });
 
@@ -1410,7 +1411,7 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
   const brand: SovBrand = { company_name: c.name, logo_url: c.logo_url ?? null, license_number: c.license_number ?? null, contact_name: c.contact_name ?? null, contact_phone: c.contact_phone ?? null, website: c.website ?? null };
   await audit(sb, job, "report", "view_sov", null);
   const today = new Date().toISOString().slice(0, 10);
-  return guide(
+  return withNextMove(guide(
     {
       // 0.8.4: the delivery step rides in the tool text and structuredContent, not only in guidance, so every host (Claude too) asks it.
       ...text(`${sovRequiredTop(sovLineRows(sov), ec.structured.to_line)}\n${sovSummaryText(prefix(job), sov, brand, jr.data?.sov_basis ?? null, sovFooterMissing(c), audience, view)}${sovSpecsMissing(sov) ? `\n${SOV_SPECS_MISSING_NOTE}` : ""}\n\n${sovDeliveryAsk(audience)}\nFor option 2 or 3:\n${EMAIL_TO_LABEL_REQUIRED}\n${ec.text}\n${EMAIL_VIEW_SPEC.join("\n")}`),
@@ -1440,7 +1441,8 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
     SOV_CHART_RULE,
     sovDeliveryBlock(audience),
     EMAIL_CONTACT_RULE,
-  );
+    ...REPORT_SEND_GUIDANCE,
+  ), "sov", guide);
 }
 
 /** 0.8.12: the saved CPM data date (null when none is saved or the living reports schema isn't there). */
