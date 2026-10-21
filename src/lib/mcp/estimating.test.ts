@@ -14,6 +14,12 @@ import {
   checkBids,
   coverageLine,
   prepareGap,
+  FOUNDATION_CHECKLIST,
+  NOT_RELEVANT_ASK,
+  conventionFor,
+  normalizeInputName,
+  normalizeScale,
+  normalizeSchedules,
   prepareLine,
   prepareLines,
   renderBidCheck,
@@ -338,17 +344,19 @@ describe("coverage, gaps, bids, summary", () => {
     ]);
     const open = settle(takeoff, [], [], { role: "self_performer", trades: ["03 Concrete"] });
     expect(open.settled).toBe(false);
-    expect(() =>
-      renderSummary(
-        "2701 – Crystal",
-        open,
-        [{ line_no: 1, rate: 12.5, cost_type: "material", bought: false }],
-        "Revision used: not stated.",
-      ),
-    ).toThrow(/not settled/);
+    const draft = renderSummary(
+      "2701 – Crystal",
+      open,
+      [{ line_no: 1, rate: 12.5, cost_type: "material", bought: false }],
+      "Revision used: not stated.",
+    );
+    expect(draft.text).toMatch(/draft/i);
+    expect(draft.text).toContain("Open gaps");
+    expect(draft.text).toContain("Perimeter insulation");
+    expect(draft.structured.draft).toBe(true);
     const verdicts: StoredVerdict[] = [];
-    const closedLines = prepareLines(
-      CONCRETE.map((key, i) => ({
+    const closedLines = prepareLines([
+      ...CONCRETE.map((key, i) => ({
         item: key,
         sheet: "S3.1",
         unit: "EA",
@@ -357,7 +365,16 @@ describe("coverage, gaps, bids, summary", () => {
         checklist_key: key,
         line_no: i + 1,
       })),
-    );
+      ...FOUNDATION_CHECKLIST.map((row, i) => ({
+        item: row.label,
+        sheet: "S3.1",
+        unit: row.unit,
+        basis: "measured" as const,
+        exclusion: "N/A for this check.",
+        checklist_key: row.key,
+        line_no: 100 + i,
+      })),
+    ]);
     const closed = settle(closedLines, [], verdicts, {
       role: "self_performer",
       trades: ["03 Concrete"],
@@ -440,6 +457,11 @@ describe("coverage, gaps, bids, summary", () => {
     expect(view.text).toContain("item,unit,qty");
     expect(view.structured.csv).toContain("Footing depth,ft,");
     expect(String(view.structured.csv)).not.toContain("Footing depth,ft,0");
+    expect(
+      String(view.structured.csv)
+        .split("\n")
+        .every((l) => l.trim().length > 0),
+    ).toBe(true);
   });
 
   it("lists self-performer coordination as questions, not quantities", () => {
@@ -465,6 +487,119 @@ describe("coverage, gaps, bids, summary", () => {
 });
 
 const CONCRETE = ["cf", "if", "fs", "fr", "fd", "tp", "cp", "ts", "td", "sg", "us", "ew"] as const;
+
+describe("engine conventions", () => {
+  it("normalizes schedules, scales and input names, and rejects a blank", () => {
+    expect(normalizeSchedules(["Door schedule", { name: "Footings", items: ["F-1"] }])).toEqual([
+      "Door schedule",
+      "Footings: F-1",
+    ]);
+    expect(normalizeScale({ value: "1/8 inch = 1 foot" })).toBe("1/8 inch = 1 foot");
+    expect(normalizeInputName(4)).toBe("4");
+    expect(() => normalizeSchedules([{ items: ["only"] }])).toThrow(/needs a name/);
+    expect(() => normalizeScale("")).toThrow(/title block/);
+    expect(() => normalizeInputName("")).toThrow(/needs a name/);
+  });
+
+  it("states one form face by default and keeps rebar in LF and LB", () => {
+    const forms = prepareLines(
+      [
+        {
+          item: "Trench forms",
+          sheet: "S-103",
+          unit: "SFCA",
+          basis: "derived",
+          op: "product",
+          inputs: [
+            { name: "length", value: 111.5 },
+            { name: "height", value: 3.167 },
+          ],
+          line_no: 1,
+        },
+      ],
+      conventionFor("as_drawn"),
+    )[0];
+    expect(forms.math).toContain("Forms faces: 1");
+    expect(forms.math).toContain("earth side is not formed");
+    const both = prepareLines([
+      {
+        item: "Trench forms",
+        sheet: "S-103",
+        unit: "SFCA",
+        basis: "derived",
+        op: "product",
+        forms_faces: 2,
+        inputs: [
+          { name: "length", value: 10 },
+          { name: "height", value: 2 },
+        ],
+        line_no: 1,
+      },
+    ])[0];
+    expect(both.math).toContain("Forms faces: 2");
+  });
+
+  it("uses gross termite area, follows the estimator profile, and rejects LF sent as CF", () => {
+    const termite = prepareLines(
+      [
+        {
+          item: "Termite treatment",
+          sheet: "S-100",
+          unit: "SF",
+          basis: "measured",
+          value: 4668,
+          line_no: 1,
+        },
+      ],
+      conventionFor("estimator"),
+    )[0];
+    expect(termite.math).toContain("gross area");
+    expect(termite.math).toContain("perimeter in LF");
+    expect(() =>
+      prepareLines([
+        {
+          item: "Termite treatment",
+          sheet: "S-100",
+          unit: "SF",
+          basis: "measured",
+          value: 100,
+          area_basis: "net",
+          line_no: 1,
+        },
+      ]),
+    ).toThrow(/gross/);
+    expect(() =>
+      prepareLines([
+        {
+          item: "Keyway",
+          sheet: "S-103",
+          unit: "LF",
+          basis: "measured",
+          value: 18,
+          measure_type: "volume",
+          line_no: 1,
+        },
+      ]),
+    ).toThrow(/LF can't be given as CF/);
+    expect(() =>
+      prepareLines([
+        {
+          item: "Footing rebar",
+          sheet: "S-100",
+          unit: "LB",
+          basis: "measured",
+          value: 100,
+          line_no: 1,
+        },
+      ]),
+    ).toThrow(/LF alongside/);
+  });
+
+  it("asks for the not-relevant reason in the same turn", () => {
+    expect(NOT_RELEVANT_ASK).toContain("this same turn");
+    expect(NOT_RELEVANT_ASK).toContain("Why is this not relevant");
+  });
+});
 
 describe("wiring", () => {
   it("puts the quantity rule in the server instructions and the tool result", () => {

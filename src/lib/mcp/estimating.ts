@@ -25,7 +25,10 @@ export const REQUIREMENT_OPEN_LIST =
 export const ESTIMATE_SERVER_RULE =
   " Takeoff quantities are MEASURED or DEDUCED. MEASURED is straight off a sheet (READ). DEDUCED is computed (DERIVED): multiply the MEASURED inputs, show the math, and cite the sheet and the detail or grid. Leave a quantity blank only when one named input is missing on every sheet. A vendor or shop-drawing note is not a reason for a blank. Addenda override the base documents. Do not invent quantities, dimensions, unit prices or vendor numbers. Every estimating report (takeoff, Estimate Analysis, estimator loop, Estimate Summary, bid summary) is landscape, 17 by 11 inches, with the Athena logo at the top right. Portrait only if the member asks. Red only for risks and gaps that hold up the bid. Questions go back to the estimator. Do not price a final bid until the takeoff is settled. A rate is the contractor's own figure, or a PLACEHOLDER the contractor supplies and then confirms. Do not attribute a number to RSMeans, NECA, SMACNA or MCAA, and do not reproduce their tables. " +
   REQUIREMENT_OPEN_LIST +
-  " Special requirements stay out of installation labor and material. Overhead is applied first, then profit on top. The bid summary shows direct cost, general conditions, special requirements, overhead and profit, and the total.";
+  " Special requirements stay out of installation labor and material. Overhead is applied first, then profit on top. The bid summary shows direct cost, general conditions, special requirements, overhead and profit, and the total. Forms use one face unless the line sets two. The earth side is not formed by default. Rebar is shown in LF and in LB. Termite treatment is gross area plus a separate perimeter in LF. Concrete, fiber, vapor barrier, base and fine grading follow the active profile, net when the drawings are read as drawn. The foundation checklist is perimeter insulation, perimeter termite, fine grading, base course, base under the trench and pits, dowels, keyways, and edge forms. Each one is quantified or marked N/A with a reason.";
+
+export const NOT_RELEVANT_ASK =
+  "Why is this not relevant? Send the reason in this same turn. Nothing was changed.";
 
 export const ESTIMATE_QUANTITY_REQUIRED = [
   "REQUIRED: Quantities are MEASURED or DEDUCED. Compute every DEDUCED quantity from the MEASURED inputs and show the math and the sheet. Leave a quantity blank only when one named input is missing on every sheet.",
@@ -79,6 +82,61 @@ export const CONCRETE_CHECKLIST = [
   { key: "us", group: "Under-slab work", label: "Under-slab work" },
   { key: "ew", group: "Earthwork", label: "Earthwork for footings and pits" },
 ] as const;
+
+/** Run on every takeoff. Quantified, or N/A with a reason. */
+export const FOUNDATION_CHECKLIST = [
+  { key: "pi", label: "Perimeter insulation", unit: "LF" },
+  { key: "pt", label: "Perimeter termite", unit: "LF" },
+  { key: "fg", label: "Fine grading", unit: "SF" },
+  { key: "bc", label: "Base course", unit: "SF" },
+  { key: "bt", label: "Base under trench and pits", unit: "SF" },
+  { key: "dw", label: "Dowels", unit: "EA" },
+  { key: "kw", label: "Keyways", unit: "LF" },
+  { key: "ef", label: "Edge forms", unit: "LF" },
+] as const;
+
+export type AreaKind = "concrete" | "fiber" | "vapor" | "base" | "fine_grade" | "termite";
+export type EstimateConvention = {
+  profile: "as_drawn" | "estimator";
+  forms_faces: 1 | 2;
+  areas: Record<AreaKind, "net" | "gross">;
+};
+
+/** as_drawn follows the sheets (net slab lines, one form face). estimator follows the key's gross areas. One form face is the default in both. */
+export const CONVENTIONS: Record<"as_drawn" | "estimator", EstimateConvention> = {
+  as_drawn: {
+    profile: "as_drawn",
+    forms_faces: 1,
+    areas: {
+      concrete: "net",
+      fiber: "net",
+      vapor: "net",
+      base: "net",
+      fine_grade: "net",
+      termite: "gross",
+    },
+  },
+  estimator: {
+    profile: "estimator",
+    forms_faces: 1,
+    areas: {
+      concrete: "gross",
+      fiber: "gross",
+      vapor: "gross",
+      base: "gross",
+      fine_grade: "gross",
+      termite: "gross",
+    },
+  },
+};
+
+export function conventionFor(
+  profile: "as_drawn" | "estimator" = "as_drawn",
+  faces?: 1 | 2,
+): EstimateConvention {
+  const base = CONVENTIONS[profile];
+  return faces ? { ...base, forms_faces: faces } : base;
+}
 export const CHECK_KEYS = CONCRETE_CHECKLIST.map((c) => c.key) as unknown as readonly [
   "cf",
   "if",
@@ -154,6 +212,8 @@ export type LineIn = {
   missing_input?: string | null;
   exclusion?: string | null;
   checklist_key?: string | null;
+  forms_faces?: 1 | 2;
+  area_basis?: "net" | "gross";
   element?: string | null;
   trade?: string | null;
   note?: string | null;
@@ -384,8 +444,12 @@ function finish(
   partial: Omit<StoredLine, "line_no" | "measure_type" | "inputs"> & { inputs: QtyInput[] },
   raw: LineIn,
 ): Omit<StoredLine, "line_no"> {
-  if (raw.checklist_key && !CONCRETE_CHECKLIST.some((c) => c.key === raw.checklist_key))
-    throw new EstimateError("That checklist item is not on the concrete list. Nothing was saved.");
+  if (
+    raw.checklist_key &&
+    !CONCRETE_CHECKLIST.some((c) => c.key === raw.checklist_key) &&
+    !FOUNDATION_CHECKLIST.some((c) => c.key === raw.checklist_key)
+  )
+    throw new EstimateError("That checklist item is not on the list. Nothing was saved.");
   return {
     ...partial,
     measure_type: measureOf(partial.unit, raw.measure_type),
@@ -674,8 +738,206 @@ function computed(
   );
 }
 
-export function prepareLines(rows: LineIn[]): StoredLine[] {
-  const prepared = rows.map(prepareLine);
+const VOLUME = new Set(["CY", "CF", "CUFT", "CUYD"]);
+const LINEAR = new Set(["LF", "FT"]);
+const AREA = new Set(["SF", "SFCA", "SY"]);
+const COUNT = new Set(["EA"]);
+const WEIGHT = new Set(["LB", "LBS"]);
+
+function unitFamily(unit: string): "volume" | "linear" | "area" | "count" | "weight" | null {
+  const u = unit.toUpperCase().replace(/\./g, "");
+  if (VOLUME.has(u)) return "volume";
+  if (LINEAR.has(u)) return "linear";
+  if (AREA.has(u)) return "area";
+  if (COUNT.has(u)) return "count";
+  if (WEIGHT.has(u)) return "weight";
+  return null;
+}
+
+/** Reject a linear quantity labeled as a volume, and the reverse. */
+export function assertUnitSane(
+  item: string,
+  unit: string | null,
+  measure: MeasureType | null,
+): void {
+  if (!unit) return;
+  const family = unitFamily(unit);
+  const u = unit.toUpperCase().replace(/\./g, "");
+  if (family && measure && family !== measure && family !== "weight") {
+    throw new EstimateError(
+      `${item}: ${u} doesn't match a ${measure} quantity. LF can't be given as CF. Nothing was saved.`,
+    );
+  }
+  if ((u === "LF" && family === "volume") || (measure === "linear" && family === "volume"))
+    throw new EstimateError(`${item}: LF can't be given as CF. Nothing was saved.`);
+}
+
+function areaKind(item: string): AreaKind | null {
+  const n = item.toLowerCase();
+  if (/termite/.test(n)) return "termite";
+  if (/fine grad/.test(n)) return "fine_grade";
+  if (/vapor/.test(n)) return "vapor";
+  if (/fiber/.test(n)) return "fiber";
+  if (/base course|base under|granular base/.test(n)) return "base";
+  if (/slab|concrete|neat/.test(n) && !/form|rebar|dowel/.test(n)) return "concrete";
+  return null;
+}
+
+function isForms(item: string, unit: string | null): boolean {
+  return (unit ?? "").toUpperCase() === "SFCA" || /form|contact area|sfca/i.test(item);
+}
+
+function isRebar(item: string): boolean {
+  return /rebar|reinforc/i.test(item);
+}
+
+function expectedUnit(item: string): string | null {
+  const n = item.toLowerCase();
+  if (/termite/.test(n) && /perim/.test(n)) return "LF";
+  if (/termite/.test(n)) return "SF";
+  if (/fine grad/.test(n)) return "SF";
+  if (/base course|base under/.test(n)) return "SF";
+  if (/perimeter insulation/.test(n)) return "LF";
+  if (/edge form/.test(n)) return "LF";
+  if (/keyway/.test(n)) return "LF";
+  if (/dowel/.test(n)) return "EA";
+  return null;
+}
+
+function applyConvention(
+  line: Omit<StoredLine, "line_no">,
+  raw: LineIn,
+  convention: EstimateConvention,
+): Omit<StoredLine, "line_no"> {
+  assertUnitSane(line.item, line.unit, line.measure_type);
+  const want = expectedUnit(line.item);
+  const got = (line.unit ?? "").toUpperCase().replace(/\./g, "");
+  if (want && got && got !== want && line.qty != null && !line.exclusion)
+    throw new EstimateError(
+      `${line.item} is ${want} for this profile. ${got} was sent. Nothing was saved.`,
+    );
+  let math = line.math;
+  if (isForms(line.item, line.unit)) {
+    const faces = raw.forms_faces ?? convention.forms_faces;
+    math +=
+      faces === 1
+        ? " Forms faces: 1. One face is the default. The earth side is not formed."
+        : " Forms faces: 2, set on this line.";
+  }
+  const kind = areaKind(line.item);
+  if (kind) {
+    const rule = convention.areas[kind];
+    if (raw.area_basis && raw.area_basis !== rule)
+      throw new EstimateError(
+        `${line.item} is ${rule} for the ${convention.profile === "as_drawn" ? "as drawn" : "estimator"} profile. Nothing was saved.`,
+      );
+    math +=
+      kind === "termite"
+        ? " Termite uses gross area, plus a separate perimeter in LF."
+        : ` Area basis: ${rule}.`;
+  }
+  if (isRebar(line.item) && !line.exclusion) {
+    const hasLf = /\bLF\b/.test(math) || got === "LF";
+    const hasLb = /\bLB\b/.test(math) || got === "LB" || got === "LBS";
+    if (!hasLf)
+      throw new EstimateError(
+        "Rebar needs the length in LF alongside the pounds. Nothing was saved.",
+      );
+    if (!hasLb)
+      throw new EstimateError(
+        "Rebar needs the pounds in LB alongside the length. Send the bar size. Nothing was saved.",
+      );
+  }
+  return { ...line, math: math.slice(0, 1000) };
+}
+
+export function normalizeSchedules(value: unknown): string[] {
+  if (value == null) return [];
+  const list = Array.isArray(value) ? value : [value];
+  if (list.length > 40) throw new EstimateError("Send at most 40 schedules. Nothing was saved.");
+  return list.map((item, i) => {
+    if (typeof item === "string") {
+      const s = item.trim();
+      if (!s) throw new EstimateError(`Schedule ${i + 1} is blank. Nothing was saved.`);
+      if (s.length > 200)
+        throw new EstimateError(`Schedule ${i + 1} is too long. Nothing was saved.`);
+      return s;
+    }
+    if (item && typeof item === "object") {
+      const o = item as Record<string, unknown>;
+      const name = String(o.name ?? o.title ?? "").trim();
+      if (!name) throw new EstimateError(`Schedule ${i + 1} needs a name. Nothing was saved.`);
+      const extra = Array.isArray(o.items)
+        ? o.items
+            .map((x) => String(x).trim())
+            .filter(Boolean)
+            .join(", ")
+        : "";
+      const line = extra ? `${name}: ${extra}` : name;
+      if (line.length > 200)
+        throw new EstimateError(`Schedule ${name} is too long. Nothing was saved.`);
+      return line;
+    }
+    throw new EstimateError(`Schedule ${i + 1} needs a name. Nothing was saved.`);
+  });
+}
+
+export function normalizeScale(value: unknown): string {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value <= 0)
+      throw new EstimateError("The scale has to be a real scale. Nothing was saved.");
+    return String(value);
+  }
+  if (typeof value === "string") {
+    const s = value.trim();
+    if (!s)
+      throw new EstimateError(
+        "State the scale from the title block or a dimensioned string. Nothing was saved.",
+      );
+    if (s.length > 80) throw new EstimateError("That scale is too long. Nothing was saved.");
+    return s;
+  }
+  if (value && typeof value === "object") {
+    const o = value as Record<string, unknown>;
+    const v = o.scale ?? o.value ?? o.text;
+    if (v == null || (typeof v === "string" && !v.trim()))
+      throw new EstimateError(
+        "State the scale from the title block or a dimensioned string. Nothing was saved.",
+      );
+    const unit = typeof o.unit === "string" && o.unit.trim() ? ` ${o.unit.trim()}` : "";
+    return normalizeScale(`${v}${unit}`.trim());
+  }
+  throw new EstimateError(
+    "State the scale from the title block or a dimensioned string. Nothing was saved.",
+  );
+}
+
+export function normalizeInputName(value: unknown): string {
+  let s = "";
+  if (typeof value === "number" && Number.isFinite(value)) s = String(value);
+  else if (typeof value === "string") s = value.trim();
+  else if (value && typeof value === "object") {
+    const o = value as Record<string, unknown>;
+    s = String(o.name ?? o.label ?? "").trim();
+  }
+  if (!s) throw new EstimateError("Each measured input needs a name. Nothing was saved.");
+  if (s.length > 80) throw new EstimateError("That input name is too long. Nothing was saved.");
+  return s;
+}
+
+export function cleanCsv(text: string): string {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim().length > 0)
+    .join("\n");
+}
+
+export function prepareLines(
+  rows: LineIn[],
+  convention: EstimateConvention = CONVENTIONS.as_drawn,
+): StoredLine[] {
+  const prepared = rows.map((raw) => applyConvention(prepareLine(raw), raw, convention));
   const given = rows.map((r) => r.line_no).filter((n): n is number => typeof n === "number");
   if (given.length && given.length !== rows.length)
     throw new EstimateError(
@@ -882,6 +1144,7 @@ export function settle(
   settled: boolean;
   blockers: string[];
   checklist: { label: string; state: string }[];
+  foundation: { label: string; state: string }[];
   stale: string[];
 } {
   const stale: string[] = [];
@@ -901,10 +1164,15 @@ export function settle(
     const qty = v?.corrected_qty ?? line.qty;
     const owned = Boolean(v?.owner);
     let status: ItemStatus;
+    const foundationNa =
+      !v &&
+      line.qty == null &&
+      Boolean(line.exclusion) &&
+      FOUNDATION_CHECKLIST.some((c) => c.key === line.checklist_key);
     if (v?.mark === "not_relevant") status = "dropped";
     else if (v && (v.mark === "relevant" || v.mark === "good_catch") && qty == null && !owned)
       status = "open";
-    else if (qty != null || owned) status = "settled";
+    else if (qty != null || owned || foundationNa) status = "settled";
     else status = "open";
     const follow =
       status === "open"
@@ -1009,6 +1277,14 @@ export function settle(
     if (rows.some((r) => r.qty != null)) return { label: c.label, state: "quantity" };
     return { label: c.label, state: "open" };
   });
+  const foundation = FOUNDATION_CHECKLIST.map((c) => {
+    const rows = items.filter((i) => i.kind === "line" && i.checklistKey === c.key);
+    if (!rows.length) return { label: c.label, state: "not on the takeoff" };
+    if (rows.some((r) => r.qty != null && r.status !== "dropped"))
+      return { label: c.label, state: "quantity" };
+    if (rows.some((r) => r.exclusion)) return { label: c.label, state: "N/A" };
+    return { label: c.label, state: "open" };
+  });
   const blockers = items
     .filter((i) => i.status === "open")
     .map((i) => `${i.ref} ${i.title}${i.missing ? ` (${i.missing})` : ""}`);
@@ -1016,12 +1292,15 @@ export function settle(
     for (const c of checklist)
       if (c.state === "not on the takeoff" || c.state === "open")
         blockers.push(`${c.label}: ${c.state}.`);
+  for (const c of foundation)
+    if (c.state !== "quantity" && c.state !== "N/A") blockers.push(`${c.label}: ${c.state}.`);
   return {
     items,
     counts,
     settled: blockers.length === 0 && lines.length > 0,
     blockers,
     checklist,
+    foundation,
     stale,
   };
 }
@@ -1204,7 +1483,7 @@ export function renderTakeoff(
   ];
   const checklist = state.checklist.filter((c) => c.state !== "not used");
   const sheetRows = sheetFrom(rows);
-  const grouped = groupedCsv(sheetRows);
+  const grouped = cleanCsv(groupedCsv(sheetRows));
   const text = frame("Takeoff", [
     `${job} · Takeoff`,
     coverageLine(linesIn),
@@ -1216,6 +1495,9 @@ export function renderTakeoff(
     ),
     "",
     ...table,
+    "",
+    "Foundation scope",
+    ...state.foundation.map((c) => `- ${c.label}: ${c.state}.`),
     "",
     "Concrete checklist",
     ...(checklist.length
@@ -1588,9 +1870,27 @@ export function renderSummary(
   revision: string,
 ): { text: string; structured: Record<string, unknown>; guidance: string[] } {
   if (!state.settled) {
-    throw new EstimateError(
-      `The takeoff is not settled, so nothing was priced. Open: ${state.blockers.slice(0, 8).join("; ") || "the takeoff is empty"}.`,
-    );
+    const openGaps = state.items.filter((i) => i.kind === "gap" && i.status === "open");
+    return {
+      text: frame("Estimate Summary", [
+        `${job} · Estimate summary, draft`,
+        "The takeoff is not settled. This draft is not a bid.",
+        revision,
+        "Open gaps",
+        ...(openGaps.length
+          ? openGaps.map((g) => `- ${g.ref} ${g.title}. Sheet ${g.sheet}.`)
+          : ["- No open gap rows."]),
+        ...state.blockers.map((b) => `- ${b}`),
+      ]),
+      structured: {
+        report: "Estimate Summary",
+        draft: true,
+        settled: false,
+        open: state.blockers,
+        layout: estimateLayout(),
+      },
+      guidance: ["Do not treat this draft as a bid. List every open gap."],
+    };
   }
   const built = buildSummary(state.items, rates);
   const byTrade = new Map<string, typeof built.rows>();
@@ -1681,6 +1981,7 @@ export function renderMark(
   state: ReturnType<typeof settle>,
 ): { text: string; structured: Record<string, unknown>; guidance: string[] } {
   const lines = [
+    NOT_RELEVANT_ASK,
     `${job} · Estimator loop`,
     item
       ? `${item.ref} ${item.title}: ${item.status}. ${item.followUp ?? item.note ?? ""}`
@@ -1704,7 +2005,8 @@ export function renderMark(
 }
 
 function csvCell(v: string): string {
-  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+  const flat = v.replace(/\r?\n/g, " ").trim();
+  return /[",]/.test(flat) ? `"${flat.replace(/"/g, '""')}"` : flat;
 }
 export function renderExport(
   job: string,
@@ -1743,7 +2045,7 @@ export function renderExport(
         .join(","),
     ),
   ].join("\n");
-  const body = format === "csv" ? simple : book;
+  const body = cleanCsv(format === "csv" ? simple : book);
   const groupedRows: SheetRow[] = ordered.map((l) => ({
     group: (l.trade || l.element || "General").trim() || "General",
     ref: `T-${l.line_no}`,
@@ -1756,7 +2058,7 @@ export function renderExport(
     sheet: cite(l.sheet, l.detail),
     spec: l.spec_section ?? "",
   }));
-  const grouped = groupedCsv(groupedRows);
+  const grouped = cleanCsv(groupedCsv(groupedRows));
   return {
     text: frame("Takeoff", [
       `${job} · Takeoff export`,
