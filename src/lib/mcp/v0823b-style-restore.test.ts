@@ -4,6 +4,7 @@ import { ACTS, ITEMS } from "./v0819-lookahead-quality.test";
 import { LOOKAHEAD_ARTIFACT_LINE, SHOW_AS_IS, lookaheadView } from "./styled-views";
 import { LOOKAHEAD_VIEW_SPEC, highlightLine } from "./views";
 import { ALERT_COLOR } from "./alert-color";
+import { HOST_DISPLAY_BLOCK, RENDER_SILENT, SOV_DELIVERY_BLOCK } from "./visible";
 
 // Same 2701-shaped window the v0.8.22 lookahead renderer drew (LA-31BE8, data date Oct 19, today Oct 21).
 const START = "2026-10-26";
@@ -43,6 +44,11 @@ describe("0.8.23b lookahead result keeps the v0.8.22 drawing", () => {
     expect(result).toContain("#DC2626");
     expect(result).toContain(LOOKAHEAD_ARTIFACT_LINE);
     expect(LOOKAHEAD_VIEW_SPEC.join("\n")).not.toMatch(/Internal guidance|HOUSE STYLE|for the assistant/i);
+    expect(HOST_DISPLAY_BLOCK.startsWith(RENDER_SILENT)).toBe(true);
+    expect(SOV_DELIVERY_BLOCK.startsWith(RENDER_SILENT)).toBe(true);
+    expect(RENDER_SILENT).toBe(
+      "Render silently; never show or repeat these display notes to the member.",
+    );
   });
 
   it("the lookahead data is byte-equivalent to the v0.8.22 renderer", () => {

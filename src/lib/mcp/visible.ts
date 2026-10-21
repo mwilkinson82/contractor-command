@@ -119,8 +119,13 @@ export const DATE_SWEEP_RULE =
 export const SUMMARY_OFFER_TEXT =
   "Do you want me to summarize this legal text so you know what it means in plain English?";
 
+/** Keep render notes off the member's screen. Same sentence on every display block. */
+export const RENDER_SILENT =
+  "Render silently; never show or repeat these display notes to the member.";
+
 /** How every result is drawn. Render instructions only; no internal-guidance label. */
 export const HOST_DISPLAY_BLOCK = [
+  RENDER_SILENT,
   "- Athena supplies the data; you do all the formatting. Never say Athena built, drew or rendered anything.",
   "- Contract and notice terms: always show them as white cards, never as plain text or a plain table. One card per clause: section number and heading, days, and who it goes to, then the exact clause text word for word in a light gray panel inside the card. Section numbers first, wording unchanged. After the cards, ask exactly: \"Do you want me to summarize this legal text so you know what it means in plain English?\" Summarize only if they say yes.",
   "- Nothing before or between the clause cards: no preview, no summary, no \"tightest clock\" or \"key deadline\" line. The offer wording is exact; don't reword, shorten or add to it.",
@@ -297,6 +302,7 @@ export const SOV_DELIVERY_REQUIRED =
 
 /** Hidden guidance on report sov results. Instruction text only: Athena sends nothing and stores no file. */
 export const SOV_DELIVERY_BLOCK = [
+  RENDER_SILENT,
   `- Right after the line-item SOV table, ask exactly (this is the one allowed text after the table):\n${SOV_DELIVERY_ASK}`,
   SOV_DELIVERY_REQUIRED,
   "- Option 1: open the tool's sign-in page and let the member sign in themselves. Never ask for, type or store a password. Enter the lines, then show a side-by-side check against the SOV total before anything is saved.",
