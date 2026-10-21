@@ -56,7 +56,7 @@ describe("0.8.13 next move card", () => {
 describe("0.8.13 job cadence", () => {
   it("six items in order with defaults", () => {
     expect(CADENCE_ITEMS.map((i) => i.key)).toEqual(["pm_meeting", "lookahead_day", "daily_update_time", "morning_briefing_time", "pay_app_dates", "update_cycle"]);
-    expect(CADENCE_ITEMS.map((i) => i.default)).toEqual(["Tue 10:00", "Thu, issued to subs Fri", "4:00 PM daily", "7:00 AM workdays", "From the contract (pencil draft day, cutoff, submission day)", "Monthly, data date = pay app cutoff"]);
+    expect(CADENCE_ITEMS.map((i) => i.default)).toEqual(["Tue 10:00", "Thu, issued to subs Fri", "4:00 PM daily", "7:00 AM workdays", "Pay apps due the 25th; billing period ends the last day of the month", "Monthly, data date = pay app cutoff"]);
   });
   it("asks one at a time", () => {
     expect(nextCadenceItem({})!.key).toBe("pm_meeting");
