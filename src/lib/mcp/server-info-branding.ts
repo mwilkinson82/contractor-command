@@ -33,7 +33,7 @@ export const ATHENA_WEBSITE_URL = ORIGIN;
 // 0.8.11: file_share links (host uploads the file it built; Athena returns an app.meetathena.io/f/ link).
 // 0.8.10: fragnet wording, To: inside email cards, small CORS icons, Athena sign-in page.
 // 0.8.9: cpm_activities handoff, tie-to-contract guard, owner-furnished exclusion, living reports master copy.
-export const ATHENA_VERSION = "0.8.16";
+export const ATHENA_VERSION = "0.8.17";
 
 /** MCP 2025-11-25 Implementation.description. There is no publisher field in the spec. */
 export const ATHENA_DESCRIPTION = "Athena powered by ALP, construction agents. Built by ALP.";

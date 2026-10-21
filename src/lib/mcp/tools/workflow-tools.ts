@@ -1,4 +1,5 @@
 import { companyScopeDefaults, scopeAlias, SECTOR_ALIASES, PRICING_ALIASES, POSITION_ALIASES } from "../scope-defaults";
+import { paymentTermLines, retainageRuleLines, savedPaymentTerms, savedRetainageRule } from "./accounting-tools";
 import { SovMismatch, SOV_SPECS_MISSING_NOTE, SOV_TABLE_STYLE, buildSov, sovSpecsMissing, retainagePct, sovLayout, sovLineRows, sovNotes, sovSummaryText, money, type SovBrand, type SovView } from "../sov";
 import { ATHENA_VERSION } from "../server-info-branding";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
@@ -1351,6 +1352,7 @@ export const contractTerms = defineTool({
         return { flag: k, value: flagWord(effectiveFlag(f?.value ?? "unknown", by.get(FLAG_CLAUSE[k]))), source: f ? src(f.source) : null };
       });
       const cl = await loadClauses(sb, job.job_id);
+      const [retRule, payTerms] = await Promise.all([savedRetainageRule(sb, job), savedPaymentTerms(sb, job)]);
       const notice = noticeRequirements(cl, { noticeFlagNo: flags.find((f) => f.flag === "notice_requirements")?.value === "OFF" });
       // Verbatim clauses first. With clauses on file, summaries (plain-language notice block and summary fields) only on request;
       // with no clauses, the summary fields stay as the fallback. Data is never changed here.
@@ -1363,13 +1365,16 @@ export const contractTerms = defineTool({
         "",
         "Applicability:",
         ...flags.map((f) => `- ${f.flag.replace(/_/g, " ")}: ${f.value}${f.source ? ` (${f.source})` : ""}`),
+        "",
+        ...retainageRuleLines(retRule),
+        ...paymentTermLines(payTerms),
         ...(withSummary
           ? cl.length
             ? ["", `${SUMMARY_HEADING}:`, ...notice.lines, "", `CONTRACT TERMS (as saved; ${SUMMARY_HEADING.toLowerCase()})`, ...clauses.map(termLine)]
             : ["", ...notice.lines, "", "CONTRACT TERMS (as saved)", ...clauses.map(termLine)]
           : ["", SUMMARY_OFFER]),
       ];
-      return { ...text(lines.join("\n")), structuredContent: { include_summary: withSummary, clauses: withSummary ? clauses : [], flags, notice_requirements: { status: notice.status, missing: notice.missing }, contract_clauses: cl.map((c) => ({ section: c.section, heading: c.heading, category: c.category, source: c.source, n_days: c.n_days, day_type: c.day_type, trigger: c.trigger_desc })) } };
+      return { ...text(lines.join("\n")), structuredContent: { include_summary: withSummary, clauses: withSummary ? clauses : [], flags, notice_requirements: { status: notice.status, missing: notice.missing }, retainage_rule: retRule, retainage_rule_version: retRule?.version ?? 0, payment_terms: payTerms, payment_terms_version: payTerms?.version ?? 0, contract_clauses: cl.map((c) => ({ section: c.section, heading: c.heading, category: c.category, source: c.source, n_days: c.n_days, day_type: c.day_type, trigger: c.trigger_desc })) } };
     }),
 });
 

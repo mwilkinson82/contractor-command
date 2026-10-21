@@ -13,7 +13,7 @@
   "mcp": {
     "server": {
       "name": "athena",
-      "version": "0.8.16",
+      "version": "0.8.17",
       "title": "Athena powered by ALP, construction agents"
     },
     "tools": [
@@ -2537,6 +2537,2249 @@
             "body",
             "draft_key",
             "confirmed"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "retainage_rule_save",
+        "title": "Save the job's retainage rule (after approval)",
+        "description": "Retainage is set per job from the contract; there is no default rate. At job setup, read the contract's retainage clause and save it with retainage_rule_save: the rate, any reduction (the % complete where it starts, whether that is measured on the contract sum to date or the original contract, the reduced rate, and whether the reduced rate applies only to later payments or to the whole balance held), and the release terms, with the clause copied exactly and its section number. If the contract says nothing about retainage, ask the PM for the rule and save their answer with source pm_answer. Never assume a rate. Show the rule and the exact clause to the PM, and call this only after they say yes to saving it. Athena refuses a rule that leaves out a needed part, a clause that isn't word for word in the contract text, or a stale base_version. Pay app checks enforce the saved rule to the cent. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true,
+              "description": "true only after the PM said yes to saving this exact rule."
+            },
+            "base_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The rule version shown by contract_terms (0 when none is saved)."
+            },
+            "rate_pct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "The retainage rate held on each payment, e.g. 10. Use 0 when the contract holds no retainage."
+            },
+            "reduction": {
+              "type": "string",
+              "enum": [
+                "prospective",
+                "whole_balance",
+                "period_start_status",
+                "none"
+              ],
+              "description": "prospective: later payments at the reduced rate. whole_balance: the whole balance held drops to the reduced rate. period_start_status: the rate for a period depends on where the job stood at its start. none: one rate, no reduction."
+            },
+            "threshold_pct": {
+              "description": "% complete where the reduction starts, e.g. 50. Leave out when reduction is none.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "threshold_basis": {
+              "description": "What the % complete is measured against, as the contract says. Leave out when reduction is none.",
+              "type": "string",
+              "enum": [
+                "contract_sum_to_date",
+                "original_contract"
+              ]
+            },
+            "reduced_rate_pct": {
+              "description": "The reduced rate, e.g. 5. Leave out when reduction is none.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "release_terms": {
+              "description": "When retainage is released, in the contract's words or the PM's answer.",
+              "type": "string",
+              "maxLength": 1000
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "contract",
+                "pm_answer"
+              ],
+              "description": "contract when read from the contract; pm_answer when the contract is silent and the PM gave the rule."
+            },
+            "clause_section": {
+              "description": "Section number of the retainage clause, e.g. 4.1. Required for source contract.",
+              "type": "string",
+              "maxLength": 40
+            },
+            "clause_text": {
+              "description": "The retainage clause copied exactly from the contract. Required for source contract.",
+              "type": "string",
+              "maxLength": 4000
+            },
+            "contract_text": {
+              "description": "The full contract text, so Athena can confirm the clause is word for word.",
+              "type": "string",
+              "maxLength": 400000
+            },
+            "answered_by": {
+              "description": "pm_answer: who gave the rule.",
+              "type": "string",
+              "maxLength": 160
+            },
+            "stored_rate_pct": {
+              "description": "Only when the contract sets a different retainage rate for stored materials. Leave out otherwise: stored materials are held at the same rate as completed work.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "what_changed": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300,
+              "description": "One line: what this saves or changes."
+            }
+          },
+          "required": [
+            "job_number",
+            "approved",
+            "base_version",
+            "rate_pct",
+            "reduction",
+            "source",
+            "what_changed"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "payment_terms_save",
+        "title": "Save the job's payment terms (after approval)",
+        "description": "Payment terms are set per job from the contract; there is no default. At job setup, read the payment clause and save it with payment_terms_save: pay-when-paid (days after the GC is paid, plus the GC's owner terms if the contract states them) or days after the pay app is approved or submitted, calendar or working days, with the clause copied exactly and its section number. If the contract is silent, ask the PM and save their answer. Show the terms and the exact clause to the PM and call this only after they say yes. Every pay app and invoice due date, and AR aging, comes from the saved terms. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true,
+              "description": "true only after the PM said yes to saving these exact terms."
+            },
+            "base_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The terms version shown by contract_terms (0 when none is saved)."
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "pay_when_paid",
+                "after_approval",
+                "after_submission"
+              ],
+              "description": "pay_when_paid: X days after the GC is paid. after_approval / after_submission: N days after the pay app is approved or submitted."
+            },
+            "days": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 365,
+              "description": "X or N, as the contract says."
+            },
+            "day_type": {
+              "type": "string",
+              "enum": [
+                "calendar",
+                "working"
+              ],
+              "description": "calendar unless the contract says working or business days."
+            },
+            "owner_terms_days": {
+              "description": "pay_when_paid: the GC's owner payment terms in days, if stated. Used for the Estimated date.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 365
+            },
+            "owner_terms_from": {
+              "description": "pay_when_paid: what the GC's owner terms count from.",
+              "type": "string",
+              "enum": [
+                "approval",
+                "submission"
+              ]
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "contract",
+                "pm_answer"
+              ],
+              "description": "contract when read from the contract; pm_answer when the contract is silent."
+            },
+            "clause_section": {
+              "description": "Section number of the payment clause. Required for source contract.",
+              "type": "string",
+              "maxLength": 40
+            },
+            "clause_text": {
+              "description": "The payment clause copied exactly. Required for source contract.",
+              "type": "string",
+              "maxLength": 4000
+            },
+            "contract_text": {
+              "description": "The full contract text, so Athena can confirm the clause is word for word.",
+              "type": "string",
+              "maxLength": 400000
+            },
+            "answered_by": {
+              "description": "pm_answer: who gave the terms.",
+              "type": "string",
+              "maxLength": 160
+            },
+            "what_changed": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300,
+              "description": "One line: what this saves or changes."
+            }
+          },
+          "required": [
+            "job_number",
+            "approved",
+            "base_version",
+            "kind",
+            "days",
+            "day_type",
+            "source",
+            "what_changed"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "payapp_draft",
+        "title": "Draft the next pay app",
+        "description": "Builds the next application for payment in AIA G702/G703 format from the last certified app plus this period's entries, runs the five checks against the saved retainage rule (zero tolerance) and returns the due date from the saved payment terms. Saves nothing: show it as \"Draft: not saved\". Full job access only.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "period_to": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Period end date."
+            },
+            "entries": {
+              "maxItems": 300,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20,
+                    "description": "SOV line (26.01) or CO line (CO-001)."
+                  },
+                  "this_period": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  },
+                  "stored": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  },
+                  "overbill_approved": {
+                    "description": "true only when an owner or all-access member approved this line going over its scheduled value.",
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "this_period"
+                ]
+              },
+              "description": "This period's work (E) and materials presently stored (F) per line. Lines left out are $0.00 this period."
+            },
+            "co_lines": {
+              "description": "Approved change order lines to bill, each as its own line.",
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20
+                  },
+                  "scheduled_value": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  }
+                },
+                "required": [
+                  "id",
+                  "scheduled_value"
+                ]
+              }
+            }
+          },
+          "required": [
+            "job_number",
+            "period_to",
+            "entries"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "payapp_check",
+        "title": "Check a pay app before it goes out",
+        "description": "Runs the five blocking checks (SOV ties to the contract, G703 totals equal G702, no line over its value without an owner or all-access approval, retainage equals the saved rule to the cent, previous equals the certified record) on a typed pay app. Returns pass, or the line and the amount off. Read-only.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "period_to": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Period end date."
+            },
+            "entries": {
+              "maxItems": 300,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20,
+                    "description": "SOV line (26.01) or CO line (CO-001)."
+                  },
+                  "this_period": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  },
+                  "stored": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  },
+                  "overbill_approved": {
+                    "description": "true only when an owner or all-access member approved this line going over its scheduled value.",
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "this_period"
+                ]
+              },
+              "description": "This period's work (E) and materials presently stored (F) per line. Lines left out are $0.00 this period."
+            },
+            "co_lines": {
+              "description": "Approved change order lines to bill, each as its own line.",
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20
+                  },
+                  "scheduled_value": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  }
+                },
+                "required": [
+                  "id",
+                  "scheduled_value"
+                ]
+              }
+            },
+            "typed": {
+              "description": "G702 amounts as typed on the user's pay app.",
+              "type": "object",
+              "properties": {
+                "line4": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ],
+                  "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                },
+                "line5": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ],
+                  "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                },
+                "line5a": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ],
+                  "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                },
+                "line5b": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ],
+                  "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                },
+                "line7": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ],
+                  "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                }
+              }
+            },
+            "typed_retainage": {
+              "description": "Column I per line as typed.",
+              "maxItems": 300,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20
+                  },
+                  "retainage": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  }
+                },
+                "required": [
+                  "id",
+                  "retainage"
+                ]
+              }
+            }
+          },
+          "required": [
+            "job_number",
+            "period_to",
+            "entries"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "payapp_get",
+        "title": "Pay app or pay app log",
+        "description": "One saved pay app (G702/G703 format, checks, due date, file spec) or the job's pay app log with due dates and AR aging. Read-only. Full job access only.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "app_no": {
+              "description": "One app; leave out for the log.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "payapp_save",
+        "title": "Save a pay app (after approval)",
+        "description": "Saves the drafted pay app, or marks it submitted. Refused if any of the five checks fails. Call only after the user says yes to this exact app. Needs approved true and base_version. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "period_to": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Period end date."
+            },
+            "entries": {
+              "maxItems": 300,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20,
+                    "description": "SOV line (26.01) or CO line (CO-001)."
+                  },
+                  "this_period": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  },
+                  "stored": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  },
+                  "overbill_approved": {
+                    "description": "true only when an owner or all-access member approved this line going over its scheduled value.",
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "this_period"
+                ]
+              },
+              "description": "This period's work (E) and materials presently stored (F) per line. Lines left out are $0.00 this period."
+            },
+            "co_lines": {
+              "description": "Approved change order lines to bill, each as its own line.",
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20
+                  },
+                  "scheduled_value": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  }
+                },
+                "required": [
+                  "id",
+                  "scheduled_value"
+                ]
+              }
+            },
+            "period_from": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true,
+              "description": "true only after the user said yes to saving this exact app."
+            },
+            "base_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The app's version (0 for a new app)."
+            },
+            "submitted_on": {
+              "description": "The date it went to the GC or owner, when marking it submitted.",
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          "required": [
+            "job_number",
+            "period_to",
+            "entries",
+            "approved",
+            "base_version"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "payapp_certify",
+        "title": "Record the certified pay app (after approval)",
+        "description": "Records the GC's or architect's certified amounts line by line. Athena recomputes retainage on the certified amounts with the saved rule; a cut becomes the starting point for the next app. Logs the approval date (and the GC's paid date when given), which sets the due date. Needs approved true and base_version. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "app_no": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true,
+              "description": "true only after the user said yes to recording this certification."
+            },
+            "base_version": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "certified_by": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "certified_on": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "cuts": {
+              "description": "Only lines the certifier changed.",
+              "maxItems": 300,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20
+                  },
+                  "certified_this_period": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  },
+                  "certified_stored": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+                  },
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 300
+                  }
+                },
+                "required": [
+                  "id",
+                  "reason"
+                ]
+              }
+            },
+            "gc_paid_on": {
+              "description": "The date the GC was paid by the owner, when known (pay-when-paid due dates).",
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          "required": [
+            "job_number",
+            "app_no",
+            "approved",
+            "base_version",
+            "certified_by",
+            "certified_on"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "payment_record",
+        "title": "Record a payment received (after approval)",
+        "description": "Records money received against a pay app. A payment that differs from the certified amount needs a short-pay reason, or Athena asks \"typo or short pay?\" first. Logging the GC's paid date turns an Estimated due date into a firm one. Needs approved true. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "app_no": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true,
+              "description": "true only after the user said yes to recording this payment."
+            },
+            "amount": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "description": "Dollars with cents, e.g. 49000 or \"49,000.00\"."
+            },
+            "received_on": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "reference": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "short_pay_reason": {
+              "description": "Required when the amount differs from the certified amount.",
+              "type": "string",
+              "maxLength": 300
+            },
+            "gc_paid_on": {
+              "description": "The date the GC was paid by the owner, if learned now.",
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          "required": [
+            "job_number",
+            "app_no",
+            "approved",
+            "amount",
+            "received_on"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "ar_aging",
+        "title": "AR aging, due soon and overdue",
+        "description": "AR aging by job and by customer (current, 1-30, 31-60, 61-90, 90+), the \"AR due and overdue\" section, payment-due reminders and collection follow-up offers. Call it on every greeting, morning briefing, PM meeting and nudge, without being asked, and include the AR section when anything is due soon or overdue. Accounting, owner and all-access see every job; PMs see their own jobs; supers see no dollars. Read-only.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "job_number": {
+              "description": "One job; leave out for every job you can see.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "as_of": {
+              "description": "Default today in the job's time zone.",
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "ar_settings_save",
+        "title": "Save a job's AR settings (after approval)",
+        "description": "Sets the job's bill-to customer and its payment-due reminder days (default 7 and 1 days before due), part of the job cadence. Call only after the user says yes. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true
+            },
+            "customer": {
+              "type": "string",
+              "maxLength": 160
+            },
+            "reminder_days_before": {
+              "maxItems": 5,
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 60
+              }
+            }
+          },
+          "required": [
+            "job_number",
+            "approved"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "ar_invoice_save",
+        "title": "Log an invoice as sent (after approval)",
+        "description": "Logs an invoice (outside a pay app) as sent so AR tracks it, with its due date from the job's payment terms. Call only after the user says yes. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true
+            },
+            "invoice_no": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "amount": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "sent_on": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "approved_on": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          "required": [
+            "job_number",
+            "approved",
+            "invoice_no",
+            "amount",
+            "sent_on"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "ar_followup_log",
+        "title": "Log a collection follow-up step",
+        "description": "Records that the collection follow-up for an overdue item was offered, drafted or declined at its escalation step (due date, 30, 60 or 90 days), so the ask repeats only at the next step. Saves no email and sends nothing.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "ref": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "\"App 03\" or the invoice number."
+            },
+            "step": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "const": 1
+                },
+                {
+                  "type": "number",
+                  "const": 30
+                },
+                {
+                  "type": "number",
+                  "const": 60
+                },
+                {
+                  "type": "number",
+                  "const": 90
+                }
+              ]
+            },
+            "outcome": {
+              "type": "string",
+              "enum": [
+                "offered",
+                "drafted",
+                "declined"
+              ]
+            }
+          },
+          "required": [
+            "job_number",
+            "ref",
+            "step",
+            "outcome"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "log_get",
+        "title": "Show a living log, or what's overdue across all logs",
+        "description": "One log (RFI, submittal, change order, transmittal, pay app, notice) as one styled view with its summary strip, or every log with the overdue list across all of them (\"What's overdue on 2701?\"). Viewing never changes the master. Supers can see logs (no dollars). Read-only.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "log_type": {
+              "description": "Leave out for all logs.",
+              "type": "string",
+              "enum": [
+                "rfi",
+                "submittal",
+                "change_order",
+                "transmittal",
+                "pay_app",
+                "notice"
+              ]
+            },
+            "as_of": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "log_save",
+        "title": "Add or update a log entry (after approval)",
+        "description": "Adds an entry (the next per-job number is assigned) or updates one (answer, close, ball in court, due date, notice sent). Call only after the user says yes, with the log's current version as base_version. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true
+            },
+            "base_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "log_type": {
+              "type": "string",
+              "enum": [
+                "rfi",
+                "submittal",
+                "change_order",
+                "transmittal",
+                "pay_app",
+                "notice"
+              ]
+            },
+            "id": {
+              "description": "Entry to update; leave out to add.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "opened": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "due": {
+              "description": "From the contract clause. Null shows Needed.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "closed": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "status": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "ball_in_court": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "company": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 120
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "name"
+              ]
+            },
+            "condition_precedent": {
+              "type": "boolean"
+            },
+            "sent": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "spec_section": {
+              "type": "string",
+              "maxLength": 20
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 99
+            },
+            "change": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300,
+              "description": "What changed, for the change log."
+            }
+          },
+          "required": [
+            "job_number",
+            "approved",
+            "base_version",
+            "log_type",
+            "change"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "transmittal_draft",
+        "title": "Draft a transmittal",
+        "description": "Builds the next transmittal (per-job number, due back from its purpose, item check against the logs) for the user to review. Saves nothing and sends nothing. Read-only.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "to": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "purpose": {
+              "type": "string",
+              "enum": [
+                "for_approval",
+                "for_review",
+                "for_information",
+                "for_record",
+                "as_requested"
+              ]
+            },
+            "sent_on": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "items": {
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "copies": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 99
+                  }
+                },
+                "required": [
+                  "ref"
+                ]
+              }
+            },
+            "remarks": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "due_back_days": {
+              "description": "Working days from the contract clause, when on file.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90
+            }
+          },
+          "required": [
+            "job_number",
+            "to",
+            "purpose",
+            "items"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "transmittal_save",
+        "title": "Save a transmittal as ready to send (after approval)",
+        "description": "Saves the transmittal with the next per-job number and status Ready to send, and returns the email card spec. Does not send; \"Sent\" is recorded only through transmittal_mark_sent after the host confirms. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "to": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "purpose": {
+              "type": "string",
+              "enum": [
+                "for_approval",
+                "for_review",
+                "for_information",
+                "for_record",
+                "as_requested"
+              ]
+            },
+            "sent_on": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "items": {
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "copies": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 99
+                  }
+                },
+                "required": [
+                  "ref"
+                ]
+              }
+            },
+            "remarks": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "due_back_days": {
+              "description": "Working days from the contract clause, when on file.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true
+            },
+            "base_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "job_number",
+            "to",
+            "purpose",
+            "items",
+            "approved",
+            "base_version"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "transmittal_mark_sent",
+        "title": "Record a transmittal as sent (after the host confirms)",
+        "description": "Records Sent only when the host has confirmed the user sent the email. Without that confirmation nothing changes. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "base_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "host_confirmed": {
+              "type": "boolean",
+              "const": true
+            },
+            "sent_on": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          "required": [
+            "job_number",
+            "id",
+            "base_version",
+            "host_confirmed",
+            "sent_on"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "job_costs_import",
+        "title": "Import job costs (after approval)",
+        "description": "Stores the job cost rows from the accounting export (the host reads the file) with the export's printed control total. Replaces the previous import; the ledger re-ties on the next preview. Call only after the user says yes. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true
+            },
+            "source": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "File name of the export."
+            },
+            "control_total": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "rows": {
+              "minItems": 1,
+              "maxItems": 5000,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20
+                  },
+                  "amount": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "date": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "vendor": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "ref": {
+                    "type": "string",
+                    "maxLength": 60
+                  }
+                },
+                "required": [
+                  "code",
+                  "amount",
+                  "date"
+                ]
+              }
+            }
+          },
+          "required": [
+            "job_number",
+            "approved",
+            "source",
+            "control_total",
+            "rows"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "ledger_get",
+        "title": "Show the job cost ledger",
+        "description": "The saved ledger with cost-to-cost earned, over/under billing, fade and ties T1–T7. Files: Excel by default; a Google Sheet only when Drive is connected and the user asks. Dollars: supers can't see it. Read-only.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "google_sheet": {
+              "description": "The user asked for a Google Sheet.",
+              "type": "boolean"
+            },
+            "drive_connected": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "ledger_preview",
+        "title": "Preview a ledger update",
+        "description": "Computes the ledger from these lines, the latest cost import and the last certified pay app, with every tie. Saves nothing. Read-only.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "contract_sum": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "estimate_total": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "retainage_held": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "lines": {
+              "minItems": 1,
+              "maxItems": 500,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "contract": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "estimate": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "cost_to_date": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "billed_to_date": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "code",
+                  "description",
+                  "contract",
+                  "estimate",
+                  "cost_to_date",
+                  "billed_to_date"
+                ]
+              }
+            }
+          },
+          "required": [
+            "job_number",
+            "contract_sum",
+            "estimate_total",
+            "retainage_held",
+            "lines"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "ledger_save",
+        "title": "Save the ledger (after approval)",
+        "description": "Saves the next ledger version. Refuses when any tie misses by even $0.01. Call only after the user says yes, with base_version. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "contract_sum": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "estimate_total": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "retainage_held": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "lines": {
+              "minItems": 1,
+              "maxItems": 500,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "contract": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "estimate": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "cost_to_date": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "billed_to_date": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "code",
+                  "description",
+                  "contract",
+                  "estimate",
+                  "cost_to_date",
+                  "billed_to_date"
+                ]
+              }
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true
+            },
+            "base_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "change": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "job_number",
+            "contract_sum",
+            "estimate_total",
+            "retainage_held",
+            "lines",
+            "approved",
+            "base_version",
+            "change"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "project_record_get",
+        "title": "Show the Project Record",
+        "description": "The job's Project Record, sections in a fixed order. Owner, all-access and accounting see dollars on every job; a PM sees dollars on their own jobs (D9); supers see it with no dollar sections. If a super asks for dollars, pass their question as question and Athena declines. Read-only.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "question": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "project_record_save",
+        "title": "Save a Project Record version (after approval)",
+        "description": "Saves the current Project Record as the next version with a change log line. Call only after the user says yes, with base_version. Full job access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true
+            },
+            "base_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "change": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "job_number",
+            "approved",
+            "base_version",
+            "change"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "form_map_save",
+        "title": "Save a licensed form field map (after approval)",
+        "description": "Saves the field map for the company's own licensed G702 or G703: form field id to Athena value key. Licensed form maps hold only field ids and value keys. The company supplies its own licensed form; the host fills it. Athena never stores, copies or reproduces the form. Call only after the user says yes. Owner or all-access only.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true
+            },
+            "form": {
+              "type": "string",
+              "enum": [
+                "G702",
+                "G703"
+              ]
+            },
+            "edition": {
+              "type": "string",
+              "maxLength": 4
+            },
+            "fields": {
+              "minItems": 1,
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "field_id": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "value": {
+                    "type": "string",
+                    "enum": [
+                      "g702.l1",
+                      "g702.l2",
+                      "g702.l3",
+                      "g702.l4",
+                      "g702.l5a",
+                      "g702.l5b",
+                      "g702.l5",
+                      "g702.l6",
+                      "g702.l7",
+                      "g702.l8",
+                      "g702.l9",
+                      "app.no",
+                      "app.period_to",
+                      "app.date",
+                      "job.number",
+                      "job.name",
+                      "owner.name",
+                      "contractor.name",
+                      "architect.name",
+                      "g703.a",
+                      "g703.b",
+                      "g703.c",
+                      "g703.d",
+                      "g703.e",
+                      "g703.f",
+                      "g703.g",
+                      "g703.pct",
+                      "g703.h",
+                      "g703.i"
+                    ]
+                  }
+                },
+                "required": [
+                  "field_id",
+                  "value"
+                ]
+              }
+            }
+          },
+          "required": [
+            "approved",
+            "form",
+            "edition",
+            "fields"
           ],
           "additionalProperties": false
         },
