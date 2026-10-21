@@ -106,7 +106,7 @@ export async function tokenHash(token: string): Promise<string> {
   return Array.from(d, (x) => x.toString(16).padStart(2, "0")).join("");
 }
 export async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const d = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  const d = new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(bytes)));
   return Array.from(d, (x) => x.toString(16).padStart(2, "0")).join("");
 }
 /** Token from a full link, a /f/<token> path, or the bare token. */
