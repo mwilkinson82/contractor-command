@@ -21,7 +21,7 @@ describe("tools/list (retest 3, item 1)", () => {
   });
   it("the real server registers contract_terms and bumped its version", () => {
     const src = JSON.stringify(mcp, (_k, v) => (typeof v === "function" ? undefined : v));
-    expect(src).toContain("0.8.12");
+    expect(src).toContain("0.8.14");
     expect(src).toContain("contract_terms");
   });
 });
@@ -66,3 +66,4 @@ describe("draft header (item 4)", () => {
     expect(t).toContain("- Suggested From: sam.ortiz@example.com");
   });
 });
+
