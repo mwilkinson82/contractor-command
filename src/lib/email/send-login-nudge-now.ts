@@ -5,12 +5,12 @@ import { TEMPLATES } from "@/lib/email-templates/registry";
 import { MEMBER_REPLY_TO } from "@/lib/email/reply-to";
 import { template as athenaMagicLinkTemplate } from "@/lib/email-templates/athena-magic-link";
 import { hubOrigin } from "@/lib/auth-origins";
+import { ATHENA_FROM, ATHENA_SENDER_DOMAIN } from "@/lib/email/athena-sender";
 
 type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
 
 const SITE_NAME = "Contractor Circle";
 const VERIFIED_SENDER_DOMAIN = "notify.mail.alpcontractorcircle.com";
-const ATHENA_SENDER_NAME = "Athena";
 
 /** Presentation-only variant. "circle" is the default for every caller. */
 export type LoginEmailVariant = "circle" | "athena";
@@ -39,8 +39,9 @@ function generateToken(): string {
 }
 
 function loginEmailSender(variant: LoginEmailVariant): { from: string; senderDomain: string } {
+  if (variant === "athena") return { from: ATHENA_FROM, senderDomain: ATHENA_SENDER_DOMAIN };
   const senderDomain = VERIFIED_SENDER_DOMAIN;
-  const displayName = variant === "athena" ? ATHENA_SENDER_NAME : SITE_NAME;
+  const displayName = SITE_NAME;
 
   return {
     from: `${displayName} <no-reply@${senderDomain}>`,
@@ -101,6 +102,7 @@ export async function sendLoginNudgeNow({
   siteUrl = appOrigin(),
   variant = "circle",
   otpCode,
+  connecting,
 }: {
   supabaseAdmin: SupabaseAdminClient;
   email: string;
@@ -112,6 +114,8 @@ export async function sendLoginNudgeNow({
   variant?: LoginEmailVariant;
   /** Athena only: one-time code shown in the email for same-tab entry. */
   otpCode?: string;
+  /** Athena only: the sign-in was started from an AI app connect. */
+  connecting?: boolean;
 }): Promise<DirectLoginNudgeResult> {
   const TEMPLATE_NAME = variant === "athena" ? "athena-magic-link" : "magic-link";
   const apiKey = process.env.LOVABLE_API_KEY;
@@ -186,6 +190,7 @@ export async function sendLoginNudgeNow({
     siteUrl,
     confirmationUrl,
     ...(variant === "athena" && otpCode ? { otpCode } : {}),
+    ...(variant === "athena" && connecting ? { connecting } : {}),
   };
   const element = React.createElement(entry.component, props);
   const html = await render(element);

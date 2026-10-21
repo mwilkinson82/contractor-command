@@ -65,16 +65,18 @@ describe("sendLoginNudgeNow variants", () => {
     expect(p.from).toBe("Athena <no-reply@notify.mail.alpcontractorcircle.com>");
     expect(p.sender_domain).toBe("notify.mail.alpcontractorcircle.com");
     expect(p.reply_to).toBe(MEMBER_REPLY_TO);
-    expect(p.subject).toBe("Sign into Athena");
+    expect(p.subject).toBe("Sign in to Athena");
     expect(p.unsubscribe_token).toBe("unsub");
     expect(p.idempotency_key).toBe("idem-1");
     const body =
-      "Use the secure link below to sign into Athena and continue connecting your account.";
+      "Use the secure button below to sign in to Athena. The link works once, so open the newest email only.";
     expect(p.html).toContain(body);
     expect(p.text).toContain(body);
-    expect(p.html).toMatch(/<h1[^>]*>Sign into Athena<\/h1>/);
-    expect(p.html).toMatch(/>Sign into Athena<\/span>|>Sign into Athena<\/a>/);
-    expect(p.text).toContain("Sign into Athena");
+    expect(p.html).toMatch(/<h1[^>]*>Sign in to Athena<\/h1>/);
+    expect(p.html).toMatch(/>Sign in to Athena<\/span>|>Sign in to Athena<\/a>/);
+    expect(p.text).toContain("Sign in to Athena");
+    expect(p.html).toContain("Athena powered by ALP");
+    expect(p.html).toContain("https://app.meetathena.io/brand/athena/email/athena-mark-180.png");
     expect(decode(p.html)).toContain(`href="${URL_EXACT}"`);
     expect(p.text).toContain(URL_EXACT);
     const visible = (t: string) => t.replace(/https?:\/\/\S+?(?=["\s)\]]|$)/g, "");
@@ -94,6 +96,20 @@ describe("sendLoginNudgeNow variants", () => {
       expect(decode(p.html)).toContain(`href="${URL_EXACT}"`);
     },
   );
+
+  it("athena connect: connect copy and typed code", async () => {
+    await sendLoginNudgeNow({
+      ...base,
+      supabaseAdmin: fakeAdmin(),
+      channel: "public_magic_link",
+      variant: "athena",
+      connecting: true,
+      otpCode: "482913",
+    });
+    const p = m.send.mock.calls[0][0];
+    expect(p.html).toContain("finish connecting your AI app");
+    expect(p.html).toContain("482913");
+  });
 
   it("athena still honors suppression", async () => {
     const r = await sendLoginNudgeNow({
