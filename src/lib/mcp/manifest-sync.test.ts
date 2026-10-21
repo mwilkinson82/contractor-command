@@ -10,6 +10,7 @@ import * as T from "./tools/team-tools";
 import * as E from "./tools/email-tools";
 import * as Est from "./tools/estimate-tools";
 import * as Bid from "./tools/estimate-bid-tools";
+import * as Field from "./tools/superintendent-tools";
 import { ATHENA_VERSION } from "./server-info-branding";
 
 type Prop = { format?: string; pattern?: string; description?: string };
@@ -71,6 +72,18 @@ async function liveTools(): Promise<Tool[]> {
       Bid.estimateGeneralConditions,
       Bid.estimateRequirements,
       Bid.estimateBidSummary,
+      Field.superintendentView,
+      Field.superintendentActivity,
+      Field.dailyReportDraft,
+      Field.dailyReportSave,
+      Field.dailyReportGet,
+      Field.fieldPayApp,
+      Field.fieldScheduleFeed,
+      Field.fieldProductionRates,
+      Field.progressPhotoSave,
+      Field.progressPhotos,
+      Field.dailyReminder,
+      Field.dailyReminderRun,
       E.emailDraft,
       E.emailConfirmSend,
     ],

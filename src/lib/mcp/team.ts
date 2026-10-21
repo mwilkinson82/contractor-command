@@ -13,7 +13,7 @@ export const ROLE_SEES: Record<TeamRole, string> = {
   ap: "everything financial",
   estimating: "the contract side of jobs",
   contracts: "the contract side of jobs",
-  super: "their jobs' schedule, deadlines and open items, no dollars",
+  super: "their jobs' schedule, lookahead, dailies and photos, no dollars",
 };
 
 /** 'finance' (the old name) and a few spoken forms are accepted on input; output always says AP. */

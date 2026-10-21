@@ -43,7 +43,7 @@ describe("hosted pages: lookahead, payapp, briefing", () => {
     expect(pageUrl("lookahead", JOB)).toBe(`https://app.meetathena.io/r/job/${JOB}/lookahead`);
     expect(pageUrl("payapp", JOB)).toBe(`https://app.meetathena.io/r/job/${JOB}/payapp`);
     expect(pageUrl("briefing", JOB)).toBe(`https://app.meetathena.io/r/job/${JOB}/briefing`);
-    expect(JOB_PAGES).toEqual(["ior", "schedule", "lookahead", "payapp", "briefing"]);
+    expect(JOB_PAGES).toEqual(["ior", "schedule", "lookahead", "payapp", "briefing", "field", "daily", "photos"]);
     expect(REPORT_PAGES).toEqual(["ior", "schedule", "portfolio"]); // share links unchanged
     expect(pageAllowed("payapp", "super", false)).toBe(false);
     expect(pageAllowed("lookahead", "super", false)).toBe(true);

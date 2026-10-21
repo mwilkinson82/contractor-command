@@ -42,7 +42,16 @@ export function ReportPageView({ page, jobId, companyId }: { page: AnyPage; jobI
       if (prev && stamp !== null && prev.stamp === stamp) return prev;
       const { data, error } = await rpc("mcp_report_page_get", args);
       if (error) throw new Error(error.message);
-      return { stamp, payload: data as PagePayload };
+      const payload = data as PagePayload;
+      if (payload.page === "photos" && payload.photos?.length) {
+        const photos = await Promise.all(payload.photos.map(async (ph) => {
+          if (ph.url || !ph.storage_path) return ph;
+          const signed = await supabase.storage.from("athena-progress").createSignedUrl(ph.storage_path, 3600);
+          return { ...ph, url: signed.data?.signedUrl ?? null };
+        }));
+        return { stamp, payload: { ...payload, photos } };
+      }
+      return { stamp, payload };
     },
     retry: false,
   });

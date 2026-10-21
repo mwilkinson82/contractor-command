@@ -6,15 +6,16 @@ import { ALERT_HEX } from "./mcp/alert-color";
 import { delayCallout, jobWorkingDays } from "./mcp/living";
 import { DEFAULT_TZ, addDays, todayIn } from "./mcp/deadlines";
 import { briefingModel, dayHead, lookaheadModel, payModel, shortDate, lookaheadWindow, type BriefItem, type Billing, type LaItem, type LaEntry, type SAct } from "./mcp/styled-views";
+import { dailyPageHtml, fieldPageHtml, photoPageHtml } from "./mcp/superintendent";
 
 export const REPORT_PAGES = ["ior", "schedule", "portfolio"] as const;
 export type ReportPage = (typeof REPORT_PAGES)[number];
 /** 0.8.17: private-only pages (no share links). */
-export const VIEW_PAGES = ["lookahead", "payapp", "briefing"] as const;
+export const VIEW_PAGES = ["lookahead", "payapp", "briefing", "field", "daily", "photos"] as const;
 export type ViewPage = (typeof VIEW_PAGES)[number];
 export type AnyPage = ReportPage | ViewPage;
 export const JOB_PAGES = ["ior", "schedule", ...VIEW_PAGES] as const;
-export const PAGE_LABEL: Record<AnyPage, string> = { ior: "IOR", schedule: "Schedule", portfolio: "Portfolio dashboard", lookahead: "Two-Week Lookahead", payapp: "Pay App", briefing: "Morning Briefing" };
+export const PAGE_LABEL: Record<AnyPage, string> = { ior: "IOR", schedule: "Schedule", portfolio: "Portfolio dashboard", lookahead: "Two-Week Lookahead", payapp: "Pay App", briefing: "Morning Briefing", field: "Field board", daily: "Daily report", photos: "Progress photos" };
 export const PAGE_ORIGIN = "https://app.meetathena.io";
 export const PERMANENT_LINK_ASK = "Want this as a permanent link I keep updated?";
 export const SHARE_DEFAULT_DAYS = 30;
@@ -62,8 +63,11 @@ export type PortfolioPayload = { page: "portfolio"; company?: string; jobs: Port
 export type LookaheadPayload = { page: "lookahead"; company?: string; job_number?: string; job_name?: string; lookahead?: { id: string; start_date: string | null; end_date: string | null } | null; report: Report; items?: LaItem[]; today?: string };
 export type PayAppPayload = { page: "payapp"; company?: string; job_number?: string; job_name?: string; report: Report };
 export type BriefingPayload = { page: "briefing"; company?: string; job_number?: string; job_name?: string; today: string; items?: BriefItem[]; report?: Report };
+export type FieldPagePayload = { page: "field"; company?: string; job_number?: string; job_name?: string; scope?: string; data_date?: string | null; lookahead?: { start_date?: string | null; end_date?: string | null } | null; activities?: unknown; assignments?: unknown; materials?: unknown; rates?: unknown; installed?: unknown; items?: { action?: string; owner?: string | null; due?: string | null }[]; today?: string };
+export type DailyPagePayload = { page: "daily"; company?: string; job_number?: string; job_name?: string; found?: boolean; report_date?: string | null; weather?: string | null; manpower?: string | null; subs_on_site?: string | null; deliveries?: string | null; issues?: string | null; delays?: string | null; safety?: string | null; lines?: { work?: string; sov_item?: string | null; activity_id?: string | null; qty?: number | null; unit?: string | null; crew?: number | null; hours?: number | null }[] };
+export type PhotoPagePayload = { page: "photos"; company?: string; job_number?: string; job_name?: string; photos?: { taken_on?: string; area?: string; work?: string | null; sov_item?: string | null; activity_id?: string | null; client_safe?: boolean; url?: string | null; storage_path?: string }[] };
 type ViewExtras = { shared?: boolean; expires_at?: string };
-export type PagePayload = JobPayload | PortfolioPayload | ((LookaheadPayload | PayAppPayload | BriefingPayload) & ViewExtras);
+export type PagePayload = JobPayload | PortfolioPayload | FieldPagePayload | DailyPagePayload | PhotoPagePayload | ((LookaheadPayload | PayAppPayload | BriefingPayload) & ViewExtras);
 
 // ---------- helpers ----------
 export const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -223,6 +227,9 @@ function briefingPageView(p: BriefingPayload): string {
 
 /** Page body (no <html>). Used inside the signed-in page and the share page. */
 export function renderReportBody(p: PagePayload): string {
+  if (p.page === "field") return fieldPageHtml(p);
+  if (p.page === "daily") return dailyPageHtml(p);
+  if (p.page === "photos") return photoPageHtml(p);
   const title = p.page === "portfolio" ? `${esc(p.company ?? "")} · Portfolio dashboard` : `${esc(p.job_number ?? "")} ${esc(p.job_name ?? "")} · ${PAGE_LABEL[p.page]}`;
   let body: string;
   let st = "";
