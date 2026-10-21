@@ -83,6 +83,7 @@ import { Route as RPortfolioCompanyIdRouteImport } from './routes/r.portfolio.$c
 import { Route as RSTokenRouteImport } from './routes/r.s.$token'
 import { Route as ToolsSopEditPacketIdRouteImport } from './routes/tools.sop-edit.$packetId'
 import { Route as ApiPublicAosTierLookupRouteImport } from './routes/api/public/aos/tier-lookup'
+import { Route as ApiPublicAthenaStripeWebhookRouteImport } from './routes/api/public/athena/stripe-webhook'
 import { Route as ApiPublicCircleReconcileRouteImport } from './routes/api/public/circle/reconcile'
 import { Route as ApiPublicOverwatchTierLookupRouteImport } from './routes/api/public/overwatch/tier-lookup'
 import { Route as ApiPublicResendCaptureRouteImport } from './routes/api/public/resend/capture'
@@ -470,6 +471,12 @@ const ApiPublicAosTierLookupRoute = ApiPublicAosTierLookupRouteImport.update({
   path: '/api/public/aos/tier-lookup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicAthenaStripeWebhookRoute =
+  ApiPublicAthenaStripeWebhookRouteImport.update({
+    id: '/api/public/athena/stripe-webhook',
+    path: '/api/public/athena/stripe-webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicCircleReconcileRoute =
   ApiPublicCircleReconcileRouteImport.update({
     id: '/api/public/circle/reconcile',
@@ -606,6 +613,7 @@ export interface FileRoutesByFullPath {
   '/r/s/$token': typeof RSTokenRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
+  '/api/public/athena/stripe-webhook': typeof ApiPublicAthenaStripeWebhookRoute
   '/api/public/circle/reconcile': typeof ApiPublicCircleReconcileRoute
   '/api/public/overwatch/tier-lookup': typeof ApiPublicOverwatchTierLookupRoute
   '/api/public/resend/capture': typeof ApiPublicResendCaptureRoute
@@ -693,6 +701,7 @@ export interface FileRoutesByTo {
   '/r/s/$token': typeof RSTokenRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
+  '/api/public/athena/stripe-webhook': typeof ApiPublicAthenaStripeWebhookRoute
   '/api/public/circle/reconcile': typeof ApiPublicCircleReconcileRoute
   '/api/public/overwatch/tier-lookup': typeof ApiPublicOverwatchTierLookupRoute
   '/api/public/resend/capture': typeof ApiPublicResendCaptureRoute
@@ -781,6 +790,7 @@ export interface FileRoutesById {
   '/r/s/$token': typeof RSTokenRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
+  '/api/public/athena/stripe-webhook': typeof ApiPublicAthenaStripeWebhookRoute
   '/api/public/circle/reconcile': typeof ApiPublicCircleReconcileRoute
   '/api/public/overwatch/tier-lookup': typeof ApiPublicOverwatchTierLookupRoute
   '/api/public/resend/capture': typeof ApiPublicResendCaptureRoute
@@ -870,6 +880,7 @@ export interface FileRouteTypes {
     | '/r/s/$token'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
+    | '/api/public/athena/stripe-webhook'
     | '/api/public/circle/reconcile'
     | '/api/public/overwatch/tier-lookup'
     | '/api/public/resend/capture'
@@ -957,6 +968,7 @@ export interface FileRouteTypes {
     | '/r/s/$token'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
+    | '/api/public/athena/stripe-webhook'
     | '/api/public/circle/reconcile'
     | '/api/public/overwatch/tier-lookup'
     | '/api/public/resend/capture'
@@ -1044,6 +1056,7 @@ export interface FileRouteTypes {
     | '/r/s/$token'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
+    | '/api/public/athena/stripe-webhook'
     | '/api/public/circle/reconcile'
     | '/api/public/overwatch/tier-lookup'
     | '/api/public/resend/capture'
@@ -1127,6 +1140,7 @@ export interface RootRouteChildren {
   RPortfolioCompanyIdRoute: typeof RPortfolioCompanyIdRoute
   RSTokenRoute: typeof RSTokenRoute
   ApiPublicAosTierLookupRoute: typeof ApiPublicAosTierLookupRoute
+  ApiPublicAthenaStripeWebhookRoute: typeof ApiPublicAthenaStripeWebhookRoute
   ApiPublicCircleReconcileRoute: typeof ApiPublicCircleReconcileRoute
   ApiPublicOverwatchTierLookupRoute: typeof ApiPublicOverwatchTierLookupRoute
   ApiPublicResendCaptureRoute: typeof ApiPublicResendCaptureRoute
@@ -1660,6 +1674,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAosTierLookupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/athena/stripe-webhook': {
+      id: '/api/public/athena/stripe-webhook'
+      path: '/api/public/athena/stripe-webhook'
+      fullPath: '/api/public/athena/stripe-webhook'
+      preLoaderRoute: typeof ApiPublicAthenaStripeWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/circle/reconcile': {
       id: '/api/public/circle/reconcile'
       path: '/api/public/circle/reconcile'
@@ -1842,6 +1863,7 @@ const rootRouteChildren: RootRouteChildren = {
   RPortfolioCompanyIdRoute: RPortfolioCompanyIdRoute,
   RSTokenRoute: RSTokenRoute,
   ApiPublicAosTierLookupRoute: ApiPublicAosTierLookupRoute,
+  ApiPublicAthenaStripeWebhookRoute: ApiPublicAthenaStripeWebhookRoute,
   ApiPublicCircleReconcileRoute: ApiPublicCircleReconcileRoute,
   ApiPublicOverwatchTierLookupRoute: ApiPublicOverwatchTierLookupRoute,
   ApiPublicResendCaptureRoute: ApiPublicResendCaptureRoute,
