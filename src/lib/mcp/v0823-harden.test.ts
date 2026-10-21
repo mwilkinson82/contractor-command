@@ -9,6 +9,7 @@ import * as F from "./tools/file-tools";
 import * as R from "./tools/report-page-tools";
 import * as T from "./tools/team-tools";
 import * as E from "./tools/email-tools";
+import * as Est from "./tools/estimate-tools";
 
 const ALL = [
   W.onboarding,
@@ -35,6 +36,16 @@ const ALL = [
   T.teamRemoveMember,
   T.teamAddSeats,
   T.setCurrentCompany,
+  Est.estimateIntake,
+  Est.estimateDocReview,
+  Est.estimateTakeoffSave,
+  Est.estimateTakeoffGet,
+  Est.estimateTakeoffExport,
+  Est.estimateGapAnalysis,
+  Est.estimateBidCheck,
+  Est.estimateItemMark,
+  Est.estimateBuild,
+  Est.estimateStatus,
   E.emailDraft,
   E.emailConfirmSend,
 ];
@@ -100,7 +111,7 @@ function schemaDescriptions(node: unknown, out: string[] = []): string[] {
 describe("0.8.23 host-facing tool text", () => {
   it("each tool description is one sentence and carries no style or rule labels", async () => {
     const list = await toolsList(ALL.map(secureTool));
-    expect(list).toHaveLength(26);
+    expect(list).toHaveLength(36);
     for (const t of list) {
       expect(sentences(t.description), t.name).toEqual([t.description.replace(/\.$/, "")]);
       expect(t.description, t.name).not.toMatch(/#[0-9A-Fa-f]{3,8}/);
