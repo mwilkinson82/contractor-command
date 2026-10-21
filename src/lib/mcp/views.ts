@@ -1,4 +1,4 @@
-// 0.8.12: required styled views for text-heavy results (lookahead, pay app, reminders, supplier/sub emails).
+// 0.8.12: required styled views for text-heavy results (lookahead, pay app, reminders, supplier/sub emails, IOR, portfolio).
 // Same pattern as CPM_GANTT_SPEC (living.ts): each block rides in its matching tool result so every host draws
 // the same view. Colors come from one place (alert-color.ts): navy/blue/gray, plus the alert color only for
 // delays, risks and overdue items.
@@ -33,6 +33,29 @@ export const REMINDERS_VIEW_SPEC: string[] = [
   `1. Groups: Overdue (${ALERT_COLOR} flag), Due this week, Later.`,
   "2. Each card: the item, the job, the owner, the due date with a countdown chip (\"in 3 days\" / \"2 days late\"), and the source exactly as given (contract §, notice or RFI).",
   `3. ${SHARED}`,
+];
+
+export const IOR_VIEW_SPEC: string[] = [
+  "REQUIRED VIEW – IOR DASHBOARD: When the user asks for the IOR, indicated outcome or job health, always build ONE styled artifact or canvas, never plain text. Spec:",
+  "1. Header: the job name, the as-of date, the contract, and the \"Forecast total $X = contract $X\" tie line word for word.",
+  `2. KPI tiles: Indicated revenue, Indicated cost, Indicated GP $ and %, Budgeted GP $ and %, and GP change vs budget (${ALERT_COLOR} if down).`,
+  "3. Waterfall chart: from Budgeted GP, through each pending CO (weighted), each risk hold (E-Hold/C-Hold) and cost variances, to Indicated GP.",
+  `4. Risk register table: risk, exposure $, probability %, weighted $, owner, next action, due date. ${ALERT_COLOR} flags on the top 3 by weighted $.`,
+  "5. Change order table: CO, status, revenue, cost, probability, weighted margin.",
+  "6. Billing strip: billed, % billed, retainage held, paid, and left to bill.",
+  "7. Use Athena's numbers exactly; never recompute them with other math.",
+  `8. ${SHARED}`,
+];
+
+export const PORTFOLIO_VIEW_SPEC: string[] = [
+  "REQUIRED VIEW – COMPANY PORTFOLIO DASHBOARD: When the user asks for the company, portfolio or all-jobs dashboard, always build ONE styled artifact. Spec:",
+  "1. Access: only for owner/leadership roles. A PM sees only their own jobs, with no other jobs' dollars or billing; say so in one line. Use only the jobs and dollars Athena returns for this user.",
+  "2. KPI tiles across the top: active jobs, total contract value, total indicated GP $ and %, GP change vs budget, billed to date, left to bill, and retainage held.",
+  `3. Job cards grid, one per job: job number and name, PM, contract, % complete, indicated GP %, GP change (${ALERT_COLOR} if down), schedule status chip (On track / At risk / Delayed +X CD, ${ALERT_COLOR} only when delayed or at risk), and the next deadline with a countdown.`,
+  "4. Bar chart of GP % by job (budgeted in gray #9CA3AF, indicated in blue #2563EB).",
+  `5. \"Needs attention\" list: overdue notices, delays and top risks across jobs, each with job, owner and due date, ${ALERT_COLOR} flagged.`,
+  "6. Monthly billing forecast chart across all jobs for the next 6 months.",
+  `7. ${SHARED}`,
 ];
 
 export const EMAIL_VIEW_SPEC: string[] = [

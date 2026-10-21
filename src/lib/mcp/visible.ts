@@ -191,9 +191,6 @@ export const EMAIL_ATTACHMENT_STRUCTURED = {
   share_link_how: "Call file_share with job_number, kind, filename and content_base64 (the bytes of the file you built). Put the returned link in the email body. Works in every host.",
   rule: EMAIL_ATTACHMENT_RULE,
 } as const;
-/** 0.8.9: pinned at the top of every date sweep. */
-export const SWEEP_CARD_REQUIRED =
-  "REQUIRED: Show this date sweep as a card with a table (columns: Due, Item, Precaution, Ref), one row per item, grouped Overdue, Due today, Next 14 days. Never as plain bullets or a plain list, in every host including Claude.";
 /** 0.8.9: email cards carry a literal To: label. 0.8.10: as the first line inside the card. */
 export const EMAIL_TO_LABEL_REQUIRED =
   'REQUIRED: Inside every email card, the first line of the card itself is the literal label "To:" followed by the address (or blank and ask in this same reply), above Subject. Never put To: outside the card, above or below it.';
