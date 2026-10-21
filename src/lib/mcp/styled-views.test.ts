@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readDelay, ganttPins, noteDateConflicts, windowFromDataDate, lookaheadView, emptyCard, SHOW_AS_IS } from "./styled-views";
+import { readDelay, ganttPins, noteDateConflicts, windowFromDataDate, lookaheadView, emptyCard, SHOW_AS_IS, LOOKAHEAD_ARTIFACT_LINE } from "./styled-views";
 
 const acts = [
   { id: "A1020", name: "Submit long-lead gear", start: "2026-10-19", finish: "2026-10-28", duration: 8, total_float: 0 },
@@ -45,10 +45,11 @@ describe("lookahead view", () => {
   it("fills the window from the CPM data date (Oct 19 → Oct 26–Nov 6)", () => {
     expect(windowFromDataDate("2026-10-19")).toEqual({ start: "2026-10-26", end: "2026-11-06" });
   });
-  it("renders a finished view: link, as-is rule, top 3, calendar strip, risk card, legend", () => {
+  it("renders a finished view: link, artifact rule, top 3, calendar strip, risk card, legend", () => {
     const v = lookaheadView({ title: "2701 – Harbor Point", ref: "LA-37D09", start: "2026-10-26", end: "2026-11-06", dataDate: "2026-10-19", acts, items: [{ action: "Underground electrical inspection on 2026-11-05 is not yet requested", owner: "Marcus Hale", due: "2026-11-02" }], highlight: "2026-10-26", pageUrl: "https://app.meetathena.io/r/job/x/schedule" });
     expect(v.split("\n")[0]).toBe("Styled lookahead (always current, private to your company): https://app.meetathena.io/r/job/x/schedule");
-    expect(v).toContain(SHOW_AS_IS);
+    expect(v).toContain(LOOKAHEAD_ARTIFACT_LINE);
+    expect(v).not.toContain(SHOW_AS_IS);
     expect(v).toContain("### Top 3 priorities");
     expect(v).toMatch(/\| A1020 Submit long-lead gear \| 0 \| 🔵 \| 🔵 \| 🔵 \|/);
     expect(v).toMatch(/A1130 Underground inspection \(hold point\) \| 18 \|(  \|){8} 📋🚩 \|/);

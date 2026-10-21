@@ -110,7 +110,7 @@ export function draftCardText(
 
 /** 0.8.17: hosts showed the draft only inside their send-permission prompt. The card goes in the chat first. */
 export const EMAIL_CARD_RULE =
-  "REQUIRED: show this draft in the chat as a styled email card or artifact first (To, Cc, Subject, the full body, and an Attachment line naming the PDF, or the link), before and separately from any send or permission prompt. Never show it only inside the permission prompt.";
+  "REQUIRED: show this draft in the chat as a styled email card or artifact first (To, Cc, Subject, the full body, and an Attachment line naming the PDF, or the link), before and separately from any send or permission prompt. Never show it only inside the permission prompt. In Claude it must be an artifact built from the REQUIRED VIEW – EMAIL DRAFT spec, never a plain markdown block.";
 
 /** The body must be signed as the job's PM unless the member asked to sign as someone else. */
 export function signatureProblem(body: string, pm: { name: string; signature: string } | null, signAs: string | null): string | null {
