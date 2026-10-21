@@ -198,7 +198,8 @@ describe("hosts", () => {
     expect(r.content[0].text).toMatch(/1\. Marshall, Owner, all jobs/);
     expect(r.content[0].text).toMatch(/2\. Sam, Super, jobs 2701/);
     expect(r._meta?.["openai/outputTemplate"]).toBe(TEAM_WIDGET_URI);
-    expect(r.content[1]).toMatchObject({ type: "resource" });
+    expect(r.content).toHaveLength(1);
+    expect(r.content.every((c) => c.type === "text")).toBe(true);
     expect(r.guidance.join(" ")).toMatch(/Claude, Codex, Grok Bot/);
   });
   it("the card has checkboxes for jobs and a confirm step that passes confirmed true", () => {
@@ -213,6 +214,17 @@ describe("hosts", () => {
     expect(t).toMatch(/AP \(Accounts Payable\)/);
     expect(t).toMatch(/locked/);
     expect(t.toLowerCase()).not.toContain("finance");
+  });
+});
+
+describe("0.8.16.1 no card HTML leak", () => {
+  it("team_list content never carries the card HTML (non-ChatGPT hosts print content as text)", async () => {
+    const r = await call(teamList, {});
+    const all = JSON.stringify(r.content);
+    expect(all).not.toMatch(/<!doctype|<script|<html/i);
+    expect(r.content.some((c) => c.type === "resource")).toBe(false);
+    expect(r._meta?.["openai/outputTemplate"]).toBe(TEAM_WIDGET_URI);
+    expect(JSON.stringify(r.structuredContent)).not.toMatch(/<script/i);
   });
 });
 

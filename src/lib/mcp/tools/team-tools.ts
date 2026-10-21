@@ -60,9 +60,9 @@ function role(input?: string): TeamRole | undefined {
   return r;
 }
 const widgetMeta = { "openai/outputTemplate": TEAM_WIDGET_URI };
-function widgetResource() {
-  return { type: "resource" as const, resource: { uri: TEAM_WIDGET_URI, mimeType: TEAM_WIDGET_MIME, text: teamWidgetHtml() } };
-}
+// 0.8.16.1: the card HTML is never put in the result content (Claude, Codex and Grok Bot printed it as text).
+// ChatGPT loads the card from TEAM_WIDGET_URI via _meta["openai/outputTemplate"]; teamWidgetHtml() is the resource body.
+export const TEAM_WIDGET = { uri: TEAM_WIDGET_URI, mimeType: TEAM_WIDGET_MIME, html: teamWidgetHtml };
 
 export const teamList = defineTool({
   name: "team_list",
@@ -75,7 +75,7 @@ export const teamList = defineTool({
       const co = await ownerCompany(sb, args.company_id);
       const t = await list(sb, co);
       return guide(
-        { content: [{ type: "text" as const, text: text(renderTeamList(t)).content[0].text }, widgetResource()], structuredContent: { team: { ...t, company: co }, roles_menu: rolesMenu(t.roles_allowed) }, _meta: widgetMeta },
+        { ...text(renderTeamList(t)), structuredContent: { team: { ...t, company: co }, roles_menu: rolesMenu(t.roles_allowed) }, _meta: widgetMeta },
         "ChatGPT: show the selection card (people, role, jobs as checkboxes); its Confirm step calls team_update_member with confirmed true. Claude, Codex, Grok Bot and any host without the card: show the numbered list as it is, then ask what to change by number. Before any change, ask the exact confirm question the write tool's guidance gives and wait for yes.",
       );
     }),
