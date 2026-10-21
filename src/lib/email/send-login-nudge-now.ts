@@ -4,6 +4,7 @@ import { sendLovableEmail } from "@lovable.dev/email-js";
 import { TEMPLATES } from "@/lib/email-templates/registry";
 import { MEMBER_REPLY_TO } from "@/lib/email/reply-to";
 import { template as athenaMagicLinkTemplate } from "@/lib/email-templates/athena-magic-link";
+import { hubOrigin } from "@/lib/auth-origins";
 
 type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
 
@@ -20,11 +21,7 @@ export type DirectLoginNudgeResult =
   | { status: "failed"; messageId: string; reason: string };
 
 function appOrigin(): string {
-  return (
-    process.env.PUBLIC_APP_ORIGIN ||
-    process.env.APP_ORIGIN ||
-    "https://app.alpcontractorcircle.com"
-  ).replace(/\/$/, "");
+  return hubOrigin();
 }
 
 function redactEmail(email: string): string {
