@@ -1511,7 +1511,7 @@
       {
         "name": "living_report_get",
         "title": "Living report master copy",
-        "description": "REQUIRED: call this before updating a cost-loaded CPM, billing forecast, IOR or PM dashboard, and when a new chat picks one up. Returns the saved master copy (latest or a named version) with its version, last-updated stamp, data date, data and change log. Update that copy in place; never start a second one. Supers: CPM only, no dollars.",
+        "description": "REQUIRED: call this before updating a cost-loaded CPM, billing forecast, IOR or PM dashboard, and when a new chat picks one up. Returns the saved master copy (latest or a named version) with its version, last-updated stamp, data date, data and change log. Viewing: build a new private view from it and never change the saved master. Updating (only when the user explicitly asks, after confirming): update that copy in place; never start a second saved one. Supers: CPM only, no dollars.",
         "annotations": {
           "readOnlyHint": true,
           "openWorldHint": false,
@@ -1916,8 +1916,8 @@
           "openWorldHint": true
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -2002,8 +2002,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -2026,6 +2026,132 @@
           },
           "required": [
             "job_number",
+            "link"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "report_page_link",
+        "title": "Permanent report page link",
+        "description": "Call only after the member says yes to \"Want this as a permanent link I keep updated?\". Returns the private page for a job's IOR or schedule, or the company portfolio, at app.meetathena.io. The page always shows the latest saved version and is viewable only by signed-in members of the company with access to that job (supers: schedule without dollars; portfolio: owners and leadership). It is not a public link.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "page": {
+              "type": "string",
+              "enum": [
+                "ior",
+                "schedule",
+                "portfolio"
+              ],
+              "description": "ior, schedule (the CPM gantt) or portfolio (owners and leadership only)."
+            },
+            "job_number": {
+              "description": "Job number, exact match (e.g. 2701). Required for ior and schedule; leave out for portfolio.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "page"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "report_page_share",
+        "title": "Share a report page (expiring link)",
+        "description": "Only when the member explicitly asks to share a report page with someone who can't sign in. Makes a link anyone with it can open, that shows the latest saved version until it expires (30 days by default, at most 90) or is turned off. IOR and portfolio: owners and leadership only. Schedule: supers' links never show dollars.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "page": {
+              "type": "string",
+              "enum": [
+                "ior",
+                "schedule",
+                "portfolio"
+              ],
+              "description": "ior, schedule (the CPM gantt) or portfolio (owners and leadership only)."
+            },
+            "job_number": {
+              "description": "Job number, exact match (e.g. 2701). Required for ior and schedule; leave out for portfolio.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "confirmed": {
+              "type": "boolean",
+              "const": true,
+              "description": "true only after the member confirmed they want a link anyone with it can open."
+            },
+            "expires_in_days": {
+              "description": "Days the link works, default 30.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90
+            }
+          },
+          "required": [
+            "page",
+            "confirmed"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "report_page_share_revoke",
+        "title": "Turn off a report share link",
+        "description": "Turns off a report page share link right away. Call only after the member asks. The member who made it, or an owner or leadership member.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "link": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300,
+              "description": "The share link (https://app.meetathena.io/r/s/...)."
+            }
+          },
+          "required": [
             "link"
           ],
           "additionalProperties": false
