@@ -1,17 +1,63 @@
--- 0.8.22 Athena lockdown. NOT APPLIED: needs Marshall's yes.
--- Success-call log (ids, tool, time; never project content), per-company canary codes, security flags,
--- heavy-tool hourly cap, optional soft lock and the digest read for the (flagged-off) daily email.
+-- 0.8.22 Athena lockdown (r3). mcp_call_log already exists live as (id, user_id, called_at), written by the
+-- usage caps mcp_abuse_cap_check / mcp_abuse_cap_hit / mcp_rate_hit. This migration ALTERs it instead of creating it:
+-- old and cap rows get tool = 'gate'; the caps count and prune only 'gate' rows, so their limits behave exactly as before
+-- and the new per-tool log rows are neither double-counted nor pruned by them. mcp_call_log grants and policies are unchanged.
 
 CREATE TABLE IF NOT EXISTS public.mcp_call_log (
   id bigserial PRIMARY KEY,
   user_id uuid NOT NULL,
-  company_id uuid REFERENCES public.mcp_companies(id) ON DELETE SET NULL,
-  tool text NOT NULL,
-  job_number text,
   called_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE public.mcp_call_log ADD COLUMN IF NOT EXISTS company_id uuid REFERENCES public.mcp_companies(id) ON DELETE SET NULL;
+ALTER TABLE public.mcp_call_log ADD COLUMN IF NOT EXISTS tool text NOT NULL DEFAULT 'gate';
+ALTER TABLE public.mcp_call_log ADD COLUMN IF NOT EXISTS job_number text;
 CREATE INDEX IF NOT EXISTS mcp_call_log_user_time ON public.mcp_call_log (user_id, called_at DESC);
 CREATE INDEX IF NOT EXISTS mcp_call_log_user_tool_time ON public.mcp_call_log (user_id, tool, called_at DESC);
+ALTER TABLE public.mcp_call_log ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.mcp_abuse_cap_check(_hourly integer DEFAULT 200, _daily integer DEFAULT 1000)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $function$
+DECLARE h int; d int; oldest_h timestamptz; oldest_d timestamptz;
+BEGIN
+  IF auth.uid() IS NULL THEN RETURN jsonb_build_object('ok', false, 'limit', 'auth'); END IF;
+  SELECT count(*) FILTER (WHERE called_at > now() - interval '1 hour'),
+         count(*) FILTER (WHERE called_at > now() - interval '1 day'),
+         min(called_at) FILTER (WHERE called_at > now() - interval '1 hour'),
+         min(called_at) FILTER (WHERE called_at > now() - interval '1 day')
+    INTO h, d, oldest_h, oldest_d
+    FROM public.mcp_call_log WHERE user_id = auth.uid() AND tool = 'gate' AND called_at > now() - interval '1 day';
+  IF h >= _hourly THEN RETURN jsonb_build_object('ok', false, 'limit', 'hourly', 'resets_at', oldest_h + interval '1 hour'); END IF;
+  IF d >= _daily THEN RETURN jsonb_build_object('ok', false, 'limit', 'daily', 'resets_at', oldest_d + interval '1 day'); END IF;
+  INSERT INTO public.mcp_call_log(user_id, tool) VALUES (auth.uid(), 'gate');
+  DELETE FROM public.mcp_call_log WHERE user_id = auth.uid() AND tool = 'gate' AND called_at < now() - interval '25 hours';
+  RETURN jsonb_build_object('ok', true);
+END $function$;
+
+CREATE OR REPLACE FUNCTION public.mcp_abuse_cap_hit()
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $function$
+DECLARE h int; d int;
+BEGIN
+  IF auth.uid() IS NULL THEN RETURN false; END IF;
+  SELECT count(*) FILTER (WHERE called_at > now() - interval '1 hour'),
+         count(*) FILTER (WHERE called_at > now() - interval '1 day')
+    INTO h, d FROM public.mcp_call_log WHERE user_id = auth.uid() AND tool = 'gate' AND called_at > now() - interval '1 day';
+  IF h >= 60 OR d >= 300 THEN RETURN false; END IF;
+  INSERT INTO public.mcp_call_log(user_id, tool) VALUES (auth.uid(), 'gate');
+  DELETE FROM public.mcp_call_log WHERE user_id = auth.uid() AND tool = 'gate' AND called_at < now() - interval '25 hours';
+  RETURN true;
+END $function$;
+
+CREATE OR REPLACE FUNCTION public.mcp_rate_hit(_limit integer DEFAULT 60)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $function$
+DECLARE n int;
+BEGIN
+  IF auth.uid() IS NULL THEN RETURN false; END IF;
+  SELECT count(*) INTO n FROM public.mcp_call_log WHERE user_id = auth.uid() AND tool = 'gate' AND called_at > now() - interval '1 hour';
+  IF n >= _limit THEN RETURN false; END IF;
+  INSERT INTO public.mcp_call_log(user_id, tool) VALUES (auth.uid(), 'gate');
+  DELETE FROM public.mcp_call_log WHERE user_id = auth.uid() AND tool = 'gate' AND called_at < now() - interval '2 hours';
+  RETURN true;
+END $function$;
 
 CREATE TABLE IF NOT EXISTS public.mcp_company_canaries (
   company_id uuid PRIMARY KEY REFERENCES public.mcp_companies(id) ON DELETE CASCADE,
@@ -30,11 +76,10 @@ CREATE TABLE IF NOT EXISTS public.mcp_security_flags (
 );
 CREATE INDEX IF NOT EXISTS mcp_security_flags_user_time ON public.mcp_security_flags (user_id, created_at DESC);
 
--- Members can't read or write any of these; only the SECURITY DEFINER function and service_role touch them.
-ALTER TABLE public.mcp_call_log ENABLE ROW LEVEL SECURITY;
+-- Members can't read or write the canary and flag tables (mcp_call_log keeps its existing grants/policies); only the SECURITY DEFINER function and service_role touch them.
 ALTER TABLE public.mcp_company_canaries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mcp_security_flags ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON public.mcp_call_log, public.mcp_company_canaries, public.mcp_security_flags FROM anon, authenticated;
+REVOKE ALL ON public.mcp_company_canaries, public.mcp_security_flags FROM anon, authenticated;
 GRANT ALL ON public.mcp_call_log, public.mcp_company_canaries, public.mcp_security_flags TO service_role;
 GRANT USAGE, SELECT ON SEQUENCE public.mcp_call_log_id_seq, public.mcp_security_flags_id_seq TO service_role;
 
