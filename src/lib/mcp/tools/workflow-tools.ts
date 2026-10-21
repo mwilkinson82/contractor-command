@@ -21,7 +21,7 @@ import { CLAUSE_HOST_RULE, classifyClause, clauseLine, missingNotices, normSecti
 import { FLAGS_ASKED_LATER, noGuidance, noGuidanceText, reconcileRecommendation } from "../guidance";
 import { isNoneAnswer, mergeScopeFacts, visibleLookaheads } from "../lookahead-items";
 import { addRevision, currentRev, loadRevisions, lookaheadSourceFor, revisionLines, stampItemRev } from "../lookahead-revisions";
-import { withNextMove } from "../coach";
+import { REPORT_SEND_GUIDANCE, withNextMove } from "../coach";
 import { LOOKAHEAD_BUILD_QUESTIONS, LOOKAHEAD_EXISTS_ASK, LOOKAHEAD_PUSHBACK, LOOKAHEAD_SETUP_KEY, PUSHBACK_GUIDANCE, buildQuestionsGuidance, buildQuestionsText, pushbackText } from "../lookahead-help";
 
 const uuid = z.string().uuid();
@@ -1117,7 +1117,7 @@ export const report = defineTool({
       // Client-facing output never carries item ids.
       const items = (its ?? []).map((i) => (audience === "client" ? { item_type: itemType(i, nas) } : { item_id: i.id, item_type: itemType(i, nas) }));
       // 0.8.9: sharing a report with the team or owner always lists all three options.
-      return { ...text(`${SHARE_OPTIONS_REQUIRED}\n${body}\n\n${REPORT_SHARE_ASK}`), structuredContent: { items, delivery: { ...REPORT_SHARE_STRUCTURED, audience } } };
+      return guide({ ...text(`${SHARE_OPTIONS_REQUIRED}\n${body}\n\n${REPORT_SHARE_ASK}`), structuredContent: { items, delivery: { ...REPORT_SHARE_STRUCTURED, audience } } }, ...REPORT_SEND_GUIDANCE);
     }),
 });
 
@@ -1441,6 +1441,7 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
     SOV_CHART_RULE,
     sovDeliveryBlock(audience),
     EMAIL_CONTACT_RULE,
+    ...REPORT_SEND_GUIDANCE,
   ), "sov", guide);
 }
 

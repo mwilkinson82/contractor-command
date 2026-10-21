@@ -6,7 +6,7 @@ import { dbError, run, text, type Sb } from "../guard";
 import { FULL_ACCESS_MESSAGE, READ_ONLY_MESSAGE, audit, prefix, resolveJob, type Job } from "../jobs";
 import { SovMismatch, buildSov, money } from "../sov";
 import { guide } from "../visible";
-import { withNextMove, type CoachStep } from "../coach";
+import { REPORT_SEND_GUIDANCE, withNextMove, type CoachStep } from "../coach";
 import {
   CPM_REQUIRED_TOP, LIVING_LABEL, LIVING_REPORT_TYPES, LIVING_REQUIRED_TOP, LIVING_SAVE_ASK, TIED_TYPES,
   activityLine, checkSave, costLoadTotal, countCheck, earnedToDate, isOwnerFurnished, ownerFurnishedWithValue, stripMoney, tieCheck, tiaResult,
@@ -185,6 +185,7 @@ export const livingReportGet = defineTool({
           ...text([LIVING_REQUIRED_TOP, `${prefix(job)}${job.name} · ${label}`, stamp(g), ...(tie ? [`Tie: ${tie.line}`] : []), ...(type === "billing_forecast" && job.scope === "full" ? PAY_APP_VIEW_SPEC : []), ...(type === "ior" && job.scope === "full" ? IOR_VIEW_SPEC : []), ...(type === "dashboard" && job.scope === "full" ? PORTFOLIO_VIEW_SPEC : []), "", "Change log (latest 5):", ...(log.length ? log : ["- None yet."])].join("\n")),
           structuredContent: { found: true, report_type: type, version: g.version, data_date: g.data_date ?? null, updated_at: g.updated_at ?? null, updated_by: g.updated_by_name ?? null, contract_completion_date: g.contract_completion_date ?? null, tie, data: data as never, change_log: g.change_log ?? [], no_financials: job.scope !== "full" },
         },
+        ...REPORT_SEND_GUIDANCE,
         `Say "Picked up v${g.version}${g.updated_by_name ? `, last updated by ${g.updated_by_name}` : ""}." For a view-only ask, build a NEW private view or artifact from structuredContent.data in the same layout; never update or replace the saved shared master or an existing shared artifact. Only when the user explicitly asks to update or save it, confirm first, then to save the update ask "${LIVING_SAVE_ASK}" and only after a yes call living_report_save with base_version ${g.version}.`,
       ), coachStepFor(type, g.data ?? null));
     }),

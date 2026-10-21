@@ -7,7 +7,7 @@ import { audit, type Job } from "../jobs";
 import { runSweep } from "../sweep";
 import { todayIn } from "../deadlines";
 import { guide } from "../visible";
-import { withNextMove } from "../coach";
+import { CONNECT_CHECK_RULE, withNextMove } from "../coach";
 import { FIELD_UPDATE_QUESTIONS, MORNING_BRIEFING_VIEW_SPEC, stripDollars, todaysActivities, visibleForRole, type BriefActivity } from "../morning";
 
 const READ = { readOnlyHint: true, openWorldHint: false, idempotentHint: true } as const;
@@ -71,6 +71,7 @@ export const morningBriefing = defineTool({
         guide(
           { ...text(`Good morning. Here's today.\n\n${body}\n\n${FIELD_UPDATE_QUESTIONS[0]}`), structuredContent: { top3, jobs: briefs, field_update_questions: [...FIELD_UPDATE_QUESTIONS], read_only: true } },
           ...MORNING_BRIEFING_VIEW_SPEC,
+          CONNECT_CHECK_RULE,
         ),
         "briefing",
         guide,

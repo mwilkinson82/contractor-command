@@ -7,7 +7,7 @@ import { dbError, run, text, type Sb } from "../guard";
 import { audit, jobTimeZone, prefix, resolveJob, type Job } from "../jobs";
 import { todayIn } from "../deadlines";
 import { guide } from "../visible";
-import { CADENCE_FACT_KEY, CADENCE_ITEMS, CADENCE_REMINDER_ASK, CADENCE_SETUP_SPEC, cadenceCardLines, nextCadenceDate, nextCadenceItem, type Cadence, type CadenceKey } from "../coach";
+import { CONNECT_CHECK_RULE, REMINDER_DELIVERY_ASK, REMINDER_DELIVERY_DEFAULT, REMINDER_DELIVERY_OPTIONS, REMINDER_DELIVERY_RULE, CADENCE_FACT_KEY, CADENCE_ITEMS, CADENCE_REMINDER_ASK, CADENCE_SETUP_SPEC, cadenceCardLines, nextCadenceDate, nextCadenceItem, type Cadence, type CadenceKey } from "../coach";
 
 const jobNumber = z.string().trim().min(1).max(40).describe("Job number, exact match (e.g. 2701).");
 const companyId = z.string().trim().min(1).max(200).optional().describe("Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.");
@@ -41,7 +41,7 @@ function cadenceResult(job: Job, c: Cadence, head: string) {
   }
   return guide(
     { ...text(`${prefix(job)}${head}${cadenceCardLines(c).join("\n")}\n\n${CADENCE_REMINDER_ASK}`), structuredContent: { complete: true, next_item: null, cadence: items, reminders_ask: CADENCE_REMINDER_ASK } },
-    `Show the styled "Job cadence" card (white card, navy title, blue #2563EB labels, gray values) and ask "${CADENCE_REMINDER_ASK}" Call job_cadence_reminders with approved true only after a clear yes. If "Not now", say in one line why reminders help (so nothing slips) and move on.`,
+    `Show the styled "Job cadence" card (white card, navy title, blue #2563EB labels, gray values) and ask "${CADENCE_REMINDER_ASK}" Then ask "${REMINDER_DELIVERY_ASK}" Call job_cadence_reminders with approved true and delivery only after a clear yes. If "Not now", say in one line why reminders help (so nothing slips) and move on.`,
   );
 }
 
@@ -92,6 +92,7 @@ export const jobCadenceReminders = defineTool({
     job_number: jobNumber,
     company_id: companyId,
     approved: z.literal(true).describe("true only after the PM said yes to setting up these reminders."),
+    delivery: z.enum(REMINDER_DELIVERY_OPTIONS).optional().describe("calendar (default): you create real recurring calendar events with alerts; ai_reminders: this app's own scheduled task; both. Run the connect check for the calendar first."),
     items: z.array(z.enum(CADENCE_ITEMS.map((i) => i.key) as [CadenceKey, ...CadenceKey[]])).max(6).optional().describe("Only these cadence items; default all six that are saved."),
   },
   annotations: CONFIRM,
@@ -118,6 +119,12 @@ export const jobCadenceReminders = defineTool({
       }
       await audit(sb, job, "job_cadence_reminders", "create_cadence_reminders", null);
       const lines = made.map((m) => `- ${CADENCE_ITEMS.find((i) => i.key === m.key)!.label}: ${m.existing ? "already set" : `reminder set, next ${m.needed_by}`}`);
-      return { ...text(`${prefix(job)}Cadence reminders:\n${lines.join("\n")}`), structuredContent: { reminders: made } };
+      const delivery = args.delivery ?? REMINDER_DELIVERY_DEFAULT;
+      return guide(
+        { ...text(`${prefix(job)}Cadence reminders:\n${lines.join("\n")}`), structuredContent: { reminders: made, delivery, cadence: Object.fromEntries(want.map((i) => [i.key, c[i.key]])) } },
+        CONNECT_CHECK_RULE,
+        REMINDER_DELIVERY_RULE,
+        delivery === "ai_reminders" ? "Set each one up with this app's own scheduled task. If it has none, say so in one line and offer calendar events instead." : `Create each one as a recurring event on the member's calendar with an alert${delivery === "both" ? ", and also as this app's scheduled task" : ""}. Never say it's on the calendar unless the event was created.`,
+      );
     }),
 });
