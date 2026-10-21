@@ -109,8 +109,7 @@ const L = "https://app.meetathena.io/f/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-AbC
 // 0.8.18 Claude retest (Oct 21): lookahead and email_draft came back as plain markdown; the schedule (CPM_GANTT_SPEC) drew an artifact.
 describe("Claude renders lookahead and email draft as artifacts, like the schedule", () => {
   it("schedule instruction is one short line with no palette", () => {
-    expect(CPM_GANTT_SPEC[0]).toBe("Show these activities as a schedule.");
-    expect(CPM_GANTT_SPEC.join("\n")).not.toMatch(/#[0-9A-Fa-f]{3,8}/);
+    expect(CPM_GANTT_SPEC[0]).toMatch(/^REQUIRED VIEW: .*artifact or canvas, never a plain list/);
   });
   it("lookahead view is shown as written, without a style recipe", () => {
     const v = lookaheadView({
@@ -124,11 +123,10 @@ describe("Claude renders lookahead and email draft as artifacts, like the schedu
     });
     expect(v).toContain(LOOKAHEAD_ARTIFACT_LINE);
     expect(v).not.toContain(SHOW_AS_IS);
-    expect(LOOKAHEAD_ARTIFACT_LINE).toBe("Show the lookahead below as written.");
-    expect(LOOKAHEAD_VIEW_SPEC[0]).toBe(
-      "Show this lookahead from the activities and dates in this result.",
-    );
-    expect(LOOKAHEAD_VIEW_SPEC.join("\n")).not.toMatch(/#[0-9A-Fa-f]{3,8}/);
+    expect(LOOKAHEAD_ARTIFACT_LINE).toMatch(/^REQUIRED VIEW: build ONE styled lookahead artifact/);
+    expect(LOOKAHEAD_ARTIFACT_LINE).toMatch(/In Claude: an artifact.*no tool calls inside it/);
+    expect(LOOKAHEAD_VIEW_SPEC[0]).toMatch(/In Claude this is always an artifact/);
+    expect(LOOKAHEAD_VIEW_SPEC.join("\n")).toContain("#2563EB");
   });
   it("email draft spec keeps the confirm question and sends nothing", () => {
     const s = EMAIL_DRAFT_VIEW_SPEC.join("\n");
@@ -136,10 +134,10 @@ describe("Claude renders lookahead and email draft as artifacts, like the schedu
     expect(s).toMatch(/No buttons of any kind/);
     expect(s).not.toMatch(/"Yes, send" button/);
     expect(s).toMatch(/confirm question word for word/);
-    expect(s).not.toMatch(/#[0-9A-Fa-f]{3,8}/);
+    expect(s).toMatch(/navy, blue #2563EB and gray only/);
+    expect(EMAIL_CARD_RULE).toMatch(/In Claude it must be an artifact/);
     expect(s).toMatch(/Never show an attachment chip without a real attachment/);
     expect(s).toMatch(/Send nothing/);
-    expect(EMAIL_CARD_RULE).toMatch(/Do not send it/);
   });
   it("email_draft result text carries the card, the view spec and the yes/no question", async () => {
     const r = await call(emailDraft, {
@@ -150,7 +148,7 @@ describe("Claude renders lookahead and email draft as artifacts, like the schedu
       link: L,
     });
     const t: string = r.content[0].text;
-    expect(t).toMatch(/^Show this email draft as a card\. Do not send it\.\n\nTo: pm@example.test/);
+    expect(t).toMatch(/^REQUIRED VIEW: build ONE styled email-draft artifact[^\n]*\n\nTo: pm@example.test/);
     expect(t).toContain(EMAIL_DRAFT_VIEW_SPEC[0]);
     expect(t).toMatch(
       /Confirm question: Send this email to pm@example.test from your connected email account\? Yes or no\?$/,

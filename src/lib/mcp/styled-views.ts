@@ -25,8 +25,10 @@ const md = (d: string) => `${+d.slice(5, 7)}/${+d.slice(8, 10)}`;
 const dow = (d: string) => new Date(`${d.slice(0, 10)}T00:00:00Z`).getUTCDay();
 
 /** Shown first in the visible text, so the styled view never depends on how the host words or formats its reply. */
-export const SHOW_AS_IS = "Show the view below as written.";
-export const LOOKAHEAD_ARTIFACT_LINE = "Show the lookahead below as written.";
+export const SHOW_AS_IS = "Show the view below exactly as written (tables, icons and colors included). Do not turn it into bullets or a summary.";
+/** 0.8.18: Claude pasted the lookahead as plain markdown with emoji. Like the schedule's REQUIRED VIEW (CPM_GANTT_SPEC), the lookahead now asks for an artifact. */
+export const LOOKAHEAD_ARTIFACT_LINE =
+  "REQUIRED VIEW: build ONE styled lookahead artifact from the data below, the same way you build the schedule Gantt. In Claude: an artifact built only from this result (no tool calls inside it). In ChatGPT: a canvas. Never paste the markdown below as your answer: the emoji are data markers only, so draw real bars, icons and cards. Follow the REQUIRED VIEW – LOOKAHEAD spec.";
 export const pageLine = (label: string, url: string) =>
   `Styled ${label} (always current, private to your company): ${url}`;
 
@@ -109,14 +111,11 @@ export function readDelay(
 /** Pinned on every schedule result: the Gantt and the delay callout are required, not optional. */
 export function ganttPins(d: DelayInfo | null): string[] {
   return [
-    "Show the schedule from the activities in this result.",
-    ...(d?.callout
-      ? [
-          `Show the delay callout "${d.callout}" on ${d.fragnet}, and the line "Completion impact: +${d.completion_impact_wd} WD".`,
-        ]
-      : []),
+    "REQUIRED: the answer must show the styled Gantt (bars on a timeline), never a list of activities.",
+    ...(d?.callout ? [`REQUIRED: the Gantt must carry the red callout "${d.callout}" on ${d.fragnet}, plus the line "Completion impact: +${d.completion_impact_wd} WD".`] : []),
   ];
 }
+
 
 // ---------- saved-date consistency on save ----------
 const MONTHS: Record<string, number> = {

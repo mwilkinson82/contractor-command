@@ -1,5 +1,5 @@
 import { companyScopeDefaults, scopeAlias, SECTOR_ALIASES, PRICING_ALIASES, POSITION_ALIASES } from "../scope-defaults";
-import { SovMismatch, SOV_SPECS_MISSING_NOTE, buildSov, sovSpecsMissing, retainagePct, sovLayout, sovLineRows, sovNotes, sovSummaryText, money, type SovBrand, type SovView } from "../sov";
+import { SovMismatch, SOV_SPECS_MISSING_NOTE, SOV_TABLE_STYLE, buildSov, sovSpecsMissing, retainagePct, sovLayout, sovLineRows, sovNotes, sovSummaryText, money, type SovBrand, type SovView } from "../sov";
 import { ATHENA_VERSION } from "../server-info-branding";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
@@ -12,7 +12,7 @@ import { EVIDENCE_ASK, evidenceProblem } from "../evidence";
 import { displayRef, isUuid, itemRef, lookaheadRef, matchRef, parseLookaheadRef, parseQuestionRef, questionRef, shortRef } from "../refs";
 import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
 import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
-import { guide, EMAIL_TO_LABEL_REQUIRED, SHARE_OPTIONS_REQUIRED, REPORT_SHARE_ASK, REPORT_SHARE_STRUCTURED, JOB_SETUP_SOFTWARE_BLOCK, SOV_CHART_RULE, sovChart, sovRequiredTop, sovDeliveryAsk, sovDeliveryBlock, sovDeliveryStructured, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
+import { guide, EMAIL_TO_LABEL_REQUIRED, SHARE_OPTIONS_REQUIRED, REPORT_SHARE_ASK, REPORT_SHARE_STRUCTURED, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_CHART_RULE, sovChart, sovRequiredTop, sovDeliveryAsk, sovDeliveryBlock, sovDeliveryStructured, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
 import { withoutClaims } from "../internal-claims";
 import { LOOKAHEAD_EMAIL_LINE } from "../email-safety";
 import { briefingView, dataDateRule, pickLatestLookahead, type LaRow, emptyCard, lookaheadView, lookaheadModel, entryLine, lookaheadWindow, pageLine, windowActivities, type LaItem, type LaModel, type SAct } from "../styled-views";
@@ -1442,7 +1442,7 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
           contract_total_display: money(sov.summary.contract_total),
           ...sov,
           footer: sovLayout(brand).footer,
-          layout: (({ colors: _colors, accent_use: _accent, no_orange: _noOrange, table_style: _tableStyle, color_rule: _colorRule, ...rest }) => rest)(sovLayout(brand)),
+          layout: sovLayout(brand),
         },
         // 0.8.7: the host draws this bar chart (scheduled value by line) in the fixed palette, every host.
         chart: sovChart(sovLineRows(sov)),
@@ -1453,7 +1453,7 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
       },
     },
     "To produce the SOV file, use structuredContent.sov exactly: numbers, column set and layout recipe come from the server. Do not recompute or reorder.",
-    `Show the SOV from this result, including the Cost Code column next to the line no. Show money with cents. End with the delivery question word for word.`,
+    `Present the SOV as a spreadsheet with the line-item view by default (structuredContent.sov.line_items: line no., cost code, division, description, scheduled value, % of total, then the total that ties to the contract sum). Always include a Cost Code column right after the line no., filled from line_items cost_code (e.g. 26-010); never show the item number in its place. Money with cents everywhere, exactly as in the visible text and the *_display fields (e.g. $1,400,000.00); never round or drop the .00. Do not put a date sweep or any other block before the SOV. Claude: an artifact table built from this result with no tool calls inside it; ChatGPT: a canvas or table; elsewhere: a table plus an offer to create an Excel file. Table style: ${SOV_TABLE_STYLE} Colors: blue #2563EB and gray only, never orange, rust or the alert color, including totals. After the table, at most ONE line. The logo, footer gaps (structuredContent.sov.notes), billing note and the division roll-up offer only when the member asks. Line items carry cost_code and spec_section; keep both columns in any file. Chart colors: ${CHART_PALETTE.join(", ")} only. REQUIRED: end the reply with the SOV delivery question below, word for word, in every host including Claude.${audience === "client" ? " This is the owner/client SOV: offer options 1 and 2 only; never offer a chat link." : ""}`,
     SOV_CHART_RULE,
     sovDeliveryBlock(audience),
     EMAIL_CONTACT_RULE,

@@ -41,8 +41,8 @@ describe("0.8.20 /f/<token> on Cloudflare Workers", () => {
 
 describe("0.8.20 wording", () => {
   it("email_draft artifact line matches the Gantt pattern", () => {
-    expect(EMAIL_DRAFT_ARTIFACT_LINE).toBe("Show this email draft as a card. Do not send it.");
-    expect(CPM_GANTT_SPEC[0]).toBe("Show these activities as a schedule.");
+    expect(EMAIL_DRAFT_ARTIFACT_LINE).toMatch(/^REQUIRED VIEW: build ONE styled email-draft artifact/);
+    expect(CPM_GANTT_SPEC[0]).toMatch(/^REQUIRED VIEW/);
   });
   it("lookahead_pdf description is neutral: no imperatives to the model", () => {
     const d = String(

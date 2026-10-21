@@ -143,15 +143,20 @@ describe("0.8.10 CPM Gantt spec + desktop return", () => {
   it("cpm_activities sends the Gantt spec right after the Tie line", () => {
     const src = readFileSync("src/lib/mcp/tools/living-tools.ts", "utf8");
     expect(src).toMatch(/`Tie: \$\{tie\.line\}`\] : \[\]\),\s*\.\.\.CPM_GANTT_SPEC,/);
-    expect(CPM_GANTT_SPEC[0]).toBe("Show these activities as a schedule.");
-    expect(CPM_GANTT_SPEC).toHaveLength(3);
+    expect(CPM_GANTT_SPEC[0]).toMatch(/^REQUIRED VIEW/);
+    expect(CPM_GANTT_SPEC).toHaveLength(10);
     const all = CPM_GANTT_SPEC.join("\n");
-    expect(all).not.toMatch(/#[0-9A-Fa-f]{3,8}/);
+    expect(all).toContain("#2563EB");
+    expect(all).toContain("#9CA3AF");
+    expect(all).toContain('"Fragnet"');
+    expect(all).toContain('"Delay: +X WD (Y CD)"');
     expect(all).not.toMatch(/fragment/i);
   });
   it("delay callout color comes from one constant", () => {
     expect(DELAY_CALLOUT_COLOR).toBe("red #DC2626");
-    expect(CPM_GANTT_SPEC.join("\n")).not.toContain(DELAY_CALLOUT_COLOR);
+    const callout = CPM_GANTT_SPEC.filter((l) => l.includes(DELAY_CALLOUT_COLOR));
+    expect(callout).toHaveLength(1);
+    expect(callout[0]).toMatch(/^7\. Delay fragnets/);
   });
   it("desktop app returns keep a Return link", () => {
     expect(isAppHandoff("codex://oauth/callback?code=x")).toBe(true);

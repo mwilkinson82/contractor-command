@@ -39,7 +39,7 @@ describe("0.8.7 owner link hard no, SOV chart, date sweep", () => {
       value: 1000,
       value_display: "$1,000.00",
     });
-    expect(SOV_CHART_RULE).not.toMatch(/#[0-9A-Fa-f]{3,8}/);
+    expect(SOV_CHART_RULE).toContain("#2563EB");
     const w = src("./tools/workflow-tools.ts");
     expect(w).toContain("chart: sovChart(sovLineRows(sov)),");
     expect(w).toContain("SOV_CHART_RULE,");

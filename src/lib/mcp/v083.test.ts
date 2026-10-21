@@ -58,17 +58,15 @@ describe("0.8.3 retest fixes", () => {
   it("3. delivery question is a required next step, Claude included", () => {
     expect(SOV_DELIVERY_BLOCK).toContain(SOV_DELIVERY_ASK);
     expect(SOV_DELIVERY_BLOCK).toContain(SOV_DELIVERY_REQUIRED);
-    expect(SOV_DELIVERY_REQUIRED).toContain(
-      "End every SOV reply with the delivery question above, word for word",
-    );
+    expect(SOV_DELIVERY_REQUIRED).toContain("REQUIRED NEXT STEP, every host including Claude");
     expect(src("./index.ts")).toContain(
       "End every SOV reply with the delivery question from the result, word for word.",
     );
   });
   it("4. explicit chart palette, never red/rose/pink/orange", () => {
     expect(CHART_PALETTE[0]).toBe("#2563EB");
-    expect(HOST_DISPLAY_BLOCK).not.toContain(CHART_PALETTE_RULE);
-    expect(CHART_PALETTE_RULE).not.toMatch(/#[0-9A-Fa-f]{3,8}/);
+    expect(HOST_DISPLAY_BLOCK).toContain(CHART_PALETTE_RULE);
+    expect(CHART_PALETTE_RULE).toContain("Never rose, pink, orange, amber");
     expect(CHART_PALETTE[0]).toBe("#2563EB");
   });
   it("5. date sweep never on report, only when asked or at job open", () => {

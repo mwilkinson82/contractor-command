@@ -84,7 +84,7 @@ describe("delay result (2701 v3 shape)", () => {
   });
   it("pins the Gantt and the callout as REQUIRED", () => {
     const p = ganttPins(readDelay(v3));
-    expect(p[0]).toMatch(/^Show the schedule from the activities/);
+    expect(p[0]).toMatch(/^REQUIRED: .*styled Gantt/);
     expect(p[1]).toContain('"Delay: +15 WD (21 CD)" on D1060');
   });
 });

@@ -339,10 +339,10 @@ export function activityLine(a: Activity, showMoney: boolean): string {
 }
 
 export const CPM_REQUIRED_TOP = [
-  'When the member only asks to see the schedule (e.g. "pull up the schedule"), build a NEW private view or artifact. Do not update the saved copy unless the member explicitly asks to update or save it, and confirm with them first.',
-  "Use this activity list exactly as given. Do not recompute it or guess a value.",
-  "Show the count check and the tie line. If the count is short or it does not tie, say what is missing or the amount it is off by, and stop.",
-  "Use the saved contract completion date and the delay result shown here.",
+  "REQUIRED: When the user only asks to see the schedule (e.g. \"pull up the schedule\"), build a NEW private view or artifact. Never update, overwrite or replace the saved shared master or an existing shared artifact unless the user explicitly asks to update or save it, and confirm with them first.",
+  "REQUIRED: Use this activity list exactly as given: every ID, date, duration, logic tie, float, $ value and SOV line. Do not recompute, re-sequence, rebuild it from an earlier chat, or guess any value. Anything marked Needed stays Needed.",
+  "REQUIRED: Before drawing any CPM, billing forecast, drill-down, IOR or dashboard, show the count check line and the tie line below. If the count is short or it doesn't tie, say which activities are missing or the amount it's off by, and stop; never draw an over-contract total.",
+  "REQUIRED: Owner-furnished activities are schedule-only: $0.00 in ALP billing. Use the one saved contract completion date and the delay result shown here; never type in your own.",
 ].join("\n");
 
 /** Delay callout color: the shared alert color (alert-color.ts), so the Gantt and the server instructions never conflict. */
@@ -350,18 +350,26 @@ export const DELAY_CALLOUT_COLOR = ALERT_COLOR;
 
 /** v0.8.10: full Gantt spec, sent right after the Tie line so every host draws the same view. Blue and gray only, except the delay callout (DELAY_CALLOUT_COLOR). */
 export const CPM_GANTT_SPEC: string[] = [
-  "Show these activities as a schedule.",
-  "Use the dates, logic, float, and amounts exactly as given.",
-  "If the tie line does not match, show it and stop.",
+  "REQUIRED VIEW: When the user asks to see, show, draw or update the schedule, build ONE styled Gantt as an artifact or canvas, never a plain list or a default chart. Spec:",
+  "1. Header: the job name and version, the data date, then the Count check line and the Tie line word for word, then \"Contract completion: <date>\".",
+  "2. Layout: a white background, the activity table on the left (ID, Name, Dur WD, Start, Finish, Float, $), and a timeline on the right with month columns and week ticks.",
+  "3. Bars: critical activities (float 0) are solid blue #2563EB. Non-critical activities are gray #9CA3AF, with a light-gray float tail. Milestones are diamonds. Owner-furnished activities are outlined gray bars labeled \"Owner-furnished\".",
+  "4. Logic: thin predecessor connector lines, and the critical path highlighted end to end.",
+  "5. Today line: a dashed vertical line at the data date (or today if the data date is Needed), labeled.",
+  "6. Contract completion: a dashed vertical line labeled with the saved date.",
+  `7. Delay fragnets (only when a delay result exists): a hatched bar labeled \"Fragnet\", plus a ${DELAY_CALLOUT_COLOR} callout reading \"Delay: +X WD (Y CD)\", always both units: X = the fragnet duration in working days on the job calendar, Y = calendar days from the fragnet start to its finish, counting both days (e.g. 15 WD Nov 27 to Dec 17 = \"Delay: +15 WD (21 CD)\"), taken from the saved activities and delay result, and baseline ghost bars under the updated bars.`,
+  "8. Legend under the chart: Critical, Non-critical, Float, Milestone, Owner-furnished, Fragnet, Today.",
+  `9. Order rows by start date, keep IDs exactly as given and show all activities. All other colors are blue and gray only; the callout color is only for delays, risks and overdue items. No technical notes; one caveat line at most.`,
 ];
+
 
 /** 0.8.12: viewing never touches the shared master. */
 export const LIVING_VIEW_RULE =
-  'When the member only asks to see it (e.g. "pull up the schedule"), build a NEW private view or artifact from this data. Do not update the saved copy unless the user explicitly asks to update or save it, and confirm with them first.';
+  "REQUIRED: When the user only asks to see it (e.g. \"pull up the schedule\"), build a NEW private view or artifact from this data. Never update, overwrite or replace the saved shared master or an existing shared artifact unless the user explicitly asks to update or save it, and confirm with them first.";
 export const LIVING_REQUIRED_TOP = [
   LIVING_VIEW_RULE,
-  "This is the saved copy. Change only what moved. Mark it draft until the PM says yes.",
-  "Save a new version only after the PM says yes to this exact update.",
+  "REQUIRED: This is the saved master copy. When the user asks to update it: change only what moved, keep the layout, show the version, Last updated and \"What changed since last version\" line, and mark it \"Draft: not saved\" until the PM approves.",
+  "REQUIRED: Save a new version only after the PM says yes to this exact update. The forecast total must equal the contract to the cent and every activity must stay; Athena refuses the save otherwise.",
 ].join("\n");
 
 export const LIVING_SAVE_ASK = "Save this as the new version?";

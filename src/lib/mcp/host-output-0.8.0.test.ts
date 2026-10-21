@@ -3,30 +3,31 @@ import { readFileSync } from "node:fs";
 import { HOST_DISPLAY_BLOCK } from "./visible";
 
 describe("host output rules (0.8.0, v0.7.8 retest fixes)", () => {
-  it("contract output keeps the summary offer and folds missing notices into one line", () => {
-    expect(HOST_DISPLAY_BLOCK).toContain("Fold any missing or partial notices into one line");
-    expect(HOST_DISPLAY_BLOCK).toContain(
-      "Do you want me to summarize this legal text so you know what it means in plain English?",
-    );
+  it("contract output ends with the exact offer, missing notices folded into one line before it", () => {
+    expect(HOST_DISPLAY_BLOCK).toContain("then ONE line for any missing or partial notices");
+    expect(HOST_DISPLAY_BLOCK).toContain("the exact summary offer as the very last line. Nothing after the offer.");
   });
-  it("does not teach filler lines or a style recipe", () => {
-    expect(HOST_DISPLAY_BLOCK).not.toContain("Pulling up...");
-    expect(HOST_DISPLAY_BLOCK).not.toContain("Priority:");
-    expect(HOST_DISPLAY_BLOCK).not.toMatch(/#[0-9A-Fa-f]{3,8}/);
+  it("bans no-change lines and filler openers", () => {
+    expect(HOST_DISPLAY_BLOCK).toContain('Never write \"No changes were made\", \"No items were changed\"');
+    expect(HOST_DISPLAY_BLOCK).toContain('\"Pulling up...\"');
   });
-  it("SOV columns stay in the short instruction", () => {
-    expect(HOST_DISPLAY_BLOCK).toContain("line no., cost code, division");
+  it("dashboards: one caveat line, no Priority block", () => {
+    expect(HOST_DISPLAY_BLOCK).toContain('one caveat line at most and never a \"Priority:\" block');
+  });
+  it("Claude artifacts are static, no connector calls, at most 2 lines after", () => {
+    expect(HOST_DISPLAY_BLOCK).toContain("static data embedded from this tool result: no connector or MCP calls inside the artifact, no live refresh and no re-reading Athena. At most 2 lines of text after the artifact.");
+  });
+  it("SOV is a spreadsheet, line-item view by default", () => {
+    expect(HOST_DISPLAY_BLOCK).toContain("present it as a spreadsheet, line-item view by default");
     const src = readFileSync(new URL("./tools/workflow-tools.ts", import.meta.url), "utf8");
     expect(src).toContain('sov_view: z.enum(["lines", "divisions"])');
     expect(src).toContain("line_items: sovLineRows(sov)");
   });
-  it("palette prose is not sent to the host", () => {
-    const rule =
-      "blue #2563EB and gray only, never orange, rust or the alert color, including totals";
-    expect(HOST_DISPLAY_BLOCK).not.toContain(rule);
+  it("color rule covers charts, tables, totals and highlights everywhere they are styled", () => {
+    const rule = "blue #2563EB and gray only, never orange, rust or the alert color, including totals";
+    expect(HOST_DISPLAY_BLOCK).toContain(`Charts, tables, totals and highlights: ${rule}`);
     const src = readFileSync(new URL("./tools/workflow-tools.ts", import.meta.url), "utf8");
-    expect(src).not.toContain(rule);
-    expect(src).toContain("color_rule: _colorRule");
+    expect(src).toContain(`${rule}`);
     const sov = readFileSync(new URL("./sov.ts", import.meta.url), "utf8");
     expect(sov).toContain(`color_rule: "${rule}"`);
     expect(sov).not.toMatch(/#C8581E|cream/);

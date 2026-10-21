@@ -32,7 +32,9 @@ describe("0.8.12 alert color", () => {
     expect(ALERT_COLOR).toBe("red #DC2626");
     expect(ALERT_HEX).toBe("#DC2626");
     expect(DELAY_CALLOUT_COLOR).toBe(ALERT_COLOR);
-    expect(CPM_GANTT_SPEC.join("\n")).not.toContain(ALERT_COLOR);
+    expect(CPM_GANTT_SPEC.join("\n")).toContain(
+      `${ALERT_COLOR} callout reading "Delay: +X WD (Y CD)", always both units`,
+    );
   });
   it("switching is one line: alert-color.ts holds the only literal", () => {
     const lit = /"red #DC2626"|"charcoal #374151"/;
@@ -49,18 +51,18 @@ describe("0.8.12 alert color", () => {
     const idx = src("./index.ts");
     expect(idx).not.toContain("ALERT_PALETTE_RULE");
     expect(idx).not.toMatch(/never red|no red/i);
-    expect(HOST_DISPLAY_BLOCK).not.toContain(ALERT_PALETTE_RULE);
+    expect(HOST_DISPLAY_BLOCK).toContain(ALERT_PALETTE_RULE);
     expect(HOST_DISPLAY_BLOCK).not.toMatch(/never red|no red/i);
-    expect(CHART_PALETTE_RULE).not.toContain(ALERT_COLOR);
+    expect(CHART_PALETTE_RULE).toContain(ALERT_COLOR);
   });
 });
 
 describe("0.8.12 required views", () => {
   it("each spec is a short imperative with no palette", () => {
     for (const v of ALL_VIEWS) {
-      expect(v[0]).not.toMatch(/^REQUIRED VIEW/);
+      expect(v[0]).toMatch(/^REQUIRED VIEW – /);
       const all = v.join("\n");
-      expect(all).not.toMatch(/#[0-9A-Fa-f]{3,8}/);
+      expect(all).toContain("#2563EB");
       expect(all).not.toMatch(/lovable|supabase|fragment|orange #/i);
     }
     expect(EMAIL_VIEW_SPEC.join("\n")).toContain("Ready for your review");
@@ -152,24 +154,25 @@ describe("0.8.12 date sweep: grouped reminders only", () => {
       'render: "grouped_cards", groups: ["Overdue", "Due this week", "Later"], countdown_chips: true',
     );
     const r = REMINDERS_VIEW_SPEC.join("\n");
-    expect(r).toBe("Show these reminders from this result.");
-    expect(r).not.toMatch(/#[0-9A-Fa-f]{3,8}/);
+    expect(r).toContain("Due this week, Later");
+    expect(r).toContain("countdown chip");
   });
 });
 
 describe("0.8.12 IOR and portfolio views", () => {
   it("IOR spec: tie line, waterfall, red flags on top-3 risks via the shared constant", () => {
     const s = IOR_VIEW_SPEC.join("\n");
-    expect(IOR_VIEW_SPEC[0]).toMatch(/^Show the IOR from this result/);
-    expect(s).toContain("Use the amounts exactly as given");
-    expect(s).not.toContain(ALERT_COLOR);
+    expect(IOR_VIEW_SPEC[0]).toMatch(/^REQUIRED VIEW – IOR DASHBOARD/);
+    expect(s).toContain("Forecast total $X = contract $X");
+    expect(s).toContain("Waterfall chart");
+    expect(s).toContain(`${ALERT_COLOR} flags on the top 3 by weighted $`);
   });
   it("portfolio spec: access line, job cards, alert color only for down/delayed/at risk", () => {
     const s = PORTFOLIO_VIEW_SPEC.join("\n");
-    expect(PORTFOLIO_VIEW_SPEC[0]).toMatch(/^Show the portfolio from this result/);
-    expect(s).toContain("Use only the jobs in this result");
-    expect(s).not.toContain(ALERT_COLOR);
-    expect(s).not.toMatch(/#[0-9A-Fa-f]{3,8}/);
+    expect(PORTFOLIO_VIEW_SPEC[0]).toMatch(/^REQUIRED VIEW – COMPANY PORTFOLIO DASHBOARD/);
+    expect(s).toContain("only for owner/leadership roles. A PM sees only their own jobs");
+    expect(s).toContain(`${ALERT_COLOR} only when delayed or at risk`);
+    expect(s).toContain("budgeted in gray #9CA3AF, indicated in blue #2563EB");
   });
   it("no color literal in the specs besides the shared constant", () => {
     const raw = src("./views.ts");
@@ -219,9 +222,8 @@ describe("0.8.12 delay callout: WD and CD", () => {
   });
   it("specs never show the CD-only callout", () => {
     for (const f of ["./living.ts", "./views.ts"]) expect(src(f), f).not.toMatch(/\+X CD/);
-    expect(CPM_GANTT_SPEC.join("\n")).not.toContain("+X CD");
-    expect(delayCallout(15, "2026-11-27", "2026-12-17")).toContain("WD");
-    expect(delayCallout(15, "2026-11-27", "2026-12-17")).toContain("CD");
+    expect(CPM_GANTT_SPEC.join("\n")).toContain('15 WD Nov 27 to Dec 17 = "Delay: +15 WD (21 CD)"');
+    expect(PORTFOLIO_VIEW_SPEC.join("\n")).toContain("Delayed +X WD (Y CD), always both units");
   });
 });
 
