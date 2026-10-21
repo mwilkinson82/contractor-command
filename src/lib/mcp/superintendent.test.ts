@@ -380,7 +380,7 @@ describe("daily reminder", () => {
 });
 
 describe("migration", () => {
-  const sql = readFileSync("supabase/migrations/20261023010000_athena_superintendent.sql", "utf8");
+  const sql = readFileSync("supabase/migrations/20261023020000_athena_superintendent.sql", "utf8");
   it("only adds field tables, keeps super off dollars, and leaves the reminder off", () => {
     for (const t of ["mcp_field_activities", "mcp_daily_reports", "mcp_daily_work_lines", "mcp_production_rates", "mcp_field_schedule_feed", "mcp_progress_photos", "mcp_daily_reminders"]) {
       expect(sql).toContain(`CREATE TABLE IF NOT EXISTS public.${t}`);
