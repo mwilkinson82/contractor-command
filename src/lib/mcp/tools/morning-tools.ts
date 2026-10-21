@@ -10,7 +10,7 @@ import { guide } from "../visible";
 import { CONNECT_CHECK_RULE, withNextMove } from "../coach";
 import { FIELD_UPDATE_QUESTIONS, MORNING_BRIEFING_VIEW_SPEC, stripDollars, todaysActivities, visibleForRole, type BriefActivity } from "../morning";
 
-const READ = { readOnlyHint: true, openWorldHint: false, idempotentHint: true } as const;
+const READ = { readOnlyHint: true, destructiveHint: false, openWorldHint: false, idempotentHint: true } as const;
 type JobRow = { id: string; job_number: string; name: string; company_id: string; time_zone: string | null; pm_user_id: string | null };
 const LA_KEYS = { inspections: "inspection_list", deliveries: "deliveries", rfis: "rfi_log", submittals: "submittal_log" } as const;
 

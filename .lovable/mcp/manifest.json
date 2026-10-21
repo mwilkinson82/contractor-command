@@ -23,7 +23,7 @@
         "description": "Read or save the company profile Athena works for (role, work types, trades, tool stack, decision rights, default applicability), and add members as Owner, PM or All-access. Athena is for contractors running their own construction company: never offer a consulting option or frame anything as consulting. No job number is needed here; it is required when you create a job.",
         "annotations": {
           "readOnlyHint": false,
-          "destructiveHint": false,
+          "destructiveHint": true,
           "openWorldHint": false,
           "idempotentHint": true
         },
@@ -228,7 +228,7 @@
         "description": "Create a job (keyed by job number) and record its setup: job settings (time zone, PM), step 0 scoping, contract terms, contract deadlines, estimate handoff, budget and SOV, open items, a delay event, or a two-week lookahead. Missing data is recorded as unknown, never guessed. Record every delay, slip or schedule impact the member mentions with section delay_event before answering.",
         "annotations": {
           "readOnlyHint": false,
-          "destructiveHint": false,
+          "destructiveHint": true,
           "openWorldHint": false,
           "idempotentHint": false
         },
@@ -1086,7 +1086,7 @@
         "description": "Answer the current question (yes / no / na / unknown), mark an item or section N/A, re-enable it, or decline a re-enable suggestion. N/A only stops future questions; it never closes open items. Unknown opens a confirm item.",
         "annotations": {
           "readOnlyHint": false,
-          "destructiveHint": false,
+          "destructiveHint": true,
           "openWorldHint": false,
           "idempotentHint": false
         },
@@ -1194,6 +1194,7 @@
         "description": "Render the full job setup report (internal or client-facing), or the two-week lookahead report when lookahead_id is given. Client-facing reports leave out internal cost and strategy detail. To read back just the contract terms, use contract_terms instead. Contract clauses stay word for word; summaries only on request (include_summary true).",
         "annotations": {
           "readOnlyHint": true,
+          "destructiveHint": false,
           "openWorldHint": false,
           "idempotentHint": true
         },
@@ -1261,6 +1262,7 @@
         "description": "Read back a job's contract clauses word for word with section numbers, missing clauses and the applicability flags (ON / OFF / UNKNOWN). Show the clauses word for word first, then offer: 'Do you want me to summarize this legal text so you know what it means in plain English?' Only if the member says yes, call again with include_summary true for the plain-language notice requirements and saved summary fields. Never paraphrase a clause in place of its text. Use this, not the setup report, when the member asks what terms are on file or to confirm terms they just entered. Read-only.",
         "annotations": {
           "readOnlyHint": true,
+          "destructiveHint": false,
           "openWorldHint": false,
           "idempotentHint": true
         },
@@ -1346,6 +1348,7 @@
         "description": "List a job's open items with accountable person, needed-by date, verified or last-reported status, source and effects. Items under an N/A section are labeled for disposition. If the member hasn't named a company or a job, call list_open_items with no job_number (and no company_id): Athena lists the companies and their jobs itself, so don't ask the member to guess.",
         "annotations": {
           "readOnlyHint": true,
+          "destructiveHint": false,
           "openWorldHint": false,
           "idempotentHint": true
         },
@@ -1386,7 +1389,7 @@
         "description": "Close an open item with evidence, close a confirm item with a dated statement, waive it (decision right and reason required), close a commercial item on approval + billing + collection, or record a last-reported status update. N/A is not a resolution.",
         "annotations": {
           "readOnlyHint": false,
-          "destructiveHint": false,
+          "destructiveHint": true,
           "openWorldHint": false,
           "idempotentHint": false
         },
@@ -1475,6 +1478,7 @@
         "description": "REQUIRED: call this before drawing or updating any cost-loaded CPM, billing forecast, billing drill-down, coaching, IOR or dashboard. Returns every saved activity on the job (ID, name, duration, start/finish, predecessors and logic, total float, critical flag, % complete, $ value, SOV line, cost code), the count check (e.g. 39 of 39), the tie to the contract, the ONE saved contract completion date and the computed delay (TIA) result. Use these values exactly; never recompute, rebuild from an earlier chat, or guess them. Owner-furnished activities are $0.00 in ALP billing. Supers get the schedule with no dollars.",
         "annotations": {
           "readOnlyHint": true,
+          "destructiveHint": false,
           "openWorldHint": false,
           "idempotentHint": true
         },
@@ -1514,6 +1518,7 @@
         "description": "REQUIRED: call this before updating a cost-loaded CPM, billing forecast, IOR or PM dashboard, and when a new chat picks one up. Returns the saved master copy (latest or a named version) with its version, last-updated stamp, data date, data and change log. Viewing: build a new private view from it and never change the saved master. Updating (only when the user explicitly asks, after confirming): update that copy in place; never start a second saved one. Supers: CPM only, no dollars.",
         "annotations": {
           "readOnlyHint": true,
+          "destructiveHint": false,
           "openWorldHint": false,
           "idempotentHint": true
         },
@@ -2182,6 +2187,7 @@
         "description": "Read-only. Call once when the member says \"good morning\" (or \"Athena, good morning\", \"morning briefing\") or the daily check-in fires. Returns, scoped to the caller's role: today's top 3, overdue items and risks, today's lookahead activities, inspections and deliveries, RFIs and submittals, reminders with countdowns, and the field-update questions. Supers and field roles get no dollars; PMs get only their own jobs. Changes nothing.",
         "annotations": {
           "readOnlyHint": true,
+          "destructiveHint": false,
           "openWorldHint": false,
           "idempotentHint": true
         },

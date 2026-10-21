@@ -34,7 +34,7 @@ const short = (d: string) => z.string().max(2000).optional().describe(d);
 const tri = z.enum(["yes", "no", "na", "unknown"]);
 const doc = (what: string) => z.string().max(20_000).optional().describe(`${what}, as plain text. Leave out if you don't have it; it is recorded as unknown.`);
 const WRITE = { readOnlyHint: false, destructiveHint: false, openWorldHint: false } as const;
-const READ = { readOnlyHint: true, openWorldHint: false } as const;
+const READ = { readOnlyHint: true, destructiveHint: false, openWorldHint: false } as const;
 const MAX_INPUT = 20_000;
 
 function capInput(args: unknown) {
@@ -105,7 +105,7 @@ export const onboarding = defineTool({
     contact_phone: z.string().trim().max(40).optional().describe("save_brand: the contact's phone."),
     website: z.string().trim().max(200).optional().describe("save_brand: website printed in the SOV footer (plain text)."),
   },
-  annotations: { ...WRITE, idempotentHint: true },
+  annotations: { ...WRITE, destructiveHint: true, idempotentHint: true },
   handler: (args, ctx) =>
     run("onboarding", ctx, undefined, async (sb) => {
       capInput(args);
@@ -373,7 +373,7 @@ export const intake = defineTool({
     schedule_export: doc("lookahead: schedule export"), crews: doc("lookahead: crews/subs by day"), submittal_log: doc("lookahead: submittal log"),
     rfi_log: doc("lookahead: RFI log"), inspection_list: doc("lookahead: inspection list"), deliveries: doc("lookahead: deliveries list"),
   },
-  annotations: { ...WRITE, idempotentHint: false },
+  annotations: { ...WRITE, destructiveHint: true, idempotentHint: false },
   handler: (args, ctx) =>
     run("intake", ctx, { lookaheadId: undefined, jobNumber: args.job_number }, async (sb) => {
       capInput(args);
@@ -955,7 +955,7 @@ export const answer = defineTool({
     na_id: uuid.optional().describe("decline_reenable: na_id from the suggestion."),
     lookahead_id: laArg.optional().describe(`Only for a two-week lookahead question. ${LA_DESC}`),
   },
-  annotations: { ...WRITE, idempotentHint: false },
+  annotations: { ...WRITE, destructiveHint: true, idempotentHint: false },
   handler: (args, ctx) =>
     run("answer", ctx, { lookaheadId: args.lookahead_id, jobNumber: args.job_number }, async (sb) => {
       capInput(args);
@@ -1268,7 +1268,7 @@ export const resolveItem = defineTool({
     billing: z.string().max(1000).optional().describe("commercial_close: billing reference."),
     collection: z.string().max(1000).optional().describe("commercial_close: collection reference."),
   },
-  annotations: { ...WRITE, idempotentHint: false },
+  annotations: { ...WRITE, destructiveHint: true, idempotentHint: false },
   handler: (args, ctx) =>
     run("resolve_item", ctx, { lookaheadId: undefined, jobNumber: args.job_number }, async (sb) => {
       capInput(args);
