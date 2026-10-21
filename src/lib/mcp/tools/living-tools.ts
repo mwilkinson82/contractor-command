@@ -1,5 +1,5 @@
 // 0.8.9: cpm_activities (full activity handoff), living_report_get and living_report_save (master copy per job).
-import { readDelay, ganttPins, noteDateConflicts, pageLine } from "../styled-views";
+import { readDelay, ganttPins, noteDateConflicts, pageLine, payAppView, emptyCard, type Billing } from "../styled-views";
 import { pageUrl } from "../../report-pages";
 import { IOR_VIEW_SPEC, PAY_APP_VIEW_SPEC, PORTFOLIO_VIEW_SPEC } from "../views";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
@@ -175,6 +175,13 @@ export const livingReportGet = defineTool({
       const g = await getReport(sb, job, type, args.version);
       await audit(sb, job, "living_report_get", `view_living_${type}`, null);
       const label = LIVING_LABEL[type];
+      if (!g.found && type === "billing_forecast" && job.scope === "full") {
+        // 0.8.17: styled empty pay-app card with the hosted page and a Next move.
+        return guide(
+          { ...text(`${prefix(job)}${emptyCard("pay_app", `${job.job_number} – ${job.name}`, "Send the billed-to-date figure and the latest pay app; Athena builds the forecast from the saved schedule, ties it to the contract, and saves it as version 1 after the PM approves.", ["Billed to date", "Latest pay app (SOV lines)"], pageUrl("payapp", job.job_id))}`), structuredContent: { found: false, report_type: type, version: 0 } },
+          `Nothing saved: build the ${label} from Athena's data, mark it "Draft: not saved", and after the PM says yes call living_report_save with base_version 0.`,
+        );
+      }
       if (!g.found) {
         return guide(
           { ...text(`${prefix(job)}No saved ${label} for this job yet. Build it once, then save it as version 1 after the PM approves.`), structuredContent: { found: false, report_type: type, version: 0 } },
@@ -188,7 +195,7 @@ export const livingReportGet = defineTool({
       const log = logLines(g);
       return guide(
         {
-          ...text([...(pageFor(type, job.scope) ? [pageLine(label, pageUrl(pageFor(type, job.scope)! as "ior" | "schedule", job.job_id))] : type === "dashboard" && job.scope === "full" ? [pageLine("portfolio dashboard", pageUrl("portfolio", job.company_id))] : []), LIVING_REQUIRED_TOP, `${prefix(job)}${job.name} · ${label}`, stamp(g), ...(tie ? [`Tie: ${tie.line}`] : []), ...(type === "cpm" ? [...CPM_GANTT_SPEC, ...(readDelay(data as Record<string, unknown>) ? [readDelay(data as Record<string, unknown>)!.line] : []), ...ganttPins(readDelay(data as Record<string, unknown>))] : []), ...(type === "billing_forecast" && job.scope === "full" ? PAY_APP_VIEW_SPEC : []), ...(type === "ior" && job.scope === "full" ? IOR_VIEW_SPEC : []), ...(type === "dashboard" && job.scope === "full" ? PORTFOLIO_VIEW_SPEC : []), "", "Change log (latest 5):", ...(log.length ? log : ["- None yet."])].join("\n")),
+          ...text([...(type === "billing_forecast" && job.scope === "full" ? [payAppView({ title: `${job.job_number} – ${job.name}`, version: g.version, dataDate: g.data_date ?? null, billing: (data as { billing?: Billing }).billing ?? null, contract, pageUrl: pageUrl("payapp", job.job_id) }), "", "---"] : []), ...(pageFor(type, job.scope) ? [pageLine(label, pageUrl(pageFor(type, job.scope)! as "ior" | "schedule", job.job_id))] : type === "dashboard" && job.scope === "full" ? [pageLine("portfolio dashboard", pageUrl("portfolio", job.company_id))] : []), LIVING_REQUIRED_TOP, `${prefix(job)}${job.name} · ${label}`, stamp(g), ...(tie ? [`Tie: ${tie.line}`] : []), ...(type === "cpm" ? [...CPM_GANTT_SPEC, ...(readDelay(data as Record<string, unknown>) ? [readDelay(data as Record<string, unknown>)!.line] : []), ...ganttPins(readDelay(data as Record<string, unknown>))] : []), ...(type === "billing_forecast" && job.scope === "full" ? PAY_APP_VIEW_SPEC : []), ...(type === "ior" && job.scope === "full" ? IOR_VIEW_SPEC : []), ...(type === "dashboard" && job.scope === "full" ? PORTFOLIO_VIEW_SPEC : []), "", "Change log (latest 5):", ...(log.length ? log : ["- None yet."])].join("\n")),
           structuredContent: { found: true, report_type: type, version: g.version, data_date: g.data_date ?? null, updated_at: g.updated_at ?? null, updated_by: g.updated_by_name ?? null, contract_completion_date: g.contract_completion_date ?? null, tie, data: data as never, change_log: g.change_log ?? [], no_financials: job.scope !== "full" },
         },
         `Say "Picked up v${g.version}${g.updated_by_name ? `, last updated by ${g.updated_by_name}` : ""}." For a view-only ask, build a NEW private view or artifact from structuredContent.data in the same layout; never update or replace the saved shared master or an existing shared artifact. Only when the user explicitly asks to update or save it, confirm first, then to save the update ask "${LIVING_SAVE_ASK}" and only after a yes call living_report_save with base_version ${g.version}.`,

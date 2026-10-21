@@ -99,6 +99,22 @@ export function windowFromDataDate(dataDate: string): { start: string; end: stri
   while (dow(s) !== 1) s = addDays(s, 1);
   return { start: s, end: addDays(s, 11) };
 }
+/**
+ * 0.8.17: the lookahead window always comes from the saved CPM data date (the next two work weeks), never from a stale
+ * saved lookahead, a change-log note ("data date November 2") or an earlier chat. A saved window is used only when no CPM
+ * data date exists. Marshall's 2701 test: CPM data date 2026-10-19 → Oct 26 – Nov 6, not Nov 2 – 13.
+ */
+export function lookaheadWindow(saved: { start_date?: string | null; end_date?: string | null } | null | undefined, cpmDataDate: string | null | undefined): { start: string; end: string; source: "cpm" | "saved"; note: string | null } | null {
+  if (cpmDataDate) {
+    const w = windowFromDataDate(cpmDataDate);
+    const differs = !!(saved?.start_date && saved.end_date && (saved.start_date !== w.start || saved.end_date !== w.end));
+    return { ...w, source: "cpm", note: differs ? `The saved lookahead window (${shortDate(saved!.start_date!)} – ${shortDate(saved!.end_date!)}) doesn't match the CPM data date; this view uses the CPM data date ${shortDate(cpmDataDate.slice(0, 10))}.` : null };
+  }
+  if (saved?.start_date && saved.end_date) return { start: saved.start_date, end: saved.end_date, source: "saved", note: null };
+  return null;
+}
+export const dataDateRule = (dd: string, version?: number | null) => `REQUIRED: the data date is ${dd}${version ? ` (saved CPM v${version})` : " (saved CPM)"}. Use it and this window everywhere, including emails; never a date from a change-log note, an older lookahead or an earlier chat.`;
+
 export function workdays(start: string, end: string): string[] {
   const out: string[] = [];
   for (let d = start; d <= end && out.length < 20; d = addDays(d, 1)) if (dow(d) !== 0 && dow(d) !== 6) out.push(d);
@@ -116,56 +132,141 @@ const isMilestone = (a: SAct) => num(a.duration) === 0;
 const critical = (a: SAct) => a.critical === true || num(a.total_float) === 0;
 const itemHits = (a: SAct, it: LaItem) => it.action.includes(a.id) || (isInspection(a) && /inspection/i.test(it.action) && !!a.finish && it.action.includes(a.finish.slice(0, 10)));
 
+export type Cell = "crit" | "non" | "insp" | "deliv" | "mile" | "";
+export type LaModel = { days: string[]; rows: { a: SAct; cells: { kind: Cell; risk: boolean }[] }[]; top: LaItem[]; risks: { item: LaItem; a: SAct }[]; counts: { activities: number; critical: number; inspections: number; deliveries: number; risks: number } };
+/** One model behind both the chat view and the hosted page, so they always agree. */
+export function lookaheadModel(start: string, end: string, allActs: SAct[], items: LaItem[]): LaModel {
+  const days = workdays(start, end);
+  const acts = windowActivities(allActs, start, end);
+  const risks = items.flatMap((item) => { const a = acts.find((x) => itemHits(x, item)); return a ? [{ item, a }] : []; });
+  const top = [...items].sort((a, b) => (a.due ?? "9999").localeCompare(b.due ?? "9999")).slice(0, 3);
+  const rows = acts.map((a) => {
+    const risky = items.some((it) => itemHits(a, it));
+    const cells = days.map((d) => {
+      if (d < a.start!.slice(0, 10) || d > a.finish!.slice(0, 10)) return { kind: "" as Cell, risk: false };
+      const onEnd = d === a.finish!.slice(0, 10);
+      if (isMilestone(a)) return { kind: "mile" as Cell, risk: risky };
+      if (isInspection(a)) return { kind: (onEnd ? "insp" : "") as Cell, risk: risky && onEnd };
+      if (isDelivery(a)) return { kind: (onEnd ? "deliv" : "") as Cell, risk: risky && onEnd };
+      return { kind: (critical(a) ? "crit" : "non") as Cell, risk: risky && onEnd };
+    });
+    return { a, cells };
+  });
+  return { days, rows, top, risks, counts: { activities: acts.length, critical: acts.filter(critical).length, inspections: acts.filter(isInspection).length, deliveries: acts.filter(isDelivery).length, risks: risks.length } };
+}
+const ICON: Record<Cell, string> = { crit: "🔵", non: "⚪", insp: "📋", deliv: "🚚", mile: "◆", "": "" };
+export const dayHead = (d: string) => `${DOW[dow(d)]} ${md(d)}`;
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
 /** The lookahead as a finished markdown view: header and counts, top 3, calendar strip, risk cards, legend. */
 export function lookaheadView(v: { title: string; ref: string; start: string; end: string; dataDate: string | null; acts: SAct[]; items: LaItem[]; highlight?: string | null; pageUrl?: string | null }): string {
-  const days = workdays(v.start, v.end);
-  const acts = windowActivities(v.acts, v.start, v.end);
-  const risks = v.items.filter((it) => acts.some((a) => itemHits(a, it)));
-  const insp = acts.filter(isInspection).length, deliv = acts.filter(isDelivery).length;
-  const top = [...v.items].sort((a, b) => (a.due ?? "9999").localeCompare(b.due ?? "9999")).slice(0, 3);
+  const m = lookaheadModel(v.start, v.end, v.acts, v.items);
   const L: string[] = [];
   if (v.pageUrl) L.push(pageLine("lookahead", v.pageUrl), "");
   L.push(SHOW_AS_IS, "", `## ${v.title} · Two-Week Lookahead`);
   L.push(`**Window:** ${shortDate(v.start)} – ${shortDate(v.end)}${v.dataDate ? ` · **Data date:** ${shortDate(v.dataDate)}` : ""} · **Ref:** ${v.ref}`);
-  L.push(`**Counts:** ${acts.length} activities · ${acts.filter(critical).length} critical · ${insp} inspection${insp === 1 ? "" : "s"} · ${deliv} deliver${deliv === 1 ? "y" : "ies"} · ${risks.length} risk${risks.length === 1 ? "" : "s"}`, "");
+  const c = m.counts;
+  L.push(`**Counts:** ${plural(c.activities, "activity", "activities")} · ${c.critical} critical · ${plural(c.inspections, "inspection", "inspections")} · ${plural(c.deliveries, "delivery", "deliveries")} · ${plural(c.risks, "risk", "risks")}`, "");
   L.push("### Top 3 priorities", "| # | Action | Owner | Due |", "|---|---|---|---|");
-  if (top.length) top.forEach((t, i) => L.push(`| ${i + 1} | ${t.action.replace(/\|/g, "/")} | ${t.owner ?? "Needed"} | ${t.due ? shortDate(t.due) : "Needed"} |`));
+  if (m.top.length) m.top.forEach((t, i) => L.push(`| ${i + 1} | ${t.action.replace(/\|/g, "/")} | ${t.owner ?? "Needed"} | ${t.due ? shortDate(t.due) : "Needed"} |`));
   else L.push("| – | No open items in this window | – | – |");
   L.push("", "### Calendar strip", "🔵 critical (blue #2563EB) · ⚪ non-critical (gray #9CA3AF) · 📋 inspection · 🚚 delivery · ◆ milestone · 🚩 risk (red #DC2626)", "");
-  const head = days.map((d, i) => `${i === 0 ? "**Week 1:** " : i === 5 ? "**Week 2:** " : ""}${d === v.highlight ? "**" : ""}${DOW[dow(d)].charAt(0)} ${md(d)}${d === v.highlight ? "**" : ""}`);
-  L.push(`| Activity | Float | ${head.join(" | ")} |`, `|---|---|${days.map(() => "---").join("|")}|`);
-  for (const a of acts) {
-    const risky = v.items.some((it) => itemHits(a, it));
-    const cells = days.map((d) => {
-      if (d < a.start!.slice(0, 10) || d > a.finish!.slice(0, 10)) return "";
-      const onEnd = d === a.finish!.slice(0, 10);
-      if (isMilestone(a)) return `◆${risky ? "🚩" : ""}`;
-      if (isInspection(a)) return onEnd ? `📋${risky ? "🚩" : ""}` : "";
-      if (isDelivery(a)) return onEnd ? `🚚${risky ? "🚩" : ""}` : "";
-      return `${critical(a) ? "🔵" : "⚪"}${risky && onEnd ? "🚩" : ""}`;
-    });
-    L.push(`| ${a.id} ${a.name.replace(/\|/g, "/")} | ${num(a.total_float) ?? ""} | ${cells.join(" | ")} |`);
-  }
-  if (!acts.length) L.push(`| No saved CPM activities fall in this window | | ${days.map(() => "").join(" | ")} |`);
-  if (risks.length) {
+  const head = m.days.map((d, i) => `${i === 0 ? "**Week 1:** " : i === 5 ? "**Week 2:** " : ""}${d === v.highlight ? "**" : ""}${DOW[dow(d)].charAt(0)} ${md(d)}${d === v.highlight ? "**" : ""}`);
+  L.push(`| Activity | Float | ${head.join(" | ")} |`, `|---|---|${m.days.map(() => "---").join("|")}|`);
+  for (const r of m.rows) L.push(`| ${r.a.id} ${r.a.name.replace(/\|/g, "/")} | ${num(r.a.total_float) ?? ""} | ${r.cells.map((x) => `${ICON[x.kind]}${x.risk ? "🚩" : ""}`).join(" | ")} |`);
+  if (!m.rows.length) L.push(`| No saved CPM activities fall in this window | | ${m.days.map(() => "").join(" | ")} |`);
+  if (m.risks.length) {
     L.push("", "### Risk cards");
-    for (const r of risks) {
-      const a = acts.find((x) => itemHits(x, r))!;
-      L.push(`> 🚩 **${r.action.replace(/\s+/g, " ").slice(0, 140)}** — Impact: ${a.id} ${a.name}${num(a.total_float) !== null ? ` (float ${num(a.total_float)} WD)` : ""}. Owner: ${r.owner ?? "Needed"} · Due ${r.due ? shortDate(r.due) : "Needed"}.`, "");
-    }
+    for (const { item: r, a } of m.risks) L.push(`> 🚩 **${r.action.replace(/\s+/g, " ").slice(0, 140)}** — Impact: ${a.id} ${a.name}${num(a.total_float) !== null ? ` (float ${num(a.total_float)} WD)` : ""}. Owner: ${r.owner ?? "Needed"} · Due ${r.due ? shortDate(r.due) : "Needed"}.`, "");
   }
   L.push("", "**Legend:** 🔵 Critical · ⚪ Non-critical · 📋 Inspection · 🚚 Delivery · ◆ Milestone · 🚩 Risk");
   return L.join("\n");
 }
 
+// ---------- pay app ----------
+export type Billing = { billed_to_date?: number | null; months?: { month: string; amount: number; kind: "actual" | "forecast" }[] };
+const usd = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const monthLabel = (m: string) => `${MON[+m.slice(5, 7) - 1]} ${m.slice(0, 4)}`;
+export type PayModel = { billed: number; forecast: number; total: number; contract: number | null; left: number | null; months: { month: string; amount: number; kind: string; cum: number }[]; tie: string | null };
+export function payModel(b: Billing | null | undefined, contract: number | null): PayModel {
+  const months = [...(b?.months ?? [])].sort((x, y) => x.month.localeCompare(y.month));
+  let cum = 0;
+  const rows = months.map((m) => ({ ...m, cum: (cum = Math.round((cum + m.amount) * 100) / 100) }));
+  const actual = months.filter((m) => m.kind === "actual").reduce((s, m) => s + m.amount, 0);
+  const billed = Math.round((b?.billed_to_date ?? actual) * 100) / 100;
+  const total = Math.round(months.reduce((s, m) => s + m.amount, 0) * 100) / 100;
+  const forecast = Math.round(months.filter((m) => m.kind === "forecast").reduce((s, m) => s + m.amount, 0) * 100) / 100;
+  const tie = contract === null ? null : Math.round(total * 100) === Math.round(contract * 100) ? `Forecast total ${usd(total)} = contract ${usd(contract)}` : `Doesn't tie: forecast ${usd(total)} vs contract ${usd(contract)}, off by ${usd(Math.abs(total - contract))}`;
+  return { billed, forecast, total, contract, left: contract === null ? null : Math.round((contract - billed) * 100) / 100, months: rows, tie };
+}
+export function payAppView(v: { title: string; version?: number | null; dataDate?: string | null; billing: Billing | null | undefined; contract: number | null; pageUrl?: string | null }): string {
+  const m = payModel(v.billing, v.contract);
+  const L: string[] = [];
+  if (v.pageUrl) L.push(pageLine("pay app", v.pageUrl), "");
+  L.push(SHOW_AS_IS, "");
+  if (m.tie) L.push(`**${m.tie}**`, "");
+  L.push(`## ${v.title} · Pay App & Billing Forecast`, `${v.version ? `v${v.version}` : ""}${v.dataDate ? ` · Data date ${shortDate(v.dataDate)}` : ""}`, "");
+  L.push("| Billed to date | Forecast remaining | Contract | Left to bill |", "|---|---|---|---|", `| ${usd(m.billed)} | ${usd(m.forecast)} | ${m.contract === null ? "Needed" : usd(m.contract)} | ${m.left === null ? "Needed" : usd(m.left)} |`, "");
+  L.push("### Monthly billing", "| Month | Type | Amount | Cumulative |", "|---|---|---|---|");
+  for (const r of m.months) L.push(`| ${monthLabel(r.month)} | ${r.kind === "actual" ? "🔵 Billed" : "⚪ Forecast"} | ${usd(r.amount)} | ${usd(r.cum)} |`);
+  L.push(`| **Total** | | **${usd(m.total)}** | |`, "", "**Legend:** 🔵 Billed (blue #2563EB) · ⚪ Forecast (gray #9CA3AF) · red #DC2626 only when it doesn't tie", "", "Want it as Excel or PDF?");
+  return L.join("\n");
+}
+
+// ---------- morning briefing ----------
+export type BriefItem = { action: string; owner?: string | null; due?: string | null; type?: string | null };
+export function briefingModel(items: BriefItem[], today: string) {
+  const in7 = addDays(today, 7), in14 = addDays(today, 14);
+  const due = (i: BriefItem) => (i.due ?? "").slice(0, 10);
+  return {
+    overdue: items.filter((i) => i.due && due(i) < today),
+    today: items.filter((i) => due(i) === today),
+    week: items.filter((i) => i.due && due(i) > today && due(i) <= in7),
+    next: items.filter((i) => i.due && due(i) > in7 && due(i) <= in14),
+    undated: items.filter((i) => !i.due),
+  };
+}
+export function briefingView(v: { title: string; today: string; items: BriefItem[]; pageUrl?: string | null }): string {
+  const m = briefingModel(v.items, v.today);
+  const L: string[] = [];
+  if (v.pageUrl) L.push(pageLine("morning briefing", v.pageUrl), "");
+  L.push(SHOW_AS_IS, "", `## ${v.title} · Morning Briefing`, `**${shortDate(v.today)}**`, "");
+  L.push("| 🚩 Overdue | Due today | Next 7 days | 8–14 days |", "|---|---|---|---|", `| ${m.overdue.length} | ${m.today.length} | ${m.week.length} | ${m.next.length} |`, "");
+  const sec = (h: string, list: BriefItem[], flag = false) => {
+    if (!list.length) return;
+    L.push(`### ${h}`, "| Item | Owner | Due |", "|---|---|---|");
+    for (const i of list.slice(0, 12)) L.push(`| ${flag ? "🚩 " : ""}${i.action.replace(/\|/g, "/").replace(/\s+/g, " ").slice(0, 160)} | ${i.owner ?? "Needed"} | ${i.due ? shortDate(i.due.slice(0, 10)) : "Needed"} |`);
+    if (list.length > 12) L.push(`| …and ${list.length - 12} more | | |`);
+    L.push("");
+  };
+  sec("Overdue", m.overdue, true); sec("Due today", m.today); sec("Next 7 days", m.week); sec("8–14 days", m.next);
+  if (!m.overdue.length && !m.today.length && !m.week.length && !m.next.length) L.push("> ⚪ Nothing due in the next 14 days.", "");
+  L.push(`**Next move:** ${m.overdue[0] ? `${m.overdue[0].owner ?? "The PM"} closes "${m.overdue[0].action.replace(/\s+/g, " ").slice(0, 80)}" today.` : m.today[0] ? `Close "${m.today[0].action.replace(/\s+/g, " ").slice(0, 80)}" today.` : "Nothing urgent; review the next 7 days."}`);
+  return L.join("\n");
+}
+
 // ---------- styled empty states ----------
-export function emptyCard(kind: "lookahead" | "pay_app", title: string, next: string, missing: string[] = []): string {
+export function emptyCard(kind: "lookahead" | "pay_app", title: string, next: string, missing: string[] = [], pageUrl?: string | null): string {
   const label = kind === "lookahead" ? "Two-Week Lookahead" : "Pay App";
   return [
+    ...(pageUrl ? [pageLine(kind === "lookahead" ? "lookahead" : "pay app", pageUrl), ""] : []),
     SHOW_AS_IS, "",
     `## ${title} · ${label}`,
     `> ⚪ **Nothing to show yet.** ${kind === "lookahead" ? "No saved schedule activities fall in this window." : "No billing has been saved for this job yet."}`,
     ...(missing.length ? ["", "| Needed | Status |", "|---|---|", ...missing.map((m) => `| ${m} | Needed |`)] : []),
     "", `**Next move:** ${next}`,
   ].join("\n");
+}
+
+// ---------- which lookahead a read uses ----------
+export type LaRow = { id: string; start_date: string | null; end_date: string | null; created_at: string; items: number };
+/**
+ * 0.8.17: job 2701 had two lookaheads, LA-37D09 (no items) and LA-31BE8 (the real one). Reads pick the newest one that
+ * has content (any open item linked to it); an empty one is used only when every lookahead is empty.
+ */
+export function pickLatestLookahead(rows: LaRow[]): LaRow | null {
+  const k = (v: string | null) => v ?? "";
+  const newest = (a: LaRow, b: LaRow) => (!a.start_date !== !b.start_date ? (a.start_date ? -1 : 1) : k(b.start_date).localeCompare(k(a.start_date)) || k(b.end_date).localeCompare(k(a.end_date)) || b.created_at.localeCompare(a.created_at));
+  const sorted = [...rows].sort(newest);
+  return sorted.find((r) => r.items > 0) ?? sorted[0] ?? null;
 }

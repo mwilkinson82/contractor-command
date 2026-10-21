@@ -4,7 +4,7 @@ import { ATHENA_VERSION } from "../server-info-branding";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
-import { ITEM_COLS, READ_ONLY_MESSAGE, FULL_ACCESS_MESSAGE, activeNa, audit, flagWord, itemLine, itemType, jobTimeZone, prefix, renderSetupReport, resolveCompany, resolveJob, type Job } from "../jobs";
+import { ITEM_COLS, READ_ONLY_MESSAGE, FULL_ACCESS_MESSAGE, activeNa, audit, flagWord, itemLine, itemType, jobTimeZone, prefix, renderSetupReport, resolveCompany, resolveJob, currentCompany, type Job } from "../jobs";
 import { computeDue, todayIn, type DayType } from "../deadlines";
 import { INPUT_KEYS, INPUT_LABELS, currentCheck, loadAnswers, loadChecks, loadLookahead, renderReport, type InputKey } from "../workflow";
 import { WARRANTY_CHECK_PREFIX, WARRANTY_SETUP_QUESTIONS, mapTrigger, nextWarrantyQuestion, CONTRACT_WARRANTY_KEY, alignCloseoutSource, renderWarrantyRegister, warrantyAnswerFacts, warrantyHow, warrantyOpenItems, type WarrantyKey } from "../warranty";
@@ -14,7 +14,7 @@ import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
 import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
 import { guide, EMAIL_TO_LABEL_REQUIRED, SHARE_OPTIONS_REQUIRED, REPORT_SHARE_ASK, REPORT_SHARE_STRUCTURED, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_CHART_RULE, sovChart, sovRequiredTop, sovDeliveryAsk, sovDeliveryBlock, sovDeliveryStructured, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
 import { withoutClaims } from "../internal-claims";
-import { emptyCard, lookaheadView, pageLine, windowActivities, windowFromDataDate, type LaItem, type SAct } from "../styled-views";
+import { briefingView, dataDateRule, pickLatestLookahead, type LaRow, emptyCard, lookaheadView, lookaheadWindow, pageLine, windowActivities, type LaItem, type SAct } from "../styled-views";
 import { pageUrl } from "../../report-pages";
 import { EMAIL_VIEW_SPEC, LOOKAHEAD_VIEW_SPEC, REMINDERS_VIEW_SPEC, highlightLine, lookaheadHighlight } from "../views";
 import { EMAIL_CONTACT_RULE, contactForRole, dedupeNotices, emailContact, fillNotice, jobContacts } from "../contacts";
@@ -27,10 +27,10 @@ import { LOOKAHEAD_BUILD_QUESTIONS, LOOKAHEAD_EXISTS_ASK, LOOKAHEAD_PUSHBACK, LO
 
 const uuid = z.string().uuid();
 const laArg = z.string().trim().min(1).max(64);
-const LA_DESC = "The lookahead ref as printed (e.g. LA-3F2A1) or its lookahead_id.";
+const LA_DESC = "The lookahead ref as printed (e.g. LA-3F2A1) or its lookahead_id, or \"latest\" for the newest lookahead that has content.";
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
 const jobNumber = z.string().trim().min(1).max(40).describe("Job number, exact match (e.g. 2417).");
-const companyId = z.string().trim().min(1).max(200).optional().describe("Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. If the member hasn't named one, call list_open_items with no job_number to list the companies.");
+const companyId = z.string().trim().min(1).max(200).optional().describe("Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it (e.g. \"ALP Construction\"); a company id also works. Not case-sensitive. Leave it out otherwise: Athena uses the member's current company, so don't make an extra call to list companies first.");
 const short = (d: string) => z.string().max(2000).optional().describe(d);
 const tri = z.enum(["yes", "no", "na", "unknown"]);
 const doc = (what: string) => z.string().max(20_000).optional().describe(`${what}, as plain text. Leave out if you don't have it; it is recorded as unknown.`);
@@ -836,7 +836,11 @@ async function attachToLookahead(sb: Sb, itemId: string, lookaheadId: string) {
 
 async function lookaheadForJob(sb: Sb, job: Job, input: string) {
   let id = input.trim();
-  if (!isUuid(id)) {
+  if (/^latest$/i.test(id)) {
+    const pick = pickLatestLookahead(await lookaheadRows(sb, job));
+    if (!pick) throw new ToolError(`Job ${job.job_number} has no lookahead yet. Build one with intake section "lookahead".`);
+    id = pick.id;
+  } else if (!isUuid(id)) {
     const pre = parseLookaheadRef(id);
     if (!pre) throw new ToolError("Lookahead not found. Use the lookahead ref (LA-…) printed when it was created, or list the job's open items to see each ref.");
     const { data, error } = await sb.from("mcp_lookaheads").select("id, inputs").eq("job_id", job.job_id);
@@ -1177,7 +1181,13 @@ export async function listCompaniesAndJobs(sb: Sb, companyId?: string): Promise<
   const { data: cos, error } = await sb.from("mcp_companies").select("id, name");
   if (error) throw new Error(error.message);
   let companies = (cos ?? []) as { id: string; name: string | null }[];
+  let others: string[] = [];
   if (companyId?.trim()) { const cid = await resolveCompany(sb, companyId); companies = companies.filter((c) => c.id === cid); }
+  else if (companies.length > 1) {
+    // 0.8.17: default to the member's current company; name the others once instead of listing all their jobs.
+    const cur = await currentCompany(sb);
+    if (cur && companies.some((c) => c.id === cur)) { others = companies.filter((c) => c.id !== cur).map((c) => c.name ?? "unnamed company"); companies = companies.filter((c) => c.id === cur); }
+  }
   if (!companies.length) return 'No company set up yet. Call onboarding with action "save_company" first.';
   const { data: jobs, error: je } = await sb.from("mcp_jobs").select("job_number, name, company_id").in("company_id", companies.map((c) => c.id));
   if (je) throw new Error(je.message);
@@ -1187,6 +1197,7 @@ export async function listCompaniesAndJobs(sb: Sb, companyId?: string): Promise<
     const mine = js.filter((j) => j.company_id === c.id).sort((a, b) => a.job_number.localeCompare(b.job_number));
     out.push(`- ${c.name ?? "unnamed company"}: ${mine.length ? mine.map((j) => `${j.job_number}${j.name ? ` (${j.name})` : ""}`).join(", ") : "no jobs yet"}`);
   }
+  if (others.length) out.push(`(Using your current company. Also yours: ${others.join(", ")}; name one to switch.)`);
   out.push("Which job should I list open items for?");
   return out.join("\n");
 }
@@ -1220,7 +1231,10 @@ export const listOpenItems = defineTool({
           .slice(0, 10);
         const revOf = new Map<string, number | null>();
         for (const l of sorted) revOf.set(l.id, await currentRev(sb, l.id));
-        if (sorted.length) laBlock = `\n\nLookaheads (newest first):\n${sorted.map((l: { id: string; start_date: string | null; end_date: string | null }) => `- ${lookaheadRef(l.id)}: ${l.start_date ?? "dates unknown"}${l.end_date ? ` to ${l.end_date}` : ""}${revOf.get(l.id) != null ? ` (Rev ${revOf.get(l.id)})` : ""}`).join("\n")}`;
+        const rowsLa = await lookaheadRows(sb, job);
+        const latest = pickLatestLookahead(rowsLa);
+        const empty = new Set(rowsLa.filter((r) => r.items === 0).map((r) => r.id));
+        if (sorted.length) laBlock = `\n\nLookaheads (newest first):\n${sorted.map((l: { id: string; start_date: string | null; end_date: string | null }) => `- ${lookaheadRef(l.id)}: ${l.start_date ?? "dates unknown"}${l.end_date ? ` to ${l.end_date}` : ""}${revOf.get(l.id) != null ? ` (Rev ${revOf.get(l.id)})` : ""}${l.id === latest?.id ? " — use this one (latest with content)" : empty.has(l.id) ? " — empty" : ""}`).join("\n")}`;
       }
       const laHead = la ? `Lookahead ${lookaheadRef(la.id)}: ` : "";
       const [{ data, error }, nas] = await Promise.all([q.order("needed_by", { nullsFirst: false }).limit(200), activeNa(sb, job.job_id)]);
@@ -1240,7 +1254,9 @@ export const listOpenItems = defineTool({
       const dupCount = [...deduped.duplicates.values()].reduce((n, d) => n + d.length, 0);
       const ec = emailContact(contactForRole(contacts, "Project Manager"));
       const dupNote = dupCount ? `\n${dupCount} duplicate notice item${dupCount === 1 ? "" : "s"} shown once (same event and notice type); nothing was deleted.` : "";
-      return guide({ ...text(`${prefix(job)}${laHead}Open items (${rows.length}):\n${lines.join("\n")}${dupNote}\n\n${REMINDERS_VIEW_SPEC.join("\n")}\n\n${ec.text}\n${EMAIL_VIEW_SPEC.join("\n")}${laBlock}`), structuredContent: { items: rows.map((i) => ({ item_ref: itemRef(i), item_id: i.id, item_type: itemType(i, nas), duplicate_refs: (deduped.duplicates.get(i.id) ?? []).map((x) => displayRef(x)) })), email_contact: ec.structured } }, EMAIL_CONTACT_RULE);
+      // 0.8.17: the morning briefing (hosted page + finished view) leads, so hosts without cards still show it styled.
+      const brief = la ? "" : `${briefingView({ title: `${job.job_number} – ${job.name}`, today: todayIn(tz), items: rows.map((it) => { const o = it as unknown as { action: string; accountable?: string | null; owner?: string | null; needed_by?: string | null; due_date?: string | null }; return { action: o.action, owner: o.accountable ?? o.owner ?? null, due: (o.needed_by ?? o.due_date ?? null)?.slice(0, 10) ?? null }; }), pageUrl: job.scope === "full" || job.scope === "super" ? pageUrl("briefing", job.job_id) : null })}\n\n---\n`;
+      return guide({ ...text(`${prefix(job)}${brief}${laHead}Open items (${rows.length}):\n${lines.join("\n")}${dupNote}\n\n${REMINDERS_VIEW_SPEC.join("\n")}\n\n${ec.text}\n${EMAIL_VIEW_SPEC.join("\n")}${laBlock}`), structuredContent: { items: rows.map((i) => ({ item_ref: itemRef(i), item_id: i.id, item_type: itemType(i, nas), duplicate_refs: (deduped.duplicates.get(i.id) ?? []).map((x) => displayRef(x)) })), email_contact: ec.structured } }, EMAIL_CONTACT_RULE);
     }),
 });
 
@@ -1446,6 +1462,17 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
   );
 }
 
+/** Visible lookaheads on a job with how many items each has (any status). */
+async function lookaheadRows(sb: Sb, job: Job): Promise<LaRow[]> {
+  const [{ data: las }, { data: its }] = await Promise.all([
+    sb.from("mcp_lookaheads").select("id, start_date, end_date, created_at, inputs").eq("job_id", job.job_id).limit(200),
+    sb.from("mcp_open_items").select("lookahead_id").eq("job_id", job.job_id).not("lookahead_id", "is", null).limit(2000),
+  ]);
+  const n = new Map<string, number>();
+  for (const r of (its ?? []) as { lookahead_id: string }[]) n.set(r.lookahead_id, (n.get(r.lookahead_id) ?? 0) + 1);
+  return visibleLookaheads((las ?? []) as { id: string; start_date: string | null; end_date: string | null; created_at: string; inputs?: unknown }[]).map((l) => ({ id: l.id, start_date: l.start_date, end_date: l.end_date, created_at: l.created_at, items: n.get(l.id) ?? 0 }));
+}
+
 /** 0.8.17: the lookahead as a finished view, filled from the saved CPM window when no schedule export was sent. */
 async function styledLookahead(sb: Sb, job: Job, la: { id: string; start_date?: string | null; end_date?: string | null }, highlight: string | null): Promise<string> {
   type Cpm = { found?: boolean; data_date?: string | null; data?: { activities?: SAct[] } };
@@ -1457,16 +1484,17 @@ async function styledLookahead(sb: Sb, job: Job, la: { id: string; start_date?: 
   })();
   const acts = (cpm?.found ? cpm.data?.activities ?? [] : []) as SAct[];
   const dd = cpm?.found ? cpm.data_date ?? null : null;
-  const win = la.start_date && la.end_date ? { start: la.start_date, end: la.end_date } : dd ? windowFromDataDate(dd) : null;
+  const win = lookaheadWindow(la, dd);
   const title = `${job.job_number} – ${job.name}`;
-  const url = job.scope === "full" || job.scope === "super" ? pageUrl("schedule", job.job_id) : null;
+  const url = job.scope === "full" || job.scope === "super" ? pageUrl("lookahead", job.job_id) : null;
   if (!win || !windowActivities(acts, win.start, win.end).length)
-    return `${url ? `${pageLine("schedule", url)}\n\n` : ""}${emptyCard("lookahead", title, acts.length ? "Pick a window that overlaps the saved schedule, or send this window's schedule export." : "Send the schedule export (or save the CPM) and Athena fills the lookahead from it.", acts.length ? [] : ["Schedule export or saved CPM"])}`;
+    return `${url ? `${pageLine("lookahead", url)}\n\n` : ""}${emptyCard("lookahead", title, acts.length ? "Pick a window that overlaps the saved schedule, or send this window's schedule export." : "Send the schedule export (or save the CPM) and Athena fills the lookahead from it.", acts.length ? [] : ["Schedule export or saved CPM"])}`;
   const { data: rows } = await sb.from("mcp_open_items").select("action, owner, accountable, due_date, needed_by").eq("job_id", job.job_id).eq("status", "open");
   const items: LaItem[] = ((rows ?? []) as { action: string; owner?: string | null; accountable?: string | null; due_date?: string | null; needed_by?: string | null }[])
     .map((r) => ({ action: r.action, owner: r.accountable ?? r.owner ?? null, due: (r.needed_by ?? r.due_date ?? null)?.slice(0, 10) ?? null }))
     .filter((r) => !r.due || r.due <= win.end);
-  return lookaheadView({ title, ref: lookaheadRef(la.id), start: win.start, end: win.end, dataDate: dd, acts, items, highlight, pageUrl: url });
+  const view = lookaheadView({ title, ref: lookaheadRef(la.id), start: win.start, end: win.end, dataDate: dd, acts, items, highlight, pageUrl: url });
+  return [view, ...(win.note ? ["", win.note] : []), ...(dd ? ["", dataDateRule(dd, (cpm as { version?: number } | null)?.version ?? null)] : [])].join("\n");
 }
 
 /** 0.8.12: the saved CPM data date (null when none is saved or the living reports schema isn't there). */
