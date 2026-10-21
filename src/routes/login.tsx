@@ -9,6 +9,7 @@ import { requestMemberMagicLink } from "@/lib/magic-link.functions";
 import { oauthReturnPath, oauthConsentReturn } from "@/lib/oauth-return-path";
 import { onAthenaHost } from "@/lib/athena-host-current";
 import { loginCopy } from "@/lib/login-copy";
+import { boundedStep } from "@/lib/consent-loading";
 
 const safeRedirect = oauthReturnPath;
 
@@ -31,8 +32,16 @@ export const Route = createFileRoute("/login")({
     redirect: typeof search.redirect === "string" ? safeRedirect(search.redirect) : undefined,
   }),
   beforeLoad: async ({ search }) => {
-    const { data } = await supabase.auth.getSession();
-    if (data.session) throw redirect({ href: search.redirect ?? "/" });
+    // Bounded: on a domain where the auth lock or a stale token stalls getSession (seen on app.meetathena.io when
+    // the Site URL moved consent there), show the sign-in form instead of spinning forever.
+    let hasSession = false;
+    try {
+      const { data } = await boundedStep("session", () => supabase.auth.getSession(), 6_000);
+      hasSession = !!data.session;
+    } catch {
+      hasSession = false;
+    }
+    if (hasSession) throw redirect({ href: search.redirect ?? "/" });
   },
   component: LoginPage,
 });
