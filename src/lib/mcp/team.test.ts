@@ -193,12 +193,14 @@ describe("seats", () => {
 });
 
 describe("hosts", () => {
-  it("team_list gives a numbered list plus the ChatGPT card", async () => {
+  it("team_list gives a numbered list; the ChatGPT card rides only in _meta (no HTML in other hosts)", async () => {
     const r = await call(teamList, {});
     expect(r.content[0].text).toMatch(/1\. Marshall, Owner, all jobs/);
     expect(r.content[0].text).toMatch(/2\. Sam, Super, jobs 2701/);
     expect(r._meta?.["openai/outputTemplate"]).toBe(TEAM_WIDGET_URI);
-    expect(r.content[1]).toMatchObject({ type: "resource" });
+    // 0.8.16.1 / #116: the card HTML is no longer attached as a content block, so it can't leak into non-ChatGPT hosts.
+    expect(r.content).toHaveLength(1);
+    expect(JSON.stringify(r.content)).not.toMatch(/<html|<!doctype|<script/i);
     expect(r.guidance.join(" ")).toMatch(/Claude, Codex, Grok Bot/);
   });
   it("the card has checkboxes for jobs and a confirm step that passes confirmed true", () => {

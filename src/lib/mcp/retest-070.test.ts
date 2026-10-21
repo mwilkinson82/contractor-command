@@ -102,10 +102,11 @@ describe("Claude retest units", async () => {
   it("notices go on their own lines", () => {
     expect(tools.itemNotes([{ item_id: "x", existing: true }])).toBe("\n- Already open.");
   });
-  it("descriptions tell the host to list companies when none is named", () => {
+  it("descriptions: list_open_items lists companies; company_id defaults to the current company (0.8.17)", () => {
     expect(tools.listOpenItems.description ?? (tools.listOpenItems as never as { config: { description: string } }).config.description).toContain("no job_number");
     expect(shape(tools.listOpenItems).job_number.safeParse(undefined).success).toBe(true);
-    expect(shape(tools.report).company_id.description).toContain("list_open_items with no job_number");
+    expect(shape(tools.report).company_id.description).toContain("Athena uses the member's current company");
+    expect(shape(tools.report).company_id.description).toContain("don't make an extra call");
   });
   it("closing only fills warranty setup answers", () => {
     expect(tools.closedWarrantyKey("warranty:manufacturer_warranties", true, "member_statement")).toBe("manufacturer_warranties");
