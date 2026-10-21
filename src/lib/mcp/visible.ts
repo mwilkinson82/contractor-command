@@ -163,7 +163,7 @@ export const JOB_SETUP_SOFTWARE_BLOCK = [
 export const SOV_DELIVERY_ASK = [
   "Where do you want this SOV to live?",
   "1. In your project software (Overwatch, Buildertrend, Procore, or another tool). I'll enter it there through the browser after you sign in.",
-  "2. As an Excel file (.xlsx) or a PDF. I'll create it and bring up an email for you to review, with the file attached.",
+  "2. As an Excel file (.xlsx) or a PDF. I'll create it and bring up an email for you to review, with the file attached (or a link to it if your email can't carry files from here).",
   "3. As a shared link (a Claude artifact, ChatGPT canvas or Grok Bot spreadsheet that anyone with the link can open). I'll bring up an email with the link.",
 ].join("\n");
 /** 0.8.8: every audience (owner, client, CM or team) gets the same three options; the client alias stays for callers. */
@@ -175,6 +175,19 @@ export const SOV_ALT_GRAY = "#9CA3AF";
 /** 0.8.9: pinned at the top of every SOV and report result: list all three options, never recommend one. */
 export const SHARE_OPTIONS_REQUIRED =
   "REQUIRED: When this is shared with the team or the owner (any audience), list all 3 sharing options below, numbered 1, 2 and 3, word for word, and let the member pick. Never recommend, pre-select or offer only one (not just a Google Sheets link, not just a PDF).";
+/**
+ * 0.8.10: attachments. Athena returns no files; the host builds the file and the host's email tool must carry it.
+ * ChatGPT's Gmail/Outlook email action has no attachment field (drafts and sends go out bare), Claude's Gmail
+ * create_draft takes base64 attachments, Grok Bot attaches to a Gmail draft. Never claim an attachment that isn't there.
+ */
+export const EMAIL_ATTACHMENT_RULE =
+  "REQUIRED: Only say a file is attached if your email tool actually attached it. If your email tool can't attach files (ChatGPT's email today), put a link to the file in the email body instead (a canvas or file shared as anyone with the link, or a Google Drive or OneDrive link), and say so in one line under the card. Never send an email that says \"attached\" without the file.";
+export const EMAIL_ATTACHMENT_STRUCTURED = {
+  never_claim_missing_attachment: true,
+  attach_when_supported: "Use the email tool's attachments field when it has one (Claude Gmail create_draft attachments, base64, 25 MB total; Grok Bot Gmail draft attachment).",
+  fallback_when_unsupported: "ChatGPT Gmail/Outlook email action has no attachments field: put a link to the file in the body (canvas or file shared as anyone with the link, or a Drive/OneDrive link) and tell the member in one line. Or save a draft and tell the member to attach the downloaded file in Gmail before sending.",
+  rule: EMAIL_ATTACHMENT_RULE,
+} as const;
 /** 0.8.9: pinned at the top of every date sweep. */
 export const SWEEP_CARD_REQUIRED =
   "REQUIRED: Show this date sweep as a card with a table (columns: Due, Item, Precaution, Ref), one row per item, grouped Overdue, Due today, Next 14 days. Never as plain bullets or a plain list, in every host including Claude.";
@@ -215,6 +228,7 @@ export function sovRequiredTop(rows: { item_no: string; cost_code: string | null
     `REQUIRED: Draw this bar chart now under the table. Bars alternate blue #2563EB and gray #9CA3AF (1st bar blue, 2nd gray, 3rd blue, and so on; each bar's color is in structuredContent.chart.bars[].color); gray bands #F3F4F6 behind them; gray grid #D1D5DB; gray axes and labels #6B7280. No other colors. Data: ${data}.`,
     `REQUIRED: Any email card for this SOV shows the literal label "To:" as the first line inside the card itself (not above or below it): ${toLine}. If there is no address, leave To: blank and ask for it in this same reply.`,
     SHARE_OPTIONS_REQUIRED,
+    EMAIL_ATTACHMENT_RULE,
   ].join("\n");
 }
 /** 0.8.4: the delivery step as data, in report sov structuredContent, so hosts can't skip it. */
@@ -223,12 +237,13 @@ export const SOV_DELIVERY_STRUCTURED = {
   ask: SOV_DELIVERY_ASK,
   options: [
     { n: 1, kind: "project_software", note: "Member signs in themselves; never ask for or type a password." },
-    { n: 2, kind: "xlsx_or_pdf_email", note: "Build a real .xlsx or PDF, then show an email card with it attached; To blank and asked in the same reply if no address." },
+    { n: 2, kind: "xlsx_or_pdf_email", note: "Build a real .xlsx or PDF, then show an email card with it attached; if the email tool can't attach files (ChatGPT), put a link to the file in the body instead (see attachments). To blank and asked in the same reply if no address." },
     { n: 3, kind: "shared_link", note: "Claude artifact, ChatGPT canvas or Grok Bot spreadsheet shared as 'anyone with the link', then an email card with the link. Any audience: owner, client, CM or team." },
   ],
   list_all_options: true,
   never_recommend_one: true,
   link_rule: "Shared links are fine for any audience (owner, client, CM or team). Set sharing to anyone with the link.",
+  attachments: EMAIL_ATTACHMENT_STRUCTURED,
 } as const;
 /** 0.8.8: owner/client SOV delivery data: same three options as the team SOV. */
 export const SOV_DELIVERY_STRUCTURED_CLIENT = { ...SOV_DELIVERY_STRUCTURED, audience: "client" } as const;
@@ -251,6 +266,7 @@ export const SOV_DELIVERY_BLOCK = [
   "- Claude: the delivery question is mandatory even in Claude. Put it directly under the artifact as the last thing in the reply.",
   "- Email on demand, at any point: use the job's saved subs, suppliers and contacts from Athena results (including names and emails written in job answers, lookahead or open-item text) and show the email card right away with recipient, subject, body and attachment filled in. If the contact or address isn't there, leave To blank and ask in the same reply. Never guess an address.",
   "- Claude: no narration before or between steps (no \"Building...\", \"First I'll pull...\" or \"I need two things before...\"). Show the file and the email card in the same reply, To blank if needed, with one short question under it. Never hold the card back while you ask.",
+  `- Attachments: ${EMAIL_ATTACHMENT_RULE.replace(/^REQUIRED: /, "")} Claude: pass the file in the Gmail draft's attachments. ChatGPT: its email action can't attach files, so use the link.`,
   "- Never send anything yourself. The member reviews the email card and presses Send.",
   `- If the member says "not now", leave the SOV in the chat and add an open item to deliver it within ${SOV_NOT_NOW_DAYS} days (intake section open_item).`,
 ].join("\n");
@@ -299,7 +315,7 @@ export function visibleProblems(text: string): string[] {
 export const REPORT_SHARE_ASK = [
   "If you want to share this report, where should it go?",
   "1. In your project software (Overwatch, Buildertrend, Procore, or another tool). I'll enter it there through the browser after you sign in.",
-  "2. As a PDF or Word file. I'll create it and bring up an email for you to review, with the file attached.",
+  "2. As a PDF or Word file. I'll create it and bring up an email for you to review, with the file attached (or a link to it if your email can't carry files from here).",
   "3. As a shared link (a Claude artifact, ChatGPT canvas or Grok Bot document that anyone with the link can open). I'll bring up an email with the link.",
 ].join("\n");
 export const REPORT_SHARE_STRUCTURED = {
@@ -312,4 +328,5 @@ export const REPORT_SHARE_STRUCTURED = {
     { n: 2, kind: "pdf_or_docx_email" },
     { n: 3, kind: "shared_link" },
   ],
+  attachments: EMAIL_ATTACHMENT_STRUCTURED,
 };

@@ -64,7 +64,8 @@ describe("0.8.8 blue brand, To field, pinned REQUIRED lines, sweep cards", () =>
     expect(lines[0]).toContain("26.01 (26-010) $100,000.00");
     expect(lines[0]).toContain("#2563EB");
     expect(lines[0]).toContain("gray bands");
-    expect(lines).toHaveLength(3);
+    // 0.8.10: a 4th pinned line, the email attachment rule.
+    expect(lines).toHaveLength(4);
     expect(lines.slice(0, 2).join("\n")).not.toMatch(/owner|no exceptions/i);
     expect(lines[2]).toMatch(/^REQUIRED: .*all 3 sharing options/);
     expect(lines[1]).toContain("To: (ask:");
