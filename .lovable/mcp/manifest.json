@@ -13,7 +13,7 @@
   "mcp": {
     "server": {
       "name": "athena",
-      "version": "0.8.12",
+      "version": "0.8.13",
       "title": "Athena powered by ALP, construction agents"
     },
     "tools": [
@@ -1511,7 +1511,7 @@
       {
         "name": "living_report_get",
         "title": "Living report master copy",
-        "description": "REQUIRED: call this before updating a cost-loaded CPM, billing forecast, IOR or PM dashboard, and when a new chat picks one up. Returns the saved master copy (latest or a named version) with its version, last-updated stamp, data date, data and change log. Update that copy in place; never start a second one. Supers: CPM only, no dollars.",
+        "description": "REQUIRED: call this before updating a cost-loaded CPM, billing forecast, IOR or PM dashboard, and when a new chat picks one up. Returns the saved master copy (latest or a named version) with its version, last-updated stamp, data date, data and change log. Viewing: build a new private view from it and never change the saved master. Updating (only when the user explicitly asks, after confirming): update that copy in place; never start a second saved one. Supers: CPM only, no dollars.",
         "annotations": {
           "readOnlyHint": true,
           "openWorldHint": false,
@@ -1916,8 +1916,8 @@
           "openWorldHint": true
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -2002,8 +2002,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -2028,6 +2028,165 @@
             "job_number",
             "link"
           ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "job_cadence",
+        "title": "Job cadence",
+        "description": "Read or save the job cadence after the CPM is built: weekly PM/OAC meeting, two-week lookahead day, daily update time, morning briefing time, pay app dates (pencil draft, cutoff, submission) and the schedule update cycle. Ask the six one at a time with the suggested default; save each answer as you go. When all six are set, show the Job cadence card and ask whether to set them up as reminders. Saving the cadence never creates reminders.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "get",
+                "save"
+              ],
+              "description": "get: the saved cadence and the next question. save: record the answers given (any of the six)."
+            },
+            "pm_meeting": {
+              "description": "Weekly PM/OAC meeting day and time, e.g. Tue 10:00.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "lookahead_day": {
+              "description": "Two-week lookahead day, e.g. Thu, issued to subs Fri.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "daily_update_time": {
+              "description": "When daily updates are due from the field, e.g. 4:00 PM daily.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "morning_briefing_time": {
+              "description": "Morning briefing time, e.g. 7:00 AM workdays.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "pay_app_dates": {
+              "description": "Pay app pencil draft day, cutoff and submission day, from the contract.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "update_cycle": {
+              "description": "Schedule update cycle, e.g. monthly, data date = pay app cutoff.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "job_number",
+            "action"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "job_cadence_reminders",
+        "title": "Set up job cadence reminders (after a yes)",
+        "description": "REQUIRED: ask the PM first and call this only after they say yes to setting up the cadence reminders. Creates one open-item reminder per saved cadence item on the job (already-open reminders are kept, not duplicated). Never call it on your own.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Job number, exact match (e.g. 2701)."
+            },
+            "company_id": {
+              "description": "Only needed if you belong to more than one company. Pass the company name exactly as Athena lists it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true,
+              "description": "true only after the PM said yes to setting up these reminders."
+            },
+            "items": {
+              "description": "Only these cadence items; default all six that are saved.",
+              "maxItems": 6,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "pm_meeting",
+                  "lookahead_day",
+                  "daily_update_time",
+                  "morning_briefing_time",
+                  "pay_app_dates",
+                  "update_cycle"
+                ]
+              }
+            }
+          },
+          "required": [
+            "job_number",
+            "approved"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "morning_briefing",
+        "title": "Morning briefing",
+        "description": "Read-only. Call once when the member says \"good morning\" (or \"Athena, good morning\", \"morning briefing\") or the daily check-in fires. Returns, scoped to the caller's role: today's top 3, overdue items and risks, today's lookahead activities, inspections and deliveries, RFIs and submittals, reminders with countdowns, and the field-update questions. Supers and field roles get no dollars; PMs get only their own jobs. Changes nothing.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false,
+          "idempotentHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "description": "One job; leave out for every job the member can see.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
           "additionalProperties": false
         },
         "outputSchema": null
