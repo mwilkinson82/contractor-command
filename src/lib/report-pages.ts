@@ -5,7 +5,7 @@
 import { ALERT_HEX } from "./mcp/alert-color";
 import { delayCallout, jobWorkingDays } from "./mcp/living";
 import { addDays } from "./mcp/deadlines";
-import { briefingModel, dayHead, lookaheadModel, payModel, shortDate, lookaheadWindow, type BriefItem, type Billing, type LaItem, type SAct } from "./mcp/styled-views";
+import { briefingModel, dayHead, lookaheadModel, payModel, shortDate, lookaheadWindow, type BriefItem, type Billing, type LaItem, type LaEntry, type SAct } from "./mcp/styled-views";
 
 export const REPORT_PAGES = ["ior", "schedule", "portfolio"] as const;
 export type ReportPage = (typeof REPORT_PAGES)[number];
@@ -59,7 +59,7 @@ export type PortfolioJob = { job_id: string; job_number: string; name: string; p
   cpm?: { version: number; data_date?: string | null; updated_at?: string; tia?: Tia | null; contract_total?: number | null; forecast_total?: number | null } | null;
   ior?: { version: number; data_date?: string | null; updated_at?: string; data?: Record<string, unknown> } | null };
 export type PortfolioPayload = { page: "portfolio"; company?: string; jobs: PortfolioJob[]; money?: boolean; shared?: boolean; expires_at?: string };
-export type LookaheadPayload = { page: "lookahead"; company?: string; job_number?: string; job_name?: string; lookahead?: { id: string; start_date: string | null; end_date: string | null } | null; report: Report; items?: LaItem[] };
+export type LookaheadPayload = { page: "lookahead"; company?: string; job_number?: string; job_name?: string; lookahead?: { id: string; start_date: string | null; end_date: string | null } | null; report: Report; items?: LaItem[]; today?: string };
 export type PayAppPayload = { page: "payapp"; company?: string; job_number?: string; job_name?: string; report: Report };
 export type BriefingPayload = { page: "briefing"; company?: string; job_number?: string; job_name?: string; today: string; items?: BriefItem[]; report?: Report };
 type ViewExtras = { shared?: boolean; expires_at?: string };
@@ -177,20 +177,25 @@ function lookaheadPageView(p: LookaheadPayload): string {
   const la = p.lookahead ?? null;
   const win = lookaheadWindow(la, dd);
   if (!win) return card(`<p style="margin:0;color:${G1}">No lookahead window or saved schedule yet.</p><p style="margin:8px 0 0;color:${NAVY}"><strong>Next move:</strong> send the schedule export (or save the CPM) and Athena fills the lookahead from it.</p>`);
-  const m = lookaheadModel(win.start, win.end, acts, p.items ?? []);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = p.today ?? new Date().toISOString().slice(0, 10);
+  const m = lookaheadModel(win.start, win.end, acts, p.items ?? [], { today, dataDate: dd });
   const hl = dd && dd > today ? dd : today;
   const out: string[] = [];
   out.push(`<p style="margin:0 0 12px;font-size:13px;color:${G1}">Window ${esc(shortDate(win.start))} – ${esc(shortDate(win.end))}${dd ? ` · Data date ${esc(shortDate(dd))}` : ""}</p>`);
-  out.push(tiles([tile("Activities", String(m.counts.activities)), tile("Critical", String(m.counts.critical)), tile("Inspections", String(m.counts.inspections)), tile("Deliveries", String(m.counts.deliveries)), tile("Risks", String(m.counts.risks), m.counts.risks > 0)]));
-  out.push(card(h2("TOP 3 PRIORITIES") + `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">${(m.top.length ? m.top : [{ action: "No open items in this window" } as LaItem]).map((t, i) => `<div style="border:1px solid ${G3};border-left:4px solid ${i === 0 && m.risks.length ? RED : BLUE};border-radius:10px;padding:12px"><div style="font-size:18px;font-weight:700;color:${i === 0 && m.risks.length ? RED : BLUE}">${i + 1}</div><div style="font-weight:600;color:${NAVY};margin:4px 0">${esc(t.action)}</div><div style="font-size:12px;color:${G1}">Owner: ${esc(t.owner ?? "Needed")} · Due ${esc(t.due ? shortDate(t.due) : "Needed")}</div></div>`).join("")}</div>`));
+  out.push(tiles([tile("Activities", String(m.counts.activities)), tile("Critical", String(m.counts.critical)), tile("Inspections", String(m.counts.inspections)), tile("Deliveries", String(m.counts.deliveries)), tile("Risks", String(m.counts.risks), m.counts.risks > 0), tile("Overdue", String(m.counts.overdue), m.counts.overdue > 0)]));
+  const due = (e: LaEntry) => `Owner: ${esc(e.item.owner ?? "Needed")} · Due ${e.item.due ? `<span style="color:${e.overdue ? RED : G1};font-weight:${e.overdue ? 700 : 400}">${esc(shortDate(e.item.due))}</span>` : "Needed"}`;
+  const flagsHtml = (e: LaEntry) => e.flags.map((f) => `<div style="margin-top:6px;font-size:12px;color:${RED}">⚠ ${esc(f.text)}</div>`).join("");
+  const badge = `<span style="display:inline-block;background:${RED};color:#fff;font-size:11px;font-weight:700;border-radius:4px;padding:1px 6px;margin-right:6px">OVERDUE</span>`;
+  out.push(card(h2("TOP 3 PRIORITIES") + `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">${m.top.length ? m.top.map((t, i) => `<div style="border:1px solid ${G3};border-left:4px solid ${t.overdue || t.flags.length ? RED : BLUE};border-radius:10px;padding:12px"><div style="font-size:18px;font-weight:700;color:${t.overdue ? RED : BLUE}">${i + 1}</div><div style="font-weight:600;color:${NAVY};margin:4px 0">${t.overdue ? badge : ""}${esc(t.label)}</div><div style="font-size:12px;color:${G1}">${due(t)}</div>${flagsHtml(t)}</div>`).join("") : `<div style="border:1px solid ${G3};border-left:4px solid ${BLUE};border-radius:10px;padding:12px;color:${G1}">No open items in this window</div>`}</div>`));
   if (!m.rows.length) out.push(card(`<p style="margin:0;color:${G1}">No saved schedule activities fall in this window.</p><p style="margin:8px 0 0;color:${NAVY}"><strong>Next move:</strong> pick a window that overlaps the saved schedule, or send this window's schedule export.</p>`));
   else {
     const th = m.days.map((d, i) => `<th style="padding:4px 2px;font-size:11px;color:${d === hl ? BLUE : G1};text-align:center;${i === 5 ? `border-left:2px solid ${G3};` : ""}">${i === 0 ? "WEEK 1<br>" : i === 5 ? "WEEK 2<br>" : "<br>"}${esc(dayHead(d))}</th>`).join("");
     const rows = m.rows.map((row) => `<tr style="border-top:1px solid ${G4}"><td style="padding:6px 8px;font-size:12px;font-weight:600;color:${NAVY};white-space:nowrap">${esc(row.a.id)}</td><td style="padding:6px 8px;font-size:12px;color:${NAVY}">${esc(row.a.name)}</td><td style="padding:6px 8px;font-size:12px;color:${Number(row.a.total_float) === 0 ? BLUE : G1};text-align:center">${esc(row.a.total_float ?? "")}</td>${row.cells.map((c, i) => `<td style="padding:4px 2px;min-width:44px;text-align:center;${i === 5 ? `border-left:2px solid ${G3};` : ""}">${CELL_HTML[c.kind]}${c.risk ? `<span style="color:${RED}">⚑</span>` : ""}</td>`).join("")}</tr>`).join("");
     out.push(card(h2("CALENDAR") + `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><thead><tr style="text-align:left;font-size:12px;color:${G1}"><th style="padding:4px 8px"></th><th style="padding:4px 8px">Activity</th><th style="padding:4px 8px">Float</th>${th}</tr></thead><tbody>${rows}</tbody></table></div>` + legend([[sw(BLUE), "Critical"], [sw(G2), "Non-critical"], ["📋", "Inspection"], ["🚚", "Delivery"], ["◆", "Milestone"], [`<span style="color:${RED}">⚑</span>`, "Risk"]])));
   }
-  if (m.risks.length) out.push(card(h2("RISKS") + m.risks.map(({ item, a }) => `<div style="border:1px solid #FECACA;border-left:4px solid ${RED};border-radius:10px;padding:12px;margin:0 0 8px"><strong style="color:${RED}">${esc(item.action)}</strong><span style="color:${NAVY}"> · Impact: ${esc(a.id)} ${esc(a.name)}${a.total_float !== undefined && a.total_float !== null ? ` (float ${esc(a.total_float)} WD)` : ""}. Owner: ${esc(item.owner ?? "Needed")} · Due ${esc(item.due ? shortDate(item.due) : "Needed")}</span></div>`).join("")));
+  if (m.overdue.length) out.push(card(h2("OVERDUE") + m.overdue.map((e) => `<div style="border:1px solid #FECACA;border-left:4px solid ${RED};border-radius:10px;padding:12px;margin:0 0 8px">${badge}<strong style="color:${RED}">${esc(e.label)}</strong><span style="color:${NAVY}"> · ${due(e)}</span></div>`).join("")));
+  if (m.risks.length) out.push(card(h2("RISKS") + m.risks.map((e) => `<div style="border:1px solid #FECACA;border-left:4px solid ${RED};border-radius:10px;padding:12px;margin:0 0 8px"><strong style="color:${RED}">${esc(e.label)}</strong><span style="color:${NAVY}"> · Impact: ${esc(e.a!.id)} ${esc(e.a!.name)}${e.a!.total_float !== undefined && e.a!.total_float !== null ? ` (float ${esc(e.a!.total_float)} WD)` : ""}. ${due(e)}</span>${flagsHtml(e)}</div>`).join("")));
+  if (m.flagged.length) out.push(card(h2("DATES TO CHECK") + m.flagged.map((e) => `<div style="padding:8px 0;border-top:1px solid ${G4};color:${NAVY};font-size:13px">${esc(e.label)}${flagsHtml(e)}</div>`).join("")));
   return out.join("");
 }
 
