@@ -28,7 +28,7 @@ describe("0.8.11 public /f/<token> route", () => {
     expect(await r.text()).toBe("%PDF-1.7");
     expect(r.headers.get("content-disposition")).toMatch(/^attachment; filename="2701 Schedule.pdf"/);
     expect(seen[0]).toEqual([await tokenHash(t), true]);
-    expect(fetchSpy).toHaveBeenCalledWith(row.signed_url, { redirect: "error" });
+    expect(fetchSpy).toHaveBeenCalledWith(row.signed_url, { redirect: "manual" });
     const h = await openShare(t, "HEAD", resolve, fetchSpy as unknown as typeof fetch);
     expect(h.status).toBe(200);
     expect(seen[1][1]).toBe(false);

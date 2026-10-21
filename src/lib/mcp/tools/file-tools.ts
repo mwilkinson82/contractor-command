@@ -153,7 +153,7 @@ export const lookaheadPdfTool = defineTool({
   name: "lookahead_pdf",
   title: "Lookahead as a PDF file (for email)",
   description:
-    "Call this whenever the member wants the two-week lookahead emailed, attached or downloaded. Athena builds the styled lookahead PDF on the server (the latest lookahead with content, dated from the saved CPM data date), stores it, and returns download_url, a real PDF anyone with the link can download until it expires. Then: if your email tool can attach a file from a URL, attach that PDF and pass attachment (the filename) and link (download_url) to email_draft. If it can't, put download_url in the body, pass only link, and never write \"attached\".",
+    "Builds the job's two-week lookahead as a styled PDF on the server (the latest lookahead with content, dated from the saved CPM data date), stores it privately for the job, and returns download_url: a link to the PDF that works until it expires. Use it when the member wants the lookahead emailed, attached or downloaded. The result explains how to use the link with email_draft.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,

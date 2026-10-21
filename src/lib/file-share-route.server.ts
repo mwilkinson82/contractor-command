@@ -33,7 +33,10 @@ export async function openShare(token: string, method: "GET" | "HEAD", resolve: 
   if (!row) return gone(410, head);
   const headers = downloadHeaders(row.filename, row.mime_type, row.size_bytes);
   if (head) return new Response(null, { status: 200, headers });
-  const up = await fetchImpl(row.signed_url, { redirect: "error" });
-  if (!up.ok || !up.body) return gone(410, false);
+  // 0.8.20: Cloudflare Workers rejects redirect "error" (throws "Invalid redirect value"), which made every GET a 500.
+  // Use "manual" and treat any non-2xx (including a 3xx) as gone; a network failure is a retryable 503, never a 500.
+  let up: Response;
+  try { up = await fetchImpl(row.signed_url, { redirect: "manual" }); } catch { return new Response("Try again in a moment.", { status: 503, headers: { "cache-control": "no-store" } }); }
+  if (up.status < 200 || up.status > 299 || !up.body) return gone(410, false);
   return new Response(up.body, { status: 200, headers });
 }
