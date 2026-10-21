@@ -19,7 +19,7 @@ const act = (id: string, value: number, extra: Partial<Activity> = {}): Activity
 const job2701 = (): Activity[] => [...Array.from({ length: 38 }, (_, i) => act(`A${1000 + i * 10}`, 35_000)), act("A1390", 70_000)];
 
 describe("0.8.9 CPM activity handoff, tie guard, owner-furnished, living reports", () => {
-  it("version is 0.8.9", () => expect(ATHENA_VERSION).toBe("0.8.10"));
+  it("version is 0.8.9", () => expect(ATHENA_VERSION).toBe("0.8.12"));
 
   it("count check reads 39 of 39 with the allocated total, and names undated activities", () => {
     const acts = job2701();
@@ -131,9 +131,11 @@ describe("0.8.9 CPM activity handoff, tie guard, owner-furnished, living reports
 
   it("server wires the three tools and the instructions lead with the CPM rule; palette unchanged (no red)", () => {
     const idx = src("./index.ts");
-    expect(idx).toContain("cpmActivities, livingReportGet, livingReportSave]");
+    expect(idx).toContain("cpmActivities, livingReportGet, livingReportSave, fileShare, fileShareRevoke]");
     expect(idx).toContain('construction agents. REQUIRED: before drawing or updating a cost-loaded CPM');
-    expect(idx).toContain("never red, rose, pink or orange");
+    expect(idx).toContain("never rose, pink or orange");
+    expect(idx).toContain("ALERT_PALETTE_RULE");
+    expect(idx).not.toMatch(/never red/i);
     expect([...CHART_PALETTE]).toEqual(["#2563EB", "#6B7280", "#9CA3AF", "#D1D5DB", "#F3F4F6"]);
   });
 
