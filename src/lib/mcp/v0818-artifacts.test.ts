@@ -67,7 +67,9 @@ describe("Claude renders lookahead and email draft as artifacts, like the schedu
   it("email draft spec: styled card artifact with a yes/no question, palette rules", () => {
     const s = EMAIL_DRAFT_VIEW_SPEC.join("\n");
     expect(EMAIL_DRAFT_VIEW_SPEC[0]).toMatch(/^REQUIRED VIEW – EMAIL DRAFT: .*ONE styled email card, never a plain text or markdown block\. In Claude: an artifact/);
-    expect(s).toMatch(/"Yes, send" button and a gray "No" button/);
+    expect(s).toMatch(/Answer yes or no in chat\./);
+    expect(s).toMatch(/No buttons of any kind/);
+    expect(s).not.toMatch(/"Yes, send" button/);
     expect(s).toMatch(/confirm question word for word/);
     expect(s).toMatch(/navy, blue #2563EB and gray only/);
     expect(s).toMatch(new RegExp(`${ALERT_HEX} only if the email itself is about a delay, risk or overdue item`));

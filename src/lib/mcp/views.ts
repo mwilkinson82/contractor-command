@@ -105,7 +105,7 @@ export const EMAIL_DRAFT_VIEW_SPEC: string[] = [
   "2. Rows: From (the suggested From, if given), To, Cc (only if any) and Subject, labels in gray #6B7280, values in navy.",
   "3. The full body exactly as written, on a light-gray #F3F4F6 panel, with the signature.",
   "4. Under the body: an attachment chip (PDF icon and the file name) only when an attachment is listed; otherwise a link row with the download link. Never show an attachment chip without a real attachment.",
-  "5. Footer: the confirm question word for word, with a blue #2563EB \"Yes, send\" button and a gray \"No\" button. The buttons are for show; the member answers yes or no in chat.",
+  "5. Footer: the confirm question word for word, then a gray line \"Answer yes or no in chat.\" No buttons of any kind (no Send, Yes or No buttons): the card cannot send, and the member answers in chat.",
   `6. White card, navy, blue #2563EB and gray only; ${ALERT_COLOR} only if the email itself is about a delay, risk or overdue item, and then only for that one flag. No technical notes.`,
   "7. After the card, ask the confirm question as the last line of the reply and stop. Send nothing.",
 ];
