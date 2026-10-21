@@ -141,7 +141,7 @@ describe("0.8.14 guidance and migration", () => {
     const src = readFileSync("src/lib/mcp/tools/living-tools.ts", "utf8");
     expect(src).toContain("PERMANENT_LINK_ASK");
     expect(PERMANENT_LINK_ASK).toBe("Want this as a permanent link I keep updated?");
-    expect(readFileSync("src/lib/mcp/index.ts", "utf8")).toMatch(/reportPageLink, reportPageShare, reportPageShareRevoke\]/);
+    expect(readFileSync("src/lib/mcp/index.ts", "utf8")).toMatch(/reportPageLink, reportPageShare, reportPageShareRevoke[,\]]/);
   });
   it("migration is additive, hash-only, anon only on the open function, not applied", () => {
     const m = readFileSync("supabase/migrations/20261021120000_athena_report_pages.sql", "utf8");
