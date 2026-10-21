@@ -133,3 +133,22 @@ describe("0.8.12 IOR and portfolio views", () => {
     expect(l).toContain('if (job.scope === "contract") throw');
   });
 });
+
+import { CPM_REQUIRED_TOP, LIVING_REQUIRED_TOP, LIVING_VIEW_RULE } from "./living";
+describe("0.8.12 view-only asks never touch the shared master", () => {
+  it("living_report_get text, description and guidance", () => {
+    expect(LIVING_REQUIRED_TOP.split("\n")[0]).toBe(LIVING_VIEW_RULE);
+    expect(LIVING_VIEW_RULE).toContain("build a NEW private view or artifact");
+    expect(LIVING_VIEW_RULE).toContain("unless the user explicitly asks to update or save it, and confirm with them first");
+    expect(LIVING_REQUIRED_TOP).not.toMatch(/^REQUIRED: This is the saved master copy\. Update it in place/m);
+    const l = src("./tools/living-tools.ts");
+    expect(l).toContain("Viewing: build a new private view from it and never change the saved master.");
+    expect(l).toContain("For a view-only ask, build a NEW private view or artifact from structuredContent.data");
+    expect(l).not.toContain("Redraw the same layout");
+  });
+  it("cpm_activities text and guidance", () => {
+    expect(CPM_REQUIRED_TOP.split("\n")[0]).toContain('"pull up the schedule"');
+    expect(CPM_REQUIRED_TOP).toContain("build a NEW private view or artifact");
+    expect(src("./tools/living-tools.ts")).toContain('"View-only asks (e.g. \\"pull up the schedule\\"): build a NEW private view or artifact;');
+  });
+});
