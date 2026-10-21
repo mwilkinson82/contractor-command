@@ -9,6 +9,8 @@ import { useCompany, logoPublicUrl } from "@/hooks/use-company";
 import { GREETING_ICONS, type GreetingIconKey } from "@/components/portal/greeting-icon";
 import { ArrowUpRight, Check, AlertCircle, KeyRound, Building2, Loader2, Upload, Image as ImageIcon } from "lucide-react";
 import { createBillingPortalSession, submitBillingQuestion } from "@/lib/billing.functions";
+import { TeamSection, useAccountTeam } from "@/components/account/team-section";
+import { planLabel, planRate, seatSummary } from "@/lib/account-team";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 const LOGO_BUCKET = "company-logos";
@@ -45,6 +47,9 @@ function AccountPage() {
   const [coSaving, setCoSaving] = useState(false);
   const [coMsg, setCoMsg] = useState<string | null>(null);
   const logoFileRef = useRef<HTMLInputElement | null>(null);
+  const athena = useAccountTeam();
+  const tier = athena.state?.seats?.tier ?? null;
+  const rate = planRate(tier);
 
   useEffect(() => {
     if (!company) return;
@@ -200,9 +205,9 @@ function AccountPage() {
         <div className="rounded-2xl border border-border bg-card p-7">
           <p className="label-mono">Membership</p>
           <dl className="mt-4 space-y-3 text-sm">
-            <Row k="Plan" v="Contractor Circle" />
-            <Row k="Rate" v="$497 / month" />
-            <Row k="Status" v="Active" />
+            <Row k="Plan" v={athena.loading ? "…" : planLabel(tier)} />
+            {rate && <Row k="Rate" v={rate} />}
+            <Row k="Seats" v={athena.loading ? "…" : seatSummary(athena.state?.seats)} />
           </dl>
           <BillingActions />
         </div>
@@ -330,6 +335,8 @@ function AccountPage() {
           )}
         </div>
       </div>
+
+      <TeamSection {...athena} />
 
       {/* AOS link */}
       <div className="mt-5 rounded-2xl border border-border bg-card p-7">
