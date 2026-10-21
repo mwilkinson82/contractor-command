@@ -190,7 +190,7 @@ function Consent() {
         {!allowed && (
           <div role="alert" className="space-y-3 rounded-lg border-2 border-destructive/60 bg-destructive/5 p-4">
             <p className="text-[14px] font-semibold text-destructive">
-              Signed in as {email || "an unknown account"} — switch to your Circle account
+              Signed in as {email || "an unknown account"} — switch accounts
             </p>
             <p className="text-foreground/75">{NO_ENTITLEMENT_MESSAGE} Approve is turned off.</p>
             <button
@@ -221,7 +221,7 @@ function Consent() {
             ))}
           </ul>
         )}
-        <p className="text-foreground/60">This doesn't get around the Hub's own access rules.</p>
+        <p className="text-foreground/60">Your company's Athena access rules still apply.</p>
         {error && (
           <p role="alert" className="text-destructive">
             {error}
