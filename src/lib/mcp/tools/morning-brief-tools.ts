@@ -12,7 +12,7 @@ export const athenaHello = defineTool({
   name: "athena_hello",
   title: "Athena hello",
   description:
-    "Returns the styled morning brief when the user says Good morning Athena, Hey Athena, what's on my plate today?, good morning, hey Athena, hello, or a misspelling like Athina, Athen, or Atena, and a second good morning the same day stays the short reply.",
+    "Returns the full styled morning brief, including From your inbox and calendar, every time the user asks, including Good morning Athena, Hey Athena, what's on my plate today?, good morning, hey Athena, hello, or a misspelling like Athina, Athen, or Atena.",
   inputSchema: { company_id: companyId },
   annotations: READ,
   handler: (args, ctx) =>
@@ -26,7 +26,7 @@ export const athenaHello = defineTool({
 });
 
 export const MORNING_BRIEF_DESCRIPTION =
-  "Builds the member's construction morning brief across every job in every company they belong to, grouped by company when there is more than one, when they say Athena, good morning, Good morning Athena, Hey Athena, what's on my plate today?, Morning Athena, Athena at the start or mid-sentence, Athina, Athen, Atena, hitlist, morning briefing, what's on my plate today, overdue, or today's deadlines on my jobs, Athena leads, the host fills From your inbox and calendar from its own Gmail and Calendar with emails that came in overnight, unanswered emails that need a reply, and today's meetings, and leaves that section out when Gmail or Calendar is not available and never renders an empty heading, then the job side follows with the schedule, notices, submittals due, overdue items, and what happened yesterday versus what is due today, the reply is one styled HTML card, a second good morning the same day stays the short reply, and nothing is sent.";
+  "Builds the member's construction morning brief across every job in every company they belong to, grouped by company when there is more than one, when they say Athena, good morning, Good morning Athena, Hey Athena, what's on my plate today?, Morning Athena, Athena at the start or mid-sentence, Athina, Athen, Atena, hitlist, morning briefing, what's on my plate today, overdue, or today's deadlines on my jobs, Athena leads, the host fills From your inbox and calendar from its own Gmail and Calendar with emails that came in overnight, unanswered emails that need a reply, and today's meetings, and leaves that section out when Gmail or Calendar is not available and never renders an empty heading, then the job side follows with the schedule, notices, submittals due, overdue items, and what happened yesterday versus what is due today, the reply is the full styled HTML card every time they ask, including From your inbox and calendar, and nothing is sent.";
 
 export const morningBrief = defineTool({
   name: "morning_brief",
