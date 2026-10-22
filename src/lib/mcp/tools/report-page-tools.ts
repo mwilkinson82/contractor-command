@@ -4,7 +4,7 @@
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { dbError, run, text, type Sb } from "../guard";
-import { FULL_ACCESS_MESSAGE, READ_ONLY_MESSAGE, audit, prefix, resolveCompany, resolveJob } from "../jobs";
+import { FULL_ACCESS_MESSAGE, READ_ONLY_MESSAGE, audit, named, prefix, resolveCompany, resolveJob } from "../jobs";
 import { guide } from "../visible";
 import { boardLinkExpiry } from "../board-link";
 import { boardPageFor, jobLinksMissingToken, signedJobPages, type BoardLinkPage } from "../board-url";
@@ -91,7 +91,7 @@ export const reportPageLink = defineTool({
       const url = signed ?? pageUrl(t.p, t.id);
       if (jobLinksMissingToken(url).length) throw new ToolError("The board link could not be signed. Ask again in a moment.");
       await audit(sb, t.job, "report_page_link", `page_link_${t.p}`, null, t.company);
-      const card = boardLinkCard(t.p, t.job ? `${t.job.job_number} – ${t.job.name}` : null, url, expires ? expires.toISOString() : null);
+      const card = boardLinkCard(t.p, t.job ? named(t.job) : null, url, expires ? expires.toISOString() : null);
       const html = renderHtml(card);
       const body = applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
       return guide(

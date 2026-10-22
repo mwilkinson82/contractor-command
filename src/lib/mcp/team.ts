@@ -103,7 +103,8 @@ d.members.forEach(function(m){h+='<label><input type="radio" name="p" value="'+e
 h+='</div><div class="card"><h3>Role</h3>';
 roles.forEach(function(r){h+='<label><input type="radio" name="r" value="'+r+'"> '+esc(labels[r])+'</label>'});
 h+='</div><div class="card"><h3>Jobs</h3>';
-d.jobs.forEach(function(j){h+='<label><input type="checkbox" name="j" value="'+esc(j.job_number)+'"> '+esc(j.job_number)+' '+esc(j.name)+'</label>'});
+function jobOnce(j){var n=String(j.job_number||'').trim();var name=String(j.name||'').replace(/ +/g,' ').trim();if(!n)return name;var low=name.toLowerCase();var key=n.toLowerCase();if(low.indexOf(key)!==0)return name?n+' '+name:n;var rest=name.slice(n.length);function peel(s){s=s.replace(/^ +/,'').trim();var c=s.charAt(0);while(c==='–'||c==='—'||c==='-'||c===' '){s=s.slice(1).replace(/^ +/,'').trim();c=s.charAt(0)}return s}rest=peel(rest);while(rest.toLowerCase().indexOf(key)===0){rest=peel(rest.slice(n.length))}return rest?n+' '+rest:n}
+d.jobs.forEach(function(j){h+='<label><input type="checkbox" name="j" value="'+esc(j.job_number)+'"> '+esc(jobOnce(j))+'</label>'});
 h+='</div><button id="review">Review change</button><div id="confirm" class="card"><p id="summary"></p><button id="yes">Yes, make this change</button> <button id="no" class="secondary">Cancel</button></div>';
 app.innerHTML=h;var pending=null;
 function val(n){var e=document.querySelector('input[name='+n+']:checked');return e?e:null}

@@ -4,7 +4,7 @@ import { ATHENA_VERSION } from "../server-info-branding";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
-import { ITEM_COLS, READ_ONLY_MESSAGE, FULL_ACCESS_MESSAGE, WhichCompanyAsk, activeNa, audit, companyForCreate, currentCompany, flagWord, itemLine, itemType, jobTimeZone, memberCompanies, prefix, rememberCompany, renderSetupReport, resolveCompany, resolveJob, type Job } from "../jobs";
+import { ITEM_COLS, READ_ONLY_MESSAGE, FULL_ACCESS_MESSAGE, WhichCompanyAsk, activeNa, audit, companyForCreate, currentCompany, flagWord, itemLine, itemType, jobTimeZone, memberCompanies, named, prefix, rememberCompany, renderSetupReport, resolveCompany, resolveJob, type Job } from "../jobs";
 import { computeDue, todayIn, type DayType } from "../deadlines";
 import { INPUT_KEYS, INPUT_LABELS, currentCheck, loadAnswers, loadChecks, loadLookahead, renderReport, type InputKey } from "../workflow";
 import { WARRANTY_CHECK_PREFIX, WARRANTY_SETUP_QUESTIONS, mapTrigger, nextWarrantyQuestion, CONTRACT_WARRANTY_KEY, alignCloseoutSource, renderWarrantyRegister, warrantyAnswerFacts, warrantyHow, warrantyOpenItems, type WarrantyKey } from "../warranty";
@@ -1362,7 +1362,7 @@ export const listOpenItems = defineTool({
       const listed = rows.map((i) => ({ action: formatBillingText(itemName(i.action)), owner: i.accountable ?? i.owner ?? null, due: dueOf(i) || null, overdue: isOverdue(i, today), due_in_7_days: isDueIn7(i, today), item_id: i.id, item_type: itemType(i, nas) }));
       const counts = { open: listed.length, overdue: listed.filter((i) => i.overdue).length, due_in_7_days: listed.filter((i) => i.due_in_7_days).length };
       const header = openItemsHeader(counts);
-      const card = openItemsCard(`${job.job_number} – ${job.name}`, rows, counts, today);
+      const card = openItemsCard(`${named(job)}`, rows, counts, today);
       return guide({ ...text(`${prefix(job)}${laHead}${header}\n${lines.join("\n")}${dupNote}\n\n${REMINDERS_VIEW_SPEC.join("\n")}\n\n${ec.text}\n${EMAIL_VIEW_SPEC.join("\n")}${laBlock}`), structuredContent: { counts, items: listed, card, email_contact: ec.structured } }, "The open count is the number of items in this list. Overdue is the number of those items marked overdue. Do not count a different set.", EMAIL_CONTACT_RULE);
     }),
 });
@@ -1571,7 +1571,7 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
           line_items: sovLineRows(sov),
           notes: sovNotes(brand, sovFooterMissing(c)),
           specs_note: sovSpecsMissing(sov) ? SOV_SPECS_MISSING_NOTE : null,
-          header: { project: `${job.job_number} – ${job.name}`, prepared: today, contractor: c.name, basis: jr.data?.sov_basis ?? null, contract_sum: sov.summary.contract_total, contract_sum_display: money(sov.summary.contract_total) },
+          header: { project: `${named(job)}`, prepared: today, contractor: c.name, basis: jr.data?.sov_basis ?? null, contract_sum: sov.summary.contract_total, contract_sum_display: money(sov.summary.contract_total) },
           contract_total_display: money(sov.summary.contract_total),
           ...sov,
           footer: sovLayout(brand).footer,
@@ -1632,7 +1632,7 @@ export async function lookaheadData(sb: Sb, job: Job, laInput: string | { id: st
 /** 0.8.17: the lookahead as a finished view, filled from the saved CPM window when no schedule export was sent. */
 async function styledLookahead(sb: Sb, job: Job, la: { id: string; start_date?: string | null; end_date?: string | null }, highlight: string | null): Promise<{ view: string; model: LaModel | null }> {
   const d = await lookaheadData(sb, job, la);
-  const title = `${job.job_number} – ${job.name}`;
+  const title = `${named(job)}`;
   const board = await signedJobPages((fn, a) => sb.rpc(fn, a), job.job_id, job.scope);
   const url = board.lookahead ?? null;
   if (!d.win)

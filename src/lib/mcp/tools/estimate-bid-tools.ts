@@ -35,7 +35,7 @@ import {
   settle,
 } from "../estimating";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
-import { audit, prefix, resolveJob } from "../jobs";
+import { audit, named, resolveJob } from "../jobs";
 import { money } from "../sov";
 import { guide } from "../visible";
 
@@ -209,7 +209,7 @@ export const estimatePricing = defineTool({
         return present(
           "Pricing",
           [
-            `${prefix(job)}${job.name} · Pricing`,
+            `${named(job)} · Pricing`,
             "Before pricing, send the labor rate and the material rate, or save them on this job first.",
             "Labor: production per man-hour, or the man-hours you already have, crew size, hours in a man-day, and an hourly rate or a blended crew rate.",
             "Material: a unit price for each line.",
@@ -223,7 +223,7 @@ export const estimatePricing = defineTool({
         return present(
           "Estimate Summary",
           [
-            `${prefix(job)}${job.name} · Pricing`,
+            `${named(job)} · Pricing`,
             "Save the intake and name general contractor or self-performer before pricing. Nothing was priced.",
             nextMove("takeoff"),
           ],
@@ -258,7 +258,7 @@ export const estimatePricing = defineTool({
       });
       const lines = state.items.filter((i) => i.kind === "line" && i.status !== "dropped");
       const body = [
-        `${prefix(job)}${job.name} · Pricing`,
+        `${named(job)} · Pricing`,
         loaded.setup.role === "gc"
           ? "General contractor: labor plus material is the basis for checking a sub quote."
           : "Self-performer: labor is man-hours or man-days from your production, times your rate.",
@@ -377,7 +377,7 @@ export const estimateRateSources = defineTool({
         });
       await audit(sb, job, "estimate_rate_sources", "save_estimate_rate_sources", null);
       const body = [
-        `${prefix(job)}${job.name} · Rate references`,
+        `${named(job)} · Rate references`,
         ...sourceAsk(),
         ...(sources.length ? sources.map(describeRateChoice) : ["None carried yet."]),
         nextMove("rates"),
@@ -442,7 +442,7 @@ export const estimateGeneralConditions = defineTool({
       });
       await audit(sb, job, "estimate_general_conditions", "save_estimate_general_conditions", null);
       const body = [
-        `${prefix(job)}${job.name} · General conditions`,
+        `${named(job)} · General conditions`,
         duration
           ? `Schedule duration: ${duration} calendar days.`
           : sent.some((row) => row.key === "supervision" && row.qty != null)
@@ -557,7 +557,7 @@ export const estimateRequirements = defineTool({
       await audit(sb, job, "estimate_requirements", "save_estimate_requirements", null);
       const gaps = requirementGaps(hits, loaded.setup.role);
       const body = [
-        `${prefix(job)}${job.name} · Special requirements`,
+        `${named(job)} · Special requirements`,
         REQUIREMENT_OPEN_LIST,
         "These stay out of installation labor and material. Price each one, or confirm it, and say whether it sits in general conditions or on its own line.",
         ...(priced.length
@@ -647,7 +647,7 @@ export const estimateBidSummary = defineTool({
       });
       await audit(sb, job, "estimate_bid_summary", "save_estimate_bid", null);
       const body = [
-        `${prefix(job)}${job.name} · Bid summary`,
+        `${named(job)} · Bid summary`,
         "Overhead is applied first. Profit is applied on top of overhead.",
         ...view.lines,
         nextMove("bid"),

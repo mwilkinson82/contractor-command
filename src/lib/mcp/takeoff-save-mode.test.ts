@@ -16,6 +16,8 @@ vi.mock("./guard", () => ({
 }));
 vi.mock("./jobs", () => ({
   prefix: (job: { job_number: string }) => `${job.job_number} – `,
+  named: (job: { job_number: string; name?: string | null }) =>
+    job.name && job.name.startsWith(job.job_number) ? job.name : `${job.job_number} – ${job.name ?? ""}`.trim(),
   audit: async () => {},
   resolveJob: async () => {
     throw new ToolError("No job 9999 in this company. Create it with intake section \"create_job\".");

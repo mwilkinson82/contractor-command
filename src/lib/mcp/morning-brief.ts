@@ -13,6 +13,9 @@ import { guide } from "./visible";
 import type { CardModel, CardRow } from "./cards/model";
 import { normalizeRole, type TeamRole } from "./team";
 import { athenaAppOrigin } from "../athena-host";
+import { jobTitle } from "./job-label";
+
+export { jobTitle };
 
 export const MORNING_BRIEF_DEFAULT_TIME = "06:30";
 export const TODAY_BOARD_LABEL = "Open today's brief";
@@ -197,17 +200,6 @@ export function jobToday(timeZone: string, now: Date): string {
 
 function money(n: number): string {
   return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-/** Job number once, then the name. A name that already starts with the number is not prefixed again. */
-export function jobTitle(job: { job_number: string; name?: string | null }): string {
-  const number = job.job_number.trim();
-  const name = (job.name ?? "").replace(/\s+/g, " ").trim();
-  if (!number) return name;
-  if (!name || name === number) return number;
-  const escaped = number.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  if (new RegExp(`^${escaped}(?:\\s|[–—-]|$)`).test(name)) return name;
-  return `${number} ${name}`;
 }
 
 function jobLabel(job: BriefJob): string {

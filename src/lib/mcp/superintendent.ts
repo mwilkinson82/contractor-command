@@ -8,6 +8,11 @@ import { DEFAULT_TZ, dateIn } from "./deadlines";
 import { activityTitle, lookaheadWindow, shortDate } from "./styled-views";
 import { dedupeOpenRows, itemName } from "./open-feed";
 import { SovMismatch, buildSov, lineBilling, money, type SovLineIn } from "./sov";
+import { jobHeading } from "./job-label";
+
+function pageJobTitle(number?: string | null, name?: string | null, fallback = ""): string {
+  return jobHeading({ job_number: number ?? "", name: name ?? "" }, " ").trim() || fallback;
+}
 
 export const FIELD_NAVY = "#1E3A5F";
 export const FIELD_BLUE = "#1E5FED";
@@ -879,7 +884,7 @@ const value = (t: string, alert = false) => `<div style="font-size:15px;color:${
 
 export function fieldPageHtml(src: FieldSource & { job_number?: string; job_name?: string; items?: { id?: string | null; action?: string; owner?: string | null; due?: string | null }[] }): string {
   const board = projectField(src);
-  const title = `${src.job_number ?? ""} ${src.job_name ?? ""}`.trim() || "Field board";
+  const title = pageJobTitle(src.job_number, src.job_name, "Field board");
   const win = board.window ? `${shortDate(board.window.start)} – ${shortDate(board.window.end)}` : "Lookahead needed";
   const rows = board.rows.map((r) => {
     const who = r.self_perform === true ? "Self-perform" : r.self_perform === false ? `Sub · ${r.sub ?? "Needed"}` : "Self-perform or sub needed";
@@ -915,7 +920,7 @@ export function dailyPageHtml(p: {
   safety?: string | null;
   lines?: { work?: string; sov_item?: string | null; activity_id?: string | null; qty?: number | null; unit?: string | null; crew?: number | null; hours?: number | null }[];
 }): string {
-  const title = `${p.job_number ?? ""} ${p.job_name ?? ""}`.trim() || "Daily";
+  const title = pageJobTitle(p.job_number, p.job_name, "Daily");
   if (!p.found) return shell(`${title} · Daily`, card(`${value("No daily is saved for this job yet.")}`));
   const delay = isRecordedDelay(p.delays);
   const block = (k: string, v: string | null | undefined, alert = false) => card(`${label(k)}${value(v?.trim() || "Needed", alert)}`, alert);
@@ -941,7 +946,7 @@ export function photoPageHtml(p: {
   job_name?: string;
   photos?: { id?: string | null; taken_on?: string; area?: string; work?: string | null; sov_item?: string | null; activity_id?: string | null; client_safe?: boolean; url?: string | null }[];
 }): string {
-  const title = `${p.job_number ?? ""} ${p.job_name ?? ""}`.trim() || "Photos";
+  const title = pageJobTitle(p.job_number, p.job_name, "Photos");
   const photos = p.photos ?? [];
   if (!photos.length) return shell(`${title} · Photos`, card(`${value("No progress photos in this view.")}`));
   const body = photos.map((ph, n) => {

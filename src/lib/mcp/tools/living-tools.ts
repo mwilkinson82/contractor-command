@@ -20,7 +20,7 @@ function boardCardText(jobLabel: string, links: { label: string; href: string }[
   return `${renderMarkdown(card)}\n\n${htmlBlock(renderHtml(card))}`;
 }
 import { dbError, run, text, type Sb } from "../guard";
-import { FULL_ACCESS_MESSAGE, READ_ONLY_MESSAGE, audit, prefix, resolveJob, type Job } from "../jobs";
+import { FULL_ACCESS_MESSAGE, READ_ONLY_MESSAGE, audit, named, prefix, resolveJob, type Job } from "../jobs";
 import { SovMismatch, buildSov, money } from "../sov";
 import { guide } from "../visible";
 import {
@@ -131,7 +131,7 @@ export const cpmActivities = defineTool({
       const lines = [
         ...(scheduleBoard.schedule ? [pageLine("schedule", scheduleBoard.schedule)] : []),
         CPM_REQUIRED_TOP,
-        `${prefix(job)}${job.name} · ${LIVING_LABEL.cpm} ${stamp(g)}`,
+        `${named(job)} · ${LIVING_LABEL.cpm} ${stamp(g)}`,
         `Contract completion: ${g.contract_completion_date ?? "Needed"}`,
         `Count check: ${showMoney ? count.line : `${count.dated} of ${count.expected} activities dated.`}${count.complete ? "" : ` Missing dates: ${count.missing.join(", ")}.`}`,
         ...(tie ? [`Tie: ${tie.line}`] : []),
@@ -191,7 +191,7 @@ export const livingReportGet = defineTool({
       if (!g.found && type === "billing_forecast" && job.scope === "full") {
         // 0.8.17: styled empty pay-app card with the hosted page and a Next move.
         return guide(
-          { ...text(`${prefix(job)}${emptyCard("pay_app", `${job.job_number} – ${job.name}`, "Send the billed-to-date figure and the latest pay app; Athena builds the forecast from the saved schedule, ties it to the contract, and saves it as version 1 after the PM approves.", ["Billed to date", "Latest pay app (SOV lines)"], payappUrl)}`), structuredContent: { found: false, report_type: type, version: 0 } },
+          { ...text(`${prefix(job)}${emptyCard("pay_app", `${named(job)}`, "Send the billed-to-date figure and the latest pay app; Athena builds the forecast from the saved schedule, ties it to the contract, and saves it as version 1 after the PM approves.", ["Billed to date", "Latest pay app (SOV lines)"], payappUrl)}`), structuredContent: { found: false, report_type: type, version: 0 } },
           `Nothing saved: build the ${label} from Athena's data, mark it "Draft: not saved", and after the PM says yes call living_report_save with base_version 0.`,
         );
       }
@@ -211,10 +211,10 @@ export const livingReportGet = defineTool({
         ...(iorUrl ? [{ label: "Open IOR", href: iorUrl }] : []),
         ...(scheduleUrl ? [{ label: "Open schedule", href: scheduleUrl }] : []),
       ];
-      const linkCard = type === "ior" || type === "cpm" ? boardCardText(`${job.job_number} – ${job.name}`, boardLinks) : "";
+      const linkCard = type === "ior" || type === "cpm" ? boardCardText(`${named(job)}`, boardLinks) : "";
       return guide(
         {
-          ...text([...(type === "billing_forecast" && job.scope === "full" ? [payAppView({ title: `${job.job_number} – ${job.name}`, version: g.version, dataDate: g.data_date ?? null, billing: (data as { billing?: Billing }).billing ?? null, contract, pageUrl: payappUrl }), "", "---"] : []), ...(linkCard ? [linkCard] : type === "dashboard" && job.scope === "full" ? [pageLine("portfolio dashboard", pageUrl("portfolio", job.company_id))] : []), LIVING_REQUIRED_TOP, `${prefix(job)}${job.name} · ${label}`, stamp(g), ...(tie ? [`Tie: ${tie.line}`] : []), ...(type === "cpm" ? [...CPM_GANTT_SPEC, ...(readDelay(data as Record<string, unknown>) ? [readDelay(data as Record<string, unknown>)!.line] : []), ...ganttPins(readDelay(data as Record<string, unknown>))] : []), ...(type === "billing_forecast" && job.scope === "full" ? PAY_APP_VIEW_SPEC : []), ...(type === "ior" && job.scope === "full" ? IOR_VIEW_SPEC : []), ...(type === "dashboard" && job.scope === "full" ? PORTFOLIO_VIEW_SPEC : []), "", "Change log (latest 5):", ...(log.length ? log : ["- None yet."])].join("\n")),
+          ...text([...(type === "billing_forecast" && job.scope === "full" ? [payAppView({ title: `${named(job)}`, version: g.version, dataDate: g.data_date ?? null, billing: (data as { billing?: Billing }).billing ?? null, contract, pageUrl: payappUrl }), "", "---"] : []), ...(linkCard ? [linkCard] : type === "dashboard" && job.scope === "full" ? [pageLine("portfolio dashboard", pageUrl("portfolio", job.company_id))] : []), LIVING_REQUIRED_TOP, `${named(job)} · ${label}`, stamp(g), ...(tie ? [`Tie: ${tie.line}`] : []), ...(type === "cpm" ? [...CPM_GANTT_SPEC, ...(readDelay(data as Record<string, unknown>) ? [readDelay(data as Record<string, unknown>)!.line] : []), ...ganttPins(readDelay(data as Record<string, unknown>))] : []), ...(type === "billing_forecast" && job.scope === "full" ? PAY_APP_VIEW_SPEC : []), ...(type === "ior" && job.scope === "full" ? IOR_VIEW_SPEC : []), ...(type === "dashboard" && job.scope === "full" ? PORTFOLIO_VIEW_SPEC : []), "", "Change log (latest 5):", ...(log.length ? log : ["- None yet."])].join("\n")),
           structuredContent: { found: true, report_type: type, version: g.version, data_date: g.data_date ?? null, updated_at: g.updated_at ?? null, updated_by: g.updated_by_name ?? null, contract_completion_date: g.contract_completion_date ?? null, tie, data: data as never, change_log: g.change_log ?? [], no_financials: job.scope !== "full", board_links: boardLinks },
         },
         `Say "Picked up v${g.version}${g.updated_by_name ? `, last updated by ${g.updated_by_name}` : ""}." For a view-only ask, build a NEW private view or artifact from structuredContent.data in the same layout; never update or replace the saved shared master or an existing shared artifact. Only when the user explicitly asks to update or save it, confirm first, then to save the update ask "${LIVING_SAVE_ASK}" and only after a yes call living_report_save with base_version ${g.version}.`,

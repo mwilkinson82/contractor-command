@@ -46,7 +46,7 @@ import {
 } from "../estimating";
 import { errorCard, errorMessage } from "../error-card";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
-import { WhichCompanyAsk, audit, prefix, resolveJob } from "../jobs";
+import { WhichCompanyAsk, audit, named, resolveJob } from "../jobs";
 import { htmlBlock, renderMarkdown } from "../cards/markdown";
 import { renderHtml } from "../cards/html";
 import type { CardModel } from "../cards/model";
@@ -541,7 +541,7 @@ export const estimateIntake = defineTool({
           throw e;
         });
       await audit(sb, job, "estimate_intake", "save_estimate_intake", null);
-      const view = renderIntake(`${prefix(job)}${job.name}`, setup, profile, forms);
+      const view = renderIntake(`${named(job)}`, setup, profile, forms);
       const fresh =
         args.reuse === "fresh"
           ? prior.lines.length
@@ -620,7 +620,7 @@ export const estimateDocReview = defineTool({
         _patch: { doc_review: review },
       });
       await audit(sb, job, "estimate_doc_review", "save_estimate_doc_review", null);
-      const view = renderDocReview(`${prefix(job)}${job.name}`, review, prior.setup.documents);
+      const view = renderDocReview(`${named(job)}`, review, prior.setup.documents);
       return reply(view);
     }),
 });
@@ -681,7 +681,7 @@ export const estimateTakeoffSave = defineTool({
         const scales = (args.scales ?? []).map((s) => ({ ...s, scale: normalizeScale(s.scale) }));
         if (account.saved === 0) {
           const state = settle(prior.lines, prior.gaps, prior.verdicts, { role: prior.setup.role, trades: prior.setup.trades });
-          return reply(renderTakeoff(`${prefix(job)}${job.name}`, prior.lines, state, revision, undefined, account));
+          return reply(renderTakeoff(`${named(job)}`, prior.lines, state, revision, undefined, account));
         }
         await rpc(sb, "mcp_estimate_takeoff_save", {
           _job: job.job_id,
@@ -696,7 +696,7 @@ export const estimateTakeoffSave = defineTool({
         });
         await audit(sb, job, "estimate_takeoff_save", "save_estimate_takeoff", null);
         const view = renderTakeoff(
-          `${prefix(job)}${job.name}`,
+          `${named(job)}`,
           loaded.lines,
           state,
           loaded.revision,
@@ -723,12 +723,12 @@ export const estimateTakeoffGet = defineTool({
         const job = await resolveJob(sb, args.job_number, args.company_id, "write");
         const loaded = await load(sb, job.job_id);
         await audit(sb, job, "estimate_takeoff_get", "view_estimate_takeoff", null);
-        if (!loaded.version) return emptyTakeoff(`${prefix(job)}${job.name}`);
+        if (!loaded.version) return emptyTakeoff(`${named(job)}`);
         const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, {
           role: loaded.setup.role,
           trades: loaded.setup.trades,
         });
-        const view = renderTakeoff(`${prefix(job)}${job.name}`, loaded.lines, state, loaded.revision);
+        const view = renderTakeoff(`${named(job)}`, loaded.lines, state, loaded.revision);
         return reply({
           ...view,
           structured: { ...view.structured, found: true, version: loaded.version },
@@ -757,7 +757,7 @@ export const estimateTakeoffExport = defineTool({
         const loaded = await load(sb, job.job_id);
         if (!loaded.lines.length) return errorCard("Takeoff", "No takeoff is saved for this job yet. Nothing was exported.");
         await audit(sb, job, "estimate_takeoff_export", "export_estimate_takeoff", null);
-        const view = renderExport(`${prefix(job)}${job.name}`, loaded.lines, args.format ?? "csv");
+        const view = renderExport(`${named(job)}`, loaded.lines, args.format ?? "csv");
         return reply(view);
       } catch (e) {
         if (e instanceof WhichCompanyAsk) throw e;
@@ -884,7 +884,7 @@ export const estimateGapAnalysis = defineTool({
           trades: loaded.setup.trades,
         });
         await audit(sb, job, "estimate_gap_analysis", "save_estimate_gaps", null);
-        const view = renderGaps(`${prefix(job)}${job.name}`, loaded.gaps, state, reviewed.outOfScope);
+        const view = renderGaps(`${named(job)}`, loaded.gaps, state, reviewed.outOfScope);
         return reply(view);
       } catch (e) {
         caught(e);
@@ -906,7 +906,7 @@ export const estimateBidCheck = defineTool({
     run("estimate_bid_check", ctx, { jobNumber: args.job_number }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const loaded = await load(sb, job.job_id);
-      const label = `${prefix(job)}${job.name}`;
+      const label = `${named(job)}`;
       const why = bidCheckRefusal(loaded.setup.role);
       if (why) {
         const view = renderBidCheck(label, loaded.setup.role, null, why);
@@ -949,7 +949,7 @@ export const estimateItemMark = defineTool({
     run("estimate_item_mark", ctx, { jobNumber: args.job_number }, async (sb) => {
       try {
         const job = await resolveJob(sb, args.job_number, args.company_id, "write");
-        const label = `${prefix(job)}${job.name}`;
+        const label = `${named(job)}`;
         const prior = await load(sb, job.job_id);
         const id = args.item_id.trim();
         const lineNo = /^T-(\d+)$/i.exec(id);
@@ -1024,7 +1024,7 @@ export const estimateBuild = defineTool({
           rate: r.rate ?? null,
           bought: r.bought ?? null,
         }));
-        const view = renderSummary(`${prefix(job)}${job.name}`, state, rates, loaded.revision);
+        const view = renderSummary(`${named(job)}`, state, rates, loaded.revision);
         await rpc(sb, "mcp_estimate_setup_save", {
           _job: job.job_id,
           _patch: { summary: view.structured, summary_version: loaded.version },
@@ -1054,13 +1054,13 @@ export const estimateStatus = defineTool({
         throw e;
       }
       const loaded = await load(sb, job.job_id);
-      if (!loaded.version && loaded.lines.length === 0) return noEstimate(`${prefix(job)}${job.name}`);
+      if (!loaded.version && loaded.lines.length === 0) return noEstimate(`${named(job)}`);
       const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, {
         role: loaded.setup.role,
         trades: loaded.setup.trades,
       });
       await audit(sb, job, "estimate_status", "view_estimate_status", null);
-      const view = renderStatus(`${prefix(job)}${job.name}`, state, loaded.accuracy);
+      const view = renderStatus(`${named(job)}`, state, loaded.accuracy);
       return reply(view);
     }),
 });

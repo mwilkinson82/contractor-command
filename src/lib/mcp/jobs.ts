@@ -13,6 +13,7 @@ import { withoutClaims } from "./internal-claims";
 import { clauseLine, isClaimClause, missingNotices, type ClauseRow, legacySourceLabel, LEGACY_SUMMARY_TAG, OLD_SUMMARY_TAG, SUMMARY_OFFER, SUMMARY_HEADING } from "./contract-clauses";
 import { noticeRequirements } from "./notice-plain";
 import { DEFAULT_TZ, dateIn, todayIn } from "./deadlines";
+import { jobHeading } from "./job-label";
 
 export type Job = { job_id: string; job_number: string; name: string; company_id: string; scope?: "full" | "contract" | "super" };
 
@@ -187,6 +188,8 @@ export async function audit(sb: Sb, job: Job | null, tool: string, action: strin
 }
 
 export const prefix = (job: Job) => `${job.job_number} – `;
+/** Number once, then the name. "1234 – 1234 Riverside" collapses to one number. */
+export const named = (job: { job_number: string; name?: string | null }) => jobHeading(job);
 
 const CLIENT_SCRUB = /budget|margin|markup|forecast|overhead|\$\s?\d|contingency|\bIOR\b|cost[- ]to[- ]complete|strategy|profit|fee\b|savings[ _]split|runs the money/i;
 /** Coaching or internal copy that never belongs in a client-facing report. */
@@ -354,7 +357,7 @@ export async function renderSetupReport(sb: Sb, job: Job, audience: "internal" |
   const out: string[] = [];
   out.push(
     `${prefix(job)}JOB SETUP REPORT (${client ? "CLIENT-FACING" : superView ? "LIMITED VIEW — NO FINANCIALS" : contractOnly ? "INTERNAL — CONTRACT SIDE ONLY" : "INTERNAL"})`,
-    `Job: ${job.job_number} – ${job.name}`,
+    `Job: ${named(job)}`,
     `Company: ${co.data?.name ?? "unknown"} | Prepared by: ${agentLabel(co.data?.agent_name)}`,
     `Data through: ${dataThrough}`,
     "",
