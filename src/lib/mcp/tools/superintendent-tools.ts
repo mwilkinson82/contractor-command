@@ -21,8 +21,8 @@ import {
   fieldBoardCard,
   fieldCard,
   fieldMoney,
-  payAppCard,
-  payAppPercentCard,
+  payAppCardModel,
+  payAppPercentModel,
   photoGate,
   progressByItem,
   projectField,
@@ -31,6 +31,7 @@ import {
   sniffPhoto,
   type FieldSource,
 } from "../superintendent";
+import { presentStyledCard } from "../cards/present";
 import { guide } from "../visible";
 import { listCompaniesAndJobs, namedOrSoleJob } from "./workflow-tools";
 import { whichJobAsk } from "../which-job";
@@ -335,17 +336,15 @@ export const fieldPayApp = defineTool({
       const previous = priorDate ? progressByItem(lines, [], priorDate) : [];
       await audit(sb, job, "field_pay_app", "view_pay_app", null);
       if (!fieldMoney(job.scope)) {
-        const card = payAppPercentCard(prefix(job), period, current.map((r) => ({ item_no: r.item_no, pct: r.pct, qty: r.qty, unit: lines.find((l) => l.sov_item === r.item_no)?.unit ?? null })));
-        return guide({ ...text(card), structuredContent: { period_to: period, no_financials: true, rows: current } }, "Super view: percents and quantities only. Do not add dollar figures.");
+        const card = payAppPercentModel(prefix(job), period, current.map((r) => ({ item_no: r.item_no, pct: r.pct, qty: r.qty, unit: lines.find((l) => l.sov_item === r.item_no)?.unit ?? null })));
+        return presentStyledCard(card, { period_to: period, no_financials: true, rows: current }, ["Super view: percents and quantities only. Do not add dollar figures."]);
       }
       const sov = await loadSov(sb, job.job_id);
       try {
         const app = buildFieldPayApp(sov.lines, sov.fee, sov.retainage, current, previous);
         const url = boardHref(await boardPages(sb, job), "payapp");
-        return guide(
-          { ...text([...(url ? [`Styled pay app (private to your company): ${url}`] : []), payAppCard(prefix(job), period, app)].join("\n")), structuredContent: { period_to: period, pay_app: app, ties: true } },
-          "Show the G702 summary and the G703 lines exactly. Do not recompute them.",
-        );
+        const card = payAppCardModel(prefix(job), period, app, url);
+        return presentStyledCard(card, { period_to: period, pay_app: app, ties: true }, ["Show the G702 summary and the G703 lines exactly. Do not recompute them."]);
       } catch (e) {
         if (e instanceof PayAppMismatch) throw new ToolError(`${prefix(job)}The pay app does not tie, so it is not shown.\n${e.message}`);
         throw e;

@@ -2,6 +2,7 @@
 // Pure helpers. Dollars stay out of the field board. The pay application is built with the same
 // G702/G703 column math as the schedule of values, and it is refused when it does not tie.
 import type { CardModel, CardRow } from "./cards/model";
+import { g703Cells, g703Section } from "./pay-app-card";
 import { detailAnchor, mdLink, withAnchor } from "./plain-label";
 import { ALERT_HEX } from "./alert-color";
 import { DEFAULT_TZ, dateIn } from "./deadlines";
@@ -594,6 +595,58 @@ export function payAppPercentCard(
     ? rows.map((r) => `- ${r.description || "Item"}${r.item_no ? ` (${r.item_no})` : ""}: ${r.pct == null ? "percent needed" : `${r.pct}% complete`}${r.qty != null ? `, ${r.qty}${r.unit ? ` ${r.unit}` : ""} installed` : ""}`)
     : ["- No progress saved yet."];
   return [`${jobLabel}Progress for the next pay app · ${period}`, "Percents only. Dollar columns stay with the PM.", ...body].join("\n");
+}
+
+const jobLine = (jobLabel: string, period: string) => `${jobLabel}through ${period}`.replace(/\s+/g, " ").trim();
+
+/** G702 tiles and G703 rows. The summary lines stay word for word with payAppCard, including cents. */
+export function payAppCardModel(jobLabel: string, period: string, app: G702, pageUrl?: string | null): CardModel {
+  const lines = payAppCard(jobLabel, period, app).split("\n");
+  const summary = lines.filter((line) => /^(Contract sum|Completed and stored|Retainage|Earned less retainage|Previous certificates|Current payment due|Balance to finish):/.test(line));
+  const ties = lines.filter((line) => line.startsWith("Ties:"));
+  const retainage = app.retainage == null ? "Needed" : money(app.retainage);
+  return {
+    state: "result",
+    title: "Pay app",
+    show_state: false,
+    job: jobLine(jobLabel, period),
+    kpis: [
+      { label: "Contract sum", value: money(app.contract_sum) },
+      { label: "Completed and stored", value: money(app.completed_and_stored) },
+      { label: "Retainage", value: app.retainage_note ? `${retainage} — ${app.retainage_note}` : retainage },
+      { label: "Earned less retainage", value: money(app.earned_less_retainage) },
+      { label: "Previous certificates", value: money(app.previous_certificates) },
+      { label: "Current payment due", value: money(app.current_payment_due) },
+      { label: "Balance to finish", value: money(app.balance_to_finish) },
+    ],
+    sections: [
+      ...(pageUrl ? [{ heading: "Page", kind: "list" as const, rows: [{ cells: ["Pay app"], href: pageUrl }] }] : []),
+      { heading: "G702", kind: "list", rows: summary.map((line) => ({ cells: [line], raw: true })) },
+      g703Section(app.rows.map((row) => g703Cells(row))),
+      { heading: "Ties", kind: "list", rows: ties.map((line) => ({ cells: [line], raw: true })) },
+    ],
+  };
+}
+
+/** Percents and quantities only. No dollar tile, no dollar row. */
+export function payAppPercentModel(
+  jobLabel: string,
+  period: string,
+  rows: { item_no: string; description?: string | null; pct: number | null; qty: number | null; unit: string | null }[],
+): CardModel {
+  return {
+    state: "result",
+    title: "Pay app",
+    show_state: false,
+    job: jobLine(jobLabel, period),
+    sections: [
+      {
+        heading: "Progress",
+        kind: "list",
+        rows: payAppPercentCard(jobLabel, period, rows).split("\n").map((line) => ({ cells: [line], raw: true })),
+      },
+    ],
+  };
 }
 
 // ---------- field board ----------

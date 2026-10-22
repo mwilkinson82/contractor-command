@@ -49,6 +49,8 @@ export const CARD_TOOLS = new Set([
   "submittals_import",
   "project_record_search",
   "submittal_chase",
+  "field_pay_app",
+  "living_report_get",
 ]);
 
 function isCard(value: unknown): value is CardModel {

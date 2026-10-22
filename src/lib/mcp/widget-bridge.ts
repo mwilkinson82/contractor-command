@@ -6,7 +6,7 @@ import { CARD_TOOLS } from "./cards/attach";
 import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetHtml, cardWidgetMeta } from "./cards/widget";
 
 const MEETINGS = new Set(["pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "athena_hello", "morning_brief", "morning_brief_settings"]);
-const CARD_WIDGET_TOOLS = new Set<string>([...CARD_TOOLS, "lookahead_list"]);
+const CARD_WIDGET_TOOLS = new Set<string>([...CARD_TOOLS, "lookahead_list", "field_pay_app", "living_report_get"]);
 const TEMPLATE = { ...cardWidgetMeta };
 const patched = Symbol.for("athena.cardWidgetBridge");
 

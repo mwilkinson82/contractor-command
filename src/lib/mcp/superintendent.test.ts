@@ -13,6 +13,7 @@ import {
   isRecordedDelay,
   parseWorkLine,
   payAppPercentCard,
+  PayAppMismatch,
   photoGate,
   photoPageHtml,
   projectField,
@@ -30,6 +31,9 @@ import {
   shouldShowDailyCard,
 } from "./field-reminder";
 import { paletteViolations } from "./cards/palette";
+import { cardHasAlert } from "./cards/model";
+import { CARD_WIDGET_URI } from "./cards/widget";
+import { attachAthenaCard } from "./cards/attach";
 
 const state = vi.hoisted(() => ({
   scope: "full" as "full" | "super" | "contract",
@@ -116,7 +120,7 @@ import {
   superintendentView,
 } from "./tools/superintendent-tools";
 
-type H = (a: Record<string, unknown>, c: unknown) => Promise<{ content: { text: string }[]; structuredContent: Record<string, unknown> }>;
+type H = (a: Record<string, unknown>, c: unknown) => Promise<{ content: { text: string }[]; structuredContent: Record<string, unknown>; _meta?: Record<string, string> }>;
 const handle = (tool: unknown, args: Record<string, unknown>) => (tool as { handler: H }).handler(args, {});
 
 const JPEG = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0xff, 0xd9]);
@@ -301,11 +305,45 @@ describe("feeds", () => {
     const full = await handle(fieldPayApp, { job_number: "2701", period_to: "2026-10-21" });
     expect(full.content[0].text).toContain("Contract sum: $1,666.67");
     expect(full.content[0].text).toContain("Ties:");
+    expect(full.content[0].text).toContain("$1,666.67");
+    expect(full.content[0].text).not.toMatch(/\$1,667(?!\.)/);
+    const card = full.structuredContent.card as { title: string; kpis: { label: string; value: string }[]; sections: { heading: string }[] };
+    const html = full.structuredContent.html as string;
+    expect(card.title).toBe("Pay app");
+    expect(card.kpis.find((k) => k.label === "Contract sum")?.value).toBe("$1,666.67");
+    expect(card.sections.map((s) => s.heading)).toEqual(expect.arrayContaining(["G702", "G703", "Ties"]));
+    expect(html).toContain("<!doctype html>");
+    expect(html).toContain("#1E5FED");
+    expect(html).toContain("#1E3A5F");
+    expect(html).toContain("G703");
+    expect(html).not.toContain("#2563EB");
+    expect(html).not.toContain("#9CA3AF");
+    expect(paletteViolations(html, cardHasAlert(full.structuredContent.card as never))).toEqual([]);
+    expect(full._meta?.["openai/outputTemplate"]).toBe(CARD_WIDGET_URI);
+    expect(full.structuredContent["openai/outputTemplate"]).toBeUndefined();
+    const kept = attachAthenaCard("field_pay_app", full) as typeof full;
+    expect(kept.structuredContent.card).toMatchObject({ title: "Pay app" });
+    expect(kept.structuredContent.html).toContain("G703");
+    expect(kept._meta?.["openai/outputTemplate"]).toBe(CARD_WIDGET_URI);
     state.scope = "super";
     const sup = await handle(fieldPayApp, { job_number: "2701", period_to: "2026-10-21" });
     expect(sup.content[0].text).not.toContain("$");
     expect(sup.content[0].text).toContain("Percents only");
     expect(sup.structuredContent.no_financials).toBe(true);
+    expect(JSON.stringify(sup.structuredContent.card)).not.toContain("$");
+    expect(sup.structuredContent.html).not.toContain("$");
+    state.scope = "contract";
+    await expect(handle(fieldPayApp, { job_number: "2701", period_to: "2026-10-21" })).rejects.toThrow(/full access/);
+  });
+
+  it("hides a pay app that does not tie", () => {
+    expect(() => buildFieldPayApp([{ item_no: "03.01", description: "Footings", scheduled_value: 1000 }], null, 10, [], [])).toThrow(PayAppMismatch);
+  });
+
+  it("does not show the certificate when the tool refuses a mismatch", async () => {
+    state.tables.mcp_jobs = [{}];
+    state.tables.mcp_job_facts = [{ key: "03.01", module: "sov", value: { description: "Footings", billable_value: 1000 } }];
+    await expect(handle(fieldPayApp, { job_number: "2701", period_to: "2026-10-21" })).rejects.toThrow(/The pay app does not tie, so it is not shown/);
   });
 
   it("proposes CPM percents without writing the schedule", () => {

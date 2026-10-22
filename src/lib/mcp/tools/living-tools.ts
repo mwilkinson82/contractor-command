@@ -7,6 +7,8 @@ import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { renderHtml } from "../cards/html";
 import { htmlBlock, renderMarkdown } from "../cards/markdown";
+import { presentStyledCard } from "../cards/present";
+import { billingForecastCard } from "../pay-app-card";
 import { jobBoardCard } from "./report-page-tools";
 import { PERMANENT_LINK_ASK, type ReportPage } from "../../report-pages";
 
@@ -213,6 +215,29 @@ export const livingReportGet = defineTool({
         ...(scheduleUrl ? [{ label: "Open schedule", href: scheduleUrl }] : []),
       ];
       const linkCard = type === "ior" || type === "cpm" ? boardCardText(`${named(job)}`, boardLinks) : "";
+      if (type === "billing_forecast" && job.scope === "full") {
+        const card = billingForecastCard({
+          title: named(job),
+          version: g.version,
+          dataDate: g.data_date ?? null,
+          billing: (data as { billing?: Billing }).billing ?? null,
+          contract,
+          tieLine: tie?.line ?? null,
+          activities: (data as { activities?: Activity[] }).activities ?? [],
+          pageUrl: payappUrl,
+          stamp: stamp(g),
+          changeLog: log,
+        });
+        return presentStyledCard(
+          card,
+          { found: true, report_type: type, version: g.version, data_date: g.data_date ?? null, updated_at: g.updated_at ?? null, updated_by: g.updated_by_name ?? null, contract_completion_date: g.contract_completion_date ?? null, tie, data: data as never, change_log: g.change_log ?? [], no_financials: false, board_links: boardLinks },
+          [
+            `Say "Picked up v${g.version}${g.updated_by_name ? `, last updated by ${g.updated_by_name}` : ""}." For a view-only ask, build a NEW private view or artifact from structuredContent.data in the same layout; never update or replace the saved shared master or an existing shared artifact. Only when the user explicitly asks to update or save it, confirm first, then to save the update ask "${LIVING_SAVE_ASK}" and only after a yes call living_report_save with base_version ${g.version}.`,
+            ...PAY_APP_VIEW_SPEC,
+          ],
+          LIVING_REQUIRED_TOP,
+        );
+      }
       return guide(
         {
           ...text([...(type === "billing_forecast" && job.scope === "full" ? [payAppView({ title: `${named(job)}`, version: g.version, dataDate: g.data_date ?? null, billing: (data as { billing?: Billing }).billing ?? null, contract, pageUrl: payappUrl }), "", "---"] : []), ...(linkCard ? [linkCard] : type === "dashboard" && job.scope === "full" ? [pageLine("portfolio dashboard", pageUrl("portfolio", job.company_id))] : []), LIVING_REQUIRED_TOP, `${named(job)} · ${label}`, stamp(g), ...(tie ? [`Tie: ${tie.line}`] : []), ...(type === "cpm" ? [...CPM_GANTT_SPEC, ...(readDelay(data as Record<string, unknown>) ? [readDelay(data as Record<string, unknown>)!.line] : []), ...ganttPins(readDelay(data as Record<string, unknown>))] : []), ...(type === "billing_forecast" && job.scope === "full" ? PAY_APP_VIEW_SPEC : []), ...(type === "ior" && job.scope === "full" ? IOR_VIEW_SPEC : []), ...(type === "dashboard" && job.scope === "full" ? PORTFOLIO_VIEW_SPEC : []), "", "Change log (latest 5):", ...(log.length ? log : ["- None yet."])].join("\n")),
