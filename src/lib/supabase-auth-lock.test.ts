@@ -138,7 +138,15 @@ beforeEach(() => {
   vi.stubGlobal("fetch", () => Promise.reject(new Error("synthetic test: no network")));
 });
 
-afterEach(() => {
+afterEach(async () => {
+  // The auth client schedules a refresh tick. Unstubbing navigator first leaves
+  // that tick calling locks.request on an empty navigator, which rejects unhandled.
+  try {
+    const { supabase } = await import("@/integrations/supabase/client");
+    await supabase.auth.stopAutoRefresh();
+  } catch {
+    // This file's tests are the only importers, and some may not have loaded it.
+  }
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
 });
