@@ -1265,7 +1265,7 @@
       {
         "name": "resolve_item",
         "title": "Resolve or update an open item",
-        "description": "Closes or updates an open item.",
+        "description": "Closes or updates one open item, or reopens one closed item after you confirm with the user first, and for any bulk close lists the items, asks which are actually done, and closes only after an explicit yes, one confirmed item at a time.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -1299,7 +1299,8 @@
                 "waive",
                 "commercial_close",
                 "update",
-                "na"
+                "na",
+                "reopen"
               ]
             },
             "evidence": {
