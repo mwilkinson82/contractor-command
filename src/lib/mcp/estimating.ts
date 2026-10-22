@@ -40,7 +40,7 @@ export const ESTIMATE_VIEW_SPEC = [
   "REQUIRED VIEW – ESTIMATE: Landscape page, 17 in by 11 in. Portrait only if the member asks.",
   `Logo: Athena mark, top right, every page, ${ESTIMATE_LOGO_URL}.`,
   "Order: a short narrative, then the table or cards, then one-fact bullets.",
-  `Colors: navy ${ESTIMATE_NAVY}, blue #2563EB and gray. ${ALERT_COLOR} only on a row marked Holds the bid.`,
+  `Colors: navy ${ESTIMATE_NAVY}, blue #1E5FED and gray. ${ALERT_COLOR} only on a row marked Holds the bid.`,
   "Contact area first, then concrete, then reinforcing. A DEDUCED row shows its math and its sheet.",
   "A blank stays blank and names the one missing input. Do not fill a unit price that was not sent.",
   "Questions stay with the estimator. Do not claim a markup image unless this result includes one.",
@@ -1345,7 +1345,7 @@ export function estimateLayout() {
     logo: { url: ESTIMATE_LOGO_URL, position: "top-right" as const, alt: "Athena" },
     colors: {
       navy: ESTIMATE_NAVY,
-      blue: "#2563EB",
+      blue: "#1E5FED",
       gray: "#6B7280",
       alert: ALERT_HEX,
       alert_only_for: "risks and gaps that hold up the bid",

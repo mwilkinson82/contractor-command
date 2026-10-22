@@ -9,12 +9,31 @@ import { DEFAULT_TZ, addDays, todayIn } from "./deadlines";
 export type SAct = {
   id: string;
   name: string;
+  description?: string | null;
   start?: string | null;
   finish?: string | null;
   duration?: number | string | null;
   total_float?: number | string | null;
   critical?: boolean | null;
 };
+
+/** The words a person reads. A bare activity id falls back to the description. */
+export function activityTitle(a: { id?: string | null; name?: string | null; description?: string | null }): string {
+  const id = String(a.id ?? "").trim();
+  const name = String(a.name ?? "").trim();
+  const description = String(a.description ?? "").trim();
+  if (name && name.toUpperCase() !== id.toUpperCase()) return name;
+  if (description && description.toUpperCase() !== id.toUpperCase()) return description;
+  return description || name || "Activity";
+}
+
+/** Id plus the title, so a named activity still reads "A1110 Underground…". */
+export function activityLine(a: { id?: string | null; name?: string | null; description?: string | null }): string {
+  const id = String(a.id ?? "").trim();
+  const title = activityTitle(a);
+  if (!id || title.toUpperCase() === id.toUpperCase()) return title;
+  return `${id} ${title}`;
+}
 const num = (v: unknown): number | null =>
   v === null || v === undefined || v === "" || !Number.isFinite(Number(v)) ? null : Number(v);
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -92,7 +111,9 @@ export function readDelay(
     completion_impact_wd === 0
       ? ` (float absorbed it${fl !== null ? `; ${fragnet} still has ${fl} WD float` : ""})`
       : "";
-  const line = `Delay result (${fragnet}): ${callout ?? "Delay: Needed"}${window}. Completion impact: +${completion_impact_wd} WD${absorbed}${imp ? `; completion ${shortDate(imp.slice(0, 10))}` : ""}.`;
+  const title = act ? activityTitle(act) : "";
+  const titled = title && title.toUpperCase() !== fragnet.toUpperCase() ? ` ${title}.` : "";
+  const line = `Delay result (${fragnet}): ${callout ?? "Delay: Needed"}${window}. Completion impact: +${completion_impact_wd} WD${absorbed}${imp ? `; completion ${shortDate(imp.slice(0, 10))}` : ""}.${titled}`;
   return {
     fragnet,
     delay_wd,
@@ -446,7 +467,7 @@ export function lookaheadModel(
 }
 /** One plain line per item for text outputs (At-Risk section, PDF): label, owner, due, OVERDUE and flags. */
 export function entryLine(e: LaEntry): string {
-  return `${e.overdue ? "OVERDUE · " : e.dueToday ? "DUE TODAY · " : ""}${e.label} · Owner: ${e.item.owner ?? "Needed"} · Due ${e.item.due ? shortDate(e.item.due) : "Needed"}${e.a ? ` · Impact: ${e.a.id} ${e.a.name}${num(e.a.total_float) !== null ? ` (float ${num(e.a.total_float)} WD)` : ""}` : ""}${e.flags.map((f) => ` · ⚪ ${f.text}`).join("")}`;
+  return `${e.overdue ? "OVERDUE · " : e.dueToday ? "DUE TODAY · " : ""}${e.label} · Owner: ${e.item.owner ?? "Needed"} · Due ${e.item.due ? shortDate(e.item.due) : "Needed"}${e.a ? ` · Impact: ${activityLine(e.a)}${num(e.a.total_float) !== null ? ` (float ${num(e.a.total_float)} WD)` : ""}` : ""}${e.flags.map((f) => ` · ⚪ ${f.text}`).join("")}`;
 }
 const ICON: Record<Cell, string> = {
   crit: "🔵",
@@ -512,7 +533,7 @@ export function lookaheadView(v: {
   );
   for (const r of m.rows)
     L.push(
-      `| ${r.a.id} ${r.a.name.replace(/\|/g, "/")} | ${num(r.a.total_float) ?? ""} | ${r.cells.map((x) => `${ICON[x.kind]}${x.risk ? "🔴" : ""}`).join(" | ")} |`,
+      `| ${activityLine(r.a).replace(/\|/g, "/")} | ${num(r.a.total_float) ?? ""} | ${r.cells.map((x) => `${ICON[x.kind]}${x.risk ? "🔴" : ""}`).join(" | ")} |`,
     );
   if (!m.rows.length)
     L.push(
@@ -530,7 +551,7 @@ export function lookaheadView(v: {
     L.push("", "### Risk cards");
     for (const e of m.risks)
       L.push(
-        `> 🔴 **${e.label}** — Impact: ${e.a!.id} ${e.a!.name}${num(e.a!.total_float) !== null ? ` (float ${num(e.a!.total_float)} WD)` : ""}. Owner: ${e.item.owner ?? "Needed"} · Due ${e.item.due ? shortDate(e.item.due) : "Needed"}${e.overdue ? " · OVERDUE" : ""}.`,
+        `> 🔴 **${e.label}** — Impact: ${activityLine(e.a!)}${num(e.a!.total_float) !== null ? ` (float ${num(e.a!.total_float)} WD)` : ""}. Owner: ${e.item.owner ?? "Needed"} · Due ${e.item.due ? shortDate(e.item.due) : "Needed"}${e.overdue ? " · OVERDUE" : ""}.`,
         "",
       );
   }

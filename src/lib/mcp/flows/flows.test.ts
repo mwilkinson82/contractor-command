@@ -3,13 +3,22 @@ import { readFileSync } from "node:fs";
 import { paletteViolations } from "../cards/palette";
 import { renderHtml } from "../cards/html";
 import { renderMarkdown } from "../cards/markdown";
+import { z } from "zod";
+import { attachAthenaCard } from "../cards/attach";
 import { buildFlowCard, iorDelta } from "./build";
 import { job2701FlowData } from "./job-2701";
 import { EVENING_STAGES, MORNING_STAGES, PM_MEETING_STAGES, stagesFor, type FlowName } from "./types";
 
 const calls = vi.hoisted(() => ({ rpc: [] as string[] }));
 vi.mock("../guard", () => ({
-  run: async (_t: string, _c: unknown, _o: unknown, fn: (sb: unknown) => Promise<unknown>) => fn({ rpc: async (name: string) => { calls.rpc.push(name); return { data: null, error: { message: "unexpected" } }; } }),
+  run: async (_t: string, _c: unknown, _o: unknown, fn: (sb: unknown) => Promise<unknown>) => fn({
+    rpc: async (name: string) => { calls.rpc.push(name); return { data: null, error: { message: "unexpected" } }; },
+    from: (table: string) => {
+      const data = table === "mcp_companies" ? [{ id: "c1", name: "Harbor Electric" }] : [{ job_number: "2701", name: "Harbor Point", company_id: "c1" }];
+      const result = Promise.resolve({ data, error: null });
+      return { select: () => Object.assign(result, { in: () => result }) };
+    },
+  }),
   text: (b: string) => ({ content: [{ type: "text", text: b }] }),
 }));
 vi.mock("../jobs", () => ({
@@ -31,12 +40,21 @@ describe("job 2701 guided flows", () => {
   const data = job2701FlowData();
 
   it("keeps the PM meeting order and shows schedule, change orders, accounting, and IOR deltas", () => {
-    expect([...PM_MEETING_STAGES]).toEqual(["schedule", "change_orders", "accounting", "ior"]);
+    expect([...PM_MEETING_STAGES]).toEqual(["progress", "schedule", "change_orders", "accounting", "ior"]);
     for (const banned of ["closeout", "open_actions", "field_readiness", "financial"]) {
       expect(PM_MEETING_STAGES).not.toContain(banned);
-      expect(() => buildFlowCard("pm_meeting", banned, data)).toThrow(/Schedule, Change orders, Accounting, and IOR delta/);
+      expect(() => buildFlowCard("pm_meeting", banned, data)).toThrow(/Schedule progress, Schedule, Change orders, Accounting, and IOR delta/);
     }
+    const first = buildFlowCard("pm_meeting", PM_MEETING_STAGES[0], data);
+    expect(first.state).toBe("progress");
+    expect(first.title).toBe("Schedule progress");
+    expect(renderMarkdown(first)).toContain("Percent complete");
+    expect(renderMarkdown(first)).toContain("46%");
+    expect(renderMarkdown(first)).toContain("Activities done since last meeting");
+    expect(renderMarkdown(first)).toContain("Critical-path status");
     const schedule = buildFlowCard("pm_meeting", "schedule", data);
+    const headings = schedule.sections?.map((s) => s.heading) ?? [];
+    expect(headings.indexOf("Locked lookahead")).toBeLessThan(headings.indexOf("Subs, suppliers and crews"));
     expect(schedule.state).toBe("ask");
     expect(schedule.ask?.prompt).toContain("subs, suppliers and crews");
     expect(schedule.alerts?.some((a) => a.level === "delay")).toBe(true);
@@ -114,6 +132,23 @@ describe("sample path on job 2701", () => {
       }
     }
     expect(calls.rpc).toEqual([]);
+  });
+
+  it("asks which job, as a card, when no job is given", async () => {
+    const tools = [
+      [pmMeeting, "pm_meeting"],
+      [pmMorning, "pm_morning"],
+      [pmEvening, "pm_evening"],
+    ] as const;
+    for (const [tool, name] of tools) {
+      const raw = await call(tool, {});
+      const carded = attachAthenaCard(name, raw) as unknown as { content: { text?: string }[]; structuredContent: { card: { state: string; title: string } } };
+      expect(carded.structuredContent.card.title, name).toBe("Which job?");
+      expect(carded.structuredContent.card.state, name).toBe("ask");
+      expect(carded.content[0].text?.startsWith("## 🔵 Which job?"), name).toBe(true);
+      expect(carded.content[0].text, name).not.toMatch(/^No job named/);
+      expect(z.object((tool as { inputSchema: Record<string, z.ZodTypeAny> }).inputSchema).safeParse({}).success).toBe(true);
+    }
   });
 
   it("refuses the sample on any other job", async () => {

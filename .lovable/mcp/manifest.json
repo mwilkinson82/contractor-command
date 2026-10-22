@@ -1119,7 +1119,7 @@
       {
         "name": "contract_terms",
         "title": "Read contract terms",
-        "description": "Reads back a job's contract clauses.",
+        "description": "Reads a job's contract clauses back as one card, with each risk clause on that card and the summary question as the card action, and adds nothing after the card.",
         "annotations": {
           "readOnlyHint": true,
           "openWorldHint": false,
@@ -1197,7 +1197,7 @@
       {
         "name": "list_open_items",
         "title": "List open items",
-        "description": "Lists a job's open items.",
+        "description": "Lists open items for a job_number the member just gave, and must not fill job_number from chat context.",
         "annotations": {
           "readOnlyHint": true,
           "openWorldHint": false,
@@ -4884,7 +4884,7 @@
       {
         "name": "pm_meeting",
         "title": "PM meeting",
-        "description": "Leads the PM meeting one stage at a time.",
+        "description": "Runs the construction project manager meeting for a job the member just named, through schedule progress, the locked lookahead, subs suppliers and crews, change orders, billing, and the IOR, and must not fill job_number from chat context or hand the request to a calendar.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -4908,6 +4908,7 @@
             "stage": {
               "type": "string",
               "enum": [
+                "progress",
                 "schedule",
                 "change_orders",
                 "accounting",
@@ -4930,9 +4931,6 @@
               "const": true
             }
           },
-          "required": [
-            "job_number"
-          ],
           "additionalProperties": false
         },
         "outputSchema": null
@@ -4940,7 +4938,7 @@
       {
         "name": "pm_morning",
         "title": "PM morning meeting",
-        "description": "Leads the daily morning meeting one stage at a time.",
+        "description": "Runs the construction project morning meeting for a job the member just named, through the schedule, lookahead, crews, risks, and spillover, and must not fill job_number from chat context or hand the request to a calendar.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -4987,9 +4985,6 @@
               "const": true
             }
           },
-          "required": [
-            "job_number"
-          ],
           "additionalProperties": false
         },
         "outputSchema": null
@@ -4997,7 +4992,7 @@
       {
         "name": "pm_evening",
         "title": "Evening wrap-up",
-        "description": "Leads the daily evening wrap-up one stage at a time.",
+        "description": "Runs the construction project evening wrap-up for a job the member just named, through dailies, photos, risks, what happened, schedule disruptions, and the log, and must not fill job_number from chat context or hand the request to a calendar.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -5045,9 +5040,6 @@
               "const": true
             }
           },
-          "required": [
-            "job_number"
-          ],
           "additionalProperties": false
         },
         "outputSchema": null

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { athenaHostRedirect, athenaPathAllowed, postSignInDefault } from "./athena-routes";
+import { athenaHostRedirect, athenaPathAllowed, isHostedReport, postSignInDefault } from "./athena-routes";
 
 describe("Athena-only route shell", () => {
   it.each([
@@ -39,6 +39,17 @@ describe("Athena-only route shell", () => {
     expect(athenaPathAllowed("/accountant")).toBe(false);
     expect(athenaPathAllowed("/mcpx")).toBe(false);
     expect(athenaPathAllowed("/oauthx")).toBe(false);
+  });
+
+  it("field and items are the same hosted report, so neither is bounced to login on its own", () => {
+    const job = "/r/job/11111111-1111-4111-8111-111111111111";
+    expect(isHostedReport(`${job}/field`)).toBe(true);
+    expect(isHostedReport(`${job}/items`)).toBe(true);
+    expect(isHostedReport("/r/s/tok")).toBe(true);
+    expect(isHostedReport("/login")).toBe(false);
+    const root = readFileSync(new URL("../routes/__root.tsx", import.meta.url), "utf8");
+    expect(root).toContain("isHostedReport(pathname)");
+    expect(root).toContain("isHostedReport(renderedPathname)");
   });
 
   it("post-sign-in default: Athena host /account, Hub unchanged '/'", () => {

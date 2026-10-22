@@ -31,6 +31,9 @@ export type FlowData = {
   crewsConfirmed: boolean | null;
   superKnowsPlan: boolean | null;
   progressLabel: string | null;
+  percentComplete: number | null;
+  activitiesDone: string[];
+  criticalPath: string | null;
   items: FlowItem[];
   money: FlowMoney;
   iorNow: IorRow[];
@@ -51,7 +54,7 @@ export type FlowData = {
   showMoney: boolean;
 };
 
-export const PM_MEETING_STAGES = ["schedule", "change_orders", "accounting", "ior"] as const;
+export const PM_MEETING_STAGES = ["progress", "schedule", "change_orders", "accounting", "ior"] as const;
 export const MORNING_STAGES = ["schedule", "crews", "risks", "spillover", "log"] as const;
 export const EVENING_STAGES = ["dailies", "photos", "risks", "happened", "disruptions", "log"] as const;
 
@@ -61,6 +64,7 @@ export type EveningStage = (typeof EVENING_STAGES)[number];
 export type FlowStage = PmStage | MorningStage | EveningStage;
 
 export const STAGE_LABEL: Record<string, string> = {
+  progress: "Schedule progress",
   schedule: "Schedule",
   change_orders: "Change orders",
   accounting: "Accounting",

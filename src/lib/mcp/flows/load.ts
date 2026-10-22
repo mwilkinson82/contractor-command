@@ -1,3 +1,4 @@
+import { activityTitle } from "../styled-views";
 import { blankFlowData } from "./job-2701";
 import type { FlowData, FlowItem, IorRow } from "./types";
 
@@ -83,6 +84,16 @@ export async function loadFlowData(sb: Query, job: { job_id: string; job_number:
     data.money.billed = billing.data?.billing?.billed_to_date ?? null;
     data.money.contract = billing.contract_total ?? null;
     if (data.money.contract !== null && data.money.billed !== null) data.money.remaining = Math.round((data.money.contract - data.money.billed) * 100) / 100;
+  }
+  const cpm = reports.cpm as { found?: boolean; data?: { activities?: { id?: string; name?: string; description?: string; pct_complete?: number | null; critical?: boolean | null }[] } } | undefined;
+  if (cpm?.found && Array.isArray(cpm.data?.activities)) {
+    const acts = cpm.data.activities;
+    const pcts = acts.map((a) => a.pct_complete).filter((n): n is number => typeof n === "number");
+    data.percentComplete = pcts.length ? Math.round(pcts.reduce((s, n) => s + n, 0) / pcts.length) : null;
+    data.activitiesDone = acts.filter((a) => a.pct_complete === 100).map((a) => activityTitle(a));
+    const critical = acts.filter((a) => a.critical);
+    const open = critical.filter((a) => a.pct_complete !== 100);
+    data.criticalPath = critical.length ? (open.length ? `Open: ${open.slice(0, 3).map((a) => activityTitle(a)).join(", ")}` : "Clear") : null;
   }
   const ior = reports.ior as { found?: boolean; data?: { items?: IorRow[] } } | undefined;
   if (ior?.found && Array.isArray(ior.data?.items)) data.iorNow = ior.data.items;

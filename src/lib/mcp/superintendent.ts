@@ -5,7 +5,7 @@ import type { CardModel, CardRow } from "./cards/model";
 import { detailAnchor, mdLink, withAnchor } from "./plain-label";
 import { ALERT_HEX } from "./alert-color";
 import { DEFAULT_TZ, dateIn } from "./deadlines";
-import { lookaheadWindow, shortDate } from "./styled-views";
+import { activityTitle, lookaheadWindow, shortDate } from "./styled-views";
 import { SovMismatch, buildSov, lineBilling, money, type SovLineIn } from "./sov";
 
 export const FIELD_NAVY = "#1E3A5F";
@@ -580,7 +580,7 @@ function bestActivity(label: string, acts: Act[]): Act | null {
 export function projectField(src: FieldSource): { window: { start: string; end: string } | null; rows: FieldRow[]; outside: number } {
   const acts: Act[] = asArray(src.activities).map((a) => ({
     id: text(a.id) ?? "",
-    name: text(a.name) ?? "",
+    name: activityTitle({ id: text(a.id), name: text(a.name), description: text(a.description) }),
     start: text(a.start)?.slice(0, 10) ?? null,
     finish: text(a.finish)?.slice(0, 10) ?? null,
     total_float: num(a.total_float),
@@ -827,7 +827,8 @@ export function fieldPageHtml(src: FieldSource & { job_number?: string; job_name
     const anchor = detailAnchor("item", i.id || String(n + 1));
     return `<section id="${esc(anchor)}"${i.id ? ` data-id="${esc(i.id)}"` : ""}>${card(`${label(late ? "Overdue" : "Lookahead")}${value(i.action ?? "Item", late)}<div style="font-size:12px;color:${late ? FIELD_RED : FIELD_GRAY}">${esc(i.owner ?? "Needed")}${due ? ` · ${esc(shortDate(due))}` : ""}</div>`, late)}</section>`;
   }).join("");
-  return shell(`${title} · Field`, `<p style="margin:0 0 12px;color:${FIELD_GRAY};font-size:13px">Lookahead ${esc(win)}</p>${rows || card(`${value("No activities in this lookahead yet.")}`)}${items}`);
+  const allItems = `<p style="margin:4px 0 12px"><a href="../items" style="color:${FIELD_BLUE};font-weight:700;text-decoration:none">View all open items</a></p>`;
+  return shell(`${title} · Field`, `<p style="margin:0 0 12px;color:${FIELD_GRAY};font-size:13px">Lookahead ${esc(win)}</p>${rows || card(`${value("No activities in this lookahead yet.")}`)}${items}${allItems}`);
 }
 
 export function dailyPageHtml(p: {

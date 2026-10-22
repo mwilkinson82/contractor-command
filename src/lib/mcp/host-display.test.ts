@@ -13,7 +13,9 @@ describe("host-display block", () => {
   });
   it("covers verbatim-first cards, the summary offer, the styled default, one caveat and private by default", () => {
     expect(HOST_DISPLAY_BLOCK).toMatch(/Section numbers first, wording unchanged/);
-    expect(HOST_DISPLAY_BLOCK).toMatch(/always show them as white cards, never as plain text/);
+    expect(HOST_DISPLAY_BLOCK).toMatch(/Ordinary clauses are white cards/);
+    expect(HOST_DISPLAY_BLOCK).toMatch(/full red border and a red header/);
+    expect(HOST_DISPLAY_BLOCK).toMatch(/no prose before or after it/);
     expect(HOST_DISPLAY_BLOCK).toMatch(/One card per clause: section number and heading, days, and who it goes to/);
     expect(HOST_DISPLAY_BLOCK).toContain("Do you want me to summarize this legal text so you know what it means in plain English?");
     expect(HOST_DISPLAY_BLOCK).toMatch(/Visual first, by default \(never an opt-in\)/);
@@ -30,7 +32,7 @@ describe("host-display block", () => {
     expect(HOST_DISPLAY_BLOCK).not.toMatch(/never red|no red/i);
   });
   it("no preview or reworded offer; artifacts use chat data only", () => {
-    expect(HOST_DISPLAY_BLOCK).toMatch(/Nothing before or between the clause cards/);
+    expect(HOST_DISPLAY_BLOCK).toMatch(/Nothing before or after the clause card/);
     expect(HOST_DISPLAY_BLOCK).toMatch(/tightest clock/);
     expect(HOST_DISPLAY_BLOCK).toMatch(/Never call Athena \(or any tool\) from inside an artifact/);
   });

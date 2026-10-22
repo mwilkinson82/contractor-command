@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  activityLine,
+  activityTitle,
   readDelay,
   ganttPins,
   noteDateConflicts,
@@ -62,6 +64,15 @@ const v3 = {
     reference_completion: "2027-07-13",
   },
 };
+
+describe("activity names", () => {
+  it("uses the description when the name is missing or is only the id", () => {
+    expect(activityTitle({ id: "A1040", name: "A1040", description: "Pour footings" })).toBe("Pour footings");
+    expect(activityTitle({ id: "D1060", name: "", description: "Switchgear delay" })).toBe("Switchgear delay");
+    expect(activityLine({ id: "A1110", name: "Underground conduit rough-in" })).toBe("A1110 Underground conduit rough-in");
+    expect(activityLine({ id: "A1040", name: "", description: "Pour footings" })).toBe("A1040 Pour footings");
+  });
+});
 
 describe("delay result (2701 v3 shape)", () => {
   it("reads delay_analysis: 15 WD fragnet, 21 CD, completion impact 0 WD (float absorbed)", () => {

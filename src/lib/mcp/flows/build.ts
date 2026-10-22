@@ -125,7 +125,8 @@ function scheduleCard(flow: FlowName, data: FlowData): CardModel {
       { label: "On schedule", value: yn(data.onSchedule, "Yes", "No"), flag: data.onSchedule === false ? "delay" : null },
     ],
     sections: [
-      { heading: "Where the job stands", kind: "chips", rows: chips },
+      { heading: "Locked lookahead", kind: "chips", rows: [chips[1]] },
+      { heading: crewLabel(data), kind: "chips", rows: [chips[2]] },
       { heading: "Needed", kind: "list", rows: gaps.map((g) => ({ cells: [g], tone: "action" as const })) },
       {
         heading: "Change order candidates",
@@ -141,7 +142,25 @@ function scheduleCard(flow: FlowName, data: FlowData): CardModel {
   });
 }
 
+function progressCard(data: FlowData): CardModel {
+  const pct = data.percentComplete == null ? "Needed" : `${data.percentComplete}%`;
+  const done = data.activitiesDone.length ? data.activitiesDone : ["Needed"];
+  return shell("pm_meeting", "progress", data, {
+    state: "progress",
+    title: "Schedule progress",
+    kpis: [
+      { label: "Percent complete", value: pct },
+      { label: "Critical path", value: data.criticalPath ?? "Needed", flag: data.onSchedule === false ? "delay" : null },
+    ],
+    sections: [
+      { heading: "Activities done since last meeting", kind: "list", rows: done.map((line) => ({ cells: [line], tone: line === "Needed" ? "unknown" as const : "known" as const })) },
+      { heading: "Critical-path status", kind: "list", rows: [{ cells: [data.criticalPath ?? "Needed"], tone: data.criticalPath ? "known" : "unknown" }] },
+    ],
+  });
+}
+
 export function buildFlowCard(flow: FlowName, stage: string, data: FlowData): CardModel {
+  if (flow === "pm_meeting" && stage === "progress") return progressCard(data);
   if (stage === "schedule") return scheduleCard(flow, data);
   if (flow === "pm_meeting" && stage === "change_orders") {
     const groups = changeRows(data.items);
@@ -284,7 +303,7 @@ export function buildFlowCard(flow: FlowName, stage: string, data: FlowData): Ca
     });
   }
   if (flow === "pm_meeting") {
-    throw new Error("PM meeting stages are Schedule, Change orders, Accounting, and IOR delta. There is no other stage.");
+    throw new Error("PM meeting stages are Schedule progress, Schedule, Change orders, Accounting, and IOR delta. There is no other stage.");
   }
   return shell(flow, "log", data, {
     state: "result",

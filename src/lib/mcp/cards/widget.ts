@@ -53,13 +53,14 @@ if(card.ask&&card.ask.prompt)h+='<div class="ask"><strong>This question</strong>
     h+='</p>';
     return;
   }
+  function head(flag){return flag==="delay"?"Delay":flag==="overdue"?"Overdue":"Risk"}
   if(s.kind==="table"){
     var cols=s.columns||[];
     h+='<table><thead><tr>'+cols.map(function(c){return '<th>'+esc(c)+'</th>'}).join('')+'</tr></thead><tbody>';
     (s.rows||[]).forEach(function(r){
       var alert=isAlert(r.flag);
       var seen=view(r);
-      h+='<tr'+(alert?' class="alert" data-alert="'+r.flag+'"':'')+'>'+(r.cells||[]).map(function(c,i){var t=raw(c)?"":clean(c);return '<td>'+(i===0?linked({label:t||seen.label,href:seen.href,ref:seen.ref,secondary:seen.secondary}):esc(t))+'</td>'}).join('')+'</tr>';
+      h+='<tr'+(alert?' class="alert" data-alert="'+r.flag+'"':'')+'>'+(r.cells||[]).map(function(c,i){var t=raw(c)?"":clean(c);var body=i===0?linked({label:t||seen.label,href:seen.href,ref:seen.ref,secondary:seen.secondary}):esc(t);return '<td>'+(alert&&i===0?'<div class="flag-head">'+head(r.flag)+'</div><div class="flag-body">'+body+'</div>':body)+'</td>'}).join('')+'</tr>';
     });
     h+='</tbody></table>';
     return;
@@ -67,13 +68,14 @@ if(card.ask&&card.ask.prompt)h+='<div class="ask"><strong>This question</strong>
   h+='<ul>';
   (s.rows||[]).forEach(function(r){
     var alert=isAlert(r.flag);
-    h+='<li'+(alert?' class="alert" data-alert="'+r.flag+'"':'')+'>'+linked(view(r))+'</li>';
+    h+='<li'+(alert?' class="alert" data-alert="'+r.flag+'"':'')+'>'+(alert?'<div class="flag-head">'+head(r.flag)+'</div><div class="flag-body">':'')+linked(view(r))+(alert?'</div>':'')+'</li>';
   });
   h+='</ul>';
 });
 (card.alerts||[]).forEach(function(a){
   if(!isAlert(a.level))return;
-  h+='<p class="alert" data-alert="'+a.level+'">'+esc(a.level)+': '+esc(a.text)+'</p>';
+  var label=a.level==="delay"?"Delay":a.level==="overdue"?"Overdue":"Risk";
+  h+='<p class="alert" data-alert="'+a.level+'"><div class="flag-head">'+label+'</div><div class="flag-body">'+esc(a.level)+': '+esc(a.text)+'</div></p>';
 });
 if(card.next_move)h+='<p class="next">Next move: '+esc(card.next_move)+'</p>';
 h+='</div></article>';
@@ -102,8 +104,11 @@ a{color:${BLUE};text-decoration:none}
 .ref{display:block;margin-top:2px;font-size:11px;color:${GRAY}}
 .ask{margin:12px 0;padding:12px;border-left:4px solid ${BLUE}}
 .next{font-weight:700}
-.alert{color:${ALERT};border:1px solid ${ALERT};border-radius:10px}
-li.alert{display:block;margin:8px 0;padding:10px 12px}
+.alert{color:${ALERT}}
+li.alert,p.alert{display:block;margin:8px 0;padding:0;border:2px solid ${ALERT};border-radius:12px;background:${WHITE};overflow:hidden}
+.flag-head{display:block;margin:0;padding:6px 10px;background:${ALERT};color:${WHITE};font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.flag-body{padding:10px 12px}
+tr.alert td{border:2px solid ${ALERT}}
 </style></head><body><div id="app"></div><script>${SCRIPT}</script></body></html>`;
 }
 

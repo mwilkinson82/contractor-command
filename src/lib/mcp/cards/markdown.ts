@@ -45,6 +45,7 @@ function section(s: CardSection): string[] {
   }
   for (const row of s.rows) {
     if (row.raw) {
+      if (row.flag) lines.push(`- ${toneMark(row)} **${row.flag === "delay" ? "Delay" : row.flag === "overdue" ? "Overdue" : "Risk"}**`);
       lines.push(row.cells.join("\n"));
       continue;
     }

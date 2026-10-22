@@ -4,8 +4,7 @@ import { HOST_DISPLAY_BLOCK } from "./visible";
 
 describe("host output rules (0.8.0, v0.7.8 retest fixes)", () => {
   it("contract output ends with the exact offer, missing notices folded into one line before it", () => {
-    expect(HOST_DISPLAY_BLOCK).toContain("then ONE line for any missing or partial notices");
-    expect(HOST_DISPLAY_BLOCK).toContain("the exact summary offer as the very last line. Nothing after the offer.");
+    expect(HOST_DISPLAY_BLOCK).toContain("Incomplete terms and the summary question are already inside that card. Nothing after the card.");
   });
   it("bans no-change lines and filler openers", () => {
     expect(HOST_DISPLAY_BLOCK).toContain('Never write \"No changes were made\", \"No items were changed\"');

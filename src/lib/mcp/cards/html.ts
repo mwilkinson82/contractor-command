@@ -19,6 +19,17 @@ function linked(row: CardRow, text: string): string {
   return `<span${id}>${body}${secondary}</span>`;
 }
 
+function flagHead(flag: CardRow["flag"]): string {
+  if (flag === "delay") return "Delay";
+  if (flag === "overdue") return "Overdue";
+  return "Risk";
+}
+
+function flagged(row: CardRow, inner: string): string {
+  if (!row.flag) return inner;
+  return `<div class="flag-head">${flagHead(row.flag)}</div><div class="flag-body">${inner}</div>`;
+}
+
 function rowClass(row: CardRow): string {
   const parts = [];
   if (row.flag) parts.push(`class="alert" data-alert="${row.flag}"`);
@@ -56,8 +67,11 @@ export function renderHtml(card: CardModel): string {
     `.tone-action{background:${BLUE};color:${WHITE};border-color:${BLUE}}`,
     `.ask{margin:12px 0;padding:12px;border-left:4px solid ${BLUE};background:${WHITE}}`,
     `.next{margin:14px 0 0;font-weight:700}`,
-    alert ? `.alert,li.alert,p.alert,tr.alert{color:${ALERT};border:1px solid ${ALERT};border-radius:10px}` : "",
-    alert ? `li.alert{display:block;margin:8px 0;padding:10px 12px}` : "",
+    alert ? `.alert,li.alert,p.alert,tr.alert{color:${ALERT}}` : "",
+    alert ? `li.alert,p.alert{display:block;margin:8px 0;padding:0;border:2px solid ${ALERT};border-radius:12px;background:${WHITE};overflow:hidden}` : "",
+    alert ? `.flag-head{display:block;margin:0;padding:6px 10px;background:${ALERT};color:${WHITE};font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}` : "",
+    alert ? `.flag-body{padding:10px 12px}` : "",
+    alert ? `tr.alert td{border:2px solid ${ALERT}}` : "",
   ]
     .filter(Boolean)
     .join("");
@@ -89,7 +103,8 @@ export function renderHtml(card: CardModel): string {
             const attr = rowClass(r);
             const cells = Array.from({ length: width }, (_, i) => {
               const text = cellText(r.cells[i] ?? "");
-              return `<td>${i === 0 ? linked(r, text) : esc(text)}</td>`;
+              const body = i === 0 ? linked(r, text) : esc(text);
+              return `<td>${i === 0 ? flagged(r, body) : body}</td>`;
             }).join("");
             return `<tr ${attr}>${cells}</tr>`;
           })
@@ -99,15 +114,15 @@ export function renderHtml(card: CardModel): string {
       const items = s.rows
         .map((r) => {
           const attr = rowClass(r);
-          if (r.raw) return `<li ${attr}>${esc(r.cells.filter(Boolean).join(" · "))}</li>`;
-          return `<li ${attr}>${linked(r, "")}</li>`;
+          const inner = r.raw ? esc(r.cells.filter(Boolean).join(" · ")) : linked(r, "");
+          return `<li ${attr}>${flagged(r, inner)}</li>`;
         })
         .join("");
       return `${heading}<ul>${items}</ul>`;
     })
     .join("");
   const alerts = (card.alerts ?? [])
-    .map((a) => `<p class="alert" data-alert="${a.level}">${esc(a.level)}: ${esc(a.text)}</p>`)
+    .map((a) => `<p class="alert" data-alert="${a.level}"><div class="flag-head">${flagHead(a.level)}</div><div class="flag-body">${esc(a.level)}: ${esc(a.text)}</div></p>`)
     .join("");
   const ask = card.ask?.prompt ? `<div class="ask"><strong>This question</strong><p>${esc(card.ask.prompt)}</p></div>` : "";
   const next = card.next_move ? `<p class="next">Next move: ${esc(card.next_move)}</p>` : "";

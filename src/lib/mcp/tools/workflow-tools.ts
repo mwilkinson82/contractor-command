@@ -1337,7 +1337,7 @@ const CONTRACT_FLAGS = ["has_retainage", "has_lds", "beneficial_use", "notice_re
 export const contractTerms = defineTool({
   name: "contract_terms",
   title: "Read contract terms",
-  description: "Reads back a job's contract clauses.",
+  description: "Reads a job's contract clauses back as one card, with each risk clause on that card and the summary question as the card action, and adds nothing after the card.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
