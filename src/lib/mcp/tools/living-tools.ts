@@ -102,7 +102,7 @@ const logLines = (g: Got) => (g.change_log ?? []).slice(0, 5).map((c) => `- v${c
 export const cpmActivities = defineTool({
   name: "cpm_activities",
   title: "Full CPM activity list",
-  description: "Returns the saved CPM activities for a job as the styled schedule in the result.",
+  description: "Returns the saved CPM activities for a job.",
   inputSchema: { job_number: jobNumber, company_id: companyId, version: z.number().int().min(1).optional() },
   annotations: { ...READ, idempotentHint: true },
   handler: (args, ctx) =>
@@ -173,7 +173,7 @@ export const cpmActivities = defineTool({
 export const livingReportGet = defineTool({
   name: "living_report_get",
   title: "Living report master copy",
-  description: "Returns the saved living report for a job as the styled card in the result.",
+  description: "Returns the saved living report for a job.",
   inputSchema: { job_number: jobNumber, company_id: companyId, report_type: reportType, version: z.number().int().min(1).optional() },
   annotations: { ...READ, idempotentHint: true },
   handler: (args, ctx) =>

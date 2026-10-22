@@ -321,7 +321,7 @@ export const dailyReportGet = defineTool({
 export const fieldPayApp = defineTool({
   name: "field_pay_app",
   title: "Pay app from daily progress",
-  description: "Builds the next pay application from saved daily progress as the styled card in the result.",
+  description: "Builds the next pay application from saved daily progress so it ties to the schedule of values.",
   inputSchema: { job_number: jobNumber, company_id: companyId, period_to: date.optional() },
   annotations: READ,
   handler: (args, ctx) =>
@@ -586,7 +586,7 @@ export const dailyReminderRun = defineTool({
       const shown = previewDailyReminderCard({ jobNumber: job.job_number, jobName: status?.job_name || job.name, status });
       return guide(
         { ...text(shown.text), structuredContent: { sent: 0, preview: true, mode: "card", daily_reminder_card: shown.card, daily_reminder_action: "daily_report_draft" } },
-        "This is a preview of the in-chat card. Do not email it.",
+        "This is a preview of the in-chat card. Do not email it. Card shown. Do not add text.",
       );
     }),
 });

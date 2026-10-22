@@ -2,15 +2,15 @@
 // whatever prose is left in the tool text. A which-job or picker card must end on the
 // card. The last line is an instruction, not a preview of the next pull.
 
-export const CARD_SHOWN =
-  "Card shown. Show the HTML card above as written. Do not add text after it, and do not replace it with a markdown table or one sentence.";
-export const CARD_SHOWN_PICK =
-  "Card shown. Show the HTML card above as written. Do not add text after it; wait for the user's pick.";
+import { CARD_WIDGET_URI } from "./widget";
+
+export const CARD_SHOWN = "Card shown. Do not add text.";
+export const CARD_SHOWN_PICK = "Card shown. Do not add text; wait for the user's pick.";
 
 /** Selection cards. Which-job is detected from structuredContent.which_job. */
 export const PICKER_TOOLS = new Set(["team_list"]);
 
-const HTML_MARKER = "<!doctype html";
+const HTML_MARKER = "REQUIRED VIEW: render this HTML card as-is.";
 
 type Block = { type: string; text?: string; _meta?: Record<string, unknown> };
 type Res = {
@@ -59,9 +59,10 @@ export function stripSpokenPreview(text: string): string {
   return joined ? `${joined}\n\n${tail.trim()}` : tail.trim();
 }
 
-/** Drops a spoken preview. The result is the card, with no command telling the host what to do. */
-export function applyCardClosing(text: string, _pick: boolean): string {
-  return stripClosing(stripSpokenPreview(text));
+export function applyCardClosing(text: string, pick: boolean): string {
+  const body = stripClosing(stripSpokenPreview(text));
+  const closing = cardClosing(pick);
+  return body ? `${body}\n\n${closing}` : closing;
 }
 
 function isCardModel(value: unknown): boolean {
@@ -77,10 +78,22 @@ export function isCardReply(tool: string, res: Res): boolean {
   if (isPickerReply(tool, res)) return true;
   const sc = res.structuredContent ?? {};
   if (isCardModel(sc.card) || isCardModel(sc.daily_reminder_card)) return true;
+  const template = res._meta?.["openai/outputTemplate"];
+  if (typeof template === "string" && template.startsWith("ui://athena/")) return true;
   const text = (res.content ?? [])
     .map((c) => (typeof c.text === "string" ? c.text : ""))
     .join("\n");
-  return text.toLowerCase().includes(HTML_MARKER);
+  return text.includes(HTML_MARKER);
+}
+
+function withGuidance(
+  sc: Record<string, unknown> | undefined,
+  closing: string,
+): Record<string, unknown> {
+  const prior = Array.isArray(sc?.assistant_guidance) ? (sc.assistant_guidance as unknown[]) : [];
+  const guidance = prior.filter((g) => g !== CARD_SHOWN && g !== CARD_SHOWN_PICK);
+  guidance.push(closing);
+  return { ...(sc ?? {}), assistant_guidance: guidance };
 }
 
 /**
@@ -91,6 +104,7 @@ export function sealCardReply<R>(tool: string, result: R): R {
   const res = result as unknown as Res;
   if (!res?.content?.length || !isCardReply(tool, res)) return result;
   const pick = isPickerReply(tool, res);
+  const closing = cardClosing(pick);
   let last = -1;
   for (let i = 0; i < res.content.length; i++) {
     const block = res.content[i];
@@ -102,10 +116,22 @@ export function sealCardReply<R>(tool: string, result: R): R {
       ? { ...block, text: applyCardClosing(block.text, pick) }
       : block,
   );
-  const structuredContent = { ...(res.structuredContent ?? {}) };
+  const structuredContent = withGuidance(res.structuredContent, closing);
+  if (structuredContent["openai/outputTemplate"] === CARD_WIDGET_URI) delete structuredContent["openai/outputTemplate"];
+  const template = res._meta?.["openai/outputTemplate"];
+  if (
+    typeof template === "string" &&
+    template !== CARD_WIDGET_URI &&
+    typeof structuredContent["openai/outputTemplate"] !== "string"
+  ) {
+    structuredContent["openai/outputTemplate"] = template;
+  }
   const out: Record<string, unknown> = { ...res, content, structuredContent };
   if (Array.isArray(res.guidance)) {
-    out.guidance = res.guidance.filter((g) => g !== CARD_SHOWN && g !== CARD_SHOWN_PICK);
+    out.guidance = [
+      ...res.guidance.filter((g) => g !== CARD_SHOWN && g !== CARD_SHOWN_PICK),
+      closing,
+    ];
   }
   return out as unknown as R;
 }

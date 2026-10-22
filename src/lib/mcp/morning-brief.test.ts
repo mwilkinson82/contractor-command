@@ -213,8 +213,7 @@ describe("morning brief builder", () => {
   it("renders the shared card, the same text, and signed job links", () => {
     const shown = presentBrief(pm.card);
     const text = shown.content.find((c) => c.type === "text")?.text ?? "";
-    expect(text.trim().endsWith("</html>")).toBe(true);
-    expect(text).not.toMatch(/REQUIRED VIEW|do not add text/i);
+    expect(text.trim().endsWith(CARD_SHOWN)).toBe(true);
     expect(text).toContain("Today");
     expect(text).toContain("Open items");
     expect(text).toContain("Don't forget");
@@ -243,7 +242,7 @@ describe("morning brief builder", () => {
   it("is one unescaped HTML card for Claude, with inbox, calendar, jobs, and a link", () => {
     const shown = presentBrief(pm.card);
     const text = shown.content.find((c) => c.type === "text")?.text ?? "";
-    const before = text.trim();
+    const before = text.trim().slice(0, -CARD_SHOWN.length).trim();
     expect(before.match(/<!doctype html/gi)).toHaveLength(1);
     expect(before.endsWith("</html>")).toBe(true);
     expect(before).not.toContain("```html");
@@ -252,21 +251,20 @@ describe("morning brief builder", () => {
     expect(emptyCssValues(before)).toEqual([]);
     expect(before).toContain("#1E3A5F");
     expect(before).toContain("#1E5FED");
-    expect(before).not.toContain(INBOX_HOST_LINE);
-    expect(before).toContain("Connect Google Calendar in your AI.");
+    expect(before).toContain(INBOX_HOST_LINE);
+    expect(before).toContain("Gmail and Calendar");
     expect(before).not.toContain("leave the section out");
     expect(before).not.toContain("leave that section out");
     expect(before).not.toContain("Never render an empty heading");
     expect(shown.structuredContent.html).toContain("From your inbox and calendar");
-    expect(shown.structuredContent.html).toContain("Connect Google Calendar in your AI.");
-    expect(text.indexOf("## ")).toBeLessThan(text.indexOf("<!doctype html"));
     expect(shown.structuredContent.html).toContain("Connect Gmail and Google Calendar");
     const sealed = attachAthenaCard("morning_brief", shown) as { content: { type: string; text?: string }[] };
     const hostText = sealed.content.find((c) => c.type === "text")?.text ?? "";
-    expect(hostText).not.toContain(INBOX_HOST_LINE);
-    expect(hostText).not.toMatch(/REQUIRED VIEW|do not add text/i);
+    expect(hostText).toContain(INBOX_HOST_LINE);
     expect(hostText).toContain("From your inbox and calendar");
-    expect(hostText).toContain("Connect Google Calendar in your AI.");
+    expect(hostText).toContain("Gmail and Calendar");
+    expect(hostText).toContain("overnight emails");
+    expect(hostText).toContain("unanswered emails");
     expect(hostText).toContain("today's meetings");
     expect(before).toContain("2701");
     expect(before).toContain("/r/job/");
@@ -298,9 +296,7 @@ describe("a second good morning", () => {
     const texts = [first, second].map((result) => result.content.find((c) => c.type === "text")?.text ?? "");
     expect(texts[1]).toBe(texts[0]);
     for (const text of texts) {
-      expect(text).not.toContain(INBOX_HOST_LINE);
-      expect(text).not.toMatch(/REQUIRED VIEW|do not add text/i);
-      expect(text).toContain("Connect Google Calendar in your AI.");
+      expect(text).toContain(INBOX_HOST_LINE);
       expect(text).toContain("From your inbox and calendar");
       expect(text).toContain("Morning brief");
       expect(text).toContain("2701");

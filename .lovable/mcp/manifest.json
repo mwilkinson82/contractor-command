@@ -28,8 +28,8 @@
           "idempotentHint": true
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "action": {
               "type": "string",
@@ -162,7 +162,7 @@
             "member_email": {
               "type": "string",
               "format": "email",
-              "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
             },
             "member_name": {
               "type": "string",
@@ -216,8 +216,8 @@
           "idempotentHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "section": {
               "type": "string",
@@ -935,8 +935,8 @@
           "idempotentHint": true
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -972,8 +972,8 @@
           "idempotentHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -1066,8 +1066,8 @@
           "idempotentHint": true
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -1126,8 +1126,8 @@
           "idempotentHint": true
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -1161,8 +1161,8 @@
           "idempotentHint": true
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -1204,8 +1204,8 @@
           "idempotentHint": true
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -1241,8 +1241,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -1273,8 +1273,8 @@
           "idempotentHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -1350,8 +1350,8 @@
           "idempotentHint": true
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -1386,8 +1386,8 @@
           "idempotentHint": true
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -1433,8 +1433,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -1571,9 +1571,13 @@
                     ]
                   },
                   "critical": {
-                    "type": [
-                      "boolean",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "pct_complete": {
@@ -1759,8 +1763,8 @@
           "openWorldHint": true
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -1838,8 +1842,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -1876,8 +1880,8 @@
           "openWorldHint": true
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -1918,8 +1922,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "page": {
               "type": "string",
@@ -1955,8 +1959,8 @@
           "openWorldHint": true
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "page": {
               "type": "string",
@@ -2005,8 +2009,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "link": {
               "type": "string",
@@ -2032,8 +2036,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "company_id": {
               "type": "string",
@@ -2056,8 +2060,8 @@
           "openWorldHint": true
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "company_id": {
               "type": "string",
@@ -2068,7 +2072,7 @@
               "type": "string",
               "maxLength": 320,
               "format": "email",
-              "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
             },
             "name": {
               "type": "string",
@@ -2115,8 +2119,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "company_id": {
               "type": "string",
@@ -2170,8 +2174,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "company_id": {
               "type": "string",
@@ -2207,8 +2211,8 @@
           "openWorldHint": true
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "company_id": {
               "type": "string",
@@ -2244,8 +2248,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "company_id": {
               "type": "string",
@@ -2271,8 +2275,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -2383,9 +2387,13 @@
                     "maxLength": 80
                   },
                   "total": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "lines": {
@@ -2400,9 +2408,13 @@
                           "maxLength": 300
                         },
                         "qty": {
-                          "type": [
-                            "number",
-                            "null"
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         },
                         "unit": {
@@ -2410,9 +2422,13 @@
                           "maxLength": 20
                         },
                         "amount": {
-                          "type": [
-                            "number",
-                            "null"
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         },
                         "exclusion": {
@@ -2494,8 +2510,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -2649,8 +2665,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -2777,9 +2793,13 @@
                       "properties": {
                         "name": {},
                         "value": {
-                          "type": [
-                            "number",
-                            "null"
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         },
                         "unit": {
@@ -2810,15 +2830,23 @@
                     "maxLength": 8
                   },
                   "value": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "qty": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "range": {
@@ -2860,11 +2888,19 @@
                     "maxLength": 40
                   },
                   "method": {
-                    "type": [
-                      "string",
-                      "number",
-                      "boolean",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "markup_ref": {
@@ -2876,11 +2912,19 @@
                     "maxLength": 200
                   },
                   "missing_input": {
-                    "type": [
-                      "string",
-                      "number",
-                      "boolean",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "exclusion": {
@@ -2970,8 +3014,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -3001,8 +3045,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -3040,8 +3084,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -3116,9 +3160,13 @@
                     "type": "boolean"
                   },
                   "qty": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "unit": {
@@ -3157,9 +3205,13 @@
                     "maxLength": 200
                   },
                   "qty": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "unit": {
@@ -3183,21 +3235,33 @@
                     "maxLength": 300
                   },
                   "drawing_low": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "drawing_high": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "drawing_defined": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   }
                 },
@@ -3274,8 +3338,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -3304,9 +3368,13 @@
                     "maxLength": 80
                   },
                   "total": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "lines": {
@@ -3321,9 +3389,13 @@
                           "maxLength": 300
                         },
                         "qty": {
-                          "type": [
-                            "number",
-                            "null"
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         },
                         "unit": {
@@ -3331,9 +3403,13 @@
                           "maxLength": 20
                         },
                         "amount": {
-                          "type": [
-                            "number",
-                            "null"
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         },
                         "exclusion": {
@@ -3372,8 +3448,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -3431,8 +3507,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -3512,8 +3588,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -3544,8 +3620,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -3771,8 +3847,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -3863,8 +3939,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -3967,8 +4043,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4092,8 +4168,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4133,8 +4209,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4164,8 +4240,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4196,8 +4272,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4264,8 +4340,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4347,9 +4423,13 @@
                     ]
                   },
                   "qty": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "unit": {
@@ -4364,15 +4444,23 @@
                     ]
                   },
                   "crew": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "hours": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "pct_complete": {
@@ -4409,8 +4497,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4492,9 +4580,13 @@
                     ]
                   },
                   "qty": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "unit": {
@@ -4509,15 +4601,23 @@
                     ]
                   },
                   "crew": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "hours": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "pct_complete": {
@@ -4559,8 +4659,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4591,8 +4691,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4626,8 +4726,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4657,8 +4757,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4689,8 +4789,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4764,8 +4864,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4822,8 +4922,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4876,8 +4976,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4911,8 +5011,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4978,8 +5078,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -5030,8 +5130,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -5082,8 +5182,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -5135,8 +5235,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "company_id": {
               "type": "string",
@@ -5158,8 +5258,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "company_id": {
               "type": "string",
@@ -5181,8 +5281,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "action": {
               "type": "string",
@@ -5218,14 +5318,14 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "to": {
               "type": "string",
               "maxLength": 320,
               "format": "email",
-              "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
             },
             "cc": {
               "maxItems": 20,
@@ -5234,7 +5334,7 @@
                 "type": "string",
                 "maxLength": 320,
                 "format": "email",
-                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
               }
             },
             "subject": {
@@ -5288,14 +5388,14 @@
           "openWorldHint": true
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "to": {
               "type": "string",
               "maxLength": 320,
               "format": "email",
-              "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
             },
             "cc": {
               "maxItems": 20,
@@ -5304,7 +5404,7 @@
                 "type": "string",
                 "maxLength": 320,
                 "format": "email",
-                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
               }
             },
             "subject": {
@@ -5369,8 +5469,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "action": {
               "type": "string",
@@ -5713,8 +5813,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -5768,8 +5868,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -5812,8 +5912,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -5857,8 +5957,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -5891,8 +5991,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {},
           "additionalProperties": false
         },

@@ -274,23 +274,6 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
       ...(overdue ? [{ level: "overdue" as const, text: `${overdue} overdue` }] : []),
       ...(risks ? [{ level: "risk" as const, text: `${risks} risks` }] : []),
     ];
-    const sovBag = structured.sov && typeof structured.sov === "object" ? (structured.sov as { line_items?: unknown }) : null;
-    const lineItems = Array.isArray(sovBag?.line_items) ? (sovBag.line_items as { item_no?: string; cost_code?: string | null; description?: string; scheduled_value_display?: string }[]) : [];
-    if (lineItems.length) {
-      return {
-        ...base,
-        show_state: false,
-        title: "Schedule of values",
-        kpis: [{ label: "Lines", value: String(lineItems.length) }],
-        sections: [{
-          heading: "Schedule of values",
-          kind: "table",
-          columns: ["Line", "Cost code", "Description", "Scheduled value"],
-          rows: lineItems.map((row) => ({ cells: [String(row.item_no ?? ""), row.cost_code ?? "", String(row.description ?? ""), String(row.scheduled_value_display ?? "")] })),
-        }],
-        next_move: "Use this card as the report.",
-      };
-    }
     return {
       ...base,
       state: setup ? "progress" : "result",

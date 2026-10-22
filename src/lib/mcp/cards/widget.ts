@@ -1,17 +1,17 @@
-// ChatGPT MCP Apps card. The host mounts ui://athena/card.html only when the resource
-// mimeType is text/html;profile=mcp-app and the tool descriptor points at it with
-// _meta.ui.resourceUri. text/html+skybridge is the legacy MIME: ChatGPT kept the
-// tool text and drew its own table. HTML stays out of the tool text.
+// ChatGPT MCP Apps card. Same shape as the team picker (ui:// resource, outputTemplate,
+// HTML stays out of the tool text). This one paints whatever card the tool put on structuredContent.card.
 import { ALERT, BLUE, GRAY, NAVY, WHITE, cssColor } from "./palette";
 
 export const CARD_WIDGET_URI = "ui://athena/card.html";
-/** Apps SDK mount type. Legacy text/html+skybridge does not mount the iframe. */
-export const CARD_WIDGET_MIME = "text/html;profile=mcp-app";
-export const CARD_WIDGET_DOMAIN = "https://app.meetathena.io";
+export const CARD_WIDGET_MIME = "text/html+skybridge";
 
 const SCRIPT = `(function(){
+var root=window.openai||{};
+var output=root.toolOutput||{};
+var P=${JSON.stringify({ navy: NAVY, blue: BLUE, gray: GRAY, white: WHITE, alert: ALERT })};
 var app=document.getElementById("app");
-if(!app)return;
+if(!app||app.dataset.painted==="1")return;
+app.dataset.painted="1";
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c]})}
 function isAlert(level){return level==="risk"||level==="delay"||level==="overdue"}
 function raw(c){return /^(#[0-9A-Fa-f]{3,8}|#\\d{1,4}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(String(c||"").trim())}
@@ -87,59 +87,9 @@ if(card.next_move)h+='<p class="next">Next move: '+esc(card.next_move)+'</p>';
 h+='</div></article>';
 return h;
 }
-function current(){
-  var o=window.openai||{};
-  var t=o.toolOutput;
-  if(t&&t.card)return t;
-  if(t&&t.structuredContent&&t.structuredContent.card)return t.structuredContent;
-  var saved=window.__athenaCardOutput;
-  if(saved&&(saved.card||saved.getting_started))return saved;
-  var meta=o.toolResponseMetadata||{};
-  var fromMeta=meta.structuredContent||(meta.mcp_tool_result&&meta.mcp_tool_result.structuredContent)||(meta.call_tool_result&&meta.call_tool_result.structuredContent);
-  if(fromMeta&&fromMeta.card)return fromMeta;
-  return t||{};
-}
-var last="";
-function report(){
-  var h=Math.ceil(Math.max(document.documentElement.scrollHeight||0,document.body.scrollHeight||0,app.offsetHeight||0));
-  if(h<1)return;
-  post({jsonrpc:"2.0",method:"ui/notifications/size-changed",params:{height:h}});
-  var api=window.openai;
-  if(api&&typeof api.notifyIntrinsicHeight==="function"){try{api.notifyIntrinsicHeight(h);}catch(e){}}
-}
-function draw(){
-  var output=current();
-  var card=output.card;
-  var lead=output.getting_started;
-  if(!(card&&card.title)&&!(lead&&lead.title))return;
-  var sig=JSON.stringify(card||null)+"|"+JSON.stringify(lead||null);
-  if(sig===last)return;
-  last=sig;
-  var main=paint(card||{});
-  app.innerHTML=lead&&lead.title?'<div class="stack">'+paint(lead)+main+'</div>':main;
-  report();
-  if(typeof requestAnimationFrame==="function")requestAnimationFrame(report);
-}
-function take(sc){if(sc&&(sc.card||sc.getting_started)){window.__athenaCardOutput=sc;draw();}}
-var parent=window.parent;
-var initId=1;
-function post(msg){try{parent.postMessage(msg,"*");}catch(e){}}
-window.addEventListener("openai:set_globals",function(){draw();});
-window.addEventListener("message",function(ev){
-  if(ev.source&&ev.source!==parent)return;
-  var msg=ev.data;
-  if(!msg||msg.jsonrpc!=="2.0")return;
-  if(msg.id===initId&&msg.result){
-    post({jsonrpc:"2.0",method:"ui/notifications/initialized",params:{}});
-    draw();
-    return;
-  }
-  if(msg.method!=="ui/notifications/tool-result")return;
-  var p=msg.params||{};
-  take(p.structuredContent||p);
-});
-post({jsonrpc:"2.0",id:initId,method:"ui/initialize",params:{protocolVersion:"2026-01-26",appInfo:{name:"athena-card",version:"1"},appCapabilities:{availableDisplayModes:["inline"]}}});
-draw();
+var main=paint(output.card||{});
+var lead=output.getting_started;
+app.innerHTML=lead&&lead.title?'<div class="stack">'+paint(lead)+main+'</div>':main;
 })();`;
 
 export function cardWidgetHtml(): string {
@@ -182,30 +132,7 @@ tr.alert td{border:2px solid ${alert}}
 }
 
 export const CARD_WIDGET = { uri: CARD_WIDGET_URI, mimeType: CARD_WIDGET_MIME, html: cardWidgetHtml };
-
-/**
- * Resource contents _meta (resources/read) and the resources/list entry.
- * CSP and domain live here. The tool descriptor must not repeat them.
- */
-export const cardWidgetResourceMeta = {
-  ui: {
-    prefersBorder: true,
-    domain: CARD_WIDGET_DOMAIN,
-    csp: {
-      connectDomains: [CARD_WIDGET_DOMAIN],
-      resourceDomains: [CARD_WIDGET_DOMAIN],
-    },
-  },
-  "openai/widgetCSP": {
-    connect_domains: [CARD_WIDGET_DOMAIN],
-    resource_domains: [CARD_WIDGET_DOMAIN],
-    redirect_domains: [CARD_WIDGET_DOMAIN],
-  },
-  "openai/widgetDomain": CARD_WIDGET_DOMAIN,
-  "openai/widgetPrefersBorder": true,
-  "openai/widgetDescription": "Athena card. The card is the whole reply.",
-  "openai/ui": { availableDisplayModes: ["inline"] },
+/** Result _meta only. tools/list must not carry this, or ChatGPT treats the tool as a widget. */
+export const cardWidgetMeta = {
+  "openai/outputTemplate": CARD_WIDGET_URI,
 } as const;
-
-/** Card results carry no template key. That key hid the Athena icon. */
-export const cardWidgetMeta = {} as const;
