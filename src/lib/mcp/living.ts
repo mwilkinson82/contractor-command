@@ -391,7 +391,7 @@ export const CPM_GANTT_SPEC: string[] = [
   "6. Contract completion: a dashed vertical line labeled with the saved date.",
   `7. Delay fragnets (only when a delay result exists): a hatched bar labeled \"Fragnet\", plus a ${DELAY_CALLOUT_COLOR} callout reading \"Delay: +X WD (Y CD)\", always both units: X = the fragnet duration in working days on the job calendar, Y = calendar days from the fragnet start to its finish, counting both days (e.g. 15 WD Nov 27 to Dec 17 = \"Delay: +15 WD (21 CD)\"), taken from the saved activities and delay result. Draw baseline ghost bars only for activities whose saved baseline Start/Finish appears in the data; if no baseline dates are given, draw none.`,
   "8. Legend under the chart: Critical, Non-critical, Float, Milestone, Owner-furnished, Fragnet, Today.",
-  `9. Order rows by start date, keep IDs exactly as given and show all activities. All other colors are blue and gray only; the callout color is only for delays, risks and overdue items. No technical notes; one caveat line at most.`,
+  `9. Order rows by start date, keep IDs exactly as given and show all activities. All other colors are blue and gray only; ordinary callouts use navy text with a blue #1E5FED line; red callouts are only for delays, risks and overdue items. No technical notes; one caveat line at most.`,
 ];
 
 

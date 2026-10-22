@@ -54,19 +54,19 @@ if(card.ask&&card.ask.prompt)h+='<div class="ask"><strong>This question</strong>
     h+='<p>';
     (s.rows||[]).forEach(function(r){
       var alert=isAlert(r.flag);
-      h+='<span class="chip'+(r.tone?' tone-'+r.tone:'')+(alert?' alert" data-alert="'+r.flag:'')+'">'+linked(view(r))+'</span>';
+      h+='<span class="chip'+(r.tone?' tone-'+r.tone:'')+(alert?' alert" data-alert="'+r.flag:r.flag==="callout"?' callout':'')+'">'+linked(view(r))+'</span>';
     });
     h+='</p>'+close;
     return;
   }
-  function head(flag){return flag==="delay"?"Delay":flag==="overdue"?"Overdue":"Risk"}
+  function head(flag){return flag==="delay"?"Delay":flag==="overdue"?"Overdue":flag==="risk"?"Risk":"Callout"}
   if(s.kind==="table"){
     var cols=s.columns||[];
     h+='<table><thead><tr>'+cols.map(function(c){return '<th>'+esc(c)+'</th>'}).join('')+'</tr></thead><tbody>';
     (s.rows||[]).forEach(function(r){
       var alert=isAlert(r.flag);
       var seen=view(r);
-      h+='<tr'+(alert?' class="alert" data-alert="'+r.flag+'"':'')+'>'+(r.cells||[]).map(function(c,i){var t=raw(c)?"":clean(c);var body=i===0?linked({label:t||seen.label,href:seen.href,ref:seen.ref,secondary:seen.secondary}):esc(t);return '<td>'+(alert&&i===0?'<div class="flag-head">'+head(r.flag)+'</div><div class="flag-body">'+body+'</div>':body)+'</td>'}).join('')+'</tr>';
+      h+='<tr'+(alert?' class="alert" data-alert="'+r.flag+'"':r.flag==="callout"?' class="callout"':'')+'>'+(r.cells||[]).map(function(c,i){var t=raw(c)?"":clean(c);var body=i===0?linked({label:t||seen.label,href:seen.href,ref:seen.ref,secondary:seen.secondary}):esc(t);return '<td>'+((alert||r.flag==="callout")&&i===0?'<div class="flag-head">'+head(r.flag)+'</div><div class="flag-body">'+body+'</div>':body)+'</td>'}).join('')+'</tr>';
     });
     h+='</tbody></table>'+close;
     return;
@@ -74,7 +74,7 @@ if(card.ask&&card.ask.prompt)h+='<div class="ask"><strong>This question</strong>
   h+='<ul>';
   (s.rows||[]).forEach(function(r){
     var alert=isAlert(r.flag);
-    h+='<li'+(alert?' class="alert" data-alert="'+r.flag+'"':'')+'>'+(alert?'<div class="flag-head">'+head(r.flag)+'</div><div class="flag-body">':'')+linked(view(r))+(alert?'</div>':'')+'</li>';
+    h+='<li'+(alert?' class="alert" data-alert="'+r.flag+'"':r.flag==="callout"?' class="callout"':'')+'>'+((alert||r.flag==="callout")?'<div class="flag-head">'+head(r.flag)+'</div><div class="flag-body">':'')+linked(view(r))+((alert||r.flag==="callout")?'</div>':'')+'</li>';
   });
   h+='</ul>'+close;
 });
@@ -127,6 +127,9 @@ a{color:${blue};text-decoration:none}
 li.alert,p.alert{display:block;margin:8px 0;padding:0;border:2px solid ${alert};border-radius:12px;background:${white};overflow:hidden}
 .flag-head{display:block;margin:0;padding:6px 10px;background:${alert};color:${white};font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
 .flag-body{padding:10px 12px}
+.callout{color:${navy};border-left:4px solid ${blue}}
+li.callout{display:block;margin:8px 0;background:${white}}
+.callout .flag-head{background:${white};color:${navy};padding:6px 10px;font-size:12px;font-weight:700}
 tr.alert td{border:2px solid ${alert}}
 </style></head><body><div id="app"></div><script>${SCRIPT}</script></body></html>`;
 }

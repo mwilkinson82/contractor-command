@@ -26,6 +26,7 @@ const acts = [
 const items = [
   {
     action: "Underground electrical inspection on 2026-11-05 is not yet requested",
+    severity: "high",
     owner: "Marcus Hale",
     due: "2026-11-02",
   },

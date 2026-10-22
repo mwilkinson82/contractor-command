@@ -2,9 +2,9 @@
 // Live fail (v0.8.17, 2026-10-21 00:10 Manaus): ChatGPT was only told to "build a PDF and attach it"; it had no file,
 // called neither file_share nor email_draft, and the Gmail draft went out with nothing attached.
 import { jsPDF } from "jspdf";
-import { lookaheadModel, shortDate, dayHead, type LaItem, type SAct } from "./styled-views";
+import { lookaheadModel, lookaheadAlert, shortDate, dayHead, type LaItem, type SAct } from "./styled-views";
 
-const BLUE: [number, number, number] = [37, 99, 235], GRAY: [number, number, number] = [156, 163, 175], NAVY: [number, number, number] = [30, 58, 95];
+const BLUE: [number, number, number] = [30, 95, 237], GRAY: [number, number, number] = [156, 163, 175], NAVY: [number, number, number] = [30, 58, 95];
 const RED: [number, number, number] = [220, 38, 38], G1: [number, number, number] = [107, 114, 128], G3: [number, number, number] = [209, 213, 219];
 /** Standard PDF fonts are Latin-1: keep dashes and quotes readable, drop anything else (emoji, symbols). */
 export const pdfText = (s: string) => s.replace(/[\u2013\u2014]/g, "-").replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/\u00B7/g, "-").replace(/[^\x20-\x7E\xA0-\xFF]/g, "").replace(/\s+/g, " ").trim();
@@ -36,7 +36,7 @@ export function lookaheadPdf(v: { title: string; ref: string; start: string; end
   cards.forEach(({ t, lines }, i) => {
     const bx = X + i * (cw + 8);
     d.setDrawColor(...G3); d.roundedRect(bx, y, cw, ch, 4, 4);
-    d.setFillColor(...(t?.overdue || t?.flags.length ? RED : BLUE)); d.rect(bx, y, 3, ch, "F");
+    d.setFillColor(...(t && lookaheadAlert(t) ? RED : BLUE)); d.rect(bx, y, 3, ch, "F");
     d.setFont("helvetica", "bold"); d.setFontSize(9);
     if (t?.overdue) { color(RED); d.text("OVERDUE", bx + 9, y + 11); }
     color(NAVY);
@@ -89,7 +89,7 @@ export function lookaheadPdf(v: { title: string; ref: string; start: string; end
     for (const e of list) {
       const lines = d.splitTextToSize(pdfText(lineOf(e)), W - 2 * X - 14);
       newPageIfNeeded(lines.length * 11 + 10);
-      d.setFillColor(...(red ? RED : GRAY)); d.rect(X, y - 2, 3, lines.length * 11 + 4, "F");
+      d.setFillColor(...(red ? RED : BLUE)); d.rect(X, y - 2, 3, lines.length * 11 + 4, "F");
       d.setFont("helvetica", "normal"); d.setFontSize(9); color(red && e.overdue ? RED : NAVY); d.text(lines, X + 9, y + 7);
       y += lines.length * 11 + 10;
     }

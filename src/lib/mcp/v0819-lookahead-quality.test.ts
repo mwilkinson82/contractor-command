@@ -12,7 +12,7 @@ export const ACTS: SAct[] = [
 export const ITEMS: LaItem[] = [
   { action: "Confirm start date — Submit delay notice for the storm line conflict (Section 8.3, 7 calendar days).", owner: "Elena Brooks", due: "2026-10-06" },
   { action: "Confirm start date — Submit claim notice for the storm line conflict (Section 8.4).", owner: "Elena Brooks", due: "2026-10-11" },
-  { action: "2701 – RFIs: RFI-001: underground conduit routing at grid C/4 conflicts with the storm line. Sent 2026-11-10; answer needed to hold the 2026-11-19 underground inspection.", owner: "Marcus Hale", due: "2026-10-30" },
+  { action: "2701 – RFIs: RFI-001: underground conduit routing at grid C/4 conflicts with the storm line. Sent 2026-11-10; answer needed to hold the 2026-11-19 underground inspection.", severity: "high", owner: "Marcus Hale", due: "2026-10-30" },
   { action: "2701 – Inspections: Fire alarm underground pathway inspection on 2026-11-18 is not yet requested with the City of Corpus Christi.", owner: "Priya Nandakumar", due: "2026-11-02" },
 ];
 const OPTS = { today: "2026-10-21", dataDate: "2026-10-19" };
@@ -27,7 +27,7 @@ describe("0.8.19 lookahead data quality (2701 LA-31BE8)", () => {
     expect(m.risks.map((e) => e.item.action)).toEqual(expect.arrayContaining([ITEMS[2].action]));
     const v = lookaheadView({ title: "2701 – Harbor Point", ref: "LA-31BE8", start: START, end: END, acts: ACTS, items: ITEMS, ...OPTS });
     const cards = (v.split("### Risk cards")[1] ?? "").split("\n").filter((l) => l.startsWith("> 🔴")).length;
-    expect(v).toContain(`${m.risks.length} risks`);
+    expect(v).toContain(`${m.risks.length} ${m.risks.length === 1 ? "risk" : "risks"}`);
     expect(cards).toBe(m.risks.length);
     expect(m.risks.length).toBeGreaterThan(0);
   });

@@ -1,5 +1,5 @@
 import { plainLabel, rowPlain } from "../plain-label";
-import { ALERT, BLUE, GRAY, NAVY, WHITE, cssColor } from "./palette";
+import { ALERT, BLUE, GRAY, NAVY, WHITE, cssColor, isAlertLevel } from "./palette";
 import { STATE_LABEL, cardHasAlert, type CardModel, type CardRow } from "./model";
 
 const esc = (s: string) =>
@@ -22,17 +22,18 @@ function linked(row: CardRow, text: string): string {
 function flagHead(flag: CardRow["flag"]): string {
   if (flag === "delay") return "Delay";
   if (flag === "overdue") return "Overdue";
-  return "Risk";
+  return flag === "risk" ? "Risk" : "Callout";
 }
 
 function flagged(row: CardRow, inner: string): string {
-  if (!row.flag) return inner;
+  if (!isAlertLevel(row.flag) && row.flag !== "callout") return inner;
   return `<div class="flag-head">${flagHead(row.flag)}</div><div class="flag-body">${inner}</div>`;
 }
 
 function rowClass(row: CardRow): string {
   const parts = [];
-  if (row.flag) parts.push(`class="alert" data-alert="${row.flag}"`);
+  if (isAlertLevel(row.flag)) parts.push(`class="alert" data-alert="${row.flag}"`);
+  else if (row.flag === "callout") parts.push('class="callout"');
   else if (row.tone) parts.push(`class="tone-${row.tone}"`);
   return parts.join(" ");
 }
@@ -78,7 +79,11 @@ export function renderHtml(card: CardModel): string {
     alert ? `.alert,li.alert,p.alert,tr.alert{color:${alertColor}}` : "",
     alert ? `li.alert,p.alert{display:block;margin:8px 0;padding:0;border:2px solid ${alertColor};border-radius:12px;background:${white};overflow:hidden}` : "",
     alert ? `.flag-head{display:block;margin:0;padding:6px 10px;background:${alertColor};color:${white};font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}` : "",
-    alert ? `.flag-body{padding:10px 12px}` : "",
+    `.callout{color:${navy};border-left:4px solid ${blue}}`,
+    `li.callout{display:block;margin:8px 0;background:${white}}`,
+    `.callout .flag-head{background:${white};color:${navy};padding:6px 10px;font-size:12px;font-weight:700}`,
+    `.flag-body{padding:10px 12px}`,
+
     alert ? `tr.alert td{border:2px solid ${alertColor}}` : "",
   ]
     .filter(Boolean)
@@ -90,7 +95,7 @@ export function renderHtml(card: CardModel): string {
       : "";
   const kpis = (card.kpis ?? [])
     .map((k) => {
-      const attr = k.flag ? ` class="kpi alert" data-alert="${k.flag}"` : ` class="kpi"`;
+      const attr = isAlertLevel(k.flag) ? ` class="kpi alert" data-alert="${k.flag}"` : ` class="kpi"`;
       return `<div${attr}><span>${esc(k.label)}</span><strong>${esc(k.value)}</strong></div>`;
     })
     .join("");
@@ -101,7 +106,7 @@ export function renderHtml(card: CardModel): string {
       if (!s.rows.length) inner = `${heading}<p class="tone-unknown">Nothing on this card yet.</p>`;
       else if (s.kind === "chips") {
         inner = `${heading}<p>${s.rows
-          .map((r) => `<span class="chip${r.tone ? ` tone-${r.tone}` : ""}${r.flag ? " alert" : ""}"${r.flag ? ` data-alert="${r.flag}"` : ""}>${linked(r, rowPlain(r).label)}</span>`)
+          .map((r) => `<span class="chip${r.tone ? ` tone-${r.tone}` : ""}${isAlertLevel(r.flag) ? " alert" : r.flag === "callout" ? " callout" : ""}"${isAlertLevel(r.flag) ? ` data-alert="${r.flag}"` : ""}>${linked(r, rowPlain(r).label)}</span>`)
           .join("")}</p>`;
       } else if (s.kind === "table") {
         const width = Math.max(s.columns?.length ?? 0, ...s.rows.map((r) => r.cells.length), 1);
@@ -132,6 +137,7 @@ export function renderHtml(card: CardModel): string {
     })
     .join("");
   const alerts = (card.alerts ?? [])
+    .filter((a) => isAlertLevel(a.level))
     .map((a) => `<p class="alert" data-alert="${a.level}"><div class="flag-head">${flagHead(a.level)}</div><div class="flag-body">${esc(a.level)}: ${esc(a.text)}</div></p>`)
     .join("");
   const ask = card.ask?.prompt ? `<div class="ask"><strong>This question</strong><p>${esc(card.ask.prompt)}</p></div>` : "";

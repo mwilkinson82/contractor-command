@@ -53,9 +53,9 @@ describe("0.8.23b lookahead result keeps the v0.8.22 drawing", () => {
 
   it("the lookahead data keeps the v0.8.22 rows and uses only blue, neutral, and red markers", () => {
     const data = dataOnly(view);
-    // Markers replaced the amber warning and the inspection/delivery icons. Rows and dates are unchanged.
+    // Severity-aware risk markers: the routine inspection is blue; the recorded high-risk RFI stays red. Activity rows and dates are unchanged.
     expect(createHash("sha256").update(data).digest("hex")).toBe(
-      "9f13553cda2771c4be1aac2ceae4aa512a49d18abdba3c17b8e70d2809f4e91a",
+      "34b59ac3dbbd2aed100ddc95d1ca9e511d41fd7db83faa96a75e725fd8990c03",
     );
     expect(data).toContain("2701 – Harbor Point");
     expect(data).toContain("A1110 Underground conduit rough-in");

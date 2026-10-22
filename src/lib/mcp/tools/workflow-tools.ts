@@ -1697,9 +1697,9 @@ export async function lookaheadData(sb: Sb, job: Job, laInput: string | { id: st
   const win = found && windowActivities(acts, found.start, found.end).length ? found : null;
   let items: LaItem[] = [];
   if (win) {
-    const { data: rows } = await sb.from("mcp_open_items").select("action, owner, accountable, due_date, needed_by").eq("job_id", job.job_id).eq("status", "open");
-    items = ((rows ?? []) as { action: string; owner?: string | null; accountable?: string | null; due_date?: string | null; needed_by?: string | null }[])
-      .map((r) => ({ action: r.action, owner: r.accountable ?? r.owner ?? null, due: (r.needed_by ?? r.due_date ?? null)?.slice(0, 10) ?? null }))
+    const { data: rows } = await sb.from("mcp_open_items").select("action, owner, accountable, due_date, needed_by, severity, item_type").eq("job_id", job.job_id).eq("status", "open");
+    items = ((rows ?? []) as { action: string; owner?: string | null; accountable?: string | null; due_date?: string | null; needed_by?: string | null; severity?: string | null; item_type?: string | null }[])
+      .map((r) => ({ action: r.action, severity: r.severity, type: r.item_type, owner: r.accountable ?? r.owner ?? null, due: (r.needed_by ?? r.due_date ?? null)?.slice(0, 10) ?? null }))
       .filter((r) => !r.due || r.due <= win.end);
   }
   const today = todayIn(await jobTimeZone(sb, job.job_id));
