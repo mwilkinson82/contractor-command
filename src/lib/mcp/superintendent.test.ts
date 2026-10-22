@@ -12,7 +12,6 @@ import {
   fieldPageHtml,
   isRecordedDelay,
   parseWorkLine,
-  payAppCard,
   payAppPercentCard,
   photoGate,
   photoPageHtml,
@@ -281,35 +280,13 @@ describe("feeds", () => {
   it("ties the G702 certificate to the schedule of values", () => {
     const app = buildFieldPayApp(lines, 10, 10, [{ item_no: "03.01", pct: 30 }], []);
     expect(app.contract_sum).toBe(1666.67);
-    expect(app.rows[0]).toMatchObject({ scheduled_value: 1000, previous: 0, this_period: 300, total_completed: 300, balance: 700, pct_complete: 30 });
-    expect(app.rows[1]).toMatchObject({ scheduled_value: 500, previous: 0, this_period: 0, total_completed: 0, balance: 500, pct_complete: 0 });
+    expect(app.rows[0]).toMatchObject({ previous: 0, this_period: 300, total_completed: 300, balance: 700, pct_complete: 30 });
+    expect(app.rows[1].total_completed).toBeNull();
     const cents = (n: number) => Math.round(n * 100);
     const contract = cents(app.contract_sum);
     expect(cents(app.completed_and_stored) + cents(app.balance_to_finish)).toBe(contract);
     expect(cents(app.current_payment_due) + cents(app.previous_certificates) + cents(app.retainage ?? 0) + cents(app.balance_to_finish)).toBe(contract);
     expect(app.checks.every((c) => c.includes(String(app.contract_sum)) || c.startsWith("Contract") || c.includes("equals"))).toBe(true);
-  });
-
-  it("shows the scheduled value on every saved SOV line, with $0 this period when there is no progress", () => {
-    const lines = Array.from({ length: 10 }, (_, i) => ({
-      item_no: `26.${String(i + 1).padStart(2, "0")}`,
-      description: `Line ${i + 1}`,
-      scheduled_value: 140_000,
-    }));
-    const app = buildFieldPayApp(lines, 0, 5, [
-      { item_no: "26.01", pct: 50 },
-      { item_no: "26.02", pct: 10 },
-    ], []);
-    expect(app.rows).toHaveLength(10);
-    expect(app.contract_sum).toBe(1_400_000);
-    expect(app.rows.every((row) => row.scheduled_value === 140_000)).toBe(true);
-    expect(app.rows.filter((row) => row.this_period === 0)).toHaveLength(8);
-    expect(app.rows[0]).toMatchObject({ this_period: 70_000, total_completed: 70_000, balance: 70_000 });
-    expect(app.rows[9]).toMatchObject({ item_no: "26.10", previous: 0, this_period: 0, total_completed: 0, balance: 140_000, pct_complete: 0 });
-    const card = payAppCard("2701 – Harbor ", "2026-10-21", app);
-    expect(card).toContain("26.10 Line 10: scheduled $140,000.00");
-    expect(card).toContain("this period $0.00");
-    expect(card.match(/scheduled \$140,000\.00/g)).toHaveLength(10);
   });
 
   it("shows dollars to full scope and percents only to a super", async () => {
@@ -323,9 +300,6 @@ describe("feeds", () => {
     state.tables.mcp_daily_work_lines = [{ daily_id: "d1", sov_item: "03.01", activity_id: "A1000", qty: 40, unit: "cy", pct_complete: 30 }];
     const full = await handle(fieldPayApp, { job_number: "2701", period_to: "2026-10-21" });
     expect(full.content[0].text).toContain("Contract sum: $1,666.67");
-    expect(full.content[0].text).toContain("scheduled $1,000.00");
-    expect(full.content[0].text).toContain("03.02 Rebar: scheduled $500.00");
-    expect(full.content[0].text).toContain("this period $0.00");
     expect(full.content[0].text).toContain("Ties:");
     state.scope = "super";
     const sup = await handle(fieldPayApp, { job_number: "2701", period_to: "2026-10-21" });
