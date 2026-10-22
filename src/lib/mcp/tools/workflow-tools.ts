@@ -17,7 +17,7 @@ import { withoutClaims } from "../internal-claims";
 import { LOOKAHEAD_EMAIL_LINE } from "../email-safety";
 import { dataDateRule, pickLatestLookahead, type LaRow, emptyCard, lookaheadView, lookaheadModel, entryLine, lookaheadWindow, pageLine, windowActivities, type LaItem, type LaModel, type SAct } from "../styled-views";
 import { renderHtml } from "../cards/html";
-import { htmlBlock, renderMarkdown } from "../cards/markdown";
+import { cardReply, renderMarkdown } from "../cards/markdown";
 import { applyCardClosing } from "../cards/silence";
 import { cardWidgetMeta } from "../cards/widget";
 import { signedJobPages } from "../board-url";
@@ -1432,7 +1432,7 @@ export const lookaheadList = defineTool({
         ],
       };
       const html = renderHtml(card);
-      const body = applyCardClosing(`${lead}\n\n${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
+      const body = applyCardClosing(cardReply(renderMarkdown(card), html, lead), false);
       return guide(
         {
           ...text(body),

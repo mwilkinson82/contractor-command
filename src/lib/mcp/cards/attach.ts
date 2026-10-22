@@ -1,4 +1,4 @@
-import { htmlBlock, renderMarkdown } from "./markdown";
+import { cardReply, htmlBlock, renderMarkdown } from "./markdown";
 import { renderHtml } from "./html";
 import { inferCard } from "./infer";
 import { cardWidgetMeta } from "./widget";
@@ -83,7 +83,7 @@ export function attachAthenaCard<R>(tool: string, result: R): R {
     const card = isCard(sc.card) ? sc.card : inferCard(tool, source, sc);
     const html = typeof sc.html === "string" && !askJob && tool !== "contract_terms" ? sc.html : renderHtml(card);
     const markdown = renderMarkdown(card);
-    const cardText = `${markdown}\n\n${htmlBlock(html)}`;
+    const cardText = cardReply(markdown, html);
     const keepBody = !CARD_FIRST_TOOLS.has(tool) && !askJob;
     const hasHtml = source.includes("REQUIRED VIEW: render this HTML card as-is.");
     const hasMarkdown = source.startsWith("## ") && source.includes(card.title);

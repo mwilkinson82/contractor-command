@@ -427,7 +427,7 @@ describe("getting_started tool never opens on a picker", () => {
     expect(plain).toContain("1234 (Riverside)");
     expect(result.content[0].text).toContain('class="placeholder"');
     expect(result.content[0].text).toContain(INBOX_SECTION);
-    expect(result.content[0].text).toContain("Gmail and Calendar");
+    expect(result.content[0].text).toContain("Connect Google Calendar in your AI.");
     expect(result.content[0].text).toContain("overnight emails");
     expect(result.content[0].text).toContain("unanswered emails");
     expect(result.content[0].text).toContain("today's meetings");

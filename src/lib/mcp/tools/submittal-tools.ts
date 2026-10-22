@@ -11,7 +11,7 @@ import { whichJobAsk } from "../which-job";
 import { guide } from "../visible";
 import type { CardModel } from "../cards/model";
 import { renderHtml } from "../cards/html";
-import { htmlBlock, renderMarkdown } from "../cards/markdown";
+import { cardReply, renderMarkdown } from "../cards/markdown";
 import { applyCardClosing } from "../cards/silence";
 import { cardWidgetMeta } from "../cards/widget";
 import {
@@ -115,7 +115,7 @@ function shown(
 
 function cardResult(_body: string, card: CardModel, extra: Record<string, unknown> = {}) {
   const html = renderHtml({ ...card, show_state: false });
-  const shown = applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
+  const shown = applyCardClosing(cardReply(renderMarkdown(card), html), false);
   return guide(
     {
       ...text(shown),

@@ -110,7 +110,8 @@ describe("PM tools become cards", () => {
     const companyCard = attachAthenaCard("list_open_items", { content: [{ type: "text", text: companies }] }) as unknown as { content: { text: string }[]; structuredContent: { card: CardModel } };
     expect(companyCard.structuredContent.card.state).toBe("ask");
     expect(companyCard.structuredContent.card.title).toBe("Which job?");
-    expect(companyCard.content[0].text.startsWith("## 🔵 Which job?")).toBe(true);
+    expect(companyCard.content[0].text.startsWith("REQUIRED VIEW: render the HTML card in this result as the reply.")).toBe(true);
+    expect(companyCard.content[0].text).toContain("## 🔵 Which job?");
     expect(companyCard.content[0].text).toContain("Harbor Electric: 2701");
     expect(companyCard.content[0].text.trim().endsWith(CARD_SHOWN_PICK)).toBe(true);
     const items = "2701 – Open items (2):\n- OVERDUE storm delay\n- Buy the gear";

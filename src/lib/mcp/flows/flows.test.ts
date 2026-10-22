@@ -138,7 +138,8 @@ describe("sample path on job 2701", () => {
         expect(r.structuredContent.stage, name).toBe(stage);
         expect(r.structuredContent.html).toContain("<!doctype html>");
         const text = r.content.find((c) => c.type === "text")?.text ?? "";
-        expect(text.startsWith("## 🔵"), name).toBe(true);
+        expect(text.startsWith("REQUIRED VIEW: render the HTML card in this result as the reply."), name).toBe(true);
+        expect(text.indexOf("REQUIRED VIEW: render the HTML card"), name).toBeLessThan(text.indexOf("## 🔵"));
         expect(text).toContain("Sample on job 2701");
         expect(text).toContain("REQUIRED VIEW: render this HTML card as-is.");
         expect(text.trim().endsWith(CARD_SHOWN), name).toBe(true);
@@ -166,7 +167,8 @@ describe("sample path on job 2701", () => {
       const carded = attachAthenaCard(name, raw) as unknown as { content: { text?: string }[]; structuredContent: { card: { state: string; title: string } } };
       expect(carded.structuredContent.card.title, name).toBe("Which job?");
       expect(carded.structuredContent.card.state, name).toBe("ask");
-      expect(carded.content[0].text?.startsWith("## 🔵 Which job?"), name).toBe(true);
+      expect(carded.content[0].text?.startsWith("REQUIRED VIEW: render the HTML card in this result as the reply."), name).toBe(true);
+      expect(carded.content[0].text, name).toContain("## 🔵 Which job?");
       expect(carded.content[0].text, name).not.toMatch(/^No job named/);
       expect(carded.content[0].text?.trim().endsWith(CARD_SHOWN_PICK), name).toBe(true);
       expect(z.object((tool as { inputSchema: Record<string, z.ZodTypeAny> }).inputSchema).safeParse({}).success).toBe(true);

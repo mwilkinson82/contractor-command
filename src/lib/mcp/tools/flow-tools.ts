@@ -2,7 +2,7 @@
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { renderHtml } from "../cards/html";
-import { htmlBlock, renderMarkdown } from "../cards/markdown";
+import { cardReply, renderMarkdown } from "../cards/markdown";
 import { cardWidgetMeta } from "../cards/widget";
 import { CARD_SHOWN, CARD_SHOWN_PICK, applyCardClosing } from "../cards/silence";
 import { inferCard } from "../cards/infer";
@@ -33,7 +33,7 @@ function present(flow: FlowName, stage: string, data: FlowData) {
   const html = renderHtml({ ...card, show_state: false });
   const stages = [...stagesFor(flow)];
   const next = stages[stages.indexOf(stage) + 1] ?? null;
-  const body = applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
+  const body = applyCardClosing(cardReply(renderMarkdown(card), html), false);
   return guide(
     {
       structuredContent: {
@@ -74,7 +74,7 @@ export const MORNING_HITLIST_DESCRIPTION =
 
 function sealedCard(card: ReturnType<typeof inferCard>, pick: boolean) {
   const html = renderHtml({ ...card, show_state: false });
-  const body = applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, pick);
+  const body = applyCardClosing(cardReply(renderMarkdown(card), html), pick);
   return guide(
     {
       structuredContent: { card, html, ...(pick ? { which_job: true } : {}) },

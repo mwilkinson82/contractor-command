@@ -62,7 +62,8 @@ describe("which-job and picker cards end on the pick", () => {
     expect(out.structuredContent.card.state).toBe("ask");
     expect(out.content[0].text).toContain("1001");
     expect(out.content[0].text).toContain("Lakeview Elementary Gym");
-    expect(out.content[0].text?.startsWith("## 🔵 Which job?")).toBe(true);
+    expect(out.content[0].text?.startsWith("REQUIRED VIEW: render the HTML card in this result as the reply.")).toBe(true);
+    expect(out.content[0].text).toContain("## 🔵 Which job?");
   });
 
   it("team_list picker uses the same closing and the existing template", () => {
@@ -138,12 +139,14 @@ describe("the card instruction is the last word, and the widget is unchanged", (
   it("tells the host that an Athena card allows no lines after it", () => {
     expect(HOST_DISPLAY_BLOCK).toContain("This limit does not apply to an Athena card.");
     expect(HOST_DISPLAY_BLOCK).toContain(
-      "When the result says the card is shown, add no text before or after it.",
+      "When the result says the card is shown, do not replace it with a markdown table or one sentence, and add no text after it.",
     );
     const idx = readFileSync(new URL("../index.ts", import.meta.url), "utf8");
     expect(idx).toContain(
-      "When a tool result says the card is shown, that card is the whole reply: do not add text after it.",
+      "When a tool result says the card is shown, the HTML document in that result is the card.",
     );
+    expect(idx).toContain("In Claude, show that HTML as an artifact, as written.");
+    expect(idx).toContain("Connect Google Calendar in your AI.");
     expect(idx).toContain("On a which-job or picker card, wait for the user's pick.");
   });
 

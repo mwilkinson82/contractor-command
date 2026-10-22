@@ -4,8 +4,10 @@
 
 import { CARD_WIDGET_URI } from "./widget";
 
-export const CARD_SHOWN = "Card shown. Do not add text.";
-export const CARD_SHOWN_PICK = "Card shown. Do not add text; wait for the user's pick.";
+export const CARD_SHOWN =
+  "Card shown. Show the HTML card above as written. Do not add text after it, and do not replace it with a markdown table or one sentence.";
+export const CARD_SHOWN_PICK =
+  "Card shown. Show the HTML card above as written. Do not add text after it; wait for the user's pick.";
 
 /** Selection cards. Which-job is detected from structuredContent.which_job. */
 export const PICKER_TOOLS = new Set(["team_list"]);

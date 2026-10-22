@@ -91,3 +91,16 @@ export function renderMarkdown(card: CardModel): string {
 export function htmlBlock(html: string): string {
   return `REQUIRED VIEW: render this HTML card as-is. Do not escape it, do not wrap it in another card, and do not leave a CSS color blank.\n\n${html}`;
 }
+
+/**
+ * First line of a card result. It has to lead the markdown. When the table comes first,
+ * Claude draws that gray table and skips the HTML. ChatGPT's widget still paints the card.
+ */
+export const CARD_RENDER_LINE =
+  "REQUIRED VIEW: render the HTML card in this result as the reply. In Claude, show that HTML as an artifact, as written, with no tool calls inside it. Never paste the markdown below as your answer, and never replace the card with a gray table or one sentence. In ChatGPT the widget paints this card.";
+
+/** Artifact instruction, then any preface, then the markdown, then the HTML document. */
+export function cardReply(markdown: string, html: string, preface = ""): string {
+  const head = preface.trim() ? `${CARD_RENDER_LINE}\n\n${preface.trim()}` : CARD_RENDER_LINE;
+  return `${head}\n\n${markdown}\n\n${htmlBlock(html)}`;
+}
