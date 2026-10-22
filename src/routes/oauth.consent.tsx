@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AuthCard } from "@/components/auth/auth-card";
 import { checkAthenaEntitlement, NO_ENTITLEMENT_MESSAGE, type RpcClient } from "@/lib/mcp/entitlement";
 import { boundedStep, ConsentStepError, consentReturnPath, isAppHandoff } from "@/lib/consent-loading";
+import { consentClientLabel, consentConnectTitle } from "@/lib/consent-client-label";
 import { getAuthorizationDetails, decideAuthorization, getAuthUser } from "@/lib/oauth-consent-api";
 import { TERMS_LINK_TEXT, TERMS_REQUIRED_MESSAGE, TERMS_TEXT_AFTER, TERMS_TEXT_BEFORE, TERMS_URL, canApproveConnect, recordTermsAcceptance, type AccountDb } from "@/lib/account-team";
 import { AthenaStartTip } from "@/components/athena/start-tip";
@@ -125,8 +126,10 @@ function Consent() {
     if (signOutError) { setError("Could not switch accounts. Please try again."); setBusy(false); return; }
     navigate({ to: "/login", search: { redirect: next }, replace: true });
   }
-  const clientName: string = details?.client?.name ?? details?.client?.client_name ?? "An app";
-  const redirectUri: string | undefined = details?.redirect_uri ?? details?.client?.redirect_uri;
+  const clientLabel = consentClientLabel({
+    name: details?.client?.name ?? details?.client?.client_name,
+    redirectUri: details?.redirect_uri ?? details?.client?.redirect_uri,
+  });
   const scopes: string[] = String(details?.scope ?? details?.scopes ?? "")
     .split(/[\s,]+/)
     .filter(Boolean);
@@ -169,11 +172,11 @@ function Consent() {
 
   if (handoff) {
     return (
-      <AuthCard brand="athena" title={`Returning to ${clientName}…`} subtitle="If your browser asks to open the app, choose Open.">
+      <AuthCard brand="athena" title={`Returning to ${clientLabel}…`} subtitle="If your browser asks to open the app, choose Open.">
         <a href={handoff} className="block w-full rounded-lg bg-primary px-4 py-2.5 text-center font-medium text-primary-foreground">
-          Return to {clientName}
+          Return to {clientLabel}
         </a>
-        <p className="mt-3 text-[13px] text-foreground/70">You can close this tab once {clientName} shows Athena connected.</p>
+        <p className="mt-3 text-[13px] text-foreground/70">You can close this tab once {clientLabel} shows Athena connected.</p>
         <div className="mt-6">
           <AthenaStartTip />
         </div>
@@ -181,17 +184,10 @@ function Consent() {
     );
   }
 
-  let host: string | undefined;
-  try {
-    host = redirectUri ? new URL(redirectUri).host : undefined;
-  } catch {
-    host = redirectUri;
-  }
-
   return (
     <AuthCard brand="athena"
-      title={`Connect ${clientName} to Athena`}
-      subtitle={`This lets ${clientName} use Athena as you.`}
+      title={consentConnectTitle(clientLabel)}
+      subtitle={`This lets ${clientLabel} use Athena as you.`}
     >
       <div className="space-y-4 text-[13px] text-foreground/80">
         {!allowed && (
@@ -216,11 +212,6 @@ function Consent() {
             Use a different account
           </button>
         </p>
-        {host && (
-          <p>
-            Returns to <span className="font-medium text-foreground">{host}</span>
-          </p>
-        )}
         {scopes.length > 0 && (
           <ul className="list-disc space-y-1 pl-5">
             {scopes.map((s) => (
