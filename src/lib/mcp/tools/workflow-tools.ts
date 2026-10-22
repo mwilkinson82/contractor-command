@@ -58,6 +58,22 @@ async function rpc<T>(sb: Sb, fn: string, args: Record<string, unknown>): Promis
 }
 
 type ItemResult = { item_id: string; existing: boolean; item_type?: string; delivery_item?: ItemResult | null; owner_defaulted?: boolean; needed_by_defaulted?: boolean; accountable?: string; needed_by?: string };
+/** Create-job reply. A PM sent on create is named; otherwise the reply says the PM is not set. */
+export function jobCreatedText(input: {
+  jobNumber: string;
+  companyName: string;
+  jobName: string;
+  restrictTo?: string[] | null;
+  pm?: string | null;
+}): string {
+  const pm = input.pm?.trim() || null;
+  const restricted = input.restrictTo?.length ? ` Restricted to: ${input.restrictTo.join(", ")}.` : "";
+  const pmLine = pm
+    ? `PM: ${pm}. Open items default to this PM.`
+    : `PM: not set yet. Ask who the PM is and record it with intake section "job_settings" (pm); open items default to the job's PM.`;
+  return `${input.jobNumber} – Job created in ${input.companyName}: ${input.jobName}.${restricted}\n${pmLine}\nNext: intake section "scope" (step 0). Ask the member for job type, owner/client type, sector and pricing model; never assume them.`;
+}
+
 /** Shown when the owner was defaulted: name the PM, or say plainly that no PM is set. */
 export const ownerDefaultNote = (accountable: string | null | undefined) =>
   !accountable?.trim() || /^unassigned\b/i.test(accountable.trim()) ? " — no PM is set on this job, so it stays unassigned until you name one" : " — defaulted to the job's PM";
@@ -403,9 +419,20 @@ export const intake = defineTool({
           _company: choice.companyId, _job_number: args.job_number, _name: args.job_name, _restrict_to: args.restrict_to ?? null,
         });
         if (r.duplicate) throw new ToolError(`Job ${args.job_number} already exists in this company. Use a different number, e.g. ${r.suggestion}. Nothing was created.`);
+        let pmName = args.pm?.trim() || null;
+        if (r.job_id && (pmName || args.pm_email || args.pm_title || args.time_zone)) {
+          const saved = await rpc<{ pm?: string | null }>(sb, "mcp_job_settings", {
+            _job: r.job_id,
+            _time_zone: args.time_zone ?? null,
+            _pm_name: pmName,
+            _pm_email: args.pm_email ?? null,
+            _pm_title: args.pm_title ?? null,
+          });
+          if (saved?.pm) pmName = saved.pm;
+        }
         return {
-          ...text(`${args.job_number} – Job created in ${companyName}: ${args.job_name}.${args.restrict_to?.length ? ` Restricted to: ${args.restrict_to.join(", ")}.` : ""}\nPM: not set yet. Ask who the PM is and record it with intake section "job_settings" (pm); open items default to the job's PM.\nNext: intake section "scope" (step 0). Ask the member for job type, owner/client type, sector and pricing model; never assume them.`),
-          structuredContent: { job_id: r.job_id!, job_number: args.job_number, company_id: choice.companyId, company_name: companyName },
+          ...text(jobCreatedText({ jobNumber: args.job_number, companyName, jobName: args.job_name, restrictTo: args.restrict_to, pm: pmName })),
+          structuredContent: { job_id: r.job_id!, job_number: args.job_number, company_id: choice.companyId, company_name: companyName, pm: pmName },
         };
       }
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
