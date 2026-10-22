@@ -6,6 +6,7 @@ import { checkAthenaEntitlement, NO_ENTITLEMENT_MESSAGE, type RpcClient } from "
 import { boundedStep, ConsentStepError, consentReturnPath, isAppHandoff } from "@/lib/consent-loading";
 import { getAuthorizationDetails, decideAuthorization, getAuthUser } from "@/lib/oauth-consent-api";
 import { TERMS_LINK_TEXT, TERMS_REQUIRED_MESSAGE, TERMS_TEXT_AFTER, TERMS_TEXT_BEFORE, TERMS_URL, canApproveConnect, recordTermsAcceptance, type AccountDb } from "@/lib/account-team";
+import { AthenaStartTip } from "@/components/athena/start-tip";
 
 
 const SCOPE_LABELS: Record<string, string> = {
@@ -172,6 +173,9 @@ function Consent() {
           Return to {clientName}
         </a>
         <p className="mt-3 text-[13px] text-foreground/70">You can close this tab once {clientName} shows Athena connected.</p>
+        <div className="mt-6">
+          <AthenaStartTip />
+        </div>
       </AuthCard>
     );
   }
