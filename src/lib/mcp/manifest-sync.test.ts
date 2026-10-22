@@ -12,6 +12,7 @@ import * as G from "./tools/flow-tools";
 import * as Est from "./tools/estimate-tools";
 import * as Bid from "./tools/estimate-bid-tools";
 import * as Field from "./tools/superintendent-tools";
+import * as Start from "./tools/getting-started-tool";
 import { ATHENA_VERSION } from "./server-info-branding";
 
 type Prop = { format?: string; pattern?: string; description?: string };
@@ -91,6 +92,7 @@ async function liveTools(): Promise<Tool[]> {
       G.pmEvening,
       E.emailDraft,
       E.emailConfirmSend,
+      Start.gettingStarted,
     ],
     metrics: false,
   } as never);
