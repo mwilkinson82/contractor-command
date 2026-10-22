@@ -36,6 +36,7 @@ import {
   reuseWarning,
   revisionUsed,
   settle,
+  type Doc,
   type DocReview,
   type GapIn,
   type LineIn,
@@ -46,6 +47,17 @@ import {
 } from "../estimating";
 import { errorCard, errorMessage } from "../error-card";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
+import {
+  attachSheetPages,
+  keepDrawingPaths,
+  loadSheetPages,
+  removeDrawing,
+  sheetsForMarkup,
+  storeDrawingSet,
+  withDrawingPath,
+  type DrawingUpload,
+} from "../drawing-set";
+import { FILE_B64_MAX_CHARS } from "../file-share";
 import { WhichCompanyAsk, audit, named, resolveJob } from "../jobs";
 import { htmlBlock, renderMarkdown } from "../cards/markdown";
 import { renderHtml } from "../cards/html";
@@ -204,6 +216,21 @@ const doc = z.object({
   date: date.optional(),
   sheets: z.array(z.string().trim().min(1).max(40)).max(400).optional(),
 });
+const drawingUpload = z
+  .object({
+    filename: z.string().trim().min(1).max(120).optional(),
+    content_base64: z.string().max(FILE_B64_MAX_CHARS).optional(),
+    file: z
+      .object({
+        download_url: z.string(),
+        file_id: z.string(),
+        mime_type: z.string().optional(),
+        file_name: z.string().optional(),
+      })
+      .optional(),
+    sheets: z.array(z.string().trim().min(1).max(40)).max(400).optional(),
+  })
+  .optional();
 const bidLine = z.object({
   description: z.string().trim().min(1).max(300),
   qty: z.number().finite().nullable().optional(),
@@ -266,6 +293,19 @@ async function rpc<T>(sb: Sb, fn: string, args: Record<string, unknown>): Promis
 }
 const load = async (sb: Sb, jobId: string) =>
   parseState(await rpc(sb, "mcp_estimate_get", { _job: jobId }));
+
+/** Store a drawing PDF and record its path on the setup documents. Removes the file if the record does not save. */
+async function saveDrawing(sb: Sb, job: { company_id: string; job_id: string }, documents: Doc[], drawing: DrawingUpload) {
+  const stored = await storeDrawingSet(sb, job, drawing);
+  try {
+    const next = withDrawingPath(documents, stored);
+    await rpc(sb, "mcp_estimate_setup_save", { _job: job.job_id, _patch: { documents: next } });
+    return { stored, documents: next };
+  } catch (e) {
+    await removeDrawing(sb, stored.path);
+    throw e;
+  }
+}
 const asBids = (rows: BidArg[]): SubBid[] =>
   rows.map((b) => ({
     sub: b.sub,
@@ -454,7 +494,7 @@ export const estimateIntake = defineTool({
   name: "estimate_intake",
   title: "Estimating intake",
   description:
-    "Asks scope, role and profile, and warns before reusing a takeoff already on the job.",
+    "Asks scope, role and profile, warns before reusing a takeoff already on the job, and stores a drawing PDF when one is sent.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
@@ -471,6 +511,7 @@ export const estimateIntake = defineTool({
     out_scope: z.array(z.string().trim().min(1).max(200)).max(40).optional(),
     assumptions: z.array(z.string().trim().min(1).max(300)).max(40).optional(),
     forms_faces: z.union([z.literal(1), z.literal(2)]).optional(),
+    drawing: drawingUpload,
   },
   annotations: SAVE,
   handler: (args, ctx) =>
@@ -502,12 +543,21 @@ export const estimateIntake = defineTool({
           ],
         });
       }
+      let documents: Doc[] = args.documents
+        ? keepDrawingPaths(args.documents as Doc[], prior.setup.documents)
+        : prior.setup.documents;
+      let drawingName = "";
+      if (args.drawing) {
+        const saved = await saveDrawing(sb, job, documents, args.drawing);
+        documents = saved.documents;
+        drawingName = saved.stored.name;
+      }
       const setup: Setup = {
         role: args.role ?? prior.setup.role,
         trades: args.trades ?? prior.setup.trades,
         bid_due: args.bid_due ?? prior.setup.bid_due,
         delivery_method: args.delivery_method ?? prior.setup.delivery_method,
-        documents: args.documents ?? prior.setup.documents,
+        documents,
         sub_bids: args.sub_bids ? asBids(args.sub_bids) : prior.setup.sub_bids,
         workbook_note: args.workbook_note ?? prior.setup.workbook_note,
         in_scope: args.in_scope ?? prior.setup.in_scope,
@@ -523,7 +573,7 @@ export const estimateIntake = defineTool({
       if (args.trades) patch.trades = args.trades;
       if (args.bid_due) patch.bid_due = args.bid_due;
       if (args.delivery_method) patch.delivery_method = args.delivery_method;
-      if (args.documents) patch.documents = args.documents;
+      if (args.documents && !args.drawing) patch.documents = documents;
       if (args.sub_bids) patch.sub_bids = asBids(args.sub_bids);
       if (args.workbook_note) patch.workbook_note = args.workbook_note;
       if (args.in_scope) patch.in_scope = args.in_scope;
@@ -552,9 +602,11 @@ export const estimateIntake = defineTool({
               ? "Reuse confirmed. The takeoff on file stays."
               : "Reuse confirmed. Nothing was copied onto this job. The other takeoff stays where it is."
             : "";
+      const drawingLine = drawingName ? `Drawing set stored: ${drawingName}.` : "";
+      const lead = [fresh, drawingLine].filter(Boolean).join("\n");
       return reply({
         ...view,
-        text: fresh ? `${fresh}\n${view.text}` : view.text,
+        text: lead ? `${lead}\n${view.text}` : view.text,
         structured: { ...view.structured, reuse: args.reuse ?? null },
       });
     }),
@@ -628,7 +680,7 @@ export const estimateDocReview = defineTool({
 export const estimateTakeoffSave = defineTool({
   name: "estimate_takeoff_save",
   title: "Save a takeoff",
-  description: "Saves takeoff lines with mode upsert, the default, or mode replace.",
+  description: "Saves takeoff lines with mode upsert, the default, or mode replace, and stores a drawing PDF when one is sent.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
@@ -647,6 +699,7 @@ export const estimateTakeoffSave = defineTool({
     forms_faces: z.union([z.literal(1), z.literal(2)]).optional(),
     mode: takeoffMode,
     lines: takeoffLines,
+    drawing: drawingUpload,
   },
   annotations: SAVE,
   handler: (args, ctx) =>
@@ -679,9 +732,20 @@ export const estimateTakeoffSave = defineTool({
         const account = accountTakeoffLines(args.lines.map(asLine), convention, prior.lines, mode);
         const revision = args.revision ?? revisionUsed(prior.setup.documents);
         const scales = (args.scales ?? []).map((s) => ({ ...s, scale: normalizeScale(s.scale) }));
+        let drawingName = "";
+        const rememberDrawing = async () => {
+          if (!args.drawing) return;
+          const saved = await saveDrawing(sb, job, prior.setup.documents, args.drawing);
+          drawingName = saved.stored.name;
+        };
         if (account.saved === 0) {
+          await rememberDrawing();
           const state = settle(prior.lines, prior.gaps, prior.verdicts, { role: prior.setup.role, trades: prior.setup.trades });
-          return reply(renderTakeoff(`${named(job)}`, prior.lines, state, revision, undefined, account));
+          const view = renderTakeoff(`${named(job)}`, prior.lines, state, revision, undefined, account);
+          return reply({
+            ...view,
+            text: drawingName ? `Drawing set stored: ${drawingName}.\n${view.text}` : view.text,
+          });
         }
         await rpc(sb, "mcp_estimate_takeoff_save", {
           _job: job.job_id,
@@ -689,6 +753,7 @@ export const estimateTakeoffSave = defineTool({
           _scales: scales,
           _lines: account.lines,
         });
+        await rememberDrawing();
         const loaded = await load(sb, job.job_id);
         const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, {
           role: loaded.setup.role,
@@ -703,7 +768,11 @@ export const estimateTakeoffSave = defineTool({
           mode,
           account,
         );
-        return reply({ ...view, structured: { ...view.structured, version: loaded.version, created: false } });
+        return reply({
+          ...view,
+          text: drawingName ? `Drawing set stored: ${drawingName}.\n${view.text}` : view.text,
+          structured: { ...view.structured, version: loaded.version, created: false },
+        });
       } catch (e) {
         if (e instanceof WhichCompanyAsk) throw e;
         return errorCard("Takeoff", errorMessage(e, "The takeoff could not be saved."));
@@ -714,8 +783,12 @@ export const estimateTakeoffSave = defineTool({
 export const estimateTakeoffGet = defineTool({
   name: "estimate_takeoff_get",
   title: "Read a takeoff",
-  description: "Returns the saved takeoff for a job.",
-  inputSchema: { job_number: jobNumber, company_id: companyId },
+  description: "Returns the saved takeoff for a job and includes a stored drawing page when a sheet is named or a line names a markup.",
+  inputSchema: {
+    job_number: jobNumber,
+    company_id: companyId,
+    sheet: z.string().trim().min(1).max(80).optional(),
+  },
   annotations: READ,
   handler: (args, ctx) =>
     run("estimate_takeoff_get", ctx, { jobNumber: args.job_number }, async (sb) => {
@@ -723,16 +796,33 @@ export const estimateTakeoffGet = defineTool({
         const job = await resolveJob(sb, args.job_number, args.company_id, "write");
         const loaded = await load(sb, job.job_id);
         await audit(sb, job, "estimate_takeoff_get", "view_estimate_takeoff", null);
-        if (!loaded.version) return emptyTakeoff(`${named(job)}`);
+        const withPages = async <R extends { content?: { type: string; text?: string }[]; structuredContent?: Record<string, unknown> }>(
+          result: R,
+          lines: { sheet?: string | null; markup_ref?: string | null }[],
+        ) => {
+          const requested = sheetsForMarkup({ sheet: args.sheet, lines });
+          if (!requested.length) return result;
+          const pages = await loadSheetPages(
+            sb,
+            { company_id: job.company_id, job_id: job.job_id },
+            loaded.setup.documents,
+            requested,
+          );
+          return pages.length ? attachSheetPages(result, pages) : result;
+        };
+        if (!loaded.version) return withPages(emptyTakeoff(`${named(job)}`), []);
         const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, {
           role: loaded.setup.role,
           trades: loaded.setup.trades,
         });
         const view = renderTakeoff(`${named(job)}`, loaded.lines, state, loaded.revision);
-        return reply({
-          ...view,
-          structured: { ...view.structured, found: true, version: loaded.version },
-        });
+        return withPages(
+          reply({
+            ...view,
+            structured: { ...view.structured, found: true, version: loaded.version },
+          }),
+          loaded.lines,
+        );
       } catch (e) {
         if (e instanceof WhichCompanyAsk) throw e;
         return errorCard("Takeoff", errorMessage(e, "The takeoff could not be read."));
