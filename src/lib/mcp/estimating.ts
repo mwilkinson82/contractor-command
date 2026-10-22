@@ -404,7 +404,7 @@ export const basisLabel = (b: Basis): BasisLabel => (b === "measured" ? "MEASURE
 export function formatQty(n: number, unit: string | null): string {
   if (!Number.isFinite(n))
     throw new EstimateError("That quantity is not a number. Nothing was saved.");
-  if (n < 0) throw new EstimateError("A quantity can't be negative. Nothing was saved.");
+  if (n < 0) throw new EstimateError("quantity has to be zero or more. Nothing was saved.");
   const u = (unit ?? "").toUpperCase();
   if (u === "EA") {
     const r = Math.round(n);
@@ -459,6 +459,10 @@ function finish(
 
 /** Compute one line. DEDUCED quantities are filled only from the inputs. */
 export function prepareLine(raw: LineIn): Omit<StoredLine, "line_no"> {
+  raw = {
+    ...raw,
+    inputs: (raw.inputs ?? []).map((input) => ({ ...input, name: normalizeInputName(input.name) })),
+  };
   const item = raw.item.trim();
   const sheet = raw.sheet.trim();
   if (!item) throw new EstimateError("Each line needs an item. Nothing was saved.");
@@ -921,7 +925,7 @@ export function normalizeInputName(value: unknown): string {
     s = String(o.name ?? o.label ?? "").trim();
   }
   if (!s) throw new EstimateError("Each measured input needs a name. Nothing was saved.");
-  if (s.length > 80) throw new EstimateError("That input name is too long. Nothing was saved.");
+  if (s.length > 80) throw new EstimateError("the input name is longer than 80 characters. Nothing was saved.");
   return s;
 }
 
@@ -937,7 +941,18 @@ export function prepareLines(
   rows: LineIn[],
   convention: EstimateConvention = CONVENTIONS.as_drawn,
 ): StoredLine[] {
-  const prepared = rows.map((raw) => applyConvention(prepareLine(raw), raw, convention));
+  const prepared = rows.map((raw, i) => {
+    try {
+      return applyConvention(prepareLine(raw), raw, convention);
+    } catch (e) {
+      if (e instanceof EstimateError && !/^Line \d+/.test(e.message)) {
+        const n = raw.line_no ?? i + 1;
+        const desc = raw.item?.trim() || "this line";
+        throw new EstimateError(`Line ${n} (${desc}): ${e.message}`);
+      }
+      throw e;
+    }
+  });
   const given = rows.map((r) => r.line_no).filter((n): n is number => typeof n === "number");
   if (given.length && given.length !== rows.length)
     throw new EstimateError(

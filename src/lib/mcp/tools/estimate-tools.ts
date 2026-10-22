@@ -11,7 +11,6 @@ import {
   conventionFor,
   intakeQuestions,
   mergeTakeoffLines,
-  normalizeInputName,
   normalizeScale,
   normalizeSchedules,
   autoGaps,
@@ -44,6 +43,9 @@ import {
 } from "../estimating";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import { audit, prefix, resolveJob } from "../jobs";
+import { htmlBlock, renderMarkdown } from "../cards/markdown";
+import { renderHtml } from "../cards/html";
+import type { CardModel } from "../cards/model";
 import { guide } from "../visible";
 
 const jobNumber = z.string().trim().min(1).max(40);
@@ -63,6 +65,19 @@ const MARK = {
   openWorldHint: false,
 } as const;
 
+export const TAKEOFF_MODES = ["upsert", "replace"] as const;
+export const takeoffMode = z
+  .preprocess(
+    (value) => (typeof value === "string" ? value.trim().toLowerCase() : value),
+    z.enum(TAKEOFF_MODES),
+  )
+  .optional();
+const looseWord = z.union([z.string(), z.number(), z.boolean(), z.null()]).optional();
+function lineLabel(line: { line_no?: number; item?: string }, index: number) {
+  const n = line.line_no ?? index + 1;
+  const desc = line.item?.trim() || "this line";
+  return `Line ${n} (${desc})`;
+}
 const basis = z.enum([
   "measured",
   "deduced",
@@ -122,10 +137,10 @@ const lineIn = z.object({
   spec_section: z.string().trim().max(80).optional(),
   confidence: z.enum(["high", "medium", "low"]).optional(),
   scale: z.string().trim().max(40).optional(),
-  method: z.string().trim().max(200).optional(),
+  method: looseWord,
   markup_ref: z.string().trim().max(40).optional(),
   location_text: z.string().trim().max(200).optional(),
-  missing_input: z.string().trim().max(120).optional(),
+  missing_input: looseWord,
   exclusion: z.string().trim().max(300).optional(),
   checklist_key: checkKey.optional(),
   forms_faces: z.union([z.literal(1), z.literal(2)]).optional(),
@@ -133,6 +148,49 @@ const lineIn = z.object({
   element: z.string().trim().max(80).optional(),
   trade: z.string().trim().max(80).optional(),
   note: z.string().trim().max(500).optional(),
+});
+const takeoffLines = z.array(lineIn).min(1).max(400).superRefine((lines, ctx) => {
+  lines.forEach((line, i) => {
+    const label = lineLabel(line, i);
+    if (line.method != null && (typeof line.method !== "string" || line.method.trim().length > 200)) {
+      ctx.addIssue({
+        code: "custom",
+        path: [i, "method"],
+        message: `${label}: method must be plain words, at most 200 characters, or leave it off.`,
+      });
+    }
+    if (line.missing_input != null && (typeof line.missing_input !== "string" || line.missing_input.trim().length > 120)) {
+      ctx.addIssue({
+        code: "custom",
+        path: [i, "missing_input"],
+        message: `${label}: the missing input must be plain words naming that one input, at most 120 characters, or leave it off.`,
+      });
+    }
+    if (typeof line.value === "number" && line.value < 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: [i, "value"],
+        message: `${label}: quantity has to be zero or more.`,
+      });
+    }
+    (line.inputs ?? []).forEach((input, j) => {
+      const name = typeof input.name === "string" ? input.name.trim() : input.name == null ? "" : String(input.name);
+      if (name.length > 80) {
+        ctx.addIssue({
+          code: "custom",
+          path: [i, "inputs", j, "name"],
+          message: `${label}: the input name is longer than 80 characters.`,
+        });
+      }
+      if (typeof input.value === "number" && input.value < 0) {
+        ctx.addIssue({
+          code: "custom",
+          path: [i, "inputs", j, "value"],
+          message: `${label}: quantity has to be zero or more.`,
+        });
+      }
+    });
+  });
 });
 const doc = z.object({
   name: z.string().trim().min(1).max(200),
@@ -229,15 +287,40 @@ function dedupeGaps(rows: GapIn[]): GapIn[] {
 }
 const asLine = (l: LineArg): LineIn => ({
   ...l,
+  method: typeof l.method === "string" ? l.method.trim() : undefined,
+  missing_input: typeof l.missing_input === "string" ? l.missing_input.trim() : undefined,
   value: l.value ?? null,
   inputs: l.inputs?.map((i) => ({
-    name: normalizeInputName(i.name),
+    name: typeof i.name === "string" ? i.name : String(i.name ?? ""),
     value: i.value,
     unit: i.unit ?? null,
     sheet: i.sheet ?? null,
     detail: i.detail ?? null,
   })),
 });
+function noEstimate(jobNumber: string) {
+  const card: CardModel = {
+    state: "progress",
+    title: "No estimate on this job yet",
+    job: jobNumber,
+    sections: [
+      {
+        heading: "Estimate",
+        kind: "list",
+        rows: [{ cells: ["No estimate on this job yet."], tone: "unknown" }],
+      },
+    ],
+    next_move: "Save the intake, then send the takeoff.",
+  };
+  const html = renderHtml(card);
+  return guide(
+    {
+      ...text(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`),
+      structuredContent: { report: "Estimator loop", found: false, card, html },
+    },
+    "There is no estimate on this job yet. Do not say the call failed.",
+  );
+}
 function emptyTakeoff(label: string) {
   return guide(
     {
@@ -484,8 +567,7 @@ export const estimateDocReview = defineTool({
 export const estimateTakeoffSave = defineTool({
   name: "estimate_takeoff_save",
   title: "Save a takeoff",
-  description:
-    "Adds or updates lines when mode is upsert, or replaces the whole takeoff when mode is replace.",
+  description: "Saves takeoff lines with mode upsert, the default, or mode replace.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
@@ -502,18 +584,15 @@ export const estimateTakeoffSave = defineTool({
       .optional(),
     profile: z.enum(["as_drawn", "estimator"]).optional(),
     forms_faces: z.union([z.literal(1), z.literal(2)]).optional(),
-    mode: z.enum(["upsert", "replace"]),
-    lines: z.array(lineIn).min(1).max(400),
+    mode: takeoffMode,
+    lines: takeoffLines,
   },
   annotations: SAVE,
   handler: (args, ctx) =>
     run("estimate_takeoff_save", ctx, { jobNumber: args.job_number }, async (sb) => {
       try {
         const job = await resolveJob(sb, args.job_number, args.company_id, "write");
-        if (args.mode !== "upsert" && args.mode !== "replace")
-          throw new ToolError(
-            "Say whether this save adds or updates lines, or replaces the takeoff. Nothing was saved.",
-          );
+        const mode = args.mode ?? "upsert";
         rejectPlaceholderLines(args.lines);
         const prior = await load(sb, job.job_id);
         const convention = conventionFor(args.profile ?? "as_drawn", args.forms_faces);
@@ -529,7 +608,7 @@ export const estimateTakeoffSave = defineTool({
         const numbered = args.lines.map((l) => l.line_no != null);
         const prepared: StoredLine[] = prepareLines(args.lines.map(asLine), convention);
         const lines =
-          args.mode === "upsert" ? mergeTakeoffLines(prior.lines, prepared, numbered) : prepared;
+          mode === "upsert" ? mergeTakeoffLines(prior.lines, prepared, numbered) : prepared;
         const revision = args.revision ?? revisionUsed(prior.setup.documents);
         const scales = (args.scales ?? []).map((s) => ({ ...s, scale: normalizeScale(s.scale) }));
         await rpc(sb, "mcp_estimate_takeoff_save", {
@@ -549,7 +628,7 @@ export const estimateTakeoffSave = defineTool({
           loaded.lines,
           state,
           loaded.revision,
-          args.mode,
+          mode,
         );
         return reply({ ...view, structured: { ...view.structured, version: loaded.version } });
       } catch (e) {
@@ -820,8 +899,16 @@ export const estimateStatus = defineTool({
   annotations: READ,
   handler: (args, ctx) =>
     run("estimate_status", ctx, { jobNumber: args.job_number }, async (sb) => {
-      const job = await resolveJob(sb, args.job_number, args.company_id, "write");
+      let job;
+      try {
+        job = await resolveJob(sb, args.job_number, args.company_id, "write");
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "";
+        if (/No job /i.test(message)) return noEstimate(args.job_number);
+        throw e;
+      }
       const loaded = await load(sb, job.job_id);
+      if (!loaded.version && loaded.lines.length === 0) return noEstimate(`${prefix(job)}${job.name}`);
       const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, {
         role: loaded.setup.role,
         trades: loaded.setup.trades,

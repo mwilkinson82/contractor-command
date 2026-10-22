@@ -7,7 +7,7 @@ import { lookaheadWindow, shortDate } from "./styled-views";
 import { SovMismatch, buildSov, lineBilling, money, type SovLineIn } from "./sov";
 
 export const FIELD_NAVY = "#1E3A5F";
-export const FIELD_BLUE = "#2563EB";
+export const FIELD_BLUE = "#1E5FED";
 export const FIELD_GRAY = "#6B7280";
 export const FIELD_LINE = "#D1D5DB";
 export const FIELD_WASH = "#F3F4F6";

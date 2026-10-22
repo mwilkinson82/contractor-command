@@ -322,7 +322,7 @@ export const SOV_DELIVERY_BLOCK = [
 export const SOV_DELIVERY_BLOCK_CLIENT = SOV_DELIVERY_BLOCK;
 export const sovDeliveryBlock = (_audience: "internal" | "client") => SOV_DELIVERY_BLOCK;
 
-export const VISIBLE_STYLE_LINE = "Display: blue (#2563EB) accent only, no orange; one caveat line at most.";
+export const VISIBLE_STYLE_LINE = "Display: blue (#1E5FED) accent only, no orange; one caveat line at most.";
 const FOOTER_MARK = "\n---\nAthena powered by ALP";
 
 /** Puts VISIBLE_STYLE_LINE just above the Athena footer of the first text block (or at its end). */
