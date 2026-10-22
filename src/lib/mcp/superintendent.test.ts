@@ -200,6 +200,44 @@ describe("daily assembly", () => {
     expect(state.rpcs.map((r) => r[0])).not.toContain("mcp_daily_report_save");
   });
 
+  it("extracts every daily field from a transcript that has no separate inputs", () => {
+    const bullets = [
+      "- Weather: Clear",
+      "- Manpower: 4 carpenters",
+      "- Subs: none",
+      "- Work: Footings SOV 03.01 A1000 40 cy crew 4 8 hours 25%",
+      "- Deliveries: none",
+      "- Issues: none",
+      "- Delays: Crane waiting",
+      "- Safety: none",
+    ].join("\n");
+    const fromBullets = assembleDaily({ transcript: bullets });
+    expect(fromBullets.weather).toBe("Clear");
+    expect(fromBullets.manpower).toBe("4 carpenters");
+    expect(fromBullets.subs_on_site).toBe("none");
+    expect(fromBullets.work[0]).toMatchObject({ sov_item: "03.01", qty: 40, unit: "cy" });
+    expect(fromBullets.deliveries).toBe("none");
+    expect(fromBullets.issues).toBe("none");
+    expect(fromBullets.delays).toBe("Crane waiting");
+    expect(fromBullets.safety).toBe("none");
+    const spoken = assembleDaily({
+      transcript: "Clear and 70 degrees. Four carpenters from our crew. No subs on site. Formed the north footing SOV 03.01 A1000 40 cy crew 4 8 hours. Nothing was delivered. No issues. The crane was waiting. Safety talk done, no incidents.",
+    });
+    const card = dailyCard("2701 – Harbor · ", "2026-10-22", spoken, false);
+    for (const field of ["Weather", "Manpower", "Subs on site", "Deliveries", "Issues", "Delays", "Safety"]) {
+      expect(card, field).not.toContain(`${field}: Needed`);
+    }
+    expect(card).not.toContain("Work performed:\n- Needed");
+    expect(spoken.weather).toMatch(/Clear and 70/);
+    expect(spoken.manpower).toMatch(/4 carpenters/i);
+    expect(spoken.subs_on_site).toBe("none");
+    expect(spoken.work[0]?.sov_item).toBe("03.01");
+    expect(spoken.deliveries).toBe("none");
+    expect(spoken.issues).toBe("none");
+    expect(spoken.delays).toMatch(/crane/i);
+    expect(spoken.safety).toMatch(/Safety talk/i);
+  });
+
   it("saves only a complete confirmed daily and records the production rate", async () => {
     state.rpc.mcp_daily_report_save = { id: "d1", lines: 1, saved: true };
     const r = await handle(dailyReportSave, dailyOk);
