@@ -234,9 +234,10 @@ async function fillOpenItems(sb: Sb, jobs: BriefJob[]): Promise<BriefJob[]> {
 export async function loadBriefJobs(sb: Sb, companyId?: string): Promise<{ hasCompany: boolean; jobs: BriefJob[] }> {
   const cos = await companies(sb);
   if (cos && !cos.length) return { hasCompany: false, jobs: [] };
+  void companyId;
   let listed: { job_number: string; name: string | null; company_id: string }[] = [];
   try {
-    listed = await listedJobs(sb, companyId, { allCompanies: !companyId?.trim() });
+    listed = await listedJobs(sb, undefined, { allCompanies: true });
   } catch {
     listed = [];
   }
@@ -246,8 +247,7 @@ export async function loadBriefJobs(sb: Sb, companyId?: string): Promise<{ hasCo
     if (res.error) {
       if (!isMissingFunction(res.error) && (res.error.message ?? "").startsWith("MCP_")) dbError(res.error);
     } else if (Array.isArray(res.data)) {
-      const want = new Set(listed.map((j) => j.job_number));
-      feed = briefJobsFromFeed(res.data as RawJob[]).filter((j) => !want.size || want.has(j.job_number));
+      feed = briefJobsFromFeed(res.data as RawJob[]);
     }
   } catch (e) {
     if (e instanceof ToolError) throw e;

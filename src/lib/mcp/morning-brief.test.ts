@@ -6,7 +6,7 @@ import { renderHtml } from "./cards/html";
 import { renderMarkdown } from "./cards/markdown";
 import { paletteViolations } from "./cards/palette";
 import { CARD_SHOWN } from "./cards/silence";
-import { briefIsShown, loadMorningBrief, mergeBriefJobs } from "./morning-brief-load";
+import { briefIsShown, loadBriefJobs, loadMorningBrief, mergeBriefJobs } from "./morning-brief-load";
 import { emptyCssValues } from "./cards/palette";
 import { countOpenItems, openItemFeed } from "./open-feed";
 import { job2701BriefCard, job2701BriefJob } from "./morning-brief-2701";
@@ -14,8 +14,10 @@ import {
   BRIEF_ALREADY,
   alreadyShownBrief,
   briefView,
+  INBOX_HOST_LINE,
   buildMorningBrief,
   ensureBriefCard,
+  jobTitle,
   parseBriefingTime,
   presentBrief,
   settingsLine,
@@ -205,13 +207,7 @@ describe("morning brief builder", () => {
     });
     expect(feed.items.filter((it) => it.check_key === "pm:crews")).toHaveLength(1);
     expect(built.card.sections?.find((s) => s.heading === "Don't forget")?.rows.length).toBeLessThanOrEqual(3);
-    const inbox = built.card.sections?.find((s) => s.heading === "From your inbox and calendar");
-    expect(inbox?.rows.map((row) => row.cells[0])).toEqual([
-      "Emails that came in overnight.",
-      "Unanswered emails that need a reply.",
-      "Today's meetings.",
-    ]);
-    expect(built.card.sections?.[0].heading).toBe("From your inbox and calendar");
+    expect(built.card.sections?.some((section) => section.heading === "From your inbox and calendar")).toBe(false);
   });
 
   it("renders the shared card, the same text, and signed job links", () => {
@@ -255,10 +251,11 @@ describe("morning brief builder", () => {
     expect(emptyCssValues(before)).toEqual([]);
     expect(before).toContain("#1E3A5F");
     expect(before).toContain("#1E5FED");
-    expect(before).toContain("From your inbox and calendar");
-    expect(before).toContain("Emails that came in overnight.");
-    expect(before).toContain("Unanswered emails that need a reply.");
-    expect(before).toContain("Today's meetings.");
+    expect(before).toContain(INBOX_HOST_LINE);
+    expect(before).toContain("Gmail and Calendar");
+    expect(before).toContain("leave the section out");
+    expect(before).toContain("Never render an empty heading");
+    expect(shown.structuredContent.html).not.toContain("From your inbox and calendar");
     expect(before).toContain("2701");
     expect(before).toContain("/r/job/");
   });
@@ -315,5 +312,60 @@ describe("a second good morning", () => {
     expect(sql).not.toContain("mcp_living_report_get");
     expect(sql.match(/PERFORM public\.mcp_assert_active\(\)/g)).toHaveLength(3);
     expect(sql).not.toMatch(/\bDELETE FROM\b|\bDROP TABLE\b|\bTRUNCATE\b/i);
+  });
+});
+
+describe("job labels and every company", () => {
+  it("prints the job number once when the name already starts with it", () => {
+    expect(jobTitle({ job_number: "1234", name: "1234 Riverside" })).toBe("1234 Riverside");
+    expect(jobTitle({ job_number: "1234", name: "Riverside" })).toBe("1234 Riverside");
+    expect(jobTitle({ job_number: "1234", name: "1234" })).toBe("1234");
+    const doubled = buildMorningBrief({
+      jobs: [{
+        ...job2701BriefJob("pm"),
+        job_number: "1234",
+        name: "1234 Riverside",
+        company_id: "alp",
+        company_name: "ALP Construction",
+      }],
+      hasCompany: true,
+      now: NOW,
+    });
+    const text = renderMarkdown(doubled.card);
+    expect(text).toContain("1234 Riverside");
+    expect(text).not.toContain("1234 1234");
+  });
+
+  it("groups every company and still names 2701 when another company is active", async () => {
+    const alp = "alp";
+    const aop = "aop";
+    const companies = [
+      { id: alp, name: "ALP Construction" },
+      { id: aop, name: "AOP Construction" },
+    ];
+    const jobs = [
+      { id: "job-1234", job_number: "1234", name: "Riverside", company_id: alp, updated_at: null },
+      { id: "job-2701", job_number: "2701", name: "Harbor Point", company_id: aop, updated_at: null },
+    ];
+    const sb = {
+      from(table: string) {
+        if (table === "mcp_companies") return { select: async () => ({ data: companies, error: null }) };
+        if (table === "mcp_user_settings") return { select: () => ({ maybeSingle: async () => ({ data: { current_company: alp }, error: null }) }) };
+        if (table === "mcp_jobs") return { select: () => ({ in: async () => ({ data: jobs, error: null }) }) };
+        return { select: () => ({ in: () => ({ eq: () => ({ limit: async () => ({ data: [], error: null }) }) }) }) };
+      },
+      rpc: async () => ({ data: [], error: null }),
+    };
+    const loaded = await loadBriefJobs(sb as never, alp);
+    expect(loaded.jobs.map((job) => job.job_number).sort()).toEqual(["1234", "2701"]);
+    const built = buildMorningBrief({ jobs: loaded.jobs, hasCompany: true, now: NOW });
+    const headings = built.card.sections?.map((section) => section.heading) ?? [];
+    expect(headings).toContain("ALP Construction");
+    expect(headings).toContain("AOP Construction");
+    const text = renderMarkdown(built.card);
+    expect(text).toContain("1234 Riverside");
+    expect(text).toContain("2701 Harbor Point");
+    expect(text).not.toContain("1234 1234");
+    expect(built.card.sections?.some((section) => section.heading === "From your inbox and calendar")).toBe(false);
   });
 });
