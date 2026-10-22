@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { renderReportBody, reportPageQuery, type PagePayload, type AnyPage, type FieldPagePayload, type ItemsPagePayload } from "@/lib/report-pages";
 import { FieldPushBar } from "@/components/athena/FieldPushBar";
+import { MorningBriefPushBar } from "@/components/athena/MorningBriefPushBar";
 import { useAuth } from "@/hooks/use-auth";
 import { useServerFn } from "@tanstack/react-start";
 import { openBoardPage } from "@/lib/board-link.functions";
@@ -102,6 +103,7 @@ export function ReportPageView({ page, jobId, companyId, token }: { page: AnyPag
   const jobNumber = payload && payload.page !== "portfolio" ? (payload.job_number ?? null) : null;
   const live = (
     <div style={{ background: "#F3F4F6", minHeight: "100%" }}>
+      {session ? <MorningBriefPushBar /> : null}
       {page === "field" && jobId ? <FieldPushBar jobId={jobId} jobNumber={jobNumber} /> : null}
       <div dangerouslySetInnerHTML={{ __html: html }} />
     </div>

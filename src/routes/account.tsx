@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { onAthenaHost } from "@/lib/athena-host-current";
 import { pageUrl } from "@/lib/report-pages";
 import { AthenaStartTip } from "@/components/athena/start-tip";
+import { MorningBriefPushBar } from "@/components/athena/MorningBriefPushBar";
 
 const LOGO_BUCKET = "company-logos";
 
@@ -229,6 +230,7 @@ function AccountPage() {
       {athenaHost ? (
         <div className="mb-8">
           <AthenaStartTip />
+          <MorningBriefPushBar />
         </div>
       ) : null}
       {athenaHost ? <FieldBoards /> : null}

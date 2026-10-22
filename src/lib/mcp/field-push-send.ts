@@ -26,7 +26,7 @@ export type PushSendLog = {
   status: "success" | "failure" | "unconfigured";
   httpCode: number | null;
   errorText: string | null;
-  payloadKind: "daily" | "test";
+  payloadKind: "daily" | "test" | "brief";
 };
 
 export type PushSendTarget = {

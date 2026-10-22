@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { requestMemberMagicLink } from "@/lib/magic-link.functions";
-import { boardSignInReturn, BOARD_SIGN_IN_TITLE } from "@/lib/board-sign-in";
+import { signInReturn, BOARD_SIGN_IN_TITLE } from "@/lib/board-sign-in";
 import { boundedStep } from "@/lib/consent-loading";
 import { normalizeOtpCode } from "@/lib/login-otp";
 import { ATHENA_LOGIN_LOGO } from "@/lib/login-copy";
@@ -21,7 +21,7 @@ const DANGER = "#B91C1C";
  */
 export function BoardSignIn({ returnTo }: { returnTo: string }) {
   const requestCode = useServerFn(requestMemberMagicLink);
-  const safeReturn = boardSignInReturn(returnTo);
+  const safeReturn = signInReturn(returnTo);
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
@@ -46,7 +46,7 @@ export function BoardSignIn({ returnTo }: { returnTo: string }) {
   async function onCode(event: FormEvent) {
     event.preventDefault();
     const token = normalizeOtpCode(code);
-    const next = boardSignInReturn(safeReturn);
+    const next = signInReturn(safeReturn);
     if (busy || !next) return;
     if (!token) {
       setErr("Enter the code from the email.");

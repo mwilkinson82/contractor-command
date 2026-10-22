@@ -16,6 +16,7 @@ const ATHENA_EXACT = new Set([
   "/forgot-password",
   "/magic-link",
   "/mcp",
+  "/today",
 ]);
 
 /** Prefixes allowed on the Athena host (connect discovery, MCP, shared artifacts, server hooks). */
@@ -41,6 +42,12 @@ export function athenaPathAllowed(pathname: string): boolean {
 /** Job pages, the portfolio, and share links. They use the same session as the field board. */
 export function isHostedReport(pathname: string): boolean {
   return /^\/r\/(job|portfolio|s)(\/|$)/.test(pathname);
+}
+
+/** The morning brief board. Signed-out visitors see the email-code sign-in on the page. */
+export function isTodayPage(pathname: string): boolean {
+  const p = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  return p === "/today";
 }
 
 /** Where to send a path on the Athena host: null = render it, else the redirect target. */

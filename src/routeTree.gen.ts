@@ -33,6 +33,7 @@ import { Route as SchedulerPreviewRouteImport } from './routes/scheduler-preview
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as StartHereRouteImport } from './routes/start-here'
 import { Route as TemplatesRouteImport } from './routes/templates'
+import { Route as TodayRouteImport } from './routes/today'
 import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as UpgradeRouteImport } from './routes/upgrade'
 import { Route as VaultRouteImport } from './routes/vault'
@@ -76,6 +77,8 @@ import { Route as ToolsGrowthConstraintRouteImport } from './routes/tools.growth
 import { Route as ToolsOwnerDependencyRouteImport } from './routes/tools.owner-dependency'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceMcpRouteImport } from './routes/[.well-known]/oauth-protected-resource_.mcp'
+import { Route as ApiAthenaFieldPushRouteImport } from './routes/api/athena/field-push'
+import { Route as ApiAthenaMorningBriefRouteImport } from './routes/api/athena/morning-brief'
 import { Route as ApiPublicAosFpRouteImport } from './routes/api/public/aos-fp'
 import { Route as BrandAthenaAthenaIcon64DotpngRouteImport } from './routes/brand.athena.athena-icon-64[.]png'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
@@ -84,7 +87,6 @@ import { Route as RSTokenRouteImport } from './routes/r.s.$token'
 import { Route as ToolsSopEditPacketIdRouteImport } from './routes/tools.sop-edit.$packetId'
 import { Route as ApiPublicAosTierLookupRouteImport } from './routes/api/public/aos/tier-lookup'
 import { Route as ApiPublicAthenaStripeWebhookRouteImport } from './routes/api/public/athena/stripe-webhook'
-import { Route as ApiAthenaFieldPushRouteImport } from './routes/api/athena/field-push'
 import { Route as ApiPublicCircleReconcileRouteImport } from './routes/api/public/circle/reconcile'
 import { Route as ApiPublicOverwatchTierLookupRouteImport } from './routes/api/public/overwatch/tier-lookup'
 import { Route as ApiPublicResendCaptureRouteImport } from './routes/api/public/resend/capture'
@@ -216,6 +218,11 @@ const StartHereRoute = StartHereRouteImport.update({
 const TemplatesRoute = TemplatesRouteImport.update({
   id: '/templates',
   path: '/templates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TodayRoute = TodayRouteImport.update({
+  id: '/today',
+  path: '/today',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ToolsRoute = ToolsRouteImport.update({
@@ -437,6 +444,16 @@ const Char91DotwellKnownChar93OauthProtectedResourceMcpRoute =
     path: '/.well-known/oauth-protected-resource/mcp',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAthenaFieldPushRoute = ApiAthenaFieldPushRouteImport.update({
+  id: '/api/athena/field-push',
+  path: '/api/athena/field-push',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAthenaMorningBriefRoute = ApiAthenaMorningBriefRouteImport.update({
+  id: '/api/athena/morning-brief',
+  path: '/api/athena/morning-brief',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicAosFpRoute = ApiPublicAosFpRouteImport.update({
   id: '/api/public/aos-fp',
   path: '/api/public/aos-fp',
@@ -479,11 +496,6 @@ const ApiPublicAthenaStripeWebhookRoute =
     path: '/api/public/athena/stripe-webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiAthenaFieldPushRoute = ApiAthenaFieldPushRouteImport.update({
-  id: '/api/athena/field-push',
-  path: '/api/athena/field-push',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiPublicCircleReconcileRoute =
   ApiPublicCircleReconcileRouteImport.update({
     id: '/api/public/circle/reconcile',
@@ -576,6 +588,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/start-here': typeof StartHereRoute
   '/templates': typeof TemplatesRoute
+  '/today': typeof TodayRoute
   '/tools': typeof ToolsRouteWithChildren
   '/upgrade': typeof UpgradeRoute
   '/vault': typeof VaultRoute
@@ -619,6 +632,8 @@ export interface FileRoutesByFullPath {
   '/ask/': typeof AskIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.well-known/oauth-protected-resource/mcp': typeof Char91DotwellKnownChar93OauthProtectedResourceMcpRoute
+  '/api/athena/field-push': typeof ApiAthenaFieldPushRoute
+  '/api/athena/morning-brief': typeof ApiAthenaMorningBriefRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/brand/athena/athena-icon-64.png': typeof BrandAthenaAthenaIcon64DotpngRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -627,7 +642,6 @@ export interface FileRoutesByFullPath {
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/athena/stripe-webhook': typeof ApiPublicAthenaStripeWebhookRoute
-  '/api/athena/field-push': typeof ApiAthenaFieldPushRoute
   '/api/public/circle/reconcile': typeof ApiPublicCircleReconcileRoute
   '/api/public/overwatch/tier-lookup': typeof ApiPublicOverwatchTierLookupRoute
   '/api/public/resend/capture': typeof ApiPublicResendCaptureRoute
@@ -666,6 +680,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/start-here': typeof StartHereRoute
   '/templates': typeof TemplatesRoute
+  '/today': typeof TodayRoute
   '/tools': typeof ToolsRouteWithChildren
   '/upgrade': typeof UpgradeRoute
   '/vault': typeof VaultRoute
@@ -709,6 +724,8 @@ export interface FileRoutesByTo {
   '/ask': typeof AskIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.well-known/oauth-protected-resource/mcp': typeof Char91DotwellKnownChar93OauthProtectedResourceMcpRoute
+  '/api/athena/field-push': typeof ApiAthenaFieldPushRoute
+  '/api/athena/morning-brief': typeof ApiAthenaMorningBriefRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/brand/athena/athena-icon-64.png': typeof BrandAthenaAthenaIcon64DotpngRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -717,7 +734,6 @@ export interface FileRoutesByTo {
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/athena/stripe-webhook': typeof ApiPublicAthenaStripeWebhookRoute
-  '/api/athena/field-push': typeof ApiAthenaFieldPushRoute
   '/api/public/circle/reconcile': typeof ApiPublicCircleReconcileRoute
   '/api/public/overwatch/tier-lookup': typeof ApiPublicOverwatchTierLookupRoute
   '/api/public/resend/capture': typeof ApiPublicResendCaptureRoute
@@ -757,6 +773,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/start-here': typeof StartHereRoute
   '/templates': typeof TemplatesRoute
+  '/today': typeof TodayRoute
   '/tools': typeof ToolsRouteWithChildren
   '/upgrade': typeof UpgradeRoute
   '/vault': typeof VaultRoute
@@ -800,6 +817,8 @@ export interface FileRoutesById {
   '/ask/': typeof AskIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.well-known/oauth-protected-resource_/mcp': typeof Char91DotwellKnownChar93OauthProtectedResourceMcpRoute
+  '/api/athena/field-push': typeof ApiAthenaFieldPushRoute
+  '/api/athena/morning-brief': typeof ApiAthenaMorningBriefRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/brand/athena/athena-icon-64.png': typeof BrandAthenaAthenaIcon64DotpngRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -808,7 +827,6 @@ export interface FileRoutesById {
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/athena/stripe-webhook': typeof ApiPublicAthenaStripeWebhookRoute
-  '/api/athena/field-push': typeof ApiAthenaFieldPushRoute
   '/api/public/circle/reconcile': typeof ApiPublicCircleReconcileRoute
   '/api/public/overwatch/tier-lookup': typeof ApiPublicOverwatchTierLookupRoute
   '/api/public/resend/capture': typeof ApiPublicResendCaptureRoute
@@ -849,6 +867,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/start-here'
     | '/templates'
+    | '/today'
     | '/tools'
     | '/upgrade'
     | '/vault'
@@ -892,6 +911,8 @@ export interface FileRouteTypes {
     | '/ask/'
     | '/.lovable/oauth/consent'
     | '/.well-known/oauth-protected-resource/mcp'
+    | '/api/athena/field-push'
+    | '/api/athena/morning-brief'
     | '/api/public/aos-fp'
     | '/brand/athena/athena-icon-64.png'
     | '/lovable/email/suppression'
@@ -900,7 +921,6 @@ export interface FileRouteTypes {
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
     | '/api/public/athena/stripe-webhook'
-    | '/api/athena/field-push'
     | '/api/public/circle/reconcile'
     | '/api/public/overwatch/tier-lookup'
     | '/api/public/resend/capture'
@@ -939,6 +959,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/start-here'
     | '/templates'
+    | '/today'
     | '/tools'
     | '/upgrade'
     | '/vault'
@@ -982,6 +1003,8 @@ export interface FileRouteTypes {
     | '/ask'
     | '/.lovable/oauth/consent'
     | '/.well-known/oauth-protected-resource/mcp'
+    | '/api/athena/field-push'
+    | '/api/athena/morning-brief'
     | '/api/public/aos-fp'
     | '/brand/athena/athena-icon-64.png'
     | '/lovable/email/suppression'
@@ -990,7 +1013,6 @@ export interface FileRouteTypes {
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
     | '/api/public/athena/stripe-webhook'
-    | '/api/athena/field-push'
     | '/api/public/circle/reconcile'
     | '/api/public/overwatch/tier-lookup'
     | '/api/public/resend/capture'
@@ -1029,6 +1051,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/start-here'
     | '/templates'
+    | '/today'
     | '/tools'
     | '/upgrade'
     | '/vault'
@@ -1072,6 +1095,8 @@ export interface FileRouteTypes {
     | '/ask/'
     | '/.lovable/oauth/consent'
     | '/.well-known/oauth-protected-resource_/mcp'
+    | '/api/athena/field-push'
+    | '/api/athena/morning-brief'
     | '/api/public/aos-fp'
     | '/brand/athena/athena-icon-64.png'
     | '/lovable/email/suppression'
@@ -1080,7 +1105,6 @@ export interface FileRouteTypes {
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
     | '/api/public/athena/stripe-webhook'
-    | '/api/athena/field-push'
     | '/api/public/circle/reconcile'
     | '/api/public/overwatch/tier-lookup'
     | '/api/public/resend/capture'
@@ -1120,6 +1144,7 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   StartHereRoute: typeof StartHereRoute
   TemplatesRoute: typeof TemplatesRoute
+  TodayRoute: typeof TodayRoute
   ToolsRoute: typeof ToolsRouteWithChildren
   UpgradeRoute: typeof UpgradeRoute
   VaultRoute: typeof VaultRoute
@@ -1159,6 +1184,8 @@ export interface RootRouteChildren {
   AskIndexRoute: typeof AskIndexRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   Char91DotwellKnownChar93OauthProtectedResourceMcpRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceMcpRoute
+  ApiAthenaFieldPushRoute: typeof ApiAthenaFieldPushRoute
+  ApiAthenaMorningBriefRoute: typeof ApiAthenaMorningBriefRoute
   ApiPublicAosFpRoute: typeof ApiPublicAosFpRoute
   BrandAthenaAthenaIcon64DotpngRoute: typeof BrandAthenaAthenaIcon64DotpngRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
@@ -1348,6 +1375,13 @@ declare module '@tanstack/react-router' {
       path: '/templates'
       fullPath: '/templates'
       preLoaderRoute: typeof TemplatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/today': {
+      id: '/today'
+      path: '/today'
+      fullPath: '/today'
+      preLoaderRoute: typeof TodayRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tools': {
@@ -1651,6 +1685,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceMcpRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/athena/field-push': {
+      id: '/api/athena/field-push'
+      path: '/api/athena/field-push'
+      fullPath: '/api/athena/field-push'
+      preLoaderRoute: typeof ApiAthenaFieldPushRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/athena/morning-brief': {
+      id: '/api/athena/morning-brief'
+      path: '/api/athena/morning-brief'
+      fullPath: '/api/athena/morning-brief'
+      preLoaderRoute: typeof ApiAthenaMorningBriefRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/aos-fp': {
       id: '/api/public/aos-fp'
       path: '/api/public/aos-fp'
@@ -1705,13 +1753,6 @@ declare module '@tanstack/react-router' {
       path: '/api/public/athena/stripe-webhook'
       fullPath: '/api/public/athena/stripe-webhook'
       preLoaderRoute: typeof ApiPublicAthenaStripeWebhookRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/athena/field-push': {
-      id: '/api/athena/field-push'
-      path: '/api/athena/field-push'
-      fullPath: '/api/athena/field-push'
-      preLoaderRoute: typeof ApiAthenaFieldPushRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/circle/reconcile': {
@@ -1854,6 +1895,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   StartHereRoute: StartHereRoute,
   TemplatesRoute: TemplatesRoute,
+  TodayRoute: TodayRoute,
   ToolsRoute: ToolsRouteWithChildren,
   UpgradeRoute: UpgradeRoute,
   VaultRoute: VaultRoute,
@@ -1897,6 +1939,8 @@ const rootRouteChildren: RootRouteChildren = {
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   Char91DotwellKnownChar93OauthProtectedResourceMcpRoute:
     Char91DotwellKnownChar93OauthProtectedResourceMcpRoute,
+  ApiAthenaFieldPushRoute: ApiAthenaFieldPushRoute,
+  ApiAthenaMorningBriefRoute: ApiAthenaMorningBriefRoute,
   ApiPublicAosFpRoute: ApiPublicAosFpRoute,
   BrandAthenaAthenaIcon64DotpngRoute: BrandAthenaAthenaIcon64DotpngRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
@@ -1904,7 +1948,6 @@ const rootRouteChildren: RootRouteChildren = {
   RSTokenRoute: RSTokenRoute,
   ApiPublicAosTierLookupRoute: ApiPublicAosTierLookupRoute,
   ApiPublicAthenaStripeWebhookRoute: ApiPublicAthenaStripeWebhookRoute,
-  ApiAthenaFieldPushRoute: ApiAthenaFieldPushRoute,
   ApiPublicCircleReconcileRoute: ApiPublicCircleReconcileRoute,
   ApiPublicOverwatchTierLookupRoute: ApiPublicOverwatchTierLookupRoute,
   ApiPublicResendCaptureRoute: ApiPublicResendCaptureRoute,
