@@ -853,6 +853,16 @@ function isForms(item: string, unit: string | null): boolean {
   return (unit ?? "").toUpperCase() === "SFCA" || /form|contact area|sfca/i.test(item);
 }
 
+/** True when the line already multiplied by both faces, so a second ×2 would double the formwork. */
+function facesAlreadyCounted(raw: LineIn, math: string): boolean {
+  const blob = `${raw.item} ${raw.note ?? ""} ${raw.method ?? ""} ${math}`;
+  if (/\bboth faces\b|\b(?:two|2) faces\b|\bfaces already\b|\balready (?:counted|included)\b/i.test(blob))
+    return true;
+  return (raw.inputs ?? []).some(
+    (input) => /\b(faces?|sides?)\b/i.test(input.name) && input.value != null && input.value >= 2,
+  );
+}
+
 function isRebar(item: string): boolean {
   return /rebar|reinforc/i.test(item);
 }
@@ -886,10 +896,13 @@ function applyConvention(
   let qty = line.qty;
   if (isForms(line.item, line.unit)) {
     const faces = raw.forms_faces ?? convention.forms_faces;
-    if (faces === 2 && qty != null && !line.exclusion) {
+    const already = facesAlreadyCounted(raw, math);
+    if (faces === 2 && qty != null && !line.exclusion && !already) {
       const one = qty;
       qty = qtyNumber(one * 2, line.unit);
       math += ` Forms faces: 2. One face was ${formatQty(one, line.unit)} ${line.unit ?? ""}; both faces are ${formatQty(qty, line.unit)} ${line.unit ?? ""}.`;
+    } else if (faces === 2 && already && qty != null && !line.exclusion) {
+      math += ` Forms faces: 2. Both faces are already in this quantity (${formatQty(qty, line.unit)} ${line.unit ?? ""}).`;
     } else {
       math +=
         faces === 1

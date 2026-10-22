@@ -595,6 +595,29 @@ describe("engine conventions", () => {
     expect(fromProfile.qty).toBe(892);
     expect(fromProfile.math).toContain("both faces");
     expect(fromProfile.math).toContain("446");
+    const already = prepareLines(
+      [
+        {
+          item: "Wall forms",
+          sheet: "S-103",
+          unit: "SFCA",
+          basis: "derived",
+          op: "product",
+          forms_faces: 2,
+          note: "both faces",
+          inputs: [
+            { name: "length", value: 100 },
+            { name: "height", value: 4 },
+            { name: "faces", value: 2 },
+          ],
+          line_no: 1,
+        },
+      ],
+      conventionFor("estimator", 2),
+    )[0];
+    expect(already.qty).toBe(800);
+    expect(already.math).toContain("already in this quantity");
+    expect(already.math).not.toContain("One face was");
   });
 
   it("uses gross termite area, follows the estimator profile, and rejects LF sent as CF", () => {
