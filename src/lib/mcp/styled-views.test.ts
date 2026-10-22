@@ -6,11 +6,14 @@ import {
   ganttPins,
   noteDateConflicts,
   windowFromDataDate,
+  lookaheadModel,
   lookaheadView,
+  scheduleRisk,
   emptyCard,
   SHOW_AS_IS,
   LOOKAHEAD_ARTIFACT_LINE,
 } from "./styled-views";
+import { renderReportBody } from "../report-pages";
 
 const acts = [
   {
@@ -156,6 +159,33 @@ describe("lookahead view", () => {
     expect(v).toContain("### Risk cards");
     expect(v).not.toContain("D1060");
     expect(v).toContain("**Legend:**");
+  });
+  it("keeps an ordinary linked callout navy with a #1E5FED line", () => {
+    const slab = [{ id: "A1110", name: "Underground conduit rough-in", start: "2026-10-26", finish: "2026-10-30", duration: 5, total_float: 4 }];
+    const items = [{ action: "Pour slab A1110 on 2026-10-26", owner: "Sam", due: "2026-10-28" }];
+    const m = lookaheadModel("2026-10-26", "2026-11-06", slab, items, { today: "2026-10-21" });
+    expect(scheduleRisk(m.entries[0])).toBe(false);
+    expect(m.risks).toEqual([]);
+    expect(m.rows[0].cells.some((c) => c.callout)).toBe(true);
+    expect(m.rows[0].cells.some((c) => c.risk)).toBe(false);
+    const v = lookaheadView({ title: "2701", ref: "LA-1", start: "2026-10-26", end: "2026-11-06", dataDate: "2026-10-19", acts: slab, items, today: "2026-10-21" });
+    expect(v).toContain("Ordinary callouts: navy, #1E5FED line");
+    expect(v).toContain("#1E5FED");
+    expect(v).not.toContain("### Risk cards");
+    expect(v).not.toContain("🔴 **Pour slab");
+    const html = renderReportBody({
+      page: "lookahead",
+      job_number: "2701",
+      job_name: "Harbor",
+      lookahead: { id: "x", start_date: "2026-10-26", end_date: "2026-11-06" },
+      report: { found: true, data_date: "2026-10-19", data: { activities: slab } },
+      items,
+      today: "2026-10-21",
+    });
+    expect(html).toContain("border-left:4px solid #1E5FED");
+    expect(html).toContain("background:#1E5FED");
+    const priority = html.slice(html.indexOf("Pour slab"), html.indexOf("CALENDAR"));
+    expect(priority).not.toContain("#DC2626");
   });
   it("empty states are styled cards with a Next move", () => {
     const e = emptyCard("pay_app", "2701 – Harbor Point", "Send the billed-to-date figure.");

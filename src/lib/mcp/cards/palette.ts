@@ -19,6 +19,11 @@ const ALLOWED = new Set([NAVY, BLUE, GRAY, WHITE, ALERT].map((h) => h.toUpperCas
 
 export type AlertLevel = "risk" | "delay" | "overdue";
 
+/** Red is legal only for these three. Anything else is an ordinary navy callout. */
+export function isAlertLevel(flag: string | null | undefined): flag is AlertLevel {
+  return flag === "risk" || flag === "delay" || flag === "overdue";
+}
+
 /** Hex colors in a render, uppercased, including the leading #. */
 export function hexesIn(text: string): string[] {
   return [...text.matchAll(/#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})\b/g)].map((m) => {

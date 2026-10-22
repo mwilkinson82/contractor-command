@@ -1,5 +1,5 @@
 import { plainLabel, rowPlain } from "../plain-label";
-import { ALERT, BLUE, GRAY, NAVY, WHITE, cssColor } from "./palette";
+import { ALERT, BLUE, GRAY, NAVY, WHITE, cssColor, isAlertLevel } from "./palette";
 import { STATE_LABEL, cardHasAlert, type CardModel, type CardRow } from "./model";
 
 const esc = (s: string) =>
@@ -22,7 +22,8 @@ function linked(row: CardRow, text: string): string {
 function flagHead(flag: CardRow["flag"]): string {
   if (flag === "delay") return "Delay";
   if (flag === "overdue") return "Overdue";
-  return "Risk";
+  if (flag === "risk") return "Risk";
+  return "";
 }
 
 function flagged(row: CardRow, inner: string): string {
@@ -31,10 +32,9 @@ function flagged(row: CardRow, inner: string): string {
 }
 
 function rowClass(row: CardRow): string {
-  const parts = [];
-  if (row.flag) parts.push(`class="alert" data-alert="${row.flag}"`);
-  else if (row.tone) parts.push(`class="tone-${row.tone}"`);
-  return parts.join(" ");
+  if (isAlertLevel(row.flag)) return `class="alert" data-alert="${row.flag}"`;
+  if (row.tone) return `class="line tone-${row.tone}"`;
+  return `class="line"`;
 }
 
 /** Finished HTML document. Claude shows it as-is. Colors come only from the palette. */
@@ -66,7 +66,11 @@ export function renderHtml(card: CardModel): string {
     `td{padding:6px 8px;border-bottom:1px solid ${gray};vertical-align:top}`,
     `a{color:${blue};text-decoration:none}`,
     `.ref{display:block;margin-top:2px;font-size:11px;font-weight:400;color:${gray}}`,
+    `.line{color:${navy};border-left:4px solid ${blue}}`,
+    `li.line{display:block;margin:8px 0;padding:8px 12px}`,
+    `tr.line td:first-child{box-shadow:inset 4px 0 0 ${blue}}`,
     `.chip{display:inline-block;margin:0 6px 6px 0;padding:4px 8px;border-radius:999px;border:1px solid ${gray};color:${navy}}`,
+    `.chip.line{border-left:4px solid ${blue}}`,
     `.tone-known{border-color:${blue};color:${blue}}`,
     `.tone-unknown{color:${gray}}`,
     `.tone-action{background:${blue};color:${white};border-color:${blue}}`,
@@ -101,7 +105,7 @@ export function renderHtml(card: CardModel): string {
       if (!s.rows.length) inner = `${heading}<p class="tone-unknown">Nothing on this card yet.</p>`;
       else if (s.kind === "chips") {
         inner = `${heading}<p>${s.rows
-          .map((r) => `<span class="chip${r.tone ? ` tone-${r.tone}` : ""}${r.flag ? " alert" : ""}"${r.flag ? ` data-alert="${r.flag}"` : ""}>${linked(r, rowPlain(r).label)}</span>`)
+          .map((r) => `<span class="chip${r.tone ? ` tone-${r.tone}` : ""} ${isAlertLevel(r.flag) ? "alert" : "line"}"${isAlertLevel(r.flag) ? ` data-alert="${r.flag}"` : ""}>${linked(r, rowPlain(r).label)}</span>`)
           .join("")}</p>`;
       } else if (s.kind === "table") {
         const width = Math.max(s.columns?.length ?? 0, ...s.rows.map((r) => r.cells.length), 1);

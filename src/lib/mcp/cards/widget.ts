@@ -59,14 +59,14 @@ if(card.ask&&card.ask.prompt)h+='<div class="ask"><strong>This question</strong>
     h+='</p>'+close;
     return;
   }
-  function head(flag){return flag==="delay"?"Delay":flag==="overdue"?"Overdue":"Risk"}
+  function head(flag){return flag==="delay"?"Delay":flag==="overdue"?"Overdue":flag==="risk"?"Risk":""}
   if(s.kind==="table"){
     var cols=s.columns||[];
     h+='<table><thead><tr>'+cols.map(function(c){return '<th>'+esc(c)+'</th>'}).join('')+'</tr></thead><tbody>';
     (s.rows||[]).forEach(function(r){
       var alert=isAlert(r.flag);
       var seen=view(r);
-      h+='<tr'+(alert?' class="alert" data-alert="'+r.flag+'"':'')+'>'+(r.cells||[]).map(function(c,i){var t=raw(c)?"":clean(c);var body=i===0?linked({label:t||seen.label,href:seen.href,ref:seen.ref,secondary:seen.secondary}):esc(t);return '<td>'+(alert&&i===0?'<div class="flag-head">'+head(r.flag)+'</div><div class="flag-body">'+body+'</div>':body)+'</td>'}).join('')+'</tr>';
+      h+='<tr'+(alert?' class="alert" data-alert="'+r.flag+'"':' class="line"')+'>'+(r.cells||[]).map(function(c,i){var t=raw(c)?"":clean(c);var body=i===0?linked({label:t||seen.label,href:seen.href,ref:seen.ref,secondary:seen.secondary}):esc(t);return '<td>'+(alert&&i===0?'<div class="flag-head">'+head(r.flag)+'</div><div class="flag-body">'+body+'</div>':body)+'</td>'}).join('')+'</tr>';
     });
     h+='</tbody></table>'+close;
     return;
@@ -74,13 +74,13 @@ if(card.ask&&card.ask.prompt)h+='<div class="ask"><strong>This question</strong>
   h+='<ul>';
   (s.rows||[]).forEach(function(r){
     var alert=isAlert(r.flag);
-    h+='<li'+(alert?' class="alert" data-alert="'+r.flag+'"':'')+'>'+(alert?'<div class="flag-head">'+head(r.flag)+'</div><div class="flag-body">':'')+linked(view(r))+(alert?'</div>':'')+'</li>';
+    h+='<li'+(alert?' class="alert" data-alert="'+r.flag+'"':' class="line"')+'>'+(alert?'<div class="flag-head">'+head(r.flag)+'</div><div class="flag-body">':'')+linked(view(r))+(alert?'</div>':'')+'</li>';
   });
   h+='</ul>'+close;
 });
 (card.alerts||[]).forEach(function(a){
   if(!isAlert(a.level))return;
-  var label=a.level==="delay"?"Delay":a.level==="overdue"?"Overdue":"Risk";
+  var label=a.level==="delay"?"Delay":a.level==="overdue"?"Overdue":a.level==="risk"?"Risk":"";
   h+='<div class="alert" data-alert="'+a.level+'"><div class="flag-head">'+label+'</div><div class="flag-body">'+esc(a.level)+': '+esc(a.text)+'</div></div>';
 });
 if(card.next_move)h+='<p class="next">Next move: '+esc(card.next_move)+'</p>';
@@ -118,6 +118,8 @@ td{padding:6px 8px;border-bottom:1px solid ${gray}}
 .tone-known{border-color:${blue};color:${blue}}.tone-unknown{color:${gray}}.tone-action{background:${blue};color:${white}}
 a{color:${blue};text-decoration:none}
 .ref{display:block;margin-top:2px;font-size:11px;color:${gray}}
+.line{color:${navy};border-left:4px solid ${blue};padding-left:8px}
+tr.line td:first-child{box-shadow:inset 4px 0 0 ${blue}}
 .ask{margin:12px 0;padding:12px;border-left:4px solid ${blue}}
 .placeholder{margin:12px 0;padding:12px;border:1px solid ${gray};border-left:4px solid ${blue};border-radius:10px}
 .placeholder h2{margin-top:0;color:${navy}}

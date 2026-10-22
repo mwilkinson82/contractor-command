@@ -40,6 +40,24 @@ describe("plain names and detail links", () => {
   });
 });
 
+describe("ordinary callouts", () => {
+  it("uses a navy #1E5FED line and keeps risk, delay, and overdue red", () => {
+    const plain = renderHtml({ state: "result", title: "Callouts", sections: [{ heading: "Items", kind: "list", rows: [{ cells: ["Grid A"] }] }] });
+    expect(plain).toContain("color:#1E3A5F");
+    expect(plain).toContain("border-left:4px solid #1E5FED");
+    expect(plain).toContain('class="line"');
+    expect(plain).not.toContain("#DC2626");
+    const risk = renderHtml({ state: "result", title: "Callouts", sections: [{ heading: "Items", kind: "list", rows: [{ cells: ["Storm delay"], flag: "risk" }] }] });
+    expect(risk).toContain("#DC2626");
+    expect(risk).toContain(">Risk<");
+    const md = renderMarkdown({ state: "result", title: "Callouts", sections: [{ heading: "Items", kind: "list", rows: [{ cells: ["Grid A"] }, { cells: ["Late gear"], flag: "delay", raw: true }, { cells: ["Hold"], flag: "overdue", raw: true }] }] });
+    expect(md).toContain("🔵 Grid A");
+    expect(md).toContain("**Delay**");
+    expect(md).toContain("**Overdue**");
+    expect(md).not.toContain("**Risk**");
+  });
+});
+
 describe("four card states", () => {
   it("renders intake, progress, ask, and result", () => {
     for (const state of states) {

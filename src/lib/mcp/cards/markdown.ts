@@ -1,11 +1,18 @@
 import { rowPlain } from "../plain-label";
-import { MARK } from "./palette";
+import { MARK, isAlertLevel } from "./palette";
 import { STATE_LABEL, type CardModel, type CardRow, type CardSection } from "./model";
 
 const cell = (s: string) => s.replace(/\|/g, "/").replace(/\s+/g, " ").trim();
 
+function flagLabel(flag: CardRow["flag"]): string {
+  if (flag === "delay") return "Delay";
+  if (flag === "overdue") return "Overdue";
+  if (flag === "risk") return "Risk";
+  return "";
+}
+
 function toneMark(row: CardRow): string {
-  if (row.flag) return MARK.alert;
+  if (isAlertLevel(row.flag)) return MARK.alert;
   if (row.tone === "unknown") return MARK.neutral;
   return MARK.action;
 }
@@ -34,7 +41,7 @@ function section(s: CardSection): string[] {
         const text = part.label === "Item" && part.refId ? "" : cell(part.label);
         return i === 0 ? (view.href ? `[${text || cell(view.label)}](${view.href})` : text || cell(view.label)) : text;
       });
-      if (row.flag) cells[0] = `${MARK.alert} ${cells[0]}`.trim();
+      if (isAlertLevel(row.flag)) cells[0] = `${MARK.alert} ${cells[0]}`.trim();
       lines.push(`| ${cells.join(" | ")} |`);
     }
     return lines;
@@ -45,7 +52,7 @@ function section(s: CardSection): string[] {
   }
   for (const row of s.rows) {
     if (row.raw) {
-      if (row.flag) lines.push(`- ${toneMark(row)} **${row.flag === "delay" ? "Delay" : row.flag === "overdue" ? "Overdue" : "Risk"}**`);
+      if (isAlertLevel(row.flag)) lines.push(`- ${toneMark(row)} **${flagLabel(row.flag)}**`);
       lines.push(row.cells.join("\n"));
       continue;
     }
@@ -68,7 +75,7 @@ export function renderMarkdown(card: CardModel): string {
   if (card.kpis?.length) {
     lines.push("", "| | |", "| --- | --- |");
     for (const k of card.kpis) {
-      const v = k.flag ? `${MARK.alert} ${cell(k.value)}` : cell(k.value);
+      const v = isAlertLevel(k.flag) ? `${MARK.alert} ${cell(k.value)}` : cell(k.value);
       lines.push(`| ${cell(k.label)} | ${v} |`);
     }
   }

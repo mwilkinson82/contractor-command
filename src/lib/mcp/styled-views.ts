@@ -378,7 +378,7 @@ export type Cell = "crit" | "non" | "insp" | "deliv" | "mile" | "";
 export type LaModel = {
   days: string[];
   asOf: string;
-  rows: { a: SAct; cells: { kind: Cell; risk: boolean }[] }[];
+  rows: { a: SAct; cells: { kind: Cell; risk: boolean; callout: boolean }[] }[];
   entries: LaEntry[];
   top: LaEntry[];
   risks: LaEntry[];
@@ -394,6 +394,20 @@ export type LaModel = {
     flags: number;
   };
 };
+/**
+ * A real risk: open RFI, long lead, late submittal, an inspection that is not scheduled yet, or a delay.
+ * Linking an item to an activity does not make it a risk.
+ */
+export function scheduleRisk(e: LaEntry): boolean {
+  const text = e.item.action;
+  if (/\brfi\b/i.test(text)) return true;
+  if (/long[-\s]?lead/i.test(text)) return true;
+  if (/submittal/i.test(text) && (e.overdue || /\blate\b/i.test(text))) return true;
+  if (/inspection|hold point/i.test(text) && /not yet|not requested|not scheduled|unscheduled|isn'?t scheduled|is not scheduled/i.test(text)) return true;
+  if (/\bdelay\b/i.test(text)) return true;
+  return false;
+}
+
 /**
  * One model behind the chat view, the hosted page, the PDF and the At-Risk section, so they always agree.
  * asOf = today in the job's time zone (not the data date). Every count is the length of the list that is rendered.
@@ -428,18 +442,23 @@ export function lookaheadModel(
         Number(y.overdue) - Number(x.overdue) ||
         (x.item.due ?? "9999").localeCompare(y.item.due ?? "9999"),
     );
-  const risks = entries.filter((e) => e.a && acts.includes(e.a));
+  const linkedHere = (e: LaEntry) => !!(e.a && acts.includes(e.a));
+  const risks = entries.filter((e) => linkedHere(e) && scheduleRisk(e));
+  const callouts = entries.filter((e) => linkedHere(e) && !scheduleRisk(e) && !e.overdue);
   const top = entries.slice(0, 3);
   const rows = acts.map((a) => {
-    const risky = risks.some((e) => e.a === a);
+    const risky = entries.some((e) => e.a === a && linkedHere(e) && (scheduleRisk(e) || e.overdue));
+    const marked = callouts.some((e) => e.a === a);
     const cells = days.map((d) => {
       if (d < a.start!.slice(0, 10) || d > a.finish!.slice(0, 10))
-        return { kind: "" as Cell, risk: false };
+        return { kind: "" as Cell, risk: false, callout: false };
       const onEnd = d === a.finish!.slice(0, 10);
-      if (isMilestone(a)) return { kind: "mile" as Cell, risk: risky };
-      if (isInspection(a)) return { kind: (onEnd ? "insp" : "") as Cell, risk: risky && onEnd };
-      if (isDelivery(a)) return { kind: (onEnd ? "deliv" : "") as Cell, risk: risky && onEnd };
-      return { kind: (critical(a) ? "crit" : "non") as Cell, risk: risky && onEnd };
+      const risk = risky && onEnd;
+      const callout = marked && onEnd && !risk;
+      if (isMilestone(a)) return { kind: "mile" as Cell, risk, callout };
+      if (isInspection(a)) return { kind: (onEnd ? "insp" : "") as Cell, risk, callout };
+      if (isDelivery(a)) return { kind: (onEnd ? "deliv" : "") as Cell, risk, callout };
+      return { kind: (critical(a) ? "crit" : "non") as Cell, risk, callout };
     });
     return { a, cells };
   });
@@ -533,7 +552,7 @@ export function lookaheadView(v: {
   );
   for (const r of m.rows)
     L.push(
-      `| ${activityLine(r.a).replace(/\|/g, "/")} | ${num(r.a.total_float) ?? ""} | ${r.cells.map((x) => `${ICON[x.kind]}${x.risk ? "🔴" : ""}`).join(" | ")} |`,
+      `| ${activityLine(r.a).replace(/\|/g, "/")} | ${num(r.a.total_float) ?? ""} | ${r.cells.map((x) => `${ICON[x.kind]}${x.risk ? "🔴" : x.callout ? " #1E5FED" : ""}`).join(" | ")} |`,
     );
   if (!m.rows.length)
     L.push(
@@ -562,7 +581,7 @@ export function lookaheadView(v: {
   }
   L.push(
     "",
-    "**Legend:** 🔵 Critical · ⚪ Non-critical · 🔵INSP Inspection · ⚪DLV Delivery · 🔵MS Milestone · 🔴 Risk, delay, overdue · ⚪ Date to check",
+    "**Legend:** 🔵 Critical · ⚪ Non-critical · 🔵INSP Inspection · ⚪DLV Delivery · 🔵MS Milestone · 🔴 Risk, delay, overdue · ⚪ Date to check · Ordinary callouts: navy, #1E5FED line",
   );
   return L.join("\n");
 }
