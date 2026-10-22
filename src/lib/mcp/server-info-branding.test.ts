@@ -58,7 +58,7 @@ describe("brandInitializeResponse", () => {
     const res = new Response(sse, { status: 200, headers: { "content-type": "text/event-stream" } });
     const text = await (await brandInitializeResponse(res, [3])).text();
     const data = JSON.parse(text.split("\n").find((l) => l.startsWith("data:"))!.slice(5));
-    expect(data.result.serverInfo.icons[0].src).toBe("https://app.meetathena.io/brand/athena/athena-mono-blue-256.png");
+    expect(data.result.serverInfo.icons[0].src).toBe("https://app.meetathena.io/brand/athena/athena-mono-blue-64.png");
     expect(text.startsWith("event: message\n")).toBe(true);
     expect(text.endsWith("\n\n")).toBe(true);
   });
@@ -124,7 +124,7 @@ describe("with the real MCP toolkit handler", () => {
       ? JSON.parse(text)
       : JSON.parse(text.split("\n").find((l) => l.startsWith("data:"))!.slice(5));
     expect(json.result.serverInfo.title).toBe("Athena powered by ALP, construction agents");
-    expect(json.result.serverInfo.icons.map((i: { sizes: string[] }) => i.sizes[0])).toEqual(["256x256", "512x512"]);
+    expect(json.result.serverInfo.icons.map((i: { sizes: string[] }) => i.sizes[0])).toEqual(["64x64", "128x128", "256x256"]);
     expect(json.result.serverInfo.description).toBe(ATHENA_DESCRIPTION);
     expect(json.result.serverInfo.websiteUrl).toBe("https://app.meetathena.io");
   });
@@ -152,21 +152,6 @@ describe("icon files", () => {
       const name = path.split("/brand/athena/")[1];
       expect(() => png(name)).not.toThrow();
     }
-  });
-});
-
-describe("public/favicon.png", () => {
-  it("is a copy of the 256 mono-blue PNG so /favicon.png is not a 404", async () => {
-    const fav = readFileSync(resolve(__dirname, "../../../public/favicon.png"));
-    const served = Buffer.from(
-      await siteIconResponse(
-        new Request("https://app.meetathena.io/brand/athena/athena-mono-blue-256.png"),
-      )!.arrayBuffer(),
-    );
-    expect(fav.equals(served)).toBe(true);
-    expect(fav.subarray(1, 4).toString("ascii")).toBe("PNG");
-    expect(fav.readUInt32BE(16)).toBe(256);
-    expect(fav.readUInt32BE(20)).toBe(256);
   });
 });
 

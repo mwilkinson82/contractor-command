@@ -12,12 +12,17 @@
 
 const ORIGIN = "https://app.meetathena.io";
 
-// MCP Implementation.icons (2025-11-25): absolute public PNGs only.
-// ChatGPT's composer chip breaks on SVG, ICO, data: URIs, and relative paths.
-// 256 and 512 are the sizes that chip and the connector list both accept.
+// 0.8.8: blue mono mark (new URLs so ChatGPT/Claude drop the cached orange icon).
+// Smallest first: ChatGPT shows a broken icon when the fetched icon is too
+// large (reported for ~13 KB files; our 512 PNG is ~14 KB).
+// 0.8.9: PNG only, absolute public URLs on the canonical origin. The data: URI and SVG entries were dropped:
+// ChatGPT's chip proxies icon URLs and showed a broken image for them, and Claude does not render SVG icons.
+// 0.8.10: 64/128/256 only (1.7/3.3/6.7 KB). The 512 PNG (14.3 KB) is over the ~13 KB size ChatGPT's in-chat chip
+// breaks on, and hosts that pick the largest listed icon picked it. Same absolute app.meetathena.io URLs on both domains.
 export const ATHENA_SERVER_ICONS = Object.freeze([
+  { src: `${ORIGIN}/brand/athena/athena-mono-blue-64.png`, mimeType: "image/png", sizes: ["64x64"] },
+  { src: `${ORIGIN}/brand/athena/athena-mono-blue-128.png`, mimeType: "image/png", sizes: ["128x128"] },
   { src: `${ORIGIN}/brand/athena/athena-mono-blue-256.png`, mimeType: "image/png", sizes: ["256x256"] },
-  { src: `${ORIGIN}/brand/athena/athena-mono-blue-512.png`, mimeType: "image/png", sizes: ["512x512"] },
 ]);
 
 export const ATHENA_WEBSITE_URL = ORIGIN;
