@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { CARD_TOOLS, attachAthenaCard } from "./attach";
 import { NAVY } from "./palette";
+import { CARD_WIDGET_URI } from "./widget";
 import { CARD_SHOWN, CARD_SHOWN_PICK, sealCardReply } from "./silence";
 import { HOST_DISPLAY_BLOCK } from "../visible";
 
@@ -21,17 +22,17 @@ type CardResult = {
   _meta: Record<string, string>;
 };
 
-function assertCardContract(result: CardResult, _closing: string) {
+function assertCardContract(result: CardResult, closing: string) {
   const text = result.content.find((c) => c.type === "text")?.text ?? "";
-  expect(text.trim().endsWith("</html>")).toBe(true);
-  expect(text.match(/<!doctype html/gi)).toHaveLength(1);
-  expect(text).not.toContain("```html");
-  expect(text).not.toContain("&lt;!doctype");
-  expect(text).not.toMatch(/[a-z-]+\s*:\s*;/);
+  expect(text.trim().endsWith(closing)).toBe(true);
+  const before = text.trim().slice(0, -closing.length).trim();
+  expect(before.endsWith("</html>")).toBe(true);
+  expect(before.match(/<!doctype html/gi)).toHaveLength(1);
+  expect(before).not.toContain("```html");
+  expect(before).not.toContain("&lt;!doctype");
+  expect(before).not.toMatch(/[a-z-]+\s*:\s*;/);
   expect(text).not.toContain(PREVIEW);
   expect(text).not.toMatch(/upcoming commitments/i);
-  expect(text).not.toMatch(/REQUIRED VIEW/i);
-  expect(text).not.toMatch(/do not add text/i);
   expect(result.content.some((c) => c.type === "resource")).toBe(false);
   expect(JSON.stringify(result)).not.toContain("toolInvocation");
   expect(JSON.stringify(result.content)).not.toContain("skybridge");
@@ -39,8 +40,8 @@ function assertCardContract(result: CardResult, _closing: string) {
   expect(result.structuredContent.html).toContain(NAVY);
   expect(result.structuredContent.html).toContain("<!doctype html>");
   expect(result.structuredContent["openai/outputTemplate"]).toBeUndefined();
-  expect(result._meta?.["openai/outputTemplate"]).toBeUndefined();
-  expect(JSON.stringify(result.structuredContent.assistant_guidance ?? [])).not.toMatch(/do not add text/i);
+  expect(result._meta["openai/outputTemplate"]).toBe(CARD_WIDGET_URI);
+  expect(result.structuredContent.assistant_guidance.at(-1)).toBe(closing);
 }
 
 describe("which-job and picker cards end on the pick", () => {
@@ -61,27 +62,27 @@ describe("which-job and picker cards end on the pick", () => {
     expect(out.structuredContent.card.state).toBe("ask");
     expect(out.content[0].text).toContain("1001");
     expect(out.content[0].text).toContain("Lakeview Elementary Gym");
-    expect(out.content[0].text).toContain("## 🔵 Which job?");
-    expect(out.content[0].text).not.toMatch(/REQUIRED VIEW/i);
+    expect(out.content[0].text?.startsWith("## 🔵 Which job?")).toBe(true);
   });
 
-  it("team_list picker keeps the numbered list and carries no template key", () => {
+  it("team_list picker uses the same closing and the existing template", () => {
     const out = sealCardReply("team_list", {
       content: [{ type: "text", text: "Your team:\n1. Marshall, Owner, all jobs" }],
       structuredContent: { team: { members: [] } },
+      _meta: { "openai/outputTemplate": "ui://athena/team-picker.html" },
     }) as unknown as {
       content: { type: string; text?: string }[];
-      structuredContent: { assistant_guidance: string[] };
-      _meta?: Record<string, string>;
+      structuredContent: { assistant_guidance: string[]; "openai/outputTemplate": string };
+      _meta: Record<string, string>;
     };
-    expect(out.content[0].text?.trim().endsWith("1. Marshall, Owner, all jobs")).toBe(true);
-    expect(out.content[0].text).not.toMatch(/do not add text/i);
+    expect(out.content[0].text?.trim().endsWith(CARD_SHOWN_PICK)).toBe(true);
     expect(out.content[0].text).toContain("1. Marshall, Owner, all jobs");
     expect(out.content.some((c) => c.type === "resource")).toBe(false);
     expect(JSON.stringify(out.content)).not.toMatch(/<html|<!doctype|<script|skybridge/i);
     expect(JSON.stringify(out)).not.toContain("toolInvocation");
-    expect(JSON.stringify(out)).not.toContain("openai/outputTemplate");
-    expect(JSON.stringify(out.structuredContent.assistant_guidance ?? [])).not.toMatch(/do not add text/i);
+    expect(out._meta["openai/outputTemplate"]).toBe("ui://athena/team-picker.html");
+    expect(out.structuredContent["openai/outputTemplate"]).toBe("ui://athena/team-picker.html");
+    expect(out.structuredContent.assistant_guidance.at(-1)).toBe(CARD_SHOWN_PICK);
   });
 });
 
@@ -121,11 +122,10 @@ describe("every card tool follows the no-trailing-prose contract", () => {
       content: { type: string; text?: string }[];
       structuredContent: { assistant_guidance: string[] };
     };
-    expect(out.content[0].text?.trim().endsWith("No estimate on this job yet.")).toBe(true);
+    expect(out.content[0].text?.trim().endsWith(CARD_SHOWN)).toBe(true);
     expect(out.content[0].text).not.toContain(PREVIEW);
-    expect(out.content[0].text).not.toMatch(/do not add text/i);
     expect(out.content.some((c) => c.type === "resource")).toBe(false);
-    expect(out.structuredContent.assistant_guidance).toBeUndefined();
+    expect(out.structuredContent.assistant_guidance.at(-1)).toBe(CARD_SHOWN);
   });
 
   it("leaves a non-card result alone", () => {
@@ -137,30 +137,29 @@ describe("every card tool follows the no-trailing-prose contract", () => {
 describe("the card instruction is the last word, and the widget is unchanged", () => {
   it("tells the host that an Athena card allows no lines after it", () => {
     expect(HOST_DISPLAY_BLOCK).toContain("This limit does not apply to an Athena card.");
-    expect(HOST_DISPLAY_BLOCK).toContain("This limit does not apply to an Athena card.");
+    expect(HOST_DISPLAY_BLOCK).toContain(
+      "When the result says the card is shown, add no text before or after it.",
+    );
     const idx = readFileSync(new URL("../index.ts", import.meta.url), "utf8");
-    expect(idx).toContain("A tool result is the card itself: styled markdown and, when present, the HTML document.");
-    expect(idx).toContain("In Claude it is an artifact of that HTML.");
-    expect(idx).toContain("Rendering rules stay in these instructions.");
-    expect(idx).toContain("Connect Google Calendar in your AI.");
+    expect(idx).toContain(
+      "When a tool result says the card is shown, that card is the whole reply: do not add text after it.",
+    );
     expect(idx).toContain("On a which-job or picker card, wait for the user's pick.");
   });
 
-  it("does not inline a skybridge resource or toolInvocation metadata on the result path", () => {
-    for (const file of ["silence.ts", "attach.ts", "../guard.ts", "../tools/flow-tools.ts"]) {
+  it("does not inline a skybridge resource or toolInvocation metadata", () => {
+    for (const file of [
+      "silence.ts",
+      "attach.ts",
+      "widget.ts",
+      "../guard.ts",
+      "../widget-bridge.ts",
+      "../tools/flow-tools.ts",
+    ]) {
       const src = readFileSync(new URL(file, import.meta.url), "utf8");
       expect(src, file).not.toContain("toolInvocation");
       expect(src, file).not.toMatch(/type:\s*"resource"/);
     }
-    const bridge = readFileSync(new URL("../widget-bridge.ts", import.meta.url), "utf8");
-    expect(bridge).not.toContain("toolInvocation");
-    expect(bridge).not.toContain("widgetAccessible");
-    expect(bridge).not.toMatch(/type:\s*"resource"/);
-    const widget = readFileSync(new URL("widget.ts", import.meta.url), "utf8");
-    expect(widget).not.toContain("openai/toolInvocation/invoking");
-    expect(widget).not.toContain("openai/toolInvocation/invoked");
-    expect(widget).not.toContain("widgetAccessible");
-    expect(widget).not.toMatch(/type:\s*"resource"/);
     expect(readFileSync(new URL("../guard.ts", import.meta.url), "utf8")).toContain(
       "sealCardReply",
     );
