@@ -2616,7 +2616,7 @@
       {
         "name": "estimate_takeoff_save",
         "title": "Save a takeoff",
-        "description": "Adds or updates lines when mode is upsert, or replaces the whole takeoff when mode is replace.",
+        "description": "Saves takeoff lines with mode upsert, the default, or mode replace.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -2837,8 +2837,20 @@
                     "maxLength": 40
                   },
                   "method": {
-                    "type": "string",
-                    "maxLength": 200
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "markup_ref": {
                     "type": "string",
@@ -2849,8 +2861,20 @@
                     "maxLength": 200
                   },
                   "missing_input": {
-                    "type": "string",
-                    "maxLength": 120
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "exclusion": {
                     "type": "string",
@@ -2923,7 +2947,6 @@
           },
           "required": [
             "job_number",
-            "mode",
             "lines"
           ],
           "additionalProperties": false

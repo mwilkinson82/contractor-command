@@ -38,7 +38,7 @@ describe("host-display block", () => {
     const r = withStyleLine(finalizeVisible({ content: [{ type: "text", text: "Job 2701" + FOOTER }] }, [HOST_DISPLAY_BLOCK])) as unknown as { content: { text: string }[] };
     expect(r.content[0].text).toBe(`Job 2701\n\n${VISIBLE_STYLE_LINE}\n---\nAthena powered by ALP, construction agents`);
     expect(visibleProblems(r.content[0].text)).toEqual([]);
-    expect(VISIBLE_STYLE_LINE).toContain("#2563EB");
+    expect(VISIBLE_STYLE_LINE).toContain("#1E5FED");
     expect(withStyleLine(r)).toEqual(r);
   });
   it("guard.run appends it to every tool result", () => {
