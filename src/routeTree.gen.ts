@@ -84,6 +84,7 @@ import { Route as RSTokenRouteImport } from './routes/r.s.$token'
 import { Route as ToolsSopEditPacketIdRouteImport } from './routes/tools.sop-edit.$packetId'
 import { Route as ApiPublicAosTierLookupRouteImport } from './routes/api/public/aos/tier-lookup'
 import { Route as ApiPublicAthenaStripeWebhookRouteImport } from './routes/api/public/athena/stripe-webhook'
+import { Route as ApiAthenaFieldPushRouteImport } from './routes/api/athena/field-push'
 import { Route as ApiPublicCircleReconcileRouteImport } from './routes/api/public/circle/reconcile'
 import { Route as ApiPublicOverwatchTierLookupRouteImport } from './routes/api/public/overwatch/tier-lookup'
 import { Route as ApiPublicResendCaptureRouteImport } from './routes/api/public/resend/capture'
@@ -478,6 +479,11 @@ const ApiPublicAthenaStripeWebhookRoute =
     path: '/api/public/athena/stripe-webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAthenaFieldPushRoute = ApiAthenaFieldPushRouteImport.update({
+  id: '/api/athena/field-push',
+  path: '/api/athena/field-push',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicCircleReconcileRoute =
   ApiPublicCircleReconcileRouteImport.update({
     id: '/api/public/circle/reconcile',
@@ -621,6 +627,7 @@ export interface FileRoutesByFullPath {
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/athena/stripe-webhook': typeof ApiPublicAthenaStripeWebhookRoute
+  '/api/athena/field-push': typeof ApiAthenaFieldPushRoute
   '/api/public/circle/reconcile': typeof ApiPublicCircleReconcileRoute
   '/api/public/overwatch/tier-lookup': typeof ApiPublicOverwatchTierLookupRoute
   '/api/public/resend/capture': typeof ApiPublicResendCaptureRoute
@@ -710,6 +717,7 @@ export interface FileRoutesByTo {
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/athena/stripe-webhook': typeof ApiPublicAthenaStripeWebhookRoute
+  '/api/athena/field-push': typeof ApiAthenaFieldPushRoute
   '/api/public/circle/reconcile': typeof ApiPublicCircleReconcileRoute
   '/api/public/overwatch/tier-lookup': typeof ApiPublicOverwatchTierLookupRoute
   '/api/public/resend/capture': typeof ApiPublicResendCaptureRoute
@@ -800,6 +808,7 @@ export interface FileRoutesById {
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/athena/stripe-webhook': typeof ApiPublicAthenaStripeWebhookRoute
+  '/api/athena/field-push': typeof ApiAthenaFieldPushRoute
   '/api/public/circle/reconcile': typeof ApiPublicCircleReconcileRoute
   '/api/public/overwatch/tier-lookup': typeof ApiPublicOverwatchTierLookupRoute
   '/api/public/resend/capture': typeof ApiPublicResendCaptureRoute
@@ -891,6 +900,7 @@ export interface FileRouteTypes {
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
     | '/api/public/athena/stripe-webhook'
+    | '/api/athena/field-push'
     | '/api/public/circle/reconcile'
     | '/api/public/overwatch/tier-lookup'
     | '/api/public/resend/capture'
@@ -980,6 +990,7 @@ export interface FileRouteTypes {
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
     | '/api/public/athena/stripe-webhook'
+    | '/api/athena/field-push'
     | '/api/public/circle/reconcile'
     | '/api/public/overwatch/tier-lookup'
     | '/api/public/resend/capture'
@@ -1069,6 +1080,7 @@ export interface FileRouteTypes {
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
     | '/api/public/athena/stripe-webhook'
+    | '/api/athena/field-push'
     | '/api/public/circle/reconcile'
     | '/api/public/overwatch/tier-lookup'
     | '/api/public/resend/capture'
@@ -1695,6 +1707,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAthenaStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/athena/field-push': {
+      id: '/api/athena/field-push'
+      path: '/api/athena/field-push'
+      fullPath: '/api/athena/field-push'
+      preLoaderRoute: typeof ApiAthenaFieldPushRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/circle/reconcile': {
       id: '/api/public/circle/reconcile'
       path: '/api/public/circle/reconcile'
@@ -1885,6 +1904,7 @@ const rootRouteChildren: RootRouteChildren = {
   RSTokenRoute: RSTokenRoute,
   ApiPublicAosTierLookupRoute: ApiPublicAosTierLookupRoute,
   ApiPublicAthenaStripeWebhookRoute: ApiPublicAthenaStripeWebhookRoute,
+  ApiAthenaFieldPushRoute: ApiAthenaFieldPushRoute,
   ApiPublicCircleReconcileRoute: ApiPublicCircleReconcileRoute,
   ApiPublicOverwatchTierLookupRoute: ApiPublicOverwatchTierLookupRoute,
   ApiPublicResendCaptureRoute: ApiPublicResendCaptureRoute,

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { renderReportBody, type PagePayload, type AnyPage } from "@/lib/report-pages";
+import { FieldPushBar } from "@/components/athena/FieldPushBar";
 
 type Rpc = (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
 const rpc = (f: string, a: Record<string, unknown>) => (supabase.rpc as unknown as Rpc)(f, a);
@@ -67,5 +68,11 @@ export function ReportPageView({ page, jobId, companyId }: { page: AnyPage; jobI
       </div>
     );
   }
-  return <div style={{ background: "#F3F4F6", minHeight: "100%" }} dangerouslySetInnerHTML={{ __html: html }} />;
+  const jobNumber = payload.page === "portfolio" ? null : payload.job_number;
+  return (
+    <div style={{ background: "#F3F4F6", minHeight: "100%" }}>
+      {page === "field" && jobId ? <FieldPushBar jobId={jobId} jobNumber={jobNumber} /> : null}
+      <div dangerouslySetInnerHTML={{ __html: html }} />
+    </div>
+  );
 }

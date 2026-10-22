@@ -16,7 +16,7 @@ export const FIELD_MOBILE_PX = 420;
 
 /** Server instruction. No palette hex, so it cannot fight the shared color rule. */
 export const FIELD_SERVER_RULE =
-  " For the superintendent, show the field board on a phone-width card. Assemble the daily from the transcript or the typed notes, ask every missing item it lists, and save the daily only after the superintendent says yes. A progress photo keeps the upload date until they confirm it, and needs the place on site. Daily reminders stay off until that job turns them on, and they send only from support@meetathena.io.";
+  " For the superintendent, show the field board on a phone-width card. Assemble the daily from the transcript or the typed notes, ask every missing item it lists, and save the daily only after the superintendent says yes. A progress photo keeps the upload date until they confirm it, and needs the place on site. Daily reminders stay off until that job turns them on. When they are on, the reminder is a card in the chat. Nothing is emailed.";
 
 export type JobScope = "full" | "contract" | "super";
 
@@ -77,8 +77,24 @@ export type DailySections = {
 
 export type DailyDraft = DailySections & { follow_ups: string[]; ready: boolean };
 
-const NONE = /^(none|nothing|n\/?a|no)\b/i;
+const NONE = /^(none|nothing|n\/?a|no|nope)\b/i;
 const present = (s: string | null | undefined) => !!s && s.trim() !== "";
+
+/**
+ * A delay line is real only when it records a delay.
+ * "none", "no delays", and notes such as "TEST - none" are not delays.
+ */
+export function isRecordedDelay(value: string | null | undefined): boolean {
+  if (!present(value)) return false;
+  const t = value!.trim().replace(/\s+/g, " ");
+  if (NONE.test(t)) return false;
+  if (/\bno\s+delays?\b/i.test(t) && !/\b(waiting|late|behind|stopped|hold)\b/i.test(t)) return false;
+  if (/\bnone\b/i.test(t)) {
+    const rest = t.replace(/\bnone\b/gi, " ").replace(/\bdelays?\b/gi, " ");
+    if (!/\b(waiting|late|behind|stopped|hold|delayed|down)\b/i.test(rest)) return false;
+  }
+  return true;
+}
 
 const SECTION_HEAD: [keyof Omit<DailySections, "work"> | "work", RegExp][] = [
   ["weather", /^weather\b/i],
@@ -254,7 +270,7 @@ export function dailyCard(jobLabel: string, date: string, d: DailyDraft, saved: 
     ...lines,
     row("Deliveries", d.deliveries),
     row("Issues", d.issues),
-    row("Delays", d.delays, present(d.delays) && !NONE.test(d.delays!)),
+    row("Delays", d.delays, isRecordedDelay(d.delays)),
     row("Safety", d.safety),
     ...(d.follow_ups.length ? ["", "Still needed:", ...d.follow_ups.map((q) => `- ${q}`)] : []),
   ].join("\n");
@@ -777,7 +793,7 @@ export function dailyPageHtml(p: {
 }): string {
   const title = `${p.job_number ?? ""} ${p.job_name ?? ""}`.trim() || "Daily";
   if (!p.found) return shell(`${title} · Daily`, card(`${value("No daily is saved for this job yet.")}`));
-  const delay = present(p.delays) && !NONE.test(p.delays!);
+  const delay = isRecordedDelay(p.delays);
   const block = (k: string, v: string | null | undefined, alert = false) => card(`${label(k)}${value(v?.trim() || "Needed", alert)}`, alert);
   const work = (p.work ?? p.lines ?? []).map((w) => card(`${value(w.work || "Work")}<div style="font-size:13px;color:${FIELD_GRAY};margin-top:4px">${esc([w.sov_item ? `SOV ${w.sov_item}` : "", w.activity_id ?? "", w.qty != null ? `${w.qty} ${w.unit ?? ""}` : "", w.crew != null ? `crew ${w.crew}` : "", w.hours != null ? `${w.hours} hours` : ""].filter(Boolean).join(" · "))}</div>`)).join("");
   return shell(`${title} · Daily ${p.report_date ? shortDate(p.report_date) : ""}`, [
