@@ -36,6 +36,7 @@ export const CARD_TOOLS = new Set([
   "pm_evening",
   "superintendent_view",
   "field_board",
+  "getting_started",
 ]);
 
 function isCard(value: unknown): value is CardModel {

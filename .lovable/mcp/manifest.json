@@ -5196,6 +5196,24 @@
           "additionalProperties": false
         },
         "outputSchema": null
+      },
+      {
+        "name": "getting_started",
+        "title": "How to start an ask",
+        "description": "Shows how to start every ask with @Athena so the ask reaches Athena.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "outputSchema": null
       }
     ]
   }
