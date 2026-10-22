@@ -7,6 +7,8 @@ import { REFUSAL_RULE, secureTool } from "./security";
 import { emailConfirmSend, emailDraft } from "./tools/email-tools";
 import { gettingStarted } from "./tools/getting-started-tool";
 import { projectRecordSearch, submittalLog, submittalsImport, submittalsList } from "./tools/submittal-tools";
+import { submittalChase } from "./tools/submittal-chase-tool";
+import { CHASE_SERVER_RULE } from "./submittal-chase";
 import { SUBMITTAL_SERVER_RULE } from "./submittals";
 import { PROJECT_RECORD_RULE } from "./project-record";
 import { GETTING_STARTED_RULE } from "./getting-started";
@@ -61,8 +63,8 @@ import { estimateBidSummary, estimateGeneralConditions, estimatePricing, estimat
 // Vite inlines the stable ref; the runtime backend URL may be a proxy.
 const projectRef = import.meta.env["VITE_SUPABASE_PROJECT_ID"] ?? "project-ref-unset";
 
-/** All 64 Athena tools, in tools/list order. */
-export const ATHENA_TOOLS = [onboarding, intake, nextQuestion, answer, report, contractTerms, carryForward, listOpenItems, resolveItem, cpmActivities, livingReportGet, livingReportSave, fileShare, fileShareRevoke, lookaheadPdfTool, reportPageLink, reportPageShare, reportPageShareRevoke, teamList, teamInvite, teamUpdateMember, teamRemoveMember, teamAddSeats, setCurrentCompany, estimateIntake, estimateDocReview, estimateTakeoffSave, estimateTakeoffGet, estimateTakeoffExport, estimateGapAnalysis, estimateBidCheck, estimateItemMark, estimateBuild, estimateStatus, estimatePricing, estimateRateSources, estimateGeneralConditions, estimateRequirements, estimateBidSummary, superintendentView, fieldBoard, superintendentActivity, dailyReportDraft, dailyReportSave, dailyReportGet, fieldPayApp, fieldScheduleFeed, fieldProductionRates, progressPhotoSave, progressPhotos, dailyReminder, dailyReminderRun, pmMeeting, pmMorning, pmEvening, morningBrief, morningBriefSettings, emailDraft, emailConfirmSend, submittalLog, submittalsList, submittalsImport, projectRecordSearch, gettingStarted];
+/** All 65 Athena tools, in tools/list order. */
+export const ATHENA_TOOLS = [onboarding, intake, nextQuestion, answer, report, contractTerms, carryForward, listOpenItems, resolveItem, cpmActivities, livingReportGet, livingReportSave, fileShare, fileShareRevoke, lookaheadPdfTool, reportPageLink, reportPageShare, reportPageShareRevoke, teamList, teamInvite, teamUpdateMember, teamRemoveMember, teamAddSeats, setCurrentCompany, estimateIntake, estimateDocReview, estimateTakeoffSave, estimateTakeoffGet, estimateTakeoffExport, estimateGapAnalysis, estimateBidCheck, estimateItemMark, estimateBuild, estimateStatus, estimatePricing, estimateRateSources, estimateGeneralConditions, estimateRequirements, estimateBidSummary, superintendentView, fieldBoard, superintendentActivity, dailyReportDraft, dailyReportSave, dailyReportGet, fieldPayApp, fieldScheduleFeed, fieldProductionRates, progressPhotoSave, progressPhotos, dailyReminder, dailyReminderRun, pmMeeting, pmMorning, pmEvening, morningBrief, morningBriefSettings, emailDraft, emailConfirmSend, submittalLog, submittalsList, submittalsImport, projectRecordSearch, submittalChase, gettingStarted];
 
 export default defineMcp({
   name: "athena",
@@ -79,6 +81,7 @@ export default defineMcp({
     FIELD_SERVER_RULE +
     SUBMITTAL_SERVER_RULE +
     PROJECT_RECORD_RULE +
+    CHASE_SERVER_RULE +
     GETTING_STARTED_RULE,
   auth: auth.oauth.issuer({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,

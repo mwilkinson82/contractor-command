@@ -68,5 +68,16 @@ describe("submittal log and project record on job 2701", () => {
     });
     expect(denied).toMatch(/permission denied/);
     await expect(db.query(`UPDATE public.mcp_project_record_events SET title = 'changed'`)).rejects.toThrow(/append-only/);
+    await db.exec(readFileSync("supabase/migrations/20261024010000_athena_submittal_chase.sql", "utf8"));
+    const chase = await asUser(db, claims, async (tx) => {
+      const rows = await tx.query(`SELECT public.mcp_submittal_chase_rows($1) AS data`, [job]);
+      const first = rows.rows[0].data.chases[0];
+      const marked = await tx.query(`SELECT public.mcp_submittal_chase_mark($1, $2, $3, $4, $5) AS data`, [job, first.submittal_id, "sample-chase@example.com", "GearCo", "Job 2701 submittal follow-up"]);
+      const logged = await tx.query(`SELECT public.mcp_project_record_search($1, NULL, NULL, 'submittal_chase', 'GearCo') AS data`, [job]);
+      return { count: marked.rows[0].data.chase_count, next: marked.rows[0].data.next_chase_at, events: logged.rows[0].data.events.length };
+    });
+    expect(chase.count).toBe(1);
+    expect(String(chase.next).slice(0, 10)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(chase.events).toBe(1);
   });
 });

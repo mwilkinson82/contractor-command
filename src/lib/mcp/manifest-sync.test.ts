@@ -15,6 +15,7 @@ import * as Field from "./tools/superintendent-tools";
 import * as Start from "./tools/getting-started-tool";
 import * as Brief from "./tools/morning-brief-tools";
 import * as Sub from "./tools/submittal-tools";
+import * as Chase from "./tools/submittal-chase-tool";
 import { ATHENA_VERSION } from "./server-info-branding";
 
 type Prop = { format?: string; pattern?: string; description?: string };
@@ -100,6 +101,7 @@ async function liveTools(): Promise<Tool[]> {
       Sub.submittalsList,
       Sub.submittalsImport,
       Sub.projectRecordSearch,
+      Chase.submittalChase,
       Start.gettingStarted,
     ],
     metrics: false,

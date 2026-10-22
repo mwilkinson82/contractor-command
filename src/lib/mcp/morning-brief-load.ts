@@ -21,6 +21,7 @@ import {
 import { normalizeRole } from "./team";
 import { listedJobs } from "./tools/workflow-tools";
 import { ToolError } from "@lovable.dev/mcp-js";
+import { chaseBriefRows, type ChaseRow } from "./submittal-chase";
 
 type RawItem = {
   id?: string;
@@ -210,6 +211,17 @@ export async function loadMorningBrief(sb: Sb, companyId?: string) {
     settings = undefined;
   }
   const built = buildMorningBrief({ jobs: loaded.jobs, hasCompany: loaded.hasCompany, settings });
+  try {
+    const due = await sb.rpc("mcp_submittal_chase_due");
+    if (!due.error && Array.isArray(due.data) && due.data.length) {
+      const rows = chaseBriefRows(due.data as ChaseRow[]);
+      const overdue = rows.filter((row) => row.flag === "overdue").length;
+      built.card.sections = [...(built.card.sections ?? []), { heading: "Chases", kind: "list", rows }];
+      built.card.kpis = [...(built.card.kpis ?? []), { label: "Chases", value: String(rows.length), flag: overdue ? "overdue" : null }];
+    }
+  } catch {
+    /* a missing chase feed never blocks the brief */
+  }
   try {
     await audit(sb, null, "morning_brief", "view_morning_brief", null);
   } catch {
