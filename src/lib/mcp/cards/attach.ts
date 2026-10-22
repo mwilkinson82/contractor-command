@@ -75,9 +75,10 @@ export function attachAthenaCard<R>(tool: string, result: R): R {
     const keepBody = !CARD_FIRST_TOOLS.has(tool) && !askJob;
     const hasHtml = source.includes("REQUIRED VIEW: render this HTML card as-is.");
     const hasMarkdown = source.startsWith("## ") && source.includes(card.title);
+    const hasPlain = hasHtml && source.includes(card.title);
     const text = !keepBody
       ? cardText
-      : hasMarkdown
+      : hasMarkdown || hasPlain
         ? hasHtml
           ? first.text
           : `${source}\n\n${htmlBlock(html)}`

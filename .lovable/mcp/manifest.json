@@ -5199,8 +5199,8 @@
       },
       {
         "name": "getting_started",
-        "title": "How to start an ask",
-        "description": "Shows how to say Hey Athena so an ask reaches Athena.",
+        "title": "Hey Athena, getting started, let's get going, let's get started",
+        "description": "Routes Hey Athena, getting started, let's get going, and let's get started to first-job setup or the morning meeting.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
