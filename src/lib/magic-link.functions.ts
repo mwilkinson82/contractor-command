@@ -8,6 +8,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
+import { athenaPageReturn } from "@/lib/athena-page-return";
 import { oauthConsentReturn } from "@/lib/oauth-return-path";
 import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
 import { hubOrigin } from "@/lib/auth-origins";
@@ -18,6 +19,7 @@ type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server"
 const Input = z.object({
   email: z.string().trim().toLowerCase().email().max(255),
   continuation: z.string().max(512).optional(),
+  return_to: z.string().max(512).optional(),
 });
 
 function fallbackAppOrigin(): string {
@@ -180,6 +182,7 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
     try {
       const path = oauthConsentReturn(data.continuation);
       if (data.continuation && !path) throw new Error("Invalid continuation");
+      const pageReturn = path ? undefined : athenaPageReturn(data.return_to);
       const { createOAuthContinuation, assertOAuthContinuationConfigured } =
         await import("./oauth-continuation.server");
       // Check configuration before identity lookup or token minting. An outage
@@ -210,6 +213,7 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
             tokenHash,
             type: "magiclink",
             continuation,
+            redirect: pageReturn,
           });
           const firstName = await resolveFirstName(supabaseAdmin, email);
           const { sendLoginNudgeNow } = await import("@/lib/email/send-login-nudge-now");
@@ -223,7 +227,7 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
             siteUrl: origin,
             // v0.8.19: the same one-time code, typed in the tab that started the
             // connect, so a phone never has to switch tabs or browsers.
-            ...(continuation && link.properties?.email_otp
+            ...((continuation || isAthenaOrigin(origin)) && link.properties?.email_otp
               ? { otpCode: String(link.properties.email_otp) }
               : {}),
             // Presentation only: a validated consent continuation, or a sign-in
