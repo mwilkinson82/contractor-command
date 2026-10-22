@@ -328,6 +328,17 @@ describe("feeds", () => {
     expect(empty.structuredContent.found).toBe(false);
   });
 
+  it("keeps every superintendent progress row on the card without dollars", async () => {
+    state.scope = "super";
+    state.tables.mcp_daily_reports = [{ id: "d1", report_date: "2026-10-21" }];
+    state.tables.mcp_daily_work_lines = Array.from({ length: 12 }, (_, n) => ({ daily_id: "d1", sov_item: `03.${n + 1}`, qty: 40, unit: "cy", pct_complete: 30 }));
+    const result = await handle(fieldPayApp, { job_number: "2701", period_to: "2026-10-21" });
+    const shown = attachAthenaCard("field_pay_app", result);
+    expect(shown.content[0].text).toContain("03.12");
+    expect(JSON.stringify(shown)).not.toContain("$");
+    expect((shown.structuredContent.card as { sections: { rows: unknown[] }[] }).sections[0].rows).toHaveLength(12);
+  });
+
   it("proposes CPM percents without writing the schedule", () => {
     const rows = scheduleProposals([{ id: "A1000", pct_complete: 0 }], [{ activity_id: "A1000", report_date: "2026-10-21", pct_complete: 30 }]);
     expect(rows).toEqual([{ activity_id: "A1000", from_pct: 0, to_pct: 30, report_date: "2026-10-21" }]);

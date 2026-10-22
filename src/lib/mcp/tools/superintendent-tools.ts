@@ -22,7 +22,6 @@ import {
   fieldBoardCard,
   fieldCard,
   fieldMoney,
-  payAppPercentCard,
   photoGate,
   progressByItem,
   projectField,
@@ -335,8 +334,11 @@ export const fieldPayApp = defineTool({
       const previous = priorDate ? progressByItem(lines, [], priorDate) : [];
       await audit(sb, job, "field_pay_app", "view_pay_app", null);
       if (!fieldMoney(job.scope)) {
-        const card = payAppPercentCard(prefix(job), period, current.map((r) => ({ item_no: r.item_no, pct: r.pct, qty: r.qty, unit: lines.find((l) => l.sov_item === r.item_no)?.unit ?? null })));
-        return guide({ ...text(card), structuredContent: { period_to: period, no_financials: true, rows: current } }, "Super view: percents and quantities only. Do not add dollar figures.");
+        const presented = presentPayApp({
+          state: "result", show_state: false, title: `Progress for the next pay app · ${period}`, job: named(job),
+          sections: [{ heading: "Percents only. Dollar columns stay with the PM.", kind: "table", columns: ["Item", "Complete", "Installed"], rows: current.map((r) => ({ cells: [r.item_no, r.pct == null ? "Needed" : `${r.pct}%`, r.qty == null ? "Needed" : `${r.qty} ${lines.find((l) => l.sov_item === r.item_no)?.unit ?? ""}`.trim()] })) }],
+        });
+        return guide({ ...presented, structuredContent: { ...presented.structuredContent, period_to: period, no_financials: true, rows: current } }, "Super view: percents and quantities only. Do not add dollar figures.");
       }
       const sov = await loadSov(sb, job.job_id);
       try {

@@ -125,7 +125,7 @@ export function billingForecastCardModel(
           },
         ],
       },
-      ...(!mismatch
+      ...(model.contract !== null && !mismatch
         ? [
             {
               heading: "Monthly billing",

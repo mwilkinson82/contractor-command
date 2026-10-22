@@ -63,6 +63,11 @@ describe("pay application cards", () => {
     expect(card.sections?.some((s) => s.heading === "Monthly billing")).toBe(false);
     expect(card.sections?.find((s) => s.heading === "Tie check")?.rows[0].flag).toBe("risk");
     expect(presentPayApp(card).content[0].text).toContain("off by $0.01");
+    expect(
+      billingForecastCardModel("2701", payModel(null, null)).sections?.some(
+        (s) => s.heading === "Monthly billing",
+      ),
+    ).toBe(false);
     expect(payAppView({ title: "2701", billing: null, contract: null })).toContain(
       "Contract value Needed",
     );
