@@ -76,7 +76,7 @@ export const teamList = defineTool({
       const t = await list(sb, co);
       return guide(
         { ...text(renderTeamList(t)), structuredContent: { team: { ...t, company: co }, roles_menu: rolesMenu(t.roles_allowed) }, _meta: widgetMeta },
-        "ChatGPT: show the selection card (people, role, jobs as checkboxes); its Confirm step calls team_update_member with confirmed true. Claude, Codex, Grok Bot and any host without the card: show the numbered list as it is, then ask what to change by number. Before any change, ask the exact confirm question the write tool's guidance gives and wait for yes.",
+        "Card shown. Do not add text; wait for the user's pick. Hosts without the card (Claude, Codex, Grok Bot) already have the numbered list. Do not add a question after it.",
       );
     }),
 });

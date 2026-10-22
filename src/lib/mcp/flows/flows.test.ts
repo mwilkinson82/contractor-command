@@ -5,6 +5,7 @@ import { renderHtml } from "../cards/html";
 import { renderMarkdown } from "../cards/markdown";
 import { z } from "zod";
 import { attachAthenaCard } from "../cards/attach";
+import { CARD_SHOWN, CARD_SHOWN_PICK } from "../cards/silence";
 import { applyMeetingFigures, buildFlowCard, iorDelta, readMeetingMoney } from "./build";
 import { scheduleActivities, schedulePercent } from "./load";
 import { job2701FlowData } from "./job-2701";
@@ -127,6 +128,7 @@ describe("sample path on job 2701", () => {
         expect(text.startsWith("## 🔵"), name).toBe(true);
         expect(text).toContain("Sample on job 2701");
         expect(text).toContain("REQUIRED VIEW: render this HTML card as-is.");
+        expect(text.trim().endsWith(CARD_SHOWN), name).toBe(true);
         expect(r.content[0].type).toBe("text");
         expect(r.content.some((c) => c.type === "resource")).toBe(false);
         expect(r._meta?.["openai/outputTemplate"]).toBe("ui://athena/card.html");
@@ -149,6 +151,7 @@ describe("sample path on job 2701", () => {
       expect(carded.structuredContent.card.state, name).toBe("ask");
       expect(carded.content[0].text?.startsWith("## 🔵 Which job?"), name).toBe(true);
       expect(carded.content[0].text, name).not.toMatch(/^No job named/);
+      expect(carded.content[0].text?.trim().endsWith(CARD_SHOWN_PICK), name).toBe(true);
       expect(z.object((tool as { inputSchema: Record<string, z.ZodTypeAny> }).inputSchema).safeParse({}).success).toBe(true);
     }
   });

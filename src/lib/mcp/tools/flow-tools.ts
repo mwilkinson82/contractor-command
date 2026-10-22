@@ -4,6 +4,7 @@ import { z } from "zod";
 import { renderHtml } from "../cards/html";
 import { htmlBlock, renderMarkdown } from "../cards/markdown";
 import { CARD_WIDGET_URI, cardWidgetMeta } from "../cards/widget";
+import { CARD_SHOWN, applyCardClosing } from "../cards/silence";
 import { mintJobBoardLinks } from "../board-link";
 import { applyMeetingFigures, buildFlowCard } from "../flows/build";
 import { isUuid } from "../../report-pages";
@@ -29,7 +30,7 @@ function present(flow: FlowName, stage: string, data: FlowData) {
   const html = renderHtml(card);
   const stages = [...stagesFor(flow)];
   const next = stages[stages.indexOf(stage) + 1] ?? null;
-  const body = `${renderMarkdown(card)}\n\n${htmlBlock(html)}`;
+  const body = applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
   return guide(
     {
       structuredContent: {
@@ -47,8 +48,8 @@ function present(flow: FlowName, stage: string, data: FlowData) {
       content: [{ type: "text" as const, text: body, _meta: { ...cardWidgetMeta } }],
     },
     next
-      ? `When the PM continues, call ${flow} with stage ${next} only. The PM meeting order is schedule progress, then the locked lookahead, then subs suppliers and crews, then change orders, accounting, and the IOR delta. Record a planned bill and a realistic bill as plan and realistic on stage accounting. Do not call living_report_save for those two figures. Do not add field readiness, financial, open actions, or closeout. The card is the whole reply. Do not add prose before or after it.`
-      : "The card is the whole reply. Do not add prose before or after it.",
+      ? `When the PM continues, call ${flow} with stage ${next} only. Do not add field readiness, financial, open actions, or closeout. Record a planned bill and a realistic bill as plan and realistic on stage accounting. Do not call living_report_save for those two figures. ${CARD_SHOWN}`
+      : CARD_SHOWN,
   );
 }
 

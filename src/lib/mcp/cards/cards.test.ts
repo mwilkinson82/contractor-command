@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { attachAthenaCard } from "./attach";
+import { CARD_SHOWN, CARD_SHOWN_PICK } from "./silence";
 import { CARD_WIDGET_URI, cardWidgetHtml } from "./widget";
 import { renderHtml } from "./html";
 import { renderMarkdown } from "./markdown";
@@ -94,9 +95,11 @@ describe("PM tools become cards", () => {
     expect(after.structuredContent.card.ask?.prompt).toContain("Do you want me to summarize");
     expect(after.content[0].text).toContain("- §6.3 Liquidated Damages");
     expect(after.content[0].text).toContain("Incomplete terms");
-    const fence = after.content[0].text.lastIndexOf("```");
-    expect(after.content[0].text.slice(fence + 3).trim()).toBe("");
-    expect(after.content[0].text.trim().endsWith("```")).toBe(true);
+    expect(after.content[0].text.trim().endsWith(CARD_SHOWN)).toBe(true);
+    const beforeClose = after.content[0].text.trim().slice(0, -CARD_SHOWN.length).trim();
+    const fence = beforeClose.lastIndexOf("```");
+    expect(beforeClose.slice(fence + 3).trim()).toBe("");
+    expect(beforeClose.endsWith("```")).toBe(true);
     expect(after.content[0].text).not.toContain("Athena powered by ALP");
     expect(after.content[0].text).not.toMatch(/\nDisplay: blue/);
   });
@@ -108,7 +111,7 @@ describe("PM tools become cards", () => {
     expect(companyCard.structuredContent.card.title).toBe("Which job?");
     expect(companyCard.content[0].text.startsWith("## 🔵 Which job?")).toBe(true);
     expect(companyCard.content[0].text).toContain("Harbor Electric: 2701");
-    expect(companyCard.content[0].text.trim().endsWith("```")).toBe(true);
+    expect(companyCard.content[0].text.trim().endsWith(CARD_SHOWN_PICK)).toBe(true);
     const items = "2701 – Open items (2):\n- OVERDUE storm delay\n- Buy the gear";
     const itemCard = attachAthenaCard("list_open_items", { content: [{ type: "text", text: items }] }) as unknown as { structuredContent: { card: CardModel; html: string }; content: { text: string }[] };
     expect(itemCard.structuredContent.card.state).toBe("result");
