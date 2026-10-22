@@ -10,6 +10,10 @@ import { listCompaniesAndJobs, namedOrSoleJob } from "./workflow-tools";
 import { whichJobAsk } from "../which-job";
 import { guide } from "../visible";
 import type { CardModel } from "../cards/model";
+import { renderHtml } from "../cards/html";
+import { htmlBlock, renderMarkdown } from "../cards/markdown";
+import { applyCardClosing } from "../cards/silence";
+import { CARD_WIDGET_URI, cardWidgetMeta } from "../cards/widget";
 import {
   BALL_PARTIES,
   IMPORT_CONFIRM,
@@ -31,7 +35,7 @@ import { isDisputeAsk, presentJobRecord, presentProjectRecord, type RecordEvent 
 import { money } from "../sov";
 import { todayIn } from "../deadlines";
 import { dueOf, isOverdue, openItemFeed } from "../open-feed";
-import { readScheduleActivities, readSubmittalTracking, scheduleSubmittalGroups } from "../schedule-submittals";
+import { scheduleSubmittalGroups, type ScheduleActivity, type TrackingItem } from "../schedule-submittals";
 
 const jobNumber = z.string().trim().min(1).max(40);
 const companyId = z.string().trim().min(1).max(200).optional();
@@ -88,7 +92,7 @@ function shown(
   boardUrl: string | null,
   filter?: { status?: string | null; overdue?: boolean | null; ball?: string | null },
   note?: string,
-  extra?: { schedule?: Awaited<ReturnType<typeof readScheduleActivities>>; tracking?: Awaited<ReturnType<typeof readSubmittalTracking>> },
+  extra?: { schedule?: ScheduleActivity[]; tracking?: TrackingItem[] },
 ) {
   const today = (payload.today ?? "").slice(0, 10) || "1970-01-01";
   const posture = postureSentence(resolvePosture(payload.posture_set ?? payload.posture, payload.public_job));
@@ -109,11 +113,48 @@ function shown(
   });
 }
 
-function cardResult(body: string, card: CardModel, extra: Record<string, unknown> = {}) {
+function cardResult(_body: string, card: CardModel, extra: Record<string, unknown> = {}) {
+  const html = renderHtml({ ...card, show_state: false });
+  const shown = applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
   return guide(
-    { ...text(body), structuredContent: { card, ...extra } },
+    {
+      ...text(shown),
+      structuredContent: { card, html, ...extra, "openai/outputTemplate": CARD_WIDGET_URI },
+      _meta: { ...cardWidgetMeta },
+    },
     "Show this card. Do not add text after it. Red only on an overdue row.",
   );
+}
+
+/** Saved submittal rows for one job. Select only: no lookahead, no board link, no living report. */
+export async function readSubmittalRows(sb: Sb, jobId: string): Promise<SubmittalRecord[]> {
+  const res = await sb
+    .from("mcp_submittals")
+    .select("id, number, revision, spec_section, title, submittal_type, status, ball_in_court, ball_in_court_name, source, required, required_by, submitted_on, due_back, returned_on, review_days")
+    .eq("job_id", jobId)
+    .order("number", { ascending: true })
+    .limit(500);
+  if (res.error) throw new Error(res.error.message);
+  return ((res.data ?? []) as Partial<SubmittalRecord>[]).map((row) => ({
+    id: String(row.id ?? ""),
+    number: String(row.number ?? ""),
+    revision: Number(row.revision ?? 0),
+    transmittal_number: 0,
+    spec_section: String(row.spec_section ?? ""),
+    title: String(row.title ?? ""),
+    submittal_type: String(row.submittal_type ?? "other"),
+    status: String(row.status ?? "not_started"),
+    ball_in_court: String(row.ball_in_court ?? "gc"),
+    ball_in_court_name: row.ball_in_court_name ?? null,
+    source: (row.source as SubmittalRecord["source"]) ?? "user",
+    required: row.required !== false,
+    required_by: row.required_by ?? null,
+    submitted_on: row.submitted_on ?? null,
+    due_back: (row.due_back ?? "").slice(0, 10) || null,
+    returned_on: row.returned_on ?? null,
+    review_days: row.review_days ?? null,
+    package_items: [],
+  }));
 }
 
 function whichJobCard(tool: "submittal_log" | "submittals_list" | "submittals_import" | "project_record_search", body: string) {
@@ -179,7 +220,7 @@ export const submittalLog = defineTool({
 export const submittalsList = defineTool({
   name: "submittals_list",
   title: "Submittal log and overdue submittals",
-  description: "Lists a job's submittal log, including scheduled groups and overdue tracking, for a job number such as 2701, and resolves that number when it exists on exactly one company even if another company is active.",
+  description: "Lists a job's saved submittal log, one row at a time with number, title, status, ball in court, due date, and overdue, for a job number such as 2701, and resolves that number when it exists on exactly one company even if another company is active.",
   inputSchema: {
     job_number: jobNumber.optional(),
     company_id: companyId,
@@ -194,11 +235,20 @@ export const submittalsList = defineTool({
       if (!picked) return whichJobCard("submittals_list", await listCompaniesAndJobs(sb, args.company_id, "submittals_list"));
       const job = await resolveJob(sb, picked.job_number, picked.company_id);
       if (job.scope !== "full" && job.scope !== "super") throw new ToolError(FULL_ACCESS_MESSAGE);
-      const payload = await call<LogPayload>(sb, "mcp_submittal_rows", { _job: job.job_id });
-      const today = (payload.today ?? "").slice(0, 10) || "1970-01-01";
-      const [schedule, tracking] = await Promise.all([readScheduleActivities(sb, job.job_id), readSubmittalTracking(sb, job.job_id, today)]);
-      const presented = shown(payload, await boardFor(sb, job), { status: args.status, overdue: args.overdue, ball: args.ball_in_court }, undefined, { schedule, tracking });
-      return cardResult(presented.text, presented.card, { read_only: payload.read_only === true });
+      // mcp_submittals for this job id only. Company membership is the row policy (full or super).
+      // The living-report reader is not called: it returns the whole CPM and its change log and can sit until the host times out.
+      const [rows, zone] = await Promise.all([readSubmittalRows(sb, job.job_id), jobTimeZone(sb, job.job_id)]);
+      const today = todayIn(zone);
+      const presented = presentSubmittalLog({
+        jobNumber: job.job_number,
+        jobName: job.name,
+        rows,
+        today,
+        boardUrl: null,
+        readOnly: job.scope !== "full",
+        filter: { status: args.status, overdue: args.overdue, ball: args.ball_in_court },
+      });
+      return cardResult(presented.text, presented.card, { read_only: job.scope !== "full", job_id: job.job_id });
     }),
 });
 

@@ -63,10 +63,9 @@ export async function runSweep(sb: Sb, scope_: SweepScope = {}): Promise<{ text:
 
   for (const j of byJob.values()) {
     if (!j.time_zone) {
+      // Note only. mcp_add_item would insert a setup lookahead (the ensure-or-create
+      // container). This sweep runs on read tools such as the submittal log, so it must not write.
       tzNotes.push(`${j.job_number} – Time zone unknown. Precaution — assumed date, not a contract fact. Basis: dates counted in ${ASSUMED_TZ} (Eastern) until the job's time zone is set.`);
-      if (scope.get(j.id) === "full") {
-        await sb.rpc("mcp_add_item", { _job: j.id, _f: { check_key: "tz:job", item_type: "unknown", kind: "confirm_unknown", category: "Deadline", action: "Confirm the job's time zone (deadlines are computed in it)", tool: "sweep" } });
-      }
     }
   }
 

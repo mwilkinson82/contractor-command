@@ -7,13 +7,11 @@ import { renderHtml } from "./cards/html";
 import { renderMarkdown } from "./cards/markdown";
 import { paletteViolations } from "./cards/palette";
 import { CARD_SHOWN } from "./cards/silence";
-import { briefIsShown, loadBriefJobs, loadMorningBrief, mergeBriefJobs } from "./morning-brief-load";
+import { loadBriefJobs, loadMorningBrief, mergeBriefJobs } from "./morning-brief-load";
 import { emptyCssValues } from "./cards/palette";
 import { countOpenItems, openItemFeed } from "./open-feed";
 import { job2701BriefCard, job2701BriefJob } from "./morning-brief-2701";
 import {
-  BRIEF_ALREADY,
-  alreadyShownBrief,
   briefView,
   INBOX_HOST_LINE,
   buildMorningBrief,
@@ -271,48 +269,44 @@ describe("morning brief builder", () => {
 });
 
 describe("a second good morning", () => {
-  it("returns the short reply and does not rebuild the brief", async () => {
-    expect(briefIsShown({ shown: true, day: "2026-10-22" })).toBe(true);
-    expect(briefIsShown({ shown: false })).toBe(false);
-    const repeat = alreadyShownBrief();
-    const repeatText = repeat.content.find((c) => c.type === "text")?.text ?? "";
-    expect(repeatText).toContain(BRIEF_ALREADY);
-    expect(repeatText).not.toContain("From your inbox and calendar");
-    const sb = {
-      rpc: async (fn: string) => {
-        if (fn === "mcp_morning_brief_shows") return { data: { shown: true, day: "2026-10-22" }, error: null };
-        throw new Error(fn);
-      },
-      from: () => { throw new Error("query"); },
-    };
-    const result = await loadMorningBrief(sb as never);
-    const text = result.content.find((c) => c.type === "text")?.text ?? "";
-    expect(text).toContain("Your brief is above, want anything else?");
-    expect(text).not.toContain("From your inbox and calendar");
-    expect(text.match(/<!doctype html/gi)).toHaveLength(1);
-  });
-
-  it("marks the brief shown after the first build", async () => {
+  it("returns the full brief again on the same day, including inbox and calendar", async () => {
     const calls: string[] = [];
     const sb = {
       rpc: async (fn: string) => {
         calls.push(fn);
-        if (fn === "mcp_morning_brief_shows") return { data: { shown: false }, error: null };
+        if (fn === "mcp_morning_brief_shows") return { data: { shown: true, day: "2026-10-22" }, error: null };
         if (fn === "mcp_morning_brief_mark_shown") return { data: { shown: true }, error: null };
         return { data: null, error: { code: "PGRST202", message: "Could not find the function" } };
       },
-      from: () => {
-        const done = Promise.resolve({ data: [], error: null });
+      from: (table: string) => {
+        const rows = table === "mcp_companies"
+          ? [{ id: "co", name: "ALP" }]
+          : table === "mcp_jobs"
+            ? [{ id: "323a040a-7ed1-4726-8f6a-da13fdb5a0eb", job_number: "2701", name: "Harbor Point", company_id: "co", updated_at: "2026-10-22T12:00:00Z" }]
+            : [];
+        const done = Promise.resolve({ data: rows, error: null });
         return { select: () => Object.assign(done, { in: () => done, eq: () => done, maybeSingle: () => done }) };
       },
     };
-    const result = await loadMorningBrief(sb as never);
-    expect(calls[0]).toBe("mcp_morning_brief_shows");
-    expect(calls).toContain("mcp_morning_brief_mark_shown");
-    expect(result.content.find((c) => c.type === "text")?.text ?? "").not.toContain(BRIEF_ALREADY);
+    const first = await loadMorningBrief(sb as never);
+    const second = await loadMorningBrief(sb as never);
+    const texts = [first, second].map((result) => result.content.find((c) => c.type === "text")?.text ?? "");
+    expect(texts[1]).toBe(texts[0]);
+    for (const text of texts) {
+      expect(text).toContain(INBOX_HOST_LINE);
+      expect(text).toContain("From your inbox and calendar");
+      expect(text).toContain("Morning brief");
+      expect(text).toContain("2701");
+      expect(text).not.toMatch(/already shown|Your brief is above|short reply/i);
+      expect(text.match(/<!doctype html/gi)).toHaveLength(1);
+      expect(text).toContain("#1E3A5F");
+      expect(text).toContain("#1E5FED");
+    }
+    expect(calls.filter((fn) => fn === "mcp_morning_brief_shows")).toEqual([]);
+    expect(calls.filter((fn) => fn === "mcp_morning_brief_mark_shown")).toHaveLength(2);
   });
 
-  it("reads the show flag once and does not reload living reports per job", () => {
+  it("keeps the show table for the push and does not reload living reports per job", () => {
     const sql = readFileSync("supabase/migrations/20261024180000_athena_brief_once_and_fast.sql", "utf8");
     expect(sql).toContain("CREATE TABLE IF NOT EXISTS public.mcp_morning_brief_shows");
     expect(sql).toContain("FUNCTION public.mcp_morning_brief_shows()");

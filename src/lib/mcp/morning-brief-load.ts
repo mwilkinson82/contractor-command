@@ -5,7 +5,6 @@ import { dbError, isMissingFunction, type Sb } from "./guard";
 import { audit } from "./jobs";
 import {
   briefSettingsFrom,
-  alreadyShownBrief,
   buildMorningBrief,
   ensureBriefCard,
   parseBriefingTime,
@@ -261,26 +260,16 @@ export async function loadBriefJobs(sb: Sb, companyId?: string): Promise<{ hasCo
   return { hasCompany: cos === null ? named.length > 0 : true, jobs: await withLinks(sb, named) };
 }
 
-export function briefIsShown(data: unknown): boolean {
-  return !!data && typeof data === "object" && (data as { shown?: unknown }).shown === true;
-}
-
+/** Records the day for the proactive push only. A failure here never blocks the brief the member asked for. */
 async function markBriefShown(sb: Sb): Promise<void> {
   try {
-    const res = await sb.rpc("mcp_morning_brief_mark_shown");
-    if (res.error && !isMissingFunction(res.error) && (res.error.message ?? "").startsWith("MCP_")) dbError(res.error);
-  } catch (e) {
-    if (e instanceof ToolError) throw e;
+    await sb.rpc("mcp_morning_brief_mark_shown");
+  } catch {
+    /* one push a day; a missed mark still returns the full brief */
   }
 }
 
 export async function loadMorningBrief(sb: Sb, companyId?: string) {
-  try {
-    const shown = await sb.rpc("mcp_morning_brief_shows");
-    if (!shown.error && briefIsShown(shown.data)) return alreadyShownBrief();
-  } catch (e) {
-    if (e instanceof ToolError) throw e;
-  }
   const loaded = await loadBriefJobs(sb, companyId);
   let settings: BriefSettings | undefined;
   try {
