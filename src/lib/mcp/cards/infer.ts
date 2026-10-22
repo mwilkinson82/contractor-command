@@ -199,13 +199,14 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
   }
 
   if (tool === "resolve_item") {
+    const reopened = /Item reopened/i.test(text);
     const asking = /Still open/i.test(text);
     return {
       ...base,
       state: asking ? "ask" : "result",
       ask: asking ? { prompt: linesOf(text).find((l) => /Still open/i.test(l)) ?? "Send the evidence that closes this item." } : null,
       sections: [listSection("Item", linesOf(text).slice(0, 4).map((l) => ({ cells: [l] })))],
-      next_move: asking ? "Send the evidence." : "The item is updated.",
+      next_move: asking ? "Send the evidence." : reopened ? "The item is open again." : "The item is updated.",
     };
   }
 
