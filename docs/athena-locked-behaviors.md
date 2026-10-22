@@ -29,4 +29,3 @@ These behaviors are already working. A change that breaks one of them fails `src
 - The brief keeps the From your inbox and calendar section, the email placeholder, and the Connect Google Calendar line when the server cannot see the host calendar.
 - A fragnet delay Gantt keeps its red delay banner (`Delay: +X WD (Y CD)`). A normal activity bar is not that banner.
 - The email draft card keeps its `To:` line as the first line of the draft.
-- Drawing markup callouts default to navy `#1E5FED`. Red `#DC2626` is only for a callout flagged risk, delay, or overdue. The markup is a styled card with the drawing embedded, not a bare image.
