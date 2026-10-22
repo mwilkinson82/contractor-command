@@ -2,6 +2,7 @@ import { CARD_FIRST_TOOLS, attachAthenaCard } from "./cards/attach";
 import { sealCardReply } from "./cards/silence";
 import { attachDailyReminder } from "./field-reminder";
 import { attachGettingStarted } from "./getting-started";
+import { attachMorningCard } from "./morning-brief-card";
 import { HOST_DISPLAY_BLOCK, finalizeVisible, splitGuidance, withStyleLine } from "./visible";
 import { REMINDERS_VIEW_SPEC } from "./views";
 import { DB_UNAVAILABLE, MCP_DAILY_CAP, MCP_HOURLY_CAP, capMessage, type CapResult } from "./limits";
@@ -91,8 +92,10 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
   const touch = await securityTouch(sb as never, tool, o.jobNumber ?? sig?.jobNumber ?? null, sig?.signals ?? []);
   enforceTouch(touch);
   let sweep: Awaited<ReturnType<typeof runSweep>> = null;
+  let freshSession = false;
   try {
     const fresh = await sb.rpc("mcp_session_touch");
+    freshSession = fresh.data === true;
     if (!NEVER_SWEEP.has(tool) && (fresh.data === true || o.sweep === true)) sweep = await runSweep(sb, sweepScope);
   } catch {
     sweep = null; // the sweep never blocks the tool itself
@@ -109,7 +112,8 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
     const carded = attachAthenaCard(tool, visible);
     const reminded = CARD_FIRST_TOOLS.has(tool) ? carded : await attachDailyReminder(sb as never, o.jobNumber ?? sig?.jobNumber ?? null, carded);
     const started = await attachGettingStarted(sb as never, reminded, { prepend: !CARD_FIRST_TOOLS.has(tool) });
-    return stampCanary(sealCardReply(tool, started), touch.canary);
+    const morning = await attachMorningCard(sb as never, started, { fresh: freshSession, explicit: tool === "morning_brief" });
+    return stampCanary(sealCardReply(tool, morning), touch.canary);
   } catch (e) {
     await logWorkflow(sb, {
       event_type: "failure",

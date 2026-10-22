@@ -12,8 +12,23 @@ import { applyCardClosing } from "./cards/silence";
 import { guide } from "./visible";
 import type { CardModel, CardRow } from "./cards/model";
 import { normalizeRole, type TeamRole } from "./team";
+import { athenaAppOrigin } from "../athena-host";
 
 export const MORNING_BRIEF_DEFAULT_TIME = "06:30";
+export const TODAY_BOARD_LABEL = "Open today's brief";
+
+/** Absolute board the in-app card and the push both open. */
+export function todayBoardUrl(): string {
+  return `${athenaAppOrigin()}/today`;
+}
+
+function withTodayBoard(card: CardModel): CardModel {
+  const href = todayBoardUrl();
+  const sections = [...(card.sections ?? [])];
+  if (sections.some((section) => section.rows.some((row) => row.href === href))) return card;
+  sections.unshift({ heading: "Board", kind: "list", rows: [{ cells: [TODAY_BOARD_LABEL], href }] });
+  return { ...card, sections };
+}
 export const MORNING_BRIEF_DEFAULTS = {
   enabled: true,
   send_local: MORNING_BRIEF_DEFAULT_TIME,
@@ -442,7 +457,7 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
   const now = input.now ?? new Date();
   const settings = input.settings ?? { ...MORNING_BRIEF_DEFAULTS };
   if (!input.jobs.length) {
-    const card = firstJobCard(input.hasCompany);
+    const card = withTodayBoard(firstJobCard(input.hasCompany));
     return { card, counts: { open: 0, overdue: 0, due_in_7_days: 0, today: 0 }, openItems: [], todayCount: 0 };
   }
   const viewOf = (job: BriefJob) => briefView(job.seat, job.scope);
@@ -462,7 +477,7 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
     sections.push({ heading: "Portfolio", kind: "list", rows: [{ cells: [`${input.jobs.length} jobs · ${port.open} open · ${port.overdue} overdue`] }] });
     sections.push({ heading: "Jobs", kind: "list", rows: port.rows });
     if (forget.length) sections.push({ heading: "Don't forget", kind: "list", rows: forget });
-    const card: CardModel = {
+    const card: CardModel = withTodayBoard({
       state: "result",
       title: "Morning brief",
       job: shortDate(headerToday),
@@ -474,7 +489,7 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
       sections,
       alerts: port.overdue ? [{ level: "overdue", text: `${port.overdue} items` }] : [],
       next_move: port.overdue ? "Clear the overdue item first." : "Review the portfolio.",
-    };
+    });
     return { card, counts: { open: port.open, overdue: port.overdue, due_in_7_days: 0, today: today.length }, openItems: tagged.map((t) => t.item), todayCount: today.length };
   }
   if (today.length) sections.push({ heading: "Today", kind: "list", rows: today });
@@ -489,7 +504,7 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
     });
   }
   const overdue = countsForOpen.overdue;
-  const card: CardModel = {
+  const card: CardModel = withTodayBoard({
     state: "result",
     title: "Morning brief",
     job: shortDate(headerToday),
@@ -502,7 +517,7 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
     sections,
     alerts: overdue ? [{ level: "overdue", text: `${overdue} items` }] : [],
     next_move: overdue ? "Clear the overdue item first." : today.length ? "Start with what is due today." : "Nothing urgent. Review this week.",
-  };
+  });
   return { card, counts: { ...countsForOpen, today: today.length }, openItems: opened.items, todayCount: today.length };
 }
 
