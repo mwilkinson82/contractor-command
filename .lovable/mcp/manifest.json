@@ -4741,7 +4741,7 @@
       {
         "name": "daily_reminder",
         "title": "Daily report reminder",
-        "description": "Reads or sets a job's daily report reminder.",
+        "description": "Reads or sets when the in-chat daily reminder appears.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -4794,13 +4794,13 @@
       },
       {
         "name": "daily_reminder_run",
-        "title": "Run the daily report reminder",
-        "description": "Sends the daily report reminder when a job has it turned on and it is due.",
+        "title": "Preview the in-chat daily reminder",
+        "description": "Previews the in-chat daily reminder without sending email.",
         "annotations": {
-          "readOnlyHint": false,
+          "readOnlyHint": true,
           "destructiveHint": false,
           "idempotentHint": true,
-          "openWorldHint": true
+          "openWorldHint": false
         },
         "inputSchema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4815,6 +4815,9 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 200
+            },
+            "preview": {
+              "type": "boolean"
             }
           },
           "required": [

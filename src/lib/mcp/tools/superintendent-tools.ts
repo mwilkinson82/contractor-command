@@ -3,7 +3,7 @@
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { DEFAULT_TZ, todayIn } from "../deadlines";
-import { dispatchReminders, resendReminderSender } from "../field-reminder";
+import { previewDailyReminderCard, type ReminderStatus } from "../field-reminder";
 import { FileRejected, decodeBase64 } from "../file-share";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import { FULL_ACCESS_MESSAGE, audit, jobTimeZone, prefix, resolveJob, type Job } from "../jobs";
@@ -434,7 +434,7 @@ type ReminderPreview = { enabled: boolean; send_local: string; time_zone: string
 export const dailyReminder = defineTool({
   name: "daily_reminder",
   title: "Daily report reminder",
-  description: "Reads or sets a job's daily report reminder.",
+  description: "Reads or sets when the in-chat daily reminder appears.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
@@ -453,8 +453,8 @@ export const dailyReminder = defineTool({
         const preview = await call<ReminderPreview>(sb, "mcp_field_reminder_preview", { _job: job.job_id });
         await audit(sb, job, "daily_reminder", "view_reminder", null);
         return guide(
-          { ...text(`${prefix(job)}Daily reminder is ${preview.enabled ? "on" : "off"} at ${preview.send_local} local time. Nothing was sent.`), structuredContent: { ...preview, sent: false } },
-          "Off until this job turns it on. Do not send an email from this read.",
+          { ...text(`${prefix(job)}Daily reminder is ${preview.enabled ? "on" : "off"} at ${preview.send_local} local time. It shows in the chat. Nothing is emailed.`), structuredContent: { ...preview, sent: false, mode: "card" } },
+          "Off until this job turns it on. Do not email this reminder.",
         );
       }
       if (args.confirmed !== true) throw new ToolError("Ask the superintendent to confirm the reminder change first. Nothing was saved.");
@@ -464,7 +464,7 @@ export const dailyReminder = defineTool({
       });
       await audit(sb, job, "daily_reminder", "save_reminder", null);
       return guide(
-        { ...text(`${prefix(job)}Daily reminder is ${saved.enabled ? "on" : "off"} at ${saved.send_local} local time. Nothing was sent.`), structuredContent: { ...saved, sent: false } },
+        { ...text(`${prefix(job)}Daily reminder is ${saved.enabled ? "on" : "off"} at ${saved.send_local} local time. It shows in the chat. Nothing is emailed.`), structuredContent: { ...saved, sent: false, mode: "card" } },
         "Saving the setting does not send email.",
       );
     }),
@@ -472,33 +472,32 @@ export const dailyReminder = defineTool({
 
 export const dailyReminderRun = defineTool({
   name: "daily_reminder_run",
-  title: "Run the daily report reminder",
-  description: "Sends the daily report reminder when a job has it turned on and it is due.",
-  inputSchema: { job_number: jobNumber, company_id: companyId },
-  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  title: "Preview the in-chat daily reminder",
+  description: "Previews the in-chat daily reminder without sending email.",
+  inputSchema: { job_number: jobNumber, company_id: companyId, preview: z.boolean().optional() },
+  annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   handler: (args, ctx) =>
     run("daily_reminder_run", ctx, { jobNumber: args.job_number }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id);
       assertField(job);
-      const preview = await call<ReminderPreview>(sb, "mcp_field_reminder_preview", { _job: job.job_id });
-      const zone = preview.time_zone?.trim() || await jobTimeZone(sb, job.job_id);
-      const result = await dispatchReminders([{
-        enabled: preview.enabled === true,
-        send_local: preview.send_local || "14:30",
-        last_sent_on: preview.last_sent_on,
-        time_zone: zone,
-        jobNumber: preview.job_number || job.job_number,
-        jobName: preview.job_name || job.name,
-        recipients: (preview.recipients ?? []).map((r) => r.email).filter(Boolean),
-      }], { sender: resendReminderSender });
-      if (result.status === "sent") await call(sb, "mcp_field_reminder_mark", { _job: job.job_id, _day: todayIn(zone) });
-      await audit(sb, job, "daily_reminder_run", result.status === "sent" ? "send_reminder" : "skip_reminder", null);
-      const line = result.status === "sent"
-        ? `${prefix(job)}Reminder sent to ${result.sent} superintendent${result.sent === 1 ? "" : "s"}.`
-        : `${prefix(job)}Nothing was sent.`;
+      await audit(sb, job, "daily_reminder_run", args.preview ? "preview_reminder" : "skip_reminder", null);
+      if (args.preview !== true) {
+        return guide(
+          { ...text(`${prefix(job)}Daily reminders show in the chat. Nothing was sent.`), structuredContent: { sent: 0, preview: false, mode: "card" } },
+          "Do not email a reminder. The card appears on the first tool call after the job's reminder time.",
+        );
+      }
+      let status: ReminderStatus | null = null;
+      try {
+        const { data, error } = await (sb.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: { message?: string } | null }>)("mcp_daily_reminder_status", { _job_number: job.job_number });
+        if (!error && data && typeof data === "object" && (data as ReminderStatus).found) status = data as ReminderStatus;
+      } catch {
+        status = null;
+      }
+      const shown = previewDailyReminderCard({ jobNumber: job.job_number, jobName: status?.job_name || job.name, status });
       return guide(
-        { ...text(line), structuredContent: { status: result.status, sent: result.sent, enabled: preview.enabled === true } },
-        "Send only through this result. The from address is support@meetathena.io. Never send from marshall@ or office@.",
+        { ...text(shown.text), structuredContent: { sent: 0, preview: true, mode: "card", daily_reminder_card: shown.card, daily_reminder_action: "daily_report_draft" } },
+        "This is a preview of the in-chat card. Do not email it. Start the daily when they say yes.",
       );
     }),
 });

@@ -10,6 +10,7 @@ import {
   fieldAccess,
   fieldCard,
   fieldPageHtml,
+  isRecordedDelay,
   parseWorkLine,
   payAppPercentCard,
   photoGate,
@@ -21,14 +22,14 @@ import {
 } from "./superintendent";
 import { photoLogPdf } from "./photo-pdf";
 import {
-  FIELD_REMINDER_FROM,
-  FIELD_REMINDER_LINE,
-  assertReminderFrom,
-  buildReminderEmail,
-  dispatchReminders,
-  reminderDue,
-  reminderEnabled,
+  DAILY_REMINDER_TITLE,
+  attachDailyReminder,
+  dailyIsOverdue,
+  dailyReminderCard,
+  renderDailyReminder,
+  shouldShowDailyCard,
 } from "./field-reminder";
+import { paletteViolations } from "./cards/palette";
 
 const state = vi.hoisted(() => ({
   scope: "full" as "full" | "super" | "contract",
@@ -179,6 +180,12 @@ describe("daily assembly", () => {
     const card = dailyCard("2701 – ", "2026-10-21", ready, false);
     expect(card).toContain("Draft. Not saved.");
     expect(card).toContain("DELAY — Delays: Crane waiting");
+    for (const none of ["none", "no delays", "TEST - none"]) {
+      const quiet = dailyCard("2701 – ", "2026-10-21", { ...ready, delays: none }, false);
+      expect(isRecordedDelay(none), none).toBe(false);
+      expect(quiet, none).not.toContain("DELAY —");
+      expect(dailyPageHtml({ job_number: "2701", found: true, delays: none, weather: "Clear" }), none).not.toContain("#DC2626");
+    }
     expect(visibleProblems(card)).toEqual([]);
     expect(card).not.toContain("$");
   });
@@ -346,36 +353,70 @@ describe("photos", () => {
   });
 });
 
-describe("daily reminder", () => {
-  const dueNow = new Date("2026-10-21T18:30:00Z");
-  const job = { enabled: true, send_local: "14:30", last_sent_on: null, time_zone: "America/New_York", jobNumber: "2701", jobName: "Harbor", recipients: ["super@example.test"] };
+describe("daily reminder card", () => {
+  const due = { enabled: true, localMinutes: 15 * 60, sendLocal: "14:30", dailyToday: false, alreadyShown: false };
 
-  it("is off by default and sends nothing in tests", async () => {
-    expect(reminderEnabled({})).toBe(false);
-    expect(reminderEnabled({ ATHENA_FIELD_REMINDER_EMAIL_ENABLED: "true" })).toBe(true);
-    expect(reminderDue(job, dueNow)).toBe(true);
-    expect(reminderDue({ ...job, enabled: false }, dueNow)).toBe(false);
-    expect(reminderDue(job, new Date("2026-10-21T20:30:00Z"))).toBe(false);
-    expect(reminderDue({ ...job, last_sent_on: "2026-10-21" }, dueNow)).toBe(false);
-    const sender = vi.fn(async () => {});
-    expect(await dispatchReminders([job], { env: {}, sender, now: dueNow })).toEqual({ status: "off", sent: 0 });
-    expect(sender).not.toHaveBeenCalled();
-    const mail = buildReminderEmail({ to: "super@example.test", jobNumber: "2701", jobName: "Harbor" });
-    expect(mail.from).toBe(FIELD_REMINDER_FROM);
-    expect(mail.text).toContain(FIELD_REMINDER_LINE);
-    expect(mail.from).not.toMatch(/marshall@|office@/i);
-    expect(mail.html).not.toContain("#DC2626");
-    expect(() => assertReminderFrom("Athena <marshall@meetathena.io>")).toThrow(/support@meetathena.io/);
-    expect(() => assertReminderFrom("office@meetathena.io")).toThrow(/support@meetathena.io/);
+  it("shows once after 2:30 PM when today's daily is missing, and stays quiet otherwise", () => {
+    expect(shouldShowDailyCard(due)).toBe(true);
+    expect(shouldShowDailyCard({ ...due, localMinutes: 14 * 60 })).toBe(false);
+    expect(shouldShowDailyCard({ ...due, enabled: false })).toBe(false);
+    expect(shouldShowDailyCard({ ...due, dailyToday: true })).toBe(false);
+    expect(shouldShowDailyCard({ ...due, alreadyShown: true })).toBe(false);
+    expect(dailyIsOverdue("2026-10-19", "2026-10-21")).toBe(true);
+    expect(dailyIsOverdue("2026-10-20", "2026-10-21")).toBe(false);
+    expect(dailyIsOverdue(null, "2026-10-21")).toBe(false);
+  });
+
+  it("uses the card palette, and red only when a previous day is overdue", () => {
+    const quiet = dailyReminderCard({ jobNumber: "2701", jobName: "Harbor", overdue: false });
+    const loud = dailyReminderCard({ jobNumber: "2701", jobName: "Harbor", overdue: true, lastDaily: "2026-10-19" });
+    expect(quiet.title).toBe(DAILY_REMINDER_TITLE);
+    expect(quiet.next_move).toBe("Start today's daily.");
+    const quietText = renderDailyReminder(quiet);
+    const loudText = renderDailyReminder(loud);
+    expect(paletteViolations(quietText, false)).toEqual([]);
+    expect(quietText).not.toContain("#DC2626");
+    expect(paletteViolations(loudText, true)).toEqual([]);
+    expect(loudText).toContain('data-alert="overdue"');
+    expect(quietText).toContain("ask Athena if my daily is in for job 2701");
+  });
+
+  it("records the show once and never sends email", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
-    state.rpc.mcp_field_reminder_preview = { enabled: true, send_local: "14:30", time_zone: "America/New_York", last_sent_on: null, job_number: "2701", job_name: "Harbor", recipients: [{ email: "super@example.test", name: "Sam" }] };
+    const calls: string[] = [];
+    const sb = {
+      rpc: async (fn: string) => {
+        calls.push(fn);
+        if (fn === "mcp_daily_reminder_status") {
+          return { data: { found: true, job_id: "j1", job_number: "2701", job_name: "Harbor", enabled: true, send_local: "14:30", local_date: "2026-10-21", local_minutes: 900, daily_today: false, last_daily: "2026-10-20", already_shown: false }, error: null };
+        }
+        if (fn === "mcp_daily_reminder_mark_shown") return { data: { recorded: true }, error: null };
+        return { data: null, error: null };
+      },
+    };
+    const result = await attachDailyReminder(sb, "2701", { content: [{ type: "text", text: "Job body" }], structuredContent: {} });
+    expect(calls).toEqual(["mcp_daily_reminder_status", "mcp_daily_reminder_mark_shown"]);
+    expect((result as { content: { text: string }[] }).content[0].text.startsWith("## ")).toBe(true);
+    expect((result as { content: { text: string }[] }).content[0].text).toContain(DAILY_REMINDER_TITLE);
+    expect((result as { content: { text: string }[] }).content[0].text).toContain("Job body");
+    const again = await attachDailyReminder({ rpc: async () => ({ data: { found: true, enabled: true, send_local: "14:30", local_date: "2026-10-21", local_minutes: 900, daily_today: false, already_shown: true, job_id: "j1" }, error: null }) }, "2701", { content: [{ type: "text", text: "Job body" }] });
+    expect((again as { content: { text: string }[] }).content[0].text).toBe("Job body");
     const ran = await handle(dailyReminderRun, { job_number: "2701" });
     expect(ran.content[0].text).toContain("Nothing was sent.");
+    expect(ran.structuredContent.sent).toBe(0);
+    state.rpc.mcp_daily_reminder_status = { found: true, job_number: "2701", job_name: "Harbor", enabled: true, send_local: "14:30", local_date: "2026-10-21", last_daily: null, daily_today: false, already_shown: false };
+    const preview = await handle(dailyReminderRun, { job_number: "2701", preview: true });
+    expect(preview.content[0].text).toContain(DAILY_REMINDER_TITLE);
+    expect(preview.structuredContent.preview).toBe(true);
+    expect(preview.structuredContent.sent).toBe(0);
+    expect(preview.content[0].text).toContain("job 2701");
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
-    const sent = await dispatchReminders([job], { env: { ATHENA_FIELD_REMINDER_EMAIL_ENABLED: "true" }, sender, now: dueNow });
-    expect(sent).toEqual({ status: "sent", sent: 1 });
-    expect(sender).toHaveBeenCalledWith(expect.objectContaining({ from: FIELD_REMINDER_FROM, to: "super@example.test" }));
+    const sql = readFileSync("supabase/migrations/20261023040000_athena_daily_reminder_card.sql", "utf8");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS public.mcp_daily_reminder_shows");
+    expect(sql).toContain("PRIMARY KEY (job_id, user_id, shown_on)");
+    expect(sql).not.toMatch(/\bDROP\s+TABLE\b/i);
+    expect(sql).not.toMatch(/marshall@|office@|resend/i);
   });
 });
 

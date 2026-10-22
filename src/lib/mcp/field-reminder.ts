@@ -1,31 +1,12 @@
-// Daily reminder for superintendents. Off unless the job turns it on AND the send flag is on.
-// Mail, when it sends, comes from support@meetathena.io through the same Resend path as team invites.
-// It never uses a marshall@ or office@ address.
-import { outboundEmailDisabled } from "./email-safety";
+// In-chat daily reminder. No email and no web push.
+// After the job's local reminder time, the first tool call of the day can prepend one card.
+import { htmlBlock, renderMarkdown } from "./cards/markdown";
+import { renderHtml } from "./cards/html";
+import type { CardModel } from "./cards/model";
+import { addDays, DEFAULT_TZ } from "./deadlines";
 
-export const FIELD_REMINDER_FROM = "Athena <support@meetathena.io>";
-export const FIELD_REMINDER_ADDRESS = "support@meetathena.io";
-export const FIELD_REMINDER_LINE = "Start your daily report and progress photos.";
-export const FIELD_REMINDER_FLAG = "ATHENA_FIELD_REMINDER_EMAIL_ENABLED";
-/** Default local time. The send window is this minute through the following 59 minutes (about 2–3 PM). */
 export const FIELD_REMINDER_DEFAULT_TIME = "14:30";
-
-const BLOCKED = /marshall@|office@/i;
-
-export function reminderAddress(from: string): string {
-  return (from.match(/<([^>]+)>/)?.[1] ?? from).trim().toLowerCase();
-}
-
-/** Refuses anything except the support address, including marshall@ and office@. */
-export function assertReminderFrom(from: string): void {
-  const addr = reminderAddress(from);
-  if (BLOCKED.test(from) || BLOCKED.test(addr) || addr !== FIELD_REMINDER_ADDRESS)
-    throw new Error("Daily reminders send only from support@meetathena.io.");
-}
-
-export function reminderEnabled(env: Record<string, string | undefined> = process.env): boolean {
-  return env[FIELD_REMINDER_FLAG] === "true" && !outboundEmailDisabled(env);
-}
+export const DAILY_REMINDER_TITLE = "Today's daily isn't in yet";
 
 export function zonedClock(tz: string, now: Date): { date: string; minutes: number } {
   const fmt = new Intl.DateTimeFormat("en-US", {
@@ -52,80 +33,148 @@ export function parseSendTime(value: string): number | null {
   return hour * 60 + minute;
 }
 
-export function reminderDue(
-  job: { enabled: boolean; send_local: string; last_sent_on: string | null; time_zone: string },
-  now: Date,
-): boolean {
-  if (!job.enabled) return false;
-  const send = parseSendTime(job.send_local);
-  if (send == null) return false;
-  let clock: { date: string; minutes: number };
-  try {
-    clock = zonedClock(job.time_zone, now);
-  } catch {
-    return false;
-  }
-  if (job.last_sent_on === clock.date) return false;
-  return clock.minutes >= send && clock.minutes < send + 60;
+export function clockLabel(sendLocal: string): string {
+  const mins = parseSendTime(sendLocal) ?? parseSendTime(FIELD_REMINDER_DEFAULT_TIME)!;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const suffix = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 === 0 ? 12 : h % 12;
+  return `${hour}:${String(m).padStart(2, "0")} ${suffix}`;
 }
 
-export type ReminderEmail = { to: string; from: string; subject: string; text: string; html: string };
-
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
-
-export function buildReminderEmail(a: { to: string; jobNumber: string; jobName: string }): ReminderEmail {
-  const from = FIELD_REMINDER_FROM;
-  assertReminderFrom(from);
-  const subject = `${a.jobNumber}: start your daily report and progress photos`;
-  const text = [`Job ${a.jobNumber} — ${a.jobName}`, "", FIELD_REMINDER_LINE].join("\n");
-  const html = `<div style="font-family:system-ui,sans-serif;color:#1E3A5F;max-width:420px">
-<p style="margin:0 0 8px;font-size:13px;color:#6B7280">${esc(a.jobNumber)} — ${esc(a.jobName)}</p>
-<p style="margin:0;font-size:16px;font-weight:600;color:#1E3A5F">${esc(FIELD_REMINDER_LINE)}</p>
-<p style="margin:16px 0 0;font-size:12px;color:#6B7280">Athena powered by ALP</p></div>`;
-  return { to: a.to, from, subject, text, html };
-}
-
-export type ReminderJob = {
+/** True once local time is at or after the reminder time. The card stays available for the rest of that day. */
+export function shouldShowDailyCard(input: {
   enabled: boolean;
-  send_local: string;
-  last_sent_on: string | null;
-  time_zone: string;
+  localMinutes: number;
+  sendLocal: string;
+  dailyToday: boolean;
+  alreadyShown: boolean;
+}): boolean {
+  if (!input.enabled || input.dailyToday || input.alreadyShown) return false;
+  const send = parseSendTime(input.sendLocal);
+  if (send == null) return false;
+  return input.localMinutes >= send;
+}
+
+/** A previous day is overdue when the last filed daily is older than yesterday. */
+export function dailyIsOverdue(lastDaily: string | null | undefined, today: string): boolean {
+  if (!lastDaily) return false;
+  return lastDaily.slice(0, 10) < addDays(today.slice(0, 10), -1);
+}
+
+export function hostScheduleLine(jobNumber: string, sendLocal = FIELD_REMINDER_DEFAULT_TIME): string {
+  return `Paste this into a weekday ${clockLabel(sendLocal)} task in ChatGPT or Grok: ask Athena if my daily is in for job ${jobNumber}`;
+}
+
+export function dailyReminderCard(input: {
   jobNumber: string;
   jobName: string;
-  recipients: string[];
-};
-
-export type ReminderSender = (m: ReminderEmail) => Promise<void>;
-
-/** Sends nothing when the flag is off, the job is off, or it is outside the local window. */
-export async function dispatchReminders(
-  jobs: ReminderJob[],
-  opts: { env?: Record<string, string | undefined>; sender: ReminderSender; now?: Date },
-): Promise<{ status: "off" | "none" | "sent"; sent: number }> {
-  if (!reminderEnabled(opts.env)) return { status: "off", sent: 0 };
-  const now = opts.now ?? new Date();
-  let sent = 0;
-  for (const job of jobs) {
-    if (!reminderDue(job, now)) continue;
-    for (const to of job.recipients) {
-      const msg = buildReminderEmail({ to, jobNumber: job.jobNumber, jobName: job.jobName });
-      assertReminderFrom(msg.from);
-      await opts.sender(msg);
-      sent++;
-    }
-  }
-  return { status: sent ? "sent" : "none", sent };
+  overdue: boolean;
+  lastDaily?: string | null;
+  sendLocal?: string;
+}): CardModel {
+  const sendLocal = input.sendLocal || FIELD_REMINDER_DEFAULT_TIME;
+  return {
+    state: "ask",
+    title: DAILY_REMINDER_TITLE,
+    job: `${input.jobNumber} – ${input.jobName}`,
+    alerts: input.overdue
+      ? [{ level: "overdue", text: input.lastDaily ? `No daily since ${input.lastDaily}.` : "A previous daily is still missing." }]
+      : [],
+    sections: [{ heading: "Optional host schedule", kind: "list", rows: [{ cells: [hostScheduleLine(input.jobNumber, sendLocal)], tone: "action" }] }],
+    next_move: "Start today's daily.",
+  };
 }
 
-/** Real sender. Only reached when dispatchReminders has already decided to send. */
-export const resendReminderSender: ReminderSender = async (m) => {
-  assertReminderFrom(m.from);
-  const key = process.env.RESEND_API_KEY;
-  if (!key) throw new Error("RESEND_API_KEY missing");
-  const r = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: m.from, to: [m.to], subject: m.subject, text: m.text, html: m.html }),
-  });
-  if (!r.ok) throw new Error(`reminder email failed (${r.status})`);
+export function renderDailyReminder(card: CardModel): string {
+  return `${renderMarkdown(card)}\n\n${htmlBlock(renderHtml(card))}`;
+}
+
+type TextBlock = { type: string; text?: string };
+type TextRes = { content?: TextBlock[]; structuredContent?: Record<string, unknown> };
+
+export function prependDailyReminderCard<R>(result: R, card: CardModel): R {
+  const res = result as unknown as TextRes;
+  const first = res.content?.find((c) => c.type === "text" && typeof c.text === "string");
+  if (!first?.text) return result;
+  const block = renderDailyReminder(card);
+  const content = res.content!.map((c) => (c === first ? { ...c, text: `${block}\n\n${first.text}` } : c));
+  return {
+    ...res,
+    content,
+    structuredContent: { ...(res.structuredContent ?? {}), daily_reminder_card: card, daily_reminder_action: "daily_report_draft" },
+  } as unknown as R;
+}
+
+export type ReminderStatus = {
+  found?: boolean;
+  job_id?: string;
+  job_number?: string;
+  job_name?: string;
+  enabled?: boolean;
+  send_local?: string;
+  time_zone?: string;
+  local_date?: string;
+  local_minutes?: number;
+  daily_today?: boolean;
+  last_daily?: string | null;
+  already_shown?: boolean;
 };
+
+type Rpc = { rpc: (fn: string, args?: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }> };
+
+async function reminderStatus(sb: Rpc, jobNumber: string): Promise<ReminderStatus | null> {
+  try {
+    const { data, error } = await sb.rpc("mcp_daily_reminder_status", { _job_number: jobNumber });
+    if (error || !data || typeof data !== "object") return null;
+    const row = data as ReminderStatus;
+    return row.found ? row : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Prepends the card once, after the reminder time, when today's daily is missing. Fails open. */
+export async function attachDailyReminder<R>(sb: Rpc, jobNumber: string | null | undefined, result: R): Promise<R> {
+  const job = jobNumber?.trim();
+  if (!job) return result;
+  const existing = (result as unknown as TextRes).structuredContent;
+  if (existing && "daily_reminder_card" in existing) return result;
+  const row = await reminderStatus(sb, job);
+  if (!row?.job_id || !row.local_date) return result;
+  const show = shouldShowDailyCard({
+    enabled: row.enabled === true,
+    localMinutes: Number(row.local_minutes ?? -1),
+    sendLocal: row.send_local || FIELD_REMINDER_DEFAULT_TIME,
+    dailyToday: row.daily_today === true,
+    alreadyShown: row.already_shown === true,
+  });
+  if (!show) return result;
+  try {
+    const marked = await sb.rpc("mcp_daily_reminder_mark_shown", { _job: row.job_id, _day: row.local_date });
+    const recorded = !!marked.data && typeof marked.data === "object" && (marked.data as { recorded?: boolean }).recorded === true;
+    if (marked.error || !recorded) return result;
+  } catch {
+    return result;
+  }
+  const card = dailyReminderCard({
+    jobNumber: row.job_number || job,
+    jobName: row.job_name || "",
+    overdue: dailyIsOverdue(row.last_daily, row.local_date),
+    lastDaily: row.last_daily,
+    sendLocal: row.send_local,
+  });
+  return prependDailyReminderCard(result, card);
+}
+
+export function previewDailyReminderCard(input: { jobNumber: string; jobName: string; status?: ReminderStatus | null }): { card: CardModel; text: string } {
+  const today = input.status?.local_date || zonedClock(input.status?.time_zone || DEFAULT_TZ, new Date()).date;
+  const card = dailyReminderCard({
+    jobNumber: input.jobNumber,
+    jobName: input.jobName,
+    overdue: dailyIsOverdue(input.status?.last_daily, today),
+    lastDaily: input.status?.last_daily,
+    sendLocal: input.status?.send_local,
+  });
+  return { card, text: renderDailyReminder(card) };
+}
