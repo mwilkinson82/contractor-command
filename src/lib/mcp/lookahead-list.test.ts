@@ -106,7 +106,9 @@ describe("lookahead_list", () => {
     const empty = result.structuredContent.items.find((item) => item.ref === "LA-37D09");
     expect(content).toMatchObject({ start: "2026-10-26", end: "2026-11-06", rev: 2, open_items: 2, items: 2, latest: true, empty: false });
     expect(empty).toMatchObject({ open_items: 0, items: 0, latest: false, empty: true });
-    expect(text).toContain("<!doctype html");
+    expect(text).toContain("REQUIRED VIEW: paste the styled markdown card above into the chat answer itself, exactly as written. Never an artifact or a link.");
+    expect(text).not.toContain("<!doctype html");
+    expect(result.structuredContent.html).toContain("<!doctype html");
     expect(paletteViolations(result.structuredContent.html, false)).toEqual([]);
     expect(state.writes).toEqual([]);
     expect(state.rpcs).toEqual(["mcp_resolve_job"]);

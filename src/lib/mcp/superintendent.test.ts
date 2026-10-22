@@ -29,6 +29,7 @@ import {
   renderDailyReminder,
   shouldShowDailyCard,
 } from "./field-reminder";
+import { renderHtml } from "./cards/html";
 import { paletteViolations } from "./cards/palette";
 
 const state = vi.hoisted(() => ({
@@ -436,7 +437,10 @@ describe("daily reminder card", () => {
     expect(paletteViolations(quietText, false)).toEqual([]);
     expect(quietText).not.toContain("#DC2626");
     expect(paletteViolations(loudText, true)).toEqual([]);
-    expect(loudText).toContain('data-alert="overdue"');
+    expect(loudText).not.toContain("<!doctype html");
+    expect(renderHtml(loud)).toContain('data-alert="overdue"');
+    expect(renderHtml(loud)).toContain("#DC2626");
+    expect(renderHtml(quiet)).not.toContain('data-alert="overdue"');
     expect(quietText).toContain("ask Athena if my daily is in for job 2701");
   });
 

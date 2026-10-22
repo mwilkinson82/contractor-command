@@ -122,7 +122,8 @@ describe("submittal job resolution is the same for every caller", () => {
       expect(result.structuredContent.card.title).toBe("Submittal log");
       expect(result.content[0].text).toContain("Switchgear product data");
       expect(result.content[0].text).toContain("Lighting shop drawing");
-      expect(result.content[0].text).toContain("<!doctype html");
+      expect(result.content[0].text).not.toContain("<!doctype html");
+      expect(result.structuredContent.html).toContain("<!doctype html");
     }
     const reads = state.filters.filter((f) => f.table === "mcp_submittals" && f.col === "job_id");
     expect(reads.length).toBeGreaterThanOrEqual(5);
@@ -142,7 +143,8 @@ describe("submittal job resolution is the same for every caller", () => {
       const text = result.content[0].text ?? "";
       expect(result.structuredContent.card.title).toBe("Submittal log");
       expect(result.structuredContent.job_id).toBe(JOB);
-      expect(text).toContain("<!doctype html");
+      expect(text).not.toContain("<!doctype html");
+      expect(result.structuredContent.html).toContain("<!doctype html");
       expect(text).toContain("No submittals on this job yet.");
       expect(text).toContain("log a submittal");
       expect(paletteViolations(result.structuredContent.html, false)).toEqual([]);

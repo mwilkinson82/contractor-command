@@ -85,9 +85,12 @@ export function renderMarkdown(card: CardModel): string {
 }
 
 /**
- * Claude treats a fenced HTML card as text, escapes it, and wraps it in a second card
- * whose CSS colors are blank. The document is the card. Colors are already written out.
+ * Claude renders markdown in the chat and puts a full HTML document in the side panel.
+ * The document stays on structuredContent.html for the ChatGPT widget. It is not part of the chat text.
  */
-export function htmlBlock(html: string): string {
-  return `REQUIRED VIEW: render this HTML card as-is. Do not escape it, do not wrap it in another card, and do not leave a CSS color blank.\n\n${html}`;
+export const CLAUDE_CHAT_CARD_LINE =
+  "REQUIRED VIEW: paste the styled markdown card above into the chat answer itself, exactly as written. Never an artifact or a link.";
+
+export function htmlBlock(_html: string): string {
+  return CLAUDE_CHAT_CARD_LINE;
 }

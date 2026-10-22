@@ -13,8 +13,10 @@ describe("host output rules (0.8.0, v0.7.8 retest fixes)", () => {
   it("dashboards: one caveat line, no Priority block", () => {
     expect(HOST_DISPLAY_BLOCK).toContain('one caveat line at most and never a \"Priority:\" block');
   });
-  it("Claude artifacts are static, no connector calls, at most 2 lines after", () => {
-    expect(HOST_DISPLAY_BLOCK).toContain("static data embedded from this tool result: no connector or MCP calls inside the artifact, no live refresh and no re-reading Athena. At most 2 lines of text after the artifact.");
+  it("Claude pastes the markdown card in the chat and does not re-read Athena", () => {
+    expect(HOST_DISPLAY_BLOCK).toContain("In Claude, paste the styled markdown card into the chat answer itself, exactly as written. Never an artifact or a link.");
+    expect(HOST_DISPLAY_BLOCK).toContain("Never call Athena (or any tool) from inside an artifact.");
+    expect(HOST_DISPLAY_BLOCK).toContain("Do not rebuild the card as an artifact, and do not re-read Athena.");
   });
   it("SOV is a spreadsheet, line-item view by default", () => {
     expect(HOST_DISPLAY_BLOCK).toContain("present it as a spreadsheet, line-item view by default");

@@ -77,9 +77,8 @@ describe("0.8.12 required views", () => {
     expect(w).toContain("...EMAIL_VIEW_SPEC,");
     expect(w).toContain('${ec.text}\\n${EMAIL_VIEW_SPEC.join("\\n")}');
     expect(src("./guard.ts")).toContain('text: `${REMINDERS_VIEW_SPEC.join("\\n")}\\n${sweepText}');
-    expect(src("./tools/living-tools.ts")).toContain(
-      'type === "billing_forecast" && job.scope === "full" ? PAY_APP_VIEW_SPEC',
-    );
+    expect(src("./tools/living-tools.ts")).toContain("presentStyledCard(payAppScheduleCard");
+    expect(src("./tools/living-tools.ts")).toContain('PAY_APP_VIEW_SPEC.join("\\n")');
   });
 });
 
@@ -209,7 +208,7 @@ describe("0.8.12 view-only asks never touch the shared master", () => {
     expect(CPM_REQUIRED_TOP.split("\n")[0]).toContain('"pull up the schedule"');
     expect(CPM_REQUIRED_TOP).toContain("build a NEW private view or artifact");
     expect(src("./tools/living-tools.ts")).toContain(
-      '"View-only asks (e.g. \\"pull up the schedule\\"): build a NEW private view or artifact;',
+      '"View-only asks (e.g. \\"pull up the schedule\\"): the markdown card is the answer.',
     );
   });
 });

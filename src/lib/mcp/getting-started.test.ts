@@ -309,7 +309,8 @@ describe("first tool call", () => {
     for (const line of MEMORY_HOST_LINES) expect(lead).toContain(line);
     expect(lead).toContain(`Next move: ${MEMORY_ASK}`);
     expect(lead).not.toContain("What is the company name?");
-    expect(result.content[0].text.split(`<title>${START_HEADLINE}</title>`).length - 1).toBe(1);
+    expect(result.content[0].text.split(START_HEADLINE).length - 1).toBe(1);
+    expect(result.content[0].text).not.toContain("<!doctype html");
     expect(result.content[0].text).toContain("Let's set up your company");
     expect(result.content[0].text).toContain("What is the company name?");
     expect(result.content[0].text).toContain("Jobs belong to a company.");
@@ -408,7 +409,7 @@ describe("getting_started tool never opens on a picker", () => {
     ];
     const result = (await gettingStarted.handler({}, ctx)) as {
       content: { text: string }[];
-      structuredContent: { card: { title: string; ask?: { prompt: string } | null; sections?: { heading: string }[] } };
+      structuredContent: { card: { title: string; ask?: { prompt: string } | null; sections?: { heading: string }[] }; html: string };
     };
     const plain = result.content[0].text.split("REQUIRED VIEW:")[0];
     expect(result.structuredContent.card.title).toBe("Hey Athena, let's get started");
@@ -425,7 +426,9 @@ describe("getting_started tool never opens on a picker", () => {
     expect(plain.indexOf("Try one")).toBeLessThan(plain.indexOf("Morning meeting"));
     expect(plain).toContain("2701 (Harbor Point)");
     expect(plain).toContain("1234 (Riverside)");
-    expect(result.content[0].text).toContain('class="placeholder"');
+    expect(result.structuredContent.html).toContain('class="placeholder"');
+    expect(result.structuredContent.html).toContain("<!doctype html>");
+    expect(result.content[0].text).not.toContain("<!doctype html");
     expect(result.content[0].text).toContain(INBOX_SECTION);
     expect(result.content[0].text).toContain("Gmail and Calendar");
     expect(result.content[0].text).toContain("overnight emails");

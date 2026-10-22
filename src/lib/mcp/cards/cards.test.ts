@@ -4,7 +4,7 @@ import { attachAthenaCard } from "./attach";
 import { CARD_SHOWN, CARD_SHOWN_PICK } from "./silence";
 import { CARD_WIDGET_URI, cardWidgetHtml } from "./widget";
 import { renderHtml } from "./html";
-import { renderMarkdown } from "./markdown";
+import { CLAUDE_CHAT_CARD_LINE, renderMarkdown } from "./markdown";
 import { plainLabel } from "../plain-label";
 import type { CardModel } from "./model";
 
@@ -64,7 +64,8 @@ describe("PM tools become cards", () => {
     expect(after.structuredContent.card.progress).toEqual({ done: 3, total: 7 });
     expect(after.content[0].text).toContain("## 🔵 Next question");
     expect(after.content[0].text).toContain(before);
-    expect(after.content[0].text).toContain("REQUIRED VIEW: render this HTML card as-is.");
+    expect(after.content[0].text).toContain(CLAUDE_CHAT_CARD_LINE);
+    expect(after.content[0].text).not.toContain("<!doctype html");
     expect(after.structuredContent.html).toContain("What are the pay terms?");
     expect(after._meta["openai/outputTemplate"]).toBe(CARD_WIDGET_URI);
   });
@@ -98,8 +99,9 @@ describe("PM tools become cards", () => {
     expect(after.content[0].text).toContain("Incomplete terms");
     expect(after.content[0].text.trim().endsWith(CARD_SHOWN)).toBe(true);
     const beforeClose = after.content[0].text.trim().slice(0, -CARD_SHOWN.length).trim();
-    expect(beforeClose.endsWith("</html>")).toBe(true);
-    expect(beforeClose.match(/<!doctype html/gi)).toHaveLength(1);
+    expect(beforeClose.endsWith(CLAUDE_CHAT_CARD_LINE)).toBe(true);
+    expect(beforeClose).not.toMatch(/<!doctype html/i);
+    expect(after.structuredContent.html).toContain("<!doctype html>");
     expect(beforeClose).not.toContain("&lt;");
     expect(after.content[0].text).not.toContain("Athena powered by ALP");
     expect(after.content[0].text).not.toMatch(/\nDisplay: blue/);

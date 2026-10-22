@@ -47,7 +47,7 @@ const dow = (d: string) => new Date(`${d.slice(0, 10)}T00:00:00Z`).getUTCDay();
 export const SHOW_AS_IS = "Show the view below exactly as written (tables, icons and colors included). Do not turn it into bullets or a summary.";
 /** 0.8.18: Claude pasted the lookahead as plain markdown with emoji. Like the schedule's REQUIRED VIEW (CPM_GANTT_SPEC), the lookahead now asks for an artifact. */
 export const LOOKAHEAD_ARTIFACT_LINE =
-  "REQUIRED VIEW: build ONE styled lookahead artifact from the data below, the same way you build the schedule Gantt. In Claude: an artifact built only from this result (no tool calls inside it). In ChatGPT: a canvas. Never paste the markdown below as your answer: the emoji are data markers only, so draw real bars, icons and cards. Follow the REQUIRED VIEW – LOOKAHEAD spec.";
+  "REQUIRED VIEW: build ONE styled lookahead artifact from the data below, the same way you build the schedule Gantt. In Claude: paste the styled markdown card below into the chat answer itself, exactly as written. Never an artifact or a link. In ChatGPT: a canvas. The emoji are data markers only, so draw real bars, icons and cards. Follow the REQUIRED VIEW – LOOKAHEAD spec.";
 export const pageLine = (label: string, url: string) =>
   `Styled ${label} (always current, private to your company): ${url}`;
 

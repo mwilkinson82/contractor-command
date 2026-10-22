@@ -1,5 +1,5 @@
 // 0.8.9: cpm_activities (full activity handoff), living_report_get and living_report_save (master copy per job).
-import { readDelay, ganttPins, noteDateConflicts, pageLine, payAppView, emptyCard, type Billing } from "../styled-views";
+import { readDelay, ganttPins, noteDateConflicts, pageLine, payModel, shortDate, type Billing, type DelayInfo } from "../styled-views";
 import { signedJobPages } from "../board-url";
 import { pageUrl } from "../../report-pages";
 import { IOR_VIEW_SPEC, PAY_APP_VIEW_SPEC, PORTFOLIO_VIEW_SPEC } from "../views";
@@ -7,6 +7,9 @@ import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { renderHtml } from "../cards/html";
 import { htmlBlock, renderMarkdown } from "../cards/markdown";
+import { applyCardClosing } from "../cards/silence";
+import { cardWidgetMeta } from "../cards/widget";
+import type { CardModel } from "../cards/model";
 import { jobBoardCard } from "./report-page-tools";
 import { PERMANENT_LINK_ASK, type ReportPage } from "../../report-pages";
 
@@ -25,7 +28,7 @@ import { SovMismatch, buildSov, money } from "../sov";
 import { guide } from "../visible";
 import {
   CPM_REQUIRED_TOP, LIVING_LABEL, LIVING_REPORT_TYPES, LIVING_REQUIRED_TOP, LIVING_SAVE_ASK, TIED_TYPES,
-  activityLine, checkSave, costLoadTotal, countCheck, earnedToDate, isOwnerFurnished, ownerFurnishedWithValue, reportCalendarHolidays, stripMoney, tieCheck, tiaResult,
+  checkSave, costLoadTotal, countCheck, earnedToDate, isOwnerFurnished, ownerFurnishedWithValue, stripMoney, tieCheck, tiaResult,
   type Activity, type LivingData, type LivingReportType,
   CPM_GANTT_SPEC,
 } from "../living";
@@ -96,6 +99,122 @@ async function whoAmI(sb: Sb, job: Job, userId: string | undefined): Promise<str
 }
 
 const stamp = (g: Got) => `Version v${g.version} · Last updated ${g.updated_at ? new Date(g.updated_at).toISOString().slice(0, 16).replace("T", " ") + " UTC" : "Needed"}${g.updated_by_name ? `, ${g.updated_by_name}` : ""} · Data date ${g.data_date ?? "Needed"}`;
+
+/** Same envelope as the submittal log: markdown card, then the paste instruction. HTML stays on structuredContent. */
+export function presentStyledCard(card: CardModel): { text: string; html: string; card: CardModel } {
+  const shown = { ...card, show_state: false as const };
+  const html = renderHtml(shown);
+  return { card: shown, html, text: applyCardClosing(`${renderMarkdown(shown)}\n\n${htmlBlock(html)}`, false) };
+}
+
+function boardChip(label: string, href: string | null | undefined): NonNullable<CardModel["sections"]> {
+  if (!href) return [];
+  return [{ heading: "Board", kind: "chips", rows: [{ cells: [label], href, tone: "action" }] }];
+}
+
+/** Grok reads this card. Drawing rules stay in guidance, and the board link is a chip, not the answer. */
+export function ganttScheduleCard(input: {
+  jobLabel: string;
+  version?: number | null;
+  dataDate?: string | null;
+  completion?: string | null;
+  activities: Activity[];
+  countLine: string;
+  tieLine?: string | null;
+  tieFails?: boolean;
+  earned?: string | null;
+  showMoney: boolean;
+  delay?: DelayInfo | null;
+  scheduleUrl?: string | null;
+  empty?: string | null;
+}): CardModel {
+  const sorted = [...input.activities].sort((a, b) => (a.start ?? "9999").localeCompare(b.start ?? "9999") || a.id.localeCompare(b.id));
+  const columns = input.showMoney ? ["ID", "Name", "Start", "Finish", "Float", "Value"] : ["ID", "Name", "Start", "Finish", "Float"];
+  const rows = sorted.map((a) => {
+    const value = !input.showMoney ? null : isOwnerFurnished(a) ? "$0.00" : a.value == null ? "Needed" : money(a.value);
+    const cells = [a.id, a.name, a.start ?? "Needed", a.finish ?? "Needed", a.total_float == null ? "Needed" : String(a.total_float), ...(value == null ? [] : [value])];
+    const fragnet = input.delay?.fragnet && a.id === input.delay.fragnet;
+    return { cells, flag: fragnet ? ("delay" as const) : null };
+  });
+  return {
+    state: input.empty ? "ask" : "result",
+    show_state: false,
+    title: "Schedule",
+    job: `${input.jobLabel}${input.version ? ` · v${input.version}` : ""}${input.dataDate ? ` · Data date ${shortDate(input.dataDate.slice(0, 10))}` : ""}`,
+    kpis: [
+      { label: "Count", value: input.countLine },
+      { label: "Contract completion", value: input.completion ?? "Needed" },
+      ...(input.tieLine ? [{ label: "Tie", value: input.tieLine, flag: input.tieFails ? ("risk" as const) : null }] : []),
+      ...(input.earned ? [{ label: "Earned to date", value: input.earned }] : []),
+    ],
+    sections: [
+      input.empty
+        ? { heading: "Activities", kind: "list", rows: [{ cells: [input.empty] }] }
+        : { heading: "Activities", kind: "table", columns, rows },
+      ...boardChip("Open schedule", input.scheduleUrl),
+    ],
+    alerts: input.delay ? [{ level: "delay", text: input.delay.line }] : [],
+    next_move: input.empty ? "Build and approve the baseline, then save it as version 1." : null,
+  };
+}
+
+/** Pay app card. The page link is a chip. The draw-the-card spec stays out of the chat text. */
+export function payAppScheduleCard(input: {
+  jobLabel: string;
+  version?: number | null;
+  dataDate?: string | null;
+  billing?: Billing | null;
+  contract?: number | null;
+  tieLine?: string | null;
+  tieFails?: boolean;
+  payappUrl?: string | null;
+  empty?: string | null;
+  missing?: string[];
+  changes?: string[];
+}): CardModel {
+  if (input.empty) {
+    return {
+      state: "ask",
+      show_state: false,
+      title: "Pay app",
+      job: input.jobLabel,
+      sections: [
+        { heading: "Needed", kind: "list", rows: (input.missing ?? ["Billed to date", "Latest pay app"]).map((item) => ({ cells: [item] })) },
+        ...boardChip("Open pay app", input.payappUrl),
+      ],
+      next_move: input.empty,
+    };
+  }
+  const model = payModel(input.billing, input.contract ?? null);
+  const fails = input.tieFails === true || (model.tie ?? "").startsWith("Doesn't tie");
+  return {
+    state: "result",
+    show_state: false,
+    title: "Pay app",
+    job: `${input.jobLabel}${input.version ? ` · v${input.version}` : ""}${input.dataDate ? ` · Data date ${shortDate(input.dataDate.slice(0, 10))}` : ""}`,
+    kpis: [
+      { label: "Billed to date", value: money(model.billed) },
+      { label: "Forecast remaining", value: money(model.forecast) },
+      { label: "Contract", value: model.contract == null ? "Needed" : money(model.contract) },
+      { label: "Left to bill", value: model.left == null ? "Needed" : money(model.left) },
+      ...(input.tieLine || model.tie ? [{ label: "Tie", value: input.tieLine || model.tie || "", flag: fails ? ("risk" as const) : null }] : []),
+    ],
+    sections: [
+      {
+        heading: "Monthly billing",
+        kind: "table",
+        columns: ["Month", "Type", "Amount", "Cumulative"],
+        rows: model.months.map((row) => ({
+          cells: [row.month, row.kind === "actual" ? "Billed" : "Forecast", money(row.amount), money(row.cum)],
+        })),
+      },
+      ...(input.changes?.length ? [{ heading: "Change log", kind: "list" as const, rows: input.changes.map((line) => ({ cells: [line.replace(/^- /, "")] })) }] : []),
+      ...boardChip("Open pay app", input.payappUrl),
+    ],
+    alerts: [],
+    next_move: null,
+  };
+}
 const logLines = (g: Got) => (g.change_log ?? []).slice(0, 5).map((c) => `- v${c.version} · ${c.at.slice(0, 10)} · ${c.who ?? "member"} · ${c.what}${c.why ? ` (why: ${c.why})` : ""}`);
 
 // ---------- cpm_activities ----------
@@ -113,9 +232,18 @@ export const cpmActivities = defineTool({
       const g = await getReport(sb, job, "cpm", args.version);
       await audit(sb, job, "cpm_activities", "view_cpm_activities", null);
       if (!g.found) {
+        const presented = presentStyledCard(ganttScheduleCard({
+          jobLabel: named(job),
+          completion: g.contract_completion_date ?? null,
+          activities: [],
+          countLine: "No saved CPM",
+          showMoney,
+          empty: "No approved CPM is saved for this job yet.",
+        }));
         return guide(
-          { ...text(`${prefix(job)}No approved CPM is saved for this job yet, so there's no activity list to hand over. Contract completion: ${g.contract_completion_date ?? "Needed"}.\nBuild and approve the baseline first, then save it as version 1.`), structuredContent: { found: false, activities: [], contract_completion_date: g.contract_completion_date ?? null } },
+          { ...text(presented.text), structuredContent: { found: false, activities: [], contract_completion_date: g.contract_completion_date ?? null, card: presented.card, html: presented.html }, _meta: { ...cardWidgetMeta } },
           "No saved CPM: follow the no-schedule flow, then after the PM approves the baseline call living_report_save with report_type cpm and base_version 0. Never draw a CPM or billing split from an earlier chat.",
+          "The card is shown. Add nothing after it.",
         );
       }
       const data = showMoney ? (g.data ?? {}) : stripMoney(g.data ?? {});
@@ -125,30 +253,31 @@ export const cpmActivities = defineTool({
       const tie = showMoney ? tieCheck(costLoadTotal(acts), contract) : null;
       const tia = tiaResult(data.tia ?? null);
       const delay = readDelay(data as Record<string, unknown>);
-      const holidays = reportCalendarHolidays(data);
       const of = acts.filter(isOwnerFurnished);
       const ofValued = ownerFurnishedWithValue(acts);
       const scheduleBoard = await signedJobPages((fn, a) => sb.rpc(fn, a), job.job_id, job.scope);
-      const lines = [
-        ...(scheduleBoard.schedule ? [pageLine("schedule", scheduleBoard.schedule)] : []),
-        CPM_REQUIRED_TOP,
-        `${named(job)} · ${LIVING_LABEL.cpm} ${stamp(g)}`,
-        `Contract completion: ${g.contract_completion_date ?? "Needed"}`,
-        `Count check: ${showMoney ? count.line : `${count.dated} of ${count.expected} activities dated.`}${count.complete ? "" : ` Missing dates: ${count.missing.join(", ")}.`}`,
-        ...(tie ? [`Tie: ${tie.line}`] : []),
-        ...CPM_GANTT_SPEC,
-        ...(showMoney && of.length ? [`Owner-furnished (schedule-only, $0.00 in ALP billing): ${of.map((a) => a.id).join(", ")}.${ofValued.length ? ` Saved with a value that is excluded here: ${ofValued.map((a) => `${a.id} ${money(a.value ?? 0)}`).join(", ")}.` : ""}`] : []),
-        ...(showMoney ? [`Earned to date: ${money(earnedToDate(acts))}`] : []),
-        ...(delay ? [delay.line] : tia ? [`Delay fragnet result (${tia.fragnet}): ${tia.math} ${tia.statement}`] : []),
-        ...ganttPins(delay),
-        "",
-        `Activities (${acts.length}):`,
-        ...acts.map((a) => activityLine(a, showMoney, holidays)),
-      ];
+      const countLine = `${showMoney ? count.line : `${count.dated} of ${count.expected} activities dated.`}${count.complete ? "" : ` Missing dates: ${count.missing.join(", ")}.`}`;
+      const presented = presentStyledCard(ganttScheduleCard({
+        jobLabel: named(job),
+        version: g.version,
+        dataDate: g.data_date ?? null,
+        completion: g.contract_completion_date ?? null,
+        activities: acts,
+        countLine,
+        tieLine: tie?.line ?? null,
+        tieFails: tie ? !tie.ties : false,
+        earned: showMoney ? money(earnedToDate(acts)) : null,
+        showMoney,
+        delay,
+        scheduleUrl: scheduleBoard.schedule ?? null,
+      }));
+      const furnished = showMoney && of.length ? `Owner-furnished (schedule-only, $0.00 in ALP billing): ${of.map((a) => a.id).join(", ")}.${ofValued.length ? ` Saved with a value that is excluded here: ${ofValued.map((a) => `${a.id} ${money(a.value ?? 0)}`).join(", ")}.` : ""}` : "";
       return guide(
         {
-          ...text(lines.join("\n")),
+          ...text(presented.text),
           structuredContent: {
+            card: presented.card,
+            html: presented.html,
             found: true,
             version: g.version, data_date: g.data_date ?? null, updated_at: g.updated_at ?? null, updated_by: g.updated_by_name ?? null,
             contract_completion_date: g.contract_completion_date ?? null,
@@ -162,8 +291,14 @@ export const cpmActivities = defineTool({
             no_financials: !showMoney,
             activities: acts.map((a) => ({ ...a, owner_furnished: isOwnerFurnished(a), billable_value: showMoney ? (isOwnerFurnished(a) ? 0 : a.value) : null })),
           },
+          _meta: { ...cardWidgetMeta },
         },
-        "View-only asks (e.g. \"pull up the schedule\"): build a NEW private view or artifact; never update or replace the saved shared master or an existing shared artifact unless the user explicitly asks to update or save it, and confirm first. Use structuredContent.activities, count_check, tie, contract_completion_date and tia exactly. Split billing by each activity's working days from these dates; never invent a date, duration, float or dollar figure. Remaining forecast after a % complete or pay app update = contract − the higher of billed and earned to date, spread over open activities; never add earned dollars on top of the old remaining spread.",
+        "View-only asks (e.g. \"pull up the schedule\"): the markdown card is the answer. Paste it in the chat. Never update or replace the saved shared master or an existing shared artifact unless the user explicitly asks to update or save it, and confirm first. Use structuredContent.activities, count_check, tie, contract_completion_date and tia exactly. Split billing by each activity's working days from these dates; never invent a date, duration, float or dollar figure. Remaining forecast after a % complete or pay app update = contract − the higher of billed and earned to date, spread over open activities; never add earned dollars on top of the old remaining spread.",
+        CPM_REQUIRED_TOP,
+        CPM_GANTT_SPEC.join("\n"),
+        ...(furnished ? [furnished] : []),
+        ...(delay ? [] : tia ? [`Delay fragnet result (${tia.fragnet}): ${tia.math} ${tia.statement}`] : []),
+        ...ganttPins(delay),
         showMoney ? "" : "Super view: no dollars. Never show or estimate any $ value, billing or forecast.",
       );
     }),
@@ -190,10 +325,16 @@ export const livingReportGet = defineTool({
       const iorUrl = board.ior ?? null;
       const scheduleUrl = board.schedule ?? null;
       if (!g.found && type === "billing_forecast" && job.scope === "full") {
-        // 0.8.17: styled empty pay-app card with the hosted page and a Next move.
+        const presented = presentStyledCard(payAppScheduleCard({
+          jobLabel: named(job),
+          payappUrl,
+          empty: "Send the billed-to-date figure and the latest pay app. Athena builds the forecast from the saved schedule, ties it to the contract, and saves it as version 1 after the PM approves.",
+          missing: ["Billed to date", "Latest pay app (SOV lines)"],
+        }));
         return guide(
-          { ...text(`${prefix(job)}${emptyCard("pay_app", `${named(job)}`, "Send the billed-to-date figure and the latest pay app; Athena builds the forecast from the saved schedule, ties it to the contract, and saves it as version 1 after the PM approves.", ["Billed to date", "Latest pay app (SOV lines)"], payappUrl)}`), structuredContent: { found: false, report_type: type, version: 0 } },
+          { ...text(presented.text), structuredContent: { found: false, report_type: type, version: 0, card: presented.card, html: presented.html }, _meta: { ...cardWidgetMeta } },
           `Nothing saved: build the ${label} from Athena's data, mark it "Draft: not saved", and after the PM says yes call living_report_save with base_version 0.`,
+          "The card is shown. Add nothing after it.",
         );
       }
       if (!g.found) {
@@ -213,9 +354,32 @@ export const livingReportGet = defineTool({
         ...(scheduleUrl ? [{ label: "Open schedule", href: scheduleUrl }] : []),
       ];
       const linkCard = type === "ior" || type === "cpm" ? boardCardText(`${named(job)}`, boardLinks) : "";
+      if (type === "billing_forecast" && job.scope === "full") {
+        const presented = presentStyledCard(payAppScheduleCard({
+          jobLabel: named(job),
+          version: g.version,
+          dataDate: g.data_date ?? null,
+          billing: (data as { billing?: Billing }).billing ?? null,
+          contract,
+          tieLine: tie?.line ?? null,
+          tieFails: tie ? !tie.ties : false,
+          payappUrl,
+          changes: log,
+        }));
+        return guide(
+          {
+            ...text(presented.text),
+            structuredContent: { found: true, report_type: type, version: g.version, data_date: g.data_date ?? null, updated_at: g.updated_at ?? null, updated_by: g.updated_by_name ?? null, contract_completion_date: g.contract_completion_date ?? null, tie, data: data as never, change_log: g.change_log ?? [], no_financials: false, board_links: boardLinks, card: presented.card, html: presented.html },
+            _meta: { ...cardWidgetMeta },
+          },
+          `Say "Picked up v${g.version}${g.updated_by_name ? `, last updated by ${g.updated_by_name}` : ""}." For a view-only ask, the markdown card is the answer. Paste it in the chat. Never update or replace the saved shared master or an existing shared artifact. Only when the user explicitly asks to update or save it, confirm first, then to save the update ask "${LIVING_SAVE_ASK}" and only after a yes call living_report_save with base_version ${g.version}.`,
+          PAY_APP_VIEW_SPEC.join("\n"),
+          "The card is shown. Add nothing after it.",
+        );
+      }
       return guide(
         {
-          ...text([...(type === "billing_forecast" && job.scope === "full" ? [payAppView({ title: `${named(job)}`, version: g.version, dataDate: g.data_date ?? null, billing: (data as { billing?: Billing }).billing ?? null, contract, pageUrl: payappUrl }), "", "---"] : []), ...(linkCard ? [linkCard] : type === "dashboard" && job.scope === "full" ? [pageLine("portfolio dashboard", pageUrl("portfolio", job.company_id))] : []), LIVING_REQUIRED_TOP, `${named(job)} · ${label}`, stamp(g), ...(tie ? [`Tie: ${tie.line}`] : []), ...(type === "cpm" ? [...CPM_GANTT_SPEC, ...(readDelay(data as Record<string, unknown>) ? [readDelay(data as Record<string, unknown>)!.line] : []), ...ganttPins(readDelay(data as Record<string, unknown>))] : []), ...(type === "billing_forecast" && job.scope === "full" ? PAY_APP_VIEW_SPEC : []), ...(type === "ior" && job.scope === "full" ? IOR_VIEW_SPEC : []), ...(type === "dashboard" && job.scope === "full" ? PORTFOLIO_VIEW_SPEC : []), "", "Change log (latest 5):", ...(log.length ? log : ["- None yet."])].join("\n")),
+          ...text([...(linkCard ? [linkCard] : type === "dashboard" && job.scope === "full" ? [pageLine("portfolio dashboard", pageUrl("portfolio", job.company_id))] : []), LIVING_REQUIRED_TOP, `${named(job)} · ${label}`, stamp(g), ...(tie ? [`Tie: ${tie.line}`] : []), ...(type === "cpm" ? [...CPM_GANTT_SPEC, ...(readDelay(data as Record<string, unknown>) ? [readDelay(data as Record<string, unknown>)!.line] : []), ...ganttPins(readDelay(data as Record<string, unknown>))] : []), ...(type === "ior" && job.scope === "full" ? IOR_VIEW_SPEC : []), ...(type === "dashboard" && job.scope === "full" ? PORTFOLIO_VIEW_SPEC : []), "", "Change log (latest 5):", ...(log.length ? log : ["- None yet."])].join("\n")),
           structuredContent: { found: true, report_type: type, version: g.version, data_date: g.data_date ?? null, updated_at: g.updated_at ?? null, updated_by: g.updated_by_name ?? null, contract_completion_date: g.contract_completion_date ?? null, tie, data: data as never, change_log: g.change_log ?? [], no_financials: job.scope !== "full", board_links: boardLinks },
         },
         `Say "Picked up v${g.version}${g.updated_by_name ? `, last updated by ${g.updated_by_name}` : ""}." For a view-only ask, build a NEW private view or artifact from structuredContent.data in the same layout; never update or replace the saved shared master or an existing shared artifact. Only when the user explicitly asks to update or save it, confirm first, then to save the update ask "${LIVING_SAVE_ASK}" and only after a yes call living_report_save with base_version ${g.version}.`,

@@ -1,4 +1,4 @@
-import { htmlBlock, renderMarkdown } from "./markdown";
+import { CLAUDE_CHAT_CARD_LINE, htmlBlock, renderMarkdown } from "./markdown";
 import { renderHtml } from "./html";
 import { inferCard } from "./infer";
 import { cardWidgetMeta } from "./widget";
@@ -15,7 +15,7 @@ type Res = {
 };
 
 /** These results open on the card. No sweep, style line, or footer is left outside it. */
-export const CARD_FIRST_TOOLS = new Set(["contract_terms", "pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "athena_hello", "morning_brief", "morning_brief_settings", "report_page_link", "list_open_items", "submittal_log", "submittals_list", "submittals_import", "project_record_search", "submittal_chase"]);
+export const CARD_FIRST_TOOLS = new Set(["contract_terms", "pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "athena_hello", "morning_brief", "morning_brief_settings", "report_page_link", "list_open_items", "submittal_log", "submittals_list", "submittals_import", "project_record_search", "submittal_chase", "cpm_activities", "living_report_get"]);
 
 /** Tools whose plain text is wrapped in a card. Flow tools set their own card. */
 export const CARD_TOOLS = new Set([
@@ -49,6 +49,7 @@ export const CARD_TOOLS = new Set([
   "submittals_import",
   "project_record_search",
   "submittal_chase",
+  "cpm_activities",
 ]);
 
 function isCard(value: unknown): value is CardModel {
@@ -85,7 +86,7 @@ export function attachAthenaCard<R>(tool: string, result: R): R {
     const markdown = renderMarkdown(card);
     const cardText = `${markdown}\n\n${htmlBlock(html)}`;
     const keepBody = !CARD_FIRST_TOOLS.has(tool) && !askJob;
-    const hasHtml = source.includes("REQUIRED VIEW: render this HTML card as-is.");
+    const hasHtml = source.includes(CLAUDE_CHAT_CARD_LINE);
     const hasMarkdown = source.startsWith("## ") && source.includes(card.title);
     const hasPlain = hasHtml && source.includes(card.title);
     // Card-first tools replace the body with the card. A pinned REQUIRED line would be dropped,

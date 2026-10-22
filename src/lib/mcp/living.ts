@@ -382,7 +382,7 @@ export const DELAY_CALLOUT_COLOR = ALERT_COLOR;
 
 /** v0.8.10: full Gantt spec, sent right after the Tie line so every host draws the same view. Blue and gray only, except the delay callout (DELAY_CALLOUT_COLOR). */
 export const CPM_GANTT_SPEC: string[] = [
-  "REQUIRED VIEW: When the user asks to see, show, draw or update the schedule, build ONE styled Gantt as an artifact or canvas, never a plain list or a default chart. Spec:",
+  "REQUIRED VIEW: When the user asks to see, show, draw or update the schedule, build ONE styled Gantt as an artifact or canvas, never a plain list or a default chart. In Claude, paste the styled markdown card into the chat answer itself, exactly as written. Never an artifact or a link. Spec:",
   "1. Header: the job name and version, the data date, then the Count check line and the Tie line word for word, then \"Contract completion: <date>\".",
   "2. Layout: a white background, the activity table on the left (ID, Name, Dur WD, Start, Finish, Float, $), and a timeline on the right with month columns and week ticks.",
   "3. Bars: each bar starts at the activity's Start date and ends at its Finish date, both inclusive. Never stretch a bar to the chart edge or the contract completion line. Critical activities (float 0) are solid blue #1E5FED with no tail. Use #1E5FED, the Athena mark; don't use #2563EB. Non-critical activities are gray #9CA3AF, followed by a light-gray float tail that starts the day after Finish and is exactly Float working days long. Milestones (0 WD) are diamonds with no bar. Owner-furnished activities are outlined gray bars from Start to Finish.",
