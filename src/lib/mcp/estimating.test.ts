@@ -757,6 +757,28 @@ describe("intake reuse and takeoff save mode", () => {
     expect(problems(view.text)).toEqual([]);
   });
 
+  it("gives every submitted line its own status and keeps the saved badge", () => {
+    const account = accountTakeoffLines([
+      { ...base, line_no: 1, item: "Continuous footing", basis: "measured", value: 12, unit: "LF" },
+      { ...base, line_no: 2, item: "Slab", basis: "measured", value: -2, unit: "SF" },
+    ]);
+    expect(account.saved).toBe(1);
+    expect(account.rejected).toHaveLength(1);
+    expect(account.statuses[0].status).toMatch(/^Saved\./);
+    expect(account.statuses[0].status).toMatch(/MEASURED/);
+    expect(account.statuses[1].status).toMatch(/^Rejected\./);
+    expect(account.statuses[1].status).toMatch(/zero or more/);
+    const view = renderTakeoff("CCW-005 – Shop", account.lines, settle(account.lines, [], [], { role: "gc", trades: [] }), "Revision used: not stated.", "upsert", account);
+    expect(view.text).toContain("1 of 2 saved");
+    expect(view.text).toContain("Line 1 (Continuous footing): Saved.");
+    expect(view.text).toContain("Line 2 (Slab): Rejected.");
+    expect(view.structured.line_statuses).toEqual([
+      expect.objectContaining({ item: "Continuous footing", outcome: "Saved" }),
+      expect.objectContaining({ item: "Slab", outcome: "Rejected" }),
+    ]);
+    expect(problems(view.text)).toEqual([]);
+  });
+
   it("accounts for every line in a 92-line save, including null quantities and repeated names", () => {
     const rows = Array.from({ length: 92 }, (_, i) => {
       const hold = i < 13;

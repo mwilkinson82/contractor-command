@@ -154,15 +154,62 @@ describe("0.8.14 page rules and rendering", () => {
     });
     expect(dumped).toContain("Price the switchgear delay");
     expect(dumped).not.toContain("A4634D");
-    expect(dumped).toContain("Source CPM version");
+    expect(dumped).not.toContain("Source CPM version");
     expect(dumped).not.toContain("$3.00");
-    expect(dumped).toContain(">3<");
     expect(dumped).toContain("$226,000.00");
     expect(dumped).not.toMatch(/\{&quot;|{"source"/);
     expect(dumped).toContain("#1E3A5F");
     expect(dumped).toContain("#1E5FED");
     expect(dumped).toContain("Marshall-directed risk allowance");
     expect(esc(`"'&`)).toBe("&quot;&#39;&amp;");
+  });
+  it("formats job 2701 margins as percents and hides internal IOR fields", () => {
+    const html = renderReportBody({
+      page: "ior",
+      job_number: "2701",
+      job_name: "Harbor Point",
+      report: {
+        found: true,
+        version: 4,
+        scope: "full",
+        contract_total: 1400000,
+        forecast_total: 1400000,
+        data: {
+          audience: "internal",
+          source_cpm_version: 3,
+          allocation_status: "draft",
+          budgeted_margin: 0.161,
+          margin_if_fully_incurred: 0.14714285714285713,
+          billing: "10,000 / 8,000",
+          plan: 10000,
+          risk_allocations: [{ id: "IOR-01", description: "Switchgear delay holds the gear", amount: 10000, allocation_status: "open" }],
+          top_three_actions: [{ id: "IOR-02", action: "Price the ceiling conflict", owner: "Elena Brooks", status: "open" }],
+          risks: [{ id: "IOR-03", description: "Storm line conflict", exposure: 25000, status: "risk" }],
+        },
+      },
+    });
+    expect(html).toContain("16.1%");
+    expect(html).toContain("14.7%");
+    expect(html).not.toContain("$0.16");
+    expect(html).not.toContain("0.14714285714285713");
+    expect(html).toContain("$10,000.00 / $8,000.00");
+    expect(html).toContain("$10,000.00");
+    expect(html).toContain("Switchgear delay holds the gear");
+    expect(html).toContain("Price the ceiling conflict");
+    expect(html).toContain("Storm line conflict");
+    expect(html).not.toContain("IOR-01");
+    expect(html).not.toContain("IOR-02");
+    expect(html).not.toContain("IOR-03");
+    expect(html).not.toContain("Audience");
+    expect(html).not.toContain("Source CPM version");
+    expect(html).not.toMatch(/Allocation [Ss]tatus/);
+    expect(html).not.toContain(">Id<");
+    expect(html).toContain("#1E3A5F");
+    expect(html).toContain("#1E5FED");
+    const allocations = html.slice(html.indexOf("Risk allocations"), html.indexOf("Top three actions"));
+    expect(allocations).not.toContain("#DC2626");
+    const storm = html.slice(html.indexOf("Storm line conflict") - 200, html.indexOf("Storm line conflict") + 80);
+    expect(storm).toContain("#DC2626");
   });
 });
 
@@ -183,10 +230,11 @@ describe("0.8.14 share page route", () => {
 });
 
 describe("0.8.14 guidance and migration", () => {
-  it("living_report_get/save offer the permanent link; server instructions mention report_page_link", () => {
+  it("living_report_get/save offer the job board links; server instructions mention report_page_link", () => {
     const src = readFileSync("src/lib/mcp/tools/living-tools.ts", "utf8");
     expect(src).toContain("PERMANENT_LINK_ASK");
-    expect(PERMANENT_LINK_ASK).toBe("Want this as a permanent link I keep updated?");
+    expect(PERMANENT_LINK_ASK).toBe("Want the job board links I keep updated? Items (/items), the IOR (/ior), the field board (/field), and the schedule.");
+    expect(PERMANENT_LINK_ASK.toLowerCase()).not.toContain("permanent");
     expect(readFileSync("src/lib/mcp/index.ts", "utf8")).toMatch(/reportPageLink, reportPageShare, reportPageShareRevoke[,\]]/);
   });
   it("migration is additive, hash-only, anon only on the open function, not applied", () => {

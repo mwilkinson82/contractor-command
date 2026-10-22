@@ -993,6 +993,95 @@ export function cleanCsv(text: string): string {
     .join("\n");
 }
 
+export type TakeoffAttempt = {
+  line_no: number;
+  item: string;
+  outcome: "saved" | "rejected" | "held";
+  message: string;
+  line: StoredLine | null;
+  numbered: boolean;
+};
+
+function attemptMessage(e: unknown): string {
+  const raw = e instanceof Error ? e.message : "This line was not saved.";
+  return raw.replace(/\s*Nothing was saved\.?/g, "").replace(/^Line \d+ \([^)]*\):\s*/, "").trim();
+}
+
+/** One status per submitted line. A bad line does not discard the lines that pass. */
+export function classifyTakeoffLines(
+  rows: LineIn[],
+  convention: EstimateConvention = CONVENTIONS.as_drawn,
+): TakeoffAttempt[] {
+  const given = rows.map((r) => r.line_no).filter((n): n is number => typeof n === "number");
+  if (given.length && given.length !== rows.length) {
+    return rows.map((raw, i) => ({
+      line_no: raw.line_no ?? i + 1,
+      item: raw.item?.trim() || "this line",
+      outcome: "rejected" as const,
+      message: "Number every line, or leave the numbers off and Athena will number them.",
+      line: null,
+      numbered: typeof raw.line_no === "number",
+    }));
+  }
+  const prepared = new Map<number, Omit<StoredLine, "line_no">>();
+  const built: TakeoffAttempt[] = rows.map((raw, i) => {
+    const item = raw.item?.trim() || "this line";
+    const lineNo = raw.line_no ?? i + 1;
+    try {
+      rejectPlaceholderLines([raw]);
+      prepared.set(i, applyConvention(prepareLine(raw), raw, convention));
+      return {
+        line_no: lineNo,
+        item,
+        outcome: "saved" as const,
+        message: "",
+        line: null,
+        numbered: typeof raw.line_no === "number",
+      };
+    } catch (e) {
+      return {
+        line_no: lineNo,
+        item,
+        outcome: "rejected" as const,
+        message: attemptMessage(e),
+        line: null,
+        numbered: typeof raw.line_no === "number",
+      };
+    }
+  });
+  const savedAt = built.map((row, i) => (row.outcome === "saved" ? i : -1)).filter((i) => i >= 0);
+  const numbers = given.length ? savedAt.map((i) => rows[i].line_no as number) : savedAt.map((_, n) => n + 1);
+  if (new Set(numbers).size !== numbers.length) {
+    for (const i of savedAt) {
+      built[i] = { ...built[i], outcome: "rejected", message: "Each line number is used once.", line: null };
+      prepared.delete(i);
+    }
+    return built;
+  }
+  savedAt.forEach((i, n) => {
+    const line = { ...prepared.get(i)!, line_no: numbers[n] };
+    built[i] = {
+      ...built[i],
+      line_no: numbers[n],
+      line,
+      message: line.math.replace(/\s+/g, " ").trim(),
+    };
+  });
+  return built;
+}
+
+/** Badge plus one status sentence per submitted line. Saved and Rejected stay the row words. */
+export function saveStatusLines(attempts: TakeoffAttempt[]): string[] {
+  const saved = attempts.filter((row) => row.outcome === "saved").length;
+  return [
+    `${saved} of ${attempts.length} saved`,
+    ...attempts.map((row) => {
+      const word = row.outcome === "saved" ? "Saved" : row.outcome === "rejected" ? "Rejected" : "Not written";
+      return `- Line ${row.line_no} (${row.item}): ${word}. ${row.message}`;
+    }),
+  ];
+}
+
 export function prepareLines(
   rows: LineIn[],
   convention: EstimateConvention = CONVENTIONS.as_drawn,
@@ -1566,11 +1655,14 @@ export function mergeTakeoffLines(
 
 export type TakeoffRejection = { line_no: number; item: string; reason: string };
 
+export type TakeoffLineStatus = { line_no: number; item: string; outcome: "Saved" | "Rejected"; status: string };
+
 export type TakeoffAccount = {
   lines: StoredLine[];
   rejected: TakeoffRejection[];
   sent: number;
   saved: number;
+  statuses: TakeoffLineStatus[];
 };
 
 /** Every incoming line is saved or named in rejected. sent = saved + rejected. */
@@ -1583,6 +1675,7 @@ export function accountTakeoffLines(
   const rejected: TakeoffRejection[] = [];
   const prepared: StoredLine[] = [];
   const numbered: boolean[] = [];
+  const statuses: TakeoffLineStatus[] = [];
   const seen = new Set<number>();
   rows.forEach((raw, i) => {
     const n = raw.line_no ?? i + 1;
@@ -1596,13 +1689,15 @@ export function accountTakeoffLines(
       if (raw.line_no != null) seen.add(raw.line_no);
       prepared.push(line);
       numbered.push(raw.line_no != null);
+      statuses.push({ line_no: line.line_no, item, outcome: "Saved", status: `Saved. ${line.math.replace(/\s+/g, " ").trim()}` });
     } catch (e) {
-      const reason = e instanceof EstimateError ? e.message.replace(/\s*Nothing was saved\.?$/, "") : "This line could not be saved.";
+      const reason = e instanceof EstimateError ? e.message.replace(/\s*Nothing was saved\.?$/, "").replace(/^Line \d+ \([^)]*\):\s*/, "") : "This line could not be saved.";
       rejected.push({ line_no: n, item, reason });
+      statuses.push({ line_no: n, item, outcome: "Rejected", status: `Rejected. ${reason}` });
     }
   });
   const lines = mode === "replace" ? prepared : mergeTakeoffLines(prior, prepared, numbered);
-  return { lines, rejected, sent: rows.length, saved: prepared.length };
+  return { lines, rejected, sent: rows.length, saved: prepared.length, statuses };
 }
 
 export function renderIntake(
@@ -1738,7 +1833,7 @@ export function renderTakeoff(
   state: ReturnType<typeof settle>,
   revision: string,
   saveMode?: "upsert" | "replace",
-  account?: { sent: number; saved: number; rejected: TakeoffRejection[] },
+  account?: TakeoffAccount,
 ): { text: string; structured: Record<string, unknown>; guidance: string[] } {
   const ordered = [...linesIn].sort(
     (a, b) =>
@@ -1764,10 +1859,8 @@ export function renderTakeoff(
     `${job} · Takeoff`,
     ...(account
       ? [
+          `${account.saved} of ${account.sent} saved`,
           `Sent ${account.sent}. Saved ${account.saved}. Rejected ${account.rejected.length}.`,
-          ...(account.rejected.length
-            ? ["Rejected", ...account.rejected.map((r) => `- Line ${r.line_no} (${r.item}): ${r.reason}`)]
-            : []),
         ]
       : []),
     coverageLine(linesIn),
@@ -1780,10 +1873,12 @@ export function renderTakeoff(
         ? ["This save replaced the takeoff. Only the lines in this call remain."]
         : []),
     "Each line",
-    ...rows.map(
-      (r) =>
-        `- ${r.title} (${r.ref}). ${r.basis ?? "No basis"}. Sheet ${cite(r.sheet, r.detail)}. Math: ${r.math ?? "none"}.`,
-    ),
+    ...(account?.statuses.length
+      ? account.statuses.map((row) => `- Line ${row.line_no} (${row.item}): ${row.status}`)
+      : rows.map(
+          (r) =>
+            `- ${r.title} (${r.ref}). ${r.basis ?? "No basis"}. Sheet ${cite(r.sheet, r.detail)}. Math: ${r.math ?? "none"}.`,
+        )),
     ...state.stale.map(
       (r) => `An earlier call on ${r} does not match the current item, so it is not applied.`,
     ),
@@ -1806,7 +1901,7 @@ export function renderTakeoff(
     "- Contact area is listed ahead of concrete and reinforcing.",
     "- A markup image is included only when a line names one.",
     "",
-    ...takeoffCard(sheetRows),
+    ...takeoffCard(sheetRows, account?.statuses),
     "",
     "Spreadsheet",
     "```",
@@ -1821,22 +1916,33 @@ export function renderTakeoff(
       layout: estimateLayout(),
       coverage: coverageLine(linesIn),
       counts: state.counts,
-      ...(account
-        ? { sent: account.sent, saved: account.saved, rejected: account.rejected.length, rejected_lines: account.rejected }
-        : {}),
       checklist_gaps: foundationGapPrompts(linesIn),
       lines: rows.map((r) => ({
         ...r,
         basis_label: r.basis,
         spec_term: r.basis === "MEASURED" ? "READ" : r.basis === "DEDUCED" ? "DERIVED" : null,
         verify: r.status === "open" || r.holdsBid || r.confidence === "low" || Boolean(r.missing),
+        status: account?.statuses.find((row) => row.line_no === Number(String(r.ref).replace(/^T-/, "")))?.status ?? null,
       })),
+      ...(account
+        ? {
+            sent: account.sent,
+            saved: account.saved,
+            rejected: account.rejected.length,
+            rejected_lines: account.rejected,
+            saved_badge: `${account.saved} of ${account.sent} saved`,
+            line_statuses: account.statuses,
+          }
+        : {}),
       checklist: state.checklist,
       settled: state.settled,
       spreadsheet: { grouped_csv: grouped, xlsx_base64: bytesToBase64(takeoffXlsx(sheetRows)) },
     },
     guidance: [
       "Show the takeoff card grouped by trade or system, with MEASURED or DEDUCED and a Verify flag. Offer the CSV and the xlsx from spreadsheet.",
+      ...(account?.statuses.length
+        ? ["Put each line_statuses status on its own row. Do not fold those row messages into one note under the card."]
+        : []),
       "Show basis_label. READ means MEASURED. DERIVED means DEDUCED.",
       "Do not price a final bid from this takeoff until settled is true.",
     ],

@@ -9,7 +9,7 @@ export const GETTING_STARTED_GUIDANCE =
   "Show the getting-started card first. Its headline example is Hey Athena, let's get started. @Athena is only the backup.";
 
 export const GETTING_STARTED_RULE =
-  " When the member says let's get started, let's get going, getting started, or Hey Athena, getting started, call getting_started and show that card. On a member's first tool call, show the getting-started card before the rest of the reply. That card's headline example is Hey Athena, let's get started. @Athena is only the backup. getting_started opens first-job setup when there is no job, and the morning meeting or the which-job card when there is a job. Do not answer the setup questions for the member.";
+  " When the member says Hey Athena, let's get started, Athena, let's get started, let's get going, getting started, or Hey Athena, getting started, call getting_started and show that card. Let's get started runs guided onboarding: first job setup for a new member, and the morning meeting for a member who already has jobs. On a member's first tool call, show the getting-started card before the rest of the reply. That card's headline example is Hey Athena, let's get started. Good morning Athena and Hey Athena, what's on my plate today? call athena_hello or morning_brief. @Athena is only the backup. Do not answer the setup questions for the member.";
 
 export function gettingStartedCard(): CardModel {
   return {

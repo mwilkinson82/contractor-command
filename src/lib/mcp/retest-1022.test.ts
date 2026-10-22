@@ -139,12 +139,15 @@ describe("morning brief ranks ahead of email and calendar", () => {
     ]) {
       expect(tool.description, phrase).toContain(phrase);
     }
-    expect(tool.description.toLowerCase()).toContain("not email or calendar");
+    expect(tool.description).toContain("From your inbox and calendar");
     expect(tool.description.toLowerCase()).toContain("construction morning brief");
+    expect(tool.description).toContain("emails that came in overnight");
+    expect(tool.description).toContain("unanswered emails that need a reply");
+    expect(tool.description).toContain("today's meetings");
     expect(tool.name).toBe("morning_brief");
-    expect(tool.description.split(/[.!?]+/).map((part) => part.trim()).filter(Boolean)).toEqual([tool.description.replace(/\.$/, "")]);
+    expect(tool.description.split(/[.!]+/).map((part) => part.trim()).filter(Boolean)).toEqual([tool.description.replace(/\.$/, "")]);
     const instructions = readFileSync("src/lib/mcp/index.ts", "utf8");
-    for (const phrase of ["Athena, good morning", "Hey Athena", "Good morning Athena", "Morning Athena", "Athena at the start or mid-sentence", "Athina", "Athen", "Atena", "not email or calendar", "morning_brief"]) {
+    for (const phrase of ["Athena, good morning", "Hey Athena", "Good morning Athena", "Morning Athena", "Athena at the start or mid-sentence", "Athina", "Athen", "Atena", "From your inbox and calendar", "morning_brief", "athena_hello"]) {
       expect(instructions, phrase).toContain(phrase);
     }
     expect(instructions).toContain("call morning_brief");

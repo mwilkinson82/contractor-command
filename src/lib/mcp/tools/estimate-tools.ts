@@ -26,7 +26,6 @@ import {
   renderDocReview,
   renderExport,
   renderGaps,
-  rejectPlaceholderLines,
   renderIntake,
   renderMark,
   renderStatus,
@@ -43,6 +42,7 @@ import {
   type StoredLine,
   type SubBid,
 } from "../estimating";
+import { errorCard, errorMessage } from "../error-card";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import { audit, prefix, resolveJob } from "../jobs";
 import { htmlBlock, renderMarkdown } from "../cards/markdown";
@@ -324,6 +324,52 @@ function noEstimate(jobNumber: string) {
     "There is no estimate on this job yet. Do not say the call failed.",
   );
 }
+async function existingJobs(sb: Sb): Promise<string[]> {
+  try {
+    const { data, error } = await sb.from("mcp_jobs").select("job_number, name");
+    if (error || !Array.isArray(data)) return [];
+    return (data as { job_number?: string; name?: string | null }[])
+      .filter((row) => row.job_number?.trim())
+      .map((row) => `${row.job_number}${row.name ? ` (${row.name})` : ""}`);
+  } catch {
+    return [];
+  }
+}
+
+function missingJobCard(jobNumber: string, detail: string, jobs: string[]) {
+  const named = [...detail.matchAll(/job ([^()\s]+) \(([^)]+)\)/g)].map((hit) => `${hit[1]} (${hit[2]})`);
+  const choices = [...new Set([...named, ...jobs])];
+  const card: CardModel = {
+    state: "ask",
+    title: "Job isn't on file",
+    job: jobNumber,
+    ask: { prompt: `Create job ${jobNumber}, or pick an existing job?` },
+    sections: [
+      {
+        heading: "Nothing was created",
+        kind: "list",
+        rows: [{ cells: [`Job ${jobNumber} is not on file. This save did not create it.`] }],
+      },
+      ...(choices.length
+        ? [{
+            heading: "Existing jobs",
+            kind: "list" as const,
+            rows: choices.map((job) => ({ cells: [job], tone: "action" as const })),
+          }]
+        : []),
+    ],
+    next_move: `Say yes to create ${jobNumber}, or name the job to use. Nothing was saved.`,
+  };
+  const html = renderHtml(card);
+  return guide(
+    {
+      ...text(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`),
+      structuredContent: { report: "Takeoff", found: false, created: false, card, html },
+    },
+    "Nothing was created. Do not create the job unless the member says yes. If they name a different job, save the takeoff on that job.",
+  );
+}
+
 function emptyTakeoff(label: string) {
   return guide(
     {
@@ -604,7 +650,14 @@ export const estimateTakeoffSave = defineTool({
   handler: (args, ctx) =>
     run("estimate_takeoff_save", ctx, { jobNumber: args.job_number }, async (sb) => {
       try {
-        const job = await resolveJob(sb, args.job_number, args.company_id, "write");
+        let job;
+        try {
+          job = await resolveJob(sb, args.job_number, args.company_id, "write");
+        } catch (e) {
+          const message = e instanceof Error ? e.message : "";
+          if (/No job /i.test(message)) return missingJobCard(args.job_number, message, await existingJobs(sb));
+          throw e;
+        }
         const mode = args.mode ?? "upsert";
         const prior = await load(sb, job.job_id);
         const saved = await savedProfileRecord(sb, job.job_id);
@@ -622,18 +675,17 @@ export const estimateTakeoffSave = defineTool({
             throw e;
           });
         const account = accountTakeoffLines(args.lines.map(asLine), convention, prior.lines, mode);
-        const lines = account.lines;
         const revision = args.revision ?? revisionUsed(prior.setup.documents);
         const scales = (args.scales ?? []).map((s) => ({ ...s, scale: normalizeScale(s.scale) }));
         if (account.saved === 0) {
           const state = settle(prior.lines, prior.gaps, prior.verdicts, { role: prior.setup.role, trades: prior.setup.trades });
-          return reply(renderTakeoff(`${prefix(job)}${job.name}`, prior.lines, state, revision, mode, account));
+          return reply(renderTakeoff(`${prefix(job)}${job.name}`, prior.lines, state, revision, undefined, account));
         }
         await rpc(sb, "mcp_estimate_takeoff_save", {
           _job: job.job_id,
           _revision: revision,
           _scales: scales,
-          _lines: lines,
+          _lines: account.lines,
         });
         const loaded = await load(sb, job.job_id);
         const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, {
@@ -649,9 +701,9 @@ export const estimateTakeoffSave = defineTool({
           mode,
           account,
         );
-        return reply({ ...view, structured: { ...view.structured, version: loaded.version } });
+        return reply({ ...view, structured: { ...view.structured, version: loaded.version, created: false } });
       } catch (e) {
-        caught(e);
+        return errorCard("Takeoff", errorMessage(e, "The takeoff could not be saved."));
       }
     }),
 });
@@ -664,19 +716,23 @@ export const estimateTakeoffGet = defineTool({
   annotations: READ,
   handler: (args, ctx) =>
     run("estimate_takeoff_get", ctx, { jobNumber: args.job_number }, async (sb) => {
-      const job = await resolveJob(sb, args.job_number, args.company_id, "write");
-      const loaded = await load(sb, job.job_id);
-      await audit(sb, job, "estimate_takeoff_get", "view_estimate_takeoff", null);
-      if (!loaded.version) return emptyTakeoff(`${prefix(job)}${job.name}`);
-      const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, {
-        role: loaded.setup.role,
-        trades: loaded.setup.trades,
-      });
-      const view = renderTakeoff(`${prefix(job)}${job.name}`, loaded.lines, state, loaded.revision);
-      return reply({
-        ...view,
-        structured: { ...view.structured, found: true, version: loaded.version },
-      });
+      try {
+        const job = await resolveJob(sb, args.job_number, args.company_id, "write");
+        const loaded = await load(sb, job.job_id);
+        await audit(sb, job, "estimate_takeoff_get", "view_estimate_takeoff", null);
+        if (!loaded.version) return emptyTakeoff(`${prefix(job)}${job.name}`);
+        const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, {
+          role: loaded.setup.role,
+          trades: loaded.setup.trades,
+        });
+        const view = renderTakeoff(`${prefix(job)}${job.name}`, loaded.lines, state, loaded.revision);
+        return reply({
+          ...view,
+          structured: { ...view.structured, found: true, version: loaded.version },
+        });
+      } catch (e) {
+        return errorCard("Takeoff", errorMessage(e, "The takeoff could not be read."));
+      }
     }),
 });
 
@@ -692,13 +748,16 @@ export const estimateTakeoffExport = defineTool({
   annotations: READ,
   handler: (args, ctx) =>
     run("estimate_takeoff_export", ctx, { jobNumber: args.job_number }, async (sb) => {
-      const job = await resolveJob(sb, args.job_number, args.company_id, "write");
-      const loaded = await load(sb, job.job_id);
-      if (!loaded.lines.length)
-        throw new ToolError("No takeoff is saved for this job yet. Nothing was exported.");
-      await audit(sb, job, "estimate_takeoff_export", "export_estimate_takeoff", null);
-      const view = renderExport(`${prefix(job)}${job.name}`, loaded.lines, args.format ?? "csv");
-      return reply(view);
+      try {
+        const job = await resolveJob(sb, args.job_number, args.company_id, "write");
+        const loaded = await load(sb, job.job_id);
+        if (!loaded.lines.length) return errorCard("Takeoff", "No takeoff is saved for this job yet. Nothing was exported.");
+        await audit(sb, job, "estimate_takeoff_export", "export_estimate_takeoff", null);
+        const view = renderExport(`${prefix(job)}${job.name}`, loaded.lines, args.format ?? "csv");
+        return reply(view);
+      } catch (e) {
+        return errorCard("Takeoff", errorMessage(e, "The takeoff could not be exported."));
+      }
     }),
 });
 

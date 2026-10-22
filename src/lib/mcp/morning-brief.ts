@@ -438,11 +438,24 @@ function portfolio(jobs: BriefJob[], tagged: Tagged[], now: Date): { rows: CardR
   return { rows, overdue, open };
 }
 
+function inboxSection(): NonNullable<CardModel["sections"]>[number] {
+  return {
+    heading: "From your inbox and calendar",
+    kind: "list",
+    rows: [
+      { cells: ["Emails that came in overnight."], tone: "unknown" },
+      { cells: ["Unanswered emails that need a reply."], tone: "unknown" },
+      { cells: ["Today's meetings."], tone: "unknown" },
+    ],
+  };
+}
+
 export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean; settings?: BriefSettings; now?: Date }): BuiltBrief {
   const now = input.now ?? new Date();
   const settings = input.settings ?? { ...MORNING_BRIEF_DEFAULTS };
   if (!input.jobs.length) {
     const card = firstJobCard(input.hasCompany);
+    card.sections = [inboxSection(), ...(card.sections ?? [])];
     return { card, counts: { open: 0, overdue: 0, due_in_7_days: 0, today: 0 }, openItems: [], todayCount: 0 };
   }
   const viewOf = (job: BriefJob) => briefView(job.seat, job.scope);
@@ -455,8 +468,12 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
   const week = weekRows(input.jobs, now, viewOf);
   const opened = openFor(input.jobs, now, viewOf);
   const forget = forgetRows(tagged, viewOf);
-  const countsForOpen = opened.counts;
-  const sections: CardModel["sections"] = [];
+  const countsForOpen = {
+    open: opened.rows.length,
+    overdue: opened.rows.filter((row) => row.flag === "overdue").length,
+    due_in_7_days: opened.counts.due_in_7_days,
+  };
+  const sections: CardModel["sections"] = [inboxSection()];
   if (view === "executive") {
     const port = portfolio(input.jobs, tagged, now);
     sections.push({ heading: "Portfolio", kind: "list", rows: [{ cells: [`${input.jobs.length} jobs · ${port.open} open · ${port.overdue} overdue`] }] });
@@ -506,7 +523,27 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
   return { card, counts: { ...countsForOpen, today: today.length }, openItems: opened.items, todayCount: today.length };
 }
 
+const WORK_HEADINGS = new Set(["Today", "This week", "Open items", "Don't forget", "Portfolio", "Chases"]);
+
+export function ensureBriefCard(card: CardModel): CardModel {
+  const sections = card.sections ?? [];
+  const hasWork = sections.some((section) => WORK_HEADINGS.has(section.heading) && section.rows.length);
+  const next = card.next_move?.trim() || "Name the job, or say let's get started.";
+  if (hasWork && sections.some((section) => section.heading === "Next move")) return { ...card, next_move: next };
+  if (hasWork) return { ...card, next_move: next };
+  if (sections.some((section) => section.heading === "Next move")) return { ...card, next_move: next };
+  return {
+    ...card,
+    sections: [
+      ...sections,
+      { heading: "Next move", kind: "list", rows: [{ cells: ["Nothing on the list yet, here's my next move."] }] },
+    ],
+    next_move: next,
+  };
+}
+
 export function presentBrief(card: CardModel) {
+  card = ensureBriefCard(card);
   const html = renderHtml(card);
   const body = applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
   return guide(
@@ -515,6 +552,6 @@ export function presentBrief(card: CardModel) {
       _meta: { ...cardWidgetMeta },
       content: [{ type: "text" as const, text: body, _meta: { ...cardWidgetMeta } }],
     },
-    "Card shown. Do not add text.",
+    "Fill the three rows under From your inbox and calendar from the member's mail and calendar: emails that came in overnight, unanswered emails that need a reply, and today's meetings. Keep the job sections after that: schedule, notices, submittals due, overdue items, and what happened yesterday versus what is due today. Do not add text after the card.",
   );
 }

@@ -222,10 +222,14 @@ export function bytesToBase64(bytes: Uint8Array): string {
   return btoa(s);
 }
 
-export function takeoffCard(rows: SheetRow[]): string[] {
-  if (!rows.length) return ["Takeoff card", "- No lines yet."];
+export function takeoffCard(
+  rows: SheetRow[],
+  statuses?: { line_no: number; item: string; outcome: "Saved" | "Rejected"; status: string }[],
+): string[] {
   const lines = ["Takeoff card"];
+  if (!rows.length && !statuses?.length) return ["Takeoff card", "- No lines yet."];
   let group = "";
+  const shown = new Set<string>();
   for (const r of rows) {
     if (r.group !== group) {
       group = r.group;
@@ -233,9 +237,15 @@ export function takeoffCard(rows: SheetRow[]): string[] {
     }
     const qty = r.qty ? `${r.qty} ${r.unit}`.trim() : "blank";
     const verify = r.verify ? ` ${r.verify}.` : "";
+    const status = statuses?.find((row) => row.item === r.item || `T-${row.line_no}` === r.ref);
+    if (status) shown.add(`${status.line_no}:${status.item}`);
     lines.push(
-      `- ${r.item} (${r.ref}). ${r.basis || "No basis"}. Sheet ${r.sheet || "not stated"}. Math: ${r.math || "none"}. Qty ${qty}.${verify}`,
+      `- ${status ? `${status.status} ` : ""}${r.item} (${r.ref}). ${r.basis || "No basis"}. Sheet ${r.sheet || "not stated"}. Math: ${r.math || "none"}. Qty ${qty}.${verify}`,
     );
+  }
+  for (const status of statuses ?? []) {
+    if (status.outcome !== "Rejected" || shown.has(`${status.line_no}:${status.item}`)) continue;
+    lines.push(`- Line ${status.line_no} (${status.item}): ${status.status}`);
   }
   return lines;
 }

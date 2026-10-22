@@ -162,7 +162,7 @@
             "member_email": {
               "type": "string",
               "format": "email",
-              "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
             },
             "member_name": {
               "type": "string",
@@ -454,8 +454,8 @@
               "type": "string",
               "enum": [
                 "<$250k",
-                "$250k\u2013$2M",
-                "$2M\u2013$10M",
+                "$250k–$2M",
+                "$2M–$10M",
                 "$10M+"
               ]
             },
@@ -1539,9 +1539,13 @@
                     ]
                   },
                   "critical": {
-                    "type": [
-                      "boolean",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "pct_complete": {
@@ -1877,8 +1881,8 @@
       },
       {
         "name": "report_page_link",
-        "title": "Board link",
-        "description": "Returns the private board link: items opens /items, ior opens /ior, and field opens /field.",
+        "title": "Job board link",
+        "description": "Returns the private job board link: items opens /items, ior opens /ior, and field opens /field.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -2036,7 +2040,7 @@
               "type": "string",
               "maxLength": 320,
               "format": "email",
-              "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
             },
             "name": {
               "type": "string",
@@ -2351,9 +2355,13 @@
                     "maxLength": 80
                   },
                   "total": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "lines": {
@@ -2368,9 +2376,13 @@
                           "maxLength": 300
                         },
                         "qty": {
-                          "type": [
-                            "number",
-                            "null"
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         },
                         "unit": {
@@ -2378,9 +2390,13 @@
                           "maxLength": 20
                         },
                         "amount": {
-                          "type": [
-                            "number",
-                            "null"
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         },
                         "exclusion": {
@@ -2745,9 +2761,13 @@
                       "properties": {
                         "name": {},
                         "value": {
-                          "type": [
-                            "number",
-                            "null"
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         },
                         "unit": {
@@ -2778,15 +2798,23 @@
                     "maxLength": 8
                   },
                   "value": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "qty": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "range": {
@@ -2828,11 +2856,19 @@
                     "maxLength": 40
                   },
                   "method": {
-                    "type": [
-                      "string",
-                      "number",
-                      "boolean",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "markup_ref": {
@@ -2844,11 +2880,19 @@
                     "maxLength": 200
                   },
                   "missing_input": {
-                    "type": [
-                      "string",
-                      "number",
-                      "boolean",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "exclusion": {
@@ -3084,9 +3128,13 @@
                     "type": "boolean"
                   },
                   "qty": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "unit": {
@@ -3125,9 +3173,13 @@
                     "maxLength": 200
                   },
                   "qty": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "unit": {
@@ -3151,21 +3203,33 @@
                     "maxLength": 300
                   },
                   "drawing_low": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "drawing_high": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "drawing_defined": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   }
                 },
@@ -3272,9 +3336,13 @@
                     "maxLength": 80
                   },
                   "total": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "lines": {
@@ -3289,9 +3357,13 @@
                           "maxLength": 300
                         },
                         "qty": {
-                          "type": [
-                            "number",
-                            "null"
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         },
                         "unit": {
@@ -3299,9 +3371,13 @@
                           "maxLength": 20
                         },
                         "amount": {
-                          "type": [
-                            "number",
-                            "null"
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         },
                         "exclusion": {
@@ -4315,9 +4391,13 @@
                     ]
                   },
                   "qty": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "unit": {
@@ -4332,15 +4412,23 @@
                     ]
                   },
                   "crew": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "hours": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "pct_complete": {
@@ -4463,9 +4551,13 @@
                     ]
                   },
                   "qty": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "unit": {
@@ -4480,15 +4572,23 @@
                     ]
                   },
                   "crew": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "hours": {
-                    "type": [
-                      "number",
-                      "null"
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "pct_complete": {
@@ -4893,12 +4993,10 @@
           "properties": {
             "job_number": {
               "type": "string",
-              "minLength": 1,
               "maxLength": 40
             },
             "company_id": {
               "type": "string",
-              "minLength": 1,
               "maxLength": 200
             },
             "stage": {
@@ -4948,8 +5046,8 @@
       },
       {
         "name": "athena_morning_hitlist",
-        "title": "Athena, good morning, Hey Athena, Good morning Athena, Morning Athena, Athina, Athen, Atena",
-        "description": "Runs the per-job morning meeting when a job number was given, and with no job number returns the morning brief across every visible job, not email or calendar.",
+        "title": "Athena, good morning, Hey Athena, good morning, Good morning Athena, Morning Athena, Athina what's on my hitlist this morning, Athina, Athen, Atena",
+        "description": "Runs the per-job morning meeting when a job number was given, and with no job number returns the morning brief across every visible job, not email or calendar and not Gmail.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -4962,12 +5060,62 @@
           "properties": {
             "job_number": {
               "type": "string",
-              "minLength": 1,
               "maxLength": 40
             },
             "company_id": {
               "type": "string",
-              "minLength": 1,
+              "maxLength": 200
+            },
+            "stage": {
+              "type": "string",
+              "enum": [
+                "schedule",
+                "crews",
+                "risks",
+                "spillover",
+                "log"
+              ]
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "crew_mode": {
+              "type": "string",
+              "enum": [
+                "subcontract",
+                "self_perform"
+              ]
+            },
+            "sample": {
+              "type": "boolean",
+              "const": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "pm_morning",
+        "title": "PM morning meeting",
+        "description": "Runs the construction PM morning meeting when someone says morning meeting, PM morning, or start the morning meeting, picks the only job or the most recent job instead of asking which job, and does not hand the request to email or a calendar.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
               "maxLength": 200
             },
             "stage": {
@@ -5016,12 +5164,10 @@
           "properties": {
             "job_number": {
               "type": "string",
-              "minLength": 1,
               "maxLength": 40
             },
             "company_id": {
               "type": "string",
-              "minLength": 1,
               "maxLength": 200
             },
             "stage": {
@@ -5056,9 +5202,9 @@
         "outputSchema": null
       },
       {
-        "name": "morning_brief",
-        "title": "Morning brief",
-        "description": "Builds the member's morning brief across every job they can see when they say Athena, good morning, Hey Athena, Good morning Athena, Morning Athena, Athena at the start or mid-sentence, Athina, Athen, Atena, hitlist, morning briefing, what's on my plate today, overdue, or today's deadlines on my jobs, and this is the construction morning brief, not email or calendar, and nothing is sent.",
+        "name": "athena_hello",
+        "title": "Athena hello",
+        "description": "Returns the morning brief card when the user says good morning, hey Athena, hello, or a misspelling like Athina, Athen, or Atena, and Athena answers first.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -5071,7 +5217,28 @@
           "properties": {
             "company_id": {
               "type": "string",
-              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      {
+        "name": "morning_brief",
+        "title": "Morning brief",
+        "description": "Builds the member's construction morning brief across every job they can see when they say Athena, good morning, Hey Athena, Good morning Athena, Morning Athena, Athena at the start or mid-sentence, Athina, Athen, Atena, hitlist, morning briefing, what's on my plate today, overdue, or today's deadlines on my jobs, Athena leads, the host fills From your inbox and calendar with emails that came in overnight, unanswered emails that need a reply, and today's meetings, then the job side follows with the schedule, notices, submittals due, overdue items, and what happened yesterday versus what is due today, and nothing is sent.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "company_id": {
+              "type": "string",
               "maxLength": 200
             }
           },
@@ -5132,7 +5299,7 @@
               "type": "string",
               "maxLength": 320,
               "format": "email",
-              "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
             },
             "cc": {
               "maxItems": 20,
@@ -5141,7 +5308,7 @@
                 "type": "string",
                 "maxLength": 320,
                 "format": "email",
-                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
               }
             },
             "subject": {
@@ -5202,7 +5369,7 @@
               "type": "string",
               "maxLength": 320,
               "format": "email",
-              "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
             },
             "cc": {
               "maxItems": 20,
@@ -5211,7 +5378,7 @@
                 "type": "string",
                 "maxLength": 320,
                 "format": "email",
-                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
               }
             },
             "subject": {
