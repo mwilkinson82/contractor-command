@@ -122,7 +122,7 @@ function cardResult(_body: string, card: CardModel, extra: Record<string, unknow
       structuredContent: { card, html, ...extra },
       _meta: { ...cardWidgetMeta },
     },
-    "Show this card. Do not add text after it. Red only on an overdue row.",
+    "Red only on an overdue row.",
   );
 }
 

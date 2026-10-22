@@ -1382,7 +1382,7 @@ export function lookaheadListLead(jobNumber: string, visible: { items: number }[
 export const lookaheadList = defineTool({
   name: "lookahead_list",
   title: "List lookaheads",
-  description: "Lists how many lookaheads a job has, which are visible, and writes nothing.",
+  description: "Lists how many lookaheads a job has, as the styled card in the result, and writes nothing.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,

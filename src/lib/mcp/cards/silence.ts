@@ -12,7 +12,7 @@ export const CARD_SHOWN_PICK =
 /** Selection cards. Which-job is detected from structuredContent.which_job. */
 export const PICKER_TOOLS = new Set(["team_list"]);
 
-const HTML_MARKER = "REQUIRED VIEW: render this HTML card as-is.";
+const HTML_MARKER = "<!doctype html";
 
 type Block = { type: string; text?: string; _meta?: Record<string, unknown> };
 type Res = {
@@ -61,10 +61,9 @@ export function stripSpokenPreview(text: string): string {
   return joined ? `${joined}\n\n${tail.trim()}` : tail.trim();
 }
 
-export function applyCardClosing(text: string, pick: boolean): string {
-  const body = stripClosing(stripSpokenPreview(text));
-  const closing = cardClosing(pick);
-  return body ? `${body}\n\n${closing}` : closing;
+/** Drops a spoken preview. The result is the card, with no command telling the host what to do. */
+export function applyCardClosing(text: string, _pick: boolean): string {
+  return stripClosing(stripSpokenPreview(text));
 }
 
 function isCardModel(value: unknown): boolean {
@@ -85,17 +84,7 @@ export function isCardReply(tool: string, res: Res): boolean {
   const text = (res.content ?? [])
     .map((c) => (typeof c.text === "string" ? c.text : ""))
     .join("\n");
-  return text.includes(HTML_MARKER);
-}
-
-function withGuidance(
-  sc: Record<string, unknown> | undefined,
-  closing: string,
-): Record<string, unknown> {
-  const prior = Array.isArray(sc?.assistant_guidance) ? (sc.assistant_guidance as unknown[]) : [];
-  const guidance = prior.filter((g) => g !== CARD_SHOWN && g !== CARD_SHOWN_PICK);
-  guidance.push(closing);
-  return { ...(sc ?? {}), assistant_guidance: guidance };
+  return text.toLowerCase().includes(HTML_MARKER);
 }
 
 /**
@@ -106,7 +95,6 @@ export function sealCardReply<R>(tool: string, result: R): R {
   const res = result as unknown as Res;
   if (!res?.content?.length || !isCardReply(tool, res)) return result;
   const pick = isPickerReply(tool, res);
-  const closing = cardClosing(pick);
   let last = -1;
   for (let i = 0; i < res.content.length; i++) {
     const block = res.content[i];
@@ -118,7 +106,7 @@ export function sealCardReply<R>(tool: string, result: R): R {
       ? { ...block, text: applyCardClosing(block.text, pick) }
       : block,
   );
-  const structuredContent = withGuidance(res.structuredContent, closing);
+  const structuredContent = { ...(res.structuredContent ?? {}) };
   if (structuredContent["openai/outputTemplate"] === CARD_WIDGET_URI) delete structuredContent["openai/outputTemplate"];
   const template = res._meta?.["openai/outputTemplate"];
   if (
@@ -130,10 +118,7 @@ export function sealCardReply<R>(tool: string, result: R): R {
   }
   const out: Record<string, unknown> = { ...res, content, structuredContent };
   if (Array.isArray(res.guidance)) {
-    out.guidance = [
-      ...res.guidance.filter((g) => g !== CARD_SHOWN && g !== CARD_SHOWN_PICK),
-      closing,
-    ];
+    out.guidance = res.guidance.filter((g) => g !== CARD_SHOWN && g !== CARD_SHOWN_PICK);
   }
   return out as unknown as R;
 }

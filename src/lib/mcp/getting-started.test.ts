@@ -104,7 +104,7 @@ describe("getting started card", () => {
     expect(shown).not.toContain("**Result**");
     expect(shown).toContain("ChatGPT, Claude and Grok Bot");
     expect(shown).not.toMatch(/ChatGPT and Claude|ChatGPT or Claude/);
-    const plain = shown.split("REQUIRED VIEW:")[0];
+    const plain = shown.split("<!doctype html")[0];
     expect(plain.split("Hey Athena").length - 1).toBe(1);
     expect(plain).toContain(MEMORY_BONUS);
     expect(plain.trimStart().startsWith(START_HEADLINE)).toBe(true);
@@ -229,9 +229,9 @@ describe("first tool call", () => {
     expect(first.content[0].text.indexOf(START_HEADLINE)).toBeLessThan(first.content[0].text.indexOf("Job 2701 is open."));
     const lead = first.content[0].text.slice(0, first.content[0].text.indexOf("Job 2701 is open."));
     expect(lead).toContain("@Athena, run my PM meeting");
-    expect(lead.split("REQUIRED VIEW:")[0].split("Hey Athena").length - 1).toBe(1);
+    expect(lead.split("<!doctype html")[0].split("Hey Athena").length - 1).toBe(1);
     expect(lead).toContain("ChatGPT, Claude and Grok Bot");
-    expect(lead.split("REQUIRED VIEW:")[0]).not.toContain("🔵");
+    expect(lead.split("<!doctype html")[0]).not.toContain("🔵");
     expect(first.structuredContent.getting_started.title).toBe(START_HEADLINE);
     expect(lead).toContain(MEMORY_LINE);
     expect(lead).toContain(START_HABIT);
@@ -300,7 +300,7 @@ describe("first tool call", () => {
     };
     expect(result.structuredContent.card.title).toBe("Let's set up your company");
     expect(result.structuredContent.getting_started).toMatchObject({ title: START_HEADLINE });
-    const parts = result.content[0].text.split("REQUIRED VIEW:");
+    const parts = result.content[0].text.split("<!doctype html");
     const lead = parts[0];
     expect(lead.trimStart().startsWith(START_HEADLINE)).toBe(true);
     expect(lead).toContain(START_HABIT);
@@ -349,7 +349,7 @@ describe("getting_started branches", () => {
     expect(shown).toContain("Jobs belong to a company. The company name is the first save.");
     expect(shown).not.toMatch(/save_company|create_job|2701/);
     expect(firstJobGuidance(false)).toMatch(/save_company/);
-    expect(visibleProblems(shown.split("REQUIRED VIEW:")[0])).toEqual([]);
+    expect(visibleProblems(shown.split("<!doctype html")[0])).toEqual([]);
   });
 
   it("with a company and no jobs, opens first-job setup and says the next step and why", async () => {
@@ -364,7 +364,7 @@ describe("getting_started branches", () => {
     expect(shown).toContain("The morning meeting and the boards start from that job.");
     expect(shown).not.toMatch(/create_job|job_number|2701/);
     expect(firstJobGuidance(true)).toMatch(/create_job/);
-    expect(visibleProblems(shown.split("REQUIRED VIEW:")[0])).toEqual([]);
+    expect(visibleProblems(shown.split("<!doctype html")[0])).toEqual([]);
   });
 
   it("with one job, stays on the get-started card and does not open the morning hitlist", async () => {
@@ -410,9 +410,10 @@ describe("getting_started tool never opens on a picker", () => {
       content: { text: string }[];
       structuredContent: { card: { title: string; ask?: { prompt: string } | null; sections?: { heading: string }[] } };
     };
-    const plain = result.content[0].text.split("REQUIRED VIEW:")[0];
+    const plain = result.content[0].text.split("<!doctype html")[0];
     expect(result.structuredContent.card.title).toBe("Hey Athena, let's get started");
-    expect(plain.trimStart().startsWith(INBOX_HOST_LINE)).toBe(true);
+    expect(plain.trimStart().startsWith("Hey Athena, let's get started")).toBe(true);
+    expect(result.content[0].text).not.toContain(INBOX_HOST_LINE);
     expect(plain).toContain("Hey Athena, let's get started");
     expect(plain).toContain("Try one");
     expect(plain).toContain(START_MEMORY_OFFER);
@@ -427,8 +428,8 @@ describe("getting_started tool never opens on a picker", () => {
     expect(plain).toContain("1234 (Riverside)");
     expect(result.content[0].text).toContain('class="placeholder"');
     expect(result.content[0].text).toContain(INBOX_SECTION);
-    expect(result.content[0].text).toContain("Connect Google Calendar in your AI.");
-    expect(result.content[0].text).toContain("overnight emails");
+    expect(result.content[0].text).not.toContain(INBOX_HOST_LINE);
+    expect(result.content[0].text).toContain("Overnight emails");
     expect(result.content[0].text).toContain("unanswered emails");
     expect(result.content[0].text).toContain("today's meetings");
     expect(plain.trimStart().startsWith("Which job?")).toBe(false);
@@ -444,7 +445,7 @@ describe("getting_started tool never opens on a picker", () => {
     expect(result.structuredContent.card.title).toBe("Hey Athena, let's get started");
     expect(result.content[0].text).toContain("Open it on 2701 (Harbor Point).");
     expect(result.structuredContent.card.next_move).toBe("The morning meeting is on 2701.");
-    expect(result.content[0].text.split("REQUIRED VIEW:")[0].trimStart().startsWith("Which job?")).toBe(false);
+    expect(result.content[0].text.split("<!doctype html")[0].trimStart().startsWith("Which job?")).toBe(false);
   });
 });
 
@@ -495,7 +496,7 @@ describe("getting_started card comes before any job picker", () => {
     expect(shown).toContain("2701 (Harbor Point)");
     expect(shown).toContain("1234 (Riverside)");
     expect(card.sections?.some((section) => section.heading === "Morning meeting")).toBe(true);
-    expect(shown.split("REQUIRED VIEW:")[0].trimStart().startsWith("Which job?")).toBe(false);
+    expect(shown.split("<!doctype html")[0].trimStart().startsWith("Which job?")).toBe(false);
   });
 });
 

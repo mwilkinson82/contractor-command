@@ -64,7 +64,7 @@ describe("PM tools become cards", () => {
     expect(after.structuredContent.card.progress).toEqual({ done: 3, total: 7 });
     expect(after.content[0].text).toContain("## 🔵 Next question");
     expect(after.content[0].text).toContain(before);
-    expect(after.content[0].text).toContain("REQUIRED VIEW: render this HTML card as-is.");
+    expect(after.content[0].text).not.toMatch(/REQUIRED VIEW|do not add text/i);
     expect(after.structuredContent.html).toContain("What are the pay terms?");
     expect(after._meta["openai/outputTemplate"]).toBe(CARD_WIDGET_URI);
   });
@@ -96,8 +96,8 @@ describe("PM tools become cards", () => {
     expect(after.structuredContent.card.ask?.prompt).toContain("Do you want me to summarize");
     expect(after.content[0].text).toContain("- §6.3 Liquidated Damages");
     expect(after.content[0].text).toContain("Incomplete terms");
-    expect(after.content[0].text.trim().endsWith(CARD_SHOWN)).toBe(true);
-    const beforeClose = after.content[0].text.trim().slice(0, -CARD_SHOWN.length).trim();
+    expect(after.content[0].text.trim().endsWith("</html>")).toBe(true);
+    const beforeClose = after.content[0].text.trim();
     expect(beforeClose.endsWith("</html>")).toBe(true);
     expect(beforeClose.match(/<!doctype html/gi)).toHaveLength(1);
     expect(beforeClose).not.toContain("&lt;");
@@ -110,10 +110,10 @@ describe("PM tools become cards", () => {
     const companyCard = attachAthenaCard("list_open_items", { content: [{ type: "text", text: companies }] }) as unknown as { content: { text: string }[]; structuredContent: { card: CardModel } };
     expect(companyCard.structuredContent.card.state).toBe("ask");
     expect(companyCard.structuredContent.card.title).toBe("Which job?");
-    expect(companyCard.content[0].text.startsWith("REQUIRED VIEW: render the HTML card in this result as the reply.")).toBe(true);
     expect(companyCard.content[0].text).toContain("## 🔵 Which job?");
+    expect(companyCard.content[0].text).not.toMatch(/REQUIRED VIEW|do not add text/i);
     expect(companyCard.content[0].text).toContain("Harbor Electric: 2701");
-    expect(companyCard.content[0].text.trim().endsWith(CARD_SHOWN_PICK)).toBe(true);
+    expect(companyCard.content[0].text.trim().endsWith("</html>")).toBe(true);
     const items = "2701 – Open items (2):\n- OVERDUE storm delay\n- Buy the gear";
     const itemCard = attachAthenaCard("list_open_items", { content: [{ type: "text", text: items }] }) as unknown as { structuredContent: { card: CardModel; html: string }; content: { text: string }[] };
     expect(itemCard.structuredContent.card.state).toBe("result");

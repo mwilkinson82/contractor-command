@@ -8,6 +8,7 @@ import { attachDailyReminder } from "./field-reminder";
 import { attachGettingStarted } from "./getting-started";
 import { attachMorningCard } from "./morning-brief-card";
 import { HOST_DISPLAY_BLOCK, finalizeVisible, guide, splitGuidance, withStyleLine } from "./visible";
+import { stripResultDirectives } from "./result-directives";
 import { REMINDERS_VIEW_SPEC } from "./views";
 import { DB_UNAVAILABLE, MCP_DAILY_CAP, MCP_HOURLY_CAP, capMessage, type CapResult } from "./limits";
 import { ToolError, type ToolContext } from "@lovable.dev/mcp-js";
@@ -118,12 +119,12 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
     const started = await attachGettingStarted(sb as never, reminded, { prepend: !CARD_FIRST_TOOLS.has(tool) });
     const sealed = sealCardReply(tool, started);
     const morning = await attachMorningCard(sb as never, sealed, { fresh: freshSession, explicit: tool === "morning_brief" });
-    return stampCanary(morning, touch.canary);
+    return stripResultDirectives(stampCanary(morning, touch.canary));
   } catch (e) {
     if (e instanceof WhichCompanyAsk) {
       const reply = whichCompanyReply(e);
       const carded = attachAthenaCard(tool, finalizeVisible(reply, [HOST_DISPLAY_BLOCK]));
-      return stampCanary(sealCardReply(tool, carded), touch.canary) as R;
+      return stripResultDirectives(stampCanary(sealCardReply(tool, carded), touch.canary)) as R;
     }
     await logWorkflow(sb, {
       event_type: "failure",

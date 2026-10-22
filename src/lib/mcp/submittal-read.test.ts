@@ -132,8 +132,8 @@ describe("submittal log read", () => {
     const text = result.content[0].text ?? "";
     expect(state.filters).toContainEqual({ table: "mcp_submittals", col: "job_id", val: JOB_2701 });
     expect(state.writes).toEqual([]);
-    expect(text.startsWith("REQUIRED VIEW: render the HTML card in this result as the reply.")).toBe(true);
-    expect(text.indexOf("REQUIRED VIEW: render the HTML card")).toBeLessThan(text.indexOf("## "));
+    expect(text).not.toMatch(/REQUIRED VIEW|do not add text/i);
+    expect(text.indexOf("## ")).toBeGreaterThanOrEqual(0);
     expect(text.indexOf("## ")).toBeLessThan(text.indexOf("<!doctype html"));
     expect(text).toContain("No submittals on this job yet.");
     expect(text).toContain("log a submittal");

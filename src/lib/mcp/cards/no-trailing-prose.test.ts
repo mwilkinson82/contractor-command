@@ -22,17 +22,17 @@ type CardResult = {
   _meta: Record<string, string>;
 };
 
-function assertCardContract(result: CardResult, closing: string) {
+function assertCardContract(result: CardResult, _closing: string) {
   const text = result.content.find((c) => c.type === "text")?.text ?? "";
-  expect(text.trim().endsWith(closing)).toBe(true);
-  const before = text.trim().slice(0, -closing.length).trim();
-  expect(before.endsWith("</html>")).toBe(true);
-  expect(before.match(/<!doctype html/gi)).toHaveLength(1);
-  expect(before).not.toContain("```html");
-  expect(before).not.toContain("&lt;!doctype");
-  expect(before).not.toMatch(/[a-z-]+\s*:\s*;/);
+  expect(text.trim().endsWith("</html>")).toBe(true);
+  expect(text.match(/<!doctype html/gi)).toHaveLength(1);
+  expect(text).not.toContain("```html");
+  expect(text).not.toContain("&lt;!doctype");
+  expect(text).not.toMatch(/[a-z-]+\s*:\s*;/);
   expect(text).not.toContain(PREVIEW);
   expect(text).not.toMatch(/upcoming commitments/i);
+  expect(text).not.toMatch(/REQUIRED VIEW/i);
+  expect(text).not.toMatch(/do not add text/i);
   expect(result.content.some((c) => c.type === "resource")).toBe(false);
   expect(JSON.stringify(result)).not.toContain("toolInvocation");
   expect(JSON.stringify(result.content)).not.toContain("skybridge");
@@ -41,7 +41,7 @@ function assertCardContract(result: CardResult, closing: string) {
   expect(result.structuredContent.html).toContain("<!doctype html>");
   expect(result.structuredContent["openai/outputTemplate"]).toBeUndefined();
   expect(result._meta["openai/outputTemplate"]).toBe(CARD_WIDGET_URI);
-  expect(result.structuredContent.assistant_guidance.at(-1)).toBe(closing);
+  expect(JSON.stringify(result.structuredContent.assistant_guidance ?? [])).not.toMatch(/do not add text/i);
 }
 
 describe("which-job and picker cards end on the pick", () => {
@@ -62,8 +62,8 @@ describe("which-job and picker cards end on the pick", () => {
     expect(out.structuredContent.card.state).toBe("ask");
     expect(out.content[0].text).toContain("1001");
     expect(out.content[0].text).toContain("Lakeview Elementary Gym");
-    expect(out.content[0].text?.startsWith("REQUIRED VIEW: render the HTML card in this result as the reply.")).toBe(true);
     expect(out.content[0].text).toContain("## 🔵 Which job?");
+    expect(out.content[0].text).not.toMatch(/REQUIRED VIEW/i);
   });
 
   it("team_list picker uses the same closing and the existing template", () => {
@@ -76,14 +76,15 @@ describe("which-job and picker cards end on the pick", () => {
       structuredContent: { assistant_guidance: string[]; "openai/outputTemplate": string };
       _meta: Record<string, string>;
     };
-    expect(out.content[0].text?.trim().endsWith(CARD_SHOWN_PICK)).toBe(true);
+    expect(out.content[0].text?.trim().endsWith("1. Marshall, Owner, all jobs")).toBe(true);
+    expect(out.content[0].text).not.toMatch(/do not add text/i);
     expect(out.content[0].text).toContain("1. Marshall, Owner, all jobs");
     expect(out.content.some((c) => c.type === "resource")).toBe(false);
     expect(JSON.stringify(out.content)).not.toMatch(/<html|<!doctype|<script|skybridge/i);
     expect(JSON.stringify(out)).not.toContain("toolInvocation");
     expect(out._meta["openai/outputTemplate"]).toBe("ui://athena/team-picker.html");
     expect(out.structuredContent["openai/outputTemplate"]).toBe("ui://athena/team-picker.html");
-    expect(out.structuredContent.assistant_guidance.at(-1)).toBe(CARD_SHOWN_PICK);
+    expect(JSON.stringify(out.structuredContent.assistant_guidance ?? [])).not.toMatch(/do not add text/i);
   });
 });
 
@@ -123,10 +124,11 @@ describe("every card tool follows the no-trailing-prose contract", () => {
       content: { type: string; text?: string }[];
       structuredContent: { assistant_guidance: string[] };
     };
-    expect(out.content[0].text?.trim().endsWith(CARD_SHOWN)).toBe(true);
+    expect(out.content[0].text?.trim().endsWith("No estimate on this job yet.")).toBe(true);
     expect(out.content[0].text).not.toContain(PREVIEW);
+    expect(out.content[0].text).not.toMatch(/do not add text/i);
     expect(out.content.some((c) => c.type === "resource")).toBe(false);
-    expect(out.structuredContent.assistant_guidance.at(-1)).toBe(CARD_SHOWN);
+    expect(out.structuredContent.assistant_guidance).toBeUndefined();
   });
 
   it("leaves a non-card result alone", () => {
@@ -138,14 +140,11 @@ describe("every card tool follows the no-trailing-prose contract", () => {
 describe("the card instruction is the last word, and the widget is unchanged", () => {
   it("tells the host that an Athena card allows no lines after it", () => {
     expect(HOST_DISPLAY_BLOCK).toContain("This limit does not apply to an Athena card.");
-    expect(HOST_DISPLAY_BLOCK).toContain(
-      "When the result says the card is shown, do not replace it with a markdown table or one sentence, and add no text after it.",
-    );
+    expect(HOST_DISPLAY_BLOCK).toContain("This limit does not apply to an Athena card.");
     const idx = readFileSync(new URL("../index.ts", import.meta.url), "utf8");
-    expect(idx).toContain(
-      "When a tool result says the card is shown, the HTML document in that result is the card.",
-    );
-    expect(idx).toContain("In Claude, show that HTML as an artifact, as written.");
+    expect(idx).toContain("A tool result is the card itself: styled markdown and, when present, the HTML document.");
+    expect(idx).toContain("In Claude it is an artifact of that HTML.");
+    expect(idx).toContain("Rendering rules stay in these instructions.");
     expect(idx).toContain("Connect Google Calendar in your AI.");
     expect(idx).toContain("On a which-job or picker card, wait for the user's pick.");
   });

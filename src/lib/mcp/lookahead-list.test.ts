@@ -94,12 +94,11 @@ describe("lookahead_list", () => {
   it("counts a 2701-shaped mix and writes nothing", async () => {
     const result = await call({ job_number: "2701" });
     const text = result.content[0].text ?? "";
-    expect(text.startsWith("REQUIRED VIEW: render the HTML card in this result as the reply.")).toBe(true);
-    const leadAt = text.indexOf("Job 2701 has 2 lookaheads (1 with content, 1 empty).");
+    expect(text.startsWith("Job 2701 has 2 lookaheads (1 with content, 1 empty).")).toBe(true);
+    expect(text).not.toMatch(/REQUIRED VIEW|do not add text/i);
     const tableAt = text.indexOf("## ");
     const htmlAt = text.indexOf("<!doctype html");
-    expect(leadAt).toBeGreaterThan(0);
-    expect(tableAt).toBeGreaterThan(leadAt);
+    expect(tableAt).toBeGreaterThan(0);
     expect(htmlAt).toBeGreaterThan(tableAt);
     expect(text).not.toContain("Hidden");
     expect(text).not.toContain("merged");

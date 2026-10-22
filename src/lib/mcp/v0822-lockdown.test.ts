@@ -362,7 +362,7 @@ describe("0.8.22 run() wiring", () => {
     const r = (await run("report", ctx, { jobNumber: "2701" }, async () => ({
       content: [{ type: "text" as const, text: "REQUIRED VIEW: x" }],
     }))) as { content: { text: string }[] };
-    expect(r.content[0].text).toContain("REQUIRED VIEW: x (spec K7Q2XA)");
+    expect(r.content[0].text).not.toContain("REQUIRED VIEW");
     const order = rpc.mock.calls.map((c) => c[0]);
     expect(order.indexOf("mcp_gate")).toBeLessThan(order.indexOf("mcp_security_touch"));
   });

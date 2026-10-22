@@ -76,7 +76,7 @@ export const teamList = defineTool({
       const t = await list(sb, co);
       return guide(
         { ...text(renderTeamList(t)), structuredContent: { team: { ...t, company: co }, roles_menu: rolesMenu(t.roles_allowed) }, _meta: widgetMeta },
-        "Card shown. Do not add text; wait for the user's pick. Hosts without the card (Claude, Codex, Grok Bot) already have the numbered list. Do not add a question after it.",
+        "Hosts without the card (Claude, Codex, Grok Bot) already have the numbered list.",
       );
     }),
 });

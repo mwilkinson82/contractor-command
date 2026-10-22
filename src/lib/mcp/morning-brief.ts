@@ -600,7 +600,7 @@ export function ensureBriefCard(card: CardModel): CardModel {
 export function presentBrief(card: CardModel) {
   card = ensureBriefCard(card);
   const html = renderHtml({ ...card, show_state: false });
-  const body = applyCardClosing(cardReply(renderMarkdown(card), html, INBOX_HOST_LINE), false);
+  const body = applyCardClosing(cardReply(renderMarkdown(card), html), false);
   return guide(
     {
       structuredContent: { card, html },

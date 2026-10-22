@@ -12,7 +12,6 @@ import {
   withMemoryOffer,
 } from "../getting-started";
 import { run, text } from "../guard";
-import { INBOX_HOST_LINE } from "../morning-brief";
 import { guide } from "../visible";
 
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
@@ -43,9 +42,8 @@ export const gettingStarted = defineTool({
       return withMemoryOffer(cardResult(
         card,
         one
-          ? `Show this card and stop. Do not call athena_morning_hitlist, pm_morning, or morning_brief in this reply. Do not ask which job's morning hitlist. The morning meeting on the card is ${one}. Save nothing until they say yes. ${INBOX_HOST_LINE}`
-          : `Show this card and stop. Do not call athena_morning_hitlist, pm_morning, or morning_brief in this reply. Do not ask which job's morning hitlist. The jobs are listed under Morning meeting. Save nothing until they say yes. ${INBOX_HOST_LINE}`,
-        INBOX_HOST_LINE,
+          ? `The morning meeting on the card is ${one}. Save nothing until they say yes.`
+          : `The jobs are listed under Morning meeting. Save nothing until they say yes.`,
       ));
     }),
 });
