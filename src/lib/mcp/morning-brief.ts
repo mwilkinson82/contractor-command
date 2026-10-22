@@ -455,7 +455,11 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
   const week = weekRows(input.jobs, now, viewOf);
   const opened = openFor(input.jobs, now, viewOf);
   const forget = forgetRows(tagged, viewOf);
-  const countsForOpen = opened.counts;
+  const countsForOpen = {
+    open: opened.rows.length,
+    overdue: opened.rows.filter((row) => row.flag === "overdue").length,
+    due_in_7_days: opened.counts.due_in_7_days,
+  };
   const sections: CardModel["sections"] = [];
   if (view === "executive") {
     const port = portfolio(input.jobs, tagged, now);

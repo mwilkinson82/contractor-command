@@ -12,7 +12,8 @@ import { isUuid } from "../../report-pages";
 import { job2701FlowData } from "../flows/job-2701";
 import { loadFlowData, saveFlowNote } from "../flows/load";
 import { STAGE_LABEL, stagesFor, type FlowData, type FlowName } from "../flows/types";
-import { run, text, type Sb } from "../guard";
+import { errorCard, errorMessage } from "../error-card";
+import { run, type Sb } from "../guard";
 import { FULL_ACCESS_MESSAGE, audit, resolveJob } from "../jobs";
 import { loadMorningBrief } from "../morning-brief-load";
 import { chooseJob, listCompaniesAndJobs, listedJobs } from "./workflow-tools";
@@ -151,8 +152,12 @@ export const pmMeeting = defineTool({
 
 /** One named job opens that morning meeting. No job number is the which-job list for getting started. */
 export async function startMorning(sb: Sb, jobNumber?: string) {
-  if (jobNumber?.trim()) return lead("pm_morning", { job_number: jobNumber }, sb);
-  return text(await listCompaniesAndJobs(sb, undefined, "pm_morning"));
+  try {
+    if (jobNumber?.trim()) return await lead("pm_morning", { job_number: jobNumber }, sb);
+    return sealedCard(inferCard("pm_morning", await listCompaniesAndJobs(sb, undefined, "pm_morning")), true);
+  } catch (e) {
+    return errorCard("PM morning meeting", errorMessage(e, "The morning meeting could not be opened."));
+  }
 }
 
 export const pmMorning = defineTool({
@@ -162,7 +167,13 @@ export const pmMorning = defineTool({
   inputSchema: { job_number: jobNumber, company_id: companyId, stage: z.enum(["schedule", "crews", "risks", "spillover", "log"]).optional(), note, crew_mode: crewMode, sample },
   annotations: READ,
   handler: (args, ctx) =>
-    run("athena_morning_hitlist", ctx, { jobNumber: args.job_number }, async (sb) => lead("pm_morning", args, sb)),
+    run("athena_morning_hitlist", ctx, { jobNumber: args.job_number }, async (sb) => {
+      try {
+        return await lead("pm_morning", args, sb);
+      } catch (e) {
+        return errorCard("PM morning meeting", errorMessage(e, "The morning meeting could not be opened."));
+      }
+    }),
 });
 
 export const pmMorningMeeting = defineTool({
@@ -173,12 +184,16 @@ export const pmMorningMeeting = defineTool({
   annotations: READ,
   handler: (args, ctx) =>
     run("pm_morning", ctx, { jobNumber: args.job_number }, async (sb) => {
-      if (!args.job_number?.trim()) {
-        const jobs = await listedJobs(sb, args.company_id);
-        const picked = chooseJob(jobs);
-        if (picked?.job_number) return lead("pm_morning", { ...args, job_number: picked.job_number, company_id: args.company_id ?? picked.company_id }, sb);
+      try {
+        if (!args.job_number?.trim()) {
+          const jobs = await listedJobs(sb, args.company_id);
+          const picked = chooseJob(jobs);
+          if (picked?.job_number) return await lead("pm_morning", { ...args, job_number: picked.job_number, company_id: args.company_id ?? picked.company_id }, sb);
+        }
+        return await lead("pm_morning", args, sb);
+      } catch (e) {
+        return errorCard("PM morning meeting", errorMessage(e, "The morning meeting could not be opened."));
       }
-      return lead("pm_morning", args, sb);
     }),
 });
 

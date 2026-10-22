@@ -119,6 +119,8 @@ describe("PM tools become cards", () => {
     expect(itemCard.structuredContent.html).not.toContain(">Result<");
     expect(itemCard.structuredContent.card.alerts?.[0].level).toBe("overdue");
     expect(itemCard.structuredContent.html).toContain('data-alert="overdue"');
-    expect(itemCard.content[0].text).toContain(items);
+    expect(itemCard.content[0].text).toContain("OVERDUE storm delay");
+    expect(itemCard.content[0].text).toContain("Buy the gear");
+    expect(itemCard.structuredContent.card.kpis?.find((k) => k.label === "Open items")?.value).toBe("2");
   });
 });

@@ -1291,10 +1291,11 @@ export const listOpenItems = defineTool({
       const dupCount = [...deduped.duplicates.values()].reduce((n, d) => n + d.length, 0);
       const ec = emailContact(contactForRole(contacts, "Project Manager"));
       const dupNote = dupCount ? `\n${dupCount} duplicate notice item${dupCount === 1 ? "" : "s"} shown once (same event and notice type); nothing was deleted.` : "";
-      const header = openItemsHeader(feed.counts);
       const listed = rows.map((i) => ({ action: formatBillingText(itemName(i.action)), owner: i.accountable ?? i.owner ?? null, due: dueOf(i) || null, overdue: isOverdue(i, today), due_in_7_days: isDueIn7(i, today), item_id: i.id, item_type: itemType(i, nas) }));
-      const card = openItemsCard(`${job.job_number} – ${job.name}`, rows, feed.counts, today);
-      return guide({ ...text(`${prefix(job)}${laHead}${header}\n${lines.join("\n")}${dupNote}\n\n${REMINDERS_VIEW_SPEC.join("\n")}\n\n${ec.text}\n${EMAIL_VIEW_SPEC.join("\n")}${laBlock}`), structuredContent: { counts: feed.counts, items: listed, card, email_contact: ec.structured } }, EMAIL_CONTACT_RULE);
+      const counts = { open: listed.length, overdue: listed.filter((i) => i.overdue).length, due_in_7_days: listed.filter((i) => i.due_in_7_days).length };
+      const header = openItemsHeader(counts);
+      const card = openItemsCard(`${job.job_number} – ${job.name}`, rows, counts, today);
+      return guide({ ...text(`${prefix(job)}${laHead}${header}\n${lines.join("\n")}${dupNote}\n\n${REMINDERS_VIEW_SPEC.join("\n")}\n\n${ec.text}\n${EMAIL_VIEW_SPEC.join("\n")}${laBlock}`), structuredContent: { counts, items: listed, card, email_contact: ec.structured } }, "The open count is the number of items in this list. Overdue is the number of those items marked overdue. Do not count a different set.", EMAIL_CONTACT_RULE);
     }),
 });
 

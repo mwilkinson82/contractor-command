@@ -92,6 +92,7 @@ async function liveTools(): Promise<Tool[]> {
       G.pmMorning,
       G.pmMorningMeeting,
       G.pmEvening,
+      Brief.athenaHello,
       Brief.morningBrief,
       Brief.morningBriefSettings,
       E.emailDraft,

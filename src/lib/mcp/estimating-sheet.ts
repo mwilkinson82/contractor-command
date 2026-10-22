@@ -224,10 +224,10 @@ export function bytesToBase64(bytes: Uint8Array): string {
 
 export function takeoffCard(
   rows: SheetRow[],
-  attempts?: { line_no: number; item: string; outcome: "saved" | "rejected" | "held"; message: string }[],
+  statuses?: { line_no: number; item: string; outcome: "Saved" | "Rejected"; status: string }[],
 ): string[] {
   const lines = ["Takeoff card"];
-  if (!rows.length && !attempts?.length) return ["Takeoff card", "- No lines yet."];
+  if (!rows.length && !statuses?.length) return ["Takeoff card", "- No lines yet."];
   let group = "";
   const shown = new Set<string>();
   for (const r of rows) {
@@ -237,18 +237,15 @@ export function takeoffCard(
     }
     const qty = r.qty ? `${r.qty} ${r.unit}`.trim() : "blank";
     const verify = r.verify ? ` ${r.verify}.` : "";
-    const attempt = attempts?.find((row) => row.item === r.item || `T-${row.line_no}` === r.ref);
-    const word = attempt ? (attempt.outcome === "saved" ? "Saved" : attempt.outcome === "rejected" ? "Rejected" : "Not written") : "";
-    const status = attempt ? `${word}. ${attempt.message} ` : "";
-    if (attempt) shown.add(`${attempt.line_no}:${attempt.item}`);
+    const status = statuses?.find((row) => row.item === r.item || `T-${row.line_no}` === r.ref);
+    if (status) shown.add(`${status.line_no}:${status.item}`);
     lines.push(
-      `- ${status}${r.item} (${r.ref}). ${r.basis || "No basis"}. Sheet ${r.sheet || "not stated"}. Math: ${r.math || "none"}. Qty ${qty}.${verify}`,
+      `- ${status ? `${status.status} ` : ""}${r.item} (${r.ref}). ${r.basis || "No basis"}. Sheet ${r.sheet || "not stated"}. Math: ${r.math || "none"}. Qty ${qty}.${verify}`,
     );
   }
-  for (const attempt of attempts ?? []) {
-    if (shown.has(`${attempt.line_no}:${attempt.item}`)) continue;
-    const word = attempt.outcome === "saved" ? "Saved" : attempt.outcome === "rejected" ? "Rejected" : "Not written";
-    lines.push(`- Line ${attempt.line_no} (${attempt.item}): ${word}. ${attempt.message}`);
+  for (const status of statuses ?? []) {
+    if (status.outcome !== "Rejected" || shown.has(`${status.line_no}:${status.item}`)) continue;
+    lines.push(`- Line ${status.line_no} (${status.item}): ${status.status}`);
   }
   return lines;
 }

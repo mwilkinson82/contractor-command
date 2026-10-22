@@ -1,6 +1,5 @@
 import { SUMMARY_OFFER } from "../contract-clauses";
 import { whichJobAsk } from "../which-job";
-import type { OpenCounts } from "../open-feed";
 import type { AlertLevel } from "./palette";
 import type { CardModel, CardRow, CardSection } from "./model";
 
@@ -161,21 +160,23 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
         next_move: "Name the job.",
       };
     }
-    if (tool === "list_open_items" && structured.counts && typeof structured.counts === "object") {
-      const counts = structured.counts as OpenCounts;
-      const listed = Array.isArray(structured.items) ? (structured.items as { action?: string; owner?: string | null; due?: string | null; overdue?: boolean }[]) : [];
+    if (tool === "list_open_items" && Array.isArray(structured.items)) {
+      const listed = structured.items as { action?: string; owner?: string | null; due?: string | null; overdue?: boolean; due_in_7_days?: boolean }[];
+      const openN = listed.length;
+      const overdueN = listed.filter((item) => item.overdue).length;
+      const dueN = listed.filter((item) => item.due_in_7_days).length;
       return {
         ...base,
         state: "result",
         show_state: false,
         kpis: [
-          { label: "Open", value: String(counts.open) },
-          { label: "Overdue", value: String(counts.overdue), flag: counts.overdue ? "overdue" : null },
-          { label: "Due in 7 days", value: String(counts.due_in_7_days) },
+          { label: "Open", value: String(openN) },
+          { label: "Overdue", value: String(overdueN), flag: overdueN ? "overdue" : null },
+          { label: "Due in 7 days", value: String(dueN) },
         ],
         sections: [listSection("Items", listed.map((item) => ({ cells: [String(item.action ?? "Item"), item.owner ?? "Needed", item.due ?? "Needed"], flag: item.overdue ? ("overdue" as const) : null })))],
-        alerts: counts.overdue ? [{ level: "overdue" as const, text: `${counts.overdue} overdue` }] : [],
-        next_move: counts.overdue ? "Close the overdue item first." : "Pick the next item.",
+        alerts: overdueN ? [{ level: "overdue" as const, text: `${overdueN} overdue` }] : [],
+        next_move: overdueN ? "Close the overdue item first." : "Pick the next item.",
       };
     }
     if (tool === "list_open_items") {
