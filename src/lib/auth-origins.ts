@@ -6,14 +6,12 @@ const HUB_MAIL_SITE = "https://mail.alpcontractorcircle.com";
 
 const HUB_HOSTS = new Set([
   "app.alpcontractorcircle.com",
-  "contractor-command.lovable.app",
-  "id-preview--362c776b-68ab-4871-bedb-c42cb9843c1b.lovable.app",
   "localhost",
   "127.0.0.1",
 ]);
 
 /** The Hub origin for Hub email links. PUBLIC_APP_ORIGIN / APP_ORIGIN are honored only when they point at a Hub host,
- *  so a Site URL or env change toward Athena can never move a Hub link. */
+ *  so a Site URL on Athena or on a lovable.app host can never move a Hub link. */
 export function hubOrigin(env: Record<string, string | undefined> = process.env): string {
   const raw = (env.PUBLIC_APP_ORIGIN || env.APP_ORIGIN || "").trim();
   if (!raw) return HUB_ORIGIN;

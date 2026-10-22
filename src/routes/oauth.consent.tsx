@@ -40,8 +40,9 @@ export const Route = createFileRoute("/oauth/consent")({
     authorization_id: typeof s.authorization_id === "string" ? s.authorization_id : "",
   }),
   beforeLoad: async ({ search }) => {
-    // v0.8.9.1: no cross-domain hop. Stay on the origin Supabase sent us to so
-    // the login session and magic-link callback share one localStorage.
+    // The lovable.app host is replaced with app.meetathena.io before this route
+    // runs (src/lib/lovable-auth-redirect.ts). Sign-in stays on this host, so the
+    // session, the magic link, and approve/deny share one origin.
     if (!search.authorization_id) throw new Error("This connection request is missing its ID. Start again from the app you're connecting.");
     const { data, error } = await boundedStep("session", () => supabase.auth.getSession());
     if (error) throw new ConsentStepError("session", "failed");

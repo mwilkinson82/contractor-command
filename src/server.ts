@@ -2,6 +2,7 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { lovableAuthRedirectResponse } from "./lib/lovable-auth-redirect";
 import { siteIconResponse } from "./lib/site-icons";
 
 type ServerEntry = {
@@ -69,6 +70,8 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    const moved = lovableAuthRedirectResponse(request);
+    if (moved) return moved;
     const icon = siteIconResponse(request);
     if (icon) return icon;
     try {

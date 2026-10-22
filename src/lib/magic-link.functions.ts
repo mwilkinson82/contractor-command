@@ -13,6 +13,8 @@ import { signInReturn } from "@/lib/board-sign-in";
 import { oauthConsentReturn } from "@/lib/oauth-return-path";
 import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
 import { hubOrigin } from "@/lib/auth-origins";
+import { isLovableHost } from "@/lib/athena-host";
+import { canonicalAuthOrigin } from "@/lib/lovable-auth-redirect";
 import { isAthenaHost } from "@/lib/site-icons";
 
 type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
@@ -37,8 +39,7 @@ function allowedRequestOrigin(origin: string | null): string | null {
       host === "127.0.0.1" ||
       host === "app.alpcontractorcircle.com" ||
       host === "app.meetathena.io" ||
-      host === "contractor-command.lovable.app" ||
-      host === "id-preview--362c776b-68ab-4871-bedb-c42cb9843c1b.lovable.app";
+      isLovableHost(host);
 
     return allowed &&
       (url.protocol === "https:" ||
@@ -66,7 +67,7 @@ function appOrigin(): string {
     allowedRequestOrigin(originFromUrl(request?.headers.get("referer"))) ||
     allowedRequestOrigin(originFromUrl(request?.url));
 
-  return requestOrigin ?? fallbackAppOrigin();
+  return canonicalAuthOrigin(requestOrigin ?? fallbackAppOrigin());
 }
 
 function isAthenaOrigin(origin: string): boolean {
@@ -162,14 +163,11 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
   .inputValidator(Input.parse)
   .handler(async ({ data }): Promise<MagicLinkResult> => {
     const email = data.email;
-    // Athena sign-ins (an OAuth consent continuation is present) always land on
-    // the Athena app, whatever page the request came from. Hub sign-ins keep
-    // the request-derived origin. Identity and the live-member check below are
-    // the same for both.
-    // v0.8.19: the link lands on the same host that started the connect. Forcing
-    // app.meetathena.io moved phones to a second host mid-connect, and the auth
-    // server rejects consent calls from that origin ("unauthorized request
-    // origin") while the Site URL is elsewhere, so the authorization never got a user.
+    // Hub sign-ins keep the request host. A connect that still arrives on
+    // *.lovable.app is rewritten to app.meetathena.io so the magic link, the
+    // session, and /oauth/consent share that host. Consent calls are relayed
+    // without a browser Origin, so the auth server accepts them while its
+    // Site URL is still the lovable.app host.
     const origin = appOrigin();
     const minDelay = new Promise((resolve) => setTimeout(resolve, 600));
     let internalAction:

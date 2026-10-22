@@ -11,8 +11,19 @@ export const CONSENT_FETCH_TIMEOUT_MS = 12_000;
 
 type Env = { url: string; key: string };
 function env(): Env {
-  const url = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? "";
-  const key = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined) ?? "";
+  const fromProcess = (name: string) =>
+    typeof process !== "undefined" ? process.env?.[name]?.trim() : undefined;
+  const url =
+    (import.meta.env.VITE_SUPABASE_URL as string | undefined) ||
+    fromProcess("SUPABASE_URL") ||
+    fromProcess("VITE_SUPABASE_URL") ||
+    "";
+  const key =
+    (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined) ||
+    fromProcess("SUPABASE_PUBLISHABLE_KEY") ||
+    fromProcess("VITE_SUPABASE_PUBLISHABLE_KEY") ||
+    fromProcess("SUPABASE_ANON_KEY") ||
+    "";
   return { url: url.replace(/\/$/, ""), key };
 }
 
@@ -22,6 +33,15 @@ export async function consentRequest(
   init: { method?: "GET" | "POST"; body?: unknown } = {},
   deps: { fetch?: typeof fetch; env?: Env; timeoutMs?: number } = {},
 ): Promise<ConsentApiResult> {
+  // Browser calls carry Origin. The auth server rejects any Origin other than
+  // the Site URL, which is still lovable.app. Relay through our server, which
+  // sends no Origin, so approve/deny work on app.meetathena.io.
+  if (!deps.fetch && typeof window !== "undefined") {
+    const { relayConsentRequest } = await import("@/lib/oauth-consent-relay.functions");
+    return relayConsentRequest({
+      data: { path, accessToken, method: init.method ?? "GET", body: init.body },
+    });
+  }
   const { url, key } = deps.env ?? env();
   const doFetch = deps.fetch ?? fetch;
   const ctrl = new AbortController();
