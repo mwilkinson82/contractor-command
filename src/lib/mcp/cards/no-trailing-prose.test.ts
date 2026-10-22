@@ -147,19 +147,21 @@ describe("the card instruction is the last word, and the widget is unchanged", (
     expect(idx).toContain("On a which-job or picker card, wait for the user's pick.");
   });
 
-  it("does not inline a skybridge resource or toolInvocation metadata", () => {
-    for (const file of [
-      "silence.ts",
-      "attach.ts",
-      "widget.ts",
-      "../guard.ts",
-      "../widget-bridge.ts",
-      "../tools/flow-tools.ts",
-    ]) {
+  it("does not inline a skybridge resource or toolInvocation metadata on the result path", () => {
+    for (const file of ["silence.ts", "attach.ts", "../guard.ts", "../tools/flow-tools.ts"]) {
       const src = readFileSync(new URL(file, import.meta.url), "utf8");
       expect(src, file).not.toContain("toolInvocation");
       expect(src, file).not.toMatch(/type:\s*"resource"/);
     }
+    const bridge = readFileSync(new URL("../widget-bridge.ts", import.meta.url), "utf8");
+    expect(bridge).not.toContain("toolInvocation");
+    expect(bridge).not.toContain("widgetAccessible");
+    expect(bridge).not.toMatch(/type:\s*"resource"/);
+    const widget = readFileSync(new URL("widget.ts", import.meta.url), "utf8");
+    expect(widget).toContain("openai/toolInvocation/invoking");
+    expect(widget).toContain("openai/toolInvocation/invoked");
+    expect(widget).not.toContain("widgetAccessible");
+    expect(widget).not.toMatch(/type:\s*"resource"/);
     expect(readFileSync(new URL("../guard.ts", import.meta.url), "utf8")).toContain(
       "sealCardReply",
     );
