@@ -224,7 +224,7 @@ describe("rate references and special requirements", () => {
     });
     expect(bid.lines.join("\n")).toContain("Direct cost");
     expect(bid.lines.join("\n")).toContain("General conditions");
-    expect(bid.lines.join("\n")).toContain("R-1 Arborist");
+    expect(bid.lines.join("\n")).toContain("Arborist (R-1)");
     expect(bid.lines.join("\n")).toContain("Sheet L-101");
     // base 1000+200+500 = 1700; oh 170; profit 5% of 1870 = 93.5; total 1963.5
     expect(bid.total).toBe(1963.5);
