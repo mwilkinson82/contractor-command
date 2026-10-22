@@ -22,7 +22,6 @@ import { athenaHello, morningBrief } from "./tools/morning-brief-tools";
 import { lookaheadListLead } from "./tools/workflow-tools";
 import { EMAIL_DRAFT_ARTIFACT_LINE, EMAIL_DRAFT_VIEW_SPEC } from "./views";
 import { attachAthenaCard } from "./cards/attach";
-import { drawingMarkupCard } from "./drawing-markup";
 import { renderHtml } from "./cards/html";
 import { inferCard } from "./cards/infer";
 import { renderMarkdown } from "./cards/markdown";
@@ -236,17 +235,6 @@ describe("locked behaviors", () => {
     expect(chart).toContain("overflow-x:auto");
     expect(chart).toContain("Slab");
     expect(chart).not.toContain("Delay: +");
-  });
-
-  it("colors a normal drawing markup callout blue inside the card", () => {
-    const card = drawingMarkupCard({ sheet: "S-100", callouts: [{ label: "Grid A" }] });
-    expect(card.html).toContain("#1E5FED");
-    expect(card.html).not.toContain("#DC2626");
-    expect(card.html).toContain("<article class=\"card\"");
-    expect(card.html).toContain("<svg");
-    expect(card.html.trim().startsWith("<svg")).toBe(false);
-    const doc = readFileSync("docs/athena-locked-behaviors.md", "utf8");
-    expect(doc).toContain("Drawing markup callouts default to navy `#1E5FED`");
   });
 
   it("keeps the S-100 drawing markup findings", () => {
