@@ -9,6 +9,7 @@ import * as F from "./tools/file-tools";
 import * as R from "./tools/report-page-tools";
 import * as T from "./tools/team-tools";
 import * as E from "./tools/email-tools";
+import * as G from "./tools/flow-tools";
 import * as Est from "./tools/estimate-tools";
 import * as Bid from "./tools/estimate-bid-tools";
 import * as Field from "./tools/superintendent-tools";
@@ -65,6 +66,9 @@ const ALL = [
   Field.progressPhotos,
   Field.dailyReminder,
   Field.dailyReminderRun,
+  G.pmMeeting,
+  G.pmMorning,
+  G.pmEvening,
   E.emailDraft,
   E.emailConfirmSend,
 ];
@@ -130,7 +134,7 @@ function schemaDescriptions(node: unknown, out: string[] = []): string[] {
 describe("0.8.23 host-facing tool text", () => {
   it("each tool description is one sentence and carries no style or rule labels", async () => {
     const list = await toolsList(ALL.map(secureTool));
-    expect(list).toHaveLength(53);
+    expect(list).toHaveLength(56);
     for (const t of list) {
       expect(sentences(t.description), t.name).toEqual([t.description.replace(/\.$/, "")]);
       expect(t.description, t.name).not.toMatch(/#[0-9A-Fa-f]{3,8}/);
