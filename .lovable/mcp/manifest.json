@@ -4825,6 +4825,177 @@
         "outputSchema": null
       },
       {
+        "name": "pm_meeting",
+        "title": "PM meeting",
+        "description": "Leads the PM meeting one stage at a time.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "stage": {
+              "type": "string",
+              "enum": [
+                "schedule",
+                "change_orders",
+                "accounting",
+                "ior"
+              ]
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "crew_mode": {
+              "type": "string",
+              "enum": [
+                "subcontract",
+                "self_perform"
+              ]
+            },
+            "sample": {
+              "type": "boolean",
+              "const": true
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "pm_morning",
+        "title": "PM morning meeting",
+        "description": "Leads the daily morning meeting one stage at a time.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "stage": {
+              "type": "string",
+              "enum": [
+                "schedule",
+                "crews",
+                "risks",
+                "spillover",
+                "log"
+              ]
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "crew_mode": {
+              "type": "string",
+              "enum": [
+                "subcontract",
+                "self_perform"
+              ]
+            },
+            "sample": {
+              "type": "boolean",
+              "const": true
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "pm_evening",
+        "title": "Evening wrap-up",
+        "description": "Leads the daily evening wrap-up one stage at a time.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "stage": {
+              "type": "string",
+              "enum": [
+                "dailies",
+                "photos",
+                "risks",
+                "happened",
+                "disruptions",
+                "log"
+              ]
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "crew_mode": {
+              "type": "string",
+              "enum": [
+                "subcontract",
+                "self_perform"
+              ]
+            },
+            "sample": {
+              "type": "boolean",
+              "const": true
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
         "name": "email_draft",
         "title": "Show an email draft for review",
         "description": "Shows an email draft for review.",

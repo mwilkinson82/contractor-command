@@ -1,3 +1,4 @@
+import { attachAthenaCard } from "./cards/attach";
 import { HOST_DISPLAY_BLOCK, finalizeVisible, splitGuidance, withStyleLine } from "./visible";
 import { REMINDERS_VIEW_SPEC } from "./views";
 import { DB_UNAVAILABLE, MCP_DAILY_CAP, MCP_HOURLY_CAP, capMessage, type CapResult } from "./limits";
@@ -96,7 +97,9 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
   try {
     const r = await fn(sb);
     // The host-display block rides on every result (assistant_guidance only; members never see it).
-    return stampCanary(withStyleLine(finalizeVisible(sweep ? withSweep(r, sweep, sweepScope.client === true, o.ownerSov === true) : r, [HOST_DISPLAY_BLOCK])), touch.canary);
+    // Card pass is presentation after the guard. It does not change auth, entitlement, or the sweep.
+    const visible = withStyleLine(finalizeVisible(sweep ? withSweep(r, sweep, sweepScope.client === true, o.ownerSov === true) : r, [HOST_DISPLAY_BLOCK]));
+    return stampCanary(attachAthenaCard(tool, visible), touch.canary);
   } catch (e) {
     await logWorkflow(sb, {
       event_type: "failure",

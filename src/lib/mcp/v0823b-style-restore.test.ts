@@ -51,17 +51,17 @@ describe("0.8.23b lookahead result keeps the v0.8.22 drawing", () => {
     );
   });
 
-  it("the lookahead data is byte-equivalent to the v0.8.22 renderer", () => {
+  it("the lookahead data keeps the v0.8.22 rows and uses only blue, neutral, and red markers", () => {
     const data = dataOnly(view);
-    // Captured from lookaheadView after the render constants were restored to the v0.8.22 text.
-    // The function body emits the same strings as 39c736f9 (whitespace-only source diff).
+    // Markers replaced the amber warning and the inspection/delivery icons. Rows and dates are unchanged.
     expect(createHash("sha256").update(data).digest("hex")).toBe(
-      "1325a66e4cd8e1902a51bbe5ff3130b3ef79526dbd8bdd323f7d83572311cd6a",
+      "9f13553cda2771c4be1aac2ceae4aa512a49d18abdba3c17b8e70d2809f4e91a",
     );
     expect(data).toContain("2701 – Harbor Point");
     expect(data).toContain("A1110 Underground conduit rough-in");
-    expect(data).toContain("blue #2563EB");
-    expect(data).toContain("gray #9CA3AF");
-    expect(data).toContain("red #DC2626");
+    expect(data).toContain("🔵 critical");
+    expect(data).toContain("⚪ non-critical");
+    expect(data).toContain("🔴 risk, delay, overdue");
+    expect(data).not.toMatch(/⚠|🚚|📋|🚩|#9CA3AF|#2563EB/);
   });
 });
