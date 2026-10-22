@@ -252,6 +252,8 @@ export type Doc = {
   revision?: string | null;
   date?: string | null;
   sheets?: string[];
+  /** Private athena-files object name. Absent on older document entries. */
+  path?: string | null;
 };
 
 export type Setup = {

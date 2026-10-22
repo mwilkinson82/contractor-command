@@ -2268,7 +2268,7 @@
       {
         "name": "estimate_intake",
         "title": "Estimating intake",
-        "description": "Asks scope, role and profile, and warns before reusing a takeoff already on the job.",
+        "description": "Asks scope, role and profile, warns before reusing a takeoff already on the job, and stores a drawing PDF when one is sent.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -2491,6 +2491,50 @@
                   "const": 2
                 }
               ]
+            },
+            "drawing": {
+              "type": "object",
+              "properties": {
+                "filename": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "content_base64": {
+                  "type": "string",
+                  "maxLength": 13981024
+                },
+                "file": {
+                  "type": "object",
+                  "properties": {
+                    "download_url": {
+                      "type": "string"
+                    },
+                    "file_id": {
+                      "type": "string"
+                    },
+                    "mime_type": {
+                      "type": "string"
+                    },
+                    "file_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "download_url",
+                    "file_id"
+                  ]
+                },
+                "sheets": {
+                  "maxItems": 400,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  }
+                }
+              }
             }
           },
           "required": [
@@ -2658,7 +2702,7 @@
       {
         "name": "estimate_takeoff_save",
         "title": "Save a takeoff",
-        "description": "Saves takeoff lines with mode upsert, the default, or mode replace.",
+        "description": "Saves takeoff lines with mode upsert, the default, or mode replace, and stores a drawing PDF when one is sent.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -2995,6 +3039,50 @@
                   "sheet"
                 ]
               }
+            },
+            "drawing": {
+              "type": "object",
+              "properties": {
+                "filename": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "content_base64": {
+                  "type": "string",
+                  "maxLength": 13981024
+                },
+                "file": {
+                  "type": "object",
+                  "properties": {
+                    "download_url": {
+                      "type": "string"
+                    },
+                    "file_id": {
+                      "type": "string"
+                    },
+                    "mime_type": {
+                      "type": "string"
+                    },
+                    "file_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "download_url",
+                    "file_id"
+                  ]
+                },
+                "sheets": {
+                  "maxItems": 400,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  }
+                }
+              }
             }
           },
           "required": [
@@ -3008,7 +3096,7 @@
       {
         "name": "estimate_takeoff_get",
         "title": "Read a takeoff",
-        "description": "Returns the saved takeoff for a job.",
+        "description": "Returns the saved takeoff for a job and includes a stored drawing page when a sheet is named or a line names a markup.",
         "annotations": {
           "readOnlyHint": true,
           "idempotentHint": true,
@@ -3027,6 +3115,11 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 200
+            },
+            "sheet": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
             }
           },
           "required": [
