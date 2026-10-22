@@ -1,4 +1,16 @@
-import { START_BACKUP, START_EXAMPLES, START_HEADLINE, START_HOSTS, START_POINTS } from "@/lib/athena-start-copy";
+import {
+  MEMORY_ASK,
+  MEMORY_BONUS,
+  MEMORY_HOST_LINES,
+  MEMORY_LINE,
+  MEMORY_WAIT,
+  START_BACKUP,
+  START_EXAMPLES,
+  START_HABIT,
+  START_HEADLINE,
+  START_HOSTS,
+  START_POINTS,
+} from "@/lib/athena-start-copy";
 import { BLUE, GRAY, NAVY, WHITE } from "@/lib/mcp/cards/palette";
 
 /** Athena-branded start tip. Navy, blue, and gray. No alert red. */
@@ -51,8 +63,27 @@ export function AthenaStartTip() {
             </li>
           ))}
         </ul>
+        <h3 style={{ margin: "16px 0 8px", fontSize: 14 }}>One habit</h3>
+        <p style={{ margin: 0, padding: "8px 12px", borderLeft: `4px solid ${BLUE}` }}>{START_HABIT}</p>
         <h3 style={{ margin: "16px 0 8px", fontSize: 14, color: GRAY }}>Backup</h3>
         <p style={{ margin: 0, padding: "8px 12px", borderLeft: `4px solid ${GRAY}` }}>{START_BACKUP}</p>
+        <h3 style={{ margin: "16px 0 8px", fontSize: 14 }}>Bonus</h3>
+        <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+          {[MEMORY_LINE, MEMORY_BONUS, MEMORY_WAIT].map((line) => (
+            <li key={line} style={{ margin: "8px 0" }}>
+              {line}
+            </li>
+          ))}
+        </ul>
+        <h3 style={{ margin: "16px 0 8px", fontSize: 14 }}>If you say yes</h3>
+        <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+          {MEMORY_HOST_LINES.map((line) => (
+            <li key={line} style={{ margin: "8px 0", padding: "8px 12px", borderLeft: `4px solid ${BLUE}` }}>
+              {line}
+            </li>
+          ))}
+        </ul>
+        <p style={{ margin: "14px 0 0", fontWeight: 700 }}>{`Next move: ${MEMORY_ASK}`}</p>
       </div>
     </section>
   );

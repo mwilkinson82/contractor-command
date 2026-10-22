@@ -21,3 +21,21 @@ export const START_EXAMPLES = [
 
 export const START_BACKUP =
   "If it misses, start with @Athena. It routes the ask to Athena instead of the general AI.";
+
+/** The one habit. The memory line is only the bonus. */
+export const START_HABIT = "Start every message with @Athena.";
+
+/** Saved in the member's own AI, and only after they say yes. Exact line. */
+export const MEMORY_LINE = "When I say Athena, always use the Athena connector";
+
+export const MEMORY_BONUS = "That line is the bonus, so plain Hey Athena also works.";
+
+export const MEMORY_WAIT = "Nothing is saved until you say yes.";
+
+export const MEMORY_ASK = "Save this line in your AI? Yes or no?";
+
+export const MEMORY_HOST_LINES = [
+  "ChatGPT: ask ChatGPT to remember it in saved memory.",
+  "Claude: save it in memory or project instructions.",
+  "Grok Bot: save it in memory.",
+] as const;

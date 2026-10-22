@@ -2,13 +2,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { START_BACKUP, START_EXAMPLES, START_HEADLINE, START_POINTS } from "../athena-start-copy";
+import {
+  MEMORY_ASK,
+  MEMORY_BONUS,
+  MEMORY_HOST_LINES,
+  MEMORY_LINE,
+  MEMORY_WAIT,
+  START_BACKUP,
+  START_EXAMPLES,
+  START_HABIT,
+  START_HEADLINE,
+  START_POINTS,
+} from "../athena-start-copy";
 import { AthenaStartTip } from "@/components/athena/start-tip";
 import { paletteViolations } from "./cards/palette";
 import { renderHtml } from "./cards/html";
 import { cardWidgetHtml } from "./cards/widget";
 import { visibleProblems } from "./visible";
 import {
+  GETTING_STARTED_GUIDANCE,
   GETTING_STARTED_RULE,
   attachGettingStarted,
   branchGettingStarted,
@@ -16,6 +28,8 @@ import {
   firstJobCard,
   firstJobGuidance,
   gettingStartedCard,
+  memoryOffer,
+  plainGettingStarted,
   renderGettingStarted,
 } from "./getting-started";
 import { inferCard } from "./cards/infer";
@@ -89,10 +103,80 @@ describe("getting started card", () => {
     expect(html).not.toMatch(/\bpermanent\b/i);
   });
 
+  it("offers the memory line, asks first, and names ChatGPT, Claude, and Grok Bot", () => {
+    const plain = plainGettingStarted(card);
+    expect(plain).toBe(
+      [
+        "Hey Athena, let's get started",
+        "ChatGPT, Claude and Grok Bot",
+        "",
+        "Your work",
+        "The same Athena knows your jobs wherever you open her, in ChatGPT, Claude and Grok Bot.",
+        "Your work lives on Athena's servers.",
+        "Every job has its own dashboard and boards that stay up to date.",
+        "",
+        "Try one",
+        "Hey Athena, run my PM meeting",
+        "Hey Athena, give me the 2-week lookahead",
+        "Hey Athena, where's my billing forecast",
+        "Hey Athena, log today's daily",
+        "Hey Athena, show open change orders",
+        "Hey Athena, show the field board",
+        "",
+        "One habit",
+        START_HABIT,
+        "",
+        "Backup",
+        START_BACKUP,
+        "",
+        "Bonus",
+        MEMORY_LINE,
+        MEMORY_BONUS,
+        MEMORY_WAIT,
+        "",
+        "If you say yes",
+        ...MEMORY_HOST_LINES,
+        "",
+        `Next move: ${MEMORY_ASK}`,
+      ].join("\n"),
+    );
+    expect(MEMORY_LINE).toBe("When I say Athena, always use the Athena connector");
+    expect(START_HABIT).toBe("Start every message with @Athena.");
+    expect(shown).toContain(MEMORY_LINE);
+    expect(html).toContain(MEMORY_LINE);
+    expect(shown.indexOf(START_HABIT)).toBeLessThan(shown.indexOf(MEMORY_LINE));
+    expect(shown.indexOf(MEMORY_LINE)).toBeLessThan(shown.indexOf(MEMORY_WAIT));
+    expect(shown.indexOf(MEMORY_WAIT)).toBeLessThan(shown.indexOf(MEMORY_HOST_LINES[0]));
+    expect(shown.indexOf(MEMORY_HOST_LINES[2])).toBeLessThan(shown.indexOf(MEMORY_ASK));
+    expect(shown).not.toMatch(/already saved|I saved|line is saved/i);
+    expect(memoryOffer()).toEqual({
+      line: MEMORY_LINE,
+      ask: MEMORY_ASK,
+      habit: START_HABIT,
+      save_only_after_yes: true,
+      saved: false,
+      hosts: {
+        chatgpt: "ChatGPT: ask ChatGPT to remember it in saved memory.",
+        claude: "Claude: save it in memory or project instructions.",
+        grok_bot: "Grok Bot: save it in memory.",
+      },
+    });
+    expect(GETTING_STARTED_GUIDANCE).toContain("Save nothing in that reply.");
+    expect(GETTING_STARTED_GUIDANCE).toContain("Only after the member says yes");
+    expect(GETTING_STARTED_GUIDANCE).toContain(MEMORY_LINE);
+    for (const line of MEMORY_HOST_LINES) expect(GETTING_STARTED_GUIDANCE).toContain(line);
+    expect(GETTING_STARTED_GUIDANCE).toContain("If the member says no, save nothing.");
+    expect(GETTING_STARTED_RULE).toContain(MEMORY_LINE);
+    expect(GETTING_STARTED_RULE).toContain("Save nothing in that reply.");
+    expect(GETTING_STARTED_RULE).toContain("Grok Bot: save it in memory.");
+    expect(readFileSync("src/lib/mcp/team.ts", "utf8")).toContain('export const SEAT_PRICE_LABEL = "$49 per seat per month"');
+    expect(readFileSync("src/lib/mcp/tools/team-tools.ts", "utf8")).toContain("Adds company seats at $49 per seat per month.");
+  });
+
   it("stays on the card palette, with no alert red and no vendor names", () => {
     expect(paletteViolations(html, false)).toEqual([]);
     expect(paletteViolations(shown, false)).toEqual([]);
-    expect(html).not.toMatch(/#DC2626|red|lovable|supabase/i);
+    expect(html).not.toMatch(/#DC2626|\bred\b|lovable|supabase/i);
     expect(shown).not.toMatch(/lovable|supabase/i);
     expect(visibleProblems(shown)).toEqual([]);
     expect(card.alerts ?? []).toEqual([]);
@@ -131,6 +215,15 @@ describe("first tool call", () => {
     expect(lead).toContain("ChatGPT, Claude and Grok Bot");
     expect(lead.split("REQUIRED VIEW:")[0]).not.toContain("🔵");
     expect(first.structuredContent.getting_started.title).toBe(START_HEADLINE);
+    expect(lead).toContain(MEMORY_LINE);
+    expect(lead).toContain(START_HABIT);
+    expect(lead).toContain("Grok Bot: save it in memory.");
+    expect(lead).toContain(MEMORY_WAIT);
+    const offer = (first.structuredContent as { memory_offer?: { saved: boolean; save_only_after_yes: boolean } }).memory_offer;
+    expect(offer).toMatchObject({ line: MEMORY_LINE, saved: false, save_only_after_yes: true });
+    expect((first.structuredContent as { assistant_guidance?: string[] }).assistant_guidance?.join(" ")).toContain(
+      "Save nothing in that reply.",
+    );
 
     const second = (await run("report", ctx, { jobNumber: "2701" }, async () => ({
       content: [{ type: "text" as const, text: "Job 2701 is open." }],
@@ -147,6 +240,11 @@ describe("first tool call", () => {
     }))) as { content: { text: string }[]; structuredContent: { getting_started?: { title: string }; stage?: string } };
     expect(result.content[0].text).not.toContain(START_HEADLINE);
     expect(result.structuredContent.getting_started?.title).toBe(START_HEADLINE);
+    expect(JSON.stringify(result.structuredContent.getting_started)).toContain(MEMORY_LINE);
+    expect((result.structuredContent as { memory_offer?: { saved: boolean } }).memory_offer?.saved).toBe(false);
+    expect((result.structuredContent as { assistant_guidance?: string[] }).assistant_guidance?.join(" ")).toContain(
+      "Only after the member says yes",
+    );
     expect(result.structuredContent.stage).toBe("progress");
   });
 
@@ -183,16 +281,29 @@ describe("first tool call", () => {
       structuredContent: { card: { title: string }; getting_started?: unknown };
     };
     expect(result.structuredContent.card.title).toBe("Let's set up your company");
-    expect(result.structuredContent.getting_started).toBeUndefined();
-    const plain = result.content[0].text.split("REQUIRED VIEW:")[0];
-    expect(plain.trimStart().startsWith("Let's set up your company")).toBe(true);
-    expect(plain).toContain("What is the company name?");
-    expect(plain).toContain("Jobs belong to a company.");
-    expect(plain).toContain("Next move: Send the company name.");
-    expect(plain).not.toMatch(/save_company|create_job/);
-    expect(result.structuredContent.card.title).toBe("Let's set up your company");
-    expect(result.structuredContent.getting_started).toBeUndefined();
-    expect((result.structuredContent as { assistant_guidance?: string[] }).assistant_guidance?.join(" ")).toMatch(/save_company/);
+    expect(result.structuredContent.getting_started).toMatchObject({ title: START_HEADLINE });
+    const parts = result.content[0].text.split("REQUIRED VIEW:");
+    const lead = parts[0];
+    expect(lead.trimStart().startsWith(START_HEADLINE)).toBe(true);
+    expect(lead).toContain(START_HABIT);
+    expect(lead).toContain(MEMORY_LINE);
+    expect(lead).toContain(MEMORY_WAIT);
+    for (const line of MEMORY_HOST_LINES) expect(lead).toContain(line);
+    expect(lead).toContain(`Next move: ${MEMORY_ASK}`);
+    expect(lead).not.toContain("What is the company name?");
+    expect(result.content[0].text.split(`<title>${START_HEADLINE}</title>`).length - 1).toBe(1);
+    expect(result.content[0].text).toContain("Let's set up your company");
+    expect(result.content[0].text).toContain("What is the company name?");
+    expect(result.content[0].text).toContain("Jobs belong to a company.");
+    expect(result.content[0].text).toContain("Next move: Send the company name.");
+    expect(lead).not.toMatch(/save_company|create_job/);
+    const offer = (result.structuredContent as { memory_offer?: { saved: boolean; line: string } }).memory_offer;
+    expect(offer).toMatchObject({ line: MEMORY_LINE, saved: false, save_only_after_yes: true });
+    const guidance = (result.structuredContent as { assistant_guidance?: string[] }).assistant_guidance?.join(" ") ?? "";
+    expect(guidance).toMatch(/save_company/);
+    expect(guidance).toContain("Save nothing in that reply.");
+    expect(guidance).toContain("Only after the member says yes");
+    expect(guidance).toContain("Grok Bot: save it in memory.");
     expect(visibleProblems(result.content[0].text)).toEqual([]);
   });
 });
@@ -272,6 +383,13 @@ describe("app tip", () => {
     expect(html.indexOf(START_EXAMPLES[0])).toBeLessThan(html.indexOf(START_BACKUP));
     for (const line of START_POINTS) expect(html).toContain(line);
     for (const ask of START_EXAMPLES) expect(html).toContain(ask);
+    expect(html.indexOf(START_EXAMPLES[0])).toBeLessThan(html.indexOf(START_HABIT));
+    expect(html.indexOf(START_HABIT)).toBeLessThan(html.indexOf(START_BACKUP));
+    expect(html).toContain(MEMORY_LINE);
+    expect(html).toContain(MEMORY_BONUS);
+    expect(html).toContain(MEMORY_WAIT);
+    expect(html).toContain(MEMORY_ASK);
+    for (const line of MEMORY_HOST_LINES) expect(html).toContain(line);
     expect(html).not.toContain("2701");
     expect(html).not.toMatch(/\bpermanent\b/i);
     expect(paletteViolations(html, false)).toEqual([]);
@@ -283,7 +401,10 @@ describe("app tip", () => {
     expect(consent).toContain("<AthenaStartTip />");
     expect(readFileSync("src/lib/mcp/index.ts", "utf8")).toContain("GETTING_STARTED_RULE");
     expect(GETTING_STARTED_RULE).toContain("getting_started");
+    expect(GETTING_STARTED_RULE).toContain("start every message with @Athena");
+    expect(GETTING_STARTED_RULE).toContain(MEMORY_LINE);
     expect(GETTING_STARTED_RULE).not.toMatch(/#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})\b/);
+    expect(GETTING_STARTED_RULE).not.toMatch(/\blovable\b|\bsupabase\b/i);
   });
 });
 

@@ -11,6 +11,7 @@ import {
   firstJobCard,
   firstJobGuidance,
   renderGettingStarted,
+  withMemoryOffer,
 } from "../getting-started";
 import { run, text, type Sb } from "../guard";
 import { guide } from "../visible";
@@ -40,14 +41,15 @@ function whichJobResult(body: string) {
 export const gettingStarted = defineTool({
   name: "getting_started",
   title: "Hey Athena, let's get started",
-  description: "Claims Hey Athena, let's get started, Athena, let's get started, Good morning Athena, and Hey Athena, what's on my plate today?, and let's get started runs guided onboarding: first job setup when there is no job, and the morning meeting when the member already has jobs.",
+  description:
+    "Claims Hey Athena, let's get started, Athena, let's get started, Good morning Athena, and Hey Athena, what's on my plate today?, and let's get started runs guided onboarding: first job setup when there is no job, and the morning meeting when the member already has jobs, and asks before saving the line When I say Athena, always use the Athena connector.",
   inputSchema: {},
   annotations: READ,
   handler: (args, ctx) =>
     run("getting_started", ctx, undefined, async (sb) => {
       void args;
       await claimGettingStarted(sb);
-      return branchGettingStarted(
+      const branched = await branchGettingStarted(
         sb as Sb,
         async (jobNumber) => {
           const morning = await startMorning(sb, jobNumber);
@@ -57,5 +59,6 @@ export const gettingStarted = defineTool({
         },
         (company) => cardResult(firstJobCard(company), firstJobGuidance(company)),
       );
+      return withMemoryOffer(branched);
     }),
 });
