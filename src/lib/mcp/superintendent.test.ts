@@ -55,6 +55,8 @@ vi.mock("./jobs", () => ({
   READ_ONLY_MESSAGE: "Your role has a limited, read-only view of this job (no financials). Ask your owner or PM to make changes.",
   audit: async () => {},
   prefix: (j: { job_number: string }) => `${j.job_number} – `,
+  named: (j: { job_number: string; name?: string | null }) =>
+    j.name && j.name.toLowerCase().startsWith(j.job_number.toLowerCase()) ? j.name : `${j.job_number} – ${j.name ?? ""}`.trim(),
   jobTimeZone: async () => "America/New_York",
   resolveJob: async () => ({
     job_id: "11111111-1111-4111-8111-111111111111",
@@ -198,6 +200,22 @@ describe("daily assembly", () => {
     const draft = await handle(dailyReportDraft, { job_number: "2701", transcript: "Weather: Clear" });
     expect(draft.structuredContent.saved).toBe(false);
     expect(state.rpcs.map((r) => r[0])).not.toContain("mcp_daily_report_save");
+  });
+
+  it("puts the job name in the daily report header", () => {
+    const draft = assembleDaily({ transcript: "Weather: Clear\nManpower: 4 carpenters\nSubs: none\nWork:\n- Footings SOV 03.01 A1000 40 cy crew 4 8 hours\nDeliveries: none\nIssues: none\nDelays: none\nSafety: none" });
+    const card = dailyCard("1234 Riverside Clinic Renovation", "2026-10-22", draft, true);
+    expect(card).toContain("1234 Riverside Clinic Renovation · Daily report · 2026-10-22");
+    expect(card.split("\n")[1]).not.toBe("Daily report · 2026-10-22");
+    const html = dailyPageHtml({
+      job_number: "1234",
+      job_name: "Riverside Clinic Renovation",
+      found: true,
+      report_date: "2026-10-22",
+      weather: "Clear",
+    });
+    expect(html).toContain("1234 Riverside Clinic Renovation");
+    expect(html).toContain("Daily");
   });
 
   it("extracts every daily field from a transcript that has no separate inputs", () => {

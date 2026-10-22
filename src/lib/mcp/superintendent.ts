@@ -333,9 +333,10 @@ export function dailyCard(jobLabel: string, date: string, d: DailyDraft, saved: 
         return `- ${bits.join(" · ")}`;
       })
     : ["- Needed"];
+  const who = jobLabel.replace(/[\s·–—-]+$/g, "").trim();
   return [
     "REQUIRED: Show this daily as one phone-width card. Navy, blue and gray only. Red only on the delay line, and only when there is a delay.",
-    `${jobLabel}Daily report · ${date}`,
+    `${who ? `${who} · ` : ""}Daily report · ${date}`,
     saved ? "Saved." : "Draft. Not saved.",
     row("Weather", d.weather),
     row("Manpower", d.manpower),
