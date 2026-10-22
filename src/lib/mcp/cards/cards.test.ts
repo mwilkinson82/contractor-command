@@ -126,6 +126,23 @@ describe("PM tools become cards", () => {
     expect(itemCard.structuredContent.card.kpis?.find((k) => k.label === "Open items")?.value).toBe("2");
   });
 
+  it("puts every saved SOV line on the report card", () => {
+    const line_items = Array.from({ length: 10 }, (_, i) => ({
+      item_no: `26.${String(i + 1).padStart(2, "0")}`,
+      cost_code: "26-010",
+      description: `Line ${i + 1}`,
+      scheduled_value_display: "$140,000.00",
+    }));
+    const card = inferCard("report", "2701 – Harbor\nSCHEDULE OF VALUES\nLine | Cost code | Division | Description | Scheduled value | % of total\n26.01 | 26-010 | 26 Electrical | Line 1 | $140,000.00 | 10%", {
+      sov: { line_items },
+    });
+    const rows = card.sections?.find((section) => section.heading === "Schedule of values")?.rows ?? [];
+    expect(card.title).toBe("Schedule of values");
+    expect(rows).toHaveLength(10);
+    expect(rows[0].cells).toEqual(["26.01", "26-010", "Line 1", "$140,000.00"]);
+    expect(rows[9].cells[0]).toBe("26.10");
+  });
+
   it("does not nest an HTML card inside a Result list item", () => {
     const nested = inferCard("report", "2701 – Harbor\n<!doctype html><html><style>body{background: ;color: ;}</style><body>card</body></html>", {});
     const cells = nested.sections?.flatMap((section) => section.rows.flatMap((row) => row.cells)) ?? [];
