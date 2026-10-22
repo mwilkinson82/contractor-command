@@ -10,7 +10,12 @@ export function athenaPageReturn(value: unknown): string | undefined {
   const url = new URL(safe, "https://app.invalid");
   const path = url.pathname;
   if (path.startsWith("/oauth") || path.startsWith("//")) return undefined;
-  const ok = path.startsWith("/r/") || path.startsWith("/f/") || path === "/account" || path.startsWith("/account/");
+  const ok =
+    path.startsWith("/r/") ||
+    path.startsWith("/f/") ||
+    path === "/account" ||
+    path.startsWith("/account/") ||
+    path === "/today";
   if (!ok) return undefined;
   return path + url.search + url.hash;
 }

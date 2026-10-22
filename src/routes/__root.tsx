@@ -29,7 +29,7 @@ import { setPresence, resetPresence, type PresenceUser } from "@/lib/portal-pres
 import { toast } from "sonner";
 import { athenaAppOrigin } from "@/lib/athena-host";
 import { onAthenaHost } from "@/lib/athena-host-current";
-import { athenaHostRedirect, isHostedReport } from "@/lib/athena-routes";
+import { athenaHostRedirect, isHostedReport, isTodayPage } from "@/lib/athena-routes";
 
 const PUBLIC_ROUTES = new Set([
   "/login",
@@ -398,7 +398,7 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
   const router = useRouter();
   // /r/job/.../field, /items, and /submittals share this gate. A signed-in field board
   // must not send the open-items page to /login before the session can be read.
-  const isPublic = PUBLIC_ROUTES.has(pathname) || isHostedReport(pathname);
+  const isPublic = PUBLIC_ROUTES.has(pathname) || isHostedReport(pathname) || isTodayPage(pathname);
   const isOnboarding = pathname === ONBOARDING_ROUTE;
   // Athena host: only Athena pages render; Circle routes, Hub onboarding and
   // tier gates never apply there, and the Hub sidebar never shows.
@@ -531,7 +531,7 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
   if (isPublic) {
     // Signed-out redirect to a public page: render nothing until the public
     // page itself is on screen, so the protected page never flashes.
-    if (!session && !PUBLIC_ROUTES.has(renderedPathname) && !isHostedReport(renderedPathname)) return null;
+    if (!session && !PUBLIC_ROUTES.has(renderedPathname) && !isHostedReport(renderedPathname) && !isTodayPage(renderedPathname)) return null;
     return <>{children(false)}</>;
   }
 

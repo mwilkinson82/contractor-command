@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { athenaHostRedirect, athenaPathAllowed, isHostedReport, postSignInDefault } from "./athena-routes";
+import { athenaHostRedirect, athenaPathAllowed, isHostedReport, isTodayPage, postSignInDefault } from "./athena-routes";
 
 describe("Athena-only route shell", () => {
   it.each([
@@ -21,6 +21,7 @@ describe("Athena-only route shell", () => {
     "/f/tok",
     "/brand/athena/email/athena-mark-180.png",
     "/api/public/athena/stripe-webhook",
+    "/today",
   ])("allows %s", (p) => {
     expect(athenaPathAllowed(p)).toBe(true);
     expect(athenaHostRedirect(p)).toBeNull();
@@ -50,6 +51,11 @@ describe("Athena-only route shell", () => {
     const root = readFileSync(new URL("../routes/__root.tsx", import.meta.url), "utf8");
     expect(root).toContain("isHostedReport(pathname)");
     expect(root).toContain("isHostedReport(renderedPathname)");
+    expect(isTodayPage("/today")).toBe(true);
+    expect(isTodayPage("/today/")).toBe(true);
+    expect(isTodayPage("/today/extra")).toBe(false);
+    expect(root).toContain("isTodayPage(pathname)");
+    expect(root).toContain("isTodayPage(renderedPathname)");
   });
 
   it("post-sign-in default: Athena host /account, Hub unchanged '/'", () => {
