@@ -121,8 +121,9 @@ describe("submittal log read", () => {
       expect(text).toContain(title);
     }
     expect(log?.rows[0].flag).toBe("overdue");
-    expect(text).toContain("#1E3A5F");
-    expect(text).toContain("#1E5FED");
+    expect(text).not.toContain("<!doctype html");
+    expect(result.structuredContent.html).toContain("#1E3A5F");
+    expect(result.structuredContent.html).toContain("#1E5FED");
     expect(paletteViolations(result.structuredContent.html, true)).toEqual([]);
     expect(result.structuredContent.html).toContain("#DC2626");
   });
@@ -134,7 +135,8 @@ describe("submittal log read", () => {
     expect(state.writes).toEqual([]);
     expect(text).toContain("No submittals on this job yet.");
     expect(text).toContain("log a submittal");
-    expect(text).toContain("<!doctype html");
+    expect(text).not.toContain("<!doctype html");
+    expect(result.structuredContent.html).toContain("<!doctype html");
     expect(result.structuredContent.card.title).toBe("Submittal log");
     expect(text).not.toContain("A1020");
     expect(paletteViolations(result.structuredContent.html, false)).toEqual([]);

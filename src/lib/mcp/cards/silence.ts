@@ -2,6 +2,7 @@
 // whatever prose is left in the tool text. A which-job or picker card must end on the
 // card. The last line is an instruction, not a preview of the next pull.
 
+import { CLAUDE_CHAT_CARD_LINE } from "./markdown";
 import { CARD_WIDGET_URI } from "./widget";
 
 export const CARD_SHOWN = "Card shown. Do not add text.";
@@ -10,7 +11,7 @@ export const CARD_SHOWN_PICK = "Card shown. Do not add text; wait for the user's
 /** Selection cards. Which-job is detected from structuredContent.which_job. */
 export const PICKER_TOOLS = new Set(["team_list"]);
 
-const HTML_MARKER = "REQUIRED VIEW: render this HTML card as-is.";
+const HTML_MARKER = CLAUDE_CHAT_CARD_LINE;
 
 type Block = { type: string; text?: string; _meta?: Record<string, unknown> };
 type Res = {

@@ -140,7 +140,8 @@ describe("sample path on job 2701", () => {
         const text = r.content.find((c) => c.type === "text")?.text ?? "";
         expect(text.startsWith("## 🔵"), name).toBe(true);
         expect(text).toContain("Sample on job 2701");
-        expect(text).toContain("REQUIRED VIEW: render this HTML card as-is.");
+        expect(text).toContain("REQUIRED VIEW: paste the styled markdown card above into the chat answer itself, exactly as written. Never an artifact or a link.");
+        expect(text).not.toContain("<!doctype html");
         expect(text.trim().endsWith(CARD_SHOWN), name).toBe(true);
         expect(r.content[0].type).toBe("text");
         expect(r.content.some((c) => c.type === "resource")).toBe(false);
@@ -240,7 +241,8 @@ describe("sample path on job 2701", () => {
     const text = r.content.find((c) => c.type === "text")?.text ?? "";
     expect(r.structuredContent.card.title).toBe("PM meeting");
     expect(text).toContain("only on job 2701");
-    expect(text).toContain("<!doctype html>");
+    expect(text).not.toContain("<!doctype html");
+    expect(r.structuredContent.html).toContain("<!doctype html>");
   });
 
   it("a bare greeting with one job returns the morning brief and no trailing prose", async () => {
@@ -252,8 +254,8 @@ describe("sample path on job 2701", () => {
     expect(text).toContain("Next move");
     expect(text.trim().endsWith(CARD_SHOWN)).toBe(true);
     const before = text.trim().slice(0, -CARD_SHOWN.length).trim();
-    expect(before.endsWith("</html>")).toBe(true);
-    expect(before.match(/<!doctype html/gi)).toHaveLength(1);
+    expect(before.endsWith("Never an artifact or a link.")).toBe(true);
+    expect(before).not.toMatch(/<!doctype html/i);
     expect(before).not.toContain("```");
     expect(before).not.toContain("&lt;!doctype");
     expect(before).not.toMatch(/[a-z-]+\s*:\s*;/);
@@ -288,8 +290,9 @@ describe("sample path on job 2701", () => {
     expect(text).toContain("Next move");
     expect(text.trim().endsWith(CARD_SHOWN)).toBe(true);
     const before = text.trim().slice(0, -CARD_SHOWN.length).trim();
-    expect(before.endsWith("</html>")).toBe(true);
-    expect(before.match(/<!doctype html/gi)).toHaveLength(1);
+    expect(before.endsWith("Never an artifact or a link.")).toBe(true);
+    expect(before).not.toMatch(/<!doctype html/i);
+    expect(r.structuredContent.html).toContain("<!doctype html>");
     expect(before).not.toContain("&lt;!doctype");
     expect(r.content.some((c) => c.type === "resource")).toBe(false);
     calls.jobs = [{ job_number: "2701", name: "Harbor Point", company_id: "c1" }];

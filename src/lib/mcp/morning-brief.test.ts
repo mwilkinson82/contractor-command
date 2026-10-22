@@ -239,18 +239,19 @@ describe("morning brief builder", () => {
     expect(paletteViolations(renderHtml(empty.card), false)).toEqual([]);
   });
 
-  it("is one unescaped HTML card for Claude, with inbox, calendar, jobs, and a link", () => {
+  it("pastes the markdown card in the chat and keeps the HTML document for the widget", () => {
     const shown = presentBrief(pm.card);
     const text = shown.content.find((c) => c.type === "text")?.text ?? "";
     const before = text.trim().slice(0, -CARD_SHOWN.length).trim();
-    expect(before.match(/<!doctype html/gi)).toHaveLength(1);
-    expect(before.endsWith("</html>")).toBe(true);
+    expect(before).not.toMatch(/<!doctype html/i);
+    expect(before).toContain("REQUIRED VIEW: paste the styled markdown card above into the chat answer itself, exactly as written. Never an artifact or a link.");
     expect(before).not.toContain("```html");
     expect(before).not.toContain("&lt;!doctype");
     expect(before).not.toContain(">Result<");
-    expect(emptyCssValues(before)).toEqual([]);
-    expect(before).toContain("#1E3A5F");
-    expect(before).toContain("#1E5FED");
+    expect(emptyCssValues(shown.structuredContent.html)).toEqual([]);
+    expect(shown.structuredContent.html).toContain("<!doctype html>");
+    expect(shown.structuredContent.html).toContain("#1E3A5F");
+    expect(shown.structuredContent.html).toContain("#1E5FED");
     expect(before).toContain(INBOX_HOST_LINE);
     expect(before).toContain("Gmail and Calendar");
     expect(before).not.toContain("leave the section out");
@@ -301,10 +302,12 @@ describe("a second good morning", () => {
       expect(text).toContain("Morning brief");
       expect(text).toContain("2701");
       expect(text).not.toMatch(/already shown|Your brief is above|short reply/i);
-      expect(text.match(/<!doctype html/gi)).toHaveLength(1);
-      expect(text).toContain("#1E3A5F");
-      expect(text).toContain("#1E5FED");
+      expect(text).not.toMatch(/<!doctype html/i);
+      expect(text).toContain("REQUIRED VIEW: paste the styled markdown card above into the chat answer itself");
     }
+    expect(first.structuredContent.html).toContain("<!doctype html>");
+    expect(first.structuredContent.html).toContain("#1E3A5F");
+    expect(first.structuredContent.html).toContain("#1E5FED");
     expect(calls.filter((fn) => fn === "mcp_morning_brief_shows")).toEqual([]);
     expect(calls.filter((fn) => fn === "mcp_morning_brief_mark_shown")).toHaveLength(2);
   });
