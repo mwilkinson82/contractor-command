@@ -49,7 +49,7 @@ function row(over: Partial<BoardLinkRow> = {}): BoardLinkRow {
   return { job_id: JOB, scope: "full", expires_at: "2026-10-23T12:00:00Z", revoked_at: null, ...over };
 }
 
-function renderPage(page: "items" | "ior" | "payapp" | "field", token?: string) {
+function renderPage(page: "items" | "ior" | "payapp" | "field" | "lookahead", token?: string) {
   return renderToStaticMarkup(createElement(ReportPageView, { page, jobId: JOB, token }));
 }
 
@@ -213,6 +213,16 @@ describe("board link page without a session", () => {
     const html = renderPage("items", "live-token");
     expect(html).toContain("Buy the switchgear");
     expect(html).not.toContain("Loading");
+  });
+
+  it("opens the lookahead board linked by the card despite another user's session", () => {
+    state.session = { user: { id: "another-member" } };
+    state.pageQuery = { data: undefined, isLoading: false, error: new Error("no access") };
+    state.linkQuery = { data: { status: "ok", payload: JSON.stringify({ page: "lookahead", job_number: "2701", job_name: "Harbor", report: { found: false } }) }, isLoading: false, error: null };
+    const html = renderPage("lookahead", "live-token");
+    expect(html).toContain("2701 Harbor · Two-Week Lookahead");
+    expect(html).not.toContain(BOARD_SIGN_IN_TITLE);
+    expect(html).not.toContain("have access to this page");
   });
 
   it("does not reuse a cached member payload after its access check fails", () => {
