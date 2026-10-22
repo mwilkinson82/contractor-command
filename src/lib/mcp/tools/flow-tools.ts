@@ -12,13 +12,13 @@ import { isUuid } from "../../report-pages";
 import { job2701FlowData } from "../flows/job-2701";
 import { loadFlowData, saveFlowNote } from "../flows/load";
 import { STAGE_LABEL, stagesFor, type FlowData, type FlowName } from "../flows/types";
-import { run, text, type Sb } from "../guard";
+import { run, type Sb } from "../guard";
 import { FULL_ACCESS_MESSAGE, audit, resolveJob } from "../jobs";
-import { listCompaniesAndJobs, listedJobs } from "./workflow-tools";
+import { chooseJob, listCompaniesAndJobs, listedJobs } from "./workflow-tools";
 import { guide } from "../visible";
 
-const jobNumber = z.string().trim().min(1).max(40).optional();
-const companyId = z.string().trim().min(1).max(200).optional();
+const jobNumber = z.string().trim().max(40).optional();
+const companyId = z.string().trim().max(200).optional();
 const note = z.string().trim().max(4000).optional();
 const crewMode = z.enum(["subcontract", "self_perform"]).optional();
 const sample = z.literal(true).optional();
@@ -66,10 +66,10 @@ export const ATHENA_GREETING_PHRASES = [
   "Atena",
 ] as const;
 
-export const MORNING_HITLIST_TITLE = "Athena, good morning, Hey Athena, Good morning Athena, Morning Athena, Athina, Athen, Atena";
+export const MORNING_HITLIST_TITLE = "Athena, good morning, Hey Athena, good morning, Good morning Athena, Morning Athena, Athina what's on my hitlist this morning, Athina, Athen, Atena";
 
 export const MORNING_HITLIST_DESCRIPTION =
-  "Athena answers Athena, good morning, Hey Athena, Good morning Athena, Morning Athena, Athena at the start or mid-sentence, and misspellings Athina, Athen, and Atena, plus hitlist, morning briefing, what's on my plate today, overdue, and today's deadlines on my jobs, as the construction job hitlist, not email or calendar.";
+  "Athena answers Hey Athena, good morning, Athena, good morning, Good morning Athena, Morning Athena, Athena at the start or mid-sentence, Athina what's on my hitlist this morning, and misspellings Athina, Athen, and Atena, plus hitlist, morning briefing, what's on my plate today, overdue, and today's deadlines on my jobs, as the construction job hitlist, not email or calendar and not Gmail.";
 
 function sealedCard(card: ReturnType<typeof inferCard>, pick: boolean) {
   const html = renderHtml(card);
@@ -84,18 +84,18 @@ function sealedCard(card: ReturnType<typeof inferCard>, pick: boolean) {
   );
 }
 
-/** A greeting with no other ask: the morning hitlist when one job is in view, otherwise the which-job card. */
+/** A greeting with no other ask. One job, or the most recently updated job, opens directly. */
 export async function morningGreeting(sb: Sb, companyId?: string) {
-  const jobs = await listedJobs(sb, companyId);
-  if (jobs.length === 1) return lead("pm_morning", { job_number: jobs[0].job_number, company_id: companyId }, sb);
-  const listing = await listCompaniesAndJobs(sb, companyId, "pm_morning");
-  return sealedCard(inferCard("athena_morning_hitlist", listing), true);
+  return lead("pm_morning", { company_id: companyId }, sb);
 }
 
 async function lead(flow: FlowName, args: { job_number?: string; company_id?: string; stage?: string; note?: string; crew_mode?: "subcontract" | "self_perform"; sample?: true; plan?: number; realistic?: number; percent_complete?: number }, sb: Sb) {
   if (!args.job_number?.trim()) {
-    if (flow === "pm_morning") return morningGreeting(sb, args.company_id);
-    return text(await listCompaniesAndJobs(sb, args.company_id, flow));
+    const jobs = await listedJobs(sb, args.company_id);
+    const picked = chooseJob(jobs);
+    if (picked?.job_number) return lead(flow, { ...args, job_number: picked.job_number, company_id: args.company_id ?? picked.company_id }, sb);
+    const tool = flow === "pm_morning" ? "athena_morning_hitlist" : flow;
+    return sealedCard(inferCard(tool, await listCompaniesAndJobs(sb, args.company_id, tool)), true);
   }
   const stages = stagesFor(flow);
   const stage = args.stage ?? stages[0];
@@ -161,6 +161,16 @@ export const pmMorning = defineTool({
   annotations: READ,
   handler: (args, ctx) =>
     run("athena_morning_hitlist", ctx, { jobNumber: args.job_number }, async (sb) => lead("pm_morning", args, sb)),
+});
+
+export const pmMorningMeeting = defineTool({
+  name: "pm_morning",
+  title: "PM morning meeting",
+  description: "Runs the construction PM morning meeting when someone says morning meeting, PM morning, or start the morning meeting, picks the only job or the most recent job instead of asking which job, and does not hand the request to email or a calendar.",
+  inputSchema: { job_number: jobNumber, company_id: companyId, stage: z.enum(["schedule", "crews", "risks", "spillover", "log"]).optional(), note, crew_mode: crewMode, sample },
+  annotations: READ,
+  handler: (args, ctx) =>
+    run("pm_morning", ctx, { jobNumber: args.job_number }, async (sb) => lead("pm_morning", args, sb)),
 });
 
 export const pmEvening = defineTool({

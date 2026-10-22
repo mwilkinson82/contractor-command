@@ -167,6 +167,7 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
       return {
         ...base,
         state: "result",
+        show_state: false,
         kpis: [
           { label: "Open", value: String(counts.open) },
           { label: "Overdue", value: String(counts.overdue), flag: counts.overdue ? "overdue" : null },
@@ -186,6 +187,7 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
     return {
       ...base,
       state: "result",
+      show_state: false,
       kpis: [{ label: "Open items", value: String(rows.length || linesOf(text).length), flag: overdueN ? "overdue" : null }],
       sections: [listSection("Items", rows.length ? rows : linesOf(text).slice(0, 8).map((l) => ({ cells: [l] })))],
       alerts: overdueN ? [{ level: "overdue", text: `${overdueN} overdue` }] : [],
@@ -225,8 +227,9 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
     const rawLines = linesOf(text);
     const incomplete = rawLines.filter((line) => /incomplete terms/i.test(line) || /^\s*-?\s*Missing:/i.test(line));
     const askLine = rawLines.find((line) => line.includes(SUMMARY_OFFER) || /do you want me to summarize/i.test(line));
+    const valueLine = (typeof structured.contract_value_display === "string" && structured.contract_value_display) || rawLines.find((line) => /^Contract value:/i.test(line)) || "";
     const clauseRows: CardRow[] = rawLines
-      .filter((line) => !incomplete.includes(line) && line !== askLine)
+      .filter((line) => !incomplete.includes(line) && line !== askLine && line !== valueLine && !/^Contract value:/i.test(line))
       .map((line) => ({ cells: [line], flag: lineAlert(line), raw: true }));
     const alerts = [
       ...clauseRows.filter((r) => r.flag).map((r) => ({ level: r.flag!, text: r.cells[0] })),
@@ -237,10 +240,20 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
       state: askLine ? "ask" : base.state,
       ask: askLine ? { prompt: SUMMARY_OFFER } : null,
       kpis: [
+        ...(valueLine ? [{ label: "Contract value", value: valueLine.replace(/^Contract value:\s*/i, "") }] : []),
         { label: "Clauses", value: String(clauseRows.length) },
         { label: "Risk clauses", value: String(clauseRows.filter((r) => r.flag).length), flag: clauseRows.some((r) => r.flag) ? "risk" : null },
       ],
       sections: [
+        ...(Array.isArray(structured.board_links)
+          ? [{
+              heading: "Job board",
+              kind: "chips" as const,
+              rows: (structured.board_links as { label?: string; url?: string }[])
+                .filter((link) => link.url)
+                .map((link) => ({ cells: [String(link.label || "Open")], href: String(link.url), tone: "action" as const })),
+            }]
+          : []),
         { heading: "Clauses", kind: "list", rows: clauseRows },
         ...(incomplete.length ? [listSection("Incomplete terms", incomplete.map((line) => ({ cells: [line.replace(/^- /, "")], tone: "unknown" as const })))] : []),
         { heading: "Applicability", kind: "table", columns: ["Flag", "Value"], rows: flagRows },

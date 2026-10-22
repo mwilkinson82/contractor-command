@@ -115,6 +115,8 @@ describe("PM tools become cards", () => {
     const items = "2701 – Open items (2):\n- OVERDUE storm delay\n- Buy the gear";
     const itemCard = attachAthenaCard("list_open_items", { content: [{ type: "text", text: items }] }) as unknown as { structuredContent: { card: CardModel; html: string }; content: { text: string }[] };
     expect(itemCard.structuredContent.card.state).toBe("result");
+    expect(itemCard.structuredContent.card.show_state).toBe(false);
+    expect(itemCard.structuredContent.html).not.toContain(">Result<");
     expect(itemCard.structuredContent.card.alerts?.[0].level).toBe("overdue");
     expect(itemCard.structuredContent.html).toContain('data-alert="overdue"');
     expect(itemCard.content[0].text).toContain(items);

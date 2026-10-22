@@ -1,6 +1,7 @@
 // One open-item set for the header, the list, structuredContent, and the card.
 // Meeting confirmations share a stable key, so a second run updates that row instead of adding another.
 import { addDays } from "./deadlines";
+import { formatBillingText } from "../report-format";
 import type { CardModel } from "./cards/model";
 
 export type FeedRow = {
@@ -103,6 +104,7 @@ export function isDueIn7(it: FeedRow, today: string): boolean {
 export function openItemsCard(job: string, items: FeedRow[], counts: OpenCounts, today: string): CardModel {
   return {
     state: "result",
+    show_state: false,
     title: "Open items",
     job,
     kpis: [
@@ -114,7 +116,7 @@ export function openItemsCard(job: string, items: FeedRow[], counts: OpenCounts,
       heading: "Items",
       kind: "list",
       rows: items.map((it) => ({
-        cells: [itemName(it.action), it.accountable ?? it.owner ?? "Needed", dueOf(it) || "Needed"],
+        cells: [formatBillingText(itemName(it.action)), it.accountable ?? it.owner ?? "Needed", dueOf(it) || "Needed"],
         flag: isOverdue(it, today) ? ("overdue" as const) : null,
         refId: it.id,
       })),

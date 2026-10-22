@@ -89,6 +89,7 @@ async function liveTools(): Promise<Tool[]> {
       Field.dailyReminderRun,
       G.pmMeeting,
       G.pmMorning,
+      G.pmMorningMeeting,
       G.pmEvening,
       E.emailDraft,
       E.emailConfirmSend,

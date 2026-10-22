@@ -1,6 +1,7 @@
 import { detailAnchor } from "../plain-label";
 import { dedupeOpenRows } from "../open-feed";
 import { money } from "../sov";
+import { formatBillingText } from "../../report-format";
 import type { CardModel, CardRow } from "../cards/model";
 import {
   STAGE_LABEL,
@@ -82,7 +83,7 @@ function noteSection(data: FlowData): CardModel["sections"] {
       : data.itemFiled
         ? "Filed on the risk log. The IOR snapshot was not stored."
         : "On this card. It was not stored.";
-  return [{ heading: "From this meeting", kind: "list", rows: [{ cells: [data.note], tone: "action" }, { cells: [line], tone: data.logged ? "known" : "unknown" }] }];
+  return [{ heading: "From this meeting", kind: "list", rows: [{ cells: [formatBillingText(data.note)], tone: "action" }, { cells: [line], tone: data.logged ? "known" : "unknown" }] }];
 }
 
 function boardSection(data: FlowData): CardModel["sections"] {

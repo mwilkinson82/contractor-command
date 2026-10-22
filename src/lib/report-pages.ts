@@ -8,6 +8,7 @@ import { DEFAULT_TZ, addDays, todayIn } from "./mcp/deadlines";
 import { activityLine, activityTitle, briefingModel, dayHead, lookaheadModel, payModel, shortDate, lookaheadWindow, type BriefItem, type Billing, type LaItem, type LaEntry, type SAct } from "./mcp/styled-views";
 import { dailyPageHtml, fieldPageHtml, photoPageHtml } from "./mcp/superintendent";
 import { renderIorLayout, type ReportNames } from "./ior-layout";
+import { formatReportNumber, money } from "./report-format";
 import { dedupeOpenRows, itemName } from "./mcp/open-feed";
 
 export const REPORT_PAGES = ["ior", "schedule", "portfolio"] as const;
@@ -19,7 +20,7 @@ export type AnyPage = ReportPage | ViewPage;
 export const JOB_PAGES = ["ior", "schedule", ...VIEW_PAGES] as const;
 export const PAGE_LABEL: Record<AnyPage, string> = { ior: "IOR", schedule: "Schedule", portfolio: "Portfolio dashboard", lookahead: "Two-Week Lookahead", payapp: "Pay App", briefing: "Morning Briefing", field: "Field board", daily: "Daily report", photos: "Progress photos", items: "Open items" };
 export const PAGE_ORIGIN = "https://app.meetathena.io";
-export const PERMANENT_LINK_ASK = "Want this as a permanent link I keep updated?";
+export const PERMANENT_LINK_ASK = "Want the job board links I keep updated? Items (/items), the IOR (/ior), the field board (/field), and the schedule.";
 export const SHARE_DEFAULT_DAYS = 30;
 export const SHARE_MAX_DAYS = 90;
 
@@ -89,8 +90,10 @@ export type PagePayload = JobPayload | PortfolioPayload | FieldPagePayload | Dai
 
 // ---------- helpers ----------
 export const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-export const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+export { money };
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+/** Schedule float is working days. A raw float is rounded; it is never currency. */
+const shownFloat = (value: unknown) => (isNum(value) ? formatReportNumber("total_float", value) : String(value ?? ""));
 const day = (s: string) => Date.parse(`${s.slice(0, 10)}T00:00:00Z`);
 const NAVY = "#1E3A5F", BLUE = "#2563EB", G1 = "#6B7280", G2 = "#9CA3AF", G3 = "#D1D5DB", G4 = "#F3F4F6", RED = ALERT_HEX;
 
@@ -132,7 +135,7 @@ function scheduleView(p: JobPayload): string {
       const frag = /^FRAG|^D\d/i.test(a.id) || /fragnet|delay/i.test(a.name);
       const color = frag ? RED : a.critical ? BLUE : G2;
       const bar = frag ? `background:repeating-linear-gradient(45deg,${RED},${RED} 4px,#FCA5A5 4px,#FCA5A5 8px)` : `background:${color}`;
-      return `<tr id="activity-${esc(a.id)}"><td style="padding:4px 8px;font-size:12px;color:${NAVY};font-weight:600" data-id="${esc(a.id)}">${esc(activityTitle(a))}<div style="font-size:11px;font-weight:400;color:${G1}">${esc(a.id)}</div></td><td style="padding:4px 8px;font-size:12px;color:${G1};white-space:nowrap">${esc(a.start)} – ${esc(a.finish)}</td><td style="padding:4px 8px;font-size:12px;color:${isNum(a.total_float) && a.total_float < 0 ? RED : G1}">${isNum(a.total_float) ? esc(a.total_float) : ""}</td><td style="position:relative;min-width:320px;width:50%"><div style="position:relative;height:14px;background:${G4};border-radius:3px"><div style="position:absolute;left:${l.toFixed(2)}%;width:${w.toFixed(2)}%;top:0;bottom:0;border-radius:3px;${bar}"></div>${markPct >= 0 && markPct <= 100 ? `<div style="position:absolute;left:${markPct.toFixed(2)}%;top:-2px;bottom:-2px;width:2px;background:${NAVY}"></div>` : ""}</div></td></tr>`;
+      return `<tr id="activity-${esc(a.id)}"><td style="padding:4px 8px;font-size:12px;color:${NAVY};font-weight:600" data-id="${esc(a.id)}">${esc(activityTitle(a))}<div style="font-size:11px;font-weight:400;color:${G1}">${esc(a.id)}</div></td><td style="padding:4px 8px;font-size:12px;color:${G1};white-space:nowrap">${esc(a.start)} – ${esc(a.finish)}</td><td style="padding:4px 8px;font-size:12px;color:${isNum(a.total_float) && a.total_float < 0 ? RED : G1}">${isNum(a.total_float) ? esc(shownFloat(a.total_float)) : ""}</td><td style="position:relative;min-width:320px;width:50%"><div style="position:relative;height:14px;background:${G4};border-radius:3px"><div style="position:absolute;left:${l.toFixed(2)}%;width:${w.toFixed(2)}%;top:0;bottom:0;border-radius:3px;${bar}"></div>${markPct >= 0 && markPct <= 100 ? `<div style="position:absolute;left:${markPct.toFixed(2)}%;top:-2px;bottom:-2px;width:2px;background:${NAVY}"></div>` : ""}</div></td></tr>`;
     }).join("");
     out.push(card(`<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><thead><tr style="text-align:left;font-size:12px;color:${G1}"><th style="padding:4px 8px">Activity</th><th style="padding:4px 8px">Dates</th><th style="padding:4px 8px">Float</th><th style="padding:4px 8px">Gantt</th></tr></thead><tbody>${rows}</tbody></table></div>` +
       `<p style="margin:12px 0 0;font-size:12px;color:${G1}"><span style="display:inline-block;width:10px;height:10px;background:${BLUE}"></span> Critical &nbsp; <span style="display:inline-block;width:10px;height:10px;background:${G2}"></span> Non-critical &nbsp; <span style="display:inline-block;width:10px;height:10px;background:${RED}"></span> Delay fragnet &nbsp; <span style="display:inline-block;width:2px;height:10px;background:${NAVY}"></span> ${Number.isFinite(dd) && dd > today ? "Data date" : "Today"}</p>`));
@@ -192,11 +195,11 @@ function lookaheadPageView(p: LookaheadPayload): string {
   if (!m.rows.length) out.push(card(`<p style="margin:0;color:${G1}">No saved schedule activities fall in this window.</p><p style="margin:8px 0 0;color:${NAVY}"><strong>Next move:</strong> pick a window that overlaps the saved schedule, or send this window's schedule export.</p>`));
   else {
     const th = m.days.map((d, i) => `<th style="padding:4px 2px;font-size:11px;color:${d === hl ? BLUE : G1};text-align:center;${i === 5 ? `border-left:2px solid ${G3};` : ""}">${i === 0 ? "WEEK 1<br>" : i === 5 ? "WEEK 2<br>" : "<br>"}${esc(dayHead(d))}</th>`).join("");
-    const rows = m.rows.map((row) => `<tr id="activity-${esc(row.a.id)}" style="border-top:1px solid ${G4}"><td style="padding:6px 8px;font-size:12px;font-weight:600;color:${NAVY}" data-id="${esc(row.a.id)}">${esc(activityTitle(row.a))}<div style="font-size:11px;font-weight:400;color:${G1}">${esc(row.a.id)}</div></td><td style="padding:6px 8px;font-size:12px;color:${Number(row.a.total_float) === 0 ? BLUE : G1};text-align:center">${esc(row.a.total_float ?? "")}</td>${row.cells.map((c, i) => `<td style="padding:4px 2px;min-width:44px;text-align:center;${i === 5 ? `border-left:2px solid ${G3};` : ""}">${CELL_HTML[c.kind]}${c.risk ? `<span style="color:${RED}">⚑</span>` : ""}</td>`).join("")}</tr>`).join("");
+    const rows = m.rows.map((row) => `<tr id="activity-${esc(row.a.id)}" style="border-top:1px solid ${G4}"><td style="padding:6px 8px;font-size:12px;font-weight:600;color:${NAVY}" data-id="${esc(row.a.id)}">${esc(activityTitle(row.a))}<div style="font-size:11px;font-weight:400;color:${G1}">${esc(row.a.id)}</div></td><td style="padding:6px 8px;font-size:12px;color:${Number(row.a.total_float) === 0 ? BLUE : G1};text-align:center">${esc(shownFloat(row.a.total_float))}</td>${row.cells.map((c, i) => `<td style="padding:4px 2px;min-width:44px;text-align:center;${i === 5 ? `border-left:2px solid ${G3};` : ""}">${CELL_HTML[c.kind]}${c.risk ? `<span style="color:${RED}">⚑</span>` : ""}</td>`).join("")}</tr>`).join("");
     out.push(card(h2("CALENDAR") + `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><thead><tr style="text-align:left;font-size:12px;color:${G1}"><th style="padding:4px 8px">Activity</th><th style="padding:4px 8px">Float</th>${th}</tr></thead><tbody>${rows}</tbody></table></div>` + legend([[sw(BLUE), "Critical"], [sw(G2), "Non-critical"], ["📋", "Inspection"], ["🚚", "Delivery"], ["◆", "Milestone"], [`<span style="color:${RED}">⚑</span>`, "Risk"]])));
   }
   if (m.overdue.length) out.push(card(h2("OVERDUE") + m.overdue.map((e, n) => `<div id="item-${esc(e.item.id || String(n + 1))}" style="border:1px solid #FECACA;border-left:4px solid ${RED};border-radius:10px;padding:12px;margin:0 0 8px">${badge}<strong style="color:${RED}">${esc(e.label)}</strong><span style="color:${NAVY}"> · ${due(e)}</span></div>`).join("")));
-  if (m.risks.length) out.push(card(h2("RISKS") + m.risks.map((e) => `<div style="border:1px solid #FECACA;border-left:4px solid ${RED};border-radius:10px;padding:12px;margin:0 0 8px"><strong style="color:${RED}">${esc(e.label)}</strong><span style="color:${NAVY}"> · Impact: ${esc(activityLine(e.a!))}${e.a!.total_float !== undefined && e.a!.total_float !== null ? ` (float ${esc(e.a!.total_float)} WD)` : ""}. ${due(e)}</span>${flagsHtml(e)}</div>`).join("")));
+  if (m.risks.length) out.push(card(h2("RISKS") + m.risks.map((e) => `<div style="border:1px solid #FECACA;border-left:4px solid ${RED};border-radius:10px;padding:12px;margin:0 0 8px"><strong style="color:${RED}">${esc(e.label)}</strong><span style="color:${NAVY}"> · Impact: ${esc(activityLine(e.a!))}${e.a!.total_float !== undefined && e.a!.total_float !== null ? ` (float ${esc(shownFloat(e.a!.total_float))} WD)` : ""}. ${due(e)}</span>${flagsHtml(e)}</div>`).join("")));
   if (m.flagged.length) out.push(card(h2("DATES TO CHECK") + m.flagged.map((e) => `<div style="padding:8px 0;border-top:1px solid ${G4};color:${NAVY};font-size:13px">${esc(e.label)}${flagsHtml(e)}</div>`).join("")));
   return out.join("");
 }

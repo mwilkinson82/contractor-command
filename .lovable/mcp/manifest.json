@@ -454,8 +454,8 @@
               "type": "string",
               "enum": [
                 "<$250k",
-                "$250k–$2M",
-                "$2M–$10M",
+                "$250k\u2013$2M",
+                "$2M\u2013$10M",
                 "$10M+"
               ]
             },
@@ -4894,12 +4894,10 @@
           "properties": {
             "job_number": {
               "type": "string",
-              "minLength": 1,
               "maxLength": 40
             },
             "company_id": {
               "type": "string",
-              "minLength": 1,
               "maxLength": 200
             },
             "stage": {
@@ -4963,12 +4961,62 @@
           "properties": {
             "job_number": {
               "type": "string",
-              "minLength": 1,
               "maxLength": 40
             },
             "company_id": {
               "type": "string",
-              "minLength": 1,
+              "maxLength": 200
+            },
+            "stage": {
+              "type": "string",
+              "enum": [
+                "schedule",
+                "crews",
+                "risks",
+                "spillover",
+                "log"
+              ]
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "crew_mode": {
+              "type": "string",
+              "enum": [
+                "subcontract",
+                "self_perform"
+              ]
+            },
+            "sample": {
+              "type": "boolean",
+              "const": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "pm_morning",
+        "title": "PM morning meeting",
+        "description": "Runs the construction PM morning meeting when someone says morning meeting, PM morning, or start the morning meeting, picks the only job or the most recent job instead of asking which job, and does not hand the request to email or a calendar.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
               "maxLength": 200
             },
             "stage": {
@@ -5017,12 +5065,10 @@
           "properties": {
             "job_number": {
               "type": "string",
-              "minLength": 1,
               "maxLength": 40
             },
             "company_id": {
               "type": "string",
-              "minLength": 1,
               "maxLength": 200
             },
             "stage": {
