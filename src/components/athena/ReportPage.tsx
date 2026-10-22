@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { renderReportBody, type PagePayload, type AnyPage } from "@/lib/report-pages";
+import { renderReportBody, reportPageQuery, type PagePayload, type AnyPage, type FieldPagePayload, type ItemsPagePayload } from "@/lib/report-pages";
 import { FieldPushBar } from "@/components/athena/FieldPushBar";
+import { useAuth } from "@/hooks/use-auth";
 
 type Rpc = (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
 const rpc = (f: string, a: Record<string, unknown>) => (supabase.rpc as unknown as Rpc)(f, a);
@@ -23,13 +24,29 @@ type Cached = { stamp: string | null; payload: PagePayload };
 
 // Signed-in living report page. The app's auth gate already sends signed-out visitors to /login?redirect=<this page>
 // and back. The database decides access (company membership + job scope); this only renders what it returns.
+export function itemsFromField(payload: PagePayload): PagePayload {
+  if (payload.page !== "field") return payload;
+  const field = payload as FieldPagePayload;
+  const items: ItemsPagePayload = {
+    page: "items",
+    company: field.company,
+    job_number: field.job_number,
+    job_name: field.job_name,
+    items: field.items ?? [],
+  };
+  return items;
+}
+
 export function ReportPageView({ page, jobId, companyId }: { page: AnyPage; jobId?: string; companyId?: string }) {
+  const { session, loading: authLoading } = useAuth();
   const visible = usePageVisible();
   const qc = useQueryClient();
-  const key = ["athena-report-page", page, jobId ?? null, companyId ?? null] as const;
-  const args = { _page: page, _job: jobId ?? null, _company: companyId ?? null };
+  const query = reportPageQuery(page, jobId, companyId);
+  const key = ["athena-report-page", query.view, query.args._page, jobId ?? null, companyId ?? null, session?.user?.id ?? null] as const;
+  const args = query.args;
   const q = useQuery({
     queryKey: key,
+    enabled: !authLoading && !!session,
     // Refresh every 60 s only while the page is visible; hidden tabs make no calls.
     refetchInterval: visible ? REFRESH_MS : false,
     refetchIntervalInBackground: false,
@@ -52,14 +69,23 @@ export function ReportPageView({ page, jobId, companyId }: { page: AnyPage; jobI
         }));
         return { stamp, payload: { ...payload, photos } };
       }
-      return { stamp, payload };
+      return { stamp, payload: query.view === "items" ? itemsFromField(payload) : payload };
     },
     retry: false,
   });
   const payload = q.data?.payload;
   // renderReportBody escapes every value it prints. Re-rendered only when a new payload arrives.
   const html = useMemo(() => (payload ? renderReportBody(payload) : ""), [payload]);
-  if (q.isLoading) return <div style={{ padding: 32, color: "#6B7280" }}>Loading…</div>;
+  if (authLoading || q.isLoading) return <div style={{ padding: 32, color: "#6B7280" }}>Loading…</div>;
+  if (!session) {
+    const back = typeof window === "undefined" ? `/r/job/${jobId ?? ""}/${query.view}` : `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    return (
+      <div style={{ maxWidth: 480, margin: "15vh auto", background: "#fff", border: "1px solid #D1D5DB", borderRadius: 12, padding: 32, color: "#6B7280" }}>
+        <h1 style={{ margin: "0 0 12px", fontSize: 20, color: "#1E3A5F" }}>Sign in to open this page</h1>
+        <p style={{ margin: 0 }}><a href={`/login?redirect=${encodeURIComponent(back)}`} style={{ color: "#2563EB" }}>Sign in</a> and you will come straight back here.</p>
+      </div>
+    );
+  }
   if (q.error || !payload) {
     return (
       <div style={{ maxWidth: 480, margin: "15vh auto", background: "#fff", border: "1px solid #D1D5DB", borderRadius: 12, padding: 32, color: "#6B7280" }}>

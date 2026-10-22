@@ -6,9 +6,46 @@ import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetHtml } from "./cards/widge
 
 const MEETINGS = new Set(["pm_meeting", "pm_morning", "pm_evening"]);
 const TEMPLATE = { "openai/outputTemplate": CARD_WIDGET_URI };
+const PM_INVOCATION = {
+  ...TEMPLATE,
+  "openai/toolInvocation/invoking": "Running the construction PM meeting",
+  "openai/toolInvocation/invoked": "Construction PM meeting",
+};
 const patched = Symbol.for("athena.cardWidgetBridge");
 
 type RegisterTool = (name: string, config: { _meta?: Record<string, unknown> }, cb: (...args: unknown[]) => Promise<Record<string, unknown>>) => unknown;
+
+/** Keep a meeting reply one card. Drop a nested widget script so the host does not repaint forever. */
+export function boundMeetingResult(result: Record<string, unknown>): Record<string, unknown> {
+  const sc = { ...((result.structuredContent as Record<string, unknown> | undefined) ?? {}) };
+  if (sc.card && typeof sc.card === "object") {
+    const card = { ...(sc.card as Record<string, unknown>) };
+    delete card.html;
+    delete card.card;
+    sc.card = card;
+  }
+  if (typeof sc.html === "string") sc.html = sc.html.replace(/<script[\s\S]*?<\/script>/gi, "");
+  const content = Array.isArray(result.content) ? result.content : [];
+  let sawResource = false;
+  const nextContent = content.filter((block) => {
+    const row = block as { type?: string };
+    if (row.type !== "resource") return true;
+    if (sawResource) return false;
+    sawResource = true;
+    return true;
+  });
+  const out: Record<string, unknown> = { ...result, structuredContent: sc, content: nextContent };
+  try {
+    if (JSON.stringify(out).length > 120_000) {
+      delete sc.html;
+      out.structuredContent = sc;
+    }
+  } catch {
+    delete sc.html;
+    out.structuredContent = sc;
+  }
+  return out;
+}
 
 const proto = McpServer.prototype as unknown as { [patched]?: boolean; registerTool: RegisterTool; registerResource?: (name: string, uri: string, config: Record<string, unknown>, read: () => Promise<unknown>) => unknown };
 
@@ -27,13 +64,15 @@ if (!proto[patched]) {
         // A second server in the same process already registered this uri.
       }
     }
+    const meta = name === "pm_meeting" ? PM_INVOCATION : TEMPLATE;
     const next = MEETINGS.has(name)
-      ? { ...config, _meta: { ...(config?._meta ?? {}), ...TEMPLATE } }
+      ? { ...config, _meta: { ...(config?._meta ?? {}), ...meta } }
       : config;
     const wrapped = async (...args: unknown[]) => {
       const result = (await cb(...args)) ?? {};
       if (!MEETINGS.has(name)) return result;
-      return { ...result, _meta: { ...(result._meta ?? {}), ...TEMPLATE } };
+      const safe = boundMeetingResult(result);
+      return { ...safe, _meta: { ...(safe._meta ?? {}), ...meta } };
     };
     return orig.call(this, name, next, wrapped);
   };
