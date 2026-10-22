@@ -36,7 +36,7 @@ describe("0.8.23b lookahead result keeps the v0.8.22 drawing", () => {
   it("the result carries the full render spec and the palette", () => {
     expect(result).toContain("REQUIRED VIEW – LOOKAHEAD");
     expect(result).toContain("artifact or canvas");
-    expect(result).toContain("ONE continuous rounded blue #2563EB bar");
+    expect(result).toContain("ONE continuous rounded blue #1E5FED bar");
     expect(result).toContain("rounded gray #9CA3AF bar");
     expect(result).toContain("INSP/DLV marker");
     expect(result).toContain("one caveat line at most");
