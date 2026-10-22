@@ -4,7 +4,7 @@ import { z } from "zod";
 import { renderHtml } from "../cards/html";
 import { htmlBlock, renderMarkdown } from "../cards/markdown";
 import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetHtml, cardWidgetMeta } from "../cards/widget";
-import { buildFlowCard } from "../flows/build";
+import { applyMeetingFigures, buildFlowCard } from "../flows/build";
 import { job2701FlowData } from "../flows/job-2701";
 import { loadFlowData, saveFlowNote } from "../flows/load";
 import { STAGE_LABEL, stagesFor, type FlowData, type FlowName } from "../flows/types";
@@ -18,6 +18,8 @@ const companyId = z.string().trim().min(1).max(200).optional();
 const note = z.string().trim().max(4000).optional();
 const crewMode = z.enum(["subcontract", "self_perform"]).optional();
 const sample = z.literal(true).optional();
+const figure = z.number().min(0).max(1_000_000_000).optional();
+const percent = z.number().min(0).max(100).optional();
 const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } as const;
 
 function present(flow: FlowName, stage: string, data: FlowData) {
@@ -54,12 +56,12 @@ function present(flow: FlowName, stage: string, data: FlowData) {
       ],
     },
     next
-      ? `When the PM continues, call ${flow} with stage ${next} only. The PM meeting order is schedule progress, then the locked lookahead, then subs suppliers and crews, then change orders, accounting, and the IOR delta. Do not add field readiness, financial, open actions, or closeout. Show the card first, with no plain text before it.`
+      ? `When the PM continues, call ${flow} with stage ${next} only. The PM meeting order is schedule progress, then the locked lookahead, then subs suppliers and crews, then change orders, accounting, and the IOR delta. Record a planned bill and a realistic bill as plan and realistic on stage accounting. Do not call living_report_save for those two figures. Do not add field readiness, financial, open actions, or closeout. Show the card first, with no plain text before it.`
       : "This meeting is at its last stage. The order was schedule progress, the locked lookahead, subs suppliers and crews, change orders, accounting, then the IOR delta. Show the card first, with no plain text before it.",
   );
 }
 
-async function lead(flow: FlowName, args: { job_number?: string; company_id?: string; stage?: string; note?: string; crew_mode?: "subcontract" | "self_perform"; sample?: true }, sb: Sb) {
+async function lead(flow: FlowName, args: { job_number?: string; company_id?: string; stage?: string; note?: string; crew_mode?: "subcontract" | "self_perform"; sample?: true; plan?: number; realistic?: number; percent_complete?: number }, sb: Sb) {
   if (!args.job_number?.trim()) return text(await listCompaniesAndJobs(sb, args.company_id));
   const stages = stagesFor(flow);
   const stage = args.stage ?? stages[0];
@@ -80,14 +82,25 @@ async function lead(flow: FlowName, args: { job_number?: string; company_id?: st
   }
   if (args.sample !== true) await audit(sb, job, flow, `guided_${stage}`, null);
   if (!data.showMoney) data.money = { plan: null, realistic: null, billed: null, contract: null, remaining: null, retentionHeld: null, retentionReleasable: data.money.retentionReleasable };
+  applyMeetingFigures(data, args);
   return present(flow, stage, data);
 }
 
 export const pmMeeting = defineTool({
   name: "pm_meeting",
-  title: "PM meeting",
-  description: "Runs the construction project manager meeting for a job the member just named, through schedule progress, the locked lookahead, subs suppliers and crews, change orders, billing, and the IOR, and must not fill job_number from chat context or hand the request to a calendar.",
-  inputSchema: { job_number: jobNumber, company_id: companyId, stage: z.enum(["progress", "schedule", "change_orders", "accounting", "ior"]).optional(), note, crew_mode: crewMode, sample },
+  title: "Run construction PM meeting (Athena)",
+  description: "Runs the construction PM meeting in Athena when someone says run my PM meeting or start the project meeting, through schedule progress, the locked lookahead, subs suppliers and crews, change orders, billing, and the IOR, and must not fill job_number from chat context, build a generic meeting widget, or hand the request to a calendar.",
+  inputSchema: {
+    job_number: jobNumber,
+    company_id: companyId,
+    stage: z.enum(["progress", "schedule", "change_orders", "accounting", "ior"]).optional(),
+    note,
+    crew_mode: crewMode,
+    sample,
+    plan: figure,
+    realistic: figure,
+    percent_complete: percent,
+  },
   annotations: WRITE,
   handler: (args, ctx) =>
     run("pm_meeting", ctx, { jobNumber: args.job_number }, async (sb) => lead("pm_meeting", args, sb)),

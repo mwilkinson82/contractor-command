@@ -4883,8 +4883,8 @@
       },
       {
         "name": "pm_meeting",
-        "title": "PM meeting",
-        "description": "Runs the construction project manager meeting for a job the member just named, through schedule progress, the locked lookahead, subs suppliers and crews, change orders, billing, and the IOR, and must not fill job_number from chat context or hand the request to a calendar.",
+        "title": "Run construction PM meeting (Athena)",
+        "description": "Runs the construction PM meeting in Athena when someone says run my PM meeting or start the project meeting, through schedule progress, the locked lookahead, subs suppliers and crews, change orders, billing, and the IOR, and must not fill job_number from chat context, build a generic meeting widget, or hand the request to a calendar.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -4929,6 +4929,21 @@
             "sample": {
               "type": "boolean",
               "const": true
+            },
+            "plan": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000000000
+            },
+            "realistic": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000000000
+            },
+            "percent_complete": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
             }
           },
           "additionalProperties": false

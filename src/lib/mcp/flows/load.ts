@@ -35,6 +35,40 @@ async function rows(sb: Query, table: string, cols: string, jobId: string): Prom
   }
 }
 
+type SchedAct = { id?: string; name?: string; description?: string; pct_complete?: number | null; critical?: boolean | null; duration?: number | null };
+
+function numish(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim() && Number.isFinite(Number(v.replace(/[%,]/g, "")))) return Number(v.replace(/[%,]/g, ""));
+  return null;
+}
+
+function actPct(a: Record<string, unknown>): number | null {
+  return numish(a.pct_complete ?? a.percent_complete ?? a.percent ?? a.pct);
+}
+
+export function scheduleActivities(data: Record<string, unknown>): SchedAct[] {
+  const nested = data.schedule && typeof data.schedule === "object" ? (data.schedule as Record<string, unknown>).activities : null;
+  const raw = Array.isArray(data.activities) ? data.activities : Array.isArray(nested) ? nested : [];
+  return raw.filter((a): a is Record<string, unknown> => !!a && typeof a === "object").map((a) => ({
+    id: typeof a.id === "string" ? a.id : undefined,
+    name: typeof a.name === "string" ? a.name : undefined,
+    description: typeof a.description === "string" ? a.description : undefined,
+    pct_complete: actPct(a),
+    critical: a.critical === true,
+    duration: numish(a.duration),
+  }));
+}
+
+/** Average of the percents on the saved schedule. Null when none are recorded. */
+export function schedulePercent(activities: SchedAct[], root?: Record<string, unknown>): number | null {
+  const top = root ? numish(root.percent_complete ?? root.pct_complete ?? root.percent) : null;
+  if (top != null) return Math.max(0, Math.min(100, Math.round(top)));
+  const pcts = activities.map((a) => a.pct_complete).filter((n): n is number => n != null);
+  if (!pcts.length) return null;
+  return Math.max(0, Math.min(100, Math.round(pcts.reduce((s, n) => s + n, 0) / pcts.length)));
+}
+
 /** Reads the job's lookahead, pay app, IOR, and open items. Does not write or delete. */
 export async function loadFlowData(sb: Query, job: { job_id: string; job_number: string; name: string; scope: string }, selfPerform: boolean): Promise<FlowData> {
   const showMoney = job.scope === "full";
@@ -85,12 +119,11 @@ export async function loadFlowData(sb: Query, job: { job_id: string; job_number:
     data.money.contract = billing.contract_total ?? null;
     if (data.money.contract !== null && data.money.billed !== null) data.money.remaining = Math.round((data.money.contract - data.money.billed) * 100) / 100;
   }
-  const cpm = reports.cpm as { found?: boolean; data?: { activities?: { id?: string; name?: string; description?: string; pct_complete?: number | null; critical?: boolean | null }[] } } | undefined;
-  if (cpm?.found && Array.isArray(cpm.data?.activities)) {
-    const acts = cpm.data.activities;
-    const pcts = acts.map((a) => a.pct_complete).filter((n): n is number => typeof n === "number");
-    data.percentComplete = pcts.length ? Math.round(pcts.reduce((s, n) => s + n, 0) / pcts.length) : null;
-    data.activitiesDone = acts.filter((a) => a.pct_complete === 100).map((a) => activityTitle(a));
+  const cpm = reports.cpm as { found?: boolean; data?: Record<string, unknown> } | undefined;
+  if (cpm?.found && cpm.data) {
+    const acts = scheduleActivities(cpm.data);
+    data.percentComplete = schedulePercent(acts, cpm.data);
+    data.activitiesDone = acts.filter((a) => schedulePercent([a]) === 100).map((a) => activityTitle(a));
     const critical = acts.filter((a) => a.critical);
     const open = critical.filter((a) => a.pct_complete !== 100);
     data.criticalPath = critical.length ? (open.length ? `Open: ${open.slice(0, 3).map((a) => activityTitle(a)).join(", ")}` : "Clear") : null;

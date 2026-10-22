@@ -30,6 +30,21 @@ export function pagePath(page: AnyPage, id: string): string {
   return page === "portfolio" ? `/r/portfolio/${id}` : `/r/job/${id}/${page}`;
 }
 export const pageUrl = (page: AnyPage, id: string, origin = PAGE_ORIGIN) => `${origin.replace(/\/$/, "")}${pagePath(page, id)}`;
+
+/** Page name from a route param. Query strings such as utm_source are not part of the page. */
+export function hostedPageName(raw: string): string {
+  return raw.split(/[?#]/)[0].replace(/\/+$/, "").toLowerCase();
+}
+
+/**
+ * /items uses the field board RPC. That is the same company and member check as /field.
+ * A ChatGPT link's utm_source query does not change the page or the arguments.
+ */
+export function reportPageQuery(page: string, jobId?: string | null, companyId?: string | null): { view: string; args: { _page: string; _job: string | null; _company: string | null } } {
+  const view = hostedPageName(page);
+  const rpcPage = view === "items" ? "field" : view;
+  return { view, args: { _page: rpcPage, _job: jobId ?? null, _company: companyId ?? null } };
+}
 export const shareUrl = (token: string, origin = PAGE_ORIGIN) => `${origin.replace(/\/$/, "")}/r/s/${token}`;
 export function shareTokenFromLink(s: string): string | null {
   const t = s.trim().replace(/[?#].*$/, "").replace(/\/+$/, "").split("/").pop() ?? "";

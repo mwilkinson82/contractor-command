@@ -5,7 +5,8 @@ import { renderHtml } from "../cards/html";
 import { renderMarkdown } from "../cards/markdown";
 import { z } from "zod";
 import { attachAthenaCard } from "../cards/attach";
-import { buildFlowCard, iorDelta } from "./build";
+import { applyMeetingFigures, buildFlowCard, iorDelta, readMeetingMoney } from "./build";
+import { scheduleActivities, schedulePercent } from "./load";
 import { job2701FlowData } from "./job-2701";
 import { EVENING_STAGES, MORNING_STAGES, PM_MEETING_STAGES, stagesFor, type FlowName } from "./types";
 
@@ -149,6 +150,40 @@ describe("sample path on job 2701", () => {
       expect(carded.content[0].text, name).not.toMatch(/^No job named/);
       expect(z.object((tool as { inputSchema: Record<string, z.ZodTypeAny> }).inputSchema).safeParse({}).success).toBe(true);
     }
+  });
+
+  it("records planned 10000 and realistic 8000, then opens the IOR delta", async () => {
+    expect(readMeetingMoney("planned 10000 and realistic 8000")).toEqual({ plan: 10000, realistic: 8000 });
+    const accounting = await call(pmMeeting, { job_number: "2701", stage: "accounting", sample: true, plan: 10000, realistic: 8000 });
+    const card = accounting.structuredContent.card as { title: string; state: string; kpis?: { label: string; value: string; flag?: string | null }[]; alerts?: { level: string }[] };
+    expect(accounting.structuredContent.stage).toBe("accounting");
+    expect((accounting.structuredContent as { next_stage?: string }).next_stage).toBe("ior");
+    expect(card.state).toBe("result");
+    expect(card.kpis?.find((k) => k.label === "Plan this month")?.value).toBe("$10,000.00");
+    expect(card.kpis?.find((k) => k.label === "Realistic bill")?.value).toBe("$8,000.00");
+    expect(card.kpis?.find((k) => k.label === "Realistic bill")?.flag).toBe("risk");
+    const packed = JSON.stringify(accounting);
+    expect(packed.length).toBeLessThan(120_000);
+    expect(JSON.stringify(card)).not.toContain("<script");
+    const ior = await call(pmMeeting, { job_number: "2701", stage: "ior", sample: true });
+    expect(ior.structuredContent.stage).toBe("ior");
+    expect((ior.structuredContent.card as { title: string }).title).toBe("IOR delta");
+    expect(calls.rpc).toEqual([]);
+  });
+
+  it("asks for schedule percent when the CPM has none, and uses the CPM when it does", () => {
+    const missing = job2701FlowData();
+    missing.percentComplete = null;
+    const ask = buildFlowCard("pm_meeting", "progress", missing);
+    expect(ask.state).toBe("ask");
+    expect(ask.ask?.prompt).toContain("percent complete");
+    expect(renderMarkdown(ask)).toContain("Reply with the percent");
+    const noted = job2701FlowData();
+    applyMeetingFigures(noted, { note: "percent is separate", percent_complete: 62 });
+    expect(buildFlowCard("pm_meeting", "progress", noted).kpis?.find((k) => k.label === "Percent complete")?.value).toBe("62%");
+    expect(schedulePercent(scheduleActivities({ activities: [{ pct_complete: "40" }, { percent: 60 }] }))).toBe(50);
+    expect(schedulePercent([], { percent_complete: 33 })).toBe(33);
+    expect(schedulePercent([])).toBe(null);
   });
 
   it("refuses the sample on any other job", async () => {

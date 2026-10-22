@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
-import { renderReportBody, pageUrl, pageAllowed, JOB_PAGES, REPORT_PAGES } from "../report-pages";
+import { renderReportBody, pageUrl, pageAllowed, reportPageQuery, JOB_PAGES, REPORT_PAGES } from "../report-pages";
 import { payAppView, briefingView, emptyCard, lookaheadView, SHOW_AS_IS } from "./styled-views";
 import { resolveCompany, MULTI_COMPANY_ASK, _resetCurrentCompanyCache } from "./jobs";
 
@@ -44,6 +44,11 @@ describe("hosted pages: lookahead, payapp, briefing", () => {
     expect(pageUrl("payapp", JOB)).toBe(`https://app.meetathena.io/r/job/${JOB}/payapp`);
     expect(pageUrl("briefing", JOB)).toBe(`https://app.meetathena.io/r/job/${JOB}/briefing`);
     expect(JOB_PAGES).toEqual(["ior", "schedule", "lookahead", "payapp", "briefing", "field", "daily", "photos", "items"]);
+    const items = reportPageQuery("items?utm_source=chatgpt.com", JOB, null);
+    const field = reportPageQuery("field", JOB, null);
+    expect(items.view).toBe("items");
+    expect(items.args).toEqual(field.args);
+    expect(items.args._page).toBe("field");
     expect(REPORT_PAGES).toEqual(["ior", "schedule", "portfolio"]); // share links unchanged
     expect(pageAllowed("payapp", "super", false)).toBe(false);
     expect(pageAllowed("lookahead", "super", false)).toBe(true);

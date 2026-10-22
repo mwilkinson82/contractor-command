@@ -10,6 +10,8 @@ var root=window.openai||{};
 var card=(root.toolOutput||{}).card||{};
 var P=${JSON.stringify({ navy: NAVY, blue: BLUE, gray: GRAY, white: WHITE, alert: ALERT })};
 var app=document.getElementById("app");
+if(!app||app.dataset.painted==="1")return;
+app.dataset.painted="1";
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c]})}
 function isAlert(level){return level==="risk"||level==="delay"||level==="overdue"}
 function raw(c){return /^(#[0-9A-Fa-f]{3,8}|#\\d{1,4}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(String(c||"").trim())}
@@ -75,7 +77,7 @@ if(card.ask&&card.ask.prompt)h+='<div class="ask"><strong>This question</strong>
 (card.alerts||[]).forEach(function(a){
   if(!isAlert(a.level))return;
   var label=a.level==="delay"?"Delay":a.level==="overdue"?"Overdue":"Risk";
-  h+='<p class="alert" data-alert="'+a.level+'"><div class="flag-head">'+label+'</div><div class="flag-body">'+esc(a.level)+': '+esc(a.text)+'</div></p>';
+  h+='<div class="alert" data-alert="'+a.level+'"><div class="flag-head">'+label+'</div><div class="flag-body">'+esc(a.level)+': '+esc(a.text)+'</div></div>';
 });
 if(card.next_move)h+='<p class="next">Next move: '+esc(card.next_move)+'</p>';
 h+='</div></article>';

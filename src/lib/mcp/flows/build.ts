@@ -142,12 +142,35 @@ function scheduleCard(flow: FlowName, data: FlowData): CardModel {
   });
 }
 
+const amount = (raw: string) => {
+  const n = Number(raw.replace(/[$,]/g, ""));
+  return Number.isFinite(n) ? n : undefined;
+};
+
+/** Pull "planned 10000" and "realistic 8000" out of a meeting note. */
+export function readMeetingMoney(text: string): { plan?: number; realistic?: number } {
+  const plan = text.match(/\b(?:planned|plan)\b[^0-9$]{0,24}\$?([0-9][0-9,]*(?:\.\d+)?)/i);
+  const realistic = text.match(/\brealistic(?:\s+bill)?\b[^0-9$]{0,24}\$?([0-9][0-9,]*(?:\.\d+)?)/i);
+  return { plan: plan ? amount(plan[1]) : undefined, realistic: realistic ? amount(realistic[1]) : undefined };
+}
+
+export function applyMeetingFigures(data: FlowData, input: { plan?: number; realistic?: number; percent_complete?: number; note?: string }) {
+  const parsed = readMeetingMoney(input.note ?? "");
+  const plan = input.plan ?? parsed.plan;
+  const realistic = input.realistic ?? parsed.realistic;
+  if (plan != null) data.money.plan = plan;
+  if (realistic != null) data.money.realistic = realistic;
+  if (input.percent_complete != null) data.percentComplete = input.percent_complete;
+}
+
 function progressCard(data: FlowData): CardModel {
-  const pct = data.percentComplete == null ? "Needed" : `${data.percentComplete}%`;
+  const missing = data.percentComplete == null;
+  const pct = missing ? "Needed" : `${data.percentComplete}%`;
   const done = data.activitiesDone.length ? data.activitiesDone : ["Needed"];
   return shell("pm_meeting", "progress", data, {
-    state: "progress",
+    state: missing ? "ask" : "progress",
     title: "Schedule progress",
+    ask: missing ? { prompt: "What percent complete is the schedule?" } : null,
     kpis: [
       { label: "Percent complete", value: pct },
       { label: "Critical path", value: data.criticalPath ?? "Needed", flag: data.onSchedule === false ? "delay" : null },
@@ -155,6 +178,7 @@ function progressCard(data: FlowData): CardModel {
     sections: [
       { heading: "Activities done since last meeting", kind: "list", rows: done.map((line) => ({ cells: [line], tone: line === "Needed" ? "unknown" as const : "known" as const })) },
       { heading: "Critical-path status", kind: "list", rows: [{ cells: [data.criticalPath ?? "Needed"], tone: data.criticalPath ? "known" : "unknown" }] },
+      ...(missing ? [{ heading: "Percent complete", kind: "list" as const, rows: [{ cells: ["It is not on the saved schedule. Reply with the percent and I will record it."], tone: "action" as const }] }] : []),
     ],
   });
 }
