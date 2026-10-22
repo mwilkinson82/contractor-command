@@ -1,8 +1,23 @@
+import { plainLabel, rowPlain } from "../plain-label";
 import { ALERT, BLUE, GRAY, NAVY, WHITE } from "./palette";
 import { STATE_LABEL, cardHasAlert, type CardModel, type CardRow } from "./model";
 
 const esc = (s: string) =>
   s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+
+function cellText(value: string): string {
+  const shown = plainLabel(value);
+  return shown.refId && shown.label === "Item" ? "" : shown.label;
+}
+
+function linked(row: CardRow, text: string): string {
+  const view = rowPlain(row);
+  const label = text || view.label;
+  const body = view.href ? `<a href="${esc(view.href)}">${esc(label)}</a>` : esc(label);
+  const id = view.refId ? ` data-id="${esc(view.refId)}"` : "";
+  const secondary = view.secondary ? `<span class="ref">${esc(view.secondary)}</span>` : "";
+  return `<span${id}>${body}${secondary}</span>`;
+}
 
 function rowClass(row: CardRow): string {
   const parts = [];
@@ -33,6 +48,8 @@ export function renderHtml(card: CardModel): string {
     `table{width:100%;border-collapse:collapse}`,
     `th{background:${BLUE};color:${WHITE};text-align:left;padding:6px 8px;font-size:12px}`,
     `td{padding:6px 8px;border-bottom:1px solid ${GRAY};vertical-align:top}`,
+    `a{color:${BLUE};text-decoration:none}`,
+    `.ref{display:block;margin-top:2px;font-size:11px;font-weight:400;color:${GRAY}}`,
     `.chip{display:inline-block;margin:0 6px 6px 0;padding:4px 8px;border-radius:999px;border:1px solid ${GRAY};color:${NAVY}}`,
     `.tone-known{border-color:${BLUE};color:${BLUE}}`,
     `.tone-unknown{color:${GRAY}}`,
@@ -60,7 +77,7 @@ export function renderHtml(card: CardModel): string {
       if (!s.rows.length) return `${heading}<p class="tone-unknown">Nothing on this card yet.</p>`;
       if (s.kind === "chips") {
         return `${heading}<p>${s.rows
-          .map((r) => `<span class="chip${r.tone ? ` tone-${r.tone}` : ""}${r.flag ? " alert" : ""}"${r.flag ? ` data-alert="${r.flag}"` : ""}>${esc(r.cells[0] ?? "")}</span>`)
+          .map((r) => `<span class="chip${r.tone ? ` tone-${r.tone}` : ""}${r.flag ? " alert" : ""}"${r.flag ? ` data-alert="${r.flag}"` : ""}>${linked(r, rowPlain(r).label)}</span>`)
           .join("")}</p>`;
       }
       if (s.kind === "table") {
@@ -69,7 +86,10 @@ export function renderHtml(card: CardModel): string {
         const body = s.rows
           .map((r) => {
             const attr = rowClass(r);
-            const cells = Array.from({ length: width }, (_, i) => `<td>${esc(r.cells[i] ?? "")}</td>`).join("");
+            const cells = Array.from({ length: width }, (_, i) => {
+              const text = cellText(r.cells[i] ?? "");
+              return `<td>${i === 0 ? linked(r, text) : esc(text)}</td>`;
+            }).join("");
             return `<tr ${attr}>${cells}</tr>`;
           })
           .join("");
@@ -78,7 +98,7 @@ export function renderHtml(card: CardModel): string {
       const items = s.rows
         .map((r) => {
           const attr = rowClass(r);
-          return `<li ${attr}>${esc(r.cells.filter(Boolean).join(" · "))}</li>`;
+          return `<li ${attr}>${linked(r, "")}</li>`;
         })
         .join("");
       return `${heading}<ul>${items}</ul>`;

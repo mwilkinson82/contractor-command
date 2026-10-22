@@ -16,6 +16,7 @@ import {
   buildFieldPayApp,
   dailyCard,
   fieldAccess,
+  fieldBoardCard,
   fieldCard,
   fieldMoney,
   payAppCard,
@@ -63,6 +64,45 @@ function assertField(job: Job) {
 
 const pageLink = (page: AnyPage, id: string) => (isUuid(id) ? pageUrl(page, id) : null);
 
+const FIELD_TITLE = "Superintendent field board";
+const FIELD_DESCRIPTION = "Shows the superintendent field board, also called the field board, the super board, or the superintendent board, including the super's plan and what the crew is doing.";
+const FIELD_ALIAS_DESCRIPTION = "Shows the field board, the super board, the superintendent board, the super's plan, and what the crew is doing for a job.";
+
+async function showFieldBoard(tool: "superintendent_view" | "field_board", sb: Sb, args: { job_number: string; company_id?: string }) {
+  const job = await resolveJob(sb, args.job_number, args.company_id);
+  assertField(job);
+  const raw = await call<FieldSource & { time_zone?: string | null; items?: { id?: string | null; action?: string; owner?: string | null; due?: string | null }[] }>(sb, "mcp_field_board", { _job: job.job_id });
+  let zone = DEFAULT_TZ;
+  try { zone = raw.time_zone?.trim() ? raw.time_zone : await jobTimeZone(sb, job.job_id); todayIn(zone); } catch { zone = DEFAULT_TZ; }
+  const today = todayIn(zone);
+  const board = projectField({ ...raw, today });
+  await audit(sb, job, tool, "view_field", null);
+  const field = pageLink("field", job.job_id);
+  const links = {
+    field,
+    daily: pageLink("daily", job.job_id),
+    photos: pageLink("photos", job.job_id),
+    items: pageLink("items", job.job_id),
+    ior: pageLink("ior", job.job_id),
+  };
+  const card = fieldBoardCard(prefix(job), board, raw.items ?? [], today, links);
+  return guide(
+    {
+      ...text(fieldCard(prefix(job), board, raw.items ?? [], today, links)),
+      structuredContent: {
+        window: board.window,
+        activities: board.rows,
+        outside: board.outside,
+        page_url: field,
+        dashboard_url: field,
+        no_financials: true,
+        card,
+      },
+    },
+    "Phone-width card. No dollars on this board. Red only for a delay or an overdue item. Each line links to its detail on the dashboard.",
+  );
+}
+
 type SavedLine = { sov_item: string; activity_id: string; qty: number | null; unit: string | null; pct_complete: number | null; report_date: string };
 
 async function savedLines(sb: Sb, jobId: string): Promise<SavedLine[]> {
@@ -98,26 +138,22 @@ async function loadSov(sb: Sb, jobId: string): Promise<{ lines: SovLineIn[]; fee
 
 export const superintendentView = defineTool({
   name: "superintendent_view",
-  title: "Superintendent field board",
-  description: "Returns the superintendent field board for a job.",
+  title: FIELD_TITLE,
+  description: FIELD_DESCRIPTION,
   inputSchema: { job_number: jobNumber, company_id: companyId },
   annotations: READ,
   handler: (args, ctx) =>
-    run("superintendent_view", ctx, { jobNumber: args.job_number }, async (sb) => {
-      const job = await resolveJob(sb, args.job_number, args.company_id);
-      assertField(job);
-      const raw = await call<FieldSource & { time_zone?: string | null; items?: { action?: string; owner?: string | null; due?: string | null }[] }>(sb, "mcp_field_board", { _job: job.job_id });
-      let zone = DEFAULT_TZ;
-      try { zone = raw.time_zone?.trim() ? raw.time_zone : await jobTimeZone(sb, job.job_id); todayIn(zone); } catch { zone = DEFAULT_TZ; }
-      const today = todayIn(zone);
-      const board = projectField({ ...raw, today });
-      await audit(sb, job, "superintendent_view", "view_field", null);
-      const url = pageLink("field", job.job_id);
-      return guide(
-        { ...text([...(url ? [`Styled field board (always current, private to your company): ${url}`] : []), fieldCard(prefix(job), board, raw.items ?? [], today)].join("\n")), structuredContent: { window: board.window, activities: board.rows, outside: board.outside, page_url: url, no_financials: true } },
-        "Phone-width card. No dollars on this board. Red only for a delay or an overdue item.",
-      );
-    }),
+    run("superintendent_view", ctx, { jobNumber: args.job_number }, (sb) => showFieldBoard("superintendent_view", sb, args)),
+});
+
+export const fieldBoard = defineTool({
+  name: "field_board",
+  title: "Field board",
+  description: FIELD_ALIAS_DESCRIPTION,
+  inputSchema: { job_number: jobNumber, company_id: companyId },
+  annotations: READ,
+  handler: (args, ctx) =>
+    run("field_board", ctx, { jobNumber: args.job_number }, (sb) => showFieldBoard("field_board", sb, args)),
 });
 
 export const superintendentActivity = defineTool({
@@ -145,7 +181,7 @@ export const superintendentActivity = defineTool({
       await audit(sb, job, "superintendent_activity", "save_field_activity", args.activity_id);
       const who = args.self_perform ? "Self-perform" : `Sub ${args.sub_name?.trim()}`;
       return guide(
-        { ...text(`${prefix(job)}${args.activity_id} saved. ${who}.${args.crew_size != null && args.self_perform ? ` Crew ${args.crew_size}.` : ""}`), structuredContent: { activity_id: args.activity_id, self_perform: args.self_perform, sub_name: args.self_perform ? null : args.sub_name ?? null, crew_size: args.crew_size ?? null } },
+        { ...text(`${prefix(job)}Activity saved. ${who}.${args.crew_size != null && args.self_perform ? ` Crew ${args.crew_size}.` : ""}`), structuredContent: { activity_id: args.activity_id, self_perform: args.self_perform, sub_name: args.self_perform ? null : args.sub_name ?? null, crew_size: args.crew_size ?? null } },
         "Saved. Show the field board again if they want to see it.",
       );
     }),
@@ -289,8 +325,9 @@ export const fieldScheduleFeed = defineTool({
       const acts = cpm.data?.activities ?? [];
       const proposals = scheduleProposals(acts, lines);
       await audit(sb, job, "field_schedule_feed", "view_schedule_feed", null);
+      const nameOf = new Map(acts.map((a) => [a.id, a.name?.trim() || ""]));
       const body = proposals.length
-        ? proposals.map((p) => `- ${p.activity_id}: ${p.from_pct == null ? "no saved percent" : `${p.from_pct}%`} → ${p.to_pct}% as of ${p.report_date}`)
+        ? proposals.map((p) => `- ${nameOf.get(p.activity_id) || "Activity"}: ${p.from_pct == null ? "no saved percent" : `${p.from_pct}%`} → ${p.to_pct}% as of ${p.report_date}`)
         : ["No percent complete is on a saved daily yet."];
       return guide(
         { ...text([`${prefix(job)}Schedule update from dailies`, "The saved schedule is unchanged.", ...body].join("\n")), structuredContent: { proposals, schedule_unchanged: true } },
@@ -315,7 +352,7 @@ export const fieldProductionRates = defineTool({
       await audit(sb, job, "field_production_rates", "view_production_rates", null);
       const shown = (n: number) => String(Math.round(Number(n) * 100) / 100);
       const body = rows.length
-        ? rows.map((r) => `- ${r.work}: ${shown(r.qty)} ${r.unit} / ${shown(r.man_hours)} man-hours = ${shown(r.qty_per_man_hour)} ${r.unit} per man-hour (SOV ${r.sov_item}, ${r.activity_id})`)
+        ? rows.map((r) => `- ${r.work}: ${shown(r.qty)} ${r.unit} / ${shown(r.man_hours)} man-hours = ${shown(r.qty_per_man_hour)} ${r.unit} per man-hour`)
         : ["No production rates yet. They appear when a daily is confirmed."];
       return guide(
         { ...text([`${prefix(job)}Production rates`, ...body].join("\n")), structuredContent: { rates: rows } },
@@ -410,7 +447,13 @@ export const progressPhotos = defineTool({
         return { ...p, url: signed.data?.signedUrl ?? null };
       }));
       await audit(sb, job, "progress_photos", "view_photos", null);
-      const captions = photos.length ? photos.map((p) => `- ${p.taken_on} · ${p.area}${p.work ? ` · ${p.work}` : ""}${p.sov_item ? ` · SOV ${p.sov_item}` : ""}${p.activity_id ? ` · ${p.activity_id}` : ""}${p.client_safe ? " · Client-safe" : " · Internal"}`) : ["No progress photos in this view."];
+      const gallery = pageLink("photos", job.job_id);
+      const captions = photos.length ? photos.map((p) => {
+        const label = [p.area, p.work].filter(Boolean).join(" · ") || "Progress photo";
+        const href = gallery ? `${gallery}#photo-${p.id}` : null;
+        const linked = href ? `[${label}](${href})` : label;
+        return `- ${p.taken_on} · ${linked}${p.client_safe ? " · Client-safe" : " · Internal"}`;
+      }) : ["No progress photos in this view."];
       const url = pageLink("photos", job.job_id);
       let pdf: string | null = null;
       if ((args.format ?? "gallery") === "pdf") {

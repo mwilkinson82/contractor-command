@@ -8,6 +8,10 @@ export type CardRow = {
   cells: string[];
   flag?: AlertLevel | null;
   tone?: CardTone | null;
+  /** Hosted detail page. Rendered as a real anchor, never as the label. */
+  href?: string | null;
+  /** Hidden id. Rendered as data-id, never as the label. */
+  refId?: string | null;
 };
 
 export type CardSection = {

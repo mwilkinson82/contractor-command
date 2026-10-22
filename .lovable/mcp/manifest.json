@@ -4051,7 +4051,38 @@
       {
         "name": "superintendent_view",
         "title": "Superintendent field board",
-        "description": "Returns the superintendent field board for a job.",
+        "description": "Shows the superintendent field board, also called the field board, the super board, or the superintendent board, including the super's plan and what the crew is doing.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "field_board",
+        "title": "Field board",
+        "description": "Shows the field board, the super board, the superintendent board, the super's plan, and what the crew is doing for a job.",
         "annotations": {
           "readOnlyHint": true,
           "idempotentHint": true,

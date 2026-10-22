@@ -11,11 +11,11 @@ import { dailyPageHtml, fieldPageHtml, photoPageHtml } from "./mcp/superintenden
 export const REPORT_PAGES = ["ior", "schedule", "portfolio"] as const;
 export type ReportPage = (typeof REPORT_PAGES)[number];
 /** 0.8.17: private-only pages (no share links). */
-export const VIEW_PAGES = ["lookahead", "payapp", "briefing", "field", "daily", "photos"] as const;
+export const VIEW_PAGES = ["lookahead", "payapp", "briefing", "field", "daily", "photos", "items"] as const;
 export type ViewPage = (typeof VIEW_PAGES)[number];
 export type AnyPage = ReportPage | ViewPage;
 export const JOB_PAGES = ["ior", "schedule", ...VIEW_PAGES] as const;
-export const PAGE_LABEL: Record<AnyPage, string> = { ior: "IOR", schedule: "Schedule", portfolio: "Portfolio dashboard", lookahead: "Two-Week Lookahead", payapp: "Pay App", briefing: "Morning Briefing", field: "Field board", daily: "Daily report", photos: "Progress photos" };
+export const PAGE_LABEL: Record<AnyPage, string> = { ior: "IOR", schedule: "Schedule", portfolio: "Portfolio dashboard", lookahead: "Two-Week Lookahead", payapp: "Pay App", briefing: "Morning Briefing", field: "Field board", daily: "Daily report", photos: "Progress photos", items: "Open items" };
 export const PAGE_ORIGIN = "https://app.meetathena.io";
 export const PERMANENT_LINK_ASK = "Want this as a permanent link I keep updated?";
 export const SHARE_DEFAULT_DAYS = 30;
@@ -65,9 +65,10 @@ export type PayAppPayload = { page: "payapp"; company?: string; job_number?: str
 export type BriefingPayload = { page: "briefing"; company?: string; job_number?: string; job_name?: string; today: string; items?: BriefItem[]; report?: Report };
 export type FieldPagePayload = { page: "field"; company?: string; job_number?: string; job_name?: string; scope?: string; data_date?: string | null; lookahead?: { start_date?: string | null; end_date?: string | null } | null; activities?: unknown; assignments?: unknown; materials?: unknown; rates?: unknown; installed?: unknown; items?: { action?: string; owner?: string | null; due?: string | null }[]; today?: string };
 export type DailyPagePayload = { page: "daily"; company?: string; job_number?: string; job_name?: string; found?: boolean; report_date?: string | null; weather?: string | null; manpower?: string | null; subs_on_site?: string | null; deliveries?: string | null; issues?: string | null; delays?: string | null; safety?: string | null; lines?: { work?: string; sov_item?: string | null; activity_id?: string | null; qty?: number | null; unit?: string | null; crew?: number | null; hours?: number | null }[] };
-export type PhotoPagePayload = { page: "photos"; company?: string; job_number?: string; job_name?: string; photos?: { taken_on?: string; area?: string; work?: string | null; sov_item?: string | null; activity_id?: string | null; client_safe?: boolean; url?: string | null; storage_path?: string }[] };
+export type PhotoPagePayload = { page: "photos"; company?: string; job_number?: string; job_name?: string; photos?: { id?: string; taken_on?: string; area?: string; work?: string | null; sov_item?: string | null; activity_id?: string | null; client_safe?: boolean; url?: string | null; storage_path?: string }[] };
+export type ItemsPagePayload = { page: "items"; company?: string; job_number?: string; job_name?: string; items?: { id?: string | null; action?: string | null; owner?: string | null; due?: string | null }[] };
 type ViewExtras = { shared?: boolean; expires_at?: string };
-export type PagePayload = JobPayload | PortfolioPayload | FieldPagePayload | DailyPagePayload | PhotoPagePayload | ((LookaheadPayload | PayAppPayload | BriefingPayload) & ViewExtras);
+export type PagePayload = JobPayload | PortfolioPayload | FieldPagePayload | DailyPagePayload | PhotoPagePayload | ItemsPagePayload | ((LookaheadPayload | PayAppPayload | BriefingPayload) & ViewExtras);
 
 // ---------- helpers ----------
 export const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -115,9 +116,9 @@ function scheduleView(p: JobPayload): string {
       const frag = /^FRAG|^D\d/i.test(a.id) || /fragnet|delay/i.test(a.name);
       const color = frag ? RED : a.critical ? BLUE : G2;
       const bar = frag ? `background:repeating-linear-gradient(45deg,${RED},${RED} 4px,#FCA5A5 4px,#FCA5A5 8px)` : `background:${color}`;
-      return `<tr><td style="padding:4px 8px;font-size:12px;color:${G1};white-space:nowrap">${esc(a.id)}</td><td style="padding:4px 8px;font-size:12px;color:${NAVY}">${esc(a.name)}</td><td style="padding:4px 8px;font-size:12px;color:${G1};white-space:nowrap">${esc(a.start)} – ${esc(a.finish)}</td><td style="padding:4px 8px;font-size:12px;color:${isNum(a.total_float) && a.total_float < 0 ? RED : G1}">${isNum(a.total_float) ? esc(a.total_float) : ""}</td><td style="position:relative;min-width:320px;width:50%"><div style="position:relative;height:14px;background:${G4};border-radius:3px"><div style="position:absolute;left:${l.toFixed(2)}%;width:${w.toFixed(2)}%;top:0;bottom:0;border-radius:3px;${bar}"></div>${markPct >= 0 && markPct <= 100 ? `<div style="position:absolute;left:${markPct.toFixed(2)}%;top:-2px;bottom:-2px;width:2px;background:${NAVY}"></div>` : ""}</div></td></tr>`;
+      return `<tr id="activity-${esc(a.id)}"><td style="padding:4px 8px;font-size:12px;color:${NAVY};font-weight:600" data-id="${esc(a.id)}">${esc(a.name)}<div style="font-size:11px;font-weight:400;color:${G1}">${esc(a.id)}</div></td><td style="padding:4px 8px;font-size:12px;color:${G1};white-space:nowrap">${esc(a.start)} – ${esc(a.finish)}</td><td style="padding:4px 8px;font-size:12px;color:${isNum(a.total_float) && a.total_float < 0 ? RED : G1}">${isNum(a.total_float) ? esc(a.total_float) : ""}</td><td style="position:relative;min-width:320px;width:50%"><div style="position:relative;height:14px;background:${G4};border-radius:3px"><div style="position:absolute;left:${l.toFixed(2)}%;width:${w.toFixed(2)}%;top:0;bottom:0;border-radius:3px;${bar}"></div>${markPct >= 0 && markPct <= 100 ? `<div style="position:absolute;left:${markPct.toFixed(2)}%;top:-2px;bottom:-2px;width:2px;background:${NAVY}"></div>` : ""}</div></td></tr>`;
     }).join("");
-    out.push(card(`<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><thead><tr style="text-align:left;font-size:12px;color:${G1}"><th style="padding:4px 8px">ID</th><th style="padding:4px 8px">Activity</th><th style="padding:4px 8px">Dates</th><th style="padding:4px 8px">Float</th><th style="padding:4px 8px">Gantt</th></tr></thead><tbody>${rows}</tbody></table></div>` +
+    out.push(card(`<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><thead><tr style="text-align:left;font-size:12px;color:${G1}"><th style="padding:4px 8px">Activity</th><th style="padding:4px 8px">Dates</th><th style="padding:4px 8px">Float</th><th style="padding:4px 8px">Gantt</th></tr></thead><tbody>${rows}</tbody></table></div>` +
       `<p style="margin:12px 0 0;font-size:12px;color:${G1}"><span style="display:inline-block;width:10px;height:10px;background:${BLUE}"></span> Critical &nbsp; <span style="display:inline-block;width:10px;height:10px;background:${G2}"></span> Non-critical &nbsp; <span style="display:inline-block;width:10px;height:10px;background:${RED}"></span> Delay fragnet &nbsp; <span style="display:inline-block;width:2px;height:10px;background:${NAVY}"></span> ${Number.isFinite(dd) && dd > today ? "Data date" : "Today"}</p>`));
   }
   return out.join("");
@@ -138,7 +139,8 @@ function iorView(p: JobPayload): string {
   if (risks.length) {
     out.push(card(`<h2 style="margin:0 0 8px;font-size:15px;color:${NAVY}">Risk register</h2>` + risks.map((x, i) => {
       const o = (typeof x === "object" && x ? x : { risk: x }) as Record<string, unknown>;
-      return `<div style="padding:8px 0;border-top:1px solid ${G4}">${i < 3 ? `<span style="color:${RED};font-weight:700">R${i + 1}</span> ` : `<span style="color:${G1}">R${i + 1}</span> `}<span style="color:${NAVY}">${esc(o.risk ?? o.title ?? o.name ?? "")}</span>${isNum(o.exposure) && moneyOk ? ` <span style="color:${G1}">${money(o.exposure)}</span>` : ""}</div>`;
+      const title = String(o.risk ?? o.title ?? o.name ?? "Risk");
+      return `<div id="risk-${i + 1}" style="padding:8px 0;border-top:1px solid ${G4}">${i < 3 ? `<span style="color:${RED};font-weight:700">R${i + 1}</span> ` : `<span style="color:${G1}">R${i + 1}</span> `}<a href="#risk-${i + 1}" style="color:${NAVY};text-decoration:none">${esc(title)}</a>${isNum(o.exposure) && moneyOk ? ` <span style="color:${G1}">${money(o.exposure)}</span>` : ""}</div>`;
     }).join("")));
   }
   const rest = Object.entries(d).filter(([k]) => !["kpis", "risks", "activities", "tia", "billing"].includes(k));
@@ -195,10 +197,10 @@ function lookaheadPageView(p: LookaheadPayload): string {
   if (!m.rows.length) out.push(card(`<p style="margin:0;color:${G1}">No saved schedule activities fall in this window.</p><p style="margin:8px 0 0;color:${NAVY}"><strong>Next move:</strong> pick a window that overlaps the saved schedule, or send this window's schedule export.</p>`));
   else {
     const th = m.days.map((d, i) => `<th style="padding:4px 2px;font-size:11px;color:${d === hl ? BLUE : G1};text-align:center;${i === 5 ? `border-left:2px solid ${G3};` : ""}">${i === 0 ? "WEEK 1<br>" : i === 5 ? "WEEK 2<br>" : "<br>"}${esc(dayHead(d))}</th>`).join("");
-    const rows = m.rows.map((row) => `<tr style="border-top:1px solid ${G4}"><td style="padding:6px 8px;font-size:12px;font-weight:600;color:${NAVY};white-space:nowrap">${esc(row.a.id)}</td><td style="padding:6px 8px;font-size:12px;color:${NAVY}">${esc(row.a.name)}</td><td style="padding:6px 8px;font-size:12px;color:${Number(row.a.total_float) === 0 ? BLUE : G1};text-align:center">${esc(row.a.total_float ?? "")}</td>${row.cells.map((c, i) => `<td style="padding:4px 2px;min-width:44px;text-align:center;${i === 5 ? `border-left:2px solid ${G3};` : ""}">${CELL_HTML[c.kind]}${c.risk ? `<span style="color:${RED}">⚑</span>` : ""}</td>`).join("")}</tr>`).join("");
-    out.push(card(h2("CALENDAR") + `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><thead><tr style="text-align:left;font-size:12px;color:${G1}"><th style="padding:4px 8px"></th><th style="padding:4px 8px">Activity</th><th style="padding:4px 8px">Float</th>${th}</tr></thead><tbody>${rows}</tbody></table></div>` + legend([[sw(BLUE), "Critical"], [sw(G2), "Non-critical"], ["📋", "Inspection"], ["🚚", "Delivery"], ["◆", "Milestone"], [`<span style="color:${RED}">⚑</span>`, "Risk"]])));
+    const rows = m.rows.map((row) => `<tr id="activity-${esc(row.a.id)}" style="border-top:1px solid ${G4}"><td style="padding:6px 8px;font-size:12px;font-weight:600;color:${NAVY}" data-id="${esc(row.a.id)}">${esc(row.a.name)}<div style="font-size:11px;font-weight:400;color:${G1}">${esc(row.a.id)}</div></td><td style="padding:6px 8px;font-size:12px;color:${Number(row.a.total_float) === 0 ? BLUE : G1};text-align:center">${esc(row.a.total_float ?? "")}</td>${row.cells.map((c, i) => `<td style="padding:4px 2px;min-width:44px;text-align:center;${i === 5 ? `border-left:2px solid ${G3};` : ""}">${CELL_HTML[c.kind]}${c.risk ? `<span style="color:${RED}">⚑</span>` : ""}</td>`).join("")}</tr>`).join("");
+    out.push(card(h2("CALENDAR") + `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><thead><tr style="text-align:left;font-size:12px;color:${G1}"><th style="padding:4px 8px">Activity</th><th style="padding:4px 8px">Float</th>${th}</tr></thead><tbody>${rows}</tbody></table></div>` + legend([[sw(BLUE), "Critical"], [sw(G2), "Non-critical"], ["📋", "Inspection"], ["🚚", "Delivery"], ["◆", "Milestone"], [`<span style="color:${RED}">⚑</span>`, "Risk"]])));
   }
-  if (m.overdue.length) out.push(card(h2("OVERDUE") + m.overdue.map((e) => `<div style="border:1px solid #FECACA;border-left:4px solid ${RED};border-radius:10px;padding:12px;margin:0 0 8px">${badge}<strong style="color:${RED}">${esc(e.label)}</strong><span style="color:${NAVY}"> · ${due(e)}</span></div>`).join("")));
+  if (m.overdue.length) out.push(card(h2("OVERDUE") + m.overdue.map((e, n) => `<div id="item-${esc(e.item.id || String(n + 1))}" style="border:1px solid #FECACA;border-left:4px solid ${RED};border-radius:10px;padding:12px;margin:0 0 8px">${badge}<strong style="color:${RED}">${esc(e.label)}</strong><span style="color:${NAVY}"> · ${due(e)}</span></div>`).join("")));
   if (m.risks.length) out.push(card(h2("RISKS") + m.risks.map((e) => `<div style="border:1px solid #FECACA;border-left:4px solid ${RED};border-radius:10px;padding:12px;margin:0 0 8px"><strong style="color:${RED}">${esc(e.label)}</strong><span style="color:${NAVY}"> · Impact: ${esc(e.a!.id)} ${esc(e.a!.name)}${e.a!.total_float !== undefined && e.a!.total_float !== null ? ` (float ${esc(e.a!.total_float)} WD)` : ""}. ${due(e)}</span>${flagsHtml(e)}</div>`).join("")));
   if (m.flagged.length) out.push(card(h2("DATES TO CHECK") + m.flagged.map((e) => `<div style="padding:8px 0;border-top:1px solid ${G4};color:${NAVY};font-size:13px">${esc(e.label)}${flagsHtml(e)}</div>`).join("")));
   return out.join("");
@@ -226,10 +228,24 @@ function briefingPageView(p: BriefingPayload): string {
 }
 
 /** Page body (no <html>). Used inside the signed-in page and the share page. */
+function itemsPageHtml(p: ItemsPagePayload): string {
+  const items = p.items ?? [];
+  if (!items.length) return card(`<p style="margin:0;color:${G1}">No open items on this job.</p>`);
+  return items.map((item, n) => {
+    const id = item.id || String(n + 1);
+    const due = item.due?.slice(0, 10) ?? "";
+    return `<section id="item-${esc(id)}"${item.id ? ` data-id="${esc(item.id)}"` : ""}>${card(`<div style="font-weight:700;color:${NAVY}">${esc(item.action || "Item")}</div><div style="font-size:12px;color:${G1};margin-top:4px">${esc(item.owner || "Needed")}${due ? ` · ${esc(shortDate(due))}` : ""}</div>`)}</section>`;
+  }).join("");
+}
+
 export function renderReportBody(p: PagePayload): string {
   if (p.page === "field") return fieldPageHtml(p);
   if (p.page === "daily") return dailyPageHtml(p);
   if (p.page === "photos") return photoPageHtml(p);
+  if (p.page === "items") {
+    const title = `${esc(p.job_number ?? "")} ${esc(p.job_name ?? "")} · Open items`;
+    return `<div style="max-width:1100px;margin:0 auto;padding:24px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:${NAVY}"><h1 style="margin:0 0 16px;font-size:22px;color:${NAVY}">${title}</h1>${itemsPageHtml(p)}<p style="margin:24px 0 0;font-size:12px;color:${G2}">Private to your company · Athena powered by ALP</p></div>`;
+  }
   const title = p.page === "portfolio" ? `${esc(p.company ?? "")} · Portfolio dashboard` : `${esc(p.job_number ?? "")} ${esc(p.job_name ?? "")} · ${PAGE_LABEL[p.page]}`;
   let body: string;
   let st = "";

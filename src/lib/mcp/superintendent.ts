@@ -1,6 +1,8 @@
 // Superintendent field board, daily reports, pay-app feed, schedule percents and production rates.
 // Pure helpers. Dollars stay out of the field board. The pay application is built with the same
 // G702/G703 column math as the schedule of values, and it is refused when it does not tie.
+import type { CardModel, CardRow } from "./cards/model";
+import { detailAnchor, mdLink, withAnchor } from "./plain-label";
 import { ALERT_HEX } from "./alert-color";
 import { DEFAULT_TZ, dateIn } from "./deadlines";
 import { lookaheadWindow, shortDate } from "./styled-views";
@@ -16,7 +18,7 @@ export const FIELD_MOBILE_PX = 420;
 
 /** Server instruction. No palette hex, so it cannot fight the shared color rule. */
 export const FIELD_SERVER_RULE =
-  " For the superintendent, show the field board on a phone-width card. Assemble the daily from the transcript or the typed notes, ask every missing item it lists, and save the daily only after the superintendent says yes. A progress photo keeps the upload date until they confirm it, and needs the place on site. Daily reminders stay off until that job turns them on, and they send only from support@meetathena.io.";
+  " For the superintendent, show the field board on a phone-width card. When someone asks for the field board, the super board, the superintendent board, the super's plan, or what the crew is doing, call field_board or superintendent_view. Assemble the daily from the transcript or the typed notes, ask every missing item it lists, and save the daily only after the superintendent says yes. A progress photo keeps the upload date until they confirm it, and needs the place on site. Daily reminders stay off until that job turns them on, and they send only from support@meetathena.io.";
 
 export type JobScope = "full" | "contract" | "super";
 
@@ -234,8 +236,6 @@ export function dailyCard(jobLabel: string, date: string, d: DailyDraft, saved: 
   const lines = d.work.length
     ? d.work.map((w) => {
         const bits = [w.work || "Work"];
-        if (w.sov_item) bits.push(`SOV ${w.sov_item}`);
-        if (w.activity_id) bits.push(w.activity_id);
         if (w.qty != null && w.unit) bits.push(`${w.qty} ${w.unit}`);
         if (w.crew != null) bits.push(`crew ${w.crew}`);
         if (w.hours != null) bits.push(`${w.hours} hours`);
@@ -500,7 +500,7 @@ export function payAppPercentCard(
   rows: { item_no: string; description?: string | null; pct: number | null; qty: number | null; unit: string | null }[],
 ): string {
   const body = rows.length
-    ? rows.map((r) => `- ${r.item_no}${r.description ? ` ${r.description}` : ""}: ${r.pct == null ? "percent needed" : `${r.pct}% complete`}${r.qty != null ? `, ${r.qty}${r.unit ? ` ${r.unit}` : ""} installed` : ""}`)
+    ? rows.map((r) => `- ${r.description || "Item"}${r.item_no ? ` (${r.item_no})` : ""}: ${r.pct == null ? "percent needed" : `${r.pct}% complete`}${r.qty != null ? `, ${r.qty}${r.unit ? ` ${r.unit}` : ""} installed` : ""}`)
     : ["- No progress saved yet."];
   return [`${jobLabel}Progress for the next pay app · ${period}`, "Percents only. Dollar columns stay with the PM.", ...body].join("\n");
 }
@@ -654,7 +654,9 @@ export function projectField(src: FieldSource): { window: { start: string; end: 
   return { window: window ? { start: window.start, end: window.end } : null, rows: visible, outside: rows.length - visible.length };
 }
 
-export function fieldCard(jobLabel: string, board: ReturnType<typeof projectField>, items: { action?: string; owner?: string | null; due?: string | null }[] = [], today?: string | null): string {
+export type FieldLinks = { field?: string | null; daily?: string | null; photos?: string | null; items?: string | null; ior?: string | null };
+
+export function fieldCard(jobLabel: string, board: ReturnType<typeof projectField>, items: { id?: string | null; action?: string; owner?: string | null; due?: string | null }[] = [], today?: string | null, links?: FieldLinks | null): string {
   const win = board.window ? `${shortDate(board.window.start)} – ${shortDate(board.window.end)}` : "Needed";
   const lines = board.rows.length
     ? board.rows.map((r) => {
@@ -667,23 +669,73 @@ export function fieldCard(jobLabel: string, board: ReturnType<typeof projectFiel
           ? `Materials: ${r.materials.length ? r.materials.map((m) => `${m.item} ${m.remaining ?? m.qty ?? "Needed"}${m.unit ? ` ${m.unit}` : ""}`).join(", ") : "Needed"}`
           : null;
         const flag = r.delay ? "DELAY — " : "";
-        return `- ${flag}${r.id} ${r.name} · ${who}${crew ? ` · ${crew}` : ""}${days ? ` · ${days}` : ""}${mats ? ` · ${mats}` : ""}${r.pct_complete != null ? ` · ${r.pct_complete}%` : ""}`;
+        const label = `${flag}${r.name || "Activity"}`;
+        const href = withAnchor(links?.field, detailAnchor("activity", r.id));
+        return `- ${mdLink(label, href)} · ${who}${crew ? ` · ${crew}` : ""}${days ? ` · ${days}` : ""}${mats ? ` · ${mats}` : ""}${r.pct_complete != null ? ` · ${r.pct_complete}%` : ""}`;
       })
     : ["- No activities in this lookahead yet."];
   const todayIso = today?.slice(0, 10) || "";
-  const open = items.map((i) => {
+  const open = items.map((i, n) => {
     const due = i.due?.slice(0, 10) ?? "";
     const late = !!(due && todayIso && due < todayIso);
-    return `- ${late ? "OVERDUE — " : ""}${i.action ?? "Item"}${i.owner ? ` · ${i.owner}` : ""}${due ? ` · due ${shortDate(due)}` : ""}`;
+    const title = i.action?.trim() || "Item";
+    const href = withAnchor(links?.items, detailAnchor("item", i.id || String(n + 1)));
+    return `- ${mdLink(`${late ? "OVERDUE — " : ""}${title}`, href)}${i.owner ? ` · ${i.owner}` : ""}${due ? ` · due ${shortDate(due)}` : ""}`;
   });
+  const dashboard = links?.field ? `Dashboard: ${mdLink("Open this job's field board", links.field)}` : null;
+  const more = [
+    links?.daily ? mdLink("Daily", links.daily) : null,
+    links?.photos ? mdLink("Photos", links.photos) : null,
+    links?.items ? mdLink("Open items", links.items) : null,
+    links?.ior ? mdLink("IOR", links.ior) : null,
+  ].filter(Boolean);
   return [
     "REQUIRED: Show this field board as one phone-width card. Navy, blue and gray. Red only on a delay or an overdue item.",
     `${jobLabel}Field board`,
+    ...(dashboard ? [dashboard] : []),
+    ...(more.length ? [`Also: ${more.join(" · ")}`] : []),
     `Lookahead: ${win}`,
     ...lines,
     ...(board.outside ? [`${board.outside} activities sit outside this lookahead.`] : []),
     ...(open.length ? ["Lookahead items:", ...open] : []),
   ].join("\n");
+}
+
+export function fieldBoardCard(jobLabel: string, board: ReturnType<typeof projectField>, items: { id?: string | null; action?: string; owner?: string | null; due?: string | null }[] = [], today?: string | null, links?: FieldLinks | null): CardModel {
+  const todayIso = today?.slice(0, 10) || "";
+  const activities: CardRow[] = board.rows.map((r) => {
+    const who = r.self_perform === true ? "Self-perform" : r.self_perform === false ? r.sub || "Sub needed" : "Needed";
+    return {
+      cells: [`${r.delay ? "DELAY — " : ""}${r.name || "Activity"}`, who],
+      href: withAnchor(links?.field, detailAnchor("activity", r.id)),
+      refId: r.id,
+      flag: r.delay ? "delay" : null,
+    };
+  });
+  const open: CardRow[] = items.map((i, n) => {
+    const due = i.due?.slice(0, 10) ?? "";
+    const late = !!(due && todayIso && due < todayIso);
+    return {
+      cells: [i.action?.trim() || "Item", i.owner?.trim() || "Needed", due ? shortDate(due) : ""],
+      href: withAnchor(links?.items, detailAnchor("item", i.id || String(n + 1))),
+      refId: i.id ?? null,
+      flag: late ? "overdue" : null,
+    };
+  });
+  return {
+    state: "result",
+    title: "Field board",
+    job: jobLabel.replace(/\s+$/, "") || null,
+    sections: [
+      { heading: "Crew", kind: "list", rows: activities },
+      { heading: "Open items", kind: "list", rows: open },
+    ],
+    alerts: [
+      ...board.rows.filter((r) => r.delay).map((r) => ({ level: "delay" as const, text: r.name || "Activity" })),
+      ...open.filter((r) => r.flag === "overdue").map((r) => ({ level: "overdue" as const, text: r.cells[0] || "Item" })),
+    ],
+    next_move: links?.field ? "Open the dashboard for this job." : null,
+  };
 }
 
 // ---------- photos ----------
@@ -740,7 +792,7 @@ const card = (inner: string, alert = false) =>
 const label = (t: string) => `<div style="font-size:12px;color:${FIELD_GRAY};margin-bottom:2px">${esc(t)}</div>`;
 const value = (t: string, alert = false) => `<div style="font-size:15px;color:${alert ? FIELD_RED : FIELD_NAVY};font-weight:${alert ? 700 : 600}">${esc(t)}</div>`;
 
-export function fieldPageHtml(src: FieldSource & { job_number?: string; job_name?: string; items?: { action?: string; owner?: string | null; due?: string | null }[] }): string {
+export function fieldPageHtml(src: FieldSource & { job_number?: string; job_name?: string; items?: { id?: string | null; action?: string; owner?: string | null; due?: string | null }[] }): string {
   const board = projectField(src);
   const title = `${src.job_number ?? ""} ${src.job_name ?? ""}`.trim() || "Field board";
   const win = board.window ? `${shortDate(board.window.start)} – ${shortDate(board.window.end)}` : "Lookahead needed";
@@ -749,13 +801,15 @@ export function fieldPageHtml(src: FieldSource & { job_number?: string; job_name
     const extra = r.self_perform === true
       ? `<div style="font-size:13px;color:${FIELD_GRAY};margin-top:4px">Crew ${esc(r.crew ?? "Needed")} · Man-days ${esc(r.man_days ?? "Needed")}${r.man_hours != null ? ` · ${esc(r.man_hours)} man-hours` : ""}</div><div style="font-size:13px;color:${FIELD_NAVY};margin-top:4px">${esc(r.materials.length ? r.materials.map((m) => `${m.item} ${m.remaining ?? m.qty ?? "Needed"}${m.unit ? ` ${m.unit}` : ""}`).join(" · ") : "Materials needed")}</div>`
       : "";
-    return card(`${r.delay ? `<div style="color:${FIELD_RED};font-size:12px;font-weight:700">DELAY</div>` : ""}<div style="font-weight:700;color:${r.delay ? FIELD_RED : FIELD_NAVY}">${esc(r.id)} ${esc(r.name)}</div><div style="font-size:13px;color:${FIELD_BLUE};margin-top:4px">${esc(who)}</div>${extra}`, r.delay);
+    const anchor = detailAnchor("activity", r.id);
+    return `<section id="${esc(anchor)}" data-id="${esc(r.id)}">${card(`${r.delay ? `<div style="color:${FIELD_RED};font-size:12px;font-weight:700">DELAY</div>` : ""}<div style="font-weight:700;color:${r.delay ? FIELD_RED : FIELD_NAVY}"><a href="#${esc(anchor)}" style="color:inherit;text-decoration:none">${esc(r.name || "Activity")}</a></div><div style="font-size:11px;color:${FIELD_GRAY}">${esc(r.id)}</div><div style="font-size:13px;color:${FIELD_BLUE};margin-top:4px">${esc(who)}</div>${extra}`, r.delay)}</section>`;
   }).join("");
   const today = src.today?.slice(0, 10) || "";
-  const items = (src.items ?? []).map((i) => {
+  const items = (src.items ?? []).map((i, n) => {
     const due = i.due?.slice(0, 10) ?? "";
     const late = !!(due && today && due < today);
-    return card(`${label(late ? "Overdue" : "Lookahead")}${value(i.action ?? "Item", late)}<div style="font-size:12px;color:${late ? FIELD_RED : FIELD_GRAY}">${esc(i.owner ?? "Needed")}${due ? ` · ${esc(shortDate(due))}` : ""}</div>`, late);
+    const anchor = detailAnchor("item", i.id || String(n + 1));
+    return `<section id="${esc(anchor)}"${i.id ? ` data-id="${esc(i.id)}"` : ""}>${card(`${label(late ? "Overdue" : "Lookahead")}${value(i.action ?? "Item", late)}<div style="font-size:12px;color:${late ? FIELD_RED : FIELD_GRAY}">${esc(i.owner ?? "Needed")}${due ? ` · ${esc(shortDate(due))}` : ""}</div>`, late)}</section>`;
   }).join("");
   return shell(`${title} · Field`, `<p style="margin:0 0 12px;color:${FIELD_GRAY};font-size:13px">Lookahead ${esc(win)}</p>${rows || card(`${value("No activities in this lookahead yet.")}`)}${items}`);
 }
@@ -779,7 +833,11 @@ export function dailyPageHtml(p: {
   if (!p.found) return shell(`${title} · Daily`, card(`${value("No daily is saved for this job yet.")}`));
   const delay = present(p.delays) && !NONE.test(p.delays!);
   const block = (k: string, v: string | null | undefined, alert = false) => card(`${label(k)}${value(v?.trim() || "Needed", alert)}`, alert);
-  const work = (p.work ?? p.lines ?? []).map((w) => card(`${value(w.work || "Work")}<div style="font-size:13px;color:${FIELD_GRAY};margin-top:4px">${esc([w.sov_item ? `SOV ${w.sov_item}` : "", w.activity_id ?? "", w.qty != null ? `${w.qty} ${w.unit ?? ""}` : "", w.crew != null ? `crew ${w.crew}` : "", w.hours != null ? `${w.hours} hours` : ""].filter(Boolean).join(" · "))}</div>`)).join("");
+  const work = (p.work ?? p.lines ?? []).map((w, n) => {
+    const anchor = detailAnchor("line", w.activity_id || String(n + 1));
+    const facts = [w.qty != null ? `${w.qty} ${w.unit ?? ""}` : "", w.crew != null ? `crew ${w.crew}` : "", w.hours != null ? `${w.hours} hours` : ""].filter(Boolean).join(" · ");
+    return `<section id="${esc(anchor)}"${w.activity_id ? ` data-id="${esc(w.activity_id)}"` : ""}>${card(`${value(w.work || "Work")}${facts ? `<div style="font-size:13px;color:${FIELD_GRAY};margin-top:4px">${esc(facts)}</div>` : ""}${w.activity_id ? `<div style="font-size:11px;color:${FIELD_GRAY}">${esc(w.activity_id)}</div>` : ""}`)}</section>`;
+  }).join("");
   return shell(`${title} · Daily ${p.report_date ? shortDate(p.report_date) : ""}`, [
     block("Weather", p.weather),
     block("Manpower", p.manpower),
@@ -795,15 +853,16 @@ export function dailyPageHtml(p: {
 export function photoPageHtml(p: {
   job_number?: string;
   job_name?: string;
-  photos?: { taken_on?: string; area?: string; work?: string | null; sov_item?: string | null; activity_id?: string | null; client_safe?: boolean; url?: string | null }[];
+  photos?: { id?: string | null; taken_on?: string; area?: string; work?: string | null; sov_item?: string | null; activity_id?: string | null; client_safe?: boolean; url?: string | null }[];
 }): string {
   const title = `${p.job_number ?? ""} ${p.job_name ?? ""}`.trim() || "Photos";
   const photos = p.photos ?? [];
   if (!photos.length) return shell(`${title} · Photos`, card(`${value("No progress photos in this view.")}`));
-  const body = photos.map((ph) => {
+  const body = photos.map((ph, n) => {
     const img = ph.url ? `<img alt="${esc(ph.area || "Progress photo")}" src="${esc(ph.url)}" style="width:100%;border-radius:8px;margin-bottom:8px"/>` : "";
-    const tags = [ph.work, ph.sov_item ? `SOV ${ph.sov_item}` : "", ph.activity_id ?? "", ph.client_safe ? "Client-safe" : "Internal"].filter(Boolean).join(" · ");
-    return card(`${img}${label(ph.taken_on ? shortDate(ph.taken_on) : "Date needed")}${value(ph.area || "Place needed")}<div style="font-size:13px;color:${FIELD_GRAY};margin-top:4px">${esc(tags)}</div>`);
+    const tags = [ph.work, ph.client_safe ? "Client-safe" : "Internal"].filter(Boolean).join(" · ");
+    const anchor = detailAnchor("photo", ph.id || String(n + 1));
+    return `<section id="${esc(anchor)}"${ph.id ? ` data-id="${esc(ph.id)}"` : ""}>${card(`${img}${label(ph.taken_on ? shortDate(ph.taken_on) : "Date needed")}${value(ph.area || "Place needed")}<div style="font-size:13px;color:${FIELD_GRAY};margin-top:4px">${esc(tags)}</div>`)}</section>`;
   }).join("");
   return shell(`${title} · Photos`, body);
 }

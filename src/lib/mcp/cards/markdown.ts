@@ -1,3 +1,4 @@
+import { rowPlain } from "../plain-label";
 import { MARK } from "./palette";
 import { STATE_LABEL, type CardModel, type CardRow, type CardSection } from "./model";
 
@@ -7,6 +8,12 @@ function toneMark(row: CardRow): string {
   if (row.flag) return MARK.alert;
   if (row.tone === "unknown") return MARK.neutral;
   return MARK.action;
+}
+
+function linked(row: CardRow): string {
+  const view = rowPlain(row);
+  const text = cell(view.label);
+  return view.href ? `[${text}](${view.href})` : text;
 }
 
 function section(s: CardSection): string[] {
@@ -21,19 +28,23 @@ function section(s: CardSection): string[] {
     lines.push(`| ${labels.join(" | ")} |`);
     lines.push(`| ${Array.from({ length: width }, () => "---").join(" | ")} |`);
     for (const row of s.rows) {
-      const cells = Array.from({ length: width }, (_, i) => cell(row.cells[i] ?? ""));
+      const view = rowPlain(row);
+      const cells = Array.from({ length: width }, (_, i) => {
+        const part = rowPlain({ cells: [row.cells[i] ?? ""] });
+        const text = part.label === "Item" && part.refId ? "" : cell(part.label);
+        return i === 0 ? (view.href ? `[${text || cell(view.label)}](${view.href})` : text || cell(view.label)) : text;
+      });
       if (row.flag) cells[0] = `${MARK.alert} ${cells[0]}`.trim();
       lines.push(`| ${cells.join(" | ")} |`);
     }
     return lines;
   }
   if (s.kind === "chips") {
-    lines.push(s.rows.map((r) => `${toneMark(r)} ${cell(r.cells[0] ?? "")}`).join(" · "));
+    lines.push(s.rows.map((r) => `${toneMark(r)} ${linked(r)}`).join(" · "));
     return lines;
   }
   for (const row of s.rows) {
-    const text = row.cells.map(cell).filter(Boolean).join(" · ");
-    lines.push(`- ${toneMark(row)} ${text}`);
+    lines.push(`- ${toneMark(row)} ${linked(row)}`);
   }
   return lines;
 }

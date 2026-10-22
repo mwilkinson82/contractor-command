@@ -24,6 +24,7 @@ export type FlowMoney = {
 export type FlowData = {
   jobNumber: string;
   jobName: string;
+  jobId?: string | null;
   selfPerform: boolean;
   lookaheadLocked: boolean | null;
   onSchedule: boolean | null;

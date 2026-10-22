@@ -138,7 +138,13 @@ beforeEach(() => {
   vi.stubGlobal("fetch", () => Promise.reject(new Error("synthetic test: no network")));
 });
 
-afterEach(() => {
+afterEach(async () => {
+  try {
+    const { supabase } = await import("@/integrations/supabase/client");
+    supabase.auth.stopAutoRefresh();
+  } catch {
+    /* client was not constructed */
+  }
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
 });

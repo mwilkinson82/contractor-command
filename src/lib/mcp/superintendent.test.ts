@@ -297,7 +297,8 @@ describe("field board", () => {
     const card = fieldCard("2701 – ", board, src.items, "2026-10-21");
     expect(card).toContain("Self-perform");
     expect(card).toContain("Sub: Apex Steel");
-    expect(card).toContain("DELAY — A2000");
+    expect(card).toContain("DELAY — Steel");
+    expect(card).not.toContain("DELAY — A2000");
     expect(card).toContain("OVERDUE — Inspection");
     expect(card).not.toContain("$");
     expect(visibleProblems(card)).toEqual([]);

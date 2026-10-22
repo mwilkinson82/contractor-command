@@ -544,7 +544,7 @@ export const estimateRequirements = defineTool({
         ...(priced.length
           ? priced.map(
               (r) =>
-                `- ${r.ref} ${r.label}. ${r.sourceType === "contract" ? "Contract clause" : r.sourceType === "spec" ? "Spec" : "Sheet"} ${r.sourceRef}. ${r.citation}${r.excluded ? " Excluded." : r.amount == null ? " Unpriced. Holds the bid." : ` ${money(r.amount)} ${r.confirmed ? "Confirmed." : "PLACEHOLDER."}`}`,
+                `- ${r.label} (${r.ref}). ${r.sourceType === "contract" ? "Contract clause" : r.sourceType === "spec" ? "Spec" : "Sheet"} ${r.sourceRef}. ${r.citation}${r.excluded ? " Excluded." : r.amount == null ? " Unpriced. Holds the bid." : ` ${money(r.amount)} ${r.confirmed ? "Confirmed." : "PLACEHOLDER."}`}`,
             )
           : [
               "- None found in the documents on file. Send a finding if the drawings call for one.",

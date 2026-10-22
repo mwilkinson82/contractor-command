@@ -12,6 +12,21 @@ var P=${JSON.stringify({ navy: NAVY, blue: BLUE, gray: GRAY, white: WHITE, alert
 var app=document.getElementById("app");
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c]})}
 function isAlert(level){return level==="risk"||level==="delay"||level==="overdue"}
+function raw(c){return /^(#[0-9A-Fa-f]{3,8}|#\\d{1,4}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(String(c||"").trim())}
+function clean(c){return String(c==null?"":c).replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/ig," ").replace(/#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})\\b/g," ").replace(/#\\d{1,4}\\b/g," ").replace(/\\s+/g," ").replace(/^[,·\\s-]+|[,·\\s-]+$/g,"").trim()}
+function view(r){
+  var cells=r.cells||[];
+  var words=cells.filter(function(c){return c&&!raw(c)}).map(clean).filter(Boolean);
+  var href=typeof r.href==="string"&&/^https:\\/\\/app\\.meetathena\\.io\\/r\\//.test(r.href)?r.href:"";
+  var ref=r.refId||"";
+  var secondary=ref && ref.charAt(0)!=="#" && !/^[0-9a-f]{8}-/i.test(ref)?ref:"";
+  return {label:words.join(" · ")||"Item", href:href, ref:ref, secondary:secondary};
+}
+function linked(v){
+  var id=v.ref?' data-id="'+esc(v.ref)+'"':"";
+  var body=v.href?'<a href="'+esc(v.href)+'">'+esc(v.label)+'</a>':esc(v.label);
+  return '<span'+id+'>'+body+(v.secondary?'<span class="ref">'+esc(v.secondary)+'</span>':"")+'</span>';
+}
 var labels={intake:"Intake",progress:"What I have so far",ask:"Needed",result:"Result"};
 var state=card.state||"result";
 var h='<article class="card" data-state="'+esc(state)+'"><header><p class="mark">Athena</p><h1>'+esc(card.title||"Athena")+'</h1>';
@@ -33,7 +48,7 @@ if(card.ask&&card.ask.prompt)h+='<div class="ask"><strong>This question</strong>
     h+='<p>';
     (s.rows||[]).forEach(function(r){
       var alert=isAlert(r.flag);
-      h+='<span class="chip'+(r.tone?' tone-'+r.tone:'')+(alert?' alert" data-alert="'+r.flag:'')+'">'+esc((r.cells||[])[0]||"")+'</span>';
+      h+='<span class="chip'+(r.tone?' tone-'+r.tone:'')+(alert?' alert" data-alert="'+r.flag:'')+'">'+linked(view(r))+'</span>';
     });
     h+='</p>';
     return;
@@ -43,7 +58,8 @@ if(card.ask&&card.ask.prompt)h+='<div class="ask"><strong>This question</strong>
     h+='<table><thead><tr>'+cols.map(function(c){return '<th>'+esc(c)+'</th>'}).join('')+'</tr></thead><tbody>';
     (s.rows||[]).forEach(function(r){
       var alert=isAlert(r.flag);
-      h+='<tr'+(alert?' class="alert" data-alert="'+r.flag+'"':'')+'>'+(r.cells||[]).map(function(c){return '<td>'+esc(c)+'</td>'}).join('')+'</tr>';
+      var seen=view(r);
+      h+='<tr'+(alert?' class="alert" data-alert="'+r.flag+'"':'')+'>'+(r.cells||[]).map(function(c,i){var t=raw(c)?"":clean(c);return '<td>'+(i===0?linked({label:t||seen.label,href:seen.href,ref:seen.ref,secondary:seen.secondary}):esc(t))+'</td>'}).join('')+'</tr>';
     });
     h+='</tbody></table>';
     return;
@@ -51,7 +67,7 @@ if(card.ask&&card.ask.prompt)h+='<div class="ask"><strong>This question</strong>
   h+='<ul>';
   (s.rows||[]).forEach(function(r){
     var alert=isAlert(r.flag);
-    h+='<li'+(alert?' class="alert" data-alert="'+r.flag+'"':'')+'>'+esc((r.cells||[]).join(' · '))+'</li>';
+    h+='<li'+(alert?' class="alert" data-alert="'+r.flag+'"':'')+'>'+linked(view(r))+'</li>';
   });
   h+='</ul>';
 });
@@ -82,6 +98,8 @@ th{background:${BLUE};color:${WHITE};text-align:left;padding:6px 8px}
 td{padding:6px 8px;border-bottom:1px solid ${GRAY}}
 .chip{display:inline-block;margin:0 6px 6px 0;padding:4px 8px;border-radius:999px;border:1px solid ${GRAY}}
 .tone-known{border-color:${BLUE};color:${BLUE}}.tone-unknown{color:${GRAY}}.tone-action{background:${BLUE};color:${WHITE}}
+a{color:${BLUE};text-decoration:none}
+.ref{display:block;margin-top:2px;font-size:11px;color:${GRAY}}
 .ask{margin:12px 0;padding:12px;border-left:4px solid ${BLUE}}
 .next{font-weight:700}
 .alert{color:${ALERT};border-color:${ALERT}}

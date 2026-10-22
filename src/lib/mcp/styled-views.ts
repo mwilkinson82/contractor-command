@@ -223,7 +223,7 @@ export function windowActivities(acts: SAct[], start: string, end: string): SAct
     )
     .sort((a, b) => a.start!.localeCompare(b.start!) || a.id.localeCompare(b.id));
 }
-export type LaItem = { action: string; owner?: string | null; due?: string | null };
+export type LaItem = { id?: string | null; action: string; owner?: string | null; due?: string | null };
 // 0.8.21: a marker (INSP/DLV) only for a short event; a long activity that happens to say "deliver" (2701 A1070
 // "Fabricate & deliver generator & ATS", 130 WD) is work and gets a bar, or its row is blank for the whole window.
 const shortEvent = (a: SAct) => (num(a.duration) ?? 0) <= 2;

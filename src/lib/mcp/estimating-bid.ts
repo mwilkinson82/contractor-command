@@ -651,11 +651,11 @@ export function assembleBid(input: {
     `Special requirements on their own line: ${money(ownTotal)}.`,
     ...reqOwn.map(
       (r) =>
-        `- ${r.ref} ${r.label}. ${sourceLabel(r.sourceType)} ${r.sourceRef}. ${r.amount == null ? "Unpriced. Price or confirm it." : money(r.amount) + (r.confirmed ? " Confirmed." : " PLACEHOLDER.")}${r.amount == null ? " Holds the bid." : ""}`,
+        `- ${r.label} (${r.ref}). ${sourceLabel(r.sourceType)} ${r.sourceRef}. ${r.amount == null ? "Unpriced. Price or confirm it." : money(r.amount) + (r.confirmed ? " Confirmed." : " PLACEHOLDER.")}${r.amount == null ? " Holds the bid." : ""}`,
     ),
     ...reqInGc.map(
       (r) =>
-        `- ${r.ref} ${r.label} is carried in general conditions. ${sourceLabel(r.sourceType)} ${r.sourceRef}. ${money(r.amount ?? 0)}.${r.confirmed ? "" : " PLACEHOLDER."}`,
+        `- ${r.label} (${r.ref}) is carried in general conditions. ${sourceLabel(r.sourceType)} ${r.sourceRef}. ${money(r.amount ?? 0)}.${r.confirmed ? "" : " PLACEHOLDER."}`,
     ),
   ];
   if (input.overheadPct == null || input.profitPct == null) {
