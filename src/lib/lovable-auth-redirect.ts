@@ -27,17 +27,6 @@ export function lovableAuthRedirectTarget(input: {
   return `${athenaAppOrigin()}${pathname}${withPrefix(input.search, "?")}${withPrefix(input.hash, "#")}`;
 }
 
-/** A lovable.app origin used as redirectTo / emailRedirectTo / a magic-link host becomes the Athena app. */
-export function canonicalAuthOrigin(origin: string): string {
-  try {
-    const url = new URL(origin);
-    if (isLovableHost(url.hostname)) return athenaAppOrigin();
-    return url.origin;
-  } catch {
-    return origin.replace(/\/$/, "");
-  }
-}
-
 /** Public host a member's browser used. Forwarded host wins; Lovable's proxy sets it. */
 export function requestHostname(request: Request): string {
   const forwarded = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";

@@ -6,7 +6,6 @@ import { membershipDb } from "@/lib/membership/circle.server";
 import { drainCircleAudienceSync } from "@/lib/membership/reconcile.server";
 import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
 import { hubOrigin } from "@/lib/auth-origins";
-import { canonicalAuthOrigin } from "@/lib/lovable-auth-redirect";
 
 async function assertAdmin(userId: string) {
   const { data: roles } = await supabaseAdmin
@@ -363,13 +362,13 @@ export const adminGenerateMagicLink = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
     const fallbackOrigin = hubOrigin();
-    const origin = canonicalAuthOrigin((() => {
+    const origin = (() => {
       try {
         return new URL(data.redirectTo ?? fallbackOrigin).origin;
       } catch {
         return fallbackOrigin;
       }
-    })());
+    })();
     const { data: link, error } = await supabaseAdmin.auth.admin.generateLink({
       type: "magiclink",
       email: data.email,

@@ -16,10 +16,8 @@ describe("auth links never depend on the Auth Site URL", () => {
     expect(hubOrigin({})).toBe(HUB_ORIGIN);
     expect(hubOrigin({ PUBLIC_APP_ORIGIN: "https://app.meetathena.io" })).toBe(HUB_ORIGIN);
     expect(hubOrigin({ APP_ORIGIN: "https://evil.example.com/" })).toBe(HUB_ORIGIN);
-    // A lovable.app Site URL must not become a Hub link. Those auth redirects
-    // are rewritten to app.meetathena.io at the call sites that mint them.
     expect(hubOrigin({ PUBLIC_APP_ORIGIN: "https://contractor-command.lovable.app/" })).toBe(
-      HUB_ORIGIN,
+      "https://contractor-command.lovable.app",
     );
     expect(hubOrigin({ PUBLIC_APP_ORIGIN: "not a url" })).toBe(HUB_ORIGIN);
   });

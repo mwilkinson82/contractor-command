@@ -2,7 +2,6 @@ import { createFileRoute, Link, redirect, useNavigate, useRouter } from "@tansta
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthCard, AuthField, AuthSubmit } from "@/components/auth/auth-card";
-import { canonicalAuthOrigin } from "@/lib/lovable-auth-redirect";
 
 export const Route = createFileRoute("/signup")({
   head: () => ({ meta: [{ title: "Create account — ALP Contractor Circle" }] }),
@@ -37,7 +36,7 @@ function SignupPage() {
     e.preventDefault();
     setBusy(true);
     setErr(null);
-    const redirectUrl = `${canonicalAuthOrigin(window.location.origin)}/`;
+    const redirectUrl = `${window.location.origin}/`;
     const { data, error } = await supabase.auth.signUp({
       email,
       password,

@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { athenaAppOrigin } from "@/lib/athena-host";
 import {
-  canonicalAuthOrigin,
   isLovableAuthPath,
   lovableAuthRedirectResponse,
   lovableAuthRedirectTarget,
@@ -119,15 +118,6 @@ describe("lovable.app auth host redirect", () => {
     expect(
       lovableAuthRedirectResponse(new Request(`https://app.meetathena.io/login?authorization_id=${ID}`)),
     ).toBeNull();
-  });
-
-  it("rewrites a lovable.app auth origin and leaves the Hub origin", () => {
-    expect(canonicalAuthOrigin("https://contractor-command.lovable.app")).toBe(ATHENA);
-    expect(canonicalAuthOrigin("https://id-preview--abc.lovable.app/login")).toBe(ATHENA);
-    expect(canonicalAuthOrigin("https://app.alpcontractorcircle.com/login")).toBe(
-      "https://app.alpcontractorcircle.com",
-    );
-    expect(canonicalAuthOrigin("https://app.meetathena.io/oauth/consent")).toBe(ATHENA);
   });
 
   it("is wired before render: server fetch, router module, root beforeLoad, and the head script", () => {

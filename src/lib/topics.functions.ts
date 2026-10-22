@@ -1,8 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { HUB_ORIGIN } from "@/lib/auth-origins";
-import { canonicalAuthOrigin } from "@/lib/lovable-auth-redirect";
 import { z } from "zod";
 
 const ADMIN_EMAIL = "marshall@marshallwilkinson.com";
@@ -94,15 +92,9 @@ export const submitCallTopic = createServerFn({ method: "POST" })
 
     const topicId = insert.data.id;
 
-    // Determine admin URL from request origin. A lovable.app host is not a
-    // member address; the topics desk lives on the Hub.
+    // Determine admin URL from request origin
     const request = getRequest();
     const origin = request?.url ? new URL(request.url).origin : "";
-    const adminBase = !origin
-      ? ""
-      : canonicalAuthOrigin(origin) === origin
-        ? origin
-        : HUB_ORIGIN;
 
     // Email admin (fire-and-forget; success returned to user either way)
     sendInternal(
@@ -118,7 +110,7 @@ export const submitCallTopic = createServerFn({ method: "POST" })
         decisionAvoided: data.decisionAvoided,
         financialConsequence: data.financialConsequence,
         winLooksLike: data.winLooksLike,
-        adminUrl: adminBase ? `${adminBase}/admin/topics` : undefined,
+        adminUrl: origin ? `${origin}/admin/topics` : undefined,
       },
       `topic-submitted-${topicId}`,
     ).catch(() => {});
