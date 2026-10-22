@@ -1273,25 +1273,94 @@ export function autoGaps(lines: StoredLine[], pairs: SpecDrawing[]): GapIn[] {
   return [...fromLines, ...fromPairs, ...foundationGapPrompts(lines)];
 }
 
+const FOUNDATION_ALIAS: Record<string, RegExp> = {
+  pi: /under[- ]?slab insulation|perimeter insulation/,
+  pt: /termite/,
+  fg: /fine grad/,
+  bc: /\bbase course\b|granular base/,
+  bt: /trench base/,
+  dw: /\bdowels?\b/,
+  kw: /keyway|key way/,
+  ef: /edge forms?|slab edge/,
+};
+
+function normItem(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/^open question:\s*/i, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function coversFoundation(line: StoredLine, check: { key: string; label: string }): boolean {
+  if (line.checklist_key === check.key) return true;
+  const item = line.item.toLowerCase();
+  if (item.includes(check.label.toLowerCase())) return true;
+  return FOUNDATION_ALIAS[check.key]?.test(item) ?? false;
+}
+
+/** A takeoff line for this title. Name match, not only the checklist key. */
+export function takeoffLineFor(lines: StoredLine[], title: string): StoredLine | null {
+  const want = normItem(title);
+  if (want.length < 4) return null;
+  return (
+    lines.find((line) => {
+      const got = normItem(line.item);
+      if (!got) return false;
+      if (got === want) return true;
+      return want.length >= 6 && (got.includes(want) || want.includes(got));
+    }) ?? null
+  );
+}
+
+/**
+ * Drop a gap whose line is already quantified or marked N/A.
+ * A gap that stays cites the takeoff line's sheet, not some other sheet on the job.
+ */
+export function alignGapsToTakeoff<T extends { title: string; sheet: string; reasoning?: string }>(
+  gaps: T[],
+  lines: StoredLine[],
+): T[] {
+  const out: T[] = [];
+  for (const gap of gaps) {
+    const hit = takeoffLineFor(lines, gap.title);
+    if (hit && (hit.qty != null || hit.exclusion)) continue;
+    if (hit?.sheet && hit.sheet !== gap.sheet) {
+      const from = gap.sheet.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      out.push({
+        ...gap,
+        sheet: hit.sheet,
+        reasoning: gap.reasoning ? gap.reasoning.replace(new RegExp(from, "g"), hit.sheet) : gap.reasoning,
+      });
+    } else out.push(gap);
+  }
+  return out;
+}
+
 /** Missing foundation scope becomes a gap prompt. A quantity or an N/A line closes it. */
 export function foundationGapPrompts(lines: StoredLine[]): GapIn[] {
-  const sheet = lines.find((l) => l.sheet)?.sheet || "foundation";
   return FOUNDATION_CHECKLIST.filter((c) => {
-    const rows = lines.filter((l) => l.checklist_key === c.key);
+    const rows = lines.filter((l) => coversFoundation(l, c));
     if (!rows.length) return true;
     if (rows.some((r) => r.qty != null)) return false;
     if (rows.some((r) => r.exclusion)) return false;
     return true;
-  }).map((c) => ({
-    kind: "verify" as const,
-    category: "scope_seam" as const,
-    severity: "hard" as const,
-    title: c.label,
-    reasoning: `${c.label} is not on the takeoff. Take it off, or mark it N/A with a reason.`,
-    sheet,
-    spec_section: "foundation",
-    holds_bid: true,
-  }));
+  }).map((c) => {
+    const rows = lines.filter((l) => coversFoundation(l, c));
+    const sheet = rows.find((l) => l.sheet)?.sheet || "foundation";
+    return {
+      kind: "verify" as const,
+      category: "scope_seam" as const,
+      severity: "hard" as const,
+      title: c.label,
+      reasoning: rows.length
+        ? `${c.label} is on the takeoff at ${sheet} and still has no quantity. Take it off, or mark it N/A with a reason.`
+        : `${c.label} is not on the takeoff. Take it off, or mark it N/A with a reason.`,
+      sheet,
+      spec_section: "foundation",
+      holds_bid: true,
+    };
+  });
 }
 
 /** Keep every gap number. New items are added. A mark does not mint a new id. */

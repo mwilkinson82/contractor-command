@@ -13,6 +13,7 @@ import {
   intakeQuestions,
   normalizeScale,
   normalizeSchedules,
+  alignGapsToTakeoff,
   autoGaps,
   checkBids,
   estimateLayout,
@@ -862,14 +863,17 @@ export const estimateGapAnalysis = defineTool({
             holds_bid: false,
           })),
         ];
-        const merged = preserveGapList(
-          prior.gaps,
-          dedupeGaps([
-            ...keepUnexplainedGaps(args.items as GapIn[], reviewed.explained),
-            ...implied,
-            ...found,
-            ...fromReview,
-          ]),
+        const merged = alignGapsToTakeoff(
+          preserveGapList(
+            prior.gaps,
+            dedupeGaps([
+              ...keepUnexplainedGaps(args.items as GapIn[], reviewed.explained),
+              ...implied,
+              ...found,
+              ...fromReview,
+            ]),
+          ),
+          prior.lines,
         );
         const gaps = prepareGaps(merged);
         await rpc(sb, "mcp_estimate_gaps_save", { _job: job.job_id, _items: gaps });

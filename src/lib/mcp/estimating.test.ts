@@ -9,6 +9,7 @@ import {
   EstimateError,
   accountTakeoffLines,
   assignGapRefs,
+  alignGapsToTakeoff,
   autoGaps,
   foundationGapPrompts,
   preserveGapList,
@@ -907,6 +908,64 @@ describe("intake reuse and takeoff save mode", () => {
       })),
     );
     expect(closed).toEqual([]);
+  });
+
+  it("does not flag a line already on the takeoff, and cites that line's sheet", () => {
+    const row = (
+      item: string,
+      sheet: string,
+      qty: number | null,
+    ): StoredLine => ({
+      line_no: 1,
+      item,
+      material: null,
+      qty,
+      unit: "SF",
+      range_text: null,
+      measure_type: null,
+      sheet,
+      detail: null,
+      spec_section: null,
+      basis: "measured",
+      math: qty == null ? "HOLD" : "MEASURED",
+      confidence: "high",
+      markup_ref: null,
+      location_text: null,
+      missing_input: qty == null ? "length" : null,
+      exclusion: null,
+      checklist_key: null,
+      element: null,
+      trade: null,
+      note: null,
+      inputs: [],
+    });
+    const lines = [
+      row("Slab on grade", "S-100", 10),
+      row("Fine grade", "C-200", 5000),
+      row("Keyway", "S-9", null),
+    ];
+    const prompts = foundationGapPrompts(lines);
+    expect(prompts.map((g) => g.title)).not.toContain("Fine grade");
+    expect(prompts.find((g) => g.title === "Keyway")?.sheet).toBe("S-9");
+    const gaps = alignGapsToTakeoff(
+      [
+        {
+          title: "Fine grade",
+          reasoning: "Called missing on S-100.",
+          sheet: "S-100",
+        },
+        {
+          title: "Keyway",
+          reasoning: "Cited on S-100.",
+          sheet: "S-100",
+        },
+      ],
+      lines,
+    );
+    expect(gaps.map((g) => g.title)).toEqual(["Keyway"]);
+    expect(gaps[0].sheet).toBe("S-9");
+    expect(gaps[0].reasoning).toContain("S-9");
+    expect(gaps[0].reasoning).not.toContain("S-100");
   });
 });
 
