@@ -44,6 +44,32 @@ export function boardSignInReturn(value: unknown): string | undefined {
 }
 
 /**
+ * The morning brief board. Only the exact /today path. Query params are dropped
+ * so this cannot carry a token or an off-site address.
+ */
+export function todaySignInReturn(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.length === 0 || value.length > 512) return undefined;
+  if (!value.startsWith("/") || value.startsWith("//")) return undefined;
+  const safe = oauthReturnPath(value);
+  if (safe === "/") return undefined;
+  let url: URL;
+  try {
+    url = new URL(safe, PARSE_ORIGIN);
+  } catch {
+    return undefined;
+  }
+  const path = url.pathname.length > 1 ? url.pathname.replace(/\/+$/, "") : url.pathname;
+  if (url.origin !== PARSE_ORIGIN || path !== "/today") return undefined;
+  const hash = url.hash && url.hash !== "#" ? url.hash : "";
+  return `/today${hash}`;
+}
+
+/** A job board, or the morning brief at /today. Anything else is rejected. */
+export function signInReturn(value: unknown): string | undefined {
+  return boardSignInReturn(value) ?? todaySignInReturn(value);
+}
+
+/**
  * Prefer the address the member actually opened. If that address is not a
  * job board, fall back to the route's own job and page — never to the
  * rejected address.
