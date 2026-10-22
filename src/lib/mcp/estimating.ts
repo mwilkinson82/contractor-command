@@ -419,6 +419,16 @@ export function formatQty(n: number, unit: string | null): string {
 }
 const qtyNumber = (n: number, unit: string | null) => Number(formatQty(n, unit));
 
+/** A fill or slab depth given in feet stays in feet. Inches are the default when the unit is blank. */
+function depthIsFeet(unit: string | null | undefined, name: string): boolean {
+  const u = (unit ?? "").toLowerCase().replace(/[."']/g, "").trim();
+  if (u === "ft" || u === "feet" || u === "foot" || u === "lf") return true;
+  if (u === "in" || u === "inch" || u === "inches") return false;
+  const n = name.toLowerCase();
+  if (/\b(in|inch|inches)\b/.test(n)) return false;
+  return /\b(ft|feet|foot)\b/.test(n);
+}
+
 function cite(sheet: string, detail: string | null): string {
   return detail ? `${sheet} ${detail}` : sheet;
 }
@@ -632,20 +642,23 @@ export function prepareLine(raw: LineIn): Omit<StoredLine, "line_no"> {
     .filter(Boolean);
   if (op === "cy_from_area") {
     const area = inputs.find((i) => /area|sf|slab/i.test(i.name)) ?? inputs[0];
-    const thick = inputs.find((i) => /thick|inch/i.test(i.name)) ?? inputs[1];
+    const thick =
+      inputs.find((i) => i !== area && /thick|depth|fill|inch|height/i.test(i.name)) ??
+      inputs.find((i) => i !== area) ??
+      inputs[1];
     const missing = [area, thick].filter((i) => !i || i.value == null);
     if (missing.length > 1 || (!area && !thick))
       throw new EstimateError("Name the one input that is missing. Nothing was saved.");
     if (!area || area.value == null) return asBlank(area?.name ?? named ?? "area");
     if (!thick || thick.value == null) return asBlank(thick?.name ?? named ?? "thickness");
-    const qty = qtyNumber((area.value * thick.value) / 12 / 27, unit ?? "CY");
-    return computed(
-      raw,
-      qty,
-      unit ?? "CY",
-      `DEDUCED: ${showNum(area.value)} SF × ${showNum(thick.value)} in / 12 / 27 = ${formatQty(qty, unit ?? "CY")} CY. ${where}.`,
-      inputs,
-    );
+    const feet = depthIsFeet(thick.unit, thick.name);
+    const depthIn = feet ? thick.value * 12 : thick.value;
+    const qty = qtyNumber((area.value * depthIn) / 12 / 27, unit ?? "CY");
+    const depth = `${showNum(thick.value)} ${feet ? "ft" : "in"}`;
+    const formula = feet
+      ? `DEDUCED: ${showNum(area.value)} SF × ${depth} / 27 = ${formatQty(qty, unit ?? "CY")} CY. ${where}.`
+      : `DEDUCED: ${showNum(area.value)} SF × ${depth} / 12 / 27 = ${formatQty(qty, unit ?? "CY")} CY. ${where}.`;
+    return computed(raw, qty, unit ?? "CY", formula, inputs);
   }
   if (op === "rebar_lb") {
     const length = inputs.find((i) => i.value != null) ?? inputs[0];

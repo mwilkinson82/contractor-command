@@ -97,6 +97,35 @@ describe("quantity labels and math", () => {
     expect(row.math).toContain("13596.78 SF × 4 in / 12 / 27 = 167.86 CY");
   });
 
+  it("reads a fill depth in feet as feet, not inches", () => {
+    const row = line({
+      item: "Structural fill",
+      sheet: "C-101",
+      unit: "CY",
+      basis: "deduced",
+      op: "cy_from_area",
+      inputs: [
+        { name: "area", value: 2338.2, unit: "SF" },
+        { name: "fill depth", value: 1, unit: "ft" },
+      ],
+    });
+    expect(row.qty).toBe(86.6);
+    expect(row.math).toContain("2338.2 SF × 1 ft / 27 = 86.6 CY");
+    expect(row.math).not.toContain("/ 12 / 27");
+    const named = line({
+      item: "Structural fill",
+      sheet: "C-101",
+      unit: "CY",
+      basis: "deduced",
+      op: "cy_from_area",
+      inputs: [
+        { name: "area", value: 2338.2, unit: "SF" },
+        { name: "fill depth ft", value: 1 },
+      ],
+    });
+    expect(named.qty).toBe(86.6);
+  });
+
   it("uses the published bar weight", () => {
     expect(BAR_LB_PER_LF["6"]).toBe(1.502);
     const row = line({
