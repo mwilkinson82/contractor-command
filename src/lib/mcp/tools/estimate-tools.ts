@@ -9,6 +9,8 @@ import {
   NOT_RELEVANT_ASK,
   assignGapRefs,
   conventionFor,
+  intakeQuestions,
+  mergeTakeoffLines,
   normalizeInputName,
   normalizeScale,
   normalizeSchedules,
@@ -23,11 +25,13 @@ import {
   renderDocReview,
   renderExport,
   renderGaps,
+  rejectPlaceholderLines,
   renderIntake,
   renderMark,
   renderStatus,
   renderSummary,
   renderTakeoff,
+  reuseWarning,
   revisionUsed,
   settle,
   type DocReview,
@@ -262,18 +266,64 @@ function caught(e: unknown): never {
   throw e;
 }
 
+async function savedProfile(sb: Sb, jobId: string): Promise<"as_drawn" | "estimator" | null> {
+  try {
+    const data = await rpc<{ found?: boolean; profile?: string }>(sb, "mcp_estimate_profile_get", {
+      _job: jobId,
+    });
+    return data?.profile === "as_drawn" || data?.profile === "estimator" ? data.profile : null;
+  } catch (e) {
+    if (e instanceof ToolError && /not available/.test(e.message)) return null;
+    throw e;
+  }
+}
+
+async function sameNameTakeoffs(
+  sb: Sb,
+  job: { job_id: string; company_id: string; name: string },
+): Promise<{ jobNumber: string; jobName: string }[]> {
+  const want = job.name.trim().toLowerCase();
+  if (!want) return [];
+  try {
+    const jobs = await sb
+      .from("mcp_jobs")
+      .select("id, job_number, name")
+      .eq("company_id", job.company_id);
+    if (jobs.error || !Array.isArray(jobs.data)) return [];
+    const others = (jobs.data as { id: string; job_number: string; name: string | null }[]).filter(
+      (row) => row.id !== job.job_id && (row.name ?? "").trim().toLowerCase() === want,
+    );
+    const out: { jobNumber: string; jobName: string }[] = [];
+    for (const other of others) {
+      const takes = await sb
+        .from("mcp_estimate_takeoffs")
+        .select("id")
+        .eq("job_id", other.id)
+        .limit(1);
+      if (!takes.error && Array.isArray(takes.data) && takes.data.length)
+        out.push({ jobNumber: other.job_number, jobName: other.name ?? job.name });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 export const estimateIntake = defineTool({
   name: "estimate_intake",
   title: "Estimating intake",
-  description: "Saves the estimating role, trades, bid date and document list for a job.",
+  description:
+    "Asks scope, role and profile, and warns before reusing a takeoff already on the job.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
-    role: z.enum(["gc", "self_performer"]),
-    trades: z.array(z.string().trim().min(1).max(80)).max(40),
+    role: z.enum(["gc", "self_performer"]).optional(),
+    profile: z.enum(["as_drawn", "estimator"]).optional(),
+    reuse: z.enum(["reuse", "fresh"]).optional(),
+    trades: z.array(z.string().trim().min(1).max(80)).max(40).optional(),
     bid_due: date.optional(),
     delivery_method: z.string().trim().max(80).optional(),
-    documents: z.array(doc).max(200),
+    documents: z.array(doc).max(200).optional(),
     sub_bids: z.array(subBid).max(40).optional(),
     workbook_note: z.string().trim().max(300).optional(),
     in_scope: z.array(z.string().trim().min(1).max(200)).max(40).optional(),
@@ -284,38 +334,85 @@ export const estimateIntake = defineTool({
   handler: (args, ctx) =>
     run("estimate_intake", ctx, { jobNumber: args.job_number }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
-      const setup: Setup = {
-        role: args.role,
-        trades: args.trades,
-        bid_due: args.bid_due ?? null,
-        delivery_method: args.delivery_method ?? null,
-        documents: args.documents,
-        sub_bids: asBids(args.sub_bids ?? []),
-        workbook_note: args.workbook_note ?? null,
-        in_scope: args.in_scope ?? [],
-        out_scope: args.out_scope ?? [],
-        assumptions: args.assumptions ?? [],
-        doc_review: null,
-        summary_version: null,
-      };
-      await rpc(sb, "mcp_estimate_setup_save", {
-        _job: job.job_id,
-        _patch: {
-          role: setup.role,
-          trades: setup.trades,
-          bid_due: setup.bid_due,
-          delivery_method: setup.delivery_method,
-          documents: setup.documents,
-          sub_bids: setup.sub_bids,
-          workbook_note: setup.workbook_note,
-          in_scope: setup.in_scope,
-          out_scope: setup.out_scope,
-          assumptions: setup.assumptions,
-        },
+      const prior = await load(sb, job.job_id);
+      const profileOnFile = await savedProfile(sb, job.job_id);
+      const sameName = await sameNameTakeoffs(sb, job);
+      const warning = reuseWarning({
+        jobNumber: job.job_number,
+        jobName: job.name,
+        lines: prior.lines.length,
+        version: prior.version,
+        sameName,
       });
+      if (warning && !args.reuse) {
+        const pending = intakeQuestions({
+          role: args.role ?? prior.setup.role,
+          trades: args.trades ?? prior.setup.trades,
+          in_scope: args.in_scope ?? prior.setup.in_scope,
+          profile: args.profile ?? profileOnFile,
+        });
+        return reply({
+          text: [warning, ...pending.map((q) => `- ${q}`)].join("\n"),
+          structured: { complete: false, reused: false, saved: false },
+          guidance: [
+            "Ask reuse or fresh before using the takeoff on file. Do not assume self-performer.",
+          ],
+        });
+      }
+      const setup: Setup = {
+        role: args.role ?? prior.setup.role,
+        trades: args.trades ?? prior.setup.trades,
+        bid_due: args.bid_due ?? prior.setup.bid_due,
+        delivery_method: args.delivery_method ?? prior.setup.delivery_method,
+        documents: args.documents ?? prior.setup.documents,
+        sub_bids: args.sub_bids ? asBids(args.sub_bids) : prior.setup.sub_bids,
+        workbook_note: args.workbook_note ?? prior.setup.workbook_note,
+        in_scope: args.in_scope ?? prior.setup.in_scope,
+        out_scope: args.out_scope ?? prior.setup.out_scope,
+        assumptions: args.assumptions ?? prior.setup.assumptions,
+        doc_review: prior.setup.doc_review,
+        summary_version: prior.setup.summary_version,
+      };
+      const profile = args.profile ?? profileOnFile;
+      const patch: Record<string, unknown> = {};
+      if (args.role) patch.role = args.role;
+      if (args.trades) patch.trades = args.trades;
+      if (args.bid_due) patch.bid_due = args.bid_due;
+      if (args.delivery_method) patch.delivery_method = args.delivery_method;
+      if (args.documents) patch.documents = args.documents;
+      if (args.sub_bids) patch.sub_bids = asBids(args.sub_bids);
+      if (args.workbook_note) patch.workbook_note = args.workbook_note;
+      if (args.in_scope) patch.in_scope = args.in_scope;
+      if (args.out_scope) patch.out_scope = args.out_scope;
+      if (args.assumptions) patch.assumptions = args.assumptions;
+      if (Object.keys(patch).length)
+        await rpc(sb, "mcp_estimate_setup_save", { _job: job.job_id, _patch: patch });
+      if (args.profile)
+        await rpc(sb, "mcp_estimate_profile_save", {
+          _job: job.job_id,
+          _profile: args.profile,
+          _faces: 1,
+        }).catch((e: unknown) => {
+          if (e instanceof ToolError && /not available/.test(e.message)) return null;
+          throw e;
+        });
       await audit(sb, job, "estimate_intake", "save_estimate_intake", null);
-      const view = renderIntake(`${prefix(job)}${job.name}`, setup);
-      return reply(view);
+      const view = renderIntake(`${prefix(job)}${job.name}`, setup, profile);
+      const fresh =
+        args.reuse === "fresh"
+          ? prior.lines.length
+            ? "Start fresh. The old takeoff stays until a replace save."
+            : "Start fresh. Nothing was copied from the other job."
+          : args.reuse === "reuse"
+            ? prior.lines.length
+              ? "Reuse confirmed. The takeoff on file stays."
+              : "Reuse confirmed. Nothing was copied onto this job. The other takeoff stays where it is."
+            : "";
+      return reply({
+        ...view,
+        text: fresh ? `${fresh}\n${view.text}` : view.text,
+        structured: { ...view.structured, reuse: args.reuse ?? null },
+      });
     }),
 });
 
@@ -387,7 +484,8 @@ export const estimateDocReview = defineTool({
 export const estimateTakeoffSave = defineTool({
   name: "estimate_takeoff_save",
   title: "Save a takeoff",
-  description: "Saves takeoff lines and computes deduced quantities from measured inputs.",
+  description:
+    "Adds or updates lines when mode is upsert, or replaces the whole takeoff when mode is replace.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
@@ -404,6 +502,7 @@ export const estimateTakeoffSave = defineTool({
       .optional(),
     profile: z.enum(["as_drawn", "estimator"]).optional(),
     forms_faces: z.union([z.literal(1), z.literal(2)]).optional(),
+    mode: z.enum(["upsert", "replace"]),
     lines: z.array(lineIn).min(1).max(400),
   },
   annotations: SAVE,
@@ -411,6 +510,11 @@ export const estimateTakeoffSave = defineTool({
     run("estimate_takeoff_save", ctx, { jobNumber: args.job_number }, async (sb) => {
       try {
         const job = await resolveJob(sb, args.job_number, args.company_id, "write");
+        if (args.mode !== "upsert" && args.mode !== "replace")
+          throw new ToolError(
+            "Say whether this save adds or updates lines, or replaces the takeoff. Nothing was saved.",
+          );
+        rejectPlaceholderLines(args.lines);
         const prior = await load(sb, job.job_id);
         const convention = conventionFor(args.profile ?? "as_drawn", args.forms_faces);
         if (args.profile)
@@ -422,7 +526,10 @@ export const estimateTakeoffSave = defineTool({
             if (e instanceof ToolError && /not available/.test(e.message)) return null;
             throw e;
           });
-        const lines: StoredLine[] = prepareLines(args.lines.map(asLine), convention);
+        const numbered = args.lines.map((l) => l.line_no != null);
+        const prepared: StoredLine[] = prepareLines(args.lines.map(asLine), convention);
+        const lines =
+          args.mode === "upsert" ? mergeTakeoffLines(prior.lines, prepared, numbered) : prepared;
         const revision = args.revision ?? revisionUsed(prior.setup.documents);
         const scales = (args.scales ?? []).map((s) => ({ ...s, scale: normalizeScale(s.scale) }));
         await rpc(sb, "mcp_estimate_takeoff_save", {
@@ -442,6 +549,7 @@ export const estimateTakeoffSave = defineTool({
           loaded.lines,
           state,
           loaded.revision,
+          args.mode,
         );
         return reply({ ...view, structured: { ...view.structured, version: loaded.version } });
       } catch (e) {
