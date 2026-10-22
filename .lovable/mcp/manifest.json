@@ -4949,7 +4949,7 @@
       {
         "name": "athena_morning_hitlist",
         "title": "Athena, good morning, Hey Athena, Good morning Athena, Morning Athena, Athina, Athen, Atena",
-        "description": "Athena answers Athena, good morning, Hey Athena, Good morning Athena, Morning Athena, Athena at the start or mid-sentence, and misspellings Athina, Athen, and Atena, plus hitlist, morning briefing, what's on my plate today, overdue, and today's deadlines on my jobs, as the construction job hitlist, not email or calendar.",
+        "description": "Runs the per-job morning meeting when a job number was given, and with no job number returns the morning brief across every visible job, not email or calendar.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -5248,6 +5248,11 @@
             "company_id": {
               "type": "string",
               "maxLength": 200
+            },
+            "submittal_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             }
           },
           "required": [
@@ -5742,6 +5747,40 @@
             "text": {
               "type": "string",
               "maxLength": 200
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "submittal_chase",
+        "title": "Chase a missing or overdue submittal",
+        "description": "Drafts one chase email for an overdue or missing submittal and waits for a separate yes before anything is sent.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "submittal_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             }
           },
           "additionalProperties": false
