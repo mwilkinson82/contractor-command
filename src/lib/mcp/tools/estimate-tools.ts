@@ -10,7 +10,6 @@ import {
   assignGapRefs,
   conventionFor,
   intakeQuestions,
-  mergeTakeoffLines,
   normalizeScale,
   normalizeSchedules,
   autoGaps,
@@ -18,8 +17,10 @@ import {
   estimateLayout,
   formatQty,
   parseState,
+  accountTakeoffLines,
   prepareGaps,
   prepareLines,
+  preserveGapList,
   renderBidCheck,
   renderDocReview,
   renderExport,
@@ -130,6 +131,7 @@ const lineIn = z.object({
   divisor: z.number().finite().positive().optional(),
   bar_size: z.string().trim().max(8).optional(),
   value: z.number().finite().nullable().optional(),
+  qty: z.number().finite().nullable().optional(),
   range: z.string().trim().max(40).optional(),
   measure_type: z.enum(["count", "linear", "area", "volume"]).optional(),
   sheet: z.string().trim().min(1).max(80),
@@ -289,7 +291,7 @@ const asLine = (l: LineArg): LineIn => ({
   ...l,
   method: typeof l.method === "string" ? l.method.trim() : undefined,
   missing_input: typeof l.missing_input === "string" ? l.missing_input.trim() : undefined,
-  value: l.value ?? null,
+  value: l.value !== undefined ? l.value : l.qty !== undefined ? (l.qty ?? null) : null,
   inputs: l.inputs?.map((i) => ({
     name: typeof i.name === "string" ? i.name : String(i.name ?? ""),
     value: i.value,
@@ -349,16 +351,23 @@ function caught(e: unknown): never {
   throw e;
 }
 
-async function savedProfile(sb: Sb, jobId: string): Promise<"as_drawn" | "estimator" | null> {
+async function savedProfileRecord(
+  sb: Sb,
+  jobId: string,
+): Promise<{ profile: "as_drawn" | "estimator"; forms_faces: 1 | 2 } | null> {
   try {
-    const data = await rpc<{ found?: boolean; profile?: string }>(sb, "mcp_estimate_profile_get", {
+    const data = await rpc<{ found?: boolean; profile?: string; forms_faces?: number }>(sb, "mcp_estimate_profile_get", {
       _job: jobId,
     });
-    return data?.profile === "as_drawn" || data?.profile === "estimator" ? data.profile : null;
+    if (data?.profile !== "as_drawn" && data?.profile !== "estimator") return null;
+    return { profile: data.profile, forms_faces: data.forms_faces === 2 ? 2 : 1 };
   } catch (e) {
     if (e instanceof ToolError && /not available/.test(e.message)) return null;
     throw e;
   }
+}
+async function savedProfile(sb: Sb, jobId: string): Promise<"as_drawn" | "estimator" | null> {
+  return (await savedProfileRecord(sb, jobId))?.profile ?? null;
 }
 
 async function sameNameTakeoffs(
@@ -412,13 +421,14 @@ export const estimateIntake = defineTool({
     in_scope: z.array(z.string().trim().min(1).max(200)).max(40).optional(),
     out_scope: z.array(z.string().trim().min(1).max(200)).max(40).optional(),
     assumptions: z.array(z.string().trim().min(1).max(300)).max(40).optional(),
+    forms_faces: z.union([z.literal(1), z.literal(2)]).optional(),
   },
   annotations: SAVE,
   handler: (args, ctx) =>
     run("estimate_intake", ctx, { jobNumber: args.job_number }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const prior = await load(sb, job.job_id);
-      const profileOnFile = await savedProfile(sb, job.job_id);
+      const profileOnFile = await savedProfileRecord(sb, job.job_id);
       const sameName = await sameNameTakeoffs(sb, job);
       const warning = reuseWarning({
         jobNumber: job.job_number,
@@ -432,7 +442,8 @@ export const estimateIntake = defineTool({
           role: args.role ?? prior.setup.role,
           trades: args.trades ?? prior.setup.trades,
           in_scope: args.in_scope ?? prior.setup.in_scope,
-          profile: args.profile ?? profileOnFile,
+          profile: args.profile ?? profileOnFile?.profile ?? null,
+          forms_faces: args.forms_faces ?? profileOnFile?.forms_faces ?? null,
         });
         return reply({
           text: [warning, ...pending.map((q) => `- ${q}`)].join("\n"),
@@ -456,7 +467,8 @@ export const estimateIntake = defineTool({
         doc_review: prior.setup.doc_review,
         summary_version: prior.setup.summary_version,
       };
-      const profile = args.profile ?? profileOnFile;
+      const profile = args.profile ?? profileOnFile?.profile ?? null;
+      const forms = args.forms_faces ?? profileOnFile?.forms_faces ?? null;
       const patch: Record<string, unknown> = {};
       if (args.role) patch.role = args.role;
       if (args.trades) patch.trades = args.trades;
@@ -470,17 +482,17 @@ export const estimateIntake = defineTool({
       if (args.assumptions) patch.assumptions = args.assumptions;
       if (Object.keys(patch).length)
         await rpc(sb, "mcp_estimate_setup_save", { _job: job.job_id, _patch: patch });
-      if (args.profile)
+      if (args.profile || args.forms_faces)
         await rpc(sb, "mcp_estimate_profile_save", {
           _job: job.job_id,
-          _profile: args.profile,
-          _faces: 1,
+          _profile: profile ?? "as_drawn",
+          _faces: forms ?? 1,
         }).catch((e: unknown) => {
           if (e instanceof ToolError && /not available/.test(e.message)) return null;
           throw e;
         });
       await audit(sb, job, "estimate_intake", "save_estimate_intake", null);
-      const view = renderIntake(`${prefix(job)}${job.name}`, setup, profile);
+      const view = renderIntake(`${prefix(job)}${job.name}`, setup, profile, forms);
       const fresh =
         args.reuse === "fresh"
           ? prior.lines.length
@@ -593,9 +605,12 @@ export const estimateTakeoffSave = defineTool({
       try {
         const job = await resolveJob(sb, args.job_number, args.company_id, "write");
         const mode = args.mode ?? "upsert";
-        rejectPlaceholderLines(args.lines);
         const prior = await load(sb, job.job_id);
-        const convention = conventionFor(args.profile ?? "as_drawn", args.forms_faces);
+        const saved = await savedProfileRecord(sb, job.job_id);
+        const convention = conventionFor(
+          args.profile ?? saved?.profile ?? "as_drawn",
+          args.forms_faces ?? saved?.forms_faces,
+        );
         if (args.profile)
           await rpc(sb, "mcp_estimate_profile_save", {
             _job: job.job_id,
@@ -605,12 +620,14 @@ export const estimateTakeoffSave = defineTool({
             if (e instanceof ToolError && /not available/.test(e.message)) return null;
             throw e;
           });
-        const numbered = args.lines.map((l) => l.line_no != null);
-        const prepared: StoredLine[] = prepareLines(args.lines.map(asLine), convention);
-        const lines =
-          mode === "upsert" ? mergeTakeoffLines(prior.lines, prepared, numbered) : prepared;
+        const account = accountTakeoffLines(args.lines.map(asLine), convention, prior.lines, mode);
+        const lines = account.lines;
         const revision = args.revision ?? revisionUsed(prior.setup.documents);
         const scales = (args.scales ?? []).map((s) => ({ ...s, scale: normalizeScale(s.scale) }));
+        if (account.saved === 0) {
+          const state = settle(prior.lines, prior.gaps, prior.verdicts, { role: prior.setup.role, trades: prior.setup.trades });
+          return reply(renderTakeoff(`${prefix(job)}${job.name}`, prior.lines, state, revision, mode, account));
+        }
         await rpc(sb, "mcp_estimate_takeoff_save", {
           _job: job.job_id,
           _revision: revision,
@@ -629,6 +646,7 @@ export const estimateTakeoffSave = defineTool({
           state,
           loaded.revision,
           mode,
+          account,
         );
         return reply({ ...view, structured: { ...view.structured, version: loaded.version } });
       } catch (e) {
@@ -723,7 +741,7 @@ export const estimateGapAnalysis = defineTool({
           scanProject({ setup: prior.setup, clauses, findings: args.requirements }),
           prior.setup.role,
         );
-        const merged = assignGapRefs(
+        const merged = preserveGapList(
           prior.gaps,
           dedupeGaps([...(args.items as GapIn[]), ...implied, ...found]),
         );
@@ -788,7 +806,7 @@ export const estimateBidCheck = defineTool({
 export const estimateItemMark = defineTool({
   name: "estimate_item_mark",
   title: "Estimator mark",
-  description: "Records the estimator mark on a takeoff line or a gap.",
+  description: "Records the estimator mark on an existing takeoff line or gap and does not create a gap or change its number.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
@@ -857,7 +875,7 @@ export const estimateItemMark = defineTool({
 export const estimateBuild = defineTool({
   name: "estimate_build",
   title: "Estimate summary",
-  description: "Builds the estimate summary from settled quantities and the contractor rates.",
+  description: "Builds the estimate summary from settled quantities and the contractor rates as a landscape PDF.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,

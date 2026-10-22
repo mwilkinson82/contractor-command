@@ -9,6 +9,7 @@ import {
   type SheetRow,
 } from "./estimating-sheet";
 import { ATHENA_SERVER_ICONS } from "./server-info-branding";
+import { estimateSummaryPdf, type SummaryPdfRow } from "./estimate-summary-pdf";
 import { money } from "./sov";
 
 /** Same navy as the sign-in email. Blue and gray match the house palette. */
@@ -25,7 +26,7 @@ export const REQUIREMENT_OPEN_LIST =
 export const ESTIMATE_SERVER_RULE =
   " Takeoff quantities are MEASURED or DEDUCED. MEASURED is straight off a sheet (READ). DEDUCED is computed (DERIVED): multiply the MEASURED inputs, show the math, and cite the sheet and the detail or grid. Leave a quantity blank only when one named input is missing on every sheet. A vendor or shop-drawing note is not a reason for a blank. Addenda override the base documents. Do not invent quantities, dimensions, unit prices or vendor numbers. Every estimating report (takeoff, Estimate Analysis, estimator loop, Estimate Summary, bid summary) is landscape, 17 by 11 inches, with the Athena logo at the top right. Portrait only if the member asks. Red only for risks and gaps that hold up the bid. Questions go back to the estimator. Do not price a final bid until the takeoff is settled. A rate is the contractor's own figure, or a PLACEHOLDER the contractor supplies and then confirms. Do not attribute a number to RSMeans, NECA, SMACNA or MCAA, and do not reproduce their tables. " +
   REQUIREMENT_OPEN_LIST +
-  " Special requirements stay out of installation labor and material. Overhead is applied first, then profit on top. The bid summary shows direct cost, general conditions, special requirements, overhead and profit, and the total. Forms use one face unless the line sets two. The earth side is not formed by default. Rebar is shown in LF and in LB. Termite treatment is gross area plus a separate perimeter in LF. Concrete, fiber, vapor barrier, base and fine grading follow the active profile, net when the drawings are read as drawn. The foundation checklist is perimeter insulation, perimeter termite, fine grading, base course, base under the trench and pits, dowels, keyways, and edge forms. Each one is quantified or marked N/A with a reason. Ask scope, whether the estimator is the general contractor or a self-performer, and which profile applies. Do not assume self-performer, and do not mark intake complete until those are answered. If a job with the same name or number already has a takeoff, ask whether to reuse it or start fresh. A takeoff save either adds or updates lines, or replaces the whole takeoff; say which. Show MEASURED or DEDUCED, the sheet, and the math on each takeoff line.";
+  " Special requirements stay out of installation labor and material. Overhead is applied first, then profit on top. The bid summary shows direct cost, general conditions, special requirements, overhead and profit, and the total. Forms use one face unless the intake, the saved profile, or the line sets two, and that face count is applied to the form quantity and shown on the line. The earth side is not formed by default. Rebar is shown in LF and in LB. Termite treatment is gross area plus a separate perimeter in LF. Concrete, fiber, vapor barrier, base and fine grading follow the active profile: net when the drawings are read as drawn, gross on the estimator key, and the line says which. The foundation checklist is under-slab insulation, termite treatment, fine grade, base course, trench base, dowels, keyway, and slab edge forms. Each one is quantified or marked N/A with a reason, or it stays a gap. Ask scope, whether the estimator is the general contractor or a self-performer, which profile applies, and whether forms are one face or both faces. Do not assume self-performer, and do not mark intake complete until those are answered. If a job with the same name or number already has a takeoff, ask whether to reuse it or start fresh. A takeoff save either adds or updates lines, or replaces the whole takeoff; say which. A blank quantity is saved as HOLD, quantity pending, and is not dropped. Every line in the call is saved or listed as rejected. Show MEASURED or DEDUCED, the sheet, and the math on each takeoff line.";
 
 export const NOT_RELEVANT_ASK =
   "Why is this not relevant? Send the reason in this same turn. Nothing was changed.";
@@ -85,14 +86,14 @@ export const CONCRETE_CHECKLIST = [
 
 /** Run on every takeoff. Quantified, or N/A with a reason. */
 export const FOUNDATION_CHECKLIST = [
-  { key: "pi", label: "Perimeter insulation", unit: "LF" },
-  { key: "pt", label: "Perimeter termite", unit: "LF" },
-  { key: "fg", label: "Fine grading", unit: "SF" },
+  { key: "pi", label: "Under-slab insulation", unit: "LF" },
+  { key: "pt", label: "Termite treatment", unit: "LF" },
+  { key: "fg", label: "Fine grade", unit: "SF" },
   { key: "bc", label: "Base course", unit: "SF" },
-  { key: "bt", label: "Base under trench and pits", unit: "SF" },
+  { key: "bt", label: "Trench base", unit: "SF" },
   { key: "dw", label: "Dowels", unit: "EA" },
-  { key: "kw", label: "Keyways", unit: "LF" },
-  { key: "ef", label: "Edge forms", unit: "LF" },
+  { key: "kw", label: "Keyway", unit: "LF" },
+  { key: "ef", label: "Slab edge forms", unit: "LF" },
 ] as const;
 
 export type AreaKind = "concrete" | "fiber" | "vapor" | "base" | "fine_grade" | "termite";
@@ -584,9 +585,13 @@ export function prepareLine(raw: LineIn): Omit<StoredLine, "line_no"> {
     );
   }
 
+  const wantsHold = /hold/i.test(`${raw.method ?? ""} ${raw.note ?? ""}`);
+  if (raw.value == null && (wantsHold || basis === "measured" || op === "as_read")) {
+    return holdLine(raw, named, basis === "deduced" ? "deduced" : "measured", where, unit, detail, sheet, note, inputs);
+  }
+
   if (basis === "measured" || op === "as_read") {
-    if (raw.value == null) return asBlank(named);
-    const qty = qtyNumber(raw.value, unit);
+    const qty = qtyNumber(raw.value as number, unit);
     return finish(
       {
         item,
@@ -708,6 +713,49 @@ export function prepareLine(raw: LineIn): Omit<StoredLine, "line_no"> {
   );
 }
 
+function holdLine(
+  raw: LineIn,
+  named: string | null,
+  basis: Basis,
+  where: string,
+  unit: string | null,
+  detail: string | null,
+  sheet: string,
+  note: string | null,
+  inputs: QtyInput[],
+): Omit<StoredLine, "line_no"> {
+  if (named && VENDOR_BLANK.test(named))
+    throw new EstimateError(
+      "A vendor or shop-drawing note is not a reason to leave this blank. Nothing was saved.",
+    );
+  const missing = named || "quantity pending";
+  return finish(
+    {
+      item: raw.item.trim(),
+      material: clean(raw.material),
+      qty: null,
+      unit,
+      range_text: clean(raw.range),
+      sheet,
+      detail,
+      spec_section: clean(raw.spec_section),
+      basis,
+      math: `HOLD. Quantity pending.${named ? ` The one missing input is ${named}.` : ""} ${where}.`.replace(/\s+/g, " "),
+      confidence: "low",
+      markup_ref: clean(raw.markup_ref),
+      location_text: clean(raw.location_text),
+      missing_input: missing,
+      exclusion: null,
+      checklist_key: raw.checklist_key ?? null,
+      element: clean(raw.element),
+      trade: clean(raw.trade),
+      note,
+      inputs,
+    },
+    raw,
+  );
+}
+
 function computed(
   raw: LineIn,
   qty: number,
@@ -821,12 +869,19 @@ function applyConvention(
       `${line.item} is ${want} for this profile. ${got} was sent. Nothing was saved.`,
     );
   let math = line.math;
+  let qty = line.qty;
   if (isForms(line.item, line.unit)) {
     const faces = raw.forms_faces ?? convention.forms_faces;
-    math +=
-      faces === 1
-        ? " Forms faces: 1. One face is the default. The earth side is not formed."
-        : " Forms faces: 2, set on this line.";
+    if (faces === 2 && qty != null && !line.exclusion) {
+      const one = qty;
+      qty = qtyNumber(one * 2, line.unit);
+      math += ` Forms faces: 2. One face was ${formatQty(one, line.unit)} ${line.unit ?? ""}; both faces are ${formatQty(qty, line.unit)} ${line.unit ?? ""}.`;
+    } else {
+      math +=
+        faces === 1
+          ? " Forms faces: 1. One face is the default. The earth side is not formed."
+          : " Forms faces: 2, set on this line.";
+    }
   }
   const kind = areaKind(line.item);
   if (kind) {
@@ -838,7 +893,7 @@ function applyConvention(
     math +=
       kind === "termite"
         ? " Termite uses gross area, plus a separate perimeter in LF."
-        : ` Area basis: ${rule}.`;
+        : ` Slab area: ${rule}. Area basis: ${rule}.`;
   }
   if (isRebar(line.item) && !line.exclusion) {
     const hasLf = /\bLF\b/.test(math) || got === "LF";
@@ -852,7 +907,7 @@ function applyConvention(
         "Rebar needs the pounds in LB alongside the length. Send the bar size. Nothing was saved.",
       );
   }
-  return { ...line, math: math.slice(0, 1000) };
+  return { ...line, qty, math: math.slice(0, 1000) };
 }
 
 export function normalizeSchedules(value: unknown): string[] {
@@ -1099,7 +1154,68 @@ export function autoGaps(lines: StoredLine[], pairs: SpecDrawing[]): GapIn[] {
     spec_section: p.spec_section,
     holds_bid: true,
   }));
-  return [...fromLines, ...fromPairs];
+  return [...fromLines, ...fromPairs, ...foundationGapPrompts(lines)];
+}
+
+/** Missing foundation scope becomes a gap prompt. A quantity or an N/A line closes it. */
+export function foundationGapPrompts(lines: StoredLine[]): GapIn[] {
+  const sheet = lines.find((l) => l.sheet)?.sheet || "foundation";
+  return FOUNDATION_CHECKLIST.filter((c) => {
+    const rows = lines.filter((l) => l.checklist_key === c.key);
+    if (!rows.length) return true;
+    if (rows.some((r) => r.qty != null)) return false;
+    if (rows.some((r) => r.exclusion)) return false;
+    return true;
+  }).map((c) => ({
+    kind: "verify" as const,
+    category: "scope_seam" as const,
+    severity: "hard" as const,
+    title: c.label,
+    reasoning: `${c.label} is not on the takeoff. Take it off, or mark it N/A with a reason.`,
+    sheet,
+    spec_section: "foundation",
+    holds_bid: true,
+  }));
+}
+
+/** Keep every gap number. New items are added. A mark does not mint a new id. */
+export function preserveGapList(prior: StoredGap[], incoming: GapIn[]): GapIn[] {
+  const kept: GapIn[] = prior.map((g) => ({
+    ref: g.ref,
+    kind: g.kind,
+    category: g.category,
+    severity: g.severity,
+    title: g.title,
+    reasoning: g.reasoning,
+    sheet: g.sheet,
+    detail: g.detail,
+    spec_section: g.spec_section,
+    holds_bid: g.holds_bid,
+    qty: g.qty,
+    unit: g.unit,
+    element: g.element,
+    line_no: g.line_no,
+  }));
+  let n = prior.reduce((m, g) => Math.max(m, Number(g.ref.replace(/^G-/, "")) || 0), 0);
+  const used = new Set(prior.map((g) => g.ref));
+  for (const g of incoming) {
+    const title = g.title.trim();
+    const sheet = g.sheet.trim();
+    const spec = g.spec_section.trim();
+    const byRef = g.ref && used.has(g.ref) ? kept.find((k) => k.ref === g.ref) : undefined;
+    const byText = kept.find((k) => k.title === title && k.sheet === sheet && k.spec_section === spec);
+    const hit = byRef ?? byText;
+    if (hit?.ref) {
+      const i = kept.findIndex((k) => k.ref === hit.ref);
+      kept[i] = { ...g, ref: hit.ref };
+      continue;
+    }
+    n += 1;
+    const ref = `G-${n}`;
+    used.add(ref);
+    kept.push({ ...g, ref });
+  }
+  return kept;
 }
 
 export function isConcrete(trades: string[]): boolean {
@@ -1367,13 +1483,16 @@ export function intakeQuestions(s: {
   trades: string[];
   in_scope: string[];
   profile?: "as_drawn" | "estimator" | null;
+  forms_faces?: 1 | 2 | null;
 }): string[] {
   const questions: string[] = [];
   if (!s.role) questions.push("Are you the general contractor or a self-performer?");
   if (!s.trades.length && !s.in_scope.length)
     questions.push("What is in your scope, and what is out?");
   if (!s.profile)
-    questions.push("Which profile should the quantities follow: as drawn, or the estimator key?");
+    questions.push("Which profile should the quantities follow: as drawn, or the estimator key? As drawn keeps slab areas net. The estimator key uses slab areas gross.");
+  if (s.forms_faces == null)
+    questions.push("Are the forms one face or both faces? One face is the default. The earth side is not formed unless you set both faces.");
   return questions;
 }
 
@@ -1408,53 +1527,95 @@ export function rejectPlaceholderLines(items: { item: string }[]): void {
   }
 }
 
-/** Upsert by line number when the caller set one, otherwise by item name. Other lines stay. */
+/**
+ * Upsert one prior line when the caller names its line number, or when they
+ * omit the number and exactly one prior line has that item name. A second
+ * line with the same name is a new line. Nothing in this call is dropped.
+ */
 export function mergeTakeoffLines(
   prior: StoredLine[],
   incoming: StoredLine[],
   numbered: boolean[],
 ): StoredLine[] {
   const byNo = new Map(prior.map((l) => [l.line_no, { ...l }]));
-  const byItem = new Map(prior.map((l) => [l.item.trim().toLowerCase(), l.line_no]));
+  const priorByItem = new Map(prior.map((l) => [l.item.trim().toLowerCase(), l.line_no]));
+  const usedPrior = new Set<number>();
   let max = prior.reduce((m, l) => Math.max(m, l.line_no), 0);
   incoming.forEach((line, i) => {
+    const name = line.item.trim().toLowerCase();
     if (numbered[i] && byNo.has(line.line_no)) {
       byNo.set(line.line_no, { ...line, line_no: line.line_no });
-      byItem.set(line.item.trim().toLowerCase(), line.line_no);
+      usedPrior.add(line.line_no);
       return;
     }
-    const existing = byItem.get(line.item.trim().toLowerCase());
-    if (!numbered[i] && existing) {
+    const existing = priorByItem.get(name);
+    if (!numbered[i] && existing != null && !usedPrior.has(existing)) {
       byNo.set(existing, { ...line, line_no: existing });
+      usedPrior.add(existing);
       return;
     }
-    const no = numbered[i] && !byNo.has(line.line_no) ? line.line_no : ++max;
-    if (byNo.has(no) && numbered[i]) {
-      byNo.set(no, { ...line, line_no: no });
-    } else if (byNo.has(no)) {
-      max = Math.max(max, no);
-      const fresh = ++max;
-      byNo.set(fresh, { ...line, line_no: fresh });
-      byItem.set(line.item.trim().toLowerCase(), fresh);
-    } else {
-      max = Math.max(max, no);
-      byNo.set(no, { ...line, line_no: no });
-      byItem.set(line.item.trim().toLowerCase(), no);
-    }
+    max += 1;
+    const no = numbered[i] && !byNo.has(line.line_no) ? line.line_no : max;
+    const fresh = byNo.has(no) ? ++max : no;
+    max = Math.max(max, fresh);
+    byNo.set(fresh, { ...line, line_no: fresh });
   });
   return [...byNo.values()].sort((a, b) => a.line_no - b.line_no);
+}
+
+export type TakeoffRejection = { line_no: number; item: string; reason: string };
+
+export type TakeoffAccount = {
+  lines: StoredLine[];
+  rejected: TakeoffRejection[];
+  sent: number;
+  saved: number;
+};
+
+/** Every incoming line is saved or named in rejected. sent = saved + rejected. */
+export function accountTakeoffLines(
+  rows: LineIn[],
+  convention: EstimateConvention = CONVENTIONS.as_drawn,
+  prior: StoredLine[] = [],
+  mode: "upsert" | "replace" = "upsert",
+): TakeoffAccount {
+  const rejected: TakeoffRejection[] = [];
+  const prepared: StoredLine[] = [];
+  const numbered: boolean[] = [];
+  const seen = new Set<number>();
+  rows.forEach((raw, i) => {
+    const n = raw.line_no ?? i + 1;
+    const item = raw.item?.trim() || "this line";
+    try {
+      if (PLACEHOLDER_LINE.test(item))
+        throw new EstimateError(`"${item}" looks like a placeholder or a test line.`);
+      if (raw.line_no != null && seen.has(raw.line_no))
+        throw new EstimateError("This line number is already used in this save.");
+      const [line] = prepareLines([{ ...raw, line_no: n }], convention);
+      if (raw.line_no != null) seen.add(raw.line_no);
+      prepared.push(line);
+      numbered.push(raw.line_no != null);
+    } catch (e) {
+      const reason = e instanceof EstimateError ? e.message.replace(/\s*Nothing was saved\.?$/, "") : "This line could not be saved.";
+      rejected.push({ line_no: n, item, reason });
+    }
+  });
+  const lines = mode === "replace" ? prepared : mergeTakeoffLines(prior, prepared, numbered);
+  return { lines, rejected, sent: rows.length, saved: prepared.length };
 }
 
 export function renderIntake(
   job: string,
   s: Setup,
   profile?: "as_drawn" | "estimator" | null,
+  forms?: 1 | 2 | null,
 ): { text: string; structured: Record<string, unknown>; guidance: string[] } {
   const questions = intakeQuestions({
     role: s.role,
     trades: s.trades,
     in_scope: s.in_scope,
     profile: profile ?? null,
+    forms_faces: forms === undefined ? null : forms,
   });
   const role =
     s.role === "gc"
@@ -1468,7 +1629,8 @@ export function renderIntake(
     questions.length ? "Intake is not complete." : "Intake is complete.",
     ...questions.map((q) => `- ${q}`),
     `Role: ${role}`,
-    `Profile: ${profile === "as_drawn" ? "As drawn" : profile === "estimator" ? "Estimator key" : "Not answered"}`,
+    `Profile: ${profile === "as_drawn" ? "As drawn (slab areas net)" : profile === "estimator" ? "Estimator key (slab areas gross)" : "Not answered"}`,
+    `Forms: ${forms === 2 ? "both faces" : forms === 1 ? "one face" : "Not answered"}`,
     `Trades: ${s.trades.length ? s.trades.join("; ") : "not stated"}`,
     `Bid due: ${s.bid_due ?? "not stated"}`,
     `Delivery: ${s.delivery_method ?? "not stated"}`,
@@ -1575,6 +1737,7 @@ export function renderTakeoff(
   state: ReturnType<typeof settle>,
   revision: string,
   saveMode?: "upsert" | "replace",
+  account?: { sent: number; saved: number; rejected: TakeoffRejection[] },
 ): { text: string; structured: Record<string, unknown>; guidance: string[] } {
   const ordered = [...linesIn].sort(
     (a, b) =>
@@ -1598,6 +1761,14 @@ export function renderTakeoff(
   const grouped = cleanCsv(groupedCsv(sheetRows));
   const text = frame("Takeoff", [
     `${job} · Takeoff`,
+    ...(account
+      ? [
+          `Sent ${account.sent}. Saved ${account.saved}. Rejected ${account.rejected.length}.`,
+          ...(account.rejected.length
+            ? ["Rejected", ...account.rejected.map((r) => `- Line ${r.line_no} (${r.item}): ${r.reason}`)]
+            : []),
+        ]
+      : []),
     coverageLine(linesIn),
     narrative,
     revision,
@@ -1619,7 +1790,11 @@ export function renderTakeoff(
     ...table,
     "",
     "Foundation scope",
-    ...state.foundation.map((c) => `- ${c.label}: ${c.state}.`),
+    ...state.foundation.map((c) =>
+      c.state === "quantity" || c.state === "N/A"
+        ? `- ${c.label}: ${c.state}.`
+        : `- ${c.label}: ${c.state}. Take it off, or mark it N/A with a reason.`,
+    ),
     "",
     "Concrete checklist",
     ...(checklist.length
@@ -1645,6 +1820,10 @@ export function renderTakeoff(
       layout: estimateLayout(),
       coverage: coverageLine(linesIn),
       counts: state.counts,
+      ...(account
+        ? { sent: account.sent, saved: account.saved, rejected: account.rejected.length, rejected_lines: account.rejected }
+        : {}),
+      checklist_gaps: foundationGapPrompts(linesIn),
       lines: rows.map((r) => ({
         ...r,
         basis_label: r.basis,
@@ -1985,6 +2164,15 @@ export function buildSummary(
   return { rows, missingFlags: flags };
 }
 
+function summaryFile(job: string, revision: string, draft: boolean, rows: SummaryPdfRow[], notes: string[]) {
+  const bytes = estimateSummaryPdf({ job, revision, draft, rows, notes });
+  return {
+    filename: `${job.replace(/[\\/:*?"<>|]/g, "-").slice(0, 80)} Estimate Summary.pdf`,
+    mime_type: "application/pdf",
+    pdf_base64: bytesToBase64(bytes),
+  };
+}
+
 export function renderSummary(
   job: string,
   state: ReturnType<typeof settle>,
@@ -2010,8 +2198,9 @@ export function renderSummary(
         settled: false,
         open: state.blockers,
         layout: estimateLayout(),
+        ...summaryFile(job, revision, true, [], state.blockers),
       },
-      guidance: ["Do not treat this draft as a bid. List every open gap."],
+      guidance: ["Do not treat this draft as a bid. List every open gap. The PDF in pdf_base64 is the summary file."],
     };
   }
   const built = buildSummary(state.items, rates);
@@ -2056,6 +2245,20 @@ export function renderSummary(
       rows: built.rows,
       missing: built.missingFlags,
       counts: state.counts,
+      ...summaryFile(
+        job,
+        revision,
+        false,
+        built.rows.map((r) => ({
+          trade: r.trade,
+          title: r.title,
+          ref: r.ref,
+          qty: String(r.qty ?? "none"),
+          rate: String(r.rate ?? ""),
+          extension: r.extension ?? null,
+        })),
+        built.missingFlags,
+      ),
     },
     guidance: [
       "Do not add a unit price. Use extension only when this result includes one. Landscape, logo top right.",

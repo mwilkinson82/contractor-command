@@ -167,7 +167,7 @@ const laborIn = z.object({
 export const estimatePricing = defineTool({
   name: "estimate_pricing",
   title: "Pricing walkthrough",
-  description: "Computes labor cost from the contractor's production and rates for a job.",
+  description: "Prices a job from the contractor's labor and material rates, and asks for those rates when none are saved.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
@@ -203,6 +203,22 @@ export const estimatePricing = defineTool({
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const loaded = parseState(await rpc(sb, "mcp_estimate_get", { _job: job.job_id }));
       const prior = parseBid(await rpc(sb, "mcp_estimate_bid_get", { _job: job.job_id }));
+      const asked = (args.labor?.length ?? 0) + (args.material?.length ?? 0) > 0;
+      const onFile = prior.labor.length + prior.material.length > 0;
+      if (!asked && !onFile) {
+        return present(
+          "Pricing",
+          [
+            `${prefix(job)}${job.name} · Pricing`,
+            "Before pricing, send the labor rate and the material rate, or save them on this job first.",
+            "Labor: production per man-hour, or the man-hours you already have, crew size, hours in a man-day, and an hourly rate or a blended crew rate.",
+            "Material: a unit price for each line.",
+            "Nothing was priced.",
+          ],
+          { priced: false, card: { state: "ask", title: "Rates", ask: { prompt: "What are the labor and material rates?" } } },
+          ["Ask for labor and material rates before pricing. Do not invent a rate."],
+        );
+      }
       if (!loaded.setup.role) {
         return present(
           "Estimate Summary",
@@ -246,6 +262,7 @@ export const estimatePricing = defineTool({
         loaded.setup.role === "gc"
           ? "General contractor: labor plus material is the basis for checking a sub quote."
           : "Self-performer: labor is man-hours or man-days from your production, times your rate.",
+        !asked && onFile ? "Using the labor and material rates saved on this job." : "Using the rates in this call.",
       ];
       let placeholder = false;
       let direct = 0;
