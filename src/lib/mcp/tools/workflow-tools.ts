@@ -1179,6 +1179,24 @@ async function noticeContext(sb: Sb, job: Job) {
 // The one exception to "job_number is required": with no job named, list_open_items lists the companies and jobs instead.
 const listJobNumber = z.string().trim().min(1).max(40).optional();
 
+/** Jobs the caller can see, narrowed to the current company when they belong to more than one. */
+export async function listedJobs(sb: Sb, companyId?: string): Promise<{ job_number: string; name: string | null; company_id: string }[]> {
+  const { data: cos, error } = await sb.from("mcp_companies").select("id, name");
+  if (error) throw new Error(error.message);
+  let companies = (cos ?? []) as { id: string; name: string | null }[];
+  if (companyId?.trim()) {
+    const cid = await resolveCompany(sb, companyId);
+    companies = companies.filter((c) => c.id === cid);
+  } else if (companies.length > 1) {
+    const cur = await currentCompany(sb);
+    if (cur && companies.some((c) => c.id === cur)) companies = companies.filter((c) => c.id === cur);
+  }
+  if (!companies.length) return [];
+  const { data: jobs, error: je } = await sb.from("mcp_jobs").select("job_number, name, company_id").in("company_id", companies.map((c) => c.id));
+  if (je) throw new Error(je.message);
+  return (jobs ?? []) as { job_number: string; name: string | null; company_id: string }[];
+}
+
 /** No job named: the caller's companies and their job numbers, in plain text. */
 export async function listCompaniesAndJobs(sb: Sb, companyId?: string, tool = "list_open_items"): Promise<string> {
   const { data: cos, error } = await sb.from("mcp_companies").select("id, name");

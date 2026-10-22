@@ -11,14 +11,17 @@ import { scheduleActivities, schedulePercent } from "./load";
 import { job2701FlowData } from "./job-2701";
 import { EVENING_STAGES, MORNING_STAGES, PM_MEETING_STAGES, stagesFor, type FlowName } from "./types";
 
-const calls = vi.hoisted(() => ({ rpc: [] as string[] }));
+const calls = vi.hoisted(() => ({
+  rpc: [] as string[],
+  jobs: [{ job_number: "2701", name: "Harbor Point", company_id: "c1" }] as { job_number: string; name: string; company_id: string }[],
+}));
 vi.mock("../guard", () => ({
   run: async (_t: string, _c: unknown, _o: unknown, fn: (sb: unknown) => Promise<unknown>) => fn({
     rpc: async (name: string) => { calls.rpc.push(name); return { data: null, error: { message: "unexpected" } }; },
     from: (table: string) => {
-      const data = table === "mcp_companies" ? [{ id: "c1", name: "Harbor Electric" }] : [{ job_number: "2701", name: "Harbor Point", company_id: "c1" }];
+      const data = table === "mcp_companies" ? [{ id: "c1", name: "Harbor Electric" }] : table === "mcp_jobs" ? calls.jobs : [];
       const result = Promise.resolve({ data, error: null });
-      return { select: () => Object.assign(result, { in: () => result }) };
+      return { select: () => Object.assign(result, { in: () => result, eq: () => result }) };
     },
   }),
   text: (b: string) => ({ content: [{ type: "text", text: b }] }),
@@ -149,7 +152,6 @@ describe("sample path on job 2701", () => {
   it("asks which job, as a card, when no job is given", async () => {
     const tools = [
       [pmMeeting, "pm_meeting"],
-      [pmMorning, "pm_morning"],
       [pmEvening, "pm_evening"],
     ] as const;
     for (const [tool, name] of tools) {
@@ -226,5 +228,38 @@ describe("sample path on job 2701", () => {
 
   it("refuses the sample on any other job", async () => {
     await expect(call(pmMeeting, { job_number: "2801", sample: true })).rejects.toThrow(/only on job 2701/);
+  });
+
+  it("a bare greeting with one job returns the morning card and no trailing prose", async () => {
+    calls.jobs = [{ job_number: "2701", name: "Harbor Point", company_id: "c1" }];
+    const r = await call(pmMorning, {});
+    const text = r.content.find((c) => c.type === "text")?.text ?? "";
+    expect(r.structuredContent.card.title.length).toBeGreaterThan(0);
+    expect(text).toContain("Next move");
+    expect(text.trim().endsWith(CARD_SHOWN)).toBe(true);
+    const before = text.trim().slice(0, -CARD_SHOWN.length).trim();
+    const fence = before.lastIndexOf("```");
+    expect(before.slice(fence + 3).trim()).toBe("");
+    expect(before.endsWith("```")).toBe(true);
+    expect(text).not.toMatch(/I['’]ll pull/);
+    expect(r.content.some((c) => c.type === "resource")).toBe(false);
+  });
+
+  it("a bare greeting with more than one job returns the which-job card and no trailing prose", async () => {
+    calls.jobs = [
+      { job_number: "2701", name: "Harbor Point", company_id: "c1" },
+      { job_number: "2702", name: "Pier", company_id: "c1" },
+    ];
+    const r = await call(pmMorning, {});
+    const text = r.content.find((c) => c.type === "text")?.text ?? "";
+    expect(r.structuredContent.card.title).toBe("Which job?");
+    expect(text).toContain("Which job's morning hitlist?");
+    expect(text).toContain("Next move");
+    expect(text.trim().endsWith(CARD_SHOWN_PICK)).toBe(true);
+    const before = text.trim().slice(0, -CARD_SHOWN_PICK.length).trim();
+    expect(before.endsWith("```")).toBe(true);
+    expect(before.slice(before.lastIndexOf("```") + 3).trim()).toBe("");
+    expect(r.content.some((c) => c.type === "resource")).toBe(false);
+    calls.jobs = [{ job_number: "2701", name: "Harbor Point", company_id: "c1" }];
   });
 });

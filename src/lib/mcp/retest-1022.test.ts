@@ -123,18 +123,40 @@ describe("morning hitlist ranks ahead of email and calendar", () => {
 
   it("name, title, and description carry the Athena hitlist phrases", () => {
     const blob = `${tool.name} ${tool.title} ${tool.description}`;
-    for (const phrase of ["Athena", "Hey Athena", "hitlist", "morning briefing", "what's on my plate today", "overdue", "today's deadlines on my jobs"]) {
-      expect(blob.toLowerCase(), phrase).toContain(phrase.toLowerCase());
+    for (const phrase of [
+      "Athena, good morning",
+      "Hey Athena",
+      "Good morning Athena",
+      "Morning Athena",
+      "Athena at the start or mid-sentence",
+      "Athina",
+      "Athen",
+      "Atena",
+      "hitlist",
+      "morning briefing",
+      "what's on my plate today",
+      "overdue",
+      "today's deadlines on my jobs",
+    ]) {
+      expect(tool.description, phrase).toContain(phrase);
     }
+    expect(tool.title).toContain("Athena, good morning");
+    expect(tool.title).toContain("Hey Athena");
+    expect(tool.title).toContain("Good morning Athena");
+    expect(tool.title).toContain("Morning Athena");
+    expect(tool.title).toContain("Athina");
+    expect(tool.title).toContain("Athen");
+    expect(tool.title).toContain("Atena");
     expect(tool.description.toLowerCase()).toContain("not email or calendar");
     expect(tool.description.toLowerCase()).toContain("construction job hitlist");
     expect(tool.name).toBe("athena_morning_hitlist");
     expect(tool.title.startsWith("Athena")).toBe(true);
     expect(tool.description.split(/[.!?]+/).map((part) => part.trim()).filter(Boolean)).toEqual([tool.description.replace(/\.$/, "")]);
     const instructions = readFileSync("src/lib/mcp/index.ts", "utf8");
-    expect(instructions).toContain("Hey Athena");
+    for (const phrase of ["Athena, good morning", "Hey Athena", "Good morning Athena", "Morning Athena", "Athena at the start or mid-sentence", "Athina", "Athen", "Atena", "not email or calendar", "construction-job"]) {
+      expect(instructions, phrase).toContain(phrase);
+    }
     expect(instructions).toContain("athena_morning_hitlist");
-    expect(instructions).toContain("not email or calendar");
   });
 });
 

@@ -4949,8 +4949,8 @@
       },
       {
         "name": "athena_morning_hitlist",
-        "title": "Athena morning hitlist",
-        "description": "Athena morning hitlist for Hey Athena, hitlist, morning briefing, what's on my plate today, overdue, and today's deadlines on my jobs: the construction job hitlist, not email or calendar.",
+        "title": "Athena, good morning, Hey Athena, Good morning Athena, Morning Athena, Athina, Athen, Atena",
+        "description": "Athena answers Athena, good morning, Hey Athena, Good morning Athena, Morning Athena, Athena at the start or mid-sentence, and misspellings Athina, Athen, and Atena, plus hitlist, morning briefing, what's on my plate today, overdue, and today's deadlines on my jobs, as the construction job hitlist, not email or calendar.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
