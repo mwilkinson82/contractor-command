@@ -20,6 +20,8 @@ import {
   scheduleProposals,
   sniffPhoto,
 } from "./superintendent";
+import { livingReportGet } from "./tools/living-tools";
+import { attachAthenaCard } from "./cards/attach";
 import { photoLogPdf } from "./photo-pdf";
 import {
   DAILY_REMINDER_TITLE,
@@ -299,13 +301,31 @@ describe("feeds", () => {
     state.tables.mcp_daily_reports = [{ id: "d1", report_date: "2026-10-21" }];
     state.tables.mcp_daily_work_lines = [{ daily_id: "d1", sov_item: "03.01", activity_id: "A1000", qty: 40, unit: "cy", pct_complete: 30 }];
     const full = await handle(fieldPayApp, { job_number: "2701", period_to: "2026-10-21" });
-    expect(full.content[0].text).toContain("Contract sum: $1,666.67");
-    expect(full.content[0].text).toContain("Ties:");
+    expect(full.content[0].text).toContain("| Contract sum | $1,666.67 |");
+    expect(full.content[0].text).toContain("G702 tie checks");
+    expect(full.structuredContent.card).toBeDefined();
+    expect(full.structuredContent.html).toContain("G703 continuation");
     state.scope = "super";
     const sup = await handle(fieldPayApp, { job_number: "2701", period_to: "2026-10-21" });
     expect(sup.content[0].text).not.toContain("$");
     expect(sup.content[0].text).toContain("Percents only");
     expect(sup.structuredContent.no_financials).toBe(true);
+  });
+
+  it("returns a billing forecast card with version, ties and result-only widget metadata", async () => {
+    state.tables.mcp_jobs = [{ sov_fee_pct: 0 }];
+    state.tables.mcp_job_facts = [{ key: "03.01", value: { description: "Concrete", billable_value: 1_400_000 } }];
+    state.rpc.mcp_living_report_get = { found: true, version: 2, data_date: "2026-10-22", forecast_total: 1_400_000, data: { billing: { months: [{ month: "2026-10", amount: 1_400_000, kind: "forecast" }] } } };
+    const result = await handle(livingReportGet, { job_number: "2701", report_type: "billing_forecast" });
+    const shown = attachAthenaCard("living_report_get", result);
+    expect(shown.structuredContent.card).toBeDefined();
+    expect(shown.structuredContent.html).toContain("Monthly billing");
+    expect(shown.structuredContent.html).toContain("Version v2");
+    expect(shown.content[0].text).toContain("Forecast total $1,400,000.00 = contract $1,400,000.00");
+    state.rpc.mcp_living_report_get = { found: false };
+    const empty = await handle(livingReportGet, { job_number: "2701", report_type: "billing_forecast" });
+    expect(empty.structuredContent.html).toContain("Billed to date");
+    expect(empty.structuredContent.found).toBe(false);
   });
 
   it("proposes CPM percents without writing the schedule", () => {

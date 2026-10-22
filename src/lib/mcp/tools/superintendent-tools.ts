@@ -1,3 +1,4 @@
+import { fieldPayAppCardModel, presentPayApp } from "../pay-app-card";
 // Superintendent tools. Same gate as the others: run() checks auth, the call cap and membership.
 // Super can write field data here. Existing tools still treat super as read-only.
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
@@ -21,7 +22,6 @@ import {
   fieldBoardCard,
   fieldCard,
   fieldMoney,
-  payAppCard,
   payAppPercentCard,
   photoGate,
   progressByItem,
@@ -342,8 +342,9 @@ export const fieldPayApp = defineTool({
       try {
         const app = buildFieldPayApp(sov.lines, sov.fee, sov.retainage, current, previous);
         const url = boardHref(await boardPages(sb, job), "payapp");
+        const presented = presentPayApp(fieldPayAppCardModel(named(job), period, app, url));
         return guide(
-          { ...text([...(url ? [`Styled pay app (private to your company): ${url}`] : []), payAppCard(prefix(job), period, app)].join("\n")), structuredContent: { period_to: period, pay_app: app, ties: true } },
+          { ...presented, structuredContent: { ...presented.structuredContent, period_to: period, pay_app: app, ties: true } },
           "Show the G702 summary and the G703 lines exactly. Do not recompute them.",
         );
       } catch (e) {

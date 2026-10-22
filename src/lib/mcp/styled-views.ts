@@ -1,3 +1,4 @@
+import { billingForecastCardModel, presentPayApp } from "./pay-app-card";
 // 0.8.17: styling is baked into the tool result, never left to the host's wording.
 // Every lookahead, schedule, IOR and portfolio result now leads with (1) the private styled page on app.meetathena.io
 // (rendered by Athena, so it looks the same in every host) and (2) a pre-rendered markdown view the host shows as-is.
@@ -574,7 +575,6 @@ export type Billing = {
 };
 const usd = (n: number) =>
   `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const monthLabel = (m: string) => `${MON[+m.slice(5, 7) - 1]} ${m.slice(0, 4)}`;
 export type PayModel = {
   billed: number;
   forecast: number;
@@ -586,15 +586,14 @@ export type PayModel = {
 };
 export function payModel(b: Billing | null | undefined, contract: number | null): PayModel {
   const months = [...(b?.months ?? [])].sort((x, y) => x.month.localeCompare(y.month));
-  let cum = 0;
-  const rows = months.map((m) => ({ ...m, cum: (cum = Math.round((cum + m.amount) * 100) / 100) }));
-  const actual = months.filter((m) => m.kind === "actual").reduce((s, m) => s + m.amount, 0);
-  const billed = Math.round((b?.billed_to_date ?? actual) * 100) / 100;
-  const total = Math.round(months.reduce((s, m) => s + m.amount, 0) * 100) / 100;
-  const forecast =
-    Math.round(
-      months.filter((m) => m.kind === "forecast").reduce((s, m) => s + m.amount, 0) * 100,
-    ) / 100;
+  const cents = (value: number) => Math.round(value * 100);
+  const dollars = (value: number) => value / 100;
+  let cumulativeCents = 0;
+  const rows = months.map((m) => ({ ...m, cum: dollars(cumulativeCents += cents(m.amount)) }));
+  const sumCents = (kind?: string) => months.filter((m) => !kind || m.kind === kind).reduce((sum, m) => sum + cents(m.amount), 0);
+  const billed = dollars(b?.billed_to_date == null ? sumCents("actual") : cents(b.billed_to_date));
+  const total = dollars(sumCents());
+  const forecast = dollars(sumCents("forecast"));
   const tie =
     contract === null
       ? null
@@ -619,35 +618,8 @@ export function payAppView(v: {
   contract: number | null;
   pageUrl?: string | null;
 }): string {
-  const m = payModel(v.billing, v.contract);
-  const L: string[] = [];
-  if (v.pageUrl) L.push(pageLine("pay app", v.pageUrl), "");
-  L.push(SHOW_AS_IS, "");
-  if (m.tie) L.push(`**${m.tie}**`, "");
-  L.push(
-    `## ${v.title} · Pay App & Billing Forecast`,
-    `${v.version ? `v${v.version}` : ""}${v.dataDate ? ` · Data date ${shortDate(v.dataDate)}` : ""}`,
-    "",
-  );
-  L.push(
-    "| Billed to date | Forecast remaining | Contract | Left to bill |",
-    "|---|---|---|---|",
-    `| ${usd(m.billed)} | ${usd(m.forecast)} | ${m.contract === null ? "Needed" : usd(m.contract)} | ${m.left === null ? "Needed" : usd(m.left)} |`,
-    "",
-  );
-  L.push("### Monthly billing", "| Month | Type | Amount | Cumulative |", "|---|---|---|---|");
-  for (const r of m.months)
-    L.push(
-      `| ${monthLabel(r.month)} | ${r.kind === "actual" ? "🔵 Billed" : "⚪ Forecast"} | ${usd(r.amount)} | ${usd(r.cum)} |`,
-    );
-  L.push(
-    `| **Total** | | **${usd(m.total)}** | |`,
-    "",
-    "**Legend:** 🔵 Billed (blue #2563EB) · ⚪ Forecast (gray #9CA3AF) · red #DC2626 only when it doesn't tie",
-    "",
-    "Want it as Excel or PDF?",
-  );
-  return L.join("\n");
+  const card = billingForecastCardModel(v.title, payModel(v.billing, v.contract), v.pageUrl);
+  return presentPayApp(card).content[0].text;
 }
 
 // ---------- morning briefing ----------
