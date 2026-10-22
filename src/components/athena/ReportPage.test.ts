@@ -1,6 +1,6 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { boardLinkStatus, boardPageAllowed, type BoardLinkRow } from "@/lib/mcp/board-link";
 import type { PagePayload } from "@/lib/report-pages";
 
@@ -28,10 +28,12 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
 vi.mock("@/lib/board-link.functions", () => ({ openBoardPage: vi.fn() }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: vi.fn() } }));
+vi.mock("@/lib/magic-link.functions", () => ({ requestMemberMagicLink: vi.fn() }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: vi.fn(), auth: {} } }));
 vi.mock("@/components/athena/FieldPushBar", () => ({ FieldPushBar: () => null }));
 
 import { ReportPageView } from "./ReportPage";
+import { BOARD_SIGN_IN_TITLE } from "@/lib/board-sign-in";
 
 const items: PagePayload = {
   page: "items",
@@ -56,28 +58,86 @@ beforeEach(() => {
   state.linkQuery = { data: undefined, isLoading: false, error: null };
 });
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+function signInReturn(html: string): string {
+  const match = html.match(/data-return-to="([^"]*)"/);
+  return match?.[1] ?? "";
+}
+
 describe("board link page without a session", () => {
   it("renders the token payload when there is no session", () => {
     state.linkQuery = { data: { status: "ok", payload: JSON.stringify(items) }, isLoading: false, error: null };
     const html = renderPage("items", "live-token");
     expect(html).toContain("Buy the switchgear");
     expect(html).toContain("2701 Harbor · Open items");
-    expect(html).not.toContain("Sign in to open this page");
+    expect(html).not.toContain(BOARD_SIGN_IN_TITLE);
     expect(html).not.toContain("have access to this page");
   });
 
-  it("shows the friendly message for a bad or expired token", () => {
+  it("sends an expired token to sign-in and back to the same board", () => {
+    vi.stubGlobal("window", {
+      location: {
+        pathname: `/r/job/${JOB}/items`,
+        search: "?t=old-token",
+        hash: "#item-1",
+      },
+    });
     state.linkQuery = { data: { status: "expired", payload: null }, isLoading: false, error: null };
     const expired = renderPage("items", "old-token");
-    expect(expired).toContain("This board link has expired. Ask Athena for a fresh one.");
-    expect(expired).not.toContain("Sign in to open this page");
+    expect(expired).toContain(BOARD_SIGN_IN_TITLE);
+    expect(expired).toContain("Email me a sign-in code");
+    expect(expired).toContain('type="email"');
+    expect(signInReturn(expired)).toBe(`/r/job/${JOB}/items#item-1`);
+    expect(expired).not.toContain("Ask Athena for a fresh one");
     expect(expired).not.toContain("have access to this page");
+    expect(expired).not.toContain("Buy the switchgear");
+    expect(expired).not.toContain("Lovable");
+    expect(expired).not.toContain("Supabase");
+    vi.unstubAllGlobals();
+  });
 
+  it("sends a missing token to sign-in and back to the stable board path", () => {
+    const html = renderPage("field");
+    expect(html).toContain(BOARD_SIGN_IN_TITLE);
+    expect(html).toContain("Email me a sign-in code");
+    expect(signInReturn(html)).toBe(`/r/job/${JOB}/field`);
+    expect(html).not.toContain("Ask Athena for a fresh one");
+    expect(html).not.toContain("Buy the switchgear");
+  });
+
+  it("drops utm params from the sign-in return", () => {
+    vi.stubGlobal("window", {
+      location: {
+        pathname: `/r/job/${JOB}/items`,
+        search: "?t=old-token&utm_source=chatgpt.com&utm_medium=email",
+        hash: "",
+      },
+    });
     state.linkQuery = { data: { status: "unknown", payload: null }, isLoading: false, error: null };
-    const bad = renderPage("items", "bad-token");
-    expect(bad).toContain("This board link does not work. Ask Athena for a fresh one.");
-    expect(bad).not.toContain("Sign in to open this page");
-    expect(bad).not.toContain("Buy the switchgear");
+    const html = renderPage("items", "old-token");
+    expect(html).toContain(BOARD_SIGN_IN_TITLE);
+    expect(signInReturn(html)).toBe(`/r/job/${JOB}/items`);
+    expect(signInReturn(html)).not.toContain("utm_");
+    expect(signInReturn(html)).not.toContain("old-token");
+    vi.unstubAllGlobals();
+  });
+
+  it("does not follow an open redirect off the job board", () => {
+    vi.stubGlobal("window", {
+      location: {
+        pathname: "//evil.example/r/job/" + JOB + "/items",
+        search: "?next=https://evil.example",
+        hash: "",
+      },
+    });
+    const html = renderPage("items");
+    expect(html).toContain(BOARD_SIGN_IN_TITLE);
+    expect(signInReturn(html)).toBe(`/r/job/${JOB}/items`);
+    expect(html).not.toContain("evil.example");
+    vi.unstubAllGlobals();
   });
 
   it("keeps super scope blocked from IOR and pay app", () => {
@@ -91,8 +151,7 @@ describe("board link page without a session", () => {
     state.linkQuery = { data: { status: "denied", payload: null }, isLoading: false, error: null };
     for (const page of ["ior", "payapp"] as const) {
       const html = renderPage(page, "super-token");
-      expect(html).toContain("This link cannot open that page.");
-      expect(html).not.toContain("Sign in to open this page");
+      expect(html).toContain(BOARD_SIGN_IN_TITLE);
       expect(html).not.toContain("have access to this page");
       expect(html).not.toContain("Buy the switchgear");
     }
@@ -100,7 +159,7 @@ describe("board link page without a session", () => {
     state.linkQuery = { data: { status: "ok", payload: JSON.stringify(items) }, isLoading: false, error: null };
     const allowed = renderPage("items", "super-token");
     expect(allowed).toContain("Buy the switchgear");
-    expect(allowed).not.toContain("Sign in to open this page");
+    expect(allowed).not.toContain(BOARD_SIGN_IN_TITLE);
   });
 
   it("leaves a signed-in member with no row on the no-access card", () => {
@@ -110,6 +169,15 @@ describe("board link page without a session", () => {
     const html = renderPage("items", "live-token");
     expect(html).toContain("have access to this page");
     expect(html).not.toContain("Buy the switchgear");
-    expect(html).not.toContain("Sign in to open this page");
+    expect(html).not.toContain(BOARD_SIGN_IN_TITLE);
+  });
+
+  it("shows a signed-in member the live board even when the token in the url is expired", () => {
+    state.session = { user: { id: "member-1" } };
+    state.pageQuery = { data: { payload: items }, isLoading: false, error: null };
+    const html = renderPage("items", "old-token");
+    expect(html).toContain("Buy the switchgear");
+    expect(html).not.toContain(BOARD_SIGN_IN_TITLE);
+    expect(html).not.toContain("have access to this page");
   });
 });

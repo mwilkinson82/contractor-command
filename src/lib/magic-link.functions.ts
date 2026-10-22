@@ -9,6 +9,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { athenaPageReturn } from "@/lib/athena-page-return";
+import { boardSignInReturn } from "@/lib/board-sign-in";
 import { oauthConsentReturn } from "@/lib/oauth-return-path";
 import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
 import { hubOrigin } from "@/lib/auth-origins";
@@ -182,7 +183,11 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
     try {
       const path = oauthConsentReturn(data.continuation);
       if (data.continuation && !path) throw new Error("Invalid continuation");
-      const pageReturn = path ? undefined : athenaPageReturn(data.return_to);
+      // A job board return is limited to /r/job and drops the token and utm params.
+      // Other Athena pages (a file link, the account page) keep their own allowlist.
+      const pageReturn = path
+        ? undefined
+        : (boardSignInReturn(data.return_to) ?? athenaPageReturn(data.return_to));
       const { createOAuthContinuation, assertOAuthContinuationConfigured } =
         await import("./oauth-continuation.server");
       // Check configuration before identity lookup or token minting. An outage
