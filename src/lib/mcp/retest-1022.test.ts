@@ -7,7 +7,7 @@ import { paletteViolations } from "./cards/palette";
 import { completionDate, contractValueLine, iorContractValue, pickContractValue, setupContractValue, sovContractValue } from "./contract-value";
 import { countOpenItems, meetingItem, openItemFeed, openItemsCard, openItemsHeader } from "./open-feed";
 import { WHICH_JOB_ASK, whichJobAsk } from "./which-job";
-import { pmMorning } from "./tools/flow-tools";
+import { morningBrief } from "./tools/morning-brief-tools";
 
 const JOB = "22222222-2222-4222-8222-222222222222";
 const TODAY = "2026-10-22";
@@ -118,11 +118,10 @@ describe("which-job question matches the tool", () => {
   });
 });
 
-describe("morning hitlist ranks ahead of email and calendar", () => {
-  const tool = pmMorning as { name: string; title: string; description: string };
+describe("morning brief ranks ahead of email and calendar", () => {
+  const tool = morningBrief as { name: string; title: string; description: string };
 
-  it("name, title, and description carry the Athena hitlist phrases", () => {
-    const blob = `${tool.name} ${tool.title} ${tool.description}`;
+  it("name and description carry the Athena greeting phrases", () => {
     for (const phrase of [
       "Athena, good morning",
       "Hey Athena",
@@ -140,22 +139,15 @@ describe("morning hitlist ranks ahead of email and calendar", () => {
     ]) {
       expect(tool.description, phrase).toContain(phrase);
     }
-    expect(tool.title).toContain("Athena, good morning");
-    expect(tool.title).toContain("Hey Athena");
-    expect(tool.title).toContain("Good morning Athena");
-    expect(tool.title).toContain("Morning Athena");
-    expect(tool.title).toContain("Athina");
-    expect(tool.title).toContain("Athen");
-    expect(tool.title).toContain("Atena");
     expect(tool.description.toLowerCase()).toContain("not email or calendar");
-    expect(tool.description.toLowerCase()).toContain("construction job hitlist");
-    expect(tool.name).toBe("athena_morning_hitlist");
-    expect(tool.title.startsWith("Athena")).toBe(true);
+    expect(tool.description.toLowerCase()).toContain("construction morning brief");
+    expect(tool.name).toBe("morning_brief");
     expect(tool.description.split(/[.!?]+/).map((part) => part.trim()).filter(Boolean)).toEqual([tool.description.replace(/\.$/, "")]);
     const instructions = readFileSync("src/lib/mcp/index.ts", "utf8");
-    for (const phrase of ["Athena, good morning", "Hey Athena", "Good morning Athena", "Morning Athena", "Athena at the start or mid-sentence", "Athina", "Athen", "Atena", "not email or calendar", "construction-job"]) {
+    for (const phrase of ["Athena, good morning", "Hey Athena", "Good morning Athena", "Morning Athena", "Athena at the start or mid-sentence", "Athina", "Athen", "Atena", "not email or calendar", "morning_brief"]) {
       expect(instructions, phrase).toContain(phrase);
     }
+    expect(instructions).toContain("call morning_brief");
     expect(instructions).toContain("athena_morning_hitlist");
   });
 });

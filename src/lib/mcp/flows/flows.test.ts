@@ -230,11 +230,12 @@ describe("sample path on job 2701", () => {
     await expect(call(pmMeeting, { job_number: "2801", sample: true })).rejects.toThrow(/only on job 2701/);
   });
 
-  it("a bare greeting with one job returns the morning card and no trailing prose", async () => {
+  it("a bare greeting with one job returns the morning brief and no trailing prose", async () => {
     calls.jobs = [{ job_number: "2701", name: "Harbor Point", company_id: "c1" }];
     const r = await call(pmMorning, {});
     const text = r.content.find((c) => c.type === "text")?.text ?? "";
-    expect(r.structuredContent.card.title.length).toBeGreaterThan(0);
+    expect(r.structuredContent.card.title).toBe("Morning brief");
+    expect(text).toContain("2701 Harbor Point");
     expect(text).toContain("Next move");
     expect(text.trim().endsWith(CARD_SHOWN)).toBe(true);
     const before = text.trim().slice(0, -CARD_SHOWN.length).trim();
@@ -245,18 +246,20 @@ describe("sample path on job 2701", () => {
     expect(r.content.some((c) => c.type === "resource")).toBe(false);
   });
 
-  it("a bare greeting with more than one job returns the which-job card and no trailing prose", async () => {
+  it("a bare greeting with more than one job returns one brief and no trailing prose", async () => {
     calls.jobs = [
       { job_number: "2701", name: "Harbor Point", company_id: "c1" },
       { job_number: "2702", name: "Pier", company_id: "c1" },
     ];
     const r = await call(pmMorning, {});
     const text = r.content.find((c) => c.type === "text")?.text ?? "";
-    expect(r.structuredContent.card.title).toBe("Which job?");
-    expect(text).toContain("Which job's morning hitlist?");
+    expect(r.structuredContent.card.title).toBe("Morning brief");
+    expect(text).toContain("2701 Harbor Point");
+    expect(text).toContain("2702 Pier");
+    expect(text).not.toContain("Which job's morning hitlist?");
     expect(text).toContain("Next move");
-    expect(text.trim().endsWith(CARD_SHOWN_PICK)).toBe(true);
-    const before = text.trim().slice(0, -CARD_SHOWN_PICK.length).trim();
+    expect(text.trim().endsWith(CARD_SHOWN)).toBe(true);
+    const before = text.trim().slice(0, -CARD_SHOWN.length).trim();
     expect(before.endsWith("```")).toBe(true);
     expect(before.slice(before.lastIndexOf("```") + 3).trim()).toBe("");
     expect(r.content.some((c) => c.type === "resource")).toBe(false);

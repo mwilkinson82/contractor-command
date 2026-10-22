@@ -454,8 +454,8 @@
               "type": "string",
               "enum": [
                 "<$250k",
-                "$250k–$2M",
-                "$2M–$10M",
+                "$250k\u2013$2M",
+                "$2M\u2013$10M",
                 "$10M+"
               ]
             },
@@ -5055,6 +5055,65 @@
           "additionalProperties": false
         },
         "outputSchema": null
+      },
+      {
+        "name": "morning_brief",
+        "title": "Morning brief",
+        "description": "Builds the member's morning brief across every job they can see when they say Athena, good morning, Hey Athena, Good morning Athena, Morning Athena, Athena at the start or mid-sentence, Athina, Athen, Atena, hitlist, morning briefing, what's on my plate today, overdue, or today's deadlines on my jobs, and this is the construction morning brief, not email or calendar, and nothing is sent.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      {
+        "name": "morning_brief_settings",
+        "title": "Morning briefing time",
+        "description": "Reads or sets this member's morning briefing time and on or off switch, including when they say set my morning briefing to 6am, and shows the saved setting without sending anything.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "get",
+                "set"
+              ]
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "send_time": {
+              "type": "string",
+              "maxLength": 20
+            },
+            "time_zone": {
+              "type": "string",
+              "maxLength": 80
+            }
+          },
+          "additionalProperties": false
+        }
       },
       {
         "name": "email_draft",
