@@ -1,8 +1,7 @@
-import { htmlBlock, renderMarkdown } from "./markdown";
+import { cardReply, htmlBlock, renderMarkdown } from "./markdown";
 import { renderHtml } from "./html";
 import { inferCard } from "./infer";
-import { cardWidgetMeta } from "./widget";
-import { CARD_SHOWN, CARD_SHOWN_PICK, applyCardClosing, cardClosing, stripSpokenPreview } from "./silence";
+import { CARD_SHOWN, CARD_SHOWN_PICK, applyCardClosing, stripSpokenPreview } from "./silence";
 import { INBOX_HOST_LINE } from "../morning-brief";
 import { isWhichJobText } from "../which-job";
 import type { CardModel } from "./model";
@@ -83,9 +82,9 @@ export function attachAthenaCard<R>(tool: string, result: R): R {
     const card = isCard(sc.card) ? sc.card : inferCard(tool, source, sc);
     const html = typeof sc.html === "string" && !askJob && tool !== "contract_terms" ? sc.html : renderHtml(card);
     const markdown = renderMarkdown(card);
-    const cardText = `${markdown}\n\n${htmlBlock(html)}`;
+    const cardText = cardReply(markdown, html);
     const keepBody = !CARD_FIRST_TOOLS.has(tool) && !askJob;
-    const hasHtml = source.includes("REQUIRED VIEW: render this HTML card as-is.");
+    const hasHtml = /<!doctype html/i.test(source);
     const hasMarkdown = source.startsWith("## ") && source.includes(card.title);
     const hasPlain = hasHtml && source.includes(card.title);
     // Card-first tools replace the body with the card. A pinned REQUIRED line would be dropped,
@@ -99,17 +98,16 @@ export function attachAthenaCard<R>(tool: string, result: R): R {
           : `${source}\n\n${htmlBlock(html)}`
         : `${markdown}\n\n${first.text}\n\n${htmlBlock(html)}`;
     const closed = applyCardClosing(text, askJob);
-    const closing = cardClosing(askJob);
     const priorGuidance = Array.isArray(sc.assistant_guidance) ? (sc.assistant_guidance as unknown[]) : [];
-    const content = res.content!.map((c) => (c === first ? { ...c, text: closed, _meta: { ...(c as { _meta?: Record<string, unknown> })._meta, ...cardWidgetMeta } } : c));
+    const content = res.content!.map((c) => (c === first ? { ...c, text: closed } : c));
     const structuredContent = {
       ...sc,
       card,
       html,
       ...(askJob ? { which_job: true } : {}),
-      assistant_guidance: [...priorGuidance.filter((g) => g !== CARD_SHOWN && g !== CARD_SHOWN_PICK), closing],
+      assistant_guidance: [...priorGuidance.filter((g) => g !== CARD_SHOWN && g !== CARD_SHOWN_PICK)],
     };
-    const meta = { ...(res._meta ?? {}), ...cardWidgetMeta };
+    const meta = { ...(res._meta ?? {}) };
     const out: Record<string, unknown> = { structuredContent, _meta: meta };
     for (const [key, value] of Object.entries(res)) if (!(key in out)) out[key] = value;
     out.content = content;

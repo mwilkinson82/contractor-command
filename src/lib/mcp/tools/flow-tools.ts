@@ -2,9 +2,8 @@
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { renderHtml } from "../cards/html";
-import { htmlBlock, renderMarkdown } from "../cards/markdown";
-import { cardWidgetMeta } from "../cards/widget";
-import { CARD_SHOWN, CARD_SHOWN_PICK, applyCardClosing } from "../cards/silence";
+import { cardReply, renderMarkdown } from "../cards/markdown";
+import { applyCardClosing } from "../cards/silence";
 import { inferCard } from "../cards/infer";
 import { signedJobPages } from "../board-url";
 import { applyMeetingFigures, buildFlowCard } from "../flows/build";
@@ -33,7 +32,7 @@ function present(flow: FlowName, stage: string, data: FlowData) {
   const html = renderHtml({ ...card, show_state: false });
   const stages = [...stagesFor(flow)];
   const next = stages[stages.indexOf(stage) + 1] ?? null;
-  const body = applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
+  const body = applyCardClosing(cardReply(renderMarkdown(card), html), false);
   return guide(
     {
       structuredContent: {
@@ -46,12 +45,11 @@ function present(flow: FlowName, stage: string, data: FlowData) {
         sample: data.sample,
         logged: data.logged,
       },
-      _meta: { ...cardWidgetMeta },
-      content: [{ type: "text" as const, text: body, _meta: { ...cardWidgetMeta } }],
+      content: [{ type: "text" as const, text: body }],
     },
     next
-      ? `When the PM continues, call ${flow} with stage ${next} only. Do not add field readiness, financial, open actions, or closeout. Record a planned bill and a realistic bill as plan and realistic on stage accounting. Do not call living_report_save for those two figures. ${CARD_SHOWN}`
-      : CARD_SHOWN,
+      ? `When the PM continues, call ${flow} with stage ${next} only. Record a planned bill and a realistic bill as plan and realistic on stage accounting. Do not call living_report_save for those two figures.`
+      : "",
   );
 }
 
@@ -74,14 +72,13 @@ export const MORNING_HITLIST_DESCRIPTION =
 
 function sealedCard(card: ReturnType<typeof inferCard>, pick: boolean) {
   const html = renderHtml({ ...card, show_state: false });
-  const body = applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, pick);
+  const body = applyCardClosing(cardReply(renderMarkdown(card), html), pick);
   return guide(
     {
       structuredContent: { card, html, ...(pick ? { which_job: true } : {}) },
-      _meta: { ...cardWidgetMeta },
-      content: [{ type: "text" as const, text: body, _meta: { ...cardWidgetMeta } }],
+      content: [{ type: "text" as const, text: body }],
     },
-    pick ? CARD_SHOWN_PICK : CARD_SHOWN,
+    pick ? "Wait for the user's pick." : "",
   );
 }
 

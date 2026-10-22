@@ -132,9 +132,15 @@ describe("submittal log read", () => {
     const text = result.content[0].text ?? "";
     expect(state.filters).toContainEqual({ table: "mcp_submittals", col: "job_id", val: JOB_2701 });
     expect(state.writes).toEqual([]);
+    expect(text).not.toMatch(/REQUIRED VIEW|do not add text/i);
+    expect(text.indexOf("## ")).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf("## ")).toBeLessThan(text.indexOf("<!doctype html"));
     expect(text).toContain("No submittals on this job yet.");
     expect(text).toContain("log a submittal");
     expect(text).toContain("<!doctype html");
+    expect(text).toContain("#1E3A5F");
+    expect(text).toContain("#1E5FED");
+    expect(text.trim()).not.toBe("No submittals on this job yet.");
     expect(result.structuredContent.card.title).toBe("Submittal log");
     expect(text).not.toContain("A1020");
     expect(paletteViolations(result.structuredContent.html, false)).toEqual([]);

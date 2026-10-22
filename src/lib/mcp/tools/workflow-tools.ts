@@ -17,9 +17,8 @@ import { withoutClaims } from "../internal-claims";
 import { LOOKAHEAD_EMAIL_LINE } from "../email-safety";
 import { dataDateRule, pickLatestLookahead, type LaRow, emptyCard, lookaheadView, lookaheadModel, entryLine, lookaheadWindow, pageLine, windowActivities, type LaItem, type LaModel, type SAct } from "../styled-views";
 import { renderHtml } from "../cards/html";
-import { htmlBlock, renderMarkdown } from "../cards/markdown";
+import { cardReply, renderMarkdown } from "../cards/markdown";
 import { applyCardClosing } from "../cards/silence";
-import { cardWidgetMeta } from "../cards/widget";
 import { signedJobPages } from "../board-url";
 import { whichJobAsk } from "../which-job";
 import { dueOf, isDueIn7, isOverdue, itemName, openItemFeed, openItemsCard, openItemsHeader } from "../open-feed";
@@ -1382,7 +1381,7 @@ export function lookaheadListLead(jobNumber: string, visible: { items: number }[
 export const lookaheadList = defineTool({
   name: "lookahead_list",
   title: "List lookaheads",
-  description: "Lists how many lookaheads a job has, which are visible, and writes nothing.",
+  description: "Lists how many lookaheads a job has, as the styled card in the result, and writes nothing.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
@@ -1432,12 +1431,11 @@ export const lookaheadList = defineTool({
         ],
       };
       const html = renderHtml(card);
-      const body = applyCardClosing(`${lead}\n\n${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
+      const body = applyCardClosing(cardReply(renderMarkdown(card), html, lead), false);
       return guide(
         {
           ...text(body),
           structuredContent: { total_visible: rows.length, items, card, html },
-          _meta: { ...cardWidgetMeta },
         },
         "The card is shown. Add nothing after it.",
       );

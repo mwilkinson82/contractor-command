@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { inferCard } from "./infer";
 import { attachAthenaCard } from "./attach";
 import { CARD_SHOWN, CARD_SHOWN_PICK } from "./silence";
-import { CARD_WIDGET_URI, cardWidgetHtml } from "./widget";
+import { cardWidgetHtml } from "./widget";
 import { renderHtml } from "./html";
 import { renderMarkdown } from "./markdown";
 import { plainLabel } from "../plain-label";
@@ -64,9 +64,9 @@ describe("PM tools become cards", () => {
     expect(after.structuredContent.card.progress).toEqual({ done: 3, total: 7 });
     expect(after.content[0].text).toContain("## 🔵 Next question");
     expect(after.content[0].text).toContain(before);
-    expect(after.content[0].text).toContain("REQUIRED VIEW: render this HTML card as-is.");
+    expect(after.content[0].text).not.toMatch(/REQUIRED VIEW|do not add text/i);
     expect(after.structuredContent.html).toContain("What are the pay terms?");
-    expect(after._meta["openai/outputTemplate"]).toBe(CARD_WIDGET_URI);
+    expect(after._meta["openai/outputTemplate"]).toBeUndefined();
   });
 
   it("contract_terms paints the liquidated damages clause itself red and keeps every line inside the card", () => {
@@ -96,8 +96,8 @@ describe("PM tools become cards", () => {
     expect(after.structuredContent.card.ask?.prompt).toContain("Do you want me to summarize");
     expect(after.content[0].text).toContain("- §6.3 Liquidated Damages");
     expect(after.content[0].text).toContain("Incomplete terms");
-    expect(after.content[0].text.trim().endsWith(CARD_SHOWN)).toBe(true);
-    const beforeClose = after.content[0].text.trim().slice(0, -CARD_SHOWN.length).trim();
+    expect(after.content[0].text.trim().endsWith("</html>")).toBe(true);
+    const beforeClose = after.content[0].text.trim();
     expect(beforeClose.endsWith("</html>")).toBe(true);
     expect(beforeClose.match(/<!doctype html/gi)).toHaveLength(1);
     expect(beforeClose).not.toContain("&lt;");
@@ -110,9 +110,10 @@ describe("PM tools become cards", () => {
     const companyCard = attachAthenaCard("list_open_items", { content: [{ type: "text", text: companies }] }) as unknown as { content: { text: string }[]; structuredContent: { card: CardModel } };
     expect(companyCard.structuredContent.card.state).toBe("ask");
     expect(companyCard.structuredContent.card.title).toBe("Which job?");
-    expect(companyCard.content[0].text.startsWith("## 🔵 Which job?")).toBe(true);
+    expect(companyCard.content[0].text).toContain("## 🔵 Which job?");
+    expect(companyCard.content[0].text).not.toMatch(/REQUIRED VIEW|do not add text/i);
     expect(companyCard.content[0].text).toContain("Harbor Electric: 2701");
-    expect(companyCard.content[0].text.trim().endsWith(CARD_SHOWN_PICK)).toBe(true);
+    expect(companyCard.content[0].text.trim().endsWith("</html>")).toBe(true);
     const items = "2701 – Open items (2):\n- OVERDUE storm delay\n- Buy the gear";
     const itemCard = attachAthenaCard("list_open_items", { content: [{ type: "text", text: items }] }) as unknown as { structuredContent: { card: CardModel; html: string }; content: { text: string }[] };
     expect(itemCard.structuredContent.card.state).toBe("result");
@@ -123,6 +124,23 @@ describe("PM tools become cards", () => {
     expect(itemCard.content[0].text).toContain("OVERDUE storm delay");
     expect(itemCard.content[0].text).toContain("Buy the gear");
     expect(itemCard.structuredContent.card.kpis?.find((k) => k.label === "Open items")?.value).toBe("2");
+  });
+
+  it("puts every saved SOV line on the report card", () => {
+    const line_items = Array.from({ length: 10 }, (_, i) => ({
+      item_no: `26.${String(i + 1).padStart(2, "0")}`,
+      cost_code: "26-010",
+      description: `Line ${i + 1}`,
+      scheduled_value_display: "$140,000.00",
+    }));
+    const card = inferCard("report", "2701 – Harbor\nSCHEDULE OF VALUES\nLine | Cost code | Division | Description | Scheduled value | % of total\n26.01 | 26-010 | 26 Electrical | Line 1 | $140,000.00 | 10%", {
+      sov: { line_items },
+    });
+    const rows = card.sections?.find((section) => section.heading === "Schedule of values")?.rows ?? [];
+    expect(card.title).toBe("Schedule of values");
+    expect(rows).toHaveLength(10);
+    expect(rows[0].cells).toEqual(["26.01", "26-010", "Line 1", "$140,000.00"]);
+    expect(rows[9].cells[0]).toBe("26.10");
   });
 
   it("does not nest an HTML card inside a Result list item", () => {

@@ -473,10 +473,14 @@ export function buildFieldPayApp(
   const billing: Record<string, { d: number | null; e: number | null }> = {};
   const notes = new Map<string, string>();
   for (const line of lines) {
+    if (typeof line.scheduled_value !== "number") continue;
     const now = current.find((p) => p.item_no === line.item_no);
     const prev = previous.find((p) => p.item_no === line.item_no);
-    if (now?.pct == null && prev?.pct == null) continue;
-    if (typeof line.scheduled_value !== "number") continue;
+    // Every saved SOV line is on the continuation. No daily progress is $0 this period, not a missing scheduled value.
+    if (now?.pct == null && prev?.pct == null) {
+      billing[line.item_no] = { d: 0, e: 0 };
+      continue;
+    }
     const prevDollars = prev?.pct == null ? 0 : round2((line.scheduled_value * prev.pct) / 100);
     let nowDollars = now?.pct == null ? prevDollars : round2((line.scheduled_value * now.pct) / 100);
     if (nowDollars + 0.001 < prevDollars) {
@@ -567,7 +571,7 @@ export function buildFieldPayApp(
 
 export function payAppCard(jobLabel: string, period: string, app: G702): string {
   const line = (r: G703Row) =>
-    `- ${r.item_no} ${r.description}: previous ${r.previous == null ? "blank" : money(r.previous)}, this period ${r.this_period == null ? "blank" : money(r.this_period)}, completed ${r.total_completed == null ? "blank" : money(r.total_completed)}, ${r.pct_complete == null ? "percent needed" : `${r.pct_complete}%`}, balance ${r.balance == null ? "blank" : money(r.balance)}${r.note ? ` (${r.note})` : ""}`;
+    `- ${r.item_no} ${r.description}: scheduled ${money(r.scheduled_value)}, previous ${r.previous == null ? "blank" : money(r.previous)}, this period ${r.this_period == null ? "blank" : money(r.this_period)}, completed ${r.total_completed == null ? "blank" : money(r.total_completed)}, ${r.pct_complete == null ? "percent needed" : `${r.pct_complete}%`}, balance ${r.balance == null ? "blank" : money(r.balance)}${r.note ? ` (${r.note})` : ""}`;
   return [
     "REQUIRED: Show this as a G702 summary and a G703 continuation. Navy, blue and gray only. Do not draw it if a check fails.",
     `${jobLabel}Pay app through ${period}`,

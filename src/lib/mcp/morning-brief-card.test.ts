@@ -125,6 +125,7 @@ describe("morning card styling", () => {
     expect(pmCard.card.sections?.[0]?.heading).toBe(INBOX_SECTION);
     expect(superHtml).toContain("From your inbox and calendar");
     expect(superHtml).toContain("Connect Gmail and Google Calendar");
+    expect(superHtml).toContain("Connect Google Calendar in your AI.");
     expect(pmHtml).toContain("From your inbox and calendar");
     expect(superHtml).not.toContain("Overnight emails");
     expect(superCard.card.sections?.slice(1).some((section) => section.heading === "Today" || section.heading === "Open items")).toBe(true);

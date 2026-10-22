@@ -75,7 +75,7 @@ const checkDeliverable = async (d: EmailDraft, sb?: Sb) => {
 export const emailDraft = defineTool({
   name: "email_draft",
   title: "Show an email draft for review",
-  description: "Shows an email draft for review.",
+  description: "Shows an email draft for review as the styled card in the result.",
   inputSchema: {
     ...fields,
     job_number: z.string().trim().max(40).optional(),

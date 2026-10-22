@@ -2,7 +2,6 @@
 import { renderHtml } from "./cards/html";
 import { htmlBlock, renderMarkdown } from "./cards/markdown";
 import type { CardModel } from "./cards/model";
-import { cardWidgetMeta } from "./cards/widget";
 import { guide } from "./visible";
 
 export function errorCard(title: string, message: string) {
@@ -17,9 +16,8 @@ export function errorCard(title: string, message: string) {
   const body = `${renderMarkdown(card)}\n\n${htmlBlock(html)}`;
   return guide(
     {
-      content: [{ type: "text" as const, text: body, _meta: { ...cardWidgetMeta } }],
+      content: [{ type: "text" as const, text: body }],
       structuredContent: { card, html },
-      _meta: { ...cardWidgetMeta },
     },
     "Show this card. Do not say the tool could not be used.",
   );

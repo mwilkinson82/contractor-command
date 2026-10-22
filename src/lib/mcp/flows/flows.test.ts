@@ -139,12 +139,12 @@ describe("sample path on job 2701", () => {
         expect(r.structuredContent.html).toContain("<!doctype html>");
         const text = r.content.find((c) => c.type === "text")?.text ?? "";
         expect(text.startsWith("## 🔵"), name).toBe(true);
+        expect(text, name).not.toMatch(/REQUIRED VIEW|do not add text/i);
         expect(text).toContain("Sample on job 2701");
-        expect(text).toContain("REQUIRED VIEW: render this HTML card as-is.");
-        expect(text.trim().endsWith(CARD_SHOWN), name).toBe(true);
+        expect(text.trim().endsWith("</html>"), name).toBe(true);
         expect(r.content[0].type).toBe("text");
         expect(r.content.some((c) => c.type === "resource")).toBe(false);
-        expect(r._meta?.["openai/outputTemplate"]).toBe("ui://athena/card.html");
+        expect(r._meta?.["openai/outputTemplate"]).toBeUndefined();
         expect(Object.keys(r)[0]).toBe("structuredContent");
       }
     }
@@ -166,9 +166,10 @@ describe("sample path on job 2701", () => {
       const carded = attachAthenaCard(name, raw) as unknown as { content: { text?: string }[]; structuredContent: { card: { state: string; title: string } } };
       expect(carded.structuredContent.card.title, name).toBe("Which job?");
       expect(carded.structuredContent.card.state, name).toBe("ask");
-      expect(carded.content[0].text?.startsWith("## 🔵 Which job?"), name).toBe(true);
+      expect(carded.content[0].text, name).toContain("## 🔵 Which job?");
+      expect(carded.content[0].text, name).not.toMatch(/REQUIRED VIEW|do not add text/i);
       expect(carded.content[0].text, name).not.toMatch(/^No job named/);
-      expect(carded.content[0].text?.trim().endsWith(CARD_SHOWN_PICK), name).toBe(true);
+      expect(carded.content[0].text?.trim().endsWith("</html>"), name).toBe(true);
       expect(z.object((tool as { inputSchema: Record<string, z.ZodTypeAny> }).inputSchema).safeParse({}).success).toBe(true);
       expect(z.object((tool as { inputSchema: Record<string, z.ZodTypeAny> }).inputSchema).safeParse({ job_number: "" }).success).toBe(true);
     }
@@ -216,7 +217,7 @@ describe("sample path on job 2701", () => {
     }
     const bridge = readFileSync("src/lib/mcp/widget-bridge.ts", "utf8");
     expect(bridge).not.toContain("toolInvocation");
-    expect(bridge).toContain("openai/outputTemplate");
+    expect(bridge).not.toContain("openai/outputTemplate");
   });
 
   it("puts the field board and open items on every meeting card", () => {
@@ -250,8 +251,8 @@ describe("sample path on job 2701", () => {
     expect(r.structuredContent.card.title).toBe("Morning brief");
     expect(text).toContain("2701 Harbor Point");
     expect(text).toContain("Next move");
-    expect(text.trim().endsWith(CARD_SHOWN)).toBe(true);
-    const before = text.trim().slice(0, -CARD_SHOWN.length).trim();
+    expect(text).not.toMatch(/REQUIRED VIEW|do not add text/i);
+    const before = text.trim();
     expect(before.endsWith("</html>")).toBe(true);
     expect(before.match(/<!doctype html/gi)).toHaveLength(1);
     expect(before).not.toContain("```");
@@ -286,8 +287,8 @@ describe("sample path on job 2701", () => {
     expect(text).toContain("2702 Pier");
     expect(text).not.toContain("Which job's morning hitlist?");
     expect(text).toContain("Next move");
-    expect(text.trim().endsWith(CARD_SHOWN)).toBe(true);
-    const before = text.trim().slice(0, -CARD_SHOWN.length).trim();
+    expect(text).not.toMatch(/REQUIRED VIEW|do not add text/i);
+    const before = text.trim();
     expect(before.endsWith("</html>")).toBe(true);
     expect(before.match(/<!doctype html/gi)).toHaveLength(1);
     expect(before).not.toContain("&lt;!doctype");

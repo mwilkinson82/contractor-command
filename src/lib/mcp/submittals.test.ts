@@ -150,7 +150,8 @@ describe("card and board", () => {
     const sealed = attachAthenaCard("submittals_list", { content: [{ type: "text", text: presented.text }], structuredContent: { card: presented.card } }) as {
       content: { text?: string }[];
     };
-    expect(sealed.content[0].text?.trim().endsWith(CARD_SHOWN)).toBe(true);
+    expect(sealed.content[0].text?.trim().endsWith("</html>")).toBe(true);
+    expect(sealed.content[0].text).not.toMatch(/REQUIRED VIEW|do not add text/i);
     expect(sealed.content[0].text).toContain("Submittal log");
     expect(sealed.content[0].text).toContain("SAMPLE Switchgear");
   });

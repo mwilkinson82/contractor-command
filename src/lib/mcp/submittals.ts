@@ -362,7 +362,13 @@ export function presentSubmittalLog(input: {
         : {
             heading: "Log",
             kind: "list" as const,
-            rows: [{ cells: [nothing ? "No submittals on this job yet." : "No submittals logged yet."] }],
+            rows: nothing
+              ? [
+                  { cells: ["No submittals on this job yet."] },
+                  { cells: ["Set the log up: say log a submittal, or paste the log to import it."] },
+                  { cells: [`${input.jobNumber} – ${input.jobName}`] },
+                ]
+              : [{ cells: ["No submittals logged yet."] }],
           },
     ] as CardSection[],
     next_move: input.readOnly
