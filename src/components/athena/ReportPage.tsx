@@ -107,7 +107,8 @@ export function ReportPageView({ page, jobId, companyId, token }: { page: AnyPag
       </div>
     );
   }
-  if (!session) {
+  // A valid board token already has a payload. Sign-in is only for a visitor with neither a session nor a payload.
+  if (!session && !payload) {
     const back = typeof window === "undefined" ? `/r/job/${jobId ?? ""}/${query.view}` : `${window.location.pathname}${window.location.search}${window.location.hash}`;
     return (
       <div style={{ maxWidth: 480, margin: "15vh auto", background: "#fff", border: "1px solid #D1D5DB", borderRadius: 12, padding: 32, color: "#6B7280" }}>
@@ -116,7 +117,8 @@ export function ReportPageView({ page, jobId, companyId, token }: { page: AnyPag
       </div>
     );
   }
-  if (q.error || !payload) {
+  // Signed-in members with no row see "no access". A token payload skips this branch.
+  if (!payload || (session && q.error)) {
     return (
       <div style={{ maxWidth: 480, margin: "15vh auto", background: "#fff", border: "1px solid #D1D5DB", borderRadius: 12, padding: 32, color: "#6B7280" }}>
         <h1 style={{ margin: "0 0 12px", fontSize: 20, color: "#2563EB" }}>You don't have access to this page</h1>
