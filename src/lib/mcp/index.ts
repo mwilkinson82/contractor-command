@@ -1,7 +1,5 @@
 import "./widget-bridge";
 import { auth, defineMcp } from "@lovable.dev/mcp-js";
-import { CARD_TOOLS } from "./cards/attach";
-import { stampCardWidget } from "./cards/widget";
 import { ATHENA_VERSION } from "./server-info-branding";
 import { ATHENA_ROUTE_LINE, GREETING_RULE } from "./greeting";
 import { EMAIL_DRAFT_ONLY_RULE } from "./email-safety";
@@ -68,8 +66,6 @@ const projectRef = import.meta.env["VITE_SUPABASE_PROJECT_ID"] ?? "project-ref-u
 
 /** All Athena tools, in tools/list order. */
 export const ATHENA_TOOLS = [onboarding, intake, nextQuestion, answer, report, contractTerms, carryForward, listOpenItems, lookaheadList, resolveItem, cpmActivities, livingReportGet, livingReportSave, fileShare, fileShareRevoke, lookaheadPdfTool, reportPageLink, reportPageShare, reportPageShareRevoke, teamList, teamInvite, teamUpdateMember, teamRemoveMember, teamAddSeats, setCurrentCompany, estimateIntake, estimateDocReview, estimateTakeoffSave, estimateTakeoffGet, estimateTakeoffExport, estimateGapAnalysis, estimateBidCheck, estimateItemMark, estimateBuild, estimateStatus, estimatePricing, estimateRateSources, estimateGeneralConditions, estimateRequirements, estimateBidSummary, superintendentView, fieldBoard, superintendentActivity, dailyReportDraft, dailyReportSave, dailyReportGet, fieldPayApp, fieldScheduleFeed, fieldProductionRates, progressPhotoSave, progressPhotos, dailyReminder, dailyReminderRun, pmMeeting, pmMorning, pmMorningMeeting, pmEvening, athenaHello, morningBrief, morningBriefSettings, emailDraft, emailConfirmSend, submittalLog, submittalsList, submittalsImport, projectRecordSearch, submittalChase, gettingStarted];
-
-stampCardWidget(ATHENA_TOOLS.filter((tool) => CARD_TOOLS.has(tool.name) || tool.name === "lookahead_list"));
 
 export default defineMcp({
   name: "athena",

@@ -63,9 +63,9 @@ if (!proto[patched]) {
         // A second server in the same process already registered this uri.
       }
     }
-    const next = CARD_WIDGET_TOOLS.has(name)
-      ? { ...config, _meta: { ...(config?._meta ?? {}), ...TEMPLATE } }
-      : config;
+    // Leave the tool definition alone. openai/outputTemplate on tools/list makes ChatGPT
+    // treat the tool as a widget, skip the styled card text, and hide the Athena icon.
+    const next = config;
     const wrapped = async (...args: unknown[]) => {
       const result = (await cb(...args)) ?? {};
       if (!CARD_WIDGET_TOOLS.has(name)) return result;

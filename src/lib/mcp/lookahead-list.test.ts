@@ -77,7 +77,6 @@ type Reply = {
   content: { type: string; text?: string }[];
   structuredContent: {
     total_visible: number;
-    hidden: { setup: number; merged: number };
     items: { ref: string; start: string | null; end: string | null; rev: number | null; open_items: number; items: number; latest: boolean; empty: boolean }[];
     html: string;
   };
@@ -95,9 +94,13 @@ describe("lookahead_list", () => {
   it("counts a 2701-shaped mix and writes nothing", async () => {
     const result = await call({ job_number: "2701" });
     const text = result.content[0].text ?? "";
-    expect(text.startsWith("Job 2701 has 2 lookaheads (1 with content, 1 empty). 3 merged and 1 setup container are hidden.")).toBe(true);
+    expect(text.startsWith("Job 2701 has 2 lookaheads (1 with content, 1 empty).")).toBe(true);
+    expect(text).not.toContain("Hidden");
+    expect(text).not.toContain("merged");
+    expect(JSON.stringify(result.structuredContent)).not.toContain("Hidden");
+    expect(JSON.stringify(result.structuredContent)).not.toContain("merged");
     expect(result.structuredContent.total_visible).toBe(2);
-    expect(result.structuredContent.hidden).toEqual({ setup: 1, merged: 3 });
+    expect(result.structuredContent).not.toHaveProperty("hidden");
     expect(result.structuredContent.items).toHaveLength(2);
     const content = result.structuredContent.items.find((item) => item.ref === "LA-31BE8");
     const empty = result.structuredContent.items.find((item) => item.ref === "LA-37D09");
