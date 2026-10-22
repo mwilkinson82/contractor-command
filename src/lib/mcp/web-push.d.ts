@@ -3,5 +3,5 @@ declare module "web-push" {
   export function sendNotification(
     sub: { endpoint: string; keys: { p256dh: string; auth: string } },
     payload: string,
-  ): Promise<unknown>;
+  ): Promise<{ statusCode?: number }>;
 }

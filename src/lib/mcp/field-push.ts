@@ -7,11 +7,41 @@ export const VAPID_SUBJECT = "mailto:support@meetathena.io";
 export const FIELD_PUSH_TITLE = "Today's daily isn't in yet";
 export const TEST_PUSH_JOB = "2701";
 
-export function vapidConfig(env: Record<string, string | undefined> = process.env): { publicKey: string; privateKey: string } | null {
+export function vapidConfig(
+  env: Record<string, string | undefined> = process.env,
+): { publicKey: string; privateKey: string } | null {
   const publicKey = env[VAPID_PUBLIC_ENV]?.trim() ?? "";
   const privateKey = env[VAPID_PRIVATE_ENV]?.trim() ?? "";
   if (!publicKey || !privateKey) return null;
   return { publicKey, privateKey };
+}
+
+/** Logged when either VAPID env var is missing. Names the variables and never includes their values. */
+export const VAPID_MISSING_STATUS =
+  "Athena field push did not send. ATHENA_VAPID_PUBLIC_KEY and ATHENA_VAPID_PRIVATE_KEY are not set.";
+
+export function pushHttpCode(error: unknown): number | null {
+  if (!error || typeof error !== "object") return null;
+  const record = error as { statusCode?: unknown; status?: unknown };
+  const code = record.statusCode ?? record.status;
+  return typeof code === "number" && Number.isInteger(code) ? code : null;
+}
+
+/** 404 and 410 mean the browser subscription is gone. */
+export function pushIsGone(httpCode: number | null): boolean {
+  return httpCode === 404 || httpCode === 410;
+}
+
+/** Short failure text. Drops any configured key material that a library error might echo. */
+export function pushErrorText(error: unknown, secrets: readonly string[] = []): string {
+  const raw = error instanceof Error && error.message.trim() ? error.message : "Push send failed.";
+  let text = raw.replace(/\s+/g, " ").trim();
+  for (const secret of secrets) {
+    const value = secret.trim();
+    if (value.length < 8) continue;
+    text = text.split(value).join("[redacted]");
+  }
+  return (text.trim() || "Push send failed.").slice(0, 500);
 }
 
 export type PushCandidate = {
@@ -43,7 +73,11 @@ export function pushIsDue(row: PushCandidate, now: Date): boolean {
   return clock.minutes >= send;
 }
 
-export function pushPayload(jobId: string, jobNumber: string, origin: string): { title: string; body: string; url: string } {
+export function pushPayload(
+  jobId: string,
+  jobNumber: string,
+  origin: string,
+): { title: string; body: string; url: string } {
   return {
     title: FIELD_PUSH_TITLE,
     body: `Job ${jobNumber}: start your daily report and progress photos.`,
@@ -62,7 +96,14 @@ export function fieldManifest(jobId: string, origin: string) {
     display: "standalone",
     background_color: "#F3F4F6",
     theme_color: "#1E3A5F",
-    icons: [{ src: `${root}/brand/athena/athena-primary-512.png`, sizes: "512x512", type: "image/png", purpose: "any" }],
+    icons: [
+      {
+        src: `${root}/brand/athena/athena-primary-512.png`,
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "any",
+      },
+    ],
   };
 }
 
