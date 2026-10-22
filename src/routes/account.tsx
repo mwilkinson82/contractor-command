@@ -12,7 +12,8 @@ import { createBillingPortalSession, submitBillingQuestion } from "@/lib/billing
 import { TeamSection, useAccountTeam } from "@/components/account/team-section";
 import { planLabel, planRate, seatSummary } from "@/lib/account-team";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { onAthenaHost } from "@/lib/athena-host-current";
+import { currentHostname, onAthenaHost } from "@/lib/athena-host-current";
+import { HUB_ACCOUNT_TITLE, pageTitle } from "@/lib/host-document";
 import { pageUrl } from "@/lib/report-pages";
 import { AthenaStartTip } from "@/components/athena/start-tip";
 import { MorningBriefPushBar } from "@/components/athena/MorningBriefPushBar";
@@ -20,7 +21,7 @@ import { MorningBriefPushBar } from "@/components/athena/MorningBriefPushBar";
 const LOGO_BUCKET = "company-logos";
 
 export const Route = createFileRoute("/account")({
-  head: () => ({ meta: [{ title: "Account — ALP Contractor Circle" }] }),
+  head: () => ({ meta: [{ title: pageTitle(currentHostname(), HUB_ACCOUNT_TITLE) }] }),
   component: AccountPage,
 });
 

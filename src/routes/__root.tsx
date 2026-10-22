@@ -30,6 +30,7 @@ import { setPresence, resetPresence, type PresenceUser } from "@/lib/portal-pres
 import { toast } from "sonner";
 import { athenaAppOrigin } from "@/lib/athena-host";
 import { currentHostname, onAthenaHost } from "@/lib/athena-host-current";
+import { documentBrand, iconLinks } from "@/lib/host-document";
 import { athenaHostRedirect, isHostedReport, isTodayPage } from "@/lib/athena-routes";
 import { LOVABLE_AUTH_REDIRECT_BOOT, lovableAuthRedirectTarget } from "@/lib/lovable-auth-redirect";
 
@@ -45,45 +46,9 @@ const PUBLIC_ROUTES = new Set([
   "/.lovable/oauth/consent",
 ]);
 const ONBOARDING_ROUTE = "/onboarding";
-const APP_ORIGIN = "https://app.alpcontractorcircle.com";
-const DEFAULT_TITLE = "Command Center — Contractor Circle";
-const DEFAULT_DESCRIPTION =
-  "The private member portal for Contractor Circle: live calls with Marshall, AOS access, replays, templates, Ask Marshall, and the operating process behind the projects.";
-const SOCIAL_IMAGE_URL = `${APP_ORIGIN}/brand/circle-v1/social.png`;
-const ATHENA_TITLE = "Athena powered by ALP, construction agents";
-const ATHENA_DESCRIPTION = "Athena: construction agents by ALP for contracts, schedules, lookaheads and notices.";
 
-type Brand = {
-  title: string;
-  description: string;
-  appName: string;
-  shortName: string;
-  siteName: string;
-  origin: string;
-  imageAlt: string;
-};
-
-function brandForHost(): Brand {
-  if (onAthenaHost()) {
-    return {
-      title: ATHENA_TITLE,
-      description: ATHENA_DESCRIPTION,
-      appName: "Athena",
-      shortName: "Athena",
-      siteName: "Athena",
-      origin: athenaAppOrigin(),
-      imageAlt: "Athena by ALP.",
-    };
-  }
-  return {
-    title: DEFAULT_TITLE,
-    description: DEFAULT_DESCRIPTION,
-    appName: "Contractor Circle Command Center",
-    shortName: "Contractor Circle",
-    siteName: "Contractor Circle",
-    origin: APP_ORIGIN,
-    imageAlt: "Contractor Circle Command Center branded preview.",
-  };
+function brandForHost() {
+  return documentBrand(currentHostname(), athenaAppOrigin());
 }
 
 // Run before the app shell mounts. Auth links can arrive at "/" with tokens in
@@ -206,51 +171,44 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   },
   head: () => {
     const b = brandForHost();
-    const athena = b.siteName === "Athena";
     return {
-    meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: b.title },
-      { name: "application-name", content: b.appName },
-      { name: "apple-mobile-web-app-title", content: b.shortName },
-      { name: "theme-color", content: "#FAF9F5" },
-      { name: "robots", content: athena ? "noindex, nofollow" : "index, follow" },
-      { name: "description", content: b.description },
-      { property: "og:title", content: b.title },
-      { property: "og:site_name", content: b.siteName },
-      { property: "og:url", content: b.origin },
-      { name: "twitter:title", content: b.title },
-      { property: "og:description", content: b.description },
-      { name: "twitter:description", content: b.description },
-      ...(athena
-        ? [{ name: "twitter:card", content: "summary" }]
-        : [
-            { property: "og:image", content: SOCIAL_IMAGE_URL },
-            { property: "og:image:type", content: "image/png" },
-            { property: "og:image:width", content: "1024" },
-            { property: "og:image:height", content: "1024" },
-            { property: "og:image:alt", content: b.imageAlt },
-            { name: "twitter:image", content: SOCIAL_IMAGE_URL },
-            { name: "twitter:card", content: "summary_large_image" },
-          ]),
-      { property: "og:type", content: "website" },
-    ],
-    links: [
-      { rel: "stylesheet", href: appCss },
-      { rel: "canonical", href: b.origin },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Caveat:wght@400;600&family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap",
-      },
-      // Host-aware (src/lib/site-icons.ts): Athena logo on meetathena.io hosts,
-      // Circle icons everywhere else.
-      { rel: "icon", sizes: "any", href: "/favicon.ico" },
-      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
-      { rel: "manifest", href: "/site.webmanifest" },
-    ],
+      meta: [
+        { charSet: "utf-8" },
+        { name: "viewport", content: "width=device-width, initial-scale=1" },
+        { title: b.title },
+        { name: "application-name", content: b.appName },
+        { name: "apple-mobile-web-app-title", content: b.shortName },
+        { name: "theme-color", content: "#FAF9F5" },
+        { name: "robots", content: b.athena ? "noindex, nofollow" : "index, follow" },
+        { name: "description", content: b.description },
+        { property: "og:title", content: b.ogTitle },
+        { property: "og:site_name", content: b.siteName },
+        { property: "og:url", content: b.origin },
+        { name: "twitter:title", content: b.ogTitle },
+        { property: "og:description", content: b.description },
+        { name: "twitter:description", content: b.description },
+        { property: "og:image", content: b.ogImage.url },
+        { property: "og:image:type", content: b.ogImage.type },
+        { property: "og:image:width", content: b.ogImage.width },
+        { property: "og:image:height", content: b.ogImage.height },
+        { property: "og:image:alt", content: b.ogImage.alt },
+        { name: "twitter:image", content: b.ogImage.url },
+        { name: "twitter:card", content: b.twitterCard },
+        { property: "og:type", content: "website" },
+      ],
+      links: [
+        { rel: "stylesheet", href: appCss },
+        { rel: "canonical", href: b.origin },
+        { rel: "preconnect", href: "https://fonts.googleapis.com" },
+        { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+        {
+          rel: "stylesheet",
+          href: "https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Caveat:wght@400;600&family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap",
+        },
+        // Host-aware (src/lib/site-icons.ts): Athena logo on meetathena.io hosts,
+        // Circle icons everywhere else. Athena also links the 64px PNG.
+        ...iconLinks(b.athena),
+      ],
     };
   },
   shellComponent: RootShell,
