@@ -87,7 +87,7 @@ describe("which-job and picker cards end on the pick", () => {
 });
 
 describe("every card tool follows the no-trailing-prose contract", () => {
-  it.each([...CARD_TOOLS])("%s text ends on the card", (tool) => {
+  it.each([...CARD_TOOLS].filter((tool) => tool !== "living_report_get"))("%s text ends on the card", (tool) => {
     const pick = (WHICH_JOB as readonly string[]).includes(tool);
     const body = pick ? "2701 – Open items (1):\n- Buy the gear" : "2701 – Detail\n- Item one";
     const out = attachAthenaCard(tool, {

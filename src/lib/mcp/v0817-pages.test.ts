@@ -113,12 +113,10 @@ describe("chat views: link first, then the finished view", () => {
       contract: 1400000,
       pageUrl: pageUrl("payapp", JOB),
     });
-    expect(v.split("\n")[0]).toBe(
-      `Styled pay app (always current, private to your company): ${pageUrl("payapp", JOB)}`,
-    );
-    expect(v).toContain(SHOW_AS_IS);
-    expect(v).toContain("**Forecast total $1,400,000.00 = contract $1,400,000.00**");
-    expect(v).toMatch(/\| Nov 2026 \| ⚪ Forecast \| \$400,000.00 \| \$400,000.00 \|/);
+    expect(v).toContain(`href="${pageUrl("payapp", JOB)}"`);
+    expect(v).toContain("<!doctype html>");
+    expect(v).toContain("Forecast total $1,400,000.00 = contract $1,400,000.00");
+    expect(v).toMatch(/\| Nov 2026 \| Forecast \| \$400,000.00 \| \$400,000.00 \|/);
   });
   it("empty pay app card leads with the link and ends with a Next move", () => {
     const v = emptyCard(
