@@ -396,7 +396,7 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
   const authHashTarget = getAuthHashTarget(pathname);
   const navigate = useNavigate();
   const router = useRouter();
-  // /r/job/.../field and /r/job/.../items share this gate. A signed-in field board
+  // /r/job/.../field, /items, and /submittals share this gate. A signed-in field board
   // must not send the open-items page to /login before the session can be read.
   const isPublic = PUBLIC_ROUTES.has(pathname) || isHostedReport(pathname) || isTodayPage(pathname);
   const isOnboarding = pathname === ONBOARDING_ROUTE;

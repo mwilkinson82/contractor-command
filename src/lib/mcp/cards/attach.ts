@@ -14,7 +14,7 @@ type Res = {
 };
 
 /** These results open on the card. No sweep, style line, or footer is left outside it. */
-export const CARD_FIRST_TOOLS = new Set(["contract_terms", "pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "morning_brief", "morning_brief_settings", "report_page_link"]);
+export const CARD_FIRST_TOOLS = new Set(["contract_terms", "pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "athena_hello", "morning_brief", "morning_brief_settings", "report_page_link", "list_open_items", "submittal_log", "submittals_list", "submittals_import", "project_record_search", "submittal_chase"]);
 
 /** Tools whose plain text is wrapped in a card. Flow tools set their own card. */
 export const CARD_TOOLS = new Set([
@@ -36,12 +36,18 @@ export const CARD_TOOLS = new Set([
   "pm_meeting",
   "pm_morning",
   "athena_morning_hitlist",
+  "athena_hello",
   "morning_brief",
   "morning_brief_settings",
   "pm_evening",
   "superintendent_view",
   "field_board",
   "getting_started",
+  "submittal_log",
+  "submittals_list",
+  "submittals_import",
+  "project_record_search",
+  "submittal_chase",
 ]);
 
 function isCard(value: unknown): value is CardModel {
@@ -55,7 +61,7 @@ function stripChrome(text: string): string {
 }
 
 function whichJob(tool: string, text: string): boolean {
-  const meeting = tool === "list_open_items" || tool === "pm_meeting" || tool === "pm_morning" || tool === "pm_evening" || tool === "athena_morning_hitlist";
+  const meeting = tool === "list_open_items" || tool === "pm_meeting" || tool === "pm_morning" || tool === "pm_evening" || tool === "athena_morning_hitlist" || tool === "submittal_log" || tool === "submittals_list" || tool === "submittals_import" || tool === "project_record_search" || tool === "submittal_chase";
   return meeting && isWhichJobText(text);
 }
 

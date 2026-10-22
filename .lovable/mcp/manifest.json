@@ -454,8 +454,8 @@
               "type": "string",
               "enum": [
                 "<$250k",
-                "$250k\u2013$2M",
-                "$2M\u2013$10M",
+                "$250k–$2M",
+                "$2M–$10M",
                 "$10M+"
               ]
             },
@@ -1881,8 +1881,8 @@
       },
       {
         "name": "report_page_link",
-        "title": "Board link",
-        "description": "Returns the private board link: items opens /items, ior opens /ior, and field opens /field.",
+        "title": "Job board link",
+        "description": "Returns the private job board link: items opens /items, ior opens /ior, and field opens /field.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -2446,6 +2446,18 @@
                 "minLength": 1,
                 "maxLength": 300
               }
+            },
+            "forms_faces": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "const": 1
+                },
+                {
+                  "type": "number",
+                  "const": 2
+                }
+              ]
             }
           },
           "required": [
@@ -2795,6 +2807,16 @@
                       }
                     ]
                   },
+                  "qty": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "range": {
                     "type": "string",
                     "maxLength": 40
@@ -3022,7 +3044,7 @@
       {
         "name": "estimate_gap_analysis",
         "title": "Estimate gap analysis",
-        "description": "Saves gap items that cite the drawing sheet and the spec section.",
+        "description": "Saves sheet-cited gaps after reading the estimator's basis notes and scope callouts, and must not back-solve a quantity to the estimator's number when the drawings do not define it.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -3139,6 +3161,83 @@
                 ]
               }
             },
+            "estimator_lines": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "item": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "qty": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "unit": {
+                    "type": "string",
+                    "maxLength": 20
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "sheet": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "detail": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "callout": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "drawing_low": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "drawing_high": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "drawing_defined": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "item"
+                ]
+              }
+            },
             "requirements": {
               "maxItems": 80,
               "type": "array",
@@ -3199,7 +3298,7 @@
       {
         "name": "estimate_bid_check",
         "title": "Sub bid check",
-        "description": "Checks each sub bid line against the takeoff for a general contractor job.",
+        "description": "Checks each in-scope sub bid line against the takeoff for a general contractor job and lists out-of-scope callouts in their own section.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -3309,7 +3408,7 @@
       {
         "name": "estimate_item_mark",
         "title": "Estimator mark",
-        "description": "Records the estimator mark on a takeoff line or a gap.",
+        "description": "Records the estimator mark on an existing takeoff line or gap and does not create a gap or change its number.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": true,
@@ -3368,7 +3467,7 @@
       {
         "name": "estimate_build",
         "title": "Estimate summary",
-        "description": "Builds the estimate summary from settled quantities and the contractor rates.",
+        "description": "Builds the estimate summary from settled quantities and the contractor rates as a landscape PDF.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -3481,7 +3580,7 @@
       {
         "name": "estimate_pricing",
         "title": "Pricing walkthrough",
-        "description": "Computes labor cost from the contractor's production and rates for a job.",
+        "description": "Prices a job from the contractor's labor and material rates, and asks for those rates when none are saved.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -4894,12 +4993,10 @@
           "properties": {
             "job_number": {
               "type": "string",
-              "minLength": 1,
               "maxLength": 40
             },
             "company_id": {
               "type": "string",
-              "minLength": 1,
               "maxLength": 200
             },
             "stage": {
@@ -4949,8 +5046,8 @@
       },
       {
         "name": "athena_morning_hitlist",
-        "title": "Athena, good morning, Hey Athena, Good morning Athena, Morning Athena, Athina, Athen, Atena",
-        "description": "Athena answers Athena, good morning, Hey Athena, Good morning Athena, Morning Athena, Athena at the start or mid-sentence, and misspellings Athina, Athen, and Atena, plus hitlist, morning briefing, what's on my plate today, overdue, and today's deadlines on my jobs, as the construction job hitlist, not email or calendar.",
+        "title": "Athena, good morning, Hey Athena, good morning, Good morning Athena, Morning Athena, Athina what's on my hitlist this morning, Athina, Athen, Atena",
+        "description": "Runs the per-job morning meeting when a job number was given, and with no job number returns the morning brief across every visible job, not email or calendar and not Gmail.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -4963,12 +5060,62 @@
           "properties": {
             "job_number": {
               "type": "string",
-              "minLength": 1,
               "maxLength": 40
             },
             "company_id": {
               "type": "string",
-              "minLength": 1,
+              "maxLength": 200
+            },
+            "stage": {
+              "type": "string",
+              "enum": [
+                "schedule",
+                "crews",
+                "risks",
+                "spillover",
+                "log"
+              ]
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "crew_mode": {
+              "type": "string",
+              "enum": [
+                "subcontract",
+                "self_perform"
+              ]
+            },
+            "sample": {
+              "type": "boolean",
+              "const": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "pm_morning",
+        "title": "PM morning meeting",
+        "description": "Runs the construction PM morning meeting when someone says morning meeting, PM morning, or start the morning meeting, picks the only job or the most recent job instead of asking which job, and does not hand the request to email or a calendar.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
               "maxLength": 200
             },
             "stage": {
@@ -5017,12 +5164,10 @@
           "properties": {
             "job_number": {
               "type": "string",
-              "minLength": 1,
               "maxLength": 40
             },
             "company_id": {
               "type": "string",
-              "minLength": 1,
               "maxLength": 200
             },
             "stage": {
@@ -5057,9 +5202,9 @@
         "outputSchema": null
       },
       {
-        "name": "morning_brief",
-        "title": "Morning brief",
-        "description": "Builds the member's morning brief across every job they can see when they say Athena, good morning, Hey Athena, Good morning Athena, Morning Athena, Athena at the start or mid-sentence, Athina, Athen, Atena, hitlist, morning briefing, what's on my plate today, overdue, or today's deadlines on my jobs, and this is the construction morning brief, not email or calendar, and nothing is sent.",
+        "name": "athena_hello",
+        "title": "Athena hello",
+        "description": "Returns the morning brief card when the user says Hey Athena, let's get started, Athena, let's get started, Good morning Athena, Hey Athena, what's on my plate today?, good morning, hey Athena, hello, or a misspelling like Athina, Athen, or Atena, and Athena answers first.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -5067,17 +5212,40 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "company_id": {
               "type": "string",
-              "minLength": 1,
               "maxLength": 200
             }
           },
           "additionalProperties": false
-        }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "morning_brief",
+        "title": "Morning brief",
+        "description": "Builds the member's construction morning brief across every job they can see when they say Athena, good morning, Hey Athena, let's get started, Athena, let's get started, Good morning Athena, Hey Athena, what's on my plate today?, Morning Athena, Athena at the start or mid-sentence, Athina, Athen, Atena, hitlist, morning briefing, what's on my plate today, overdue, or today's deadlines on my jobs, Athena leads, the host fills From your inbox and calendar with emails that came in overnight, unanswered emails that need a reply, and today's meetings, then the job side follows with the schedule, notices, submittals due, overdue items, and what happened yesterday versus what is due today, and nothing is sent.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "company_id": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
       },
       {
         "name": "morning_brief_settings",
@@ -5090,8 +5258,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "action": {
               "type": "string",
@@ -5113,7 +5281,8 @@
             }
           },
           "additionalProperties": false
-        }
+        },
+        "outputSchema": null
       },
       {
         "name": "email_draft",
@@ -5241,6 +5410,19 @@
             "confirmed": {
               "type": "boolean",
               "const": true
+            },
+            "job_number": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "submittal_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             }
           },
           "required": [
@@ -5254,9 +5436,531 @@
         "outputSchema": null
       },
       {
+        "name": "submittal_log",
+        "title": "Hey Athena, log a submittal",
+        "description": "Adds, updates, or resubmits a job submittal when someone says Hey Athena, log a submittal, or uses a misspelling such as submital, submittle, sumittal, or submittall.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "add",
+                "update",
+                "resubmit"
+              ]
+            },
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "submittal_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "number": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 99
+            },
+            "spec_section": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "submittal_type": {
+              "type": "string",
+              "enum": [
+                "product_data",
+                "shop_drawing",
+                "sample",
+                "other"
+              ]
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "not_started",
+                "in_prep",
+                "submitted",
+                "in_review",
+                "approved",
+                "approved_as_noted",
+                "revise_and_resubmit",
+                "rejected",
+                "closed"
+              ]
+            },
+            "ball_in_court": {
+              "type": "string",
+              "enum": [
+                "sub",
+                "gc",
+                "architect_engineer",
+                "owner"
+              ]
+            },
+            "ball_in_court_name": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "spec_derived",
+                "user",
+                "imported"
+              ]
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "not_required_reason": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "spec_excerpt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required_by": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "submitted_on": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "returned_on": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "notes": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 4000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "review_days": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365
+            },
+            "posture": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "strict",
+                    "advisory"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "package_items": {
+              "maxItems": 40,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "product_cut",
+                      "shop_drawing",
+                      "sample",
+                      "calc",
+                      "warranty",
+                      "other"
+                    ]
+                  },
+                  "source_party": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "file_ref": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "needed",
+                      "requested",
+                      "received",
+                      "approved"
+                    ]
+                  },
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "requested_at": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "received_at": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "chase_role": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "supplier",
+                          "manufacturer",
+                          "sub"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "chase_name": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "chase_email": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 320
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "last_chased_at": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "next_chase_at": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "chase_count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 999
+                  }
+                },
+                "required": [
+                  "kind",
+                  "source_party"
+                ]
+              }
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "submittals_list",
+        "title": "Submittal log and overdue submittals",
+        "description": "Lists a job's submittal log, including what submittals are overdue and the submittal log for a job number such as 2701.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "not_started",
+                "in_prep",
+                "submitted",
+                "in_review",
+                "approved",
+                "approved_as_noted",
+                "revise_and_resubmit",
+                "rejected",
+                "closed"
+              ]
+            },
+            "overdue": {
+              "type": "boolean"
+            },
+            "ball_in_court": {
+              "type": "string",
+              "enum": [
+                "sub",
+                "gc",
+                "architect_engineer",
+                "owner"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "submittals_import",
+        "title": "Import or paste a submittal log",
+        "description": "Previews a CSV or pasted submittal log and writes it only after a separate yes.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100000
+            },
+            "confirmed": {
+              "type": "boolean"
+            },
+            "import_key": {
+              "type": "string",
+              "maxLength": 20
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "project_record_search",
+        "title": "Project record for disputes and claims",
+        "description": "Searches the project record for a job by date, kind, or words, including the dispute and claim history.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "from": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "to": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "kind": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "text": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "submittal_chase",
+        "title": "Chase a missing or overdue submittal",
+        "description": "Drafts one chase email for an overdue or missing submittal and waits for a separate yes before anything is sent.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "submittal_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
         "name": "getting_started",
-        "title": "Hey Athena, getting started, let's get going, let's get started",
-        "description": "Routes Hey Athena, getting started, let's get going, and let's get started to first-job setup or the morning meeting.",
+        "title": "Hey Athena, let's get started",
+        "description": "Claims Hey Athena, let's get started, Athena, let's get started, Good morning Athena, and Hey Athena, what's on my plate today?, and let's get started runs guided onboarding: first job setup when there is no job, and the morning meeting when the member already has jobs.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,

@@ -43,7 +43,7 @@ describe("hosted pages: lookahead, payapp, briefing", () => {
     expect(pageUrl("lookahead", JOB)).toBe(`https://app.meetathena.io/r/job/${JOB}/lookahead`);
     expect(pageUrl("payapp", JOB)).toBe(`https://app.meetathena.io/r/job/${JOB}/payapp`);
     expect(pageUrl("briefing", JOB)).toBe(`https://app.meetathena.io/r/job/${JOB}/briefing`);
-    expect(JOB_PAGES).toEqual(["ior", "schedule", "lookahead", "payapp", "briefing", "field", "daily", "photos", "items"]);
+    expect(JOB_PAGES).toEqual(["ior", "schedule", "lookahead", "payapp", "briefing", "field", "daily", "photos", "items", "submittals"]);
     const items = reportPageQuery("items?utm_source=chatgpt.com", JOB, null);
     const field = reportPageQuery("field", JOB, null);
     expect(items.view).toBe("items");

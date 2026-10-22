@@ -47,10 +47,22 @@ const BOARD_BUTTON: Partial<Record<string, string>> = {
   field: "Open field board",
 };
 
+export function jobBoardCard(job: string | null, links: { label: string; href: string }[]): CardModel {
+  return {
+    state: "result",
+    show_state: false,
+    title: "Job board",
+    job,
+    sections: [{ heading: "Open", kind: "chips", rows: links.map((link) => ({ cells: [link.label], href: link.href, tone: "action" as const })) }],
+    next_move: null,
+  };
+}
+
 function boardLinkCard(page: string, job: string | null, url: string, expiresAt: string | null): CardModel {
   const label = PAGE_LABEL[page as keyof typeof PAGE_LABEL] ?? "Board";
   return {
     state: "result",
+    show_state: false,
     title: label,
     job,
     sections: [
@@ -63,8 +75,8 @@ function boardLinkCard(page: string, job: string | null, url: string, expiresAt:
 
 export const reportPageLink = defineTool({
   name: "report_page_link",
-  title: "Board link",
-  description: "Returns the private board link: items opens /items, ior opens /ior, and field opens /field.",
+  title: "Job board link",
+  description: "Returns the private job board link: items opens /items, ior opens /ior, and field opens /field.",
   inputSchema: { page, job_number: jobNumber, company_id: companyId },
   annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   handler: (args, ctx) =>

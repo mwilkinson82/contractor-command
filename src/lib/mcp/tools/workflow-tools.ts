@@ -20,6 +20,7 @@ import { signedJobPages } from "../board-url";
 import { whichJobAsk } from "../which-job";
 import { dueOf, isDueIn7, isOverdue, itemName, openItemFeed, openItemsCard, openItemsHeader } from "../open-feed";
 import { completionDate, contractValueLine, iorContractValue, pickContractValue, setupContractValue, sovContractValue } from "../contract-value";
+import { formatBillingText } from "../../report-format";
 import { EMAIL_VIEW_SPEC, LOOKAHEAD_VIEW_SPEC, REMINDERS_VIEW_SPEC, highlightLine, lookaheadHighlight } from "../views";
 import { EMAIL_CONTACT_RULE, contactForRole, dedupeNotices, emailContact, fillNotice, jobContacts } from "../contacts";
 import { noticeRequirements } from "../notice-plain";
@@ -1180,7 +1181,19 @@ async function noticeContext(sb: Sb, job: Job) {
 const listJobNumber = z.string().trim().min(1).max(40).optional();
 
 /** Jobs the caller can see, narrowed to the current company when they belong to more than one. */
-export async function listedJobs(sb: Sb, companyId?: string): Promise<{ job_number: string; name: string | null; company_id: string }[]> {
+export type ListedJob = { job_number: string; name: string | null; company_id: string; updated_at?: string | null };
+
+/** One job, or the most recently updated job, is the job to open. Several jobs with no stamp still ask. */
+export function chooseJob<T extends { job_number: string; updated_at?: string | null }>(jobs: T[]): T | null {
+  const named = jobs.filter((job) => job.job_number.trim());
+  if (!named.length) return null;
+  if (named.length === 1) return named[0];
+  const stamped = named.filter((job) => typeof job.updated_at === "string" && job.updated_at);
+  if (!stamped.length) return null;
+  return [...stamped].sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)))[0];
+}
+
+export async function listedJobs(sb: Sb, companyId?: string): Promise<ListedJob[]> {
   const { data: cos, error } = await sb.from("mcp_companies").select("id, name");
   if (error) throw new Error(error.message);
   let companies = (cos ?? []) as { id: string; name: string | null }[];
@@ -1192,9 +1205,9 @@ export async function listedJobs(sb: Sb, companyId?: string): Promise<{ job_numb
     if (cur && companies.some((c) => c.id === cur)) companies = companies.filter((c) => c.id === cur);
   }
   if (!companies.length) return [];
-  const { data: jobs, error: je } = await sb.from("mcp_jobs").select("job_number, name, company_id").in("company_id", companies.map((c) => c.id));
+  const { data: jobs, error: je } = await sb.from("mcp_jobs").select("job_number, name, company_id, updated_at").in("company_id", companies.map((c) => c.id));
   if (je) throw new Error(je.message);
-  return (jobs ?? []) as { job_number: string; name: string | null; company_id: string }[];
+  return (jobs ?? []) as ListedJob[];
 }
 
 /** No job named: the caller's companies and their job numbers, in plain text. */
@@ -1273,15 +1286,16 @@ export const listOpenItems = defineTool({
       const lines = rows.map((it) => {
         const d = deduped.duplicates.get(it.id);
         const same = d?.length ? ` | Same notice also logged as: ${d.map((x) => itemName(x.action)).join(", ")} (shown once)` : "";
-        return `- ${itemLine(it, nas, job.scope !== "full", { tz, plain: true })}${same}`;
+        return `- ${formatBillingText(itemLine(it, nas, job.scope !== "full", { tz, plain: true }))}${same}`;
       });
       const dupCount = [...deduped.duplicates.values()].reduce((n, d) => n + d.length, 0);
       const ec = emailContact(contactForRole(contacts, "Project Manager"));
       const dupNote = dupCount ? `\n${dupCount} duplicate notice item${dupCount === 1 ? "" : "s"} shown once (same event and notice type); nothing was deleted.` : "";
-      const header = openItemsHeader(feed.counts);
-      const listed = rows.map((i) => ({ action: itemName(i.action), owner: i.accountable ?? i.owner ?? null, due: dueOf(i) || null, overdue: isOverdue(i, today), due_in_7_days: isDueIn7(i, today), item_id: i.id, item_type: itemType(i, nas) }));
-      const card = openItemsCard(`${job.job_number} – ${job.name}`, rows, feed.counts, today);
-      return guide({ ...text(`${prefix(job)}${laHead}${header}\n${lines.join("\n")}${dupNote}\n\n${REMINDERS_VIEW_SPEC.join("\n")}\n\n${ec.text}\n${EMAIL_VIEW_SPEC.join("\n")}${laBlock}`), structuredContent: { counts: feed.counts, items: listed, card, email_contact: ec.structured } }, EMAIL_CONTACT_RULE);
+      const listed = rows.map((i) => ({ action: formatBillingText(itemName(i.action)), owner: i.accountable ?? i.owner ?? null, due: dueOf(i) || null, overdue: isOverdue(i, today), due_in_7_days: isDueIn7(i, today), item_id: i.id, item_type: itemType(i, nas) }));
+      const counts = { open: listed.length, overdue: listed.filter((i) => i.overdue).length, due_in_7_days: listed.filter((i) => i.due_in_7_days).length };
+      const header = openItemsHeader(counts);
+      const card = openItemsCard(`${job.job_number} – ${job.name}`, rows, counts, today);
+      return guide({ ...text(`${prefix(job)}${laHead}${header}\n${lines.join("\n")}${dupNote}\n\n${REMINDERS_VIEW_SPEC.join("\n")}\n\n${ec.text}\n${EMAIL_VIEW_SPEC.join("\n")}${laBlock}`), structuredContent: { counts, items: listed, card, email_contact: ec.structured } }, "The open count is the number of items in this list. Overdue is the number of those items marked overdue. Do not count a different set.", EMAIL_CONTACT_RULE);
     }),
 });
 
@@ -1415,6 +1429,13 @@ export const contractTerms = defineTool({
       });
       const showMoney = job.scope === "full";
       const completion = completionDate(jobR.data?.contract_completion_date ?? null, valueFacts);
+      const board = job.scope === "full" || job.scope === "super" ? await signedJobPages((fn, a) => sb.rpc(fn, a), job.job_id, job.scope) : {};
+      const boardLinks = [
+        board.items ? { label: "Open items", url: board.items } : null,
+        board.ior ? { label: "Open IOR", url: board.ior } : null,
+        board.field ? { label: "Open field board", url: board.field } : null,
+        board.schedule ? { label: "Open schedule", url: board.schedule } : null,
+      ].filter((link): link is { label: string; url: string } => !!link);
       const lines = [
         `${prefix(job)}CONTRACT CLAUSES (exact contract text)`,
         contractValueLine(picked.amount, picked.source, showMoney),
@@ -1430,7 +1451,7 @@ export const contractTerms = defineTool({
             : ["", ...notice.lines, "", "CONTRACT TERMS (as saved)", ...clauses.map(termLine)]
           : ["", SUMMARY_OFFER]),
       ];
-      return { ...text(lines.join("\n")), structuredContent: { include_summary: withSummary, clauses: withSummary ? clauses : [], flags, notice_requirements: { status: notice.status, missing: notice.missing }, contract_clauses: cl.map((c) => ({ section: c.section, heading: c.heading, category: c.category, source: c.source, n_days: c.n_days, day_type: c.day_type, trigger: c.trigger_desc })), contract_value: showMoney ? picked.amount : null, contract_value_display: showMoney && picked.amount != null ? contractValueLine(picked.amount, picked.source, true) : null, contract_value_source: showMoney ? picked.source : null, substantial_completion: completion } };
+      return { ...text(lines.join("\n")), structuredContent: { include_summary: withSummary, clauses: withSummary ? clauses : [], flags, notice_requirements: { status: notice.status, missing: notice.missing }, contract_clauses: cl.map((c) => ({ section: c.section, heading: c.heading, category: c.category, source: c.source, n_days: c.n_days, day_type: c.day_type, trigger: c.trigger_desc })), contract_value: showMoney ? picked.amount : null, contract_value_display: showMoney && picked.amount != null ? contractValueLine(picked.amount, picked.source, true) : null, contract_value_source: showMoney ? picked.source : null, substantial_completion: completion, board_links: boardLinks } };
     }),
 });
 

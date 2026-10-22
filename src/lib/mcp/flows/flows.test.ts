@@ -13,7 +13,7 @@ import { EVENING_STAGES, MORNING_STAGES, PM_MEETING_STAGES, stagesFor, type Flow
 
 const calls = vi.hoisted(() => ({
   rpc: [] as string[],
-  jobs: [{ job_number: "2701", name: "Harbor Point", company_id: "c1" }] as { job_number: string; name: string; company_id: string }[],
+  jobs: [{ job_number: "2701", name: "Harbor Point", company_id: "c1" }] as { job_number: string; name: string; company_id: string; updated_at?: string }[],
 }));
 vi.mock("../guard", () => ({
   run: async (_t: string, _c: unknown, _o: unknown, fn: (sb: unknown) => Promise<unknown>) => fn({
@@ -33,6 +33,7 @@ vi.mock("../jobs", () => ({
 }));
 
 import { pmEvening, pmMeeting, pmMorning } from "../tools/flow-tools";
+import { chooseJob } from "../tools/workflow-tools";
 
 type H = (a: Record<string, unknown>, c: unknown) => Promise<{
   content: { type: string; text?: string }[];
@@ -149,7 +150,12 @@ describe("sample path on job 2701", () => {
     expect(calls.rpc).toEqual([]);
   });
 
-  it("asks which job, as a card, when no job is given", async () => {
+  it("asks which job, as a card, when several jobs have no recent stamp", async () => {
+    const prior = calls.jobs;
+    calls.jobs = [
+      { job_number: "2701", name: "Harbor Point", company_id: "c1" },
+      { job_number: "2702", name: "Pier", company_id: "c1" },
+    ];
     const tools = [
       [pmMeeting, "pm_meeting"],
       [pmEvening, "pm_evening"],
@@ -163,7 +169,9 @@ describe("sample path on job 2701", () => {
       expect(carded.content[0].text, name).not.toMatch(/^No job named/);
       expect(carded.content[0].text?.trim().endsWith(CARD_SHOWN_PICK), name).toBe(true);
       expect(z.object((tool as { inputSchema: Record<string, z.ZodTypeAny> }).inputSchema).safeParse({}).success).toBe(true);
+      expect(z.object((tool as { inputSchema: Record<string, z.ZodTypeAny> }).inputSchema).safeParse({ job_number: "" }).success).toBe(true);
     }
+    calls.jobs = prior;
   });
 
   it("records planned 10000 and realistic 8000, then opens the IOR delta", async () => {
@@ -244,6 +252,19 @@ describe("sample path on job 2701", () => {
     expect(before.endsWith("```")).toBe(true);
     expect(text).not.toMatch(/I['’]ll pull/);
     expect(r.content.some((c) => c.type === "resource")).toBe(false);
+  });
+
+  it("opens the most recently updated job for a meeting instead of asking", async () => {
+    calls.jobs = [
+      { job_number: "2701", name: "Harbor Point", company_id: "c1", updated_at: "2026-10-01T00:00:00Z" },
+      { job_number: "2702", name: "Pier", company_id: "c1", updated_at: "2026-10-20T00:00:00Z" },
+    ];
+    const r = await call(pmMeeting, { job_number: "" });
+    const text = r.content.find((c) => c.type === "text")?.text ?? "";
+    expect(r.structuredContent.card.title).not.toBe("Which job?");
+    expect(text).toContain("2702");
+    expect(chooseJob(calls.jobs)?.job_number).toBe("2702");
+    calls.jobs = [{ job_number: "2701", name: "Harbor Point", company_id: "c1" }];
   });
 
   it("a bare greeting with more than one job returns one brief and no trailing prose", async () => {

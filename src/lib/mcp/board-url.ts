@@ -28,6 +28,10 @@ const ALIASES: Record<string, BoardLinkPage> = {
   "morning briefing": "briefing",
   daily: "daily",
   photos: "photos",
+  submittals: "submittals",
+  submittal: "submittals",
+  "submittal log": "submittals",
+  "submittals board": "submittals",
 };
 
 /** items → /items, IOR → /ior, field → /field. Other saved pages keep their own path. */

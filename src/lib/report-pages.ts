@@ -8,18 +8,20 @@ import { DEFAULT_TZ, addDays, todayIn } from "./mcp/deadlines";
 import { activityLine, activityTitle, briefingModel, dayHead, lookaheadModel, payModel, shortDate, lookaheadWindow, type BriefItem, type Billing, type LaItem, type LaEntry, type SAct } from "./mcp/styled-views";
 import { dailyPageHtml, fieldPageHtml, photoPageHtml } from "./mcp/superintendent";
 import { renderIorLayout, type ReportNames } from "./ior-layout";
+import { formatReportNumber, money } from "./report-format";
 import { dedupeOpenRows, itemName } from "./mcp/open-feed";
+import { BALL_LABEL, currentSubmittals, labelOf, packageLine, postureSentence, resolvePosture, sourceLine, STATUS_LABEL, submittalOverdue, transmittalLabel, type SubmittalRecord } from "./mcp/submittals";
 
 export const REPORT_PAGES = ["ior", "schedule", "portfolio"] as const;
 export type ReportPage = (typeof REPORT_PAGES)[number];
 /** 0.8.17: private-only pages (no share links). */
-export const VIEW_PAGES = ["lookahead", "payapp", "briefing", "field", "daily", "photos", "items"] as const;
+export const VIEW_PAGES = ["lookahead", "payapp", "briefing", "field", "daily", "photos", "items", "submittals"] as const;
 export type ViewPage = (typeof VIEW_PAGES)[number];
 export type AnyPage = ReportPage | ViewPage;
 export const JOB_PAGES = ["ior", "schedule", ...VIEW_PAGES] as const;
-export const PAGE_LABEL: Record<AnyPage, string> = { ior: "IOR", schedule: "Schedule", portfolio: "Portfolio dashboard", lookahead: "Two-Week Lookahead", payapp: "Pay App", briefing: "Morning Briefing", field: "Field board", daily: "Daily report", photos: "Progress photos", items: "Open items" };
+export const PAGE_LABEL: Record<AnyPage, string> = { ior: "IOR", schedule: "Schedule", portfolio: "Portfolio dashboard", lookahead: "Two-Week Lookahead", payapp: "Pay App", briefing: "Morning Briefing", field: "Field board", daily: "Daily report", photos: "Progress photos", items: "Open items", submittals: "Submittal log" };
 export const PAGE_ORIGIN = "https://app.meetathena.io";
-export const PERMANENT_LINK_ASK = "Want this as a permanent link I keep updated?";
+export const PERMANENT_LINK_ASK = "Want the job board links I keep updated? Items (/items), the IOR (/ior), the field board (/field), and the schedule.";
 export const SHARE_DEFAULT_DAYS = 30;
 export const SHARE_MAX_DAYS = 90;
 
@@ -84,13 +86,28 @@ export type FieldPagePayload = { page: "field"; company?: string; job_number?: s
 export type DailyPagePayload = { page: "daily"; company?: string; job_number?: string; job_name?: string; found?: boolean; report_date?: string | null; weather?: string | null; manpower?: string | null; subs_on_site?: string | null; deliveries?: string | null; issues?: string | null; delays?: string | null; safety?: string | null; lines?: { work?: string; sov_item?: string | null; activity_id?: string | null; qty?: number | null; unit?: string | null; crew?: number | null; hours?: number | null }[] };
 export type PhotoPagePayload = { page: "photos"; company?: string; job_number?: string; job_name?: string; photos?: { id?: string; taken_on?: string; area?: string; work?: string | null; sov_item?: string | null; activity_id?: string | null; client_safe?: boolean; url?: string | null; storage_path?: string }[] };
 export type ItemsPagePayload = { page: "items"; company?: string; job_number?: string; job_name?: string; items?: { id?: string | null; action?: string | null; owner?: string | null; due?: string | null }[] };
+export type SubmittalsPagePayload = {
+  page: "submittals";
+  company?: string;
+  job_number?: string;
+  job_name?: string;
+  read_only?: boolean;
+  review_days?: number;
+  today?: string;
+  posture?: string | null;
+  posture_set?: string | null;
+  public_job?: string | null;
+  submittals?: SubmittalRecord[];
+};
 type ViewExtras = { shared?: boolean; expires_at?: string };
-export type PagePayload = JobPayload | PortfolioPayload | FieldPagePayload | DailyPagePayload | PhotoPagePayload | ItemsPagePayload | ((LookaheadPayload | PayAppPayload | BriefingPayload) & ViewExtras);
+export type PagePayload = JobPayload | PortfolioPayload | FieldPagePayload | DailyPagePayload | PhotoPagePayload | ItemsPagePayload | SubmittalsPagePayload | ((LookaheadPayload | PayAppPayload | BriefingPayload) & ViewExtras);
 
 // ---------- helpers ----------
 export const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-export const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+export { money };
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+/** Schedule float is working days. A raw float is rounded; it is never currency. */
+const shownFloat = (value: unknown) => (isNum(value) ? formatReportNumber("total_float", value) : String(value ?? ""));
 const day = (s: string) => Date.parse(`${s.slice(0, 10)}T00:00:00Z`);
 const NAVY = "#1E3A5F", BLUE = "#2563EB", G1 = "#6B7280", G2 = "#9CA3AF", G3 = "#D1D5DB", G4 = "#F3F4F6", RED = ALERT_HEX;
 
@@ -132,7 +149,7 @@ function scheduleView(p: JobPayload): string {
       const frag = /^FRAG|^D\d/i.test(a.id) || /fragnet|delay/i.test(a.name);
       const color = frag ? RED : a.critical ? BLUE : G2;
       const bar = frag ? `background:repeating-linear-gradient(45deg,${RED},${RED} 4px,#FCA5A5 4px,#FCA5A5 8px)` : `background:${color}`;
-      return `<tr id="activity-${esc(a.id)}"><td style="padding:4px 8px;font-size:12px;color:${NAVY};font-weight:600" data-id="${esc(a.id)}">${esc(activityTitle(a))}<div style="font-size:11px;font-weight:400;color:${G1}">${esc(a.id)}</div></td><td style="padding:4px 8px;font-size:12px;color:${G1};white-space:nowrap">${esc(a.start)} – ${esc(a.finish)}</td><td style="padding:4px 8px;font-size:12px;color:${isNum(a.total_float) && a.total_float < 0 ? RED : G1}">${isNum(a.total_float) ? esc(a.total_float) : ""}</td><td style="position:relative;min-width:320px;width:50%"><div style="position:relative;height:14px;background:${G4};border-radius:3px"><div style="position:absolute;left:${l.toFixed(2)}%;width:${w.toFixed(2)}%;top:0;bottom:0;border-radius:3px;${bar}"></div>${markPct >= 0 && markPct <= 100 ? `<div style="position:absolute;left:${markPct.toFixed(2)}%;top:-2px;bottom:-2px;width:2px;background:${NAVY}"></div>` : ""}</div></td></tr>`;
+      return `<tr id="activity-${esc(a.id)}"><td style="padding:4px 8px;font-size:12px;color:${NAVY};font-weight:600" data-id="${esc(a.id)}">${esc(activityTitle(a))}<div style="font-size:11px;font-weight:400;color:${G1}">${esc(a.id)}</div></td><td style="padding:4px 8px;font-size:12px;color:${G1};white-space:nowrap">${esc(a.start)} – ${esc(a.finish)}</td><td style="padding:4px 8px;font-size:12px;color:${isNum(a.total_float) && a.total_float < 0 ? RED : G1}">${isNum(a.total_float) ? esc(shownFloat(a.total_float)) : ""}</td><td style="position:relative;min-width:320px;width:50%"><div style="position:relative;height:14px;background:${G4};border-radius:3px"><div style="position:absolute;left:${l.toFixed(2)}%;width:${w.toFixed(2)}%;top:0;bottom:0;border-radius:3px;${bar}"></div>${markPct >= 0 && markPct <= 100 ? `<div style="position:absolute;left:${markPct.toFixed(2)}%;top:-2px;bottom:-2px;width:2px;background:${NAVY}"></div>` : ""}</div></td></tr>`;
     }).join("");
     out.push(card(`<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><thead><tr style="text-align:left;font-size:12px;color:${G1}"><th style="padding:4px 8px">Activity</th><th style="padding:4px 8px">Dates</th><th style="padding:4px 8px">Float</th><th style="padding:4px 8px">Gantt</th></tr></thead><tbody>${rows}</tbody></table></div>` +
       `<p style="margin:12px 0 0;font-size:12px;color:${G1}"><span style="display:inline-block;width:10px;height:10px;background:${BLUE}"></span> Critical &nbsp; <span style="display:inline-block;width:10px;height:10px;background:${G2}"></span> Non-critical &nbsp; <span style="display:inline-block;width:10px;height:10px;background:${RED}"></span> Delay fragnet &nbsp; <span style="display:inline-block;width:2px;height:10px;background:${NAVY}"></span> ${Number.isFinite(dd) && dd > today ? "Data date" : "Today"}</p>`));
@@ -192,11 +209,11 @@ function lookaheadPageView(p: LookaheadPayload): string {
   if (!m.rows.length) out.push(card(`<p style="margin:0;color:${G1}">No saved schedule activities fall in this window.</p><p style="margin:8px 0 0;color:${NAVY}"><strong>Next move:</strong> pick a window that overlaps the saved schedule, or send this window's schedule export.</p>`));
   else {
     const th = m.days.map((d, i) => `<th style="padding:4px 2px;font-size:11px;color:${d === hl ? BLUE : G1};text-align:center;${i === 5 ? `border-left:2px solid ${G3};` : ""}">${i === 0 ? "WEEK 1<br>" : i === 5 ? "WEEK 2<br>" : "<br>"}${esc(dayHead(d))}</th>`).join("");
-    const rows = m.rows.map((row) => `<tr id="activity-${esc(row.a.id)}" style="border-top:1px solid ${G4}"><td style="padding:6px 8px;font-size:12px;font-weight:600;color:${NAVY}" data-id="${esc(row.a.id)}">${esc(activityTitle(row.a))}<div style="font-size:11px;font-weight:400;color:${G1}">${esc(row.a.id)}</div></td><td style="padding:6px 8px;font-size:12px;color:${Number(row.a.total_float) === 0 ? BLUE : G1};text-align:center">${esc(row.a.total_float ?? "")}</td>${row.cells.map((c, i) => `<td style="padding:4px 2px;min-width:44px;text-align:center;${i === 5 ? `border-left:2px solid ${G3};` : ""}">${CELL_HTML[c.kind]}${c.risk ? `<span style="color:${RED}">⚑</span>` : ""}</td>`).join("")}</tr>`).join("");
+    const rows = m.rows.map((row) => `<tr id="activity-${esc(row.a.id)}" style="border-top:1px solid ${G4}"><td style="padding:6px 8px;font-size:12px;font-weight:600;color:${NAVY}" data-id="${esc(row.a.id)}">${esc(activityTitle(row.a))}<div style="font-size:11px;font-weight:400;color:${G1}">${esc(row.a.id)}</div></td><td style="padding:6px 8px;font-size:12px;color:${Number(row.a.total_float) === 0 ? BLUE : G1};text-align:center">${esc(shownFloat(row.a.total_float))}</td>${row.cells.map((c, i) => `<td style="padding:4px 2px;min-width:44px;text-align:center;${i === 5 ? `border-left:2px solid ${G3};` : ""}">${CELL_HTML[c.kind]}${c.risk ? `<span style="color:${RED}">⚑</span>` : ""}</td>`).join("")}</tr>`).join("");
     out.push(card(h2("CALENDAR") + `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><thead><tr style="text-align:left;font-size:12px;color:${G1}"><th style="padding:4px 8px">Activity</th><th style="padding:4px 8px">Float</th>${th}</tr></thead><tbody>${rows}</tbody></table></div>` + legend([[sw(BLUE), "Critical"], [sw(G2), "Non-critical"], ["📋", "Inspection"], ["🚚", "Delivery"], ["◆", "Milestone"], [`<span style="color:${RED}">⚑</span>`, "Risk"]])));
   }
   if (m.overdue.length) out.push(card(h2("OVERDUE") + m.overdue.map((e, n) => `<div id="item-${esc(e.item.id || String(n + 1))}" style="border:1px solid #FECACA;border-left:4px solid ${RED};border-radius:10px;padding:12px;margin:0 0 8px">${badge}<strong style="color:${RED}">${esc(e.label)}</strong><span style="color:${NAVY}"> · ${due(e)}</span></div>`).join("")));
-  if (m.risks.length) out.push(card(h2("RISKS") + m.risks.map((e) => `<div style="border:1px solid #FECACA;border-left:4px solid ${RED};border-radius:10px;padding:12px;margin:0 0 8px"><strong style="color:${RED}">${esc(e.label)}</strong><span style="color:${NAVY}"> · Impact: ${esc(activityLine(e.a!))}${e.a!.total_float !== undefined && e.a!.total_float !== null ? ` (float ${esc(e.a!.total_float)} WD)` : ""}. ${due(e)}</span>${flagsHtml(e)}</div>`).join("")));
+  if (m.risks.length) out.push(card(h2("RISKS") + m.risks.map((e) => `<div style="border:1px solid #FECACA;border-left:4px solid ${RED};border-radius:10px;padding:12px;margin:0 0 8px"><strong style="color:${RED}">${esc(e.label)}</strong><span style="color:${NAVY}"> · Impact: ${esc(activityLine(e.a!))}${e.a!.total_float !== undefined && e.a!.total_float !== null ? ` (float ${esc(shownFloat(e.a!.total_float))} WD)` : ""}. ${due(e)}</span>${flagsHtml(e)}</div>`).join("")));
   if (m.flagged.length) out.push(card(h2("DATES TO CHECK") + m.flagged.map((e) => `<div style="padding:8px 0;border-top:1px solid ${G4};color:${NAVY};font-size:13px">${esc(e.label)}${flagsHtml(e)}</div>`).join("")));
   return out.join("");
 }
@@ -238,7 +255,27 @@ function itemsPageHtml(p: ItemsPagePayload): string {
   }).join("");
 }
 
+function submittalsPageHtml(p: SubmittalsPagePayload): string {
+  const today = (p.today ?? "").slice(0, 10);
+  const rows = currentSubmittals(p.submittals ?? []);
+  const overdue = rows.filter((row) => submittalOverdue(row, today)).length;
+  const posture = postureSentence(resolvePosture(p.posture_set ?? p.posture, p.public_job));
+  const head = `<div data-count="${rows.length}" data-overdue="${overdue}">${tiles([tile("Submittals", String(rows.length)), tile("Overdue", String(overdue), overdue > 0), tile("Review days", String(p.review_days ?? 14))])}<p style="margin:0 0 16px;font-size:13px;color:${G1}">${esc(posture)}${p.read_only ? " Read only." : ""}</p></div>`;
+  if (!rows.length) return head + card(`<p style="margin:0;color:${G1}">No submittals on this job yet.</p>`);
+  return head + rows.map((row) => {
+    const late = submittalOverdue(row, today);
+    const who = row.ball_in_court_name?.trim() ? `${labelOf(BALL_LABEL, row.ball_in_court)}, ${row.ball_in_court_name.trim()}` : labelOf(BALL_LABEL, row.ball_in_court);
+    const border = late ? `border-left:4px solid ${RED};` : "";
+    const color = late ? RED : NAVY;
+    return `<section id="submittal-${esc(row.id)}" data-submittal-row="1" data-id="${esc(row.id)}" style="${border}">${card(`<div style="font-weight:700;color:${color}">${late ? "Overdue · " : ""}${esc(row.number)} revision ${esc(row.revision)}, ${esc(row.title)}</div><div style="font-size:12px;color:${G1};margin-top:4px">Spec ${esc(row.spec_section)} · ${esc(labelOf(STATUS_LABEL, row.status))} · ${esc(sourceLine(row))} · ${esc(who)} · ${esc(transmittalLabel(row.transmittal_number))} · Due back ${esc(row.due_back?.slice(0, 10) || "Needed")} · ${esc(packageLine(row.package_items))}</div>`)}</section>`;
+  }).join("");
+}
+
 export function renderReportBody(p: PagePayload): string {
+  if (p.page === "submittals") {
+    const title = `${esc(p.job_number ?? "")} ${esc(p.job_name ?? "")} · Submittal log`;
+    return `<div style="max-width:1100px;margin:0 auto;padding:24px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:${NAVY}"><h1 style="margin:0 0 16px;font-size:22px;color:${NAVY}">${title}</h1>${submittalsPageHtml(p)}<p style="margin:24px 0 0;font-size:12px;color:${G2}">Private to your company · Athena powered by ALP</p></div>`;
+  }
   if (p.page === "field") return fieldPageHtml(p);
   if (p.page === "daily") return dailyPageHtml(p);
   if (p.page === "photos") return photoPageHtml(p);

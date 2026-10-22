@@ -5,11 +5,20 @@ import { pageUrl } from "../../report-pages";
 import { IOR_VIEW_SPEC, PAY_APP_VIEW_SPEC, PORTFOLIO_VIEW_SPEC } from "../views";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
+import { renderHtml } from "../cards/html";
+import { htmlBlock, renderMarkdown } from "../cards/markdown";
+import { jobBoardCard } from "./report-page-tools";
 import { PERMANENT_LINK_ASK, type ReportPage } from "../../report-pages";
 
-/** Which permanent page a living report maps to (0.8.14). Dashboard → company portfolio is offered separately. */
+/** Which saved page a living report maps to (0.8.14). Dashboard → company portfolio is offered separately. */
 const pageFor = (type: string, scope: string | undefined): ReportPage | null =>
   type === "cpm" && (scope === "full" || scope === "super") ? "schedule" : type === "ior" && scope === "full" ? "ior" : null;
+
+function boardCardText(jobLabel: string, links: { label: string; href: string }[]): string {
+  if (!links.length) return "";
+  const card = jobBoardCard(jobLabel, links);
+  return `${renderMarkdown(card)}\n\n${htmlBlock(renderHtml(card))}`;
+}
 import { dbError, run, text, type Sb } from "../guard";
 import { FULL_ACCESS_MESSAGE, READ_ONLY_MESSAGE, audit, prefix, resolveJob, type Job } from "../jobs";
 import { SovMismatch, buildSov, money } from "../sov";
@@ -197,13 +206,19 @@ export const livingReportGet = defineTool({
       const ft = g.forecast_total ?? null;
       const tie = job.scope === "full" && TIED_TYPES.includes(type) && ft !== null ? tieCheck(Number(ft), contract) : null;
       const log = logLines(g);
+      const boardLinks = [
+        ...(board.items ? [{ label: "Open items", href: board.items }] : []),
+        ...(iorUrl ? [{ label: "Open IOR", href: iorUrl }] : []),
+        ...(scheduleUrl ? [{ label: "Open schedule", href: scheduleUrl }] : []),
+      ];
+      const linkCard = type === "ior" || type === "cpm" ? boardCardText(`${job.job_number} – ${job.name}`, boardLinks) : "";
       return guide(
         {
-          ...text([...(type === "billing_forecast" && job.scope === "full" ? [payAppView({ title: `${job.job_number} – ${job.name}`, version: g.version, dataDate: g.data_date ?? null, billing: (data as { billing?: Billing }).billing ?? null, contract, pageUrl: payappUrl }), "", "---"] : []), ...(pageFor(type, job.scope) === "ior" && iorUrl ? [pageLine(label, iorUrl)] : pageFor(type, job.scope) === "schedule" && scheduleUrl ? [pageLine(label, scheduleUrl)] : type === "dashboard" && job.scope === "full" ? [pageLine("portfolio dashboard", pageUrl("portfolio", job.company_id))] : []), LIVING_REQUIRED_TOP, `${prefix(job)}${job.name} · ${label}`, stamp(g), ...(tie ? [`Tie: ${tie.line}`] : []), ...(type === "cpm" ? [...CPM_GANTT_SPEC, ...(readDelay(data as Record<string, unknown>) ? [readDelay(data as Record<string, unknown>)!.line] : []), ...ganttPins(readDelay(data as Record<string, unknown>))] : []), ...(type === "billing_forecast" && job.scope === "full" ? PAY_APP_VIEW_SPEC : []), ...(type === "ior" && job.scope === "full" ? IOR_VIEW_SPEC : []), ...(type === "dashboard" && job.scope === "full" ? PORTFOLIO_VIEW_SPEC : []), "", "Change log (latest 5):", ...(log.length ? log : ["- None yet."])].join("\n")),
-          structuredContent: { found: true, report_type: type, version: g.version, data_date: g.data_date ?? null, updated_at: g.updated_at ?? null, updated_by: g.updated_by_name ?? null, contract_completion_date: g.contract_completion_date ?? null, tie, data: data as never, change_log: g.change_log ?? [], no_financials: job.scope !== "full" },
+          ...text([...(type === "billing_forecast" && job.scope === "full" ? [payAppView({ title: `${job.job_number} – ${job.name}`, version: g.version, dataDate: g.data_date ?? null, billing: (data as { billing?: Billing }).billing ?? null, contract, pageUrl: payappUrl }), "", "---"] : []), ...(linkCard ? [linkCard] : type === "dashboard" && job.scope === "full" ? [pageLine("portfolio dashboard", pageUrl("portfolio", job.company_id))] : []), LIVING_REQUIRED_TOP, `${prefix(job)}${job.name} · ${label}`, stamp(g), ...(tie ? [`Tie: ${tie.line}`] : []), ...(type === "cpm" ? [...CPM_GANTT_SPEC, ...(readDelay(data as Record<string, unknown>) ? [readDelay(data as Record<string, unknown>)!.line] : []), ...ganttPins(readDelay(data as Record<string, unknown>))] : []), ...(type === "billing_forecast" && job.scope === "full" ? PAY_APP_VIEW_SPEC : []), ...(type === "ior" && job.scope === "full" ? IOR_VIEW_SPEC : []), ...(type === "dashboard" && job.scope === "full" ? PORTFOLIO_VIEW_SPEC : []), "", "Change log (latest 5):", ...(log.length ? log : ["- None yet."])].join("\n")),
+          structuredContent: { found: true, report_type: type, version: g.version, data_date: g.data_date ?? null, updated_at: g.updated_at ?? null, updated_by: g.updated_by_name ?? null, contract_completion_date: g.contract_completion_date ?? null, tie, data: data as never, change_log: g.change_log ?? [], no_financials: job.scope !== "full", board_links: boardLinks },
         },
         `Say "Picked up v${g.version}${g.updated_by_name ? `, last updated by ${g.updated_by_name}` : ""}." For a view-only ask, build a NEW private view or artifact from structuredContent.data in the same layout; never update or replace the saved shared master or an existing shared artifact. Only when the user explicitly asks to update or save it, confirm first, then to save the update ask "${LIVING_SAVE_ASK}" and only after a yes call living_report_save with base_version ${g.version}.`,
-        ...(pageFor(type, job.scope) ? [`After you show the ${label}, ask once: "${PERMANENT_LINK_ASK}" On a yes, call report_page_link with page ${pageFor(type, job.scope)} and give the member the link it returns. Never make a share link unless they ask.`] : []),
+        ...(pageFor(type, job.scope) ? [`After you show the ${label}, ask once: "${PERMANENT_LINK_ASK}" On a yes, call report_page_link for page items and for page ${pageFor(type, job.scope)}. Show each link as its own card. Never make a share link unless they ask.`] : []),
       );
     }),
 });
@@ -272,7 +287,7 @@ export const livingReportSave = defineTool({
           structuredContent: { saved: true, report_type: type, version: r.version, count_check: chk.count, tie: chk.tie },
         },
         `Update the view's header to v${r.version} with the Last updated stamp and remove "Draft: not saved".`,
-        ...(pageFor(type, job.scope) ? [`Then ask once: "${PERMANENT_LINK_ASK}" On a yes, call report_page_link with page ${pageFor(type, job.scope)}.`] : []),
+        ...(pageFor(type, job.scope) ? [`Then ask once: "${PERMANENT_LINK_ASK}" On a yes, call report_page_link for page items and for page ${pageFor(type, job.scope)}. Show each link as its own card.`] : []),
       );
     }),
 });

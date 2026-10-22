@@ -7,7 +7,7 @@ import {
   emailSendLogMetadata,
   findCircleWelcomeLog,
   isUniqueViolation,
-  markCircleWelcomeSent,
+  stampMembershipEmailSent,
 } from "@/lib/email/circle-welcome-state";
 import {
   circleAnnouncementAllowed,
@@ -137,6 +137,34 @@ function generateToken(): string {
   return Array.from(bytes)
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
+}
+
+/** Keep the queue message when the stamp write fails so the next pass retries it without sending again. */
+async function stampQueueDelivery(
+  supabase: AppSupabaseClient,
+  opts: {
+    templateName: string;
+    recipientEmail: string;
+    idempotencyKey?: string;
+    userId?: string;
+    sentAt?: string;
+  },
+): Promise<boolean> {
+  const stamp = await stampMembershipEmailSent({
+    supabase,
+    templateName: opts.templateName,
+    recipientEmail: opts.recipientEmail,
+    idempotencyKey: opts.idempotencyKey,
+    userId: opts.userId,
+    sentAt: opts.sentAt,
+  });
+  if (!stamp.error) return true;
+  console.error("Failed to stamp subscription send", {
+    templateName: opts.templateName,
+    recipientEmail: opts.recipientEmail,
+    error: stamp.error,
+  });
+  return false;
 }
 
 async function deleteQueueMessage(
@@ -444,7 +472,7 @@ async function processCycle({
       if (messageId) {
         const { data: alreadySent } = await supabase
           .from("email_send_log")
-          .select("id")
+          .select("id,created_at")
           .eq("message_id", messageId)
           .eq("status", "sent")
           .maybeSingle();
@@ -455,12 +483,16 @@ async function processCycle({
             msg_id: msg.msg_id,
             message_id: messageId,
           });
-          if (label === CIRCLE_WELCOME_TEMPLATE) {
-            await markCircleWelcomeSent({
-              supabase,
-              recipientEmail,
-              idempotencyKey,
-            });
+          const stamped = await stampQueueDelivery(supabase, {
+            templateName: label,
+            recipientEmail,
+            idempotencyKey,
+            userId: getString(payload, "user_id"),
+            sentAt: alreadySent.created_at,
+          });
+          if (!stamped) {
+            result.failed += 1;
+            continue;
           }
           await deleteQueueMessage(supabase, queue, msg);
           result.skippedDuplicates += 1;
@@ -476,12 +508,17 @@ async function processCycle({
             msg_id: msg.msg_id,
             idempotency_key: idempotencyKey,
           });
-          await markCircleWelcomeSent({
-            supabase,
+          const stamped = await stampQueueDelivery(supabase, {
+            templateName: label,
             recipientEmail,
             idempotencyKey,
+            userId: getString(payload, "user_id"),
             sentAt: alreadyWelcome.created_at,
           });
+          if (!stamped) {
+            result.failed += 1;
+            continue;
+          }
           await deleteQueueMessage(supabase, queue, msg);
           result.skippedDuplicates += 1;
           continue;
@@ -541,12 +578,15 @@ async function processCycle({
           console.error("Failed to log sent email", { queue, messageId, error: sentLogErr });
         }
 
-        if (label === CIRCLE_WELCOME_TEMPLATE) {
-          await markCircleWelcomeSent({
-            supabase,
-            recipientEmail,
-            idempotencyKey,
-          });
+        const stamped = await stampQueueDelivery(supabase, {
+          templateName: label,
+          recipientEmail,
+          idempotencyKey,
+          userId: getString(payload, "user_id"),
+        });
+        if (!stamped) {
+          result.failed += 1;
+          continue;
         }
 
         await deleteQueueMessage(supabase, queue, msg);

@@ -6,6 +6,7 @@ import { audit } from "./jobs";
 import {
   briefSettingsFrom,
   buildMorningBrief,
+  ensureBriefCard,
   parseBriefingTime,
   presentBrief,
   settingsCard,
@@ -21,6 +22,7 @@ import {
 import { normalizeRole } from "./team";
 import { listedJobs } from "./tools/workflow-tools";
 import { ToolError } from "@lovable.dev/mcp-js";
+import { chaseBriefRows, type ChaseRow } from "./submittal-chase";
 
 type RawItem = {
   id?: string;
@@ -158,6 +160,75 @@ async function withLinks(sb: Sb, jobs: BriefJob[]): Promise<BriefJob[]> {
   return out;
 }
 
+function stubJob(j: { job_number: string; name: string | null; company_id: string }): BriefJob {
+  return {
+    job_id: "",
+    job_number: j.job_number,
+    name: j.name ?? "Job",
+    company_id: j.company_id,
+    time_zone: "America/New_York",
+    scope: "full",
+    seat: "pm",
+    activities: [],
+    items: [],
+    lookahead: null,
+    payApps: [],
+    invoices: [],
+    links: {},
+  };
+}
+
+/** The feed can come back empty, or drop a job whose scope field is missing, while mcp_open_items still has 2701. */
+export function mergeBriefJobs(listed: { job_number: string; name: string | null; company_id: string }[], feed: BriefJob[]): BriefJob[] {
+  const byNumber = new Map(feed.map((job) => [job.job_number, job]));
+  const merged = listed.map((job) => byNumber.get(job.job_number) ?? stubJob(job));
+  for (const job of feed) if (!merged.some((row) => row.job_number === job.job_number)) merged.push(job);
+  return merged;
+}
+
+async function fillOpenItems(sb: Sb, jobs: BriefJob[]): Promise<BriefJob[]> {
+  const numbers = [...new Set(jobs.map((job) => job.job_number).filter(Boolean))];
+  if (!numbers.length) return jobs;
+  try {
+    const found = await sb.from("mcp_jobs").select("id, job_number").in("job_number", numbers);
+    if (found.error || !Array.isArray(found.data)) return jobs;
+    const idOf = new Map((found.data as { id: string; job_number: string }[]).map((row) => [row.job_number, row.id]));
+    const ids = [...idOf.values()];
+    if (!ids.length) return jobs;
+    const items = await sb.from("mcp_open_items").select("id, job_id, action, check_key, category, item_type, kind, owner, accountable, needed_by, due_date, updated_at, internal_only").in("job_id", ids).eq("status", "open").limit(500);
+    if (items.error || !Array.isArray(items.data)) return jobs;
+    const byJob = new Map<string, BriefItem[]>();
+    for (const raw of items.data as (RawItem & { job_id?: string })[]) {
+      if (!raw.job_id || !raw.action) continue;
+      const list = byJob.get(raw.job_id) ?? [];
+      list.push({
+        id: String(raw.id ?? raw.action),
+        action: String(raw.action),
+        check_key: raw.check_key ?? null,
+        category: raw.category ?? null,
+        item_type: raw.item_type ?? null,
+        kind: raw.kind ?? null,
+        owner: raw.owner ?? null,
+        accountable: raw.accountable ?? null,
+        needed_by: raw.needed_by ?? null,
+        due_date: raw.due_date ?? null,
+        updated_at: raw.updated_at ?? null,
+        internal_only: raw.internal_only === true,
+        cost_effect: null,
+      });
+      byJob.set(raw.job_id, list);
+    }
+    return jobs.map((job) => {
+      const id = job.job_id || idOf.get(job.job_number) || "";
+      const table = byJob.get(id) ?? [];
+      if (job.items.length || !table.length) return { ...job, job_id: id || job.job_id };
+      return { ...job, job_id: id, items: table };
+    });
+  } catch {
+    return jobs;
+  }
+}
+
 export async function loadBriefJobs(sb: Sb, companyId?: string): Promise<{ hasCompany: boolean; jobs: BriefJob[] }> {
   const cos = await companies(sb);
   if (cos && !cos.length) return { hasCompany: false, jobs: [] };
@@ -167,37 +238,21 @@ export async function loadBriefJobs(sb: Sb, companyId?: string): Promise<{ hasCo
   } catch {
     listed = [];
   }
-  if (cos && cos.length && !listed.length) return { hasCompany: true, jobs: [] };
+  let feed: BriefJob[] = [];
   try {
     const res = await sb.rpc("mcp_morning_brief_feed");
     if (res.error) {
-      if ((res.error.message ?? "").startsWith("MCP_")) dbError(res.error);
+      if (!isMissingFunction(res.error) && (res.error.message ?? "").startsWith("MCP_")) dbError(res.error);
     } else if (Array.isArray(res.data)) {
       const want = new Set(listed.map((j) => j.job_number));
-      const jobs = briefJobsFromFeed(res.data as RawJob[]).filter((j) => !want.size || want.has(j.job_number));
-      return { hasCompany: true, jobs: await withLinks(sb, jobs) };
+      feed = briefJobsFromFeed(res.data as RawJob[]).filter((j) => !want.size || want.has(j.job_number));
     }
   } catch (e) {
     if (e instanceof ToolError) throw e;
   }
-  return {
-    hasCompany: cos === null ? listed.length > 0 : true,
-    jobs: listed.map((j) => ({
-      job_id: "",
-      job_number: j.job_number,
-      name: j.name ?? "Job",
-      company_id: j.company_id,
-      time_zone: "America/New_York",
-      scope: "full" as const,
-      seat: "pm" as const,
-      activities: [],
-      items: [],
-      lookahead: null,
-      payApps: [],
-      invoices: [],
-      links: {},
-    })),
-  };
+  // An empty or filtered feed used to return no jobs, so 2701's saved open items never reached the card.
+  const jobs = await fillOpenItems(sb, mergeBriefJobs(listed, feed));
+  return { hasCompany: cos === null ? jobs.length > 0 : true, jobs: await withLinks(sb, jobs) };
 }
 
 export async function loadMorningBrief(sb: Sb, companyId?: string) {
@@ -210,6 +265,18 @@ export async function loadMorningBrief(sb: Sb, companyId?: string) {
     settings = undefined;
   }
   const built = buildMorningBrief({ jobs: loaded.jobs, hasCompany: loaded.hasCompany, settings });
+  built.card = ensureBriefCard(built.card);
+  try {
+    const due = await sb.rpc("mcp_submittal_chase_due");
+    if (!due.error && Array.isArray(due.data) && due.data.length) {
+      const rows = chaseBriefRows(due.data as ChaseRow[]);
+      const overdue = rows.filter((row) => row.flag === "overdue").length;
+      built.card.sections = [...(built.card.sections ?? []), { heading: "Chases", kind: "list", rows }];
+      built.card.kpis = [...(built.card.kpis ?? []), { label: "Chases", value: String(rows.length), flag: overdue ? "overdue" : null }];
+    }
+  } catch {
+    /* a missing chase feed never blocks the brief */
+  }
   try {
     await audit(sb, null, "morning_brief", "view_morning_brief", null);
   } catch {

@@ -1,6 +1,5 @@
 import { SUMMARY_OFFER } from "../contract-clauses";
 import { whichJobAsk } from "../which-job";
-import type { OpenCounts } from "../open-feed";
 import type { AlertLevel } from "./palette";
 import type { CardModel, CardRow, CardSection } from "./model";
 
@@ -148,7 +147,7 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
     };
   }
 
-  if (tool === "list_open_items" || tool === "pm_meeting" || tool === "pm_morning" || tool === "pm_evening" || tool === "athena_morning_hitlist") {
+  if (tool === "list_open_items" || tool === "pm_meeting" || tool === "pm_morning" || tool === "pm_evening" || tool === "athena_morning_hitlist" || tool === "submittal_log" || tool === "submittals_list" || tool === "submittals_import" || tool === "project_record_search" || tool === "submittal_chase") {
     const company = /No job named|Your companies/i.test(text);
     const bullets = linesOf(text).filter((l) => l.startsWith("- ") || l.startsWith("|"));
     if (company) {
@@ -161,20 +160,23 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
         next_move: "Name the job.",
       };
     }
-    if (tool === "list_open_items" && structured.counts && typeof structured.counts === "object") {
-      const counts = structured.counts as OpenCounts;
-      const listed = Array.isArray(structured.items) ? (structured.items as { action?: string; owner?: string | null; due?: string | null; overdue?: boolean }[]) : [];
+    if (tool === "list_open_items" && Array.isArray(structured.items)) {
+      const listed = structured.items as { action?: string; owner?: string | null; due?: string | null; overdue?: boolean; due_in_7_days?: boolean }[];
+      const openN = listed.length;
+      const overdueN = listed.filter((item) => item.overdue).length;
+      const dueN = listed.filter((item) => item.due_in_7_days).length;
       return {
         ...base,
         state: "result",
+        show_state: false,
         kpis: [
-          { label: "Open", value: String(counts.open) },
-          { label: "Overdue", value: String(counts.overdue), flag: counts.overdue ? "overdue" : null },
-          { label: "Due in 7 days", value: String(counts.due_in_7_days) },
+          { label: "Open", value: String(openN) },
+          { label: "Overdue", value: String(overdueN), flag: overdueN ? "overdue" : null },
+          { label: "Due in 7 days", value: String(dueN) },
         ],
         sections: [listSection("Items", listed.map((item) => ({ cells: [String(item.action ?? "Item"), item.owner ?? "Needed", item.due ?? "Needed"], flag: item.overdue ? ("overdue" as const) : null })))],
-        alerts: counts.overdue ? [{ level: "overdue" as const, text: `${counts.overdue} overdue` }] : [],
-        next_move: counts.overdue ? "Close the overdue item first." : "Pick the next item.",
+        alerts: overdueN ? [{ level: "overdue" as const, text: `${overdueN} overdue` }] : [],
+        next_move: overdueN ? "Close the overdue item first." : "Pick the next item.",
       };
     }
     if (tool === "list_open_items") {
@@ -186,6 +188,7 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
     return {
       ...base,
       state: "result",
+      show_state: false,
       kpis: [{ label: "Open items", value: String(rows.length || linesOf(text).length), flag: overdueN ? "overdue" : null }],
       sections: [listSection("Items", rows.length ? rows : linesOf(text).slice(0, 8).map((l) => ({ cells: [l] })))],
       alerts: overdueN ? [{ level: "overdue", text: `${overdueN} overdue` }] : [],
@@ -225,8 +228,9 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
     const rawLines = linesOf(text);
     const incomplete = rawLines.filter((line) => /incomplete terms/i.test(line) || /^\s*-?\s*Missing:/i.test(line));
     const askLine = rawLines.find((line) => line.includes(SUMMARY_OFFER) || /do you want me to summarize/i.test(line));
+    const valueLine = (typeof structured.contract_value_display === "string" && structured.contract_value_display) || rawLines.find((line) => /^Contract value:/i.test(line)) || "";
     const clauseRows: CardRow[] = rawLines
-      .filter((line) => !incomplete.includes(line) && line !== askLine)
+      .filter((line) => !incomplete.includes(line) && line !== askLine && line !== valueLine && !/^Contract value:/i.test(line))
       .map((line) => ({ cells: [line], flag: lineAlert(line), raw: true }));
     const alerts = [
       ...clauseRows.filter((r) => r.flag).map((r) => ({ level: r.flag!, text: r.cells[0] })),
@@ -237,10 +241,20 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
       state: askLine ? "ask" : base.state,
       ask: askLine ? { prompt: SUMMARY_OFFER } : null,
       kpis: [
+        ...(valueLine ? [{ label: "Contract value", value: valueLine.replace(/^Contract value:\s*/i, "") }] : []),
         { label: "Clauses", value: String(clauseRows.length) },
         { label: "Risk clauses", value: String(clauseRows.filter((r) => r.flag).length), flag: clauseRows.some((r) => r.flag) ? "risk" : null },
       ],
       sections: [
+        ...(Array.isArray(structured.board_links)
+          ? [{
+              heading: "Job board",
+              kind: "chips" as const,
+              rows: (structured.board_links as { label?: string; url?: string }[])
+                .filter((link) => link.url)
+                .map((link) => ({ cells: [String(link.label || "Open")], href: String(link.url), tone: "action" as const })),
+            }]
+          : []),
         { heading: "Clauses", kind: "list", rows: clauseRows },
         ...(incomplete.length ? [listSection("Incomplete terms", incomplete.map((line) => ({ cells: [line.replace(/^- /, "")], tone: "unknown" as const })))] : []),
         { heading: "Applicability", kind: "table", columns: ["Flag", "Value"], rows: flagRows },

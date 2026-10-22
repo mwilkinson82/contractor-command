@@ -1,14 +1,32 @@
 // Morning brief tools. Settings are per user. The brief is built on request. Nothing is sent.
 import { defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
+import { errorCard, errorMessage } from "../error-card";
 import { run } from "../guard";
 import { loadMorningBrief, presentSettings, readBriefSettings, saveBriefSettings } from "../morning-brief-load";
 
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
-const companyId = z.string().trim().min(1).max(200).optional();
+const companyId = z.string().trim().max(200).optional();
+
+export const athenaHello = defineTool({
+  name: "athena_hello",
+  title: "Athena hello",
+  description:
+    "Returns the morning brief card when the user says Hey Athena, let's get started, Athena, let's get started, Good morning Athena, Hey Athena, what's on my plate today?, good morning, hey Athena, hello, or a misspelling like Athina, Athen, or Atena, and Athena answers first.",
+  inputSchema: { company_id: companyId },
+  annotations: READ,
+  handler: (args, ctx) =>
+    run("athena_hello", ctx, {}, async (sb) => {
+      try {
+        return await loadMorningBrief(sb, args.company_id);
+      } catch (e) {
+        return errorCard("Athena hello", errorMessage(e, "The morning brief could not be opened."));
+      }
+    }),
+});
 
 export const MORNING_BRIEF_DESCRIPTION =
-  "Builds the member's morning brief across every job they can see when they say Athena, good morning, Hey Athena, Good morning Athena, Morning Athena, Athena at the start or mid-sentence, Athina, Athen, Atena, hitlist, morning briefing, what's on my plate today, overdue, or today's deadlines on my jobs, and this is the construction morning brief, not email or calendar, and nothing is sent.";
+  "Builds the member's construction morning brief across every job they can see when they say Athena, good morning, Hey Athena, let's get started, Athena, let's get started, Good morning Athena, Hey Athena, what's on my plate today?, Morning Athena, Athena at the start or mid-sentence, Athina, Athen, Atena, hitlist, morning briefing, what's on my plate today, overdue, or today's deadlines on my jobs, Athena leads, the host fills From your inbox and calendar with emails that came in overnight, unanswered emails that need a reply, and today's meetings, then the job side follows with the schedule, notices, submittals due, overdue items, and what happened yesterday versus what is due today, and nothing is sent.";
 
 export const morningBrief = defineTool({
   name: "morning_brief",
@@ -17,7 +35,13 @@ export const morningBrief = defineTool({
   inputSchema: { company_id: companyId },
   annotations: READ,
   handler: (args, ctx) =>
-    run("morning_brief", ctx, {}, async (sb) => loadMorningBrief(sb, args.company_id)),
+    run("morning_brief", ctx, {}, async (sb) => {
+      try {
+        return await loadMorningBrief(sb, args.company_id);
+      } catch (e) {
+        return errorCard("Morning brief", errorMessage(e, "The morning brief could not be opened."));
+      }
+    }),
 });
 
 export const morningBriefSettings = defineTool({
@@ -34,10 +58,14 @@ export const morningBriefSettings = defineTool({
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   handler: (args, ctx) =>
     run("morning_brief_settings", ctx, {}, async (sb) => {
-      const setting = args.action === "set" || args.enabled != null || !!args.send_time?.trim() || !!args.time_zone?.trim();
-      const saved = setting
-        ? await saveBriefSettings(sb, { enabled: args.enabled, send_time: args.send_time, time_zone: args.time_zone })
-        : await readBriefSettings(sb);
-      return presentSettings(saved);
+      try {
+        const setting = args.action === "set" || args.enabled != null || !!args.send_time?.trim() || !!args.time_zone?.trim();
+        const saved = setting
+          ? await saveBriefSettings(sb, { enabled: args.enabled, send_time: args.send_time, time_zone: args.time_zone })
+          : await readBriefSettings(sb);
+        return presentSettings(saved);
+      } catch (e) {
+        return errorCard("Morning briefing", errorMessage(e, "The morning briefing setting could not be opened."));
+      }
     }),
 });
