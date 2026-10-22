@@ -16,6 +16,10 @@ import { guide, EMAIL_TO_LABEL_REQUIRED, SHARE_OPTIONS_REQUIRED, REPORT_SHARE_AS
 import { withoutClaims } from "../internal-claims";
 import { LOOKAHEAD_EMAIL_LINE } from "../email-safety";
 import { dataDateRule, pickLatestLookahead, type LaRow, emptyCard, lookaheadView, lookaheadModel, entryLine, lookaheadWindow, pageLine, windowActivities, type LaItem, type LaModel, type SAct } from "../styled-views";
+import { renderHtml } from "../cards/html";
+import { htmlBlock, renderMarkdown } from "../cards/markdown";
+import { applyCardClosing } from "../cards/silence";
+import { cardWidgetMeta, stampCardWidget } from "../cards/widget";
 import { signedJobPages } from "../board-url";
 import { whichJobAsk } from "../which-job";
 import { dueOf, isDueIn7, isOverdue, itemName, openItemFeed, openItemsCard, openItemsHeader } from "../open-feed";
@@ -1367,6 +1371,102 @@ export const listOpenItems = defineTool({
     }),
 });
 
+function lookaheadKind(row: { inputs?: unknown }): string | undefined {
+  const kind = row.inputs && typeof row.inputs === "object" ? (row.inputs as { kind?: unknown }).kind : undefined;
+  return typeof kind === "string" ? kind : undefined;
+}
+
+/** Opening line for lookahead_list. Counts come from visibleLookaheads via lookaheadRows. */
+export function lookaheadListLead(jobNumber: string, visible: { items: number }[], hidden: { setup: number; merged: number }): string {
+  const content = visible.filter((row) => row.items > 0).length;
+  const empty = visible.length - content;
+  const lookaheads = `${visible.length} lookahead${visible.length === 1 ? "" : "s"}`;
+  const containers = `${hidden.setup} setup container${hidden.setup === 1 ? "" : "s"}`;
+  return `Job ${jobNumber} has ${lookaheads} (${content} with content, ${empty} empty). ${hidden.merged} merged and ${containers} are hidden.`;
+}
+
+export const lookaheadList = defineTool({
+  name: "lookahead_list",
+  title: "List lookaheads",
+  description: "Lists how many lookaheads a job has, which are visible, and which setup and merged containers are hidden, and writes nothing.",
+  inputSchema: {
+    job_number: jobNumber,
+    company_id: companyId,
+  },
+  annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  handler: (args, ctx) =>
+    run("lookahead_list", ctx, { jobNumber: args.job_number }, async (sb) => {
+      const job = await resolveJob(sb, args.job_number, args.company_id);
+      const { data, error } = await sb.from("mcp_lookaheads").select("id, start_date, end_date, created_at, inputs").eq("job_id", job.job_id).limit(200);
+      if (error) throw new Error(error.message);
+      const raw = (data ?? []) as { id: string; inputs?: unknown }[];
+      const visibleIds = new Set(visibleLookaheads(raw).map((row) => row.id));
+      const hidden = { setup: 0, merged: 0 };
+      for (const row of raw) {
+        if (visibleIds.has(row.id)) continue;
+        const kind = lookaheadKind(row);
+        if (kind === "merged") hidden.merged += 1;
+        else if (kind === "setup") hidden.setup += 1;
+      }
+      const rows = await lookaheadRows(sb, job);
+      const latest = pickLatestLookahead(rows);
+      const k = (v: string | null) => v ?? "";
+      const sorted = [...rows].sort((a, b) => (!a.start_date !== !b.start_date ? (a.start_date ? -1 : 1) : k(b.start_date).localeCompare(k(a.start_date)) || k(b.end_date).localeCompare(k(a.end_date)) || b.created_at.localeCompare(a.created_at)));
+      const items: { ref: string; start: string | null; end: string | null; rev: number | null; open_items: number; items: number; latest: boolean; empty: boolean }[] = [];
+      for (const row of sorted) {
+        const rev = await currentRev(sb, row.id);
+        items.push({
+          ref: lookaheadRef(row.id),
+          start: row.start_date,
+          end: row.end_date,
+          rev,
+          open_items: row.items,
+          items: row.items,
+          latest: row.id === latest?.id,
+          empty: row.items === 0,
+        });
+      }
+      const lead = lookaheadListLead(job.job_number, rows, hidden);
+      const card = {
+        state: "result" as const,
+        title: "Lookaheads",
+        show_state: false,
+        job: named(job),
+        kpis: [
+          { label: "Visible", value: String(rows.length) },
+          { label: "With content", value: String(rows.filter((row) => row.items > 0).length) },
+          { label: "Empty", value: String(rows.filter((row) => row.items === 0).length) },
+          { label: "Hidden", value: String(hidden.setup + hidden.merged) },
+        ],
+        sections: [
+          {
+            heading: "Lookaheads",
+            kind: "table" as const,
+            columns: ["Ref", "Window", "Rev", "Items"],
+            rows: items.map((item) => ({
+              cells: [item.ref, `${item.start ?? "dates unknown"}${item.end ? ` to ${item.end}` : ""}`, item.rev == null ? "" : `Rev ${item.rev}`, String(item.items)],
+            })),
+          },
+          {
+            heading: "Hidden",
+            kind: "list" as const,
+            rows: [{ cells: [`${hidden.merged} merged`] }, { cells: [`${hidden.setup} setup container${hidden.setup === 1 ? "" : "s"}`] }],
+          },
+        ],
+      };
+      const html = renderHtml(card);
+      const body = applyCardClosing(`${lead}\n\n${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
+      return guide(
+        {
+          ...text(body),
+          structuredContent: { total_visible: rows.length, items, hidden, card, html },
+          _meta: { ...cardWidgetMeta },
+        },
+        "The card is shown. Add nothing after it.",
+      );
+    }),
+});
+
 // ---------- resolve_item ----------
 /** The warranty setup question a closed confirm item answers (check_key "warranty:<key>"), if any. Gap ("no") items already have an answer. */
 export function closedWarrantyKey(checkKey: string | null | undefined, closed: boolean, kind: string): WarrantyKey | null {
@@ -1652,3 +1752,5 @@ async function cpmDataDate(sb: Sb, job: Job): Promise<string | null> {
     return null;
   }
 }
+
+stampCardWidget([onboarding, intake, nextQuestion, answer, report, carryForward, listOpenItems, lookaheadList, resolveItem, contractTerms]);

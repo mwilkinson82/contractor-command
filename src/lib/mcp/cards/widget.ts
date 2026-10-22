@@ -132,4 +132,13 @@ tr.alert td{border:2px solid ${alert}}
 }
 
 export const CARD_WIDGET = { uri: CARD_WIDGET_URI, mimeType: CARD_WIDGET_MIME, html: cardWidgetHtml };
-export const cardWidgetMeta = { "openai/outputTemplate": CARD_WIDGET_URI } as const;
+/** ChatGPT reads this from the tool definition, then paints ui://athena/card.html. */
+export const cardWidgetMeta = {
+  "openai/outputTemplate": CARD_WIDGET_URI,
+  "openai/widgetAccessible": true,
+} as const;
+
+/** Put the ChatGPT card template on the tool object itself. defineMcp keeps the object. */
+export function stampCardWidget(tools: { name?: string }[]): void {
+  for (const tool of tools) Object.assign(tool, { _meta: { ...cardWidgetMeta } });
+}

@@ -3,7 +3,7 @@ import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { renderHtml } from "../cards/html";
 import { htmlBlock, renderMarkdown } from "../cards/markdown";
-import { CARD_WIDGET_URI, cardWidgetMeta } from "../cards/widget";
+import { cardWidgetMeta } from "../cards/widget";
 import { CARD_SHOWN, CARD_SHOWN_PICK, applyCardClosing } from "../cards/silence";
 import { inferCard } from "../cards/infer";
 import { signedJobPages } from "../board-url";
@@ -45,7 +45,6 @@ function present(flow: FlowName, stage: string, data: FlowData) {
         next_stage: next,
         sample: data.sample,
         logged: data.logged,
-        "openai/outputTemplate": CARD_WIDGET_URI,
       },
       _meta: { ...cardWidgetMeta },
       content: [{ type: "text" as const, text: body, _meta: { ...cardWidgetMeta } }],
@@ -78,7 +77,7 @@ function sealedCard(card: ReturnType<typeof inferCard>, pick: boolean) {
   const body = applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, pick);
   return guide(
     {
-      structuredContent: { card, html, ...(pick ? { which_job: true } : {}), "openai/outputTemplate": CARD_WIDGET_URI },
+      structuredContent: { card, html, ...(pick ? { which_job: true } : {}) },
       _meta: { ...cardWidgetMeta },
       content: [{ type: "text" as const, text: body, _meta: { ...cardWidgetMeta } }],
     },

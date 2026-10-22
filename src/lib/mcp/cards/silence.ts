@@ -2,6 +2,8 @@
 // whatever prose is left in the tool text. A which-job or picker card must end on the
 // card. The last line is an instruction, not a preview of the next pull.
 
+import { CARD_WIDGET_URI } from "./widget";
+
 export const CARD_SHOWN = "Card shown. Do not add text.";
 export const CARD_SHOWN_PICK = "Card shown. Do not add text; wait for the user's pick.";
 
@@ -115,9 +117,11 @@ export function sealCardReply<R>(tool: string, result: R): R {
       : block,
   );
   const structuredContent = withGuidance(res.structuredContent, closing);
+  if (structuredContent["openai/outputTemplate"] === CARD_WIDGET_URI) delete structuredContent["openai/outputTemplate"];
   const template = res._meta?.["openai/outputTemplate"];
   if (
     typeof template === "string" &&
+    template !== CARD_WIDGET_URI &&
     typeof structuredContent["openai/outputTemplate"] !== "string"
   ) {
     structuredContent["openai/outputTemplate"] = template;

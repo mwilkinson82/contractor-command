@@ -1231,6 +1231,38 @@
         "outputSchema": null
       },
       {
+        "name": "lookahead_list",
+        "title": "List lookaheads",
+        "description": "Lists how many lookaheads a job has, which are visible, and which setup and merged containers are hidden, and writes nothing.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
         "name": "resolve_item",
         "title": "Resolve or update an open item",
         "description": "Closes or updates an open item.",

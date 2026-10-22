@@ -1,0 +1,56 @@
+import { describe, expect, it } from "vitest";
+import { createTanStackMcpHandler } from "@lovable.dev/mcp-js/stacks/tanstack";
+import { defineMcp } from "@lovable.dev/mcp-js";
+import { CARD_TOOLS } from "./cards/attach";
+import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetMeta } from "./cards/widget";
+import { ATHENA_TOOLS } from "./index";
+import { readFileSync } from "node:fs";
+
+const CARD_NAMES = new Set<string>([...CARD_TOOLS, "lookahead_list"]);
+
+async function rpc(method: string, id: number) {
+  const m = defineMcp({
+    name: "athena",
+    title: "Athena powered by ALP, construction agents",
+    version: "t",
+    instructions: "i",
+    tools: ATHENA_TOOLS,
+    metrics: false,
+  } as never);
+  const h = createTanStackMcpHandler(m, { resourcePath: "/mcp" });
+  const post = (b: unknown) =>
+    h({
+      request: new Request("https://x/mcp", {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
+        body: JSON.stringify(b),
+      }),
+    });
+  await post({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } } });
+  const raw = await (await post({ jsonrpc: "2.0", id, method })).text();
+  const json = JSON.parse(raw.trimStart().startsWith("{") ? raw : raw.split("\n").find((line) => line.startsWith("data:"))!.slice(5));
+  return json.result;
+}
+
+describe("ChatGPT card widget is on the tool definition", () => {
+  it("every card tool carries the template and the resource is listed once", async () => {
+    const defs = ATHENA_TOOLS.filter((tool) => CARD_NAMES.has(tool.name));
+    expect(defs.length).toBeGreaterThan(10);
+    for (const tool of defs) {
+      expect(tool._meta, tool.name).toMatchObject(cardWidgetMeta);
+    }
+    const listed = await rpc("tools/list", 2);
+    for (const tool of listed.tools as { name: string; _meta?: Record<string, unknown> }[]) {
+      if (!CARD_NAMES.has(tool.name)) continue;
+      expect(tool._meta, tool.name).toMatchObject({ "openai/outputTemplate": CARD_WIDGET_URI, "openai/widgetAccessible": true });
+    }
+    const resources = await rpc("resources/list", 3);
+    const cards = (resources.resources as { uri: string; mimeType?: string }[]).filter((resource) => resource.uri === CARD_WIDGET_URI);
+    expect(cards).toEqual([{ uri: CARD_WIDGET_URI, name: "athena-card", title: "Athena card", mimeType: CARD_WIDGET_MIME }]);
+    const instructions = readFileSync("src/lib/mcp/index.ts", "utf8");
+    expect(instructions).toContain("How many / list lookaheads → lookahead_list.");
+    expect(instructions).not.toContain("leave that section out");
+    expect(instructions).not.toContain("leave the section out");
+    expect(instructions).not.toContain("Never render an empty heading");
+  });
+});
