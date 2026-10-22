@@ -2,6 +2,7 @@
 import { ToolError, defineTool, type JsonValueInput } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { BidError, requirementGaps, scanProject } from "../estimating-bid";
+import { keepUnexplainedGaps, reviewEstimatorLines, type EstimatorLine } from "../estimating-method";
 import {
   ESTIMATE_QUANTITY_REQUIRED,
   ESTIMATE_VIEW_SPEC,
@@ -704,11 +705,28 @@ export const estimateTakeoffExport = defineTool({
 export const estimateGapAnalysis = defineTool({
   name: "estimate_gap_analysis",
   title: "Estimate gap analysis",
-  description: "Saves gap items that cite the drawing sheet and the spec section.",
+  description: "Saves sheet-cited gaps after reading the estimator's basis notes and scope callouts, and must not back-solve a quantity to the estimator's number when the drawings do not define it.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
     items: z.array(gapIn).max(200),
+    estimator_lines: z
+      .array(
+        z.object({
+          item: z.string().trim().min(1).max(200),
+          qty: z.number().finite().nullable().optional(),
+          unit: z.string().trim().max(20).optional(),
+          note: z.string().trim().max(1000).optional(),
+          sheet: z.string().trim().max(80).optional(),
+          detail: z.string().trim().max(80).optional(),
+          callout: z.string().trim().max(300).optional(),
+          drawing_low: z.number().finite().nullable().optional(),
+          drawing_high: z.number().finite().nullable().optional(),
+          drawing_defined: z.number().finite().nullable().optional(),
+        }),
+      )
+      .max(200)
+      .optional(),
     requirements: z
       .array(
         z.object({
@@ -741,9 +759,55 @@ export const estimateGapAnalysis = defineTool({
           scanProject({ setup: prior.setup, clauses, findings: args.requirements }),
           prior.setup.role,
         );
+        const reviewed = reviewEstimatorLines(
+          (args.estimator_lines ?? []).map(
+            (line): EstimatorLine => ({
+              item: line.item,
+              qty: line.qty ?? null,
+              unit: line.unit ?? "",
+              note: line.note ?? null,
+              sheet: line.sheet ?? null,
+              detail: line.detail ?? null,
+              callout: line.callout ?? null,
+              drawingLow: line.drawing_low,
+              drawingHigh: line.drawing_high,
+              drawingDefined: line.drawing_defined,
+            }),
+          ),
+        );
+        const fromReview: GapIn[] = [
+          ...reviewed.openQuestions.map((q) => ({
+            kind: "verify" as const,
+            category: "scale_or_dimension" as const,
+            severity: "cannot_know" as const,
+            title: q.title,
+            reasoning: q.reasoning,
+            sheet: q.sheet,
+            detail: q.detail,
+            spec_section: q.detail || "drawings",
+            holds_bid: false,
+            qty: null,
+            unit: q.unit,
+          })),
+          ...reviewed.gaps.map((g) => ({
+            kind: "verify" as const,
+            category: "scope_seam" as const,
+            severity: "soft" as const,
+            title: g.item,
+            reasoning: g.reason,
+            sheet: g.sheet,
+            spec_section: "estimator note",
+            holds_bid: false,
+          })),
+        ];
         const merged = preserveGapList(
           prior.gaps,
-          dedupeGaps([...(args.items as GapIn[]), ...implied, ...found]),
+          dedupeGaps([
+            ...keepUnexplainedGaps(args.items as GapIn[], reviewed.explained),
+            ...implied,
+            ...found,
+            ...fromReview,
+          ]),
         );
         const gaps = prepareGaps(merged);
         await rpc(sb, "mcp_estimate_gaps_save", { _job: job.job_id, _items: gaps });
@@ -753,7 +817,7 @@ export const estimateGapAnalysis = defineTool({
           trades: loaded.setup.trades,
         });
         await audit(sb, job, "estimate_gap_analysis", "save_estimate_gaps", null);
-        const view = renderGaps(`${prefix(job)}${job.name}`, loaded.gaps, state);
+        const view = renderGaps(`${prefix(job)}${job.name}`, loaded.gaps, state, reviewed.outOfScope);
         return reply(view);
       } catch (e) {
         caught(e);
@@ -764,7 +828,7 @@ export const estimateGapAnalysis = defineTool({
 export const estimateBidCheck = defineTool({
   name: "estimate_bid_check",
   title: "Sub bid check",
-  description: "Checks each sub bid line against the takeoff for a general contractor job.",
+  description: "Checks each in-scope sub bid line against the takeoff for a general contractor job and lists out-of-scope callouts in their own section.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,

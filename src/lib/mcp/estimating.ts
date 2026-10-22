@@ -10,6 +10,7 @@ import {
 } from "./estimating-sheet";
 import { ATHENA_SERVER_ICONS } from "./server-info-branding";
 import { estimateSummaryPdf, type SummaryPdfRow } from "./estimate-summary-pdf";
+import { splitScope } from "./estimating-method";
 import { money } from "./sov";
 
 /** Same navy as the sign-in email. Blue and gray match the house palette. */
@@ -26,7 +27,7 @@ export const REQUIREMENT_OPEN_LIST =
 export const ESTIMATE_SERVER_RULE =
   " Takeoff quantities are MEASURED or DEDUCED. MEASURED is straight off a sheet (READ). DEDUCED is computed (DERIVED): multiply the MEASURED inputs, show the math, and cite the sheet and the detail or grid. Leave a quantity blank only when one named input is missing on every sheet. A vendor or shop-drawing note is not a reason for a blank. Addenda override the base documents. Do not invent quantities, dimensions, unit prices or vendor numbers. Every estimating report (takeoff, Estimate Analysis, estimator loop, Estimate Summary, bid summary) is landscape, 17 by 11 inches, with the Athena logo at the top right. Portrait only if the member asks. Red only for risks and gaps that hold up the bid. Questions go back to the estimator. Do not price a final bid until the takeoff is settled. A rate is the contractor's own figure, or a PLACEHOLDER the contractor supplies and then confirms. Do not attribute a number to RSMeans, NECA, SMACNA or MCAA, and do not reproduce their tables. " +
   REQUIREMENT_OPEN_LIST +
-  " Special requirements stay out of installation labor and material. Overhead is applied first, then profit on top. The bid summary shows direct cost, general conditions, special requirements, overhead and profit, and the total. Forms use one face unless the intake, the saved profile, or the line sets two, and that face count is applied to the form quantity and shown on the line. The earth side is not formed by default. Rebar is shown in LF and in LB. Termite treatment is gross area plus a separate perimeter in LF. Concrete, fiber, vapor barrier, base and fine grading follow the active profile: net when the drawings are read as drawn, gross on the estimator key, and the line says which. The foundation checklist is under-slab insulation, termite treatment, fine grade, base course, trench base, dowels, keyway, and slab edge forms. Each one is quantified or marked N/A with a reason, or it stays a gap. Ask scope, whether the estimator is the general contractor or a self-performer, which profile applies, and whether forms are one face or both faces. Do not assume self-performer, and do not mark intake complete until those are answered. If a job with the same name or number already has a takeoff, ask whether to reuse it or start fresh. A takeoff save either adds or updates lines, or replaces the whole takeoff; say which. A blank quantity is saved as HOLD, quantity pending, and is not dropped. Every line in the call is saved or listed as rejected. Show MEASURED or DEDUCED, the sheet, and the math on each takeoff line.";
+  " Special requirements stay out of installation labor and material. Overhead is applied first, then profit on top. The bid summary shows direct cost, general conditions, special requirements, overhead and profit, and the total. Forms use one face unless the intake, the saved profile, or the line sets two, and that face count is applied to the form quantity and shown on the line. The earth side is not formed by default. Rebar is shown in LF and in LB. Termite treatment is gross area plus a separate perimeter in LF. Concrete, fiber, vapor barrier, base and fine grading follow the active profile: net when the drawings are read as drawn, gross on the estimator key, and the line says which. The foundation checklist is under-slab insulation, termite treatment, fine grade, base course, trench base, dowels, keyway, and slab edge forms. Each one is quantified or marked N/A with a reason, or it stays a gap. Ask scope, whether the estimator is the general contractor or a self-performer, which profile applies, and whether forms are one face or both faces. Do not assume self-performer, and do not mark intake complete until those are answered. If a job with the same name or number already has a takeoff, ask whether to reuse it or start fresh. A takeoff save either adds or updates lines, or replaces the whole takeoff; say which. A blank quantity is saved as HOLD, quantity pending, and is not dropped. Every line in the call is saved or listed as rejected. Show MEASURED or DEDUCED, the sheet, and the math on each takeoff line. Do not back-solve a quantity to the estimator's number when the drawings do not define it: emit an open question with the low and high, the sheet, and the reasoning. Read the estimator's line note and basis formula before calling a gap, and call a gap only when that basis is missing or inconsistent with the drawings. Separate BY G.C., by others, NIC, and not in contract into an out-of-scope section before comparing.";
 
 export const NOT_RELEVANT_ASK =
   "Why is this not relevant? Send the reason in this same turn. Nothing was changed.";
@@ -1868,6 +1869,7 @@ export function renderGaps(
   job: string,
   gaps: StoredGap[],
   state: ReturnType<typeof settle>,
+  outOfScope: { item: string; sheet: string; callout: string }[] = [],
 ): { text: string; structured: Record<string, unknown>; guidance: string[] } {
   const seen = gaps.filter((g) => g.kind === "seen");
   const verify = gaps.filter((g) => g.kind === "verify");
@@ -1888,6 +1890,11 @@ export function renderGaps(
     "",
     REQUIREMENT_OPEN_LIST,
     "",
+    "Out of scope",
+    ...(outOfScope.length
+      ? outOfScope.map((row) => `- ${row.item}. Sheet ${row.sheet}. Callout: ${row.callout}.`)
+      : ["- None."]),
+    "",
     "Punch list",
     ...(punch.length
       ? punch.map((g, i) => `- P${i + 1}. ${g.title}. Sheet ${g.sheet}. Spec ${g.spec_section}.`)
@@ -1901,10 +1908,11 @@ export function renderGaps(
       report: "Estimate Analysis",
       layout: estimateLayout(),
       gaps,
+      out_of_scope: outOfScope,
       counts: state.counts,
     },
     guidance: [
-      "Cite the sheet and the spec section from this result. Do not add a gap that is not listed.",
+      "Cite the sheet and the spec section from this result. Do not add a gap that is not listed. Do not back-solve a quantity to the estimator's number.",
     ],
   };
 }
@@ -1944,6 +1952,7 @@ export function checkBids(
   }[];
   totals: { sub: string; line: string }[];
   questions: string[];
+  outOfScope: { item: string; sheet: string; callout: string }[];
 } {
   const rows: {
     sub: string;
@@ -1955,9 +1964,16 @@ export function checkBids(
   }[] = [];
   const totals: { sub: string; line: string }[] = [];
   const questions: string[] = [];
+  const scoped = splitScope(lines.map((l) => ({ line: l, text: `${l.item} ${l.note ?? ""}`, sheet: l.sheet })));
+  const linesInScope = scoped.inScope.map((row) => row.line);
+  const outOfScope = scoped.outOfScope.map((row) => ({
+    item: row.item.line.item,
+    sheet: row.sheet,
+    callout: row.callout,
+  }));
   for (const bid of bids) {
-    const pool = lines.filter((l) => inTrade(l, bid.trade));
-    const search = pool.length ? pool : lines;
+    const pool = linesInScope.filter((l) => inTrade(l, bid.trade));
+    const search = pool.length ? pool : linesInScope;
     const used = new Set<number>();
     let sumCents = 0;
     let missingAmt = 0;
@@ -2040,7 +2056,7 @@ export function checkBids(
         line: `Doesn't tie: off by ${money(Math.abs(bid.total - sum))}. Stated ${money(bid.total)}. Lines ${money(sum)}.`,
       });
   }
-  return { rows, totals, questions };
+  return { rows, totals, questions, outOfScope };
 }
 function inTrade(line: StoredLine, trade: string): boolean {
   if (line.trade && tradeMatch(line.trade, trade)) return true;
@@ -2076,6 +2092,11 @@ export function renderBidCheck(
     "",
     "Totals",
     ...result.totals.map((t) => `- ${t.sub}: ${t.line}`),
+    "",
+    "Out of scope",
+    ...(result.outOfScope.length
+      ? result.outOfScope.map((row) => `- ${row.item}. Sheet ${row.sheet}. Callout: ${row.callout}.`)
+      : ["- None."]),
     "",
     "Questions for the estimator",
     ...(result.questions.length

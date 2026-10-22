@@ -3047,7 +3047,7 @@
       {
         "name": "estimate_gap_analysis",
         "title": "Estimate gap analysis",
-        "description": "Saves gap items that cite the drawing sheet and the spec section.",
+        "description": "Saves sheet-cited gaps after reading the estimator's basis notes and scope callouts, and must not back-solve a quantity to the estimator's number when the drawings do not define it.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -3164,6 +3164,83 @@
                 ]
               }
             },
+            "estimator_lines": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "item": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "qty": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "unit": {
+                    "type": "string",
+                    "maxLength": 20
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "sheet": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "detail": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "callout": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "drawing_low": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "drawing_high": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "drawing_defined": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "item"
+                ]
+              }
+            },
             "requirements": {
               "maxItems": 80,
               "type": "array",
@@ -3224,7 +3301,7 @@
       {
         "name": "estimate_bid_check",
         "title": "Sub bid check",
-        "description": "Checks each sub bid line against the takeoff for a general contractor job.",
+        "description": "Checks each in-scope sub bid line against the takeoff for a general contractor job and lists out-of-scope callouts in their own section.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
