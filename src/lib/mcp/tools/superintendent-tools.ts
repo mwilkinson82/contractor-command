@@ -1,3 +1,4 @@
+import { fieldPayAppCardModel, presentPayApp } from "../pay-app-card";
 // Superintendent tools. Same gate as the others: run() checks auth, the call cap and membership.
 // Super can write field data here. Existing tools still treat super as read-only.
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
@@ -21,8 +22,6 @@ import {
   fieldBoardCard,
   fieldCard,
   fieldMoney,
-  payAppCard,
-  payAppPercentCard,
   photoGate,
   progressByItem,
   projectField,
@@ -335,15 +334,19 @@ export const fieldPayApp = defineTool({
       const previous = priorDate ? progressByItem(lines, [], priorDate) : [];
       await audit(sb, job, "field_pay_app", "view_pay_app", null);
       if (!fieldMoney(job.scope)) {
-        const card = payAppPercentCard(prefix(job), period, current.map((r) => ({ item_no: r.item_no, pct: r.pct, qty: r.qty, unit: lines.find((l) => l.sov_item === r.item_no)?.unit ?? null })));
-        return guide({ ...text(card), structuredContent: { period_to: period, no_financials: true, rows: current } }, "Super view: percents and quantities only. Do not add dollar figures.");
+        const presented = presentPayApp({
+          state: "result", show_state: false, title: `Progress for the next pay app · ${period}`, job: named(job),
+          sections: [{ heading: "Percents only. Dollar columns stay with the PM.", kind: "table", columns: ["Item", "Complete", "Installed"], rows: current.map((r) => ({ cells: [r.item_no, r.pct == null ? "Needed" : `${r.pct}%`, r.qty == null ? "Needed" : `${r.qty} ${lines.find((l) => l.sov_item === r.item_no)?.unit ?? ""}`.trim()] })) }],
+        });
+        return guide({ ...presented, structuredContent: { ...presented.structuredContent, period_to: period, no_financials: true, rows: current } }, "Super view: percents and quantities only. Do not add dollar figures.");
       }
       const sov = await loadSov(sb, job.job_id);
       try {
         const app = buildFieldPayApp(sov.lines, sov.fee, sov.retainage, current, previous);
         const url = boardHref(await boardPages(sb, job), "payapp");
+        const presented = presentPayApp(fieldPayAppCardModel(named(job), period, app, url));
         return guide(
-          { ...text([...(url ? [`Styled pay app (private to your company): ${url}`] : []), payAppCard(prefix(job), period, app)].join("\n")), structuredContent: { period_to: period, pay_app: app, ties: true } },
+          { ...presented, structuredContent: { ...presented.structuredContent, period_to: period, pay_app: app, ties: true } },
           "Show the G702 summary and the G703 lines exactly. Do not recompute them.",
         );
       } catch (e) {

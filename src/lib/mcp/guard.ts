@@ -1,4 +1,4 @@
-import { CARD_FIRST_TOOLS, attachAthenaCard } from "./cards/attach";
+import { isCardFirstTool, attachAthenaCard } from "./cards/attach";
 import { renderHtml } from "./cards/html";
 import { htmlBlock, renderMarkdown } from "./cards/markdown";
 import type { CardModel } from "./cards/model";
@@ -112,10 +112,11 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
     const sweptText = (swept as { content?: { text?: string }[] })?.content?.find((c) => c.text)?.text ?? "";
     if (tool === "list_open_items" && /No job named/.test(sweptText)) swept = r;
     const finalized = finalizeVisible(swept, [HOST_DISPLAY_BLOCK]);
-    const visible = CARD_FIRST_TOOLS.has(tool) ? finalized : withStyleLine(finalized);
+    const cardFirst = isCardFirstTool(tool, finalized);
+    const visible = cardFirst ? finalized : withStyleLine(finalized);
     const carded = attachAthenaCard(tool, visible);
-    const reminded = CARD_FIRST_TOOLS.has(tool) ? carded : await attachDailyReminder(sb as never, o.jobNumber ?? sig?.jobNumber ?? null, carded);
-    const started = await attachGettingStarted(sb as never, reminded, { prepend: !CARD_FIRST_TOOLS.has(tool) });
+    const reminded = cardFirst ? carded : await attachDailyReminder(sb as never, o.jobNumber ?? sig?.jobNumber ?? null, carded);
+    const started = await attachGettingStarted(sb as never, reminded, { prepend: !cardFirst });
     const sealed = sealCardReply(tool, started);
     const morning = await attachMorningCard(sb as never, sealed, { fresh: freshSession, explicit: tool === "morning_brief" });
     return stampCanary(morning, touch.canary);

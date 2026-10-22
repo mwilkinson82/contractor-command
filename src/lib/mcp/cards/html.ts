@@ -62,6 +62,7 @@ export function renderHtml(card: CardModel): string {
     `.kpi strong{font-size:16px}`,
     `h2{margin:16px 0 8px;font-size:14px;color:${navy}}`,
     `table{width:100%;border-collapse:collapse}`,
+    `.table-scroll{overflow-x:auto}.table-scroll table{min-width:960px}`,
     `th{background:${blue};color:${white};text-align:left;padding:6px 8px;font-size:12px}`,
     `td{padding:6px 8px;border-bottom:1px solid ${gray};vertical-align:top}`,
     `a{color:${blue};text-decoration:none}`,
@@ -117,7 +118,7 @@ export function renderHtml(card: CardModel): string {
             return `<tr ${attr}>${cells}</tr>`;
           })
           .join("");
-        inner = `${heading}<table><thead><tr>${labels}</tr></thead><tbody>${body}</tbody></table>`;
+        inner = `${heading}${s.scroll ? '<div class="table-scroll" tabindex="0" role="region" aria-label="Continuation table">' : ""}<table><thead><tr>${labels}</tr></thead><tbody>${body}</tbody></table>${s.scroll ? "</div>" : ""}`;
       } else {
         const items = s.rows
           .map((r) => {

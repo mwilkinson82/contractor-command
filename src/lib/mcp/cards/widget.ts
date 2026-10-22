@@ -62,13 +62,14 @@ if(card.ask&&card.ask.prompt)h+='<div class="ask"><strong>This question</strong>
   function head(flag){return flag==="delay"?"Delay":flag==="overdue"?"Overdue":"Risk"}
   if(s.kind==="table"){
     var cols=s.columns||[];
+    if(s.scroll)h+='<div class="table-scroll" tabindex="0" role="region" aria-label="Continuation table">';
     h+='<table><thead><tr>'+cols.map(function(c){return '<th>'+esc(c)+'</th>'}).join('')+'</tr></thead><tbody>';
     (s.rows||[]).forEach(function(r){
       var alert=isAlert(r.flag);
       var seen=view(r);
       h+='<tr'+(alert?' class="alert" data-alert="'+r.flag+'"':'')+'>'+(r.cells||[]).map(function(c,i){var t=raw(c)?"":clean(c);var body=i===0?linked({label:t||seen.label,href:seen.href,ref:seen.ref,secondary:seen.secondary}):esc(t);return '<td>'+(alert&&i===0?'<div class="flag-head">'+head(r.flag)+'</div><div class="flag-body">'+body+'</div>':body)+'</td>'}).join('')+'</tr>';
     });
-    h+='</tbody></table>'+close;
+    h+='</tbody></table>'+(s.scroll?'</div>':'')+close;
     return;
   }
   h+='<ul>';
@@ -113,6 +114,7 @@ h1{margin:0;font-size:22px}.job{margin:6px 0 0}
 .kpi span{display:block;color:${gray};font-size:12px}
 h2{margin:16px 0 8px;font-size:14px}
 th{background:${blue};color:${white};text-align:left;padding:6px 8px}
+.table-scroll{overflow-x:auto}.table-scroll table{min-width:960px}
 td{padding:6px 8px;border-bottom:1px solid ${gray}}
 .chip{display:inline-block;margin:0 6px 6px 0;padding:4px 8px;border-radius:999px;border:1px solid ${gray}}
 .tone-known{border-color:${blue};color:${blue}}.tone-unknown{color:${gray}}.tone-action{background:${blue};color:${white}}
