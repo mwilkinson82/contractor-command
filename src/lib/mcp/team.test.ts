@@ -58,7 +58,7 @@ vi.mock("./team-invite-email", async (orig) => {
 });
 
 import { teamAddSeats, teamInvite, teamList, teamRemoveMember, teamUpdateMember, OWNER_ONLY_MESSAGE } from "./tools/team-tools";
-import { PLAN_ROLES, planAllowsRole, normalizeRole, renderTeamList, seatLimitFromError, TEAM_WIDGET_URI, teamWidgetHtml } from "./team";
+import { PLAN_ROLES, planAllowsRole, normalizeRole, renderTeamList, seatLimitFromError, teamWidgetHtml } from "./team";
 import { buildInviteEmail } from "./team-invite-email";
 const { sendInvite } = await vi.importActual<typeof import("./team-invite-email")>("./team-invite-email");
 type R = { content: { type: string; text?: string }[]; structuredContent: Record<string, unknown>; guidance: string[]; _meta?: Record<string, unknown> };
@@ -197,7 +197,8 @@ describe("hosts", () => {
     const r = await call(teamList, {});
     expect(r.content[0].text).toMatch(/1\. Marshall, Owner, all jobs/);
     expect(r.content[0].text).toMatch(/2\. Sam, Super, jobs 2701/);
-    expect(r._meta?.["openai/outputTemplate"]).toBe(TEAM_WIDGET_URI);
+    expect(r._meta?.["openai/outputTemplate"]).toBeUndefined();
+    expect(JSON.stringify(r)).not.toContain("openai/outputTemplate");
     // 0.8.16.1 / #116: the card HTML is no longer attached as a content block, so it can't leak into non-ChatGPT hosts.
     expect(r.content).toHaveLength(1);
     expect(JSON.stringify(r.content)).not.toMatch(/<html|<!doctype|<script/i);

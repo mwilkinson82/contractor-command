@@ -13,7 +13,6 @@ import type { CardModel } from "../cards/model";
 import { renderHtml } from "../cards/html";
 import { cardReply, renderMarkdown } from "../cards/markdown";
 import { applyCardClosing } from "../cards/silence";
-import { cardWidgetMeta } from "../cards/widget";
 import {
   BALL_PARTIES,
   IMPORT_CONFIRM,
@@ -120,7 +119,6 @@ function cardResult(_body: string, card: CardModel, extra: Record<string, unknow
     {
       ...text(shown),
       structuredContent: { card, html, ...extra },
-      _meta: { ...cardWidgetMeta },
     },
     "Red only on an overdue row.",
   );

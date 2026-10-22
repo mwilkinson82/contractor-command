@@ -1,14 +1,8 @@
-// ChatGPT reads openai/outputTemplate from the tool result _meta. @lovable.dev/mcp-js
-// drops that field before the MCP server sees the handler return, so this bridge
-// puts it back on the card tools, registers the card widget resource, and stamps
-// the Apps SDK tool descriptor (ui.resourceUri plus the outputTemplate alias).
+// Meeting replies stay one card. No card widget resource is registered.
+// That registration hid the Athena icon in tools/list.
 import { McpServer } from "@modelcontextprotocol/server";
-import { CARD_TOOLS } from "./cards/attach";
-import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardToolDescriptorMeta, cardWidgetHtml, cardWidgetMeta, cardWidgetResourceMeta } from "./cards/widget";
 
 const MEETINGS = new Set(["pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "athena_hello", "morning_brief", "morning_brief_settings"]);
-const CARD_WIDGET_TOOLS = new Set<string>([...CARD_TOOLS, "lookahead_list"]);
-const TEMPLATE = { ...cardWidgetMeta };
 const patched = Symbol.for("athena.cardWidgetBridge");
 
 type RegisterTool = (name: string, config: { _meta?: Record<string, unknown> }, cb: (...args: unknown[]) => Promise<Record<string, unknown>>) => unknown;
@@ -45,49 +39,17 @@ export function boundMeetingResult(result: Record<string, unknown>): Record<stri
   return out;
 }
 
-const proto = McpServer.prototype as unknown as { [patched]?: boolean; registerTool: RegisterTool; registerResource?: (name: string, uri: string, config: Record<string, unknown>, read: () => Promise<unknown>) => unknown };
+const proto = McpServer.prototype as unknown as { [patched]?: boolean; registerTool: RegisterTool };
 
 if (!proto[patched]) {
   proto[patched] = true;
   const orig = proto.registerTool;
-  proto.registerTool = function (this: { registerResource?: (name: string, uri: string, config: Record<string, unknown>, read: () => Promise<unknown>) => unknown }, name, config, cb) {
-    const self = this;
-    const registered = (self as { _registeredResources?: Record<string, unknown> })._registeredResources;
-    const already = !!registered?.[CARD_WIDGET_URI];
-    if (!already && typeof self.registerResource === "function" && !(self as { _athenaCard?: boolean })._athenaCard) {
-      (self as { _athenaCard?: boolean })._athenaCard = true;
-      try {
-        self.registerResource(
-          "athena-card",
-          CARD_WIDGET_URI,
-          { title: "Athena card", mimeType: CARD_WIDGET_MIME, _meta: { ...cardWidgetResourceMeta } },
-          async () => ({
-            contents: [
-              {
-                uri: CARD_WIDGET_URI,
-                mimeType: CARD_WIDGET_MIME,
-                text: cardWidgetHtml(),
-                _meta: { ...cardWidgetResourceMeta },
-              },
-            ],
-          }),
-        );
-      } catch {
-        // A second server in the same process already registered this uri.
-      }
-    }
-    // Apps SDK descriptor on the card tools only. Do not set the legacy
-    // widget-accessible flag, and do not set tool icons. That flag replaced
-    // the Athena status row with a blank chip.
-    const next = CARD_WIDGET_TOOLS.has(name)
-      ? { ...config, _meta: { ...(config?._meta ?? {}), ...cardToolDescriptorMeta } }
-      : config;
+  proto.registerTool = function (name, config, cb) {
     const wrapped = async (...args: unknown[]) => {
       const result = (await cb(...args)) ?? {};
-      if (!CARD_WIDGET_TOOLS.has(name)) return result;
-      const safe = MEETINGS.has(name) ? boundMeetingResult(result) : result;
-      return { ...safe, _meta: { ...(safe._meta ?? {}), ...TEMPLATE } };
+      if (!MEETINGS.has(name)) return result;
+      return boundMeetingResult(result);
     };
-    return orig.call(this, name, next, wrapped);
+    return orig.call(this, name, config, wrapped);
   };
 }

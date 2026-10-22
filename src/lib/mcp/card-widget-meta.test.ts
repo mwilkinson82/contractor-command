@@ -4,14 +4,7 @@ import { defineMcp } from "@lovable.dev/mcp-js";
 import { runInNewContext } from "node:vm";
 import { CARD_TOOLS } from "./cards/attach";
 import { ATHENA_SERVER_ICONS } from "./server-info-branding";
-import {
-  CARD_WIDGET_DOMAIN,
-  CARD_WIDGET_MIME,
-  CARD_WIDGET_URI,
-  cardToolDescriptorMeta,
-  cardWidgetHtml,
-  cardWidgetResourceMeta,
-} from "./cards/widget";
+import { CARD_WIDGET_URI, cardWidgetHtml } from "./cards/widget";
 import { ATHENA_TOOLS } from "./index";
 import { readFileSync } from "node:fs";
 
@@ -42,30 +35,16 @@ async function rpc(method: string, id: number, params?: unknown) {
 }
 
 describe("ChatGPT card widget matches the Apps SDK descriptor", () => {
-  it("card tools carry ui.resourceUri and the outputTemplate alias, and leave icons alone", async () => {
-    expect(cardToolDescriptorMeta["openai/toolInvocation/invoking"].length).toBeLessThanOrEqual(64);
-    expect(cardToolDescriptorMeta["openai/toolInvocation/invoked"].length).toBeLessThanOrEqual(64);
-    expect(JSON.stringify(cardToolDescriptorMeta)).not.toContain("widgetAccessible");
-    expect(JSON.stringify(cardToolDescriptorMeta)).not.toContain("icons");
-
+  it("card tools leave the Athena icon alone and do not point at a widget template", async () => {
     const listed = await rpc("tools/list", 2);
     const tools = listed.tools as { name: string; icons?: unknown; _meta?: Record<string, unknown> }[];
     const cards = tools.filter((tool) => CARD_NAMES.has(tool.name));
     expect(cards.length).toBeGreaterThan(10);
-    for (const tool of cards) {
-      expect(tool._meta, tool.name).toMatchObject({
-        ui: { resourceUri: CARD_WIDGET_URI, visibility: ["model", "app"] },
-        "openai/outputTemplate": CARD_WIDGET_URI,
-        "openai/toolInvocation/invoking": "Opening the Athena card",
-        "openai/toolInvocation/invoked": "Athena card ready",
-      });
+    for (const tool of tools) {
+      expect(JSON.stringify(tool._meta ?? {}), tool.name).not.toContain("openai/outputTemplate");
+      expect(JSON.stringify(tool._meta ?? {}), tool.name).not.toContain(CARD_WIDGET_URI);
       expect(tool._meta?.["openai/widgetAccessible"], tool.name).toBeUndefined();
       expect(tool.icons, tool.name).toBeUndefined();
-    }
-    for (const name of ["cpm_activities", "team_list"]) {
-      const tool = tools.find((row) => row.name === name);
-      expect(tool, name).toBeTruthy();
-      expect(JSON.stringify(tool?._meta ?? {}), name).not.toContain(CARD_WIDGET_URI);
     }
     expect(ATHENA_SERVER_ICONS.map((icon) => icon.src)).toEqual([
       "https://app.meetathena.io/brand/athena/athena-mono-blue-64.png",
@@ -79,51 +58,10 @@ describe("ChatGPT card widget matches the Apps SDK descriptor", () => {
     expect(instructions).not.toContain("Never render an empty heading");
   });
 
-  it("resources/read returns the mcp-app mimeType and widget CSP metadata", async () => {
-    const resources = await rpc("resources/list", 3);
-    const cards = (resources.resources as { uri: string; name?: string; mimeType?: string; _meta?: Record<string, unknown> }[]).filter(
-      (resource) => resource.uri === CARD_WIDGET_URI,
-    );
-    expect(cards).toHaveLength(1);
-    expect(cards[0]).toMatchObject({
-      uri: CARD_WIDGET_URI,
-      name: "athena-card",
-      title: "Athena card",
-      mimeType: CARD_WIDGET_MIME,
-    });
-    expect(cards[0].mimeType).toBe("text/html;profile=mcp-app");
-    expect(cards[0]._meta).toMatchObject(cardWidgetResourceMeta);
-
-    const read = await rpc("resources/read", 4, { uri: CARD_WIDGET_URI });
-    const contents = read.contents as { uri: string; mimeType?: string; text?: string; _meta?: Record<string, unknown> }[];
-    expect(contents).toHaveLength(1);
-    const item = contents[0];
-    expect(item.uri).toBe(CARD_WIDGET_URI);
-    expect(item.mimeType).toBe("text/html;profile=mcp-app");
-    expect(item.mimeType).toBe(CARD_WIDGET_MIME);
-    const meta = item._meta as {
-      ui: { domain: string; csp: { connectDomains: string[]; resourceDomains: string[] } };
-      "openai/widgetCSP": { connect_domains: string[]; resource_domains: string[] };
-      "openai/widgetDomain": string;
-    };
-    expect(meta["openai/widgetDomain"]).toBe(CARD_WIDGET_DOMAIN);
-    expect(meta["openai/widgetCSP"].connect_domains).toEqual([CARD_WIDGET_DOMAIN]);
-    expect(meta["openai/widgetCSP"].resource_domains).toEqual([CARD_WIDGET_DOMAIN]);
-    expect(meta.ui.domain).toBe(CARD_WIDGET_DOMAIN);
-    expect(meta.ui.csp.connectDomains).toEqual([CARD_WIDGET_DOMAIN]);
-    expect(meta.ui.csp.resourceDomains).toEqual([CARD_WIDGET_DOMAIN]);
-    expect(item.text).toContain("#1E3A5F");
-    expect(item.text).toContain("#1E5FED");
-    expect(item.text).toContain("<style>");
-    expect(item.text).toContain("<script>");
-    expect(item.text).not.toMatch(/<script[^>]+src=/);
-    expect(item.text).not.toMatch(/<link[^>]+href=/);
-    expect(Buffer.byteLength(item.text ?? "")).toBeLessThan(100_000);
-    expect(item.text).toContain("window.openai");
-    expect(item.text).toContain("toolOutput");
-    expect(item.text).toContain("ui/notifications/tool-result");
-    expect(item.text).toContain("ui/initialize");
-    expect(item.text).toContain("openai:set_globals");
+  it("does not register the mcp-app card resource", async () => {
+    const listed = (await rpc("resources/list", 3)) as { resources?: { uri: string }[] } | undefined;
+    const resources = listed?.resources ?? [];
+    expect(resources.some((resource) => resource.uri === CARD_WIDGET_URI)).toBe(false);
   });
 
   it("paints after the host delivers structuredContent, not from an empty first read", () => {

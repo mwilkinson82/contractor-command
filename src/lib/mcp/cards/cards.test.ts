@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { inferCard } from "./infer";
 import { attachAthenaCard } from "./attach";
 import { CARD_SHOWN, CARD_SHOWN_PICK } from "./silence";
-import { CARD_WIDGET_URI, cardWidgetHtml } from "./widget";
+import { cardWidgetHtml } from "./widget";
 import { renderHtml } from "./html";
 import { renderMarkdown } from "./markdown";
 import { plainLabel } from "../plain-label";
@@ -66,7 +66,7 @@ describe("PM tools become cards", () => {
     expect(after.content[0].text).toContain(before);
     expect(after.content[0].text).not.toMatch(/REQUIRED VIEW|do not add text/i);
     expect(after.structuredContent.html).toContain("What are the pay terms?");
-    expect(after._meta["openai/outputTemplate"]).toBe(CARD_WIDGET_URI);
+    expect(after._meta["openai/outputTemplate"]).toBeUndefined();
   });
 
   it("contract_terms paints the liquidated damages clause itself red and keeps every line inside the card", () => {

@@ -144,7 +144,7 @@ describe("sample path on job 2701", () => {
         expect(text.trim().endsWith("</html>"), name).toBe(true);
         expect(r.content[0].type).toBe("text");
         expect(r.content.some((c) => c.type === "resource")).toBe(false);
-        expect(r._meta?.["openai/outputTemplate"]).toBe("ui://athena/card.html");
+        expect(r._meta?.["openai/outputTemplate"]).toBeUndefined();
         expect(Object.keys(r)[0]).toBe("structuredContent");
       }
     }
@@ -217,7 +217,7 @@ describe("sample path on job 2701", () => {
     }
     const bridge = readFileSync("src/lib/mcp/widget-bridge.ts", "utf8");
     expect(bridge).not.toContain("toolInvocation");
-    expect(bridge).toContain("openai/outputTemplate");
+    expect(bridge).not.toContain("openai/outputTemplate");
   });
 
   it("puts the field board and open items on every meeting card", () => {

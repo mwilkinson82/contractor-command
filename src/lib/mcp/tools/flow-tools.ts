@@ -3,7 +3,6 @@ import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { renderHtml } from "../cards/html";
 import { cardReply, renderMarkdown } from "../cards/markdown";
-import { cardWidgetMeta } from "../cards/widget";
 import { applyCardClosing } from "../cards/silence";
 import { inferCard } from "../cards/infer";
 import { signedJobPages } from "../board-url";
@@ -46,8 +45,7 @@ function present(flow: FlowName, stage: string, data: FlowData) {
         sample: data.sample,
         logged: data.logged,
       },
-      _meta: { ...cardWidgetMeta },
-      content: [{ type: "text" as const, text: body, _meta: { ...cardWidgetMeta } }],
+      content: [{ type: "text" as const, text: body }],
     },
     next
       ? `When the PM continues, call ${flow} with stage ${next} only. Record a planned bill and a realistic bill as plan and realistic on stage accounting. Do not call living_report_save for those two figures.`
@@ -78,8 +76,7 @@ function sealedCard(card: ReturnType<typeof inferCard>, pick: boolean) {
   return guide(
     {
       structuredContent: { card, html, ...(pick ? { which_job: true } : {}) },
-      _meta: { ...cardWidgetMeta },
-      content: [{ type: "text" as const, text: body, _meta: { ...cardWidgetMeta } }],
+      content: [{ type: "text" as const, text: body }],
     },
     pick ? "Wait for the user's pick." : "",
   );

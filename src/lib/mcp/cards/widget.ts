@@ -207,20 +207,5 @@ export const cardWidgetResourceMeta = {
   "openai/ui": { availableDisplayModes: ["inline"] },
 } as const;
 
-/** Result _meta only. Status strings stay on the tool descriptor so the result text is unchanged. */
-export const cardWidgetMeta = {
-  "openai/outputTemplate": CARD_WIDGET_URI,
-} as const;
-
-/**
- * tools/list descriptor, Apps SDK shape.
- * ui.resourceUri is the link. openai/outputTemplate is the ChatGPT alias.
- * invoking/invoked are the status row (64 characters or fewer).
- * The legacy widget-accessible flag is omitted: it replaced the Athena icon with a blank row.
- */
-export const cardToolDescriptorMeta = {
-  ui: { resourceUri: CARD_WIDGET_URI, visibility: ["model", "app"] },
-  "openai/outputTemplate": CARD_WIDGET_URI,
-  "openai/toolInvocation/invoking": "Opening the Athena card",
-  "openai/toolInvocation/invoked": "Athena card ready",
-} as const;
+/** Card results carry no template key. That key hid the Athena icon. */
+export const cardWidgetMeta = {} as const;

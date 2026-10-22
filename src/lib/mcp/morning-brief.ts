@@ -7,7 +7,6 @@ import { activityLine, itemLabel, lookaheadModel, shortDate, type LaItem, type S
 import type { BoardPage } from "./board-link";
 import { cardReply, renderMarkdown } from "./cards/markdown";
 import { renderHtml } from "./cards/html";
-import { cardWidgetMeta } from "./cards/widget";
 import { applyCardClosing } from "./cards/silence";
 import { guide } from "./visible";
 import type { CardModel, CardRow } from "./cards/model";
@@ -604,8 +603,7 @@ export function presentBrief(card: CardModel) {
   return guide(
     {
       structuredContent: { card, html },
-      _meta: { ...cardWidgetMeta },
-      content: [{ type: "text" as const, text: body, _meta: { ...cardWidgetMeta } }],
+      content: [{ type: "text" as const, text: body }],
     },
     "Always keep the heading From your inbox and calendar. If you can read Gmail, replace the email placeholder with overnight emails and unanswered emails that need a reply. If Google Calendar is connected, replace the meeting rows with today's meetings and remove the Connect line. If Google Calendar is not connected, keep this line: Connect Google Calendar in your AI. If you cannot read mail, keep the placeholder rows and write no error text of your own. Keep the job sections: schedule, notices, submittals due, overdue items, and what happened yesterday versus what is due today. Show the HTML card. Add nothing after it.",
     MORNING_CARD_GUIDANCE,

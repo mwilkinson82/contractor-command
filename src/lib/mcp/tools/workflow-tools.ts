@@ -19,7 +19,6 @@ import { dataDateRule, pickLatestLookahead, type LaRow, emptyCard, lookaheadView
 import { renderHtml } from "../cards/html";
 import { cardReply, renderMarkdown } from "../cards/markdown";
 import { applyCardClosing } from "../cards/silence";
-import { cardWidgetMeta } from "../cards/widget";
 import { signedJobPages } from "../board-url";
 import { whichJobAsk } from "../which-job";
 import { dueOf, isDueIn7, isOverdue, itemName, openItemFeed, openItemsCard, openItemsHeader } from "../open-feed";
@@ -1437,7 +1436,6 @@ export const lookaheadList = defineTool({
         {
           ...text(body),
           structuredContent: { total_visible: rows.length, items, card, html },
-          _meta: { ...cardWidgetMeta },
         },
         "The card is shown. Add nothing after it.",
       );

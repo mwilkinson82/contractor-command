@@ -1,7 +1,6 @@
 import { cardReply, htmlBlock, renderMarkdown } from "./markdown";
 import { renderHtml } from "./html";
 import { inferCard } from "./infer";
-import { cardWidgetMeta } from "./widget";
 import { CARD_SHOWN, CARD_SHOWN_PICK, applyCardClosing, stripSpokenPreview } from "./silence";
 import { INBOX_HOST_LINE } from "../morning-brief";
 import { isWhichJobText } from "../which-job";
@@ -100,7 +99,7 @@ export function attachAthenaCard<R>(tool: string, result: R): R {
         : `${markdown}\n\n${first.text}\n\n${htmlBlock(html)}`;
     const closed = applyCardClosing(text, askJob);
     const priorGuidance = Array.isArray(sc.assistant_guidance) ? (sc.assistant_guidance as unknown[]) : [];
-    const content = res.content!.map((c) => (c === first ? { ...c, text: closed, _meta: { ...(c as { _meta?: Record<string, unknown> })._meta, ...cardWidgetMeta } } : c));
+    const content = res.content!.map((c) => (c === first ? { ...c, text: closed } : c));
     const structuredContent = {
       ...sc,
       card,
@@ -108,7 +107,7 @@ export function attachAthenaCard<R>(tool: string, result: R): R {
       ...(askJob ? { which_job: true } : {}),
       assistant_guidance: [...priorGuidance.filter((g) => g !== CARD_SHOWN && g !== CARD_SHOWN_PICK)],
     };
-    const meta = { ...(res._meta ?? {}), ...cardWidgetMeta };
+    const meta = { ...(res._meta ?? {}) };
     const out: Record<string, unknown> = { structuredContent, _meta: meta };
     for (const [key, value] of Object.entries(res)) if (!(key in out)) out[key] = value;
     out.content = content;

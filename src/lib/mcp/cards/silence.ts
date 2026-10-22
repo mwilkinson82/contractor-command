@@ -2,8 +2,6 @@
 // whatever prose is left in the tool text. A which-job or picker card must end on the
 // card. The last line is an instruction, not a preview of the next pull.
 
-import { CARD_WIDGET_URI } from "./widget";
-
 export const CARD_SHOWN =
   "Card shown. Show the HTML card above as written. Do not add text after it, and do not replace it with a markdown table or one sentence.";
 export const CARD_SHOWN_PICK =
@@ -79,8 +77,6 @@ export function isCardReply(tool: string, res: Res): boolean {
   if (isPickerReply(tool, res)) return true;
   const sc = res.structuredContent ?? {};
   if (isCardModel(sc.card) || isCardModel(sc.daily_reminder_card)) return true;
-  const template = res._meta?.["openai/outputTemplate"];
-  if (typeof template === "string" && template.startsWith("ui://athena/")) return true;
   const text = (res.content ?? [])
     .map((c) => (typeof c.text === "string" ? c.text : ""))
     .join("\n");
@@ -107,15 +103,6 @@ export function sealCardReply<R>(tool: string, result: R): R {
       : block,
   );
   const structuredContent = { ...(res.structuredContent ?? {}) };
-  if (structuredContent["openai/outputTemplate"] === CARD_WIDGET_URI) delete structuredContent["openai/outputTemplate"];
-  const template = res._meta?.["openai/outputTemplate"];
-  if (
-    typeof template === "string" &&
-    template !== CARD_WIDGET_URI &&
-    typeof structuredContent["openai/outputTemplate"] !== "string"
-  ) {
-    structuredContent["openai/outputTemplate"] = template;
-  }
   const out: Record<string, unknown> = { ...res, content, structuredContent };
   if (Array.isArray(res.guidance)) {
     out.guidance = res.guidance.filter((g) => g !== CARD_SHOWN && g !== CARD_SHOWN_PICK);
