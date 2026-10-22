@@ -1,15 +1,15 @@
-// First-chat card: teach the member to start every ask with @Athena.
+// First-chat card: say Hey Athena. @Athena is the backup.
 // The flag is one row per user. A missing migration fails open (no card, no throw).
 import { htmlBlock, renderMarkdown } from "./cards/markdown";
 import { renderHtml } from "./cards/html";
 import type { CardModel } from "./cards/model";
-import { START_EXAMPLES, START_HEADLINE, START_HOSTS, START_NEXT, START_WHY } from "../athena-start-copy";
+import { START_BACKUP, START_EXAMPLES, START_HEADLINE, START_HOSTS, START_POINTS } from "../athena-start-copy";
 
 export const GETTING_STARTED_GUIDANCE =
-  "Show the getting-started card first. It tells the member to start every ask with @Athena.";
+  "Show the getting-started card first. It tells the member to say Hey Athena. @Athena is only the backup.";
 
 export const GETTING_STARTED_RULE =
-  " When the member asks how to start, how to use Athena, or for getting started, call getting_started and show that card. On a member's first tool call, show the getting-started card before the rest of the reply.";
+  " When the member asks how to start, how to use Athena, or for getting started, call getting_started and show that card. On a member's first tool call, show the getting-started card before the rest of the reply. The card says to open with Hey Athena. @Athena is only the backup.";
 
 export function gettingStartedCard(): CardModel {
   return {
@@ -17,14 +17,10 @@ export function gettingStartedCard(): CardModel {
     title: START_HEADLINE,
     job: START_HOSTS,
     sections: [
-      { heading: "Why", kind: "list", rows: [{ cells: [START_WHY] }] },
-      {
-        heading: "Try one",
-        kind: "list",
-        rows: START_EXAMPLES.map((ask) => ({ cells: [ask] })),
-      },
+      { heading: "Your work", kind: "list", rows: START_POINTS.map((line) => ({ cells: [line] })) },
+      { heading: "Try one", kind: "list", rows: START_EXAMPLES.map((ask) => ({ cells: [ask] })) },
+      { heading: "Backup", kind: "list", rows: [{ cells: [START_BACKUP] }] },
     ],
-    next_move: START_NEXT,
   };
 }
 

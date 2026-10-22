@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { START_EXAMPLES, START_HEADLINE, START_WHY } from "../athena-start-copy";
+import { START_BACKUP, START_EXAMPLES, START_HEADLINE, START_POINTS } from "../athena-start-copy";
 import { AthenaStartTip } from "@/components/athena/start-tip";
 import { paletteViolations } from "./cards/palette";
 import { renderHtml } from "./cards/html";
@@ -41,23 +41,28 @@ describe("getting started card", () => {
   const html = renderHtml(card);
   const shown = renderGettingStarted(card);
 
-  it("tells the member to start every ask with @Athena and gives real asks", () => {
+  it("leads with Hey Athena, then the backup @Athena, and gives real asks", () => {
     expect(card.title).toBe(START_HEADLINE);
-    expect(card.title).toBe("Start every ask with @Athena.");
-    expect(shown).toContain(START_WHY);
-    expect(START_WHY).toBe("It routes the ask to Athena instead of the general AI.");
+    expect(card.title).toBe('Just say "Hey Athena".');
+    expect(shown.indexOf(START_HEADLINE)).toBeLessThan(shown.indexOf(START_EXAMPLES[0]));
+    expect(shown.indexOf(START_EXAMPLES[0])).toBeLessThan(shown.indexOf(START_BACKUP));
+    expect(START_BACKUP).toContain("@Athena");
+    expect(START_BACKUP).toContain("instead of the general AI");
+    expect(START_POINTS).toEqual([
+      "The same Athena knows your jobs wherever you open her, in ChatGPT or Claude.",
+      "Your work lives on Athena's servers.",
+      "Every job has its own dashboard and boards that stay up to date.",
+    ]);
+    for (const line of START_POINTS) expect(shown).toContain(line);
     expect(START_EXAMPLES).toHaveLength(6);
     for (const ask of START_EXAMPLES) {
-      expect(ask.startsWith("@Athena ")).toBe(true);
+      expect(ask.startsWith("Hey Athena, ")).toBe(true);
       expect(shown).toContain(ask);
       expect(html).toContain(ask);
     }
-    expect(shown).toContain("@Athena run my PM meeting for job 2701");
-    expect(shown).toContain("@Athena give me the 2-week lookahead");
-    expect(shown).toContain("@Athena where's my billing forecast");
-    expect(shown).toContain("@Athena log today's daily");
-    expect(shown).toContain("@Athena show open change orders");
-    expect(shown).toContain("@Athena show the field board");
+    expect(shown).toContain("Hey Athena, run my PM meeting for job 2701");
+    expect(shown).not.toMatch(/\bpermanent\b/i);
+    expect(html).not.toMatch(/\bpermanent\b/i);
   });
 
   it("stays on the card palette, with no alert red and no vendor names", () => {
@@ -98,7 +103,7 @@ describe("first tool call", () => {
     expect(first.content[0].text).toContain(START_HEADLINE);
     expect(first.content[0].text).toContain("Job 2701 is open.");
     expect(first.content[0].text.indexOf(START_HEADLINE)).toBeLessThan(first.content[0].text.indexOf("Job 2701 is open."));
-    expect(first.content[0].text.match(/## 🔵 Start every ask with @Athena\./g)).toHaveLength(1);
+    expect(first.content[0].text.match(/## 🔵 Just say "Hey Athena"\./g)).toHaveLength(1);
     expect(first.structuredContent.getting_started.title).toBe(START_HEADLINE);
 
     const second = (await run("report", ctx, { jobNumber: "2701" }, async () => ({
@@ -114,7 +119,7 @@ describe("first tool call", () => {
       content: [{ type: "text" as const, text: "2701 – PM meeting\nSchedule is on track." }],
       structuredContent: { stage: "progress" },
     }))) as { content: { text: string }[]; structuredContent: { getting_started?: { title: string }; stage?: string } };
-    expect(result.content[0].text).not.toContain(START_WHY);
+    expect(result.content[0].text).not.toContain(START_HEADLINE);
     expect(result.structuredContent.getting_started?.title).toBe(START_HEADLINE);
     expect(result.structuredContent.stage).toBe("progress");
   });
@@ -153,18 +158,21 @@ describe("first tool call", () => {
     };
     expect(result.structuredContent.card.title).toBe(START_HEADLINE);
     expect(result.structuredContent.getting_started).toBeUndefined();
-    expect(result.content[0].text.match(/## 🔵 Start every ask with @Athena\./g)).toHaveLength(1);
+    expect(result.content[0].text.match(/## 🔵 Just say "Hey Athena"\./g)).toHaveLength(1);
     expect(visibleProblems(result.content[0].text)).toEqual([]);
   });
 });
 
 describe("app tip", () => {
   it("uses the same headline, why, and asks on the Athena landing and the connect handoff", () => {
-    const html = renderToStaticMarkup(React.createElement(AthenaStartTip)).replace(/&#x27;/g, "'");
+    const html = renderToStaticMarkup(React.createElement(AthenaStartTip)).replace(/&#x27;/g, "'").replace(/&quot;/g, '"');
     expect(html).toContain('data-testid="athena-start-tip"');
     expect(html).toContain(START_HEADLINE);
-    expect(html).toContain(START_WHY);
+    expect(html.indexOf(START_HEADLINE)).toBeLessThan(html.indexOf(START_EXAMPLES[0]));
+    expect(html.indexOf(START_EXAMPLES[0])).toBeLessThan(html.indexOf(START_BACKUP));
+    for (const line of START_POINTS) expect(html).toContain(line);
     for (const ask of START_EXAMPLES) expect(html).toContain(ask);
+    expect(html).not.toMatch(/\bpermanent\b/i);
     expect(paletteViolations(html, false)).toEqual([]);
     expect(html).not.toMatch(/#DC2626|lovable|supabase/i);
     const account = readFileSync("src/routes/account.tsx", "utf8");

@@ -8,7 +8,7 @@ const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true,
 export const gettingStarted = defineTool({
   name: "getting_started",
   title: "How to start an ask",
-  description: "Shows how to start every ask with @Athena so the ask reaches Athena.",
+  description: "Shows how to say Hey Athena so an ask reaches Athena.",
   inputSchema: {},
   annotations: READ,
   handler: (args, ctx) =>

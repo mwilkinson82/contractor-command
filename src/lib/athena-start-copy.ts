@@ -1,16 +1,23 @@
 // Shared copy for the first-chat card and the app.meetathena.io start tip.
-// These asks map to tools Athena already has. No extra product is promised.
+// The asks map to tools Athena already has.
 
-export const START_HEADLINE = "Start every ask with @Athena.";
-export const START_WHY = "It routes the ask to Athena instead of the general AI.";
-export const START_HOSTS = "ChatGPT and similar hosts";
-export const START_NEXT = "Start the next ask with @Athena.";
+export const START_HEADLINE = 'Just say "Hey Athena".';
+export const START_HOSTS = "ChatGPT and Claude";
+
+export const START_POINTS = [
+  "The same Athena knows your jobs wherever you open her, in ChatGPT or Claude.",
+  "Your work lives on Athena's servers.",
+  "Every job has its own dashboard and boards that stay up to date.",
+] as const;
 
 export const START_EXAMPLES = [
-  "@Athena run my PM meeting for job 2701",
-  "@Athena give me the 2-week lookahead",
-  "@Athena where's my billing forecast",
-  "@Athena log today's daily",
-  "@Athena show open change orders",
-  "@Athena show the field board",
+  "Hey Athena, run my PM meeting for job 2701",
+  "Hey Athena, give me the 2-week lookahead",
+  "Hey Athena, where's my billing forecast",
+  "Hey Athena, log today's daily",
+  "Hey Athena, show open change orders",
+  "Hey Athena, show the field board",
 ] as const;
+
+export const START_BACKUP =
+  "If it misses, start with @Athena. It routes the ask to Athena instead of the general AI.";

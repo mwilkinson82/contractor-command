@@ -1,4 +1,4 @@
-import { START_EXAMPLES, START_HEADLINE, START_HOSTS, START_NEXT, START_WHY } from "@/lib/athena-start-copy";
+import { START_BACKUP, START_EXAMPLES, START_HEADLINE, START_HOSTS, START_POINTS } from "@/lib/athena-start-copy";
 import { BLUE, GRAY, NAVY, WHITE } from "@/lib/mcp/cards/palette";
 
 /** Athena-branded start tip. Navy, blue, and gray. No alert red. */
@@ -36,7 +36,13 @@ export function AthenaStartTip() {
         >
           Start here
         </p>
-        <p style={{ margin: 0 }}>{START_WHY}</p>
+        <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+          {START_POINTS.map((line) => (
+            <li key={line} style={{ margin: "8px 0" }}>
+              {line}
+            </li>
+          ))}
+        </ul>
         <h3 style={{ margin: "16px 0 8px", fontSize: 14 }}>Try one</h3>
         <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
           {START_EXAMPLES.map((ask) => (
@@ -45,7 +51,8 @@ export function AthenaStartTip() {
             </li>
           ))}
         </ul>
-        <p style={{ margin: "14px 0 0", fontWeight: 700 }}>{START_NEXT}</p>
+        <h3 style={{ margin: "16px 0 8px", fontSize: 14, color: GRAY }}>Backup</h3>
+        <p style={{ margin: 0, padding: "8px 12px", borderLeft: `4px solid ${GRAY}` }}>{START_BACKUP}</p>
       </div>
     </section>
   );
