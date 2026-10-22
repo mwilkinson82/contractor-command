@@ -19,7 +19,13 @@ const DANGER = "#B91C1C";
  * Athena email-code sign-in for a job board. The code is typed on this page.
  * After it works, the browser returns only to the validated board path.
  */
-export function BoardSignIn({ returnTo }: { returnTo: string }) {
+export function BoardSignIn({
+  returnTo,
+  switchAccount = false,
+}: {
+  returnTo: string;
+  switchAccount?: boolean;
+}) {
   const requestCode = useServerFn(requestMemberMagicLink);
   const safeReturn = signInReturn(returnTo);
   const [email, setEmail] = useState("");
@@ -38,6 +44,24 @@ export function BoardSignIn({ returnTo }: { returnTo: string }) {
       setSent(true);
     } catch {
       setErr("We could not confirm your request. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onSwitch() {
+    if (busy) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      // This browser only. A global sign-out would revoke the same account on the Hub.
+      const { error } = await supabase.auth.signOut({ scope: "local" });
+      if (error) throw error;
+      setEmail("");
+      setCode("");
+      setSent(false);
+    } catch {
+      setErr("Could not switch accounts. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -195,6 +219,26 @@ export function BoardSignIn({ returnTo }: { returnTo: string }) {
         ) : (
           <p style={{ margin: 0 }}>This page can't be opened from here.</p>
         )}
+        {switchAccount && safeReturn ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void onSwitch()}
+            style={{
+              marginTop: 16,
+              padding: 0,
+              border: 0,
+              background: "transparent",
+              color: BLUE,
+              fontSize: 14,
+              textDecoration: "underline",
+              textUnderlineOffset: 2,
+              cursor: busy ? "default" : "pointer",
+            }}
+          >
+            Use a different account
+          </button>
+        ) : null}
         <p style={{ margin: "24px 0 0", fontSize: 12, color: GRAY_SOFT }}>Athena powered by ALP</p>
       </main>
     </div>

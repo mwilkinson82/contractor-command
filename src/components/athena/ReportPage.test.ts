@@ -103,6 +103,7 @@ describe("board link page without a session", () => {
     const html = renderPage("field");
     expect(html).toContain(BOARD_SIGN_IN_TITLE);
     expect(html).toContain("Email me a sign-in code");
+    expect(html).not.toContain("Use a different account");
     expect(signInReturn(html)).toBe(`/r/job/${JOB}/field`);
     expect(html).not.toContain("Ask Athena for a fresh one");
     expect(html).not.toContain("Buy the switchgear");
@@ -162,14 +163,47 @@ describe("board link page without a session", () => {
     expect(allowed).not.toContain(BOARD_SIGN_IN_TITLE);
   });
 
-  it("leaves a signed-in member with no row on the no-access card", () => {
+  it("renders a valid token when the signed-in account has no row for the job", () => {
     state.session = { user: { id: "member-1" } };
     state.pageQuery = { data: undefined, isLoading: false, error: new Error("no row") };
     state.linkQuery = { data: { status: "ok", payload: JSON.stringify(items) }, isLoading: false, error: null };
     const html = renderPage("items", "live-token");
-    expect(html).toContain("have access to this page");
-    expect(html).not.toContain("Buy the switchgear");
+    expect(html).toContain("Buy the switchgear");
+    expect(html).toContain("2701 Harbor · Open items");
+    expect(html).not.toContain("have access to this page");
     expect(html).not.toContain(BOARD_SIGN_IN_TITLE);
+    expect(html).not.toContain("Use a different account");
+  });
+
+  it("sends a signed-in account with no row and no valid token to code sign-in", () => {
+    state.session = { user: { id: "member-1" } };
+    state.pageQuery = { data: undefined, isLoading: false, error: new Error("no row") };
+    vi.stubGlobal("window", {
+      location: { pathname: `/r/job/${JOB}/items`, search: "", hash: "#item-1" },
+    });
+    const missing = renderPage("items");
+    expect(missing).toContain(BOARD_SIGN_IN_TITLE);
+    expect(missing).toContain("Email me a sign-in code");
+    expect(missing).toContain('type="email"');
+    expect(missing).toContain("Use a different account");
+    expect(missing).not.toContain("have access to this page");
+    expect(missing).not.toContain("Buy the switchgear");
+    expect(missing).not.toContain("alpcontractorcircle");
+    expect(missing).not.toContain("/login");
+    expect(missing).not.toContain("magic link");
+    expect(signInReturn(missing)).toBe(`/r/job/${JOB}/items#item-1`);
+
+    vi.stubGlobal("window", {
+      location: { pathname: `/r/job/${JOB}/items`, search: "?t=old-token", hash: "" },
+    });
+    state.linkQuery = { data: { status: "expired", payload: null }, isLoading: false, error: null };
+    const expired = renderPage("items", "old-token");
+    expect(expired).toContain(BOARD_SIGN_IN_TITLE);
+    expect(expired).toContain("Use a different account");
+    expect(expired).not.toContain("have access to this page");
+    expect(expired).not.toContain("Buy the switchgear");
+    expect(signInReturn(expired)).toBe(`/r/job/${JOB}/items`);
+    vi.unstubAllGlobals();
   });
 
   it("shows a signed-in member the live board even when the token in the url is expired", () => {
@@ -178,6 +212,7 @@ describe("board link page without a session", () => {
     const html = renderPage("items", "old-token");
     expect(html).toContain("Buy the switchgear");
     expect(html).not.toContain(BOARD_SIGN_IN_TITLE);
+    expect(html).not.toContain("Use a different account");
     expect(html).not.toContain("have access to this page");
   });
 });
