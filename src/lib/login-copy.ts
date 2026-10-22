@@ -12,18 +12,28 @@ export const ATHENA_LOGIN_COLORS = Object.freeze({
 
 export const ATHENA_LOGIN_LOGO = "/brand/athena/athena-lockup-blue.svg";
 
-export type LoginCopyInput = { athena: boolean; fromConnect: boolean; magicRequested: boolean; email?: string };
+export type LoginCopyInput = {
+  athena: boolean;
+  fromConnect: boolean;
+  magicRequested: boolean;
+  email?: string;
+};
 
 export function loginCopy({ athena, fromConnect, magicRequested, email = "" }: LoginCopyInput) {
-  const title = magicRequested
-    ? "Request received."
-    : fromConnect
-      ? "Sign in to approve the connection."
-      : athena
-        ? "Sign in to Athena"
-        : "Sign in to the Hub.";
+  const title =
+    magicRequested && !athena
+      ? "Request received."
+      : fromConnect
+        ? "Sign in to approve the connection."
+        : athena
+          ? "Sign in to Athena"
+          : "Sign in to the Hub.";
   const subtitle = magicRequested
-    ? `If this address is eligible and email delivery is available, you will receive a secure sign-in link. Check the spelling of ${email}, or sign in with your password.`
+    ? athena
+      ? email
+        ? `Type the 8-digit code sent to ${email}. Each code works once.`
+        : "Type the 8-digit code from the email. Each code works once."
+      : `If this address is eligible and email delivery is available, you will receive a secure sign-in link. Check the spelling of ${email}, or sign in with your password.`
     : athena
       ? "No password required. Use the email associated with your Athena account."
       : "No password required. Use the email associated with your membership.";

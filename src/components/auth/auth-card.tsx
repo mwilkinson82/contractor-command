@@ -73,9 +73,14 @@ export function AuthCard({
             alt="Athena powered by ALP"
             className="mx-auto h-auto w-64 sm:w-80"
           />
-          <section className="mt-10 rounded-2xl border border-[#2563EB]/20 bg-white p-6 shadow-sm sm:p-9" style={{ color: C.ink }}>
+          <section
+            className="mt-10 rounded-2xl border border-[#2563EB]/20 bg-white p-6 shadow-sm sm:p-9"
+            style={{ color: C.ink }}
+          >
             <div className="mb-6 h-1 w-10 bg-[#2563EB]" aria-hidden="true" />
-            <h1 className="font-display text-3xl leading-tight" style={{ color: C.ink }}>{title}</h1>
+            <h1 className="font-display text-3xl leading-tight" style={{ color: C.ink }}>
+              {title}
+            </h1>
             {subtitle && (
               <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{subtitle}</p>
             )}
@@ -180,6 +185,8 @@ export function AuthField({
   required,
   autoFocus,
   hint,
+  autoComplete,
+  inputMode,
 }: {
   id: string;
   label: string;
@@ -190,6 +197,8 @@ export function AuthField({
   required?: boolean;
   autoFocus?: boolean;
   hint?: React.ReactNode;
+  autoComplete?: string;
+  inputMode?: "numeric" | "email" | "text";
 }) {
   return (
     <div>
@@ -207,6 +216,8 @@ export function AuthField({
         placeholder={placeholder}
         required={required}
         autoFocus={autoFocus}
+        autoComplete={autoComplete}
+        inputMode={inputMode}
         className="mt-2 h-11 w-full rounded-lg border border-border bg-card px-3.5 text-[15px] text-foreground outline-none placeholder:text-muted-foreground/55 focus:border-clay focus:ring-2 focus:ring-clay/15"
       />
       {hint && <div className="mt-2">{hint}</div>}
