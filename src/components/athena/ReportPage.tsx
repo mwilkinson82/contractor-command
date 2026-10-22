@@ -6,7 +6,9 @@ import { FieldPushBar } from "@/components/athena/FieldPushBar";
 import { useAuth } from "@/hooks/use-auth";
 import { useServerFn } from "@tanstack/react-start";
 import { openBoardPage } from "@/lib/board-link.functions";
-import { BOARD_PAGES, type BoardLinkStatus } from "@/lib/mcp/board-link";
+import { boardReturnForVisit } from "@/lib/board-sign-in";
+import { BOARD_PAGES } from "@/lib/mcp/board-link";
+import { BoardSignIn } from "@/components/athena/BoardSignIn";
 
 type Rpc = (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
 const rpc = (f: string, a: Record<string, unknown>) => (supabase.rpc as unknown as Rpc)(f, a);
@@ -25,8 +27,8 @@ export function usePageVisible(): boolean {
 
 type Cached = { stamp: string | null; payload: PagePayload };
 
-// Signed-in living report page. The app's auth gate already sends signed-out visitors to /login?redirect=<this page>
-// and back. The database decides access (company membership + job scope); this only renders what it returns.
+// Living report page. A valid board token renders with no session. A missing, expired, or bad token
+// shows Athena's email-code sign-in and returns to this same /r/job path. The database decides access.
 export function itemsFromField(payload: PagePayload): PagePayload {
   if (payload.page !== "field") return payload;
   const field = payload as FieldPagePayload;
@@ -39,14 +41,6 @@ export function itemsFromField(payload: PagePayload): PagePayload {
   };
   return items;
 }
-
-const TOKEN_COPY: Record<Exclude<BoardLinkStatus, "ok">, string> = {
-  expired: "This board link has expired. Ask Athena for a fresh one.",
-  revoked: "This board link was turned off. Ask Athena for a fresh one.",
-  wrong_job: "This link does not open that job.",
-  denied: "This link cannot open that page.",
-  unknown: "This board link does not work. Ask Athena for a fresh one.",
-};
 
 export function ReportPageView({ page, jobId, companyId, token }: { page: AnyPage; jobId?: string; companyId?: string; token?: string }) {
   const openLink = useServerFn(openBoardPage);
@@ -98,23 +92,36 @@ export function ReportPageView({ page, jobId, companyId, token }: { page: AnyPag
       ? (JSON.parse(linked.data.payload) as PagePayload)
       : undefined;
   // renderReportBody escapes every value it prints. Re-rendered only when a new payload arrives.
+  // A live token keeps sibling board links on the same token when the host adds utm params.
   const html = useMemo(() => {
     const body = payload ? renderReportBody(payload) : "";
     if (!token || !body) return body;
-    const q = `t=${encodeURIComponent(token)}`;
-    return body.replace(/href="(\.\.\/[a-z]+)(?:\?[^"#]*)?"/g, (_match, path: string) => `href="${path}?${q}"`);
+    const tokenQuery = `t=${encodeURIComponent(token)}`;
+    return body.replace(/href="(\.\.\/[a-z]+)(?:\?[^"#]*)?"/g, (_match, path: string) => `href="${path}?${tokenQuery}"`);
   }, [payload, token]);
-  if (authLoading || (session && q.isLoading) || (!session && token && linked.isLoading)) return <div style={{ padding: 32, color: "#6B7280" }}>Loading…</div>;
-  if (!session && linked.data && linked.data.status !== "ok") {
+  const jobNumber = payload && payload.page !== "portfolio" ? (payload.job_number ?? null) : null;
+  const live = (
+    <div style={{ background: "#F3F4F6", minHeight: "100%" }}>
+      {page === "field" && jobId ? <FieldPushBar jobId={jobId} jobNumber={jobNumber} /> : null}
+      <div dangerouslySetInnerHTML={{ __html: html }} />
+    </div>
+  );
+  if (authLoading || (session && q.isLoading) || (!session && token && tokenPage && linked.isLoading)) return <div style={{ padding: 32, color: "#6B7280" }}>Loading…</div>;
+  // A valid token renders this job with no session. The payload is read live when the link is opened.
+  if (!session && payload) return live;
+  // Missing, expired, revoked, wrong-job, or a page the token's role cannot open: sign in and return to this board.
+  if (!session && page !== "portfolio") {
+    const location = typeof window === "undefined" ? undefined : `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    const returnTo = boardReturnForVisit(page, jobId, location);
+    if (returnTo) return <BoardSignIn returnTo={returnTo} />;
     return (
       <div style={{ maxWidth: 480, margin: "15vh auto", background: "#fff", border: "1px solid #D1D5DB", borderRadius: 12, padding: 32, color: "#6B7280" }}>
-        <h1 style={{ margin: "0 0 12px", fontSize: 20, color: "#1E3A5F" }}>{TOKEN_COPY[linked.data.status]}</h1>
+        <h1 style={{ margin: "0 0 12px", fontSize: 20, color: "#1E3A5F" }}>Sign in to keep this board open</h1>
       </div>
     );
   }
-  // A valid board token already has a payload. Sign-in is only for a visitor with neither a session nor a payload.
   if (!session && !payload) {
-    const back = typeof window === "undefined" ? `/r/job/${jobId ?? ""}/${query.view}` : `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    const back = typeof window === "undefined" ? `/r/portfolio/${companyId ?? ""}` : `${window.location.pathname}${window.location.search}${window.location.hash}`;
     return (
       <div style={{ maxWidth: 480, margin: "15vh auto", background: "#fff", border: "1px solid #D1D5DB", borderRadius: 12, padding: 32, color: "#6B7280" }}>
         <h1 style={{ margin: "0 0 12px", fontSize: 20, color: "#1E3A5F" }}>Sign in to open this page</h1>
@@ -131,11 +138,5 @@ export function ReportPageView({ page, jobId, companyId, token }: { page: AnyPag
       </div>
     );
   }
-  const jobNumber = payload.page === "portfolio" ? null : payload.job_number;
-  return (
-    <div style={{ background: "#F3F4F6", minHeight: "100%" }}>
-      {page === "field" && jobId ? <FieldPushBar jobId={jobId} jobNumber={jobNumber} /> : null}
-      <div dangerouslySetInnerHTML={{ __html: html }} />
-    </div>
-  );
+  return live;
 }

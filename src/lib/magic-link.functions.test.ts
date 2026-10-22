@@ -183,6 +183,29 @@ it("a sign-in started on app.meetathena.io gets the Athena email and lands on th
   expect(m.generateLink.mock.calls[0][0].options.redirectTo).toBe("https://app.meetathena.io/auth/callback");
 });
 
+it("a job board return drops the token and utm params", async () => {
+  req.url = "https://app.meetathena.io/r/job/11111111-1111-4111-8111-111111111111/items";
+  const back = "/r/job/11111111-1111-4111-8111-111111111111/items";
+  const promise = requestMemberMagicLink({
+    data: { email: "member@example.test", return_to: `${back}?t=expired&utm_source=chatgpt.com&utm_medium=email#item-3` },
+  });
+  await vi.advanceTimersByTimeAsync(600);
+  await promise;
+  expect(new URL(m.send.mock.calls[0][0].confirmationUrl).searchParams.get("redirect")).toBe(`${back}#item-3`);
+});
+
+it("an off-site return is not attached to the sign-in link", async () => {
+  req.url = "https://app.meetathena.io/login";
+  const promise = requestMemberMagicLink({
+    data: { email: "member@example.test", return_to: "https://evil.example/r/job/11111111-1111-4111-8111-111111111111/items" },
+  });
+  await vi.advanceTimersByTimeAsync(600);
+  await promise;
+  const url = new URL(m.send.mock.calls[0][0].confirmationUrl);
+  expect(url.searchParams.get("redirect")).toBeNull();
+  expect(url.toString()).not.toContain("evil.example");
+});
+
 it("an Athena report return rides on the callback and stays off the account page", async () => {
   req.url = "https://app.meetathena.io/login?redirect=%2Fr%2Fjob%2F1";
   const back = "/r/job/11111111-1111-4111-8111-111111111111/field#activity-A2000";
