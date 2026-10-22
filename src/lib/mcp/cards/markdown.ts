@@ -58,7 +58,8 @@ function section(s: CardSection): string[] {
 export function renderMarkdown(card: CardModel): string {
   const lines: string[] = [];
   lines.push(`## ${MARK.action} ${card.title}`);
-  lines.push(`**${STATE_LABEL[card.state]}**${card.job ? ` · ${card.job}` : ""}`);
+  const stateLine = card.show_state === false ? (card.job ?? "") : `**${STATE_LABEL[card.state]}**${card.job ? ` · ${card.job}` : ""}`;
+  if (stateLine) lines.push(stateLine);
   if (card.progress && card.progress.total > 0) {
     const done = Math.max(0, Math.min(card.progress.done, card.progress.total));
     const bar = MARK.action.repeat(done) + MARK.neutral.repeat(card.progress.total - done);

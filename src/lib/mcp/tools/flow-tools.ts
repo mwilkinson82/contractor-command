@@ -148,6 +148,11 @@ export const pmMeeting = defineTool({
     run("pm_meeting", ctx, { jobNumber: args.job_number }, async (sb) => lead("pm_meeting", args, sb)),
 });
 
+/** Morning briefing for one job, or the which-job list when no job number is given. */
+export function startMorning(sb: Sb, jobNumber?: string) {
+  return lead("pm_morning", { job_number: jobNumber }, sb);
+}
+
 export const pmMorning = defineTool({
   name: "athena_morning_hitlist",
   title: MORNING_HITLIST_TITLE,

@@ -14,6 +14,7 @@ import { planLabel, planRate, seatSummary } from "@/lib/account-team";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { onAthenaHost } from "@/lib/athena-host-current";
 import { pageUrl } from "@/lib/report-pages";
+import { AthenaStartTip } from "@/components/athena/start-tip";
 
 const LOGO_BUCKET = "company-logos";
 
@@ -225,6 +226,11 @@ function AccountPage() {
 
   return (
     <Container>
+      {athenaHost ? (
+        <div className="mb-8">
+          <AthenaStartTip />
+        </div>
+      ) : null}
       {athenaHost ? <FieldBoards /> : null}
       <PageHeader
         eyebrow="Account"

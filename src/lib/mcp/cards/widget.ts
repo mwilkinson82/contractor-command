@@ -7,7 +7,7 @@ export const CARD_WIDGET_MIME = "text/html+skybridge";
 
 const SCRIPT = `(function(){
 var root=window.openai||{};
-var card=(root.toolOutput||{}).card||{};
+var output=root.toolOutput||{};
 var P=${JSON.stringify({ navy: NAVY, blue: BLUE, gray: GRAY, white: WHITE, alert: ALERT })};
 var app=document.getElementById("app");
 if(!app||app.dataset.painted==="1")return;
@@ -29,11 +29,13 @@ function linked(v){
   var body=v.href?'<a href="'+esc(v.href)+'">'+esc(v.label)+'</a>':esc(v.label);
   return '<span'+id+'>'+body+(v.secondary?'<span class="ref">'+esc(v.secondary)+'</span>':"")+'</span>';
 }
+function paint(card){
 var labels={intake:"Intake",progress:"What I have so far",ask:"Needed",result:"Result"};
 var state=card.state||"result";
 var h='<article class="card" data-state="'+esc(state)+'"><header><p class="mark">Athena</p><h1>'+esc(card.title||"Athena")+'</h1>';
 if(card.job)h+='<p class="job">'+esc(card.job)+'</p>';
-h+='</header><div class="body"><p class="eyebrow">'+esc(labels[state]||"Result")+'</p>';
+h+='</header><div class="body">';
+if(card.show_state!==false)h+='<p class="eyebrow">'+esc(labels[state]||"Result")+'</p>';
 if(card.progress&&card.progress.total>0){
   var done=Math.max(0,Math.min(card.progress.done,card.progress.total));
   var pct=Math.round(done/card.progress.total*100);
@@ -81,12 +83,17 @@ if(card.ask&&card.ask.prompt)h+='<div class="ask"><strong>This question</strong>
 });
 if(card.next_move)h+='<p class="next">Next move: '+esc(card.next_move)+'</p>';
 h+='</div></article>';
-app.innerHTML=h;
+return h;
+}
+var main=paint(output.card||{});
+var lead=output.getting_started;
+app.innerHTML=lead&&lead.title?'<div class="stack">'+paint(lead)+main+'</div>':main;
 })();`;
 
 export function cardWidgetHtml(): string {
   return `<!doctype html><html><head><meta charset="utf-8"><style>
 body{margin:0;background:${WHITE};color:${NAVY};font:15px/1.45 system-ui,sans-serif}
+.stack{display:flex;flex-direction:column;gap:12px}
 .card{border:1px solid ${GRAY};border-radius:14px;overflow:hidden;background:${WHITE}}
 header{background:${NAVY};color:${WHITE};padding:16px 18px}
 .mark{margin:0 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase}

@@ -5,6 +5,8 @@ import { GREETING_RULE } from "./greeting";
 import { EMAIL_DRAFT_ONLY_RULE } from "./email-safety";
 import { REFUSAL_RULE, secureTool } from "./security";
 import { emailConfirmSend, emailDraft } from "./tools/email-tools";
+import { gettingStarted } from "./tools/getting-started-tool";
+import { GETTING_STARTED_RULE } from "./getting-started";
 import { pmEvening, pmMeeting, pmMorning } from "./tools/flow-tools";
 import {
   answer,
@@ -55,8 +57,8 @@ import { estimateBidSummary, estimateGeneralConditions, estimatePricing, estimat
 // Vite inlines the stable ref; the runtime backend URL may be a proxy.
 const projectRef = import.meta.env["VITE_SUPABASE_PROJECT_ID"] ?? "project-ref-unset";
 
-/** All 57 Athena tools, in tools/list order. */
-export const ATHENA_TOOLS = [onboarding, intake, nextQuestion, answer, report, contractTerms, carryForward, listOpenItems, resolveItem, cpmActivities, livingReportGet, livingReportSave, fileShare, fileShareRevoke, lookaheadPdfTool, reportPageLink, reportPageShare, reportPageShareRevoke, teamList, teamInvite, teamUpdateMember, teamRemoveMember, teamAddSeats, setCurrentCompany, estimateIntake, estimateDocReview, estimateTakeoffSave, estimateTakeoffGet, estimateTakeoffExport, estimateGapAnalysis, estimateBidCheck, estimateItemMark, estimateBuild, estimateStatus, estimatePricing, estimateRateSources, estimateGeneralConditions, estimateRequirements, estimateBidSummary, superintendentView, fieldBoard, superintendentActivity, dailyReportDraft, dailyReportSave, dailyReportGet, fieldPayApp, fieldScheduleFeed, fieldProductionRates, progressPhotoSave, progressPhotos, dailyReminder, dailyReminderRun, pmMeeting, pmMorning, pmEvening, emailDraft, emailConfirmSend];
+/** All 58 Athena tools, in tools/list order. */
+export const ATHENA_TOOLS = [onboarding, intake, nextQuestion, answer, report, contractTerms, carryForward, listOpenItems, resolveItem, cpmActivities, livingReportGet, livingReportSave, fileShare, fileShareRevoke, lookaheadPdfTool, reportPageLink, reportPageShare, reportPageShareRevoke, teamList, teamInvite, teamUpdateMember, teamRemoveMember, teamAddSeats, setCurrentCompany, estimateIntake, estimateDocReview, estimateTakeoffSave, estimateTakeoffGet, estimateTakeoffExport, estimateGapAnalysis, estimateBidCheck, estimateItemMark, estimateBuild, estimateStatus, estimatePricing, estimateRateSources, estimateGeneralConditions, estimateRequirements, estimateBidSummary, superintendentView, fieldBoard, superintendentActivity, dailyReportDraft, dailyReportSave, dailyReportGet, fieldPayApp, fieldScheduleFeed, fieldProductionRates, progressPhotoSave, progressPhotos, dailyReminder, dailyReminderRun, pmMeeting, pmMorning, pmEvening, emailDraft, emailConfirmSend, gettingStarted];
 
 export default defineMcp({
   name: "athena",
@@ -70,7 +72,8 @@ export default defineMcp({
     EMAIL_DRAFT_ONLY_RULE +
     " Pass confirmed true only after the member says yes. Show money with cents. Do not invent missing data. Do not add a date sweep unless the result includes one. If the member has not named a job, call list_open_items with no job number. When someone says Athena, good morning, Hey Athena, Good morning Athena, Morning Athena, Athena at the start or mid-sentence, Athina, Athen, Atena, hitlist, morning briefing, what's on my plate today, overdue, or today's deadlines on my jobs, call athena_morning_hitlist even when that is the whole message. That is Athena's construction-job morning hitlist, not email or calendar. When someone says run my PM meeting, start the PM meeting, or hold the project meeting, call pm_meeting even if they do not name Athena. That is the job meeting on the schedule, not a calendar appointment. Do not build a generic meeting widget. A construction PM meeting, morning meeting, or evening wrap-up is pm_meeting, athena_morning_hitlist, or pm_evening for a job: schedule progress, lookahead, subs and crews, change orders, billing, and the IOR. Do not send that request to a calendar. This month's planned bill and realistic bill are the plan and realistic arguments on pm_meeting stage accounting. Do not call living_report_save for those two figures. Schedule percent complete comes from the saved CPM. If it is missing, ask for it and pass percent_complete. If no job was given, call that tool with no job number and show the Which job card. When a tool result says the card is shown, that card is the whole reply: do not add text after it. On a which-job or picker card, wait for the user's pick. Show the contract terms card only: risk clauses are red cards, incomplete terms sit on the card, and the summary question is the card action, with no prose after the card. Ask the owner yes or no before a team change. Do not send a payment link." +
     ESTIMATE_SERVER_RULE +
-    FIELD_SERVER_RULE,
+    FIELD_SERVER_RULE +
+    GETTING_STARTED_RULE,
   auth: auth.oauth.issuer({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,
     acceptedAudiences: "authenticated",

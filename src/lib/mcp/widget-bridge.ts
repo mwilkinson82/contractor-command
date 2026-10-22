@@ -1,10 +1,11 @@
 // ChatGPT reads openai/outputTemplate from the tool result _meta. @lovable.dev/mcp-js
 // drops that field before the MCP server sees the handler return, so this bridge
-// puts it back on the three meeting tools and registers the card widget resource.
+// puts it back on the meeting tools and getting_started, and registers the card widget resource.
 import { McpServer } from "@modelcontextprotocol/server";
 import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetHtml } from "./cards/widget";
 
 const MEETINGS = new Set(["pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist"]);
+const CARD_WIDGET_TOOLS = new Set([...MEETINGS, "getting_started"]);
 const TEMPLATE = { "openai/outputTemplate": CARD_WIDGET_URI };
 const patched = Symbol.for("athena.cardWidgetBridge");
 
@@ -59,13 +60,13 @@ if (!proto[patched]) {
         // A second server in the same process already registered this uri.
       }
     }
-    const next = MEETINGS.has(name)
+    const next = CARD_WIDGET_TOOLS.has(name)
       ? { ...config, _meta: { ...(config?._meta ?? {}), ...TEMPLATE } }
       : config;
     const wrapped = async (...args: unknown[]) => {
       const result = (await cb(...args)) ?? {};
-      if (!MEETINGS.has(name)) return result;
-      const safe = boundMeetingResult(result);
+      if (!CARD_WIDGET_TOOLS.has(name)) return result;
+      const safe = MEETINGS.has(name) ? boundMeetingResult(result) : result;
       return { ...safe, _meta: { ...(safe._meta ?? {}), ...TEMPLATE } };
     };
     return orig.call(this, name, next, wrapped);

@@ -5193,6 +5193,24 @@
           "additionalProperties": false
         },
         "outputSchema": null
+      },
+      {
+        "name": "getting_started",
+        "title": "Hey Athena, getting started, let's get going, let's get started",
+        "description": "Routes Hey Athena, getting started, let's get going, and let's get started to first-job setup or the morning meeting.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "outputSchema": null
       }
     ]
   }
