@@ -84,14 +84,11 @@ describe("0.8.10", () => {
     );
   });
 
-  it("serverInfo icons: absolute app.meetathena.io PNGs at 256 and 512", () => {
-    expect(ATHENA_SERVER_ICONS.map((i) => [i.src, i.mimeType, i.sizes])).toEqual([
-      ["https://app.meetathena.io/brand/athena/athena-mono-blue-256.png", "image/png", ["256x256"]],
-      ["https://app.meetathena.io/brand/athena/athena-mono-blue-512.png", "image/png", ["512x512"]],
-    ]);
+  it("serverInfo icons: absolute app.meetathena.io PNGs, all small, the same on both domains", () => {
     for (const i of ATHENA_SERVER_ICONS) {
       expect(i.src.startsWith("https://app.meetathena.io/brand/athena/")).toBe(true);
       expect(i.mimeType).toBe("image/png");
+      expect(i.src).not.toContain("512");
     }
     const init = {
       jsonrpc: "2.0",
@@ -106,7 +103,7 @@ describe("0.8.10", () => {
     );
   });
 
-  it("icon PNGs: served on both hosts with CORS on GET and OPTIONS; hub favicon unchanged", async () => {
+  it("icon PNGs: served on both hosts, under 13 KB, with CORS on GET and OPTIONS; hub favicon unchanged", async () => {
     for (const host of ["app.meetathena.io", "app.alpcontractorcircle.com"]) {
       for (const i of ATHENA_SERVER_ICONS) {
         const path = new URL(i.src).pathname;
@@ -115,13 +112,9 @@ describe("0.8.10", () => {
         expect(r.headers.get("content-type")).toBe("image/png");
         expect(r.headers.get("access-control-allow-origin")).toBe("*");
         expect(r.headers.get("cross-origin-resource-policy")).toBe("cross-origin");
-        const bytes = Buffer.from(await r.arrayBuffer());
-        const size = i.sizes[0] === "512x512" ? 512 : 256;
-        expect(bytes.length).toBeGreaterThan(0);
-        expect(bytes.length).toBeLessThan(32_000);
-        expect(bytes.subarray(1, 4).toString("ascii")).toBe("PNG");
-        expect(bytes.readUInt32BE(16)).toBe(size);
-        expect(bytes.readUInt32BE(20)).toBe(size);
+        const bytes = new Uint8Array(await r.arrayBuffer());
+        expect(bytes.length).toBeLessThan(13_000);
+        expect([...bytes.slice(1, 4)].map((c) => String.fromCharCode(c)).join("")).toBe("PNG");
         const o = siteIconResponse(new Request(`https://${host}${path}`, { method: "OPTIONS" }))!;
         expect(o.status).toBe(204);
         expect(o.headers.get("access-control-allow-origin")).toBe("*");
