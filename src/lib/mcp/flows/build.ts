@@ -1,3 +1,5 @@
+import { isUuid, pageUrl } from "../../report-pages";
+import { detailAnchor } from "../plain-label";
 import { money } from "../sov";
 import type { CardModel, CardRow } from "../cards/model";
 import {
@@ -55,8 +57,13 @@ function changeRows(items: FlowItem[]): { outstanding: FlowItem[]; pricing: Flow
   };
 }
 
-function itemRow(i: FlowItem, flag?: CardRow["flag"]): CardRow {
-  return { cells: [i.action, i.owner ?? "Needed", i.due ?? "Needed"], flag: flag ?? null };
+function itemHref(data: FlowData, page: "items" | "ior", id: string): string | null {
+  if (!data.jobId || !isUuid(data.jobId)) return null;
+  return `${pageUrl(page, data.jobId)}#${detailAnchor("item", id)}`;
+}
+
+function itemRow(data: FlowData, i: FlowItem, flag?: CardRow["flag"]): CardRow {
+  return { cells: [i.action, i.owner ?? "Needed", i.due ?? "Needed"], flag: flag ?? null, href: itemHref(data, "items", i.id), refId: i.id };
 }
 
 function candidates(items: FlowItem[]): FlowItem[] {
@@ -124,7 +131,7 @@ function scheduleCard(flow: FlowName, data: FlowData): CardModel {
         heading: "Change order candidates",
         kind: "table",
         columns: ["Item", "Owner", "Due"],
-        rows: risks.map((i) => itemRow(i, i.kind === "delay" ? "delay" : "risk")),
+        rows: risks.map((i) => itemRow(data, i, i.kind === "delay" ? "delay" : "risk")),
       },
     ],
     alerts: [
@@ -149,9 +156,9 @@ export function buildFlowCard(flow: FlowName, stage: string, data: FlowData): Ca
         { label: "Waiting on", value: String(groups.waiting.length) },
       ],
       sections: [
-        { heading: "Outstanding", kind: "table", columns: ["Item", "Owner", "Due"], rows: groups.outstanding.map((i) => itemRow(i)) },
-        { heading: "Needs pricing", kind: "table", columns: ["Item", "Owner", "Due"], rows: groups.pricing.map((i) => itemRow(i, "risk")) },
-        { heading: "Waiting on", kind: "table", columns: ["Item", "Owner", "Due"], rows: groups.waiting.map((i) => itemRow(i)) },
+        { heading: "Outstanding", kind: "table", columns: ["Item", "Owner", "Due"], rows: groups.outstanding.map((i) => itemRow(data, i)) },
+        { heading: "Needs pricing", kind: "table", columns: ["Item", "Owner", "Due"], rows: groups.pricing.map((i) => itemRow(data, i, "risk")) },
+        { heading: "Waiting on", kind: "table", columns: ["Item", "Owner", "Due"], rows: groups.waiting.map((i) => itemRow(data, i)) },
       ],
       alerts: groups.pricing.map((i) => ({ level: "risk" as const, text: `${i.action} needs pricing` })),
     });
@@ -211,7 +218,7 @@ export function buildFlowCard(flow: FlowName, stage: string, data: FlowData): Ca
       });
     }
     const d = iorDelta(data.iorNow, data.iorPrevious);
-    const row = (r: IorRow, flag: CardRow["flag"]) => ({ cells: [r.title, r.due ?? "Needed"], flag });
+    const row = (r: IorRow, flag: CardRow["flag"]) => ({ cells: [r.title, r.due ?? "Needed"], flag, href: itemHref(data, "ior", r.id), refId: r.id });
     return shell(flow, stage, data, {
       state: "result",
       title: "IOR delta",
@@ -240,7 +247,7 @@ export function buildFlowCard(flow: FlowName, stage: string, data: FlowData): Ca
       title: crewLabel(data),
       ask: open ? { prompt: crewAsk(data) } : null,
       kpis: [{ label: "Locked in", value: yn(data.crewsConfirmed, "Yes", "No") }],
-      sections: [{ heading: "Crews", kind: "list", rows: data.items.filter((i) => i.kind === "crew").map((i) => itemRow(i)) }],
+      sections: [{ heading: "Crews", kind: "list", rows: data.items.filter((i) => i.kind === "crew").map((i) => itemRow(data, i)) }],
     });
   }
   if ((flow === "pm_morning" || flow === "pm_evening") && stage === "risks") {
@@ -249,7 +256,7 @@ export function buildFlowCard(flow: FlowName, stage: string, data: FlowData): Ca
       state: risks.length ? "result" : "ask",
       title: "Current risks",
       ask: risks.length ? null : { prompt: "What risks are live on the job right now?" },
-      sections: [{ heading: "Risk log", kind: "table", columns: ["Item", "Owner", "Due"], rows: risks.map((i) => itemRow(i, i.kind === "delay" ? "delay" : "risk")) }],
+      sections: [{ heading: "Risk log", kind: "table", columns: ["Item", "Owner", "Due"], rows: risks.map((i) => itemRow(data, i, i.kind === "delay" ? "delay" : "risk")) }],
       alerts: risks.map((i) => ({ level: (i.kind === "delay" ? "delay" : "risk") as "delay" | "risk", text: i.action })),
       next_move: "These feed the IOR and the risk log.",
     });
@@ -266,11 +273,13 @@ export function buildFlowCard(flow: FlowName, stage: string, data: FlowData): Ca
   if (flow === "pm_evening" && (stage === "dailies" || stage === "photos" || stage === "happened" || stage === "disruptions")) {
     const bag = stage === "dailies" ? data.dailies : stage === "photos" ? data.photos : stage === "happened" ? data.happened : data.disruptions;
     const flag = stage === "disruptions" ? "delay" : null;
+    const page = stage === "dailies" ? "daily" : stage === "photos" ? "photos" : null;
+    const href = page && data.jobId && isUuid(data.jobId) ? pageUrl(page, data.jobId) : null;
     return shell(flow, stage, data, {
       state: bag.length ? "result" : "ask",
       title: STAGE_LABEL[stage],
       ask: bag.length ? null : { prompt: `What should I log for ${STAGE_LABEL[stage].toLowerCase()}?` },
-      sections: [{ heading: STAGE_LABEL[stage], kind: "list", rows: bag.map((r) => ({ cells: [r], flag })) }],
+      sections: [{ heading: STAGE_LABEL[stage], kind: "list", rows: bag.map((r) => ({ cells: [r], flag, href })) }],
       alerts: flag ? bag.map((r) => ({ level: "delay" as const, text: r })) : [],
     });
   }

@@ -2,6 +2,9 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { brokeredPreviewStorage } from './previewAuthStorage';
+import { restoreAthenaSessionFromCookie, withPersistentSession } from './persistent-auth-storage';
+
+restoreAthenaSessionFromCookie();
 
 function createSupabaseClient() {
   // Use import.meta.env for client-side (Vite build-time replacement)
@@ -21,7 +24,7 @@ function createSupabaseClient() {
 
   return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     auth: {
-      storage: brokeredPreviewStorage(),
+      storage: withPersistentSession(brokeredPreviewStorage()),
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,

@@ -1,10 +1,42 @@
 import { describe, expect, it } from "vitest";
 import { attachAthenaCard } from "./attach";
-import { CARD_WIDGET_URI } from "./widget";
+import { CARD_WIDGET_URI, cardWidgetHtml } from "./widget";
 import { renderHtml } from "./html";
+import { renderMarkdown } from "./markdown";
+import { plainLabel } from "../plain-label";
 import type { CardModel } from "./model";
 
 const states: CardModel["state"][] = ["intake", "progress", "ask", "result"];
+
+describe("plain names and detail links", () => {
+  const before = "Overdue Oct 14, #8, #A4634D";
+  const job = "11111111-1111-4111-8111-111111111111";
+  const href = `https://app.meetathena.io/r/job/${job}/items#item-8`;
+
+  it("drops raw codes from the label and keeps the title", () => {
+    expect(plainLabel(before).label).toBe("Overdue Oct 14");
+    expect(plainLabel(before).label).not.toContain("#A4634D");
+    expect(plainLabel(before).label).not.toContain("#8");
+  });
+
+  it("links the item in the widget html and the markdown fallback", () => {
+    const card: CardModel = {
+      state: "result",
+      title: "Open items",
+      sections: [{ heading: "Items", kind: "list", rows: [{ cells: ["Inspection", "City of Harbor", before], href, refId: "8", flag: "overdue" }] }],
+    };
+    const html = renderHtml(card);
+    const md = renderMarkdown(card);
+    expect(html).toContain(`<a href="${href}">`);
+    expect(html).toContain("Inspection");
+    expect(html).toContain("City of Harbor");
+    expect(html).not.toContain("#A4634D");
+    expect(html).toContain('data-id="8"');
+    expect(md).toContain(`[Inspection · City of Harbor · Overdue Oct 14](${href})`);
+    expect(md).not.toContain("#A4634D");
+    expect(cardWidgetHtml()).toContain("<a href=");
+  });
+});
 
 describe("four card states", () => {
   it("renders intake, progress, ask, and result", () => {

@@ -38,6 +38,7 @@ async function rows(sb: Query, table: string, cols: string, jobId: string): Prom
 export async function loadFlowData(sb: Query, job: { job_id: string; job_number: string; name: string; scope: string }, selfPerform: boolean): Promise<FlowData> {
   const showMoney = job.scope === "full";
   const data = blankFlowData(job.job_number, job.name, showMoney);
+  data.jobId = job.job_id;
   data.selfPerform = selfPerform;
   const [items, lookaheads, reports] = await Promise.all([
     rows(sb, "mcp_open_items", "id, action, owner, accountable, due_date, needed_by, status, category", job.job_id),

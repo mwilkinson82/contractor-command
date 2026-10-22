@@ -183,6 +183,18 @@ it("a sign-in started on app.meetathena.io gets the Athena email and lands on th
   expect(m.generateLink.mock.calls[0][0].options.redirectTo).toBe("https://app.meetathena.io/auth/callback");
 });
 
+it("an Athena report return rides on the callback and stays off the account page", async () => {
+  req.url = "https://app.meetathena.io/login?redirect=%2Fr%2Fjob%2F1";
+  const back = "/r/job/11111111-1111-4111-8111-111111111111/field#activity-A2000";
+  const promise = requestMemberMagicLink({ data: { email: "member@example.test", return_to: back } });
+  await vi.advanceTimersByTimeAsync(600);
+  await promise;
+  const url = new URL(m.send.mock.calls[0][0].confirmationUrl);
+  expect(url.searchParams.get("redirect")).toBe(back);
+  expect(url.searchParams.get("redirect")).not.toBe("/account");
+  expect(m.generateLink.mock.calls[0][0].options.redirectTo).toBe("https://app.meetathena.io/auth/callback");
+});
+
 it("a consent continuation marks the Athena email as connecting", async () => {
   vi.stubEnv("OAUTH_CONTINUATION_SECRET", "synthetic-test-secret-at-least-32-characters");
   const promise = requestMemberMagicLink({

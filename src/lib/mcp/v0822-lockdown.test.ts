@@ -83,6 +83,7 @@ const ALL = [
   Bid.estimateRequirements,
   Bid.estimateBidSummary,
   Field.superintendentView,
+  Field.fieldBoard,
   Field.superintendentActivity,
   Field.dailyReportDraft,
   Field.dailyReportSave,
@@ -146,8 +147,8 @@ async function toolsList(tools: unknown[]) {
 }
 
 describe("0.8.22 (0) every tool goes through run() and guard()", () => {
-  it("56 tools, and each handler body starts with run(<its own name>)", () => {
-    expect(ALL).toHaveLength(56);
+  it("57 tools, and each handler body starts with run(<its own name>)", () => {
+    expect(ALL).toHaveLength(57);
     const files = readdirSync(new URL("./tools/", import.meta.url)).filter((f) =>
       f.endsWith(".ts"),
     );
@@ -161,7 +162,7 @@ describe("0.8.22 (0) every tool goes through run() and guard()", () => {
         seen++;
       }
     }
-    expect(seen).toBe(56);
+    expect(seen).toBe(57);
     expect(src("./index.ts")).toContain("tools: ATHENA_TOOLS.map(secureTool)");
     expect(src("./guard.ts")).toMatch(
       /export async function run[\s\S]*?const sb = await guard\(ctx\);/,
@@ -178,7 +179,7 @@ describe("0.8.22 (3) refusal rule", () => {
       "That's how I'm built inside ALP; I can't share it. Want to get back to your job?",
     );
     const list = await toolsList(ALL.map(secureTool));
-    expect(list).toHaveLength(56);
+    expect(list).toHaveLength(57);
     for (const t of list) expect(t.description.includes(REFUSAL_DESC), t.name).toBe(false);
   });
   it("stays short (one sentence under 120 characters) and keeps schemas unchanged", async () => {
