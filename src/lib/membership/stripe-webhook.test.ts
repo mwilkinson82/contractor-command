@@ -12,6 +12,7 @@ const m = vi.hoisted(() => ({
   charge: vi.fn(),
   lines: vi.fn(),
   customer: vi.fn(),
+  customersByEmail: vi.fn(),
   drain: vi.fn(),
   enqueue: vi.fn(),
   magic: vi.fn(),
@@ -26,7 +27,7 @@ vi.mock("stripe", () => ({
   default: class {
     webhooks = { constructEventAsync: async () => m.event };
     subscriptions = { retrieve: m.retrieve };
-    customers = { retrieve: m.customer };
+    customers = { retrieve: m.customer, list: m.customersByEmail };
     invoices = {
       retrieve: m.invoice,
       listLineItems: (id: string) => ({ autoPagingToArray: () => m.lines(id) }),
@@ -101,6 +102,9 @@ beforeEach(() => {
     id: "cus_test",
     email: "member@example.test",
     name: "Test Member",
+  });
+  m.customersByEmail.mockResolvedValue({
+    data: [{ id: "cus_empty", email: "member@example.test" }],
   });
   m.invoice.mockImplementation(async (id: string) => ({
     id,
@@ -604,5 +608,59 @@ describe("Stripe lifecycle orchestration with synthetic providers", () => {
       "finish_stripe_webhook_event",
       expect.objectContaining({ _status: "failed" }),
     );
+  });
+  it.each([
+    ["price_1TVh3TJdDAUSVXbNJRsYFTbp", "prod_UUgQlHRk9H1ZUS"],
+    ["price_1TDR3aJdDAUSVXbNZOY6EXF3", "prod_UhuaYXyzDSknXg"],
+    ["price_1TDR3aJdDAUSVXbNWVzFLblo", "prod_separate_circle"],
+  ])("records Circle price %s from the subscription, including a separate product", async (priceId, productId) => {
+    const sub = await m.retrieve();
+    m.retrieve.mockResolvedValue({
+      ...sub,
+      items: { data: [{ price: { id: priceId, product: productId } }] },
+    });
+    m.lines.mockResolvedValue([
+      {
+        subscription: "sub_test",
+        price: { id: priceId },
+        period: { start: 1, end: 4070908800 },
+      },
+    ]);
+    expect((await request()).status).toBe(200);
+    expect(snapshot()).toMatchObject({ _row: { tier: "circle", price_id: priceId, product_id: productId } });
+    expect(m.customersByEmail).not.toHaveBeenCalled();
+  });
+  it("matches the subscription customer when that email also has an empty duplicate customer", async () => {
+    const sub = await m.retrieve();
+    const charge = await m.charge();
+    m.retrieve.mockResolvedValue({ ...sub, customer: "cus_paid" });
+    m.customer.mockImplementation(async (id: string) => ({
+      id,
+      email: "member@example.test",
+      name: id === "cus_paid" ? "Paying Member" : null,
+    }));
+    m.invoice.mockImplementation(async (id: string) => ({
+      id,
+      customer: "cus_paid",
+      subscription: "sub_test",
+      charge: "ch_test",
+      status: "paid",
+      amount_paid: 49700,
+    }));
+    m.charge.mockResolvedValue({ ...charge, customer: "cus_paid" });
+    m.customersByEmail.mockResolvedValue({
+      data: [{ id: "cus_empty", email: "member@example.test" }],
+    });
+    expect((await request()).status).toBe(200);
+    expect(m.customersByEmail).not.toHaveBeenCalled();
+    expect(m.customer).toHaveBeenCalledWith("cus_paid");
+    expect(snapshot()._row.stripe_customer_id).toBe("cus_paid");
+    expect(snapshot()._row.email).toBe("member@example.test");
+  });
+  it("keeps a past_due Circle subscription on the snapshot", async () => {
+    const sub = await m.retrieve();
+    m.retrieve.mockResolvedValue({ ...sub, status: "past_due" });
+    expect((await request()).status).toBe(200);
+    expect(snapshot()).toMatchObject({ _row: { status: "past_due", tier: "circle" } });
   });
 });

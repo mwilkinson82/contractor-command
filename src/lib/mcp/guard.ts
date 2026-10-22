@@ -3,6 +3,12 @@ import { renderHtml } from "./cards/html";
 import { htmlBlock, renderMarkdown } from "./cards/markdown";
 import type { CardModel } from "./cards/model";
 import { sealCardReply } from "./cards/silence";
+import {
+  COMPANY_SETUP_GUIDANCE,
+  CONFIRMING_GUIDANCE,
+  companySetupCard,
+  confirmingCard,
+} from "./access";
 import { WhichCompanyAsk } from "./jobs";
 import { attachDailyReminder } from "./field-reminder";
 import { attachGettingStarted } from "./getting-started";
@@ -22,6 +28,17 @@ export const FOOTER = "\n\n---\nAthena powered by ALP, construction agents";
 export const INACTIVE_MESSAGE = "Your membership isn't active, so Athena is paused. Your job data is saved.";
 
 export type Sb = ReturnType<typeof supabaseForUser>;
+
+type HeldAccess = { setup: boolean; confirming: { reason: string; paidPeriod: string } | null };
+const accessHold = new WeakMap<object, HeldAccess>();
+
+function holdAccess(sb: object, held: HeldAccess) {
+  accessHold.set(sb, held);
+}
+
+function heldAccess(sb: object): HeldAccess {
+  return accessHold.get(sb) ?? { setup: false, confirming: null };
+}
 
 // Per-account call cap: mcp_abuse_cap_check with the caps from ./limits. The member sees which limit and when it resets.
 export async function guard(ctx: ToolContext): Promise<Sb> {
@@ -45,10 +62,15 @@ export async function guard(ctx: ToolContext): Promise<Sb> {
   // Membership entitlement, before any job read or write. Cached ~5 minutes in the database.
   const ent = await checkAthenaEntitlement(sb);
   if (!ent.allowed && ent.reason === "unavailable") throw new ToolError(DB_UNAVAILABLE);
+  if (!ent.allowed && ent.reason === "confirming") {
+    holdAccess(sb, { setup: false, confirming: { reason: ent.confirmReason, paidPeriod: ent.paidPeriod } });
+    return sb;
+  }
   if (!ent.allowed) {
     await logWorkflow(sb, { event_type: "failure", tool: "guard", error_code: "membership_inactive" });
     throw new ToolError(INACTIVE_MESSAGE);
   }
+  holdAccess(sb, { setup: ent.needsCompany === true, confirming: null });
   return sb;
 }
 
@@ -91,6 +113,19 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
   const lookaheadId = o.lookaheadId;
   const sweepScope: SweepScope = { jobNumber: o.jobNumber, client: o.client };
   const sb = await guard(ctx);
+  const access = heldAccess(sb);
+  // Circle-active with no company: the card is the whole reply. No tool lookup runs first.
+  if (access.confirming) {
+    await logWorkflow(sb, {
+      event_type: "failure",
+      tool,
+      error_code: `confirming:${access.confirming.reason}:${access.confirming.paidPeriod}`,
+    });
+    return sealCardReply(tool, styledAccessReply(confirmingCard(), "membership_confirming", CONFIRMING_GUIDANCE)) as R;
+  }
+  if (access.setup && tool !== "onboarding") {
+    return sealCardReply(tool, styledAccessReply(companySetupCard(), "company_setup", COMPANY_SETUP_GUIDANCE)) as R;
+  }
   // 0.8.22: success-call log, heavy-tool cap, security flags, optional soft lock and the company canary.
   const sig = getCallSignals(ctx as unknown as object);
   const touch = await securityTouch(sb as never, tool, o.jobNumber ?? sig?.jobNumber ?? null, sig?.signals ?? []);
@@ -121,6 +156,9 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
     const morning = await attachMorningCard(sb as never, sealed, { fresh: freshSession, explicit: tool === "morning_brief" });
     return stampCanary(morning, touch.canary);
   } catch (e) {
+    if (access.setup && isNoCompanyDeadEnd(e)) {
+      return sealCardReply(tool, styledAccessReply(companySetupCard(), "company_setup", COMPANY_SETUP_GUIDANCE)) as R;
+    }
     if (e instanceof WhichCompanyAsk) {
       const reply = whichCompanyReply(e);
       const carded = attachAthenaCard(tool, finalizeVisible(reply, [HOST_DISPLAY_BLOCK]));
@@ -139,6 +177,16 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
 
 export function text(body: string) {
   return { content: [{ type: "text" as const, text: body + FOOTER }] };
+}
+
+function styledAccessReply(card: CardModel, flag: "company_setup" | "membership_confirming", guidance: string) {
+  const body = `${renderMarkdown(card)}\n\n${htmlBlock(renderHtml(card))}`;
+  return guide({ ...text(body), structuredContent: { card, [flag]: true } }, guidance);
+}
+
+function isNoCompanyDeadEnd(e: unknown): boolean {
+  const m = e instanceof Error ? e.message : "";
+  return /MCP_NO_COMPANY|No company set up yet|aren't a member of that company/i.test(m);
 }
 
 function whichCompanyReply(ask: WhichCompanyAsk) {

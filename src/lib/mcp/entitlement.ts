@@ -9,6 +9,10 @@
 // another source; any source granting access is enough.
 //
 // Role/company access rules are separate and still apply inside each tool.
+// mcp_athena_access() adds company and paid-period detail when that function
+// is deployed. A missing function keeps this boolean check.
+
+import { decideAccess, readAthenaAccess, type PaidPeriod } from "./access";
 
 export const ENTITLED_SUBSCRIPTION_STATUSES = ["active", "trialing", "comped"] as const;
 
@@ -48,8 +52,9 @@ export const circleMembershipSource: EntitlementSource = async (sb) => {
 export const ATHENA_ENTITLEMENT_SOURCES: EntitlementSource[] = [circleMembershipSource];
 
 export type AthenaEntitlement =
-  | { allowed: true; source: string }
-  | { allowed: false; reason: "no_entitlement" | "unavailable" };
+  | { allowed: true; source: string; needsCompany?: boolean }
+  | { allowed: false; reason: "no_entitlement" | "unavailable" }
+  | { allowed: false; reason: "confirming"; confirmReason: string; paidPeriod: PaidPeriod };
 
 export const NO_ENTITLEMENT_MESSAGE =
   "This account doesn't have an active membership that includes Athena.";
@@ -60,10 +65,25 @@ export async function checkAthenaEntitlement(
   sources: EntitlementSource[] = ATHENA_ENTITLEMENT_SOURCES,
 ): Promise<AthenaEntitlement> {
   let unavailable = false;
+  let granted: string | null = null;
   for (const source of sources) {
     const r = await source(sb);
-    if (r.granted) return { allowed: true, source: r.source };
     if (r.unavailable) unavailable = true;
+    if (r.granted) {
+      granted = r.source;
+      break;
+    }
   }
+  // Detail is read after mcp_gate so a pending invite is accepted first.
+  const detail = await readAthenaAccess(sb);
+  if (detail) {
+    const decision = decideAccess(detail);
+    if (decision.kind === "setup") return { allowed: true, source: granted ?? "circle", needsCompany: true };
+    if (decision.kind === "allow") return { allowed: true, source: granted ?? "circle" };
+    if (decision.kind === "confirming" && !granted) {
+      return { allowed: false, reason: "confirming", confirmReason: decision.reason, paidPeriod: decision.paidPeriod };
+    }
+  }
+  if (granted) return { allowed: true, source: granted };
   return { allowed: false, reason: unavailable ? "unavailable" : "no_entitlement" };
 }

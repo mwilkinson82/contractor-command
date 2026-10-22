@@ -3,6 +3,7 @@ import {
   CIRCLE_LIVE_MONTHLY_PRICE_ID,
   CIRCLE_LIVE_PAYMENT_LINK_ID,
   CIRCLE_LIVE_PRODUCT_ID,
+  CIRCLE_PRICE_IDS,
   hubTierForPurchase,
   resendSegmentForPurchase,
   stripeRefId,
@@ -23,6 +24,16 @@ describe("Circle Stripe recognition", () => {
   it("maps the live Circle product id", () => {
     expect(hubTierForPurchase({ productId: CIRCLE_LIVE_PRODUCT_ID }, emptyEnv)).toBe("circle");
     expect(resendSegmentForPurchase({ productId: CIRCLE_LIVE_PRODUCT_ID }, emptyEnv)).toBe("circle");
+  });
+
+  it.each([
+    "price_1TVh3TJdDAUSVXbNJRsYFTbp",
+    "price_1TDR3aJdDAUSVXbNZOY6EXF3",
+    "price_1TDR3aJdDAUSVXbNWVzFLblo",
+  ])("maps live Circle price %s even when the product id is a separate unlisted product", (priceId) => {
+    expect(hubTierForPurchase({ priceId, productId: "prod_separate_unlisted" }, emptyEnv)).toBe("circle");
+    expect(resendSegmentForPurchase({ priceId, productId: "prod_separate_unlisted" }, emptyEnv)).toBe("circle");
+    expect(CIRCLE_PRICE_IDS.has(priceId)).toBe(true);
   });
 
   it("maps the older Circle price and product ids", () => {
