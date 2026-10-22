@@ -21,6 +21,8 @@ export type CardSection = {
   kind: "table" | "list" | "chips" | "timeline";
   columns?: string[];
   rows: CardRow[];
+  /** Host fills this block. Navy heading, blue rule, gray text. No alert red. */
+  placeholder?: boolean;
 };
 
 export type CardKpi = {

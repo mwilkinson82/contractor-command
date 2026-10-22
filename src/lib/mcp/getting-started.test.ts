@@ -19,6 +19,7 @@ import {
 } from "../athena-start-copy";
 import { AthenaStartTip } from "@/components/athena/start-tip";
 import { paletteViolations } from "./cards/palette";
+import { INBOX_HOST_LINE, INBOX_SECTION } from "./morning-brief";
 import { renderHtml } from "./cards/html";
 import { cardWidgetHtml } from "./cards/widget";
 import { visibleProblems } from "./visible";
@@ -411,7 +412,8 @@ describe("getting_started tool never opens on a picker", () => {
     };
     const plain = result.content[0].text.split("REQUIRED VIEW:")[0];
     expect(result.structuredContent.card.title).toBe("Hey Athena, let's get started");
-    expect(plain.trimStart().startsWith("Hey Athena, let's get started")).toBe(true);
+    expect(plain.trimStart().startsWith(INBOX_HOST_LINE)).toBe(true);
+    expect(plain).toContain("Hey Athena, let's get started");
     expect(plain).toContain("Try one");
     expect(plain).toContain(START_MEMORY_OFFER);
     expect(plain).toContain("Morning meeting");
@@ -423,6 +425,12 @@ describe("getting_started tool never opens on a picker", () => {
     expect(plain.indexOf("Try one")).toBeLessThan(plain.indexOf("Morning meeting"));
     expect(plain).toContain("2701 (Harbor Point)");
     expect(plain).toContain("1234 (Riverside)");
+    expect(result.content[0].text).toContain('class="placeholder"');
+    expect(result.content[0].text).toContain(INBOX_SECTION);
+    expect(result.content[0].text).toContain("Gmail and Calendar");
+    expect(result.content[0].text).toContain("overnight emails");
+    expect(result.content[0].text).toContain("unanswered emails");
+    expect(result.content[0].text).toContain("today's meetings");
     expect(plain.trimStart().startsWith("Which job?")).toBe(false);
     expect(result.structuredContent.card.ask ?? null).toBeNull();
   });
@@ -460,6 +468,19 @@ describe("getting_started card comes before any job picker", () => {
     expect(shown).not.toMatch(/^Which job/m);
     expect(card.ask ?? null).toBeNull();
     expect(card.next_move).toBe("The morning meeting is on 2701.");
+    const html = renderHtml(card);
+    const slot = card.sections?.find((section) => section.heading === INBOX_SECTION);
+    expect(slot?.placeholder).toBe(true);
+    expect(html).toContain('class="placeholder"');
+    expect(html).toContain(INBOX_SECTION);
+    expect(html).toContain("Overnight emails, unanswered emails, and today's meetings.");
+    expect(html.indexOf(INBOX_SECTION)).toBeLessThan(html.indexOf("Morning meeting"));
+    expect(html).toContain("#1E3A5F");
+    expect(html).toContain("#1E5FED");
+    expect(html).toContain("#6B7280");
+    expect(html).not.toMatch(/#DC2626/);
+    expect(paletteViolations(html, false)).toEqual([]);
+    expect(gettingStartedCard().sections?.some((section) => section.heading === INBOX_SECTION)).toBe(false);
   });
 
   it("several jobs keep the habit card and list the morning meeting inside it", () => {

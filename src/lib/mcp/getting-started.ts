@@ -3,6 +3,7 @@
 import { htmlBlock } from "./cards/markdown";
 import { renderHtml } from "./cards/html";
 import type { CardModel } from "./cards/model";
+import { INBOX_SECTION } from "./morning-brief";
 import {
   MEMORY_ASK,
   MEMORY_BONUS,
@@ -156,6 +157,12 @@ export function startedWithJobsCard(jobs: StartedJob[]): CardModel {
       ...(base.sections ?? []),
       { heading: "@Athena", kind: "list", rows: START_AT_EXAMPLES.map((line) => ({ cells: [line] })) },
       { heading: "Memory", kind: "list", rows: [{ cells: [START_MEMORY_OFFER], tone: "action" }] },
+      {
+        heading: INBOX_SECTION,
+        kind: "list",
+        placeholder: true,
+        rows: [{ cells: ["Overnight emails, unanswered emails, and today's meetings."], tone: "unknown" }],
+      },
       { heading: "Morning meeting", kind: "list", rows: jobsRows },
     ],
     next_move: one ? `The morning meeting is on ${one.job_number}.` : "Name the job and I will open the morning meeting.",

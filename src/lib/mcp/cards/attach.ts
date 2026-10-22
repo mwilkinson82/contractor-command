@@ -3,6 +3,7 @@ import { renderHtml } from "./html";
 import { inferCard } from "./infer";
 import { CARD_WIDGET_URI, cardWidgetMeta } from "./widget";
 import { CARD_SHOWN, CARD_SHOWN_PICK, applyCardClosing, cardClosing, stripSpokenPreview } from "./silence";
+import { INBOX_HOST_LINE } from "../morning-brief";
 import { isWhichJobText } from "../which-job";
 import type { CardModel } from "./model";
 
@@ -87,8 +88,11 @@ export function attachAthenaCard<R>(tool: string, result: R): R {
     const hasHtml = source.includes("REQUIRED VIEW: render this HTML card as-is.");
     const hasMarkdown = source.startsWith("## ") && source.includes(card.title);
     const hasPlain = hasHtml && source.includes(card.title);
+    // Card-first tools replace the body with the card. A pinned REQUIRED line would be dropped,
+    // and the host skips the same line when it lives only in the tool description.
+    const inboxLine = source.split("\n").some((line) => line.trim() === INBOX_HOST_LINE) ? `${INBOX_HOST_LINE}\n\n` : "";
     const text = !keepBody
-      ? cardText
+      ? `${inboxLine}${cardText}`
       : hasMarkdown || hasPlain
         ? hasHtml
           ? first.text

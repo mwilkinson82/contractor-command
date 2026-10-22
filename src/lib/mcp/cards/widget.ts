@@ -47,14 +47,16 @@ if(card.progress&&card.progress.total>0){
 });
 if(card.ask&&card.ask.prompt)h+='<div class="ask"><strong>This question</strong><p>'+esc(card.ask.prompt)+'</p></div>';
 (card.sections||[]).forEach(function(s){
-  h+='<h2>'+esc(s.heading)+'</h2>';
+  var open=s.placeholder?'<section class="placeholder">':'';
+  var close=s.placeholder?'</section>':'';
+  h+=open+'<h2>'+esc(s.heading)+'</h2>';
   if(s.kind==="chips"){
     h+='<p>';
     (s.rows||[]).forEach(function(r){
       var alert=isAlert(r.flag);
       h+='<span class="chip'+(r.tone?' tone-'+r.tone:'')+(alert?' alert" data-alert="'+r.flag:'')+'">'+linked(view(r))+'</span>';
     });
-    h+='</p>';
+    h+='</p>'+close;
     return;
   }
   function head(flag){return flag==="delay"?"Delay":flag==="overdue"?"Overdue":"Risk"}
@@ -66,7 +68,7 @@ if(card.ask&&card.ask.prompt)h+='<div class="ask"><strong>This question</strong>
       var seen=view(r);
       h+='<tr'+(alert?' class="alert" data-alert="'+r.flag+'"':'')+'>'+(r.cells||[]).map(function(c,i){var t=raw(c)?"":clean(c);var body=i===0?linked({label:t||seen.label,href:seen.href,ref:seen.ref,secondary:seen.secondary}):esc(t);return '<td>'+(alert&&i===0?'<div class="flag-head">'+head(r.flag)+'</div><div class="flag-body">'+body+'</div>':body)+'</td>'}).join('')+'</tr>';
     });
-    h+='</tbody></table>';
+    h+='</tbody></table>'+close;
     return;
   }
   h+='<ul>';
@@ -74,7 +76,7 @@ if(card.ask&&card.ask.prompt)h+='<div class="ask"><strong>This question</strong>
     var alert=isAlert(r.flag);
     h+='<li'+(alert?' class="alert" data-alert="'+r.flag+'"':'')+'>'+(alert?'<div class="flag-head">'+head(r.flag)+'</div><div class="flag-body">':'')+linked(view(r))+(alert?'</div>':'')+'</li>';
   });
-  h+='</ul>';
+  h+='</ul>'+close;
 });
 (card.alerts||[]).forEach(function(a){
   if(!isAlert(a.level))return;
@@ -117,6 +119,9 @@ td{padding:6px 8px;border-bottom:1px solid ${gray}}
 a{color:${blue};text-decoration:none}
 .ref{display:block;margin-top:2px;font-size:11px;color:${gray}}
 .ask{margin:12px 0;padding:12px;border-left:4px solid ${blue}}
+.placeholder{margin:12px 0;padding:12px;border:1px solid ${gray};border-left:4px solid ${blue};border-radius:10px}
+.placeholder h2{margin-top:0;color:${navy}}
+.placeholder li,.placeholder p{color:${gray}}
 .next{font-weight:700}
 .alert{color:${alert}}
 li.alert,p.alert{display:block;margin:8px 0;padding:0;border:2px solid ${alert};border-radius:12px;background:${white};overflow:hidden}
