@@ -245,7 +245,15 @@ export function windowActivities(acts: SAct[], start: string, end: string): SAct
     )
     .sort((a, b) => a.start!.localeCompare(b.start!) || a.id.localeCompare(b.id));
 }
-export type LaItem = { id?: string | null; action: string; owner?: string | null; due?: string | null };
+export type LaItem = { id?: string | null; action: string; owner?: string | null; due?: string | null; severity?: string | null; type?: string | null; flag?: "risk" | "delay" | "overdue" | null };
+/** Being open or linked to an activity is not, by itself, a risk. */
+export function lookaheadAlert(e: { item: LaItem; overdue: boolean }): "risk" | "delay" | "overdue" | null {
+  if (e.overdue) return "overdue";
+  if (e.item.flag) return e.item.flag;
+  if (e.item.type === "delay") return "delay";
+  if (e.item.severity === "high" || e.item.type === "risk") return "risk";
+  return null;
+}
 // 0.8.21: a marker (INSP/DLV) only for a short event; a long activity that happens to say "deliver" (2701 A1070
 // "Fabricate & deliver generator & ATS", 130 WD) is work and gets a bar, or its row is blank for the whole window.
 const shortEvent = (a: SAct) => (num(a.duration) ?? 0) <= 2;
@@ -383,6 +391,7 @@ export type LaModel = {
   entries: LaEntry[];
   top: LaEntry[];
   risks: LaEntry[];
+  callouts: LaEntry[];
   overdue: LaEntry[];
   flagged: LaEntry[];
   counts: {
@@ -429,7 +438,8 @@ export function lookaheadModel(
         Number(y.overdue) - Number(x.overdue) ||
         (x.item.due ?? "9999").localeCompare(y.item.due ?? "9999"),
     );
-  const risks = entries.filter((e) => e.a && acts.includes(e.a));
+  const risks = entries.filter((e) => e.a && acts.includes(e.a) && lookaheadAlert(e) !== null);
+  const callouts = entries.filter((e) => e.a && acts.includes(e.a) && lookaheadAlert(e) === null);
   const top = entries.slice(0, 3);
   const rows = acts.map((a) => {
     const risky = risks.some((e) => e.a === a);
@@ -453,6 +463,7 @@ export function lookaheadModel(
     entries,
     top,
     risks,
+    callouts,
     overdue,
     flagged,
     counts: {
@@ -555,6 +566,10 @@ export function lookaheadView(v: {
         `> 🔴 **${e.label}** — Impact: ${activityLine(e.a!)}${num(e.a!.total_float) !== null ? ` (float ${num(e.a!.total_float)} WD)` : ""}. Owner: ${e.item.owner ?? "Needed"} · Due ${e.item.due ? shortDate(e.item.due) : "Needed"}${e.overdue ? " · OVERDUE" : ""}.`,
         "",
       );
+  }
+  if (m.callouts.length) {
+    L.push("", "### Open follow-ups (navy/blue)");
+    for (const e of m.callouts) L.push(`> 🔵 ${entryLine(e)}`, "");
   }
   if (m.flagged.length) {
     L.push("", "### Dates to check");

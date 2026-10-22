@@ -1,4 +1,4 @@
-import type { AlertLevel } from "./palette";
+import { isAlertLevel, type AlertLevel } from "./palette";
 
 export type CardState = "intake" | "progress" | "ask" | "result";
 
@@ -6,7 +6,7 @@ export type CardTone = "known" | "unknown" | "action";
 
 export type CardRow = {
   cells: string[];
-  flag?: AlertLevel | null;
+  flag?: AlertLevel | "callout" | null;
   tone?: CardTone | null;
   /** Print the line unchanged. The HTML still flags it when flag is set. */
   raw?: boolean;
@@ -55,7 +55,7 @@ export const STATE_LABEL: Record<CardState, string> = {
 };
 
 export function cardHasAlert(card: CardModel): boolean {
-  if ((card.alerts ?? []).length) return true;
-  if ((card.kpis ?? []).some((k) => k.flag)) return true;
-  return (card.sections ?? []).some((s) => s.rows.some((r) => r.flag));
+  if ((card.alerts ?? []).some((a) => isAlertLevel(a.level))) return true;
+  if ((card.kpis ?? []).some((k) => isAlertLevel(k.flag))) return true;
+  return (card.sections ?? []).some((s) => s.rows.some((r) => isAlertLevel(r.flag)));
 }

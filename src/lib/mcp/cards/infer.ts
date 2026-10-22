@@ -1,6 +1,6 @@
 import { SUMMARY_OFFER } from "../contract-clauses";
 import { whichJobAsk } from "../which-job";
-import type { AlertLevel } from "./palette";
+import { isAlertLevel, type AlertLevel } from "./palette";
 import type { CardModel, CardRow, CardSection } from "./model";
 import { isUuid } from "../refs";
 import { safeBoardHref } from "../plain-label";
@@ -252,8 +252,8 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
       .filter((line) => !incomplete.includes(line) && line !== askLine && line !== valueLine && !/^Contract value:/i.test(line))
       .map((line) => ({ cells: [line], flag: lineAlert(line), raw: true }));
     const alerts = [
-      ...clauseRows.filter((r) => r.flag).map((r) => ({ level: r.flag!, text: r.cells[0] })),
-      ...flagRows.filter((r) => r.flag).map((r) => ({ level: r.flag!, text: `${r.cells[0]} is ${r.cells[1]}` })),
+      ...clauseRows.flatMap((r) => isAlertLevel(r.flag) ? [{ level: r.flag, text: r.cells[0] }] : []),
+      ...flagRows.flatMap((r) => isAlertLevel(r.flag) ? [{ level: r.flag, text: `${r.cells[0]} is ${r.cells[1]}` }] : []),
     ];
     return {
       ...base,
