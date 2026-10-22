@@ -45,6 +45,17 @@ export function paletteViolations(text: string, alertAllowed: boolean): string[]
   return bad;
 }
 
+/** A palette color, or the fallback when the value is missing or blank. */
+export function cssColor(value: string | null | undefined, fallback: string): string {
+  const color = (value ?? "").trim();
+  return /^#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})$/.test(color) ? color : fallback;
+}
+
+/** CSS properties whose value is empty, such as `background: ;`. */
+export function emptyCssValues(css: string): string[] {
+  return [...css.matchAll(/([a-zA-Z-]+)\s*:\s*(?=;|})/g)].map((match) => match[1].toLowerCase());
+}
+
 /** Alert styling is only legal on an element that names delay, risk, or overdue. */
 export function alertMarkupViolations(html: string): string[] {
   const bad: string[] = [];

@@ -3,11 +3,13 @@ import { defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import { FULL_ACCESS_MESSAGE, resolveJob } from "../jobs";
-import { listCompaniesAndJobs } from "./workflow-tools";
+import { listCompaniesAndJobs, namedOrSoleJob } from "./workflow-tools";
 import { whichJobAsk } from "../which-job";
 import { guide } from "../visible";
 import { draftKey } from "../email-safety";
-import { presentChaseCard, type ChaseRow } from "../submittal-chase";
+import { chaseFromSchedule, presentChaseCard, type ChaseRow } from "../submittal-chase";
+import { readScheduleActivities, scheduleSubmittalGroups } from "../schedule-submittals";
+import type { SubmittalRecord } from "../submittals";
 import type { CardModel } from "../cards/model";
 import { ToolError } from "@lovable.dev/mcp-js";
 
@@ -38,7 +40,7 @@ function whichJob(body: string) {
 export const submittalChase = defineTool({
   name: "submittal_chase",
   title: "Chase a missing or overdue submittal",
-  description: "Drafts one chase email for an overdue or missing submittal and waits for a separate yes before anything is sent.",
+  description: "Drafts one chase email for an overdue, missing, or scheduled submittal that is not marked submitted, shows that draft as not sent and needing confirm, and waits for a separate yes before anything is sent.",
   inputSchema: {
     job_number: z.string().trim().min(1).max(40).optional(),
     company_id: z.string().trim().min(1).max(200).optional(),
@@ -47,16 +49,32 @@ export const submittalChase = defineTool({
   annotations: READ,
   handler: (args, ctx) =>
     run("submittal_chase", ctx, { jobNumber: args.job_number }, async (sb) => {
-      if (!args.job_number?.trim()) return whichJob(await listCompaniesAndJobs(sb, args.company_id, "submittal_chase"));
-      const job = await resolveJob(sb, args.job_number, args.company_id);
+      const picked = await namedOrSoleJob(sb, args.job_number, args.company_id);
+      if (!picked) return whichJob(await listCompaniesAndJobs(sb, args.company_id, "submittal_chase"));
+      const job = await resolveJob(sb, picked.job_number, picked.company_id);
       if (job.scope !== "full" && job.scope !== "super") throw new ToolError(FULL_ACCESS_MESSAGE);
       const payload = await call<{ job_number?: string; job_name?: string; today?: string; read_only?: boolean; chases?: ChaseRow[] }>(sb, "mcp_submittal_chase_rows", { _job: job.job_id });
+      const today = (payload.today ?? "").slice(0, 10);
+      const [activities, logged] = await Promise.all([
+        readScheduleActivities(sb, job.job_id),
+        call<{ submittals?: SubmittalRecord[] }>(sb, "mcp_submittal_rows", { _job: job.job_id }).catch(() => ({ submittals: [] as SubmittalRecord[] })),
+      ]);
+      const submitted = new Set(
+        (logged.submittals ?? [])
+          .filter((row) => row.submitted_on || row.status === "submitted" || row.status === "approved" || row.status === "resubmitted")
+          .map((row) => row.number.trim().toLowerCase()),
+      );
       const chases = (payload.chases ?? []).filter((row) => !args.submittal_id || row.submittal_id === args.submittal_id);
+      const known = new Set(chases.map((row) => row.number.trim().toLowerCase()));
+      const scheduled = chaseFromSchedule(
+        scheduleSubmittalGroups(activities).filter((group) => !submitted.has(group.id.trim().toLowerCase()) && !known.has(group.id.trim().toLowerCase())),
+        today,
+      );
       const presented = presentChaseCard({
         jobNumber: payload.job_number ?? job.job_number,
         jobName: payload.job_name ?? job.name,
-        chases,
-        today: (payload.today ?? "").slice(0, 10),
+        chases: [...chases, ...scheduled],
+        today,
         readOnly: payload.read_only === true,
       });
       const key = presented.draft ? draftKey(presented.draft) : null;
@@ -67,11 +85,11 @@ export const submittalChase = defineTool({
             card: presented.card,
             draft: presented.draft,
             draft_key: key,
-            submittal_id: presented.current?.submittal_id ?? null,
+            submittal_id: presented.current?.submittal_id || null,
             sent: false,
           },
         },
-        "Show this chase card. Do not send the email in this reply. On yes, call email_confirm_send with the same draft, confirmed true, the job number, and this submittal id.",
+        "Show this chase card. The draft is not sent and needs confirm. Do not send the email in this reply. On yes, call email_confirm_send with the same draft, confirmed true, and the job number. Pass the submittal id only when this result has one.",
       );
     }),
 });

@@ -4,7 +4,7 @@ import { ATHENA_VERSION } from "../server-info-branding";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
-import { ITEM_COLS, READ_ONLY_MESSAGE, FULL_ACCESS_MESSAGE, activeNa, audit, flagWord, itemLine, itemType, jobTimeZone, prefix, renderSetupReport, resolveCompany, resolveJob, currentCompany, type Job } from "../jobs";
+import { ITEM_COLS, READ_ONLY_MESSAGE, FULL_ACCESS_MESSAGE, WhichCompanyAsk, activeNa, audit, companyForCreate, currentCompany, flagWord, itemLine, itemType, jobTimeZone, memberCompanies, prefix, rememberCompany, renderSetupReport, resolveCompany, resolveJob, type Job } from "../jobs";
 import { computeDue, todayIn, type DayType } from "../deadlines";
 import { INPUT_KEYS, INPUT_LABELS, currentCheck, loadAnswers, loadChecks, loadLookahead, renderReport, type InputKey } from "../workflow";
 import { WARRANTY_CHECK_PREFIX, WARRANTY_SETUP_QUESTIONS, mapTrigger, nextWarrantyQuestion, CONTRACT_WARRANTY_KEY, alignCloseoutSource, renderWarrantyRegister, warrantyAnswerFacts, warrantyHow, warrantyOpenItems, type WarrantyKey } from "../warranty";
@@ -383,14 +383,29 @@ export const intake = defineTool({
       capInput(args);
       if (args.section === "create_job") {
         if (!args.job_name) throw new ToolError("create_job needs job_name.");
-        const company = await resolveCompany(sb, args.company_id);
+        const companies = await memberCompanies(sb);
+        const activeId = await currentCompany(sb);
+        let namedId: string | null = null;
+        if (args.company_id?.trim()) {
+          const want = args.company_id.trim().toLowerCase();
+          const byId = companies.find((c) => c.id === want);
+          const byName = companies.filter((c) => c.name.trim().toLowerCase() === want);
+          namedId = byId?.id ?? (byName.length === 1 ? byName[0].id : null);
+          if (!namedId) throw new ToolError(companies.length > 1 ? `You aren't a member of a company called "${args.company_id.trim()}". Your companies: ${companies.map((c) => c.name).join("; ")}.` : "You aren't a member of that company.");
+        }
+        const choice = companyForCreate({ companies, activeId, namedId });
+        if ("ask" in choice) {
+          throw new WhichCompanyAsk(args.job_number, choice.ask.map((c) => ({ company_id: c.id, company_name: c.name, job_name: args.job_name! })), true);
+        }
+        await rememberCompany(sb, choice.companyId);
+        const companyName = companies.find((c) => c.id === choice.companyId)?.name ?? "your company";
         const r = await rpc<{ duplicate: boolean; suggestion?: string; job_id?: string }>(sb, "mcp_job_create", {
-          _company: company, _job_number: args.job_number, _name: args.job_name, _restrict_to: args.restrict_to ?? null,
+          _company: choice.companyId, _job_number: args.job_number, _name: args.job_name, _restrict_to: args.restrict_to ?? null,
         });
         if (r.duplicate) throw new ToolError(`Job ${args.job_number} already exists in this company. Use a different number, e.g. ${r.suggestion}. Nothing was created.`);
         return {
-          ...text(`${args.job_number} – Job created: ${args.job_name}.${args.restrict_to?.length ? ` Restricted to: ${args.restrict_to.join(", ")}.` : ""}\nPM: not set yet. Ask who the PM is and record it with intake section "job_settings" (pm); open items default to the job's PM.\nNext: intake section "scope" (step 0). Ask the member for job type, owner/client type, sector and pricing model; never assume them.`),
-          structuredContent: { job_id: r.job_id!, job_number: args.job_number },
+          ...text(`${args.job_number} – Job created in ${companyName}: ${args.job_name}.${args.restrict_to?.length ? ` Restricted to: ${args.restrict_to.join(", ")}.` : ""}\nPM: not set yet. Ask who the PM is and record it with intake section "job_settings" (pm); open items default to the job's PM.\nNext: intake section "scope" (step 0). Ask the member for job type, owner/client type, sector and pricing model; never assume them.`),
+          structuredContent: { job_id: r.job_id!, job_number: args.job_number, company_id: choice.companyId, company_name: companyName },
         };
       }
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
@@ -1183,6 +1198,31 @@ const listJobNumber = z.string().trim().min(1).max(40).optional();
 /** Jobs the caller can see, narrowed to the current company when they belong to more than one. */
 export type ListedJob = { job_number: string; name: string | null; company_id: string; updated_at?: string | null };
 
+/**
+ * The only job the member can see.
+ * One job anywhere is that job. Otherwise the only job in the named or active company.
+ * More than one choice returns null so the caller can ask.
+ */
+export async function soleJob(sb: Sb, companyId?: string): Promise<ListedJob | null> {
+  const everywhere = await listedJobs(sb, undefined, { allCompanies: true });
+  if (everywhere.length === 1) return everywhere[0];
+  if (companyId?.trim()) {
+    const scoped = await listedJobs(sb, companyId);
+    return scoped.length === 1 ? scoped[0] : null;
+  }
+  const active = await listedJobs(sb);
+  return active.length === 1 ? active[0] : null;
+}
+
+/** A named job number, or the only job when none was named. */
+export async function namedOrSoleJob(sb: Sb, jobNumber?: string | null, companyId?: string): Promise<{ job_number: string; company_id?: string } | null> {
+  const named = jobNumber?.trim();
+  if (named) return { job_number: named, company_id: companyId };
+  const only = await soleJob(sb, companyId);
+  if (!only) return null;
+  return { job_number: only.job_number, company_id: companyId ?? only.company_id };
+}
+
 /** One job, or the most recently updated job, is the job to open. Several jobs with no stamp still ask. */
 export function chooseJob<T extends { job_number: string; updated_at?: string | null }>(jobs: T[]): T | null {
   const named = jobs.filter((job) => job.job_number.trim());
@@ -1193,14 +1233,14 @@ export function chooseJob<T extends { job_number: string; updated_at?: string | 
   return [...stamped].sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)))[0];
 }
 
-export async function listedJobs(sb: Sb, companyId?: string): Promise<ListedJob[]> {
+export async function listedJobs(sb: Sb, companyId?: string, opts?: { allCompanies?: boolean }): Promise<ListedJob[]> {
   const { data: cos, error } = await sb.from("mcp_companies").select("id, name");
   if (error) throw new Error(error.message);
-  let companies = (cos ?? []) as { id: string; name: string | null }[];
+  let companies = ((cos ?? []) as { id: string; name: string | null }[]).sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "") || a.id.localeCompare(b.id));
   if (companyId?.trim()) {
     const cid = await resolveCompany(sb, companyId);
     companies = companies.filter((c) => c.id === cid);
-  } else if (companies.length > 1) {
+  } else if (!opts?.allCompanies && companies.length > 1) {
     const cur = await currentCompany(sb);
     if (cur && companies.some((c) => c.id === cur)) companies = companies.filter((c) => c.id === cur);
   }
@@ -1248,8 +1288,9 @@ export const listOpenItems = defineTool({
   annotations: { ...READ, idempotentHint: true },
   handler: (args, ctx) =>
     run("list_open_items", ctx, { lookaheadId: args.lookahead_id, jobNumber: args.job_number, sweep: args.date_sweep === true }, async (sb) => {
-      if (!args.job_number?.trim()) return text(await listCompaniesAndJobs(sb, args.company_id, "list_open_items"));
-      const job = await resolveJob(sb, args.job_number, args.company_id);
+      const picked = await namedOrSoleJob(sb, args.job_number, args.company_id);
+      if (!picked) return text(await listCompaniesAndJobs(sb, args.company_id, "list_open_items"));
+      const job = await resolveJob(sb, picked.job_number, picked.company_id);
       let q = sb.from("mcp_open_items").select(ITEM_COLS).eq("job_id", job.job_id).eq("status", "open");
       const la = args.lookahead_id ? await lookaheadForJob(sb, job, args.lookahead_id) : null;
       if (la) q = q.eq("lookahead_id", la.id);

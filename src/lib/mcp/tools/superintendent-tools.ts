@@ -32,6 +32,11 @@ import {
   type FieldSource,
 } from "../superintendent";
 import { guide } from "../visible";
+import { listCompaniesAndJobs, namedOrSoleJob } from "./workflow-tools";
+import { whichJobAsk } from "../which-job";
+import { renderHtml } from "../cards/html";
+import { htmlBlock, renderMarkdown } from "../cards/markdown";
+import type { CardModel } from "../cards/model";
 
 const jobNumber = z.string().trim().min(1).max(40);
 const companyId = z.string().trim().min(1).max(200).optional();
@@ -195,8 +200,36 @@ export const superintendentActivity = defineTool({
     }),
 });
 
+function whichDaily(tool: string, body: string) {
+  const lines = body.split("\n").map((line) => line.trim()).filter((line) => line.startsWith("- "));
+  const card: CardModel = {
+    state: "ask",
+    title: "Which job?",
+    show_state: false,
+    ask: { prompt: whichJobAsk(tool) },
+    sections: [{ heading: "Jobs", kind: "list", rows: lines.map((line) => ({ cells: [line.replace(/^- /, "")], tone: "action" as const })) }],
+    next_move: "Name the job.",
+  };
+  return guide(
+    { ...text(`${renderMarkdown(card)}\n\n${htmlBlock(renderHtml(card))}`), structuredContent: { card, which_job: true } },
+    "Wait for the job.",
+  );
+}
+
+async function fieldJob(sb: Sb, tool: string, args: { job_number?: string; company_id?: string }): Promise<Job | ReturnType<typeof whichDaily>> {
+  const picked = await namedOrSoleJob(sb, args.job_number, args.company_id);
+  if (!picked) return whichDaily(tool, await listCompaniesAndJobs(sb, args.company_id, tool));
+  const job = await resolveJob(sb, picked.job_number, picked.company_id);
+  assertField(job);
+  return job;
+}
+
+function isJob(value: Job | ReturnType<typeof whichDaily>): value is Job {
+  return "job_id" in value;
+}
+
 const dailyFields = {
-  job_number: jobNumber,
+  job_number: jobNumber.optional(),
   company_id: companyId,
   report_date: date.optional(),
   transcript: z.string().trim().max(20000).optional(),
@@ -218,8 +251,8 @@ export const dailyReportDraft = defineTool({
   annotations: READ,
   handler: (args, ctx) =>
     run("daily_report_draft", ctx, { jobNumber: args.job_number }, async (sb) => {
-      const job = await resolveJob(sb, args.job_number, args.company_id);
-      assertField(job);
+      const job = await fieldJob(sb, "daily_report_draft", args);
+      if (!isJob(job)) return job;
       const zone = await jobTimeZone(sb, job.job_id);
       const day = args.report_date ?? todayIn(zone);
       const draft = assembleDaily(args);
@@ -235,17 +268,19 @@ export const dailyReportSave = defineTool({
   name: "daily_report_save",
   title: "Save a confirmed daily report",
   description: "Saves a daily report after the superintendent confirms it.",
-  inputSchema: { ...dailyFields, report_date: date, confirmed: z.boolean() },
+  inputSchema: { ...dailyFields, confirmed: z.boolean() },
   annotations: SAVE,
   handler: (args, ctx) =>
     run("daily_report_save", ctx, { jobNumber: args.job_number }, async (sb) => {
       if (args.confirmed !== true) throw new ToolError("Ask the superintendent to confirm this daily first. Nothing was saved.");
-      const job = await resolveJob(sb, args.job_number, args.company_id);
-      assertField(job);
+      const job = await fieldJob(sb, "daily_report_save", args);
+      if (!isJob(job)) return job;
+      const zone = await jobTimeZone(sb, job.job_id);
+      const day = args.report_date ?? todayIn(zone);
       const draft = assembleDaily(args);
       if (!draft.ready) throw new ToolError(`${prefix(job)}Not saved.\n${draft.follow_ups.map((q) => `- ${q}`).join("\n")}`);
       const saved = await call<{ id: string; lines: number }>(sb, "mcp_daily_report_save", {
-        _job: job.job_id, _date: args.report_date, _confirmed: true,
+        _job: job.job_id, _date: day, _confirmed: true,
         _weather: draft.weather, _manpower: draft.manpower, _subs: draft.subs_on_site, _deliveries: draft.deliveries,
         _issues: draft.issues, _delays: draft.delays, _safety: draft.safety, _transcript: args.transcript ?? null,
         _lines: draft.work.map((w) => ({ work: w.work, sov_item: w.sov_item, activity_id: w.activity_id, qty: w.qty, unit: w.unit, crew: w.crew, hours: w.hours, pct_complete: w.pct_complete })),
@@ -253,7 +288,7 @@ export const dailyReportSave = defineTool({
       await audit(sb, job, "daily_report_save", "save_daily", saved.id);
       const url = boardHref(await boardPages(sb, job), "daily");
       return guide(
-        { ...text([...(url ? [`Styled daily (private to your company): ${url}`] : []), dailyCard(prefix(job), args.report_date, { ...draft, follow_ups: [], ready: true }, true)].join("\n")), structuredContent: { saved: true, id: saved.id, report_date: args.report_date, lines: saved.lines, rates: draft.work.map(rateFromLine).filter(Boolean) } },
+        { ...text([...(url ? [`Styled daily (private to your company): ${url}`] : []), dailyCard(prefix(job), day, { ...draft, follow_ups: [], ready: true }, true)].join("\n")), structuredContent: { saved: true, id: saved.id, report_date: day, lines: saved.lines, rates: draft.work.map(rateFromLine).filter(Boolean) } },
         "Saved. Production rates are available to estimating. Percent complete is ready for the pay app and the schedule update. The saved schedule is not changed by this save.",
       );
     }),
@@ -263,19 +298,21 @@ export const dailyReportGet = defineTool({
   name: "daily_report_get",
   title: "Saved daily report",
   description: "Returns a saved daily report for a job and date.",
-  inputSchema: { job_number: jobNumber, company_id: companyId, report_date: date },
+  inputSchema: { job_number: jobNumber.optional(), company_id: companyId, report_date: date.optional() },
   annotations: READ,
   handler: (args, ctx) =>
     run("daily_report_get", ctx, { jobNumber: args.job_number }, async (sb) => {
-      const job = await resolveJob(sb, args.job_number, args.company_id);
-      assertField(job);
-      const got = await call<{ found: boolean; weather?: string; manpower?: string; subs_on_site?: string; deliveries?: string; issues?: string; delays?: string; safety?: string; lines?: { work: string; sov_item: string; activity_id: string; qty: number; unit: string; crew: number; hours: number; pct_complete: number | null }[] }>(sb, "mcp_daily_report_get", { _job: job.job_id, _date: args.report_date });
+      const job = await fieldJob(sb, "daily_report_get", args);
+      if (!isJob(job)) return job;
+      const zone = await jobTimeZone(sb, job.job_id);
+      const day = args.report_date ?? todayIn(zone);
+      const got = await call<{ found: boolean; weather?: string; manpower?: string; subs_on_site?: string; deliveries?: string; issues?: string; delays?: string; safety?: string; lines?: { work: string; sov_item: string; activity_id: string; qty: number; unit: string; crew: number; hours: number; pct_complete: number | null }[] }>(sb, "mcp_daily_report_get", { _job: job.job_id, _date: day });
       await audit(sb, job, "daily_report_get", "view_daily", null);
-      if (!got.found) return guide({ ...text(`${prefix(job)}No daily is saved for ${args.report_date}.`), structuredContent: { found: false, report_date: args.report_date } }, "Nothing saved for that date.");
+      if (!got.found) return guide({ ...text(`${prefix(job)}No daily is saved for ${day}.`), structuredContent: { found: false, report_date: day } }, "Nothing saved for that date.");
       const draft = assembleDaily({ ...got, work: got.lines ?? [] });
       const url = boardHref(await boardPages(sb, job), "daily");
       return guide(
-        { ...text([...(url ? [`Styled daily (private to your company): ${url}`] : []), dailyCard(prefix(job), args.report_date, { ...draft, follow_ups: [], ready: true }, true)].join("\n")), structuredContent: { found: true, report_date: args.report_date, daily: got } },
+        { ...text([...(url ? [`Styled daily (private to your company): ${url}`] : []), dailyCard(prefix(job), day, { ...draft, follow_ups: [], ready: true }, true)].join("\n")), structuredContent: { found: true, report_date: day, daily: got } },
         "Show the card as saved.",
       );
     }),

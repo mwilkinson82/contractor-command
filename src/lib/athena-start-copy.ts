@@ -21,3 +21,6 @@ export const START_EXAMPLES = [
 
 export const START_BACKUP =
   "If it misses, start with @Athena. It routes the ask to Athena instead of the general AI.";
+
+/** Offer to keep the @Athena habit. Shown on the get-started card, not as its own picker. */
+export const START_MEMORY_OFFER = "Want me to remember @Athena as the way you start? Say yes and I will.";

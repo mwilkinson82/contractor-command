@@ -8,7 +8,7 @@ import { ToolError } from "@lovable.dev/mcp-js";
 export const EMAIL_REPLY_KIND = "email_reply";
 
 export const PROJECT_RECORD_RULE =
-  " When someone asks for the project record, the claim file, or what happened on a job, call project_record_search. Show that card. Do not add text after it. A reply outcome is not logged yet.";
+  " When someone asks for the project record or what happened on a job, call project_record_search and show that card. The default card is the job record: the schedule of values, open items, and overdue items. Call it for disputes or claims only when the member asks for disputes or claims. Do not add text after the card. A reply outcome is not logged yet.";
 
 export type RecordActor = "user" | "athena";
 
@@ -69,6 +69,54 @@ export async function recordEvent(sb: Sb, input: RecordEventInput): Promise<stri
     dbError(error);
   }
   return typeof data === "string" ? data : null;
+}
+
+/** Disputes and claims stay on the event file. Every other project-record ask is the job record. */
+export function isDisputeAsk(kind?: string | null, text?: string | null): boolean {
+  return /\b(?:dispute|claim)s?\b/i.test(`${kind ?? ""} ${text ?? ""}`);
+}
+
+export function presentJobRecord(input: {
+  jobNumber: string;
+  jobName: string;
+  contractTotal: string | null;
+  open: number;
+  overdue: number;
+  items: { action: string; due: string; overdue: boolean }[];
+}): { text: string; card: CardModel } {
+  const money = input.contractTotal ?? "Needed";
+  const lines = input.items.map((item) => `- ${item.action}${item.due ? `. Due ${item.due}.` : ""}${item.overdue ? " Overdue." : ""}`);
+  const text = [
+    `${input.jobNumber} – ${input.jobName}`,
+    "Project record",
+    `Schedule of values: ${money}`,
+    `Open items: ${input.open} open, ${input.overdue} overdue.`,
+    "",
+    lines.length ? lines.join("\n") : "No open items.",
+  ].join("\n");
+  const card: CardModel = {
+    state: "result",
+    show_state: false,
+    title: "Project record",
+    job: `${input.jobNumber} – ${input.jobName}`,
+    kpis: [
+      { label: "Schedule of values", value: money },
+      { label: "Open", value: String(input.open) },
+      { label: "Overdue", value: String(input.overdue), flag: input.overdue ? "overdue" : null },
+    ],
+    sections: [
+      { heading: "Schedule of values", kind: "list", rows: [{ cells: [money], tone: "known" }] },
+      {
+        heading: "Open items",
+        kind: "list",
+        rows: input.items.length
+          ? input.items.map((item) => ({ cells: [item.action, item.due || "Needed"], flag: item.overdue ? ("overdue" as const) : null }))
+          : [{ cells: ["No open items."] }],
+      },
+    ],
+    next_move: input.overdue ? "Close the overdue item first." : "This is the job record.",
+  };
+  return { text, card };
 }
 
 export function presentProjectRecord(input: {

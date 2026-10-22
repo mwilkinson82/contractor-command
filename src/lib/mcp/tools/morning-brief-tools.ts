@@ -26,7 +26,7 @@ export const athenaHello = defineTool({
 });
 
 export const MORNING_BRIEF_DESCRIPTION =
-  "Builds the member's construction morning brief across every job they can see when they say Athena, good morning, Hey Athena, let's get started, Athena, let's get started, Good morning Athena, Hey Athena, what's on my plate today?, Morning Athena, Athena at the start or mid-sentence, Athina, Athen, Atena, hitlist, morning briefing, what's on my plate today, overdue, or today's deadlines on my jobs, Athena leads, the host fills From your inbox and calendar with emails that came in overnight, unanswered emails that need a reply, and today's meetings, then the job side follows with the schedule, notices, submittals due, overdue items, and what happened yesterday versus what is due today, and nothing is sent.";
+  "Builds the member's construction morning brief across every job in every company they belong to, grouped by company when there is more than one, when they say Athena, good morning, Hey Athena, let's get started, Athena, let's get started, Good morning Athena, Hey Athena, what's on my plate today?, Morning Athena, Athena at the start or mid-sentence, Athina, Athen, Atena, hitlist, morning briefing, what's on my plate today, overdue, or today's deadlines on my jobs, Athena leads, the host fills From your inbox and calendar with emails that came in overnight, unanswered emails that need a reply, and today's meetings, then the job side follows with the schedule, notices, submittals due, overdue items, and what happened yesterday versus what is due today, and the reply is the styled card, and nothing is sent.";
 
 export const morningBrief = defineTool({
   name: "morning_brief",

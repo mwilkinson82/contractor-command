@@ -20,65 +20,95 @@ const companyNames = (m: { mcp_companies: { name: string | null } }[]) => m.map(
 
 export const MULTI_COMPANY_ASK = "You belong to more than one company. Which one should Athena use? I'll remember it, so you only answer this once (call set_current_company with that name).";
 
-// Per-server-instance cache of the member's current company, so a session doesn't re-read it on every call.
-const CURRENT = new Map<string, { id: string; at: number }>();
-const CURRENT_TTL_MS = 10 * 60_000;
-async function callerId(sb: Sb): Promise<string | null> {
-  try { const { data } = await sb.auth.getUser(); return data.user?.id ?? null; } catch { return null; }
-}
-/** The member's saved current company (mcp_user_settings), cached for the session. */
+export type MemberCompany = { id: string; name: string };
+
+/** Saved current company from mcp_user_settings. Read on every call so two hosts for the same member see the same company. */
 export async function currentCompany(sb: Sb): Promise<string | null> {
-  const uid = await callerId(sb);
-  const c = uid ? CURRENT.get(uid) : undefined;
-  if (c && Date.now() - c.at < CURRENT_TTL_MS) return c.id;
   const cur = await sb.from("mcp_user_settings").select("current_company").maybeSingle();
-  const id = (cur.data as { current_company?: string | null } | null)?.current_company ?? null;
-  if (uid && id) CURRENT.set(uid, { id, at: Date.now() });
-  return id;
+  return (cur.data as { current_company?: string | null } | null)?.current_company ?? null;
 }
-/** Save (best effort) the company the member just named as their current one. Never blocks the call. */
+/** Save the company the member just named as their current one. */
 export async function rememberCompany(sb: Sb, companyId: string): Promise<void> {
-  const uid = await callerId(sb);
-  const c = uid ? CURRENT.get(uid) : undefined;
-  if (c?.id === companyId) return;
   try {
-    const { error } = await (sb.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ error: unknown }>)("mcp_set_current_company", { _company: companyId });
-    if (!error && uid) CURRENT.set(uid, { id: companyId, at: Date.now() });
+    await (sb.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ error: unknown }>)("mcp_set_current_company", { _company: companyId });
   } catch { /* the call still works with the named company */ }
 }
-export const _resetCurrentCompanyCache = () => CURRENT.clear();
+export const _resetCurrentCompanyCache = () => {};
+
+/** Companies the caller belongs to, in a stable order: name, then id. */
+export async function memberCompanies(sb: Sb): Promise<MemberCompany[]> {
+  const { data, error } = await sb.from("mcp_companies").select("id, name");
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as { id: string; name: string | null }[])
+    .map((c) => ({ id: c.id, name: (c.name ?? "").trim() || "unnamed company" }))
+    .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+}
+
+export type CompanyChoice = { companyId: string } | { ask: MemberCompany[] };
+
+/**
+ * A new job is written in the active company. A named company is used only when it is the active one,
+ * or when no company is active yet. A different name does not move the job.
+ */
+export function companyForCreate(input: { companies: MemberCompany[]; activeId: string | null; namedId: string | null }): CompanyChoice {
+  const companies = [...input.companies].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+  const active = input.activeId && companies.some((c) => c.id === input.activeId) ? input.activeId : companies.length === 1 ? companies[0].id : null;
+  if (input.namedId && companies.some((c) => c.id === input.namedId) && (!active || input.namedId === active)) return { companyId: input.namedId };
+  if (active) return { companyId: active };
+  if (!companies.length) return { ask: [] };
+  return { ask: companies };
+}
+
+export type CompanyJobHit = Job & { company_name: string };
+
+/** More than one company has this job number. The tool returns a card instead of guessing. */
+export class WhichCompanyAsk extends Error {
+  readonly jobNumber: string;
+  readonly matches: { company_id: string; company_name: string; job_name: string }[];
+  readonly creating: boolean;
+  constructor(jobNumber: string, matches: { company_id: string; company_name: string; job_name: string }[], creating = false) {
+    super("Which company?");
+    this.name = "WhichCompanyAsk";
+    this.jobNumber = jobNumber;
+    this.matches = matches;
+    this.creating = creating;
+  }
+}
+
+export function isWhichCompanyAsk(e: unknown): e is WhichCompanyAsk {
+  return e instanceof WhichCompanyAsk;
+}
 
 export async function resolveCompany(sb: Sb, companyId?: string): Promise<string> {
   // Companies are only visible to their members (RLS), so this is "my companies".
-  const { data, error } = await sb.from("mcp_companies").select("id, name");
-  if (error) throw new Error(error.message);
-  const mine = (data ?? []).map((c) => ({ company_id: c.id, mcp_companies: { name: c.name } }));
+  const companies = await memberCompanies(sb);
+  const mine = companies.map((c) => ({ company_id: c.id, mcp_companies: { name: c.name } }));
   if (companyId) {
     // Accept the company's id or its name (plain-text hosts only see names).
     const want = companyId.trim().toLowerCase();
-    const byId = mine.find((m) => m.company_id === want);
-    const byName = mine.filter((m) => (m.mcp_companies.name ?? "").trim().toLowerCase() === want);
-    const hit = byId?.company_id ?? (byName.length === 1 ? byName[0].company_id : null);
+    const byId = companies.find((m) => m.id === want);
+    const byName = companies.filter((m) => m.name.trim().toLowerCase() === want);
+    const hit = byId?.id ?? (byName.length === 1 ? byName[0].id : null);
     if (hit) {
-      // 0.8.17: naming a company makes it the member's current company, so later calls don't ask again.
-      if (mine.length > 1) await rememberCompany(sb, hit);
+      // Naming a company makes it the member's current company, so later calls don't ask again.
+      if (companies.length > 1) await rememberCompany(sb, hit);
       return hit;
     }
-    throw new ToolError(mine.length > 1 ? `You aren't a member of a company called "${companyId.trim()}". Your companies: ${companyNames(mine)}.` : "You aren't a member of that company.");
+    throw new ToolError(companies.length > 1 ? `You aren't a member of a company called "${companyId.trim()}". Your companies: ${companyNames(mine)}.` : "You aren't a member of that company.");
   }
-  if (!mine.length) {
+  if (!companies.length) {
     const nr = await sb.rpc("mcp_caller_is_no_access_role");
     if (nr.data === true) throw new ToolError("Your role doesn't have access to Athena. Ask your company owner if you need it.");
   }
-  if (!mine.length) throw new ToolError('No company set up yet. Call onboarding with action "save_company" first.');
-  if (mine.length > 1) {
-    // 0.8.15: the member's saved current company (set_current_company) is used when they didn't name one.
+  if (!companies.length) throw new ToolError('No company set up yet. Call onboarding with action "save_company" first.');
+  if (companies.length > 1) {
+    // The member's saved current company is used when they didn't name one. Same row for every host.
     const curId = await currentCompany(sb);
-    if (curId && mine.some((m) => m.company_id === curId)) return curId;
+    if (curId && companies.some((m) => m.id === curId)) return curId;
     // Never pick one silently. Ask once; the answer is saved (set_current_company, or naming it on the next call).
     throw new ToolError(`${MULTI_COMPANY_ASK} Your companies: ${companyNames(mine)}. Nothing was changed.`);
   }
-  return mine[0].company_id;
+  return companies[0].id;
 }
 
 /** Exact job-number match only. Anything else returns "Did you mean…" without acting. */
@@ -93,17 +123,43 @@ export async function resolveJob(sb: Sb, jobNumber: string, companyId?: string, 
   return job;
 }
 
-async function resolveJobRaw(sb: Sb, jobNumber: string, companyId?: string): Promise<Job> {
-  const company = await resolveCompany(sb, companyId);
-  const { data, error } = await sb.rpc("mcp_resolve_job", { _company: company, _job_number: jobNumber });
+type JobLookup = Partial<Job> & { not_found?: boolean; suggestions?: { job_number: string; name: string }[] };
+
+async function lookupJob(sb: Sb, companyId: string, jobNumber: string): Promise<JobLookup> {
+  const { data, error } = await sb.rpc("mcp_resolve_job", { _company: companyId, _job_number: jobNumber });
   if (error) dbError(error);
-  const r = data as unknown as Partial<Job> & { not_found?: boolean; suggestions?: { job_number: string; name: string }[] };
-  if (r.not_found || !r.job_id) {
-    const s = r.suggestions ?? [];
-    if (s.length) throw new ToolError(`No job ${jobNumber}. Did you mean ${s.map((x) => `job ${x.job_number} (${x.name})`).join(" or ")}? Nothing was changed.`);
-    throw new ToolError(`No job ${jobNumber} in this company. Create it with intake section "create_job".`);
+  return (data ?? { not_found: true, suggestions: [] }) as JobLookup;
+}
+
+function namedCompanyId(companies: MemberCompany[], companyId?: string): string | null {
+  const want = companyId?.trim().toLowerCase();
+  if (!want) return null;
+  const byId = companies.find((company) => company.id === want);
+  if (byId) return byId.id;
+  const byName = companies.filter((company) => company.name.trim().toLowerCase() === want);
+  return byName.length === 1 ? byName[0].id : null;
+}
+
+async function resolveJobRaw(sb: Sb, jobNumber: string, companyId?: string): Promise<Job> {
+  const companies = await memberCompanies(sb);
+  if (!companies.length) await resolveCompany(sb);
+  const hits: CompanyJobHit[] = [];
+  const suggestions: { job_number: string; name: string }[] = [];
+  for (const company of companies) {
+    const r = await lookupJob(sb, company.id, jobNumber);
+    if (r.job_id && r.job_number) hits.push({ ...(r as Job), company_name: company.name });
+    else for (const s of r.suggestions ?? []) suggestions.push(s);
   }
-  return r as Job;
+  // A host often sends the active company. A number that exists on exactly one company still resolves.
+  const named = namedCompanyId(companies, companyId);
+  const namedHit = named ? hits.find((hit) => hit.company_id === named) : undefined;
+  if (namedHit) return namedHit;
+  if (hits.length === 1) return hits[0];
+  if (hits.length > 1) {
+    throw new WhichCompanyAsk(jobNumber, hits.map((hit) => ({ company_id: hit.company_id, company_name: hit.company_name, job_name: hit.name })));
+  }
+  if (suggestions.length) throw new ToolError(`No job ${jobNumber}. Did you mean ${suggestions.slice(0, 3).map((x) => `job ${x.job_number} (${x.name})`).join(" or ")}? Nothing was changed.`);
+  throw new ToolError(companies.length > 1 ? `No job ${jobNumber} in your companies. Create it with intake section "create_job".` : `No job ${jobNumber} in this company. Create it with intake section "create_job".`);
 }
 
 /** The job's stored time zone, or DEFAULT_TZ (America/New_York) when none is stored. */

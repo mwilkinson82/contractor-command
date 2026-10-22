@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { START_BACKUP, START_EXAMPLES, START_HEADLINE, START_POINTS } from "../athena-start-copy";
+import { START_BACKUP, START_EXAMPLES, START_HEADLINE, START_MEMORY_OFFER, START_POINTS } from "../athena-start-copy";
 import { AthenaStartTip } from "@/components/athena/start-tip";
 import { paletteViolations } from "./cards/palette";
 import { renderHtml } from "./cards/html";
@@ -17,15 +17,21 @@ import {
   firstJobGuidance,
   gettingStartedCard,
   renderGettingStarted,
+  startedWithJobsCard,
 } from "./getting-started";
 import { inferCard } from "./cards/infer";
 
 const rpc = vi.hoisted(() => vi.fn());
+const jobsFixture = vi.hoisted(() => ({
+  companies: [] as { id: string }[],
+  jobs: [] as { job_number: string; name: string | null }[],
+}));
 vi.mock("./supabase", () => ({
   supabaseForUser: () => ({
     rpc,
-    from: () => {
-      const done = Promise.resolve({ data: [], error: null });
+    from: (table: string) => {
+      const rows = table === "mcp_companies" ? jobsFixture.companies : table === "mcp_jobs" ? jobsFixture.jobs : [];
+      const done = Promise.resolve({ data: rows, error: null });
       const builder = { in: () => done, then: (ok: (v: unknown) => unknown, bad?: (e: unknown) => unknown) => done.then(ok, bad) };
       return { select: () => builder, insert: async () => ({ error: null }) };
     },
@@ -108,7 +114,11 @@ describe("getting started card", () => {
 });
 
 describe("first tool call", () => {
-  beforeEach(() => rpc.mockReset());
+  beforeEach(() => {
+    rpc.mockReset();
+    jobsFixture.companies = [];
+    jobsFixture.jobs = [];
+  });
 
   it("shows the card once, then stays quiet", async () => {
     let seen = false;
@@ -260,6 +270,80 @@ describe("getting_started branches", () => {
     expect(card.title).toBe("Which job?");
     expect(card.next_move).toBe("Name the job.");
     expect(card.show_state).not.toBe(false);
+  });
+});
+
+describe("getting_started tool never opens on a picker", () => {
+  beforeEach(() => {
+    rpc.mockReset();
+    rpc.mockImplementation(gate(() => undefined));
+    jobsFixture.companies = [{ id: "c1" }];
+  });
+
+  it("with jobs, returns the habit card and does not ask which job", async () => {
+    jobsFixture.jobs = [
+      { job_number: "2701", name: "Harbor Point" },
+      { job_number: "1234", name: "Riverside" },
+    ];
+    const result = (await gettingStarted.handler({}, ctx)) as {
+      content: { text: string }[];
+      structuredContent: { card: { title: string; ask?: { prompt: string } | null; sections?: { heading: string }[] } };
+    };
+    const plain = result.content[0].text.split("REQUIRED VIEW:")[0];
+    expect(result.structuredContent.card.title).toBe("Hey Athena, let's get started");
+    expect(plain.trimStart().startsWith("Hey Athena, let's get started")).toBe(true);
+    expect(plain).toContain("Try one");
+    expect(plain).toContain(START_MEMORY_OFFER);
+    expect(plain).toContain("Morning meeting");
+    expect(plain.indexOf("Try one")).toBeLessThan(plain.indexOf("Morning meeting"));
+    expect(plain).toContain("2701 (Harbor Point)");
+    expect(plain).toContain("1234 (Riverside)");
+    expect(plain.trimStart().startsWith("Which job?")).toBe(false);
+    expect(result.structuredContent.card.ask ?? null).toBeNull();
+  });
+
+  it("with one job, names that morning meeting on the same card", async () => {
+    jobsFixture.jobs = [{ job_number: "2701", name: "Harbor Point" }];
+    const result = (await gettingStarted.handler({}, ctx)) as {
+      content: { text: string }[];
+      structuredContent: { card: { title: string; next_move?: string } };
+    };
+    expect(result.structuredContent.card.title).toBe("Hey Athena, let's get started");
+    expect(result.content[0].text).toContain("Open it on 2701 (Harbor Point).");
+    expect(result.structuredContent.card.next_move).toBe("The morning meeting is on 2701.");
+    expect(result.content[0].text.split("REQUIRED VIEW:")[0].trimStart().startsWith("Which job?")).toBe(false);
+  });
+});
+
+describe("getting_started card comes before any job picker", () => {
+  it("one job stays on the get-started card and names that morning meeting", () => {
+    const card = startedWithJobsCard([{ job_number: "2701", name: "Harbor Point" }]);
+    const shown = renderGettingStarted(card);
+    expect(card.title).toBe("Hey Athena, let's get started");
+    expect(card.title).not.toBe("Which job?");
+    expect(shown.trimStart().startsWith("Hey Athena, let's get started")).toBe(true);
+    expect(shown).toContain("Try one");
+    expect(shown).toContain(START_BACKUP);
+    expect(shown).toContain(START_MEMORY_OFFER);
+    expect(shown).toContain("Open it on 2701 (Harbor Point).");
+    expect(shown).not.toMatch(/^Which job/m);
+    expect(card.ask ?? null).toBeNull();
+    expect(card.next_move).toBe("The morning meeting is on 2701.");
+  });
+
+  it("several jobs keep the habit card and list the morning meeting inside it", () => {
+    const card = startedWithJobsCard([
+      { job_number: "2701", name: "Harbor Point" },
+      { job_number: "1234", name: "Riverside" },
+    ]);
+    const shown = renderGettingStarted(card);
+    expect(card.title).toBe("Hey Athena, let's get started");
+    expect(shown.indexOf("Try one")).toBeLessThan(shown.indexOf("Morning meeting"));
+    expect(shown.indexOf("Morning meeting")).toBeLessThan(shown.indexOf("2701 (Harbor Point)"));
+    expect(shown).toContain("2701 (Harbor Point)");
+    expect(shown).toContain("1234 (Riverside)");
+    expect(card.sections?.some((section) => section.heading === "Morning meeting")).toBe(true);
+    expect(shown.split("REQUIRED VIEW:")[0].trimStart().startsWith("Which job?")).toBe(false);
   });
 });
 

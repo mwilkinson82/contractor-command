@@ -140,11 +140,11 @@ export function briefJobsFromFeed(rows: RawJob[]): BriefJob[] {
   return jobs;
 }
 
-async function companies(sb: Sb): Promise<{ id: string }[] | null> {
+async function companies(sb: Sb): Promise<{ id: string; name: string | null }[] | null> {
   try {
     const res = await sb.from("mcp_companies").select("id, name");
     if (res.error) return null;
-    return (res.data ?? []) as { id: string }[];
+    return (res.data ?? []) as { id: string; name: string | null }[];
   } catch {
     return null;
   }
@@ -234,7 +234,7 @@ export async function loadBriefJobs(sb: Sb, companyId?: string): Promise<{ hasCo
   if (cos && !cos.length) return { hasCompany: false, jobs: [] };
   let listed: { job_number: string; name: string | null; company_id: string }[] = [];
   try {
-    listed = await listedJobs(sb, companyId);
+    listed = await listedJobs(sb, companyId, { allCompanies: !companyId?.trim() });
   } catch {
     listed = [];
   }
@@ -251,8 +251,12 @@ export async function loadBriefJobs(sb: Sb, companyId?: string): Promise<{ hasCo
     if (e instanceof ToolError) throw e;
   }
   // An empty or filtered feed used to return no jobs, so 2701's saved open items never reached the card.
-  const jobs = await fillOpenItems(sb, mergeBriefJobs(listed, feed));
-  return { hasCompany: cos === null ? jobs.length > 0 : true, jobs: await withLinks(sb, jobs) };
+  const names = new Map((cos ?? []).map((company) => [company.id, company.name?.trim() || "Company"]));
+  const named = (await fillOpenItems(sb, mergeBriefJobs(listed, feed))).map((job) => ({
+    ...job,
+    company_name: names.get(job.company_id) || job.company_name,
+  }));
+  return { hasCompany: cos === null ? named.length > 0 : true, jobs: await withLinks(sb, named) };
 }
 
 export async function loadMorningBrief(sb: Sb, companyId?: string) {

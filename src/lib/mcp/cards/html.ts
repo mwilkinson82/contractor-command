@@ -1,5 +1,5 @@
 import { plainLabel, rowPlain } from "../plain-label";
-import { ALERT, BLUE, GRAY, NAVY, WHITE } from "./palette";
+import { ALERT, BLUE, GRAY, NAVY, WHITE, cssColor } from "./palette";
 import { STATE_LABEL, cardHasAlert, type CardModel, type CardRow } from "./model";
 
 const esc = (s: string) =>
@@ -40,38 +40,43 @@ function rowClass(row: CardRow): string {
 /** Finished HTML document. Claude shows it as-is. Colors come only from the palette. */
 export function renderHtml(card: CardModel): string {
   const alert = cardHasAlert(card);
+  const navy = cssColor(NAVY, "#1E3A5F");
+  const blue = cssColor(BLUE, "#1E5FED");
+  const gray = cssColor(GRAY, "#6B7280");
+  const white = cssColor(WHITE, "#FFFFFF");
+  const alertColor = cssColor(ALERT, "#DC2626");
   const css = [
-    `body{margin:0;background:${WHITE};color:${NAVY};font:15px/1.45 system-ui,sans-serif}`,
-    `.card{max-width:640px;margin:16px auto;border:1px solid ${GRAY};border-radius:14px;overflow:hidden;background:${WHITE}}`,
-    `header{background:${NAVY};color:${WHITE};padding:16px 18px}`,
-    `.mark{margin:0 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:${WHITE}}`,
+    `body{margin:0;background:${white};color:${navy};font:15px/1.45 system-ui,sans-serif}`,
+    `.card{max-width:640px;margin:16px auto;border:1px solid ${gray};border-radius:14px;overflow:hidden;background:${white}}`,
+    `header{background:${navy};color:${white};padding:16px 18px}`,
+    `.mark{margin:0 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:${white}}`,
     `h1{margin:0;font-size:22px}`,
-    `.job{margin:6px 0 0;color:${WHITE};opacity:.9}`,
+    `.job{margin:6px 0 0;color:${white};opacity:.9}`,
     `.body{padding:16px 18px}`,
-    `.eyebrow{display:inline-block;margin:0 0 10px;padding:3px 8px;border-radius:999px;background:${BLUE};color:${WHITE};font-size:12px;font-weight:700}`,
-    `.track{height:8px;border-radius:999px;background:${WHITE};border:1px solid ${GRAY};overflow:hidden;margin:0 0 14px}`,
-    `.fill{height:100%;background:${BLUE}}`,
+    `.eyebrow{display:inline-block;margin:0 0 10px;padding:3px 8px;border-radius:999px;background:${blue};color:${white};font-size:12px;font-weight:700}`,
+    `.track{height:8px;border-radius:999px;background:${white};border:1px solid ${gray};overflow:hidden;margin:0 0 14px}`,
+    `.fill{height:100%;background:${blue}}`,
     `.kpis{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}`,
-    `.kpi{flex:1 1 120px;border:1px solid ${GRAY};border-radius:10px;padding:8px 10px}`,
-    `.kpi span{display:block;color:${GRAY};font-size:12px}`,
+    `.kpi{flex:1 1 120px;border:1px solid ${gray};border-radius:10px;padding:8px 10px}`,
+    `.kpi span{display:block;color:${gray};font-size:12px}`,
     `.kpi strong{font-size:16px}`,
-    `h2{margin:16px 0 8px;font-size:14px;color:${NAVY}}`,
+    `h2{margin:16px 0 8px;font-size:14px;color:${navy}}`,
     `table{width:100%;border-collapse:collapse}`,
-    `th{background:${BLUE};color:${WHITE};text-align:left;padding:6px 8px;font-size:12px}`,
-    `td{padding:6px 8px;border-bottom:1px solid ${GRAY};vertical-align:top}`,
-    `a{color:${BLUE};text-decoration:none}`,
-    `.ref{display:block;margin-top:2px;font-size:11px;font-weight:400;color:${GRAY}}`,
-    `.chip{display:inline-block;margin:0 6px 6px 0;padding:4px 8px;border-radius:999px;border:1px solid ${GRAY};color:${NAVY}}`,
-    `.tone-known{border-color:${BLUE};color:${BLUE}}`,
-    `.tone-unknown{color:${GRAY}}`,
-    `.tone-action{background:${BLUE};color:${WHITE};border-color:${BLUE}}`,
-    `.ask{margin:12px 0;padding:12px;border-left:4px solid ${BLUE};background:${WHITE}}`,
+    `th{background:${blue};color:${white};text-align:left;padding:6px 8px;font-size:12px}`,
+    `td{padding:6px 8px;border-bottom:1px solid ${gray};vertical-align:top}`,
+    `a{color:${blue};text-decoration:none}`,
+    `.ref{display:block;margin-top:2px;font-size:11px;font-weight:400;color:${gray}}`,
+    `.chip{display:inline-block;margin:0 6px 6px 0;padding:4px 8px;border-radius:999px;border:1px solid ${gray};color:${navy}}`,
+    `.tone-known{border-color:${blue};color:${blue}}`,
+    `.tone-unknown{color:${gray}}`,
+    `.tone-action{background:${blue};color:${white};border-color:${blue}}`,
+    `.ask{margin:12px 0;padding:12px;border-left:4px solid ${blue};background:${white}}`,
     `.next{margin:14px 0 0;font-weight:700}`,
-    alert ? `.alert,li.alert,p.alert,tr.alert{color:${ALERT}}` : "",
-    alert ? `li.alert,p.alert{display:block;margin:8px 0;padding:0;border:2px solid ${ALERT};border-radius:12px;background:${WHITE};overflow:hidden}` : "",
-    alert ? `.flag-head{display:block;margin:0;padding:6px 10px;background:${ALERT};color:${WHITE};font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}` : "",
+    alert ? `.alert,li.alert,p.alert,tr.alert{color:${alertColor}}` : "",
+    alert ? `li.alert,p.alert{display:block;margin:8px 0;padding:0;border:2px solid ${alertColor};border-radius:12px;background:${white};overflow:hidden}` : "",
+    alert ? `.flag-head{display:block;margin:0;padding:6px 10px;background:${alertColor};color:${white};font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}` : "",
     alert ? `.flag-body{padding:10px 12px}` : "",
-    alert ? `tr.alert td{border:2px solid ${ALERT}}` : "",
+    alert ? `tr.alert td{border:2px solid ${alertColor}}` : "",
   ]
     .filter(Boolean)
     .join("");

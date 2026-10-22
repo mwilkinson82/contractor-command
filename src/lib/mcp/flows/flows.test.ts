@@ -28,6 +28,7 @@ vi.mock("../guard", () => ({
 }));
 vi.mock("../jobs", () => ({
   FULL_ACCESS_MESSAGE: "This needs full access to the job.",
+  WhichCompanyAsk: class WhichCompanyAsk extends Error {},
   audit: async () => { calls.rpc.push("audit"); },
   resolveJob: async (_sb: unknown, jobNumber: string) => ({ job_id: "j1", job_number: jobNumber, name: "Harbor Point", company_id: "c1", scope: "full" }),
 }));
@@ -235,7 +236,11 @@ describe("sample path on job 2701", () => {
   });
 
   it("refuses the sample on any other job", async () => {
-    await expect(call(pmMeeting, { job_number: "2801", sample: true })).rejects.toThrow(/only on job 2701/);
+    const r = await call(pmMeeting, { job_number: "2801", sample: true });
+    const text = r.content.find((c) => c.type === "text")?.text ?? "";
+    expect(r.structuredContent.card.title).toBe("PM meeting");
+    expect(text).toContain("only on job 2701");
+    expect(text).toContain("<!doctype html>");
   });
 
   it("a bare greeting with one job returns the morning brief and no trailing prose", async () => {

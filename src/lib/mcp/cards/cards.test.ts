@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { inferCard } from "./infer";
 import { attachAthenaCard } from "./attach";
 import { CARD_SHOWN, CARD_SHOWN_PICK } from "./silence";
 import { CARD_WIDGET_URI, cardWidgetHtml } from "./widget";
@@ -122,5 +123,12 @@ describe("PM tools become cards", () => {
     expect(itemCard.content[0].text).toContain("OVERDUE storm delay");
     expect(itemCard.content[0].text).toContain("Buy the gear");
     expect(itemCard.structuredContent.card.kpis?.find((k) => k.label === "Open items")?.value).toBe("2");
+  });
+
+  it("does not nest an HTML card inside a Result list item", () => {
+    const nested = inferCard("report", "2701 – Harbor\n<!doctype html><html><style>body{background: ;color: ;}</style><body>card</body></html>", {});
+    const cells = nested.sections?.flatMap((section) => section.rows.flatMap((row) => row.cells)) ?? [];
+    expect(cells.join(" ")).not.toMatch(/<!doctype|<html|background:/i);
+    expect(nested.title).not.toBe("Result");
   });
 });

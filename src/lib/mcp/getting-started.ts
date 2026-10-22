@@ -3,13 +3,13 @@
 import { htmlBlock } from "./cards/markdown";
 import { renderHtml } from "./cards/html";
 import type { CardModel } from "./cards/model";
-import { START_BACKUP, START_EXAMPLES, START_HEADLINE, START_HOSTS, START_POINTS } from "../athena-start-copy";
+import { START_BACKUP, START_EXAMPLES, START_HEADLINE, START_HOSTS, START_MEMORY_OFFER, START_POINTS } from "../athena-start-copy";
 
 export const GETTING_STARTED_GUIDANCE =
   "Show the getting-started card first. Its headline example is Hey Athena, let's get started. @Athena is only the backup.";
 
 export const GETTING_STARTED_RULE =
-  " When the member says Hey Athena, let's get started, Athena, let's get started, let's get going, getting started, or Hey Athena, getting started, call getting_started and show that card. Let's get started runs guided onboarding: first job setup for a new member, and the morning meeting for a member who already has jobs. On a member's first tool call, show the getting-started card before the rest of the reply. That card's headline example is Hey Athena, let's get started. Good morning Athena and Hey Athena, what's on my plate today? call athena_hello or morning_brief. @Athena is only the backup. Do not answer the setup questions for the member.";
+  " When the member says Hey Athena, let's get started, Athena, let's get started, let's get going, getting started, @Athena let's get started, or Hey Athena, getting started, call getting_started and show that card first. Never start that reply with a which-job picker. No jobs: first-job setup, or company setup when there is no company. Jobs already on file: the get-started card, with the @Athena habit, the Try one lines, the memory-line offer, and an entry into the morning meeting. One job: use it. More than one job: the job list sits inside that same card. On a member's first tool call, show the getting-started card before the rest of the reply. Good morning Athena and Hey Athena, what's on my plate today? call athena_hello or morning_brief. @Athena is only the backup. Do not answer the setup questions for the member.";
 
 export function gettingStartedCard(): CardModel {
   return {
@@ -86,6 +86,33 @@ export async function memberJobs(sb: MemberDb): Promise<{ company: boolean; jobs
   const jobs = await sb.from("mcp_jobs").select("job_number, name").in("company_id", ids);
   if (jobs.error) throw new Error(jobs.error.message ?? "database error");
   return { company: true, jobs: (jobs.data ?? []) as { job_number: string; name: string | null }[] };
+}
+
+export type StartedJob = { job_number: string; name: string | null };
+
+/**
+ * The get-started card for a member who already has jobs.
+ * The title stays the habit. A job list, when there is more than one job, is a section on this card.
+ */
+export function startedWithJobsCard(jobs: StartedJob[]): CardModel {
+  const base = gettingStartedCard();
+  const one = jobs.length === 1 ? jobs[0] : null;
+  const label = (job: StartedJob) => `${job.job_number}${job.name ? ` (${job.name})` : ""}`;
+  const jobsRows = one
+    ? [{ cells: [`Open it on ${label(one)}.`], tone: "action" as const }]
+    : [
+        ...jobs.map((job) => ({ cells: [label(job)], tone: "action" as const })),
+        { cells: ["Name the job for the morning meeting."], tone: "action" as const },
+      ];
+  return {
+    ...base,
+    sections: [
+      ...(base.sections ?? []),
+      { heading: "Memory", kind: "list", rows: [{ cells: [START_MEMORY_OFFER], tone: "action" }] },
+      { heading: "Morning meeting", kind: "list", rows: jobsRows },
+    ],
+    next_move: one ? `The morning meeting is on ${one.job_number}.` : "Name the job for the morning meeting.",
+  };
 }
 
 /** No jobs opens setup. One job opens that morning meeting. More than one opens the which-job card. */

@@ -1,20 +1,17 @@
-// Help that shows the start card again, then routes let's-get-started.
-// No jobs: the existing company or first-job setup. Jobs: the morning meeting or the which-job card.
+// The get-started card comes first. Job setup or the morning meeting sits on that card.
+// This tool does not open with a which-job picker.
 import { defineTool } from "@lovable.dev/mcp-js";
-import { inferCard } from "../cards/infer";
-import { renderHtml } from "../cards/html";
-import { htmlBlock, renderMarkdown } from "../cards/markdown";
 import type { CardModel } from "../cards/model";
 import {
-  branchGettingStarted,
   claimGettingStarted,
   firstJobCard,
   firstJobGuidance,
+  memberJobs,
   renderGettingStarted,
+  startedWithJobsCard,
 } from "../getting-started";
 import { run, text, type Sb } from "../guard";
 import { guide } from "../visible";
-import { startMorning } from "./flow-tools";
 
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
 
@@ -25,37 +22,26 @@ function cardResult(card: CardModel, guidance: string) {
   );
 }
 
-function whichJobResult(body: string) {
-  const card = inferCard("pm_morning", body, {});
-  const html = renderHtml(card);
-  return guide(
-    {
-      ...text(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`),
-      structuredContent: { card, html, branch: "which_job", which_job: true },
-    },
-    "When they name the job, call pm_morning with that job_number. Do not fill job_number from earlier chat.",
-  );
-}
-
 export const gettingStarted = defineTool({
   name: "getting_started",
   title: "Hey Athena, let's get started",
-  description: "Claims Hey Athena, let's get started, Athena, let's get started, Good morning Athena, and Hey Athena, what's on my plate today?, and let's get started runs guided onboarding: first job setup when there is no job, and the morning meeting when the member already has jobs.",
+  description:
+    "Shows the get-started card for Hey Athena, let's get started, Athena, let's get started, and @Athena let's get started, never opening with a which-job picker, using first-job or company setup when there are no jobs, and otherwise showing the @Athena habit, the Try one lines, the memory-line offer, and the morning meeting, using the only job or listing several jobs inside that same card.",
   inputSchema: {},
   annotations: READ,
   handler: (args, ctx) =>
     run("getting_started", ctx, undefined, async (sb) => {
       void args;
       await claimGettingStarted(sb);
-      return branchGettingStarted(
-        sb as Sb,
-        async (jobNumber) => {
-          const morning = await startMorning(sb, jobNumber);
-          if (jobNumber) return morning;
-          const block = (morning as { content?: { text?: string }[] }).content?.find((c) => c.text)?.text ?? "";
-          return whichJobResult(block.split("\n---\n")[0]);
-        },
-        (company) => cardResult(firstJobCard(company), firstJobGuidance(company)),
+      const found = await memberJobs(sb as never);
+      if (!found.jobs.length) return cardResult(firstJobCard(found.company), firstJobGuidance(found.company));
+      const card = startedWithJobsCard(found.jobs);
+      const one = found.jobs.length === 1 ? found.jobs[0].job_number : null;
+      return cardResult(
+        card,
+        one
+          ? `Show this card. The morning meeting is on ${one}. When they continue, call pm_morning with job_number ${one}. Do not ask which job.`
+          : "Show this card. The jobs are listed on it. When they name one, call pm_morning with that job_number. Do not replace this card with a which-job card.",
       );
     }),
 });

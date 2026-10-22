@@ -65,6 +65,7 @@ export type BriefJob = {
   job_number: string;
   name: string;
   company_id: string;
+  company_name?: string;
   time_zone: string;
   scope: BriefScope;
   seat: BriefSeat;
@@ -176,7 +177,28 @@ function money(n: number): string {
 }
 
 function jobLabel(job: BriefJob): string {
-  return `${job.job_number} ${job.name}`.trim();
+  const base = `${job.job_number} ${job.name}`.trim();
+  return job.company_name ? `${job.company_name} · ${base}` : base;
+}
+
+/** One section per company, in name order, when the brief covers more than one company. */
+export function companyGroupSections(jobs: BriefJob[]): NonNullable<CardModel["sections"]> {
+  const ids = new Set(jobs.map((job) => job.company_id).filter(Boolean));
+  if (ids.size < 2) return [];
+  const groups = new Map<string, BriefJob[]>();
+  for (const job of jobs) {
+    const name = job.company_name?.trim() || "Company";
+    const list = groups.get(name) ?? [];
+    list.push(job);
+    groups.set(name, list);
+  }
+  return [...groups.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([name, list]) => ({
+      heading: name,
+      kind: "list" as const,
+      rows: list.map((job) => ({ cells: [`${job.job_number} ${job.name}`.trim()] })),
+    }));
 }
 
 function allowedLinks(view: BriefView, links: BriefJob["links"]): BriefJob["links"] {
@@ -458,25 +480,28 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
     card.sections = [inboxSection(), ...(card.sections ?? [])];
     return { card, counts: { open: 0, overdue: 0, due_in_7_days: 0, today: 0 }, openItems: [], todayCount: 0 };
   }
+  const multi = new Set(input.jobs.map((job) => job.company_id)).size > 1;
+  const jobs = input.jobs.map((job) => (multi ? { ...job, company_name: job.company_name?.trim() || "Company" } : { ...job, company_name: undefined }));
   const viewOf = (job: BriefJob) => briefView(job.seat, job.scope);
-  const same = viewOf(input.jobs[0]);
-  const uniform = input.jobs.every((job) => viewOf(job) === same);
+  const same = viewOf(jobs[0]);
+  const uniform = jobs.every((job) => viewOf(job) === same);
   const view = uniform ? same : "pm";
   const headerToday = jobToday(settings.time_zone, now);
-  const tagged = collect(input.jobs, now, viewOf);
-  const today = todayRows(input.jobs, now, viewOf);
-  const week = weekRows(input.jobs, now, viewOf);
-  const opened = openFor(input.jobs, now, viewOf);
+  const tagged = collect(jobs, now, viewOf);
+  const today = todayRows(jobs, now, viewOf);
+  const week = weekRows(jobs, now, viewOf);
+  const opened = openFor(jobs, now, viewOf);
   const forget = forgetRows(tagged, viewOf);
+  const groups = companyGroupSections(jobs);
   const countsForOpen = {
     open: opened.rows.length,
     overdue: opened.rows.filter((row) => row.flag === "overdue").length,
     due_in_7_days: opened.counts.due_in_7_days,
   };
-  const sections: CardModel["sections"] = [inboxSection()];
+  const sections: CardModel["sections"] = [inboxSection(), ...groups];
   if (view === "executive") {
-    const port = portfolio(input.jobs, tagged, now);
-    sections.push({ heading: "Portfolio", kind: "list", rows: [{ cells: [`${input.jobs.length} jobs · ${port.open} open · ${port.overdue} overdue`] }] });
+    const port = portfolio(jobs, tagged, now);
+      sections.push({ heading: "Portfolio", kind: "list", rows: [{ cells: [`${jobs.length} jobs · ${port.open} open · ${port.overdue} overdue`] }] });
     sections.push({ heading: "Jobs", kind: "list", rows: port.rows });
     if (forget.length) sections.push({ heading: "Don't forget", kind: "list", rows: forget });
     const card: CardModel = {
@@ -484,7 +509,7 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
       title: "Morning brief",
       job: shortDate(headerToday),
       kpis: [
-        { label: "Jobs", value: String(input.jobs.length) },
+        { label: "Jobs", value: String(jobs.length) },
         { label: "Open", value: String(port.open) },
         { label: "Overdue", value: String(port.overdue), flag: port.overdue ? "overdue" : null },
       ],
@@ -498,11 +523,11 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
   if (week.length) sections.push({ heading: "This week", kind: "list", rows: week });
   if (opened.rows.length) sections.push({ heading: "Open items", kind: "list", rows: opened.rows });
   if (forget.length) sections.push({ heading: "Don't forget", kind: "list", rows: forget });
-  if (!opened.rows.length && input.jobs.length) {
+  if (!opened.rows.length && jobs.length) {
     sections.push({
       heading: "Jobs",
       kind: "list",
-      rows: input.jobs.map((job) => ({ cells: [jobLabel(job)], href: hrefFor(viewOf(job), job.links, view === "superintendent" ? "field" : view === "accounting" ? "payapp" : "items") })),
+      rows: jobs.map((job) => ({ cells: [jobLabel(job)], href: hrefFor(viewOf(job), job.links, view === "superintendent" ? "field" : view === "accounting" ? "payapp" : "items") })),
     });
   }
   const overdue = countsForOpen.overdue;
@@ -511,7 +536,7 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
     title: "Morning brief",
     job: shortDate(headerToday),
     kpis: [
-      { label: "Jobs", value: String(input.jobs.length) },
+      { label: "Jobs", value: String(jobs.length) },
       { label: "Due today", value: String(today.length) },
       { label: "Open", value: String(countsForOpen.open) },
       { label: "Overdue", value: String(overdue), flag: overdue ? "overdue" : null },

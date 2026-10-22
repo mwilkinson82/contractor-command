@@ -1,6 +1,6 @@
 // ChatGPT MCP Apps card. Same shape as the team picker (ui:// resource, outputTemplate,
 // HTML stays out of the tool text). This one paints whatever card the tool put on structuredContent.card.
-import { ALERT, BLUE, GRAY, NAVY, WHITE } from "./palette";
+import { ALERT, BLUE, GRAY, NAVY, WHITE, cssColor } from "./palette";
 
 export const CARD_WIDGET_URI = "ui://athena/card.html";
 export const CARD_WIDGET_MIME = "text/html+skybridge";
@@ -91,33 +91,38 @@ app.innerHTML=lead&&lead.title?'<div class="stack">'+paint(lead)+main+'</div>':m
 })();`;
 
 export function cardWidgetHtml(): string {
+  const navy = cssColor(NAVY, "#1E3A5F");
+  const blue = cssColor(BLUE, "#1E5FED");
+  const gray = cssColor(GRAY, "#6B7280");
+  const white = cssColor(WHITE, "#FFFFFF");
+  const alert = cssColor(ALERT, "#DC2626");
   return `<!doctype html><html><head><meta charset="utf-8"><style>
-body{margin:0;background:${WHITE};color:${NAVY};font:15px/1.45 system-ui,sans-serif}
+body{margin:0;background:${white};color:${navy};font:15px/1.45 system-ui,sans-serif}
 .stack{display:flex;flex-direction:column;gap:12px}
-.card{border:1px solid ${GRAY};border-radius:14px;overflow:hidden;background:${WHITE}}
-header{background:${NAVY};color:${WHITE};padding:16px 18px}
+.card{border:1px solid ${gray};border-radius:14px;overflow:hidden;background:${white}}
+header{background:${navy};color:${white};padding:16px 18px}
 .mark{margin:0 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase}
 h1{margin:0;font-size:22px}.job{margin:6px 0 0}
 .body{padding:16px 18px}
-.eyebrow{display:inline-block;margin:0 0 10px;padding:3px 8px;border-radius:999px;background:${BLUE};color:${WHITE};font-size:12px;font-weight:700}
-.track{height:8px;border-radius:999px;border:1px solid ${GRAY};overflow:hidden;margin:0 0 14px}
-.fill{height:100%;background:${BLUE}}
-.kpi{display:inline-block;min-width:120px;border:1px solid ${GRAY};border-radius:10px;padding:8px 10px;margin:0 8px 8px 0}
-.kpi span{display:block;color:${GRAY};font-size:12px}
+.eyebrow{display:inline-block;margin:0 0 10px;padding:3px 8px;border-radius:999px;background:${blue};color:${white};font-size:12px;font-weight:700}
+.track{height:8px;border-radius:999px;border:1px solid ${gray};overflow:hidden;margin:0 0 14px}
+.fill{height:100%;background:${blue}}
+.kpi{display:inline-block;min-width:120px;border:1px solid ${gray};border-radius:10px;padding:8px 10px;margin:0 8px 8px 0}
+.kpi span{display:block;color:${gray};font-size:12px}
 h2{margin:16px 0 8px;font-size:14px}
-th{background:${BLUE};color:${WHITE};text-align:left;padding:6px 8px}
-td{padding:6px 8px;border-bottom:1px solid ${GRAY}}
-.chip{display:inline-block;margin:0 6px 6px 0;padding:4px 8px;border-radius:999px;border:1px solid ${GRAY}}
-.tone-known{border-color:${BLUE};color:${BLUE}}.tone-unknown{color:${GRAY}}.tone-action{background:${BLUE};color:${WHITE}}
-a{color:${BLUE};text-decoration:none}
-.ref{display:block;margin-top:2px;font-size:11px;color:${GRAY}}
-.ask{margin:12px 0;padding:12px;border-left:4px solid ${BLUE}}
+th{background:${blue};color:${white};text-align:left;padding:6px 8px}
+td{padding:6px 8px;border-bottom:1px solid ${gray}}
+.chip{display:inline-block;margin:0 6px 6px 0;padding:4px 8px;border-radius:999px;border:1px solid ${gray}}
+.tone-known{border-color:${blue};color:${blue}}.tone-unknown{color:${gray}}.tone-action{background:${blue};color:${white}}
+a{color:${blue};text-decoration:none}
+.ref{display:block;margin-top:2px;font-size:11px;color:${gray}}
+.ask{margin:12px 0;padding:12px;border-left:4px solid ${blue}}
 .next{font-weight:700}
-.alert{color:${ALERT}}
-li.alert,p.alert{display:block;margin:8px 0;padding:0;border:2px solid ${ALERT};border-radius:12px;background:${WHITE};overflow:hidden}
-.flag-head{display:block;margin:0;padding:6px 10px;background:${ALERT};color:${WHITE};font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.alert{color:${alert}}
+li.alert,p.alert{display:block;margin:8px 0;padding:0;border:2px solid ${alert};border-radius:12px;background:${white};overflow:hidden}
+.flag-head{display:block;margin:0;padding:6px 10px;background:${alert};color:${white};font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
 .flag-body{padding:10px 12px}
-tr.alert td{border:2px solid ${ALERT}}
+tr.alert td{border:2px solid ${alert}}
 </style></head><body><div id="app"></div><script>${SCRIPT}</script></body></html>`;
 }
 
