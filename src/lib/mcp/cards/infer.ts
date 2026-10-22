@@ -1,4 +1,6 @@
 import { SUMMARY_OFFER } from "../contract-clauses";
+import { whichJobAsk } from "../which-job";
+import type { OpenCounts } from "../open-feed";
 import type { AlertLevel } from "./palette";
 import type { CardModel, CardRow, CardSection } from "./model";
 
@@ -146,7 +148,7 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
     };
   }
 
-  if (tool === "list_open_items" || tool === "pm_meeting" || tool === "pm_morning" || tool === "pm_evening") {
+  if (tool === "list_open_items" || tool === "pm_meeting" || tool === "pm_morning" || tool === "pm_evening" || tool === "athena_morning_hitlist") {
     const company = /No job named|Your companies/i.test(text);
     const bullets = linesOf(text).filter((l) => l.startsWith("- ") || l.startsWith("|"));
     if (company) {
@@ -154,9 +156,25 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
         ...base,
         state: "ask",
         title: "Which job?",
-        ask: { prompt: "Which job should I list open items for?" },
+        ask: { prompt: whichJobAsk(tool) },
         sections: [listSection("Companies and jobs", bullets.map((l) => ({ cells: [l.replace(/^- /, "")], tone: "action" })))],
         next_move: "Name the job.",
+      };
+    }
+    if (tool === "list_open_items" && structured.counts && typeof structured.counts === "object") {
+      const counts = structured.counts as OpenCounts;
+      const listed = Array.isArray(structured.items) ? (structured.items as { action?: string; owner?: string | null; due?: string | null; overdue?: boolean }[]) : [];
+      return {
+        ...base,
+        state: "result",
+        kpis: [
+          { label: "Open", value: String(counts.open) },
+          { label: "Overdue", value: String(counts.overdue), flag: counts.overdue ? "overdue" : null },
+          { label: "Due in 7 days", value: String(counts.due_in_7_days) },
+        ],
+        sections: [listSection("Items", listed.map((item) => ({ cells: [String(item.action ?? "Item"), item.owner ?? "Needed", item.due ?? "Needed"], flag: item.overdue ? ("overdue" as const) : null })))],
+        alerts: counts.overdue ? [{ level: "overdue" as const, text: `${counts.overdue} overdue` }] : [],
+        next_move: counts.overdue ? "Close the overdue item first." : "Pick the next item.",
       };
     }
     if (tool === "list_open_items") {

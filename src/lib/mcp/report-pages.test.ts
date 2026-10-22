@@ -22,11 +22,13 @@ function fakeSb() {
     if (f === "mcp_is_company_leader") return { data: state.leader, error: null };
     if (f === "mcp_report_share_create") return { data: { id: "s1", show_money: state.scope === "full" }, error: null };
     if (f === "mcp_report_share_revoke") return { data: state.revoke, error: null };
+    if (f === "mcp_board_link_create") return { data: { id: "link-1" }, error: null };
     return { data: null, error: null };
   } };
 }
 
 import { reportPageLink, reportPageShare, reportPageShareRevoke } from "./tools/report-page-tools";
+import { jobLinksMissingToken } from "./board-url";
 import { delayLabel, esc, pageAllowed, pageUrl, renderReportBody, renderReportDocument, shareTokenFromLink, REPORT_PAGE_HEADERS, PERMANENT_LINK_ASK } from "../report-pages";
 import { openReportShare } from "../report-page-share.server";
 type H = (a: Record<string, unknown>, c: unknown) => Promise<{ content: { text: string }[]; structuredContent: Record<string, unknown>; guidance: string[] }>;
@@ -47,9 +49,25 @@ beforeEach(() => { state.scope = "full"; state.leader = true; state.rpcs = []; s
 describe("0.8.14 report_page_link", () => {
   it("returns the private meetathena page for the job, and says it's private", async () => {
     const r = await call(reportPageLink, { page: "schedule", job_number: "2701" });
-    expect(r.structuredContent).toMatchObject({ url: `https://app.meetathena.io/r/job/${JOB}/schedule`, private: true });
-    expect(r.content[0].text).toMatch(/Only signed-in people at your company/);
+    expect(String(r.structuredContent.url)).toMatch(new RegExp(`^https://app\\.meetathena\\.io/r/job/${JOB}/schedule\\?t=`));
+    expect(r.structuredContent.private).toBe(true);
+    expect(r.content[0].text).toMatch(/works until/i);
+    expect(r.content[0].text).toContain("#1E3A5F");
+    expect(r.content[0].text).toContain("#1E5FED");
     expect(r.content[0].text).not.toMatch(/lovable|supabase/i);
+    expect(jobLinksMissingToken(r)).toEqual([]);
+  });
+  it("maps items, ior, and field to their own signed paths", async () => {
+    const items = await call(reportPageLink, { page: "items board", job_number: "2701" });
+    const ior = await call(reportPageLink, { page: "ior", job_number: "2701" });
+    const field = await call(reportPageLink, { page: "field", job_number: "2701" });
+    expect(String(items.structuredContent.url)).toMatch(/\/items\?t=/);
+    expect(String(ior.structuredContent.url)).toMatch(/\/ior\?t=/);
+    expect(String(field.structuredContent.url)).toMatch(/\/field\?t=/);
+    expect(String(items.structuredContent.url)).not.toContain("/ior");
+    expect(jobLinksMissingToken(items)).toEqual([]);
+    expect(jobLinksMissingToken(ior)).toEqual([]);
+    expect(jobLinksMissingToken(field)).toEqual([]);
   });
   it("supers get the schedule page, never the IOR; contract scope gets neither", async () => {
     state.scope = "super";
@@ -116,6 +134,34 @@ describe("0.8.14 page rules and rendering", () => {
     expect(pf).toContain("Needs attention");
     expect(pf).toContain("$1,400,000.00");
     expect(renderReportBody({ page: "ior", report: { found: false } })).toContain("Nothing saved yet");
+    const named = "a4634d00-0000-4000-8000-000000000009";
+    const dumped = renderReportBody({
+      page: "ior",
+      job_number: "2701",
+      job_name: "Harbor Point Medical Office Building – Electrical",
+      names: { items: [{ id: named, action: "Price the switchgear delay" }], people: [{ id: "11111111-1111-4111-8111-111111111111", name: "Marshall Wilkinson" }] },
+      report: {
+        found: true, version: 3, scope: "full", updated_by_name: "Marshall (Owner)",
+        data: {
+          title: "Job 2701 IOR — risk allocation",
+          open_item_ref: "A4634D",
+          source_cpm_version: 3,
+          budget_profit_basis: { source: "Marshall's correction", gross_profit: 226000 },
+          billing_timing_exposure: { amount: 140000, activity: "A1210" },
+          risk_allocations: [{ name: "Marshall-directed risk allowance", amount: 10000 }],
+        },
+      },
+    });
+    expect(dumped).toContain("Price the switchgear delay");
+    expect(dumped).not.toContain("A4634D");
+    expect(dumped).toContain("Source CPM version");
+    expect(dumped).not.toContain("$3.00");
+    expect(dumped).toContain(">3<");
+    expect(dumped).toContain("$226,000.00");
+    expect(dumped).not.toMatch(/\{&quot;|{"source"/);
+    expect(dumped).toContain("#1E3A5F");
+    expect(dumped).toContain("#1E5FED");
+    expect(dumped).toContain("Marshall-directed risk allowance");
     expect(esc(`"'&`)).toBe("&quot;&#39;&amp;");
   });
 });

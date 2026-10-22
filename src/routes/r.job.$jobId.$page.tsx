@@ -1,6 +1,7 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { ReportPageView } from "@/components/athena/ReportPage";
 import { JOB_PAGES, hostedPageName, isUuid, type AnyPage } from "@/lib/report-pages";
+import { readBoardToken } from "@/lib/mcp/board-url";
 
 export const Route = createFileRoute("/r/job/$jobId/$page")({
   head: () => ({ meta: [{ title: "Athena report" }, { name: "robots", content: "noindex" }] }),
@@ -19,7 +20,7 @@ export const Route = createFileRoute("/r/job/$jobId/$page")({
 
 function JobReportPage() {
   const { jobId, page } = Route.useParams();
-  const { t } = Route.useSearch();
-  return <ReportPageView page={hostedPageName(page) as AnyPage} jobId={jobId} token={t} />;
+  const token = readBoardToken(Route.useSearch());
+  return <ReportPageView page={hostedPageName(page) as AnyPage} jobId={jobId} token={token} />;
 }
 

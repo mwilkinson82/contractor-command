@@ -98,7 +98,12 @@ export function ReportPageView({ page, jobId, companyId, token }: { page: AnyPag
       ? (JSON.parse(linked.data.payload) as PagePayload)
       : undefined;
   // renderReportBody escapes every value it prints. Re-rendered only when a new payload arrives.
-  const html = useMemo(() => (payload ? renderReportBody(payload) : ""), [payload]);
+  const html = useMemo(() => {
+    const body = payload ? renderReportBody(payload) : "";
+    if (!token || !body) return body;
+    const q = `t=${encodeURIComponent(token)}`;
+    return body.replace(/href="(\.\.\/[a-z]+)(?:\?[^"#]*)?"/g, (_match, path: string) => `href="${path}?${q}"`);
+  }, [payload, token]);
   if (authLoading || (session && q.isLoading) || (!session && token && linked.isLoading)) return <div style={{ padding: 32, color: "#6B7280" }}>Loading…</div>;
   if (!session && linked.data && linked.data.status !== "ok") {
     return (

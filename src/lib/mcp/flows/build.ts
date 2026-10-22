@@ -1,5 +1,5 @@
-import { isUuid, pageUrl } from "../../report-pages";
 import { detailAnchor } from "../plain-label";
+import { dedupeOpenRows } from "../open-feed";
 import { money } from "../sov";
 import type { CardModel, CardRow } from "../cards/model";
 import {
@@ -58,8 +58,11 @@ function changeRows(items: FlowItem[]): { outstanding: FlowItem[]; pricing: Flow
 }
 
 function itemHref(data: FlowData, page: "items" | "ior", id: string): string | null {
-  if (!data.jobId || !isUuid(data.jobId)) return null;
-  return `${pageUrl(page, data.jobId)}#${detailAnchor("item", id)}`;
+  const base = page === "items" ? data.itemsUrl : data.iorUrl;
+  if (!base) return null;
+  const url = new URL(base);
+  url.hash = detailAnchor("item", id);
+  return url.toString();
 }
 
 function itemRow(data: FlowData, i: FlowItem, flag?: CardRow["flag"]): CardRow {
@@ -192,7 +195,13 @@ function progressCard(data: FlowData): CardModel {
   });
 }
 
+function withDistinctItems(data: FlowData): FlowData {
+  const kept = new Set(dedupeOpenRows(data.items).map((row) => row.id));
+  return { ...data, items: data.items.filter((item) => kept.has(item.id)) };
+}
+
 export function buildFlowCard(flow: FlowName, stage: string, data: FlowData): CardModel {
+  data = withDistinctItems(data);
   if (flow === "pm_meeting" && stage === "progress") return progressCard(data);
   if (stage === "schedule") return scheduleCard(flow, data);
   if (flow === "pm_meeting" && stage === "change_orders") {
@@ -326,7 +335,7 @@ export function buildFlowCard(flow: FlowName, stage: string, data: FlowData): Ca
     const bag = stage === "dailies" ? data.dailies : stage === "photos" ? data.photos : stage === "happened" ? data.happened : data.disruptions;
     const flag = stage === "disruptions" ? "delay" : null;
     const page = stage === "dailies" ? "daily" : stage === "photos" ? "photos" : null;
-    const href = page && data.jobId && isUuid(data.jobId) ? pageUrl(page, data.jobId) : null;
+    const href = page === "daily" ? data.dailyUrl ?? null : page === "photos" ? data.photosUrl ?? null : null;
     return shell(flow, stage, data, {
       state: bag.length ? "result" : "ask",
       title: STAGE_LABEL[stage],

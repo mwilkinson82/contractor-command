@@ -192,7 +192,7 @@ export function typeWord(t: string): string {
 /** Source codes in words: member_answer -> manual, other snake_case codes spaced. */
 const humanSources = (l: string) => l.replace(/\bmember_answer\b/g, "manual").replace(/(Source|Clause\/source): ([a-z]+(?:_[a-z]+)+)/g, (_m, k, v) => `${k}: ${v.replace(/_/g, " ")}`);
 
-export type LineOpts = { clientFacing?: boolean; who?: (raw: string | null | undefined) => string; tz?: string };
+export type LineOpts = { clientFacing?: boolean; who?: (raw: string | null | undefined) => string; tz?: string; plain?: boolean };
 
 /** A due date the contract sets (a contract deadline item tied to a clause), as opposed to Athena's own follow-up date. */
 export function isContractDate(it: Pick<Item, "item_type" | "clause_source">): boolean {
@@ -213,7 +213,9 @@ export function itemLine(it: Item, nas: Na[], client = false, o: LineOpts = {}) 
   // Client-facing: Athena's internal follow-up dates stay internal; only dates the contract sets are shown.
   const needed = cf && !isContractDate(it) ? "" : ` | ${cf ? "Contract due date" : "Needed by"}: ${it.needed_by ?? it.due_date ?? "unknown"}`;
   // Client-facing: who is accountable is internal staffing, so it stays out of the owner's copy.
-  return humanSources(`[${typeWord(t)}] ${it.action}${cf ? "" : ` | Accountable: ${who}`}${needed} | ${status.trim()}${cf ? "" : ` | Source: ${reminderSource(it) ?? it.source ?? "unknown"}`} | ${effects}${next}${typeDetail(it, t, client, cf)}${na ? ` | ${na}` : ""}${cf ? "" : ` | ${displayRef(it)}`}`);
+  const ref = cf || o.plain ? "" : ` | ${displayRef(it)}`;
+  const named = o.plain ? it.action.replace(/^\s*\d[\w.-]*\s*[–-]\s*/, "") : it.action;
+  return humanSources(`[${typeWord(t)}] ${named}${cf ? "" : ` | Accountable: ${who}`}${needed} | ${status.trim()}${cf ? "" : ` | Source: ${reminderSource(it) ?? it.source ?? "unknown"}`} | ${effects}${next}${typeDetail(it, t, client, cf)}${na ? ` | ${na}` : ""}${ref}`);
 }
 
 const SECTION_TITLES: Record<string, string> = {

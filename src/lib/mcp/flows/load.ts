@@ -1,4 +1,5 @@
 import { activityTitle } from "../styled-views";
+import { dedupeOpenRows, meetingItem } from "../open-feed";
 import { blankFlowData } from "./job-2701";
 import type { FlowData, FlowItem, IorRow } from "./types";
 
@@ -76,7 +77,7 @@ export async function loadFlowData(sb: Query, job: { job_id: string; job_number:
   data.jobId = job.job_id;
   data.selfPerform = selfPerform;
   const [items, lookaheads, reports] = await Promise.all([
-    rows(sb, "mcp_open_items", "id, action, owner, accountable, due_date, needed_by, status, category", job.job_id),
+    rows(sb, "mcp_open_items", "id, action, owner, accountable, due_date, needed_by, status, category, check_key, updated_at", job.job_id),
     rows(sb, "mcp_lookaheads", "id, start_date, end_date", job.job_id),
     (async () => {
       const out: Record<string, unknown> = {};
@@ -98,16 +99,28 @@ export async function loadFlowData(sb: Query, job: { job_id: string; job_number:
     })(),
   ]);
   data.lookaheadLocked = lookaheads.some((l) => l.start_date && l.end_date) ? true : lookaheads.length ? false : null;
-  data.items = items
-    .filter((i) => i.status !== "closed")
-    .map((i) => ({
-      id: String(i.id ?? ""),
-      action: String(i.action ?? ""),
-      owner: (i.accountable as string | null) ?? (i.owner as string | null) ?? null,
+  const open = items.filter((i) => i.status !== "closed" && i.status !== "resolved");
+  const distinct = dedupeOpenRows(open.map((i) => ({
+    id: String(i.id ?? ""),
+    action: String(i.action ?? ""),
+    check_key: typeof i.check_key === "string" ? i.check_key : null,
+    needed_by: typeof i.needed_by === "string" ? i.needed_by : null,
+    due_date: typeof i.due_date === "string" ? i.due_date : null,
+    updated_at: typeof i.updated_at === "string" ? i.updated_at : null,
+    owner: (i.accountable as string | null) ?? (i.owner as string | null) ?? null,
+  })));
+  const byId = new Map(open.map((i) => [String(i.id ?? ""), i]));
+  data.items = distinct.map((row) => {
+    const i = byId.get(row.id) ?? {};
+    return {
+      id: row.id,
+      action: String(i.action ?? row.action),
+      owner: (i.accountable as string | null) ?? (i.owner as string | null) ?? row.owner ?? null,
       due: String(i.needed_by ?? i.due_date ?? "").slice(0, 10) || null,
-      kind: kindOf(String(i.action ?? ""), String(i.category ?? "")),
+      kind: kindOf(String(i.action ?? row.action), String(i.category ?? "")),
       status: "open" as const,
-    }));
+    };
+  });
   data.crewsConfirmed = data.items.some((i) => i.kind === "crew") ? false : data.items.length ? true : null;
   data.onSchedule = data.items.some((i) => i.kind === "delay") ? false : data.lookaheadLocked ? true : null;
   const billing = (reports.billing_forecast as { found?: boolean; data?: { billing?: { billed_to_date?: number; months?: { amount?: number; kind?: string }[] } }; contract_total?: number } | undefined) ?? {};
@@ -144,8 +157,15 @@ export async function saveFlowNote(sb: Query, jobId: string, flow: string, stage
   let item = false;
   let snapshotOk = false;
   try {
-    const added = await sb.rpc("mcp_add_item", { _job: jobId, _f: { action: note, category: flow === "pm_evening" ? "Daily" : "Risk", tool: flow, section: stage } });
-    item = !added.error;
+    const meeting = meetingItem(note);
+    const added = meeting
+      ? await sb.rpc("mcp_meeting_item_save", { _job: jobId, _key: meeting.key, _action: note, _close: meeting.close })
+      : await sb.rpc("mcp_add_item", { _job: jobId, _f: { action: note, category: flow === "pm_evening" ? "Daily" : "Risk", tool: flow, section: stage } });
+    const missing = !!added.error && /does not exist|schema cache|PGRST202/i.test(String((added.error as { message?: string; code?: string }).message ?? "") + String((added.error as { code?: string }).code ?? ""));
+    if (meeting && missing) {
+      const fallback = await sb.rpc("mcp_add_item", { _job: jobId, _f: { action: note, check_key: meeting.key, category: "Meeting", tool: flow, section: stage } });
+      item = !fallback.error;
+    } else item = !added.error;
   } catch {
     item = false;
   }

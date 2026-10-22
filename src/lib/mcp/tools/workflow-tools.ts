@@ -15,8 +15,11 @@ import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
 import { guide, EMAIL_TO_LABEL_REQUIRED, SHARE_OPTIONS_REQUIRED, REPORT_SHARE_ASK, REPORT_SHARE_STRUCTURED, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_CHART_RULE, sovChart, sovRequiredTop, sovDeliveryAsk, sovDeliveryBlock, sovDeliveryStructured, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
 import { withoutClaims } from "../internal-claims";
 import { LOOKAHEAD_EMAIL_LINE } from "../email-safety";
-import { briefingView, dataDateRule, pickLatestLookahead, type LaRow, emptyCard, lookaheadView, lookaheadModel, entryLine, lookaheadWindow, pageLine, windowActivities, type LaItem, type LaModel, type SAct } from "../styled-views";
-import { pageUrl } from "../../report-pages";
+import { dataDateRule, pickLatestLookahead, type LaRow, emptyCard, lookaheadView, lookaheadModel, entryLine, lookaheadWindow, pageLine, windowActivities, type LaItem, type LaModel, type SAct } from "../styled-views";
+import { signedJobPages } from "../board-url";
+import { whichJobAsk } from "../which-job";
+import { dueOf, isDueIn7, isOverdue, itemName, openItemFeed, openItemsCard, openItemsHeader } from "../open-feed";
+import { completionDate, contractValueLine, iorContractValue, pickContractValue, setupContractValue, sovContractValue } from "../contract-value";
 import { EMAIL_VIEW_SPEC, LOOKAHEAD_VIEW_SPEC, REMINDERS_VIEW_SPEC, highlightLine, lookaheadHighlight } from "../views";
 import { EMAIL_CONTACT_RULE, contactForRole, dedupeNotices, emailContact, fillNotice, jobContacts } from "../contacts";
 import { noticeRequirements } from "../notice-plain";
@@ -1176,8 +1179,26 @@ async function noticeContext(sb: Sb, job: Job) {
 // The one exception to "job_number is required": with no job named, list_open_items lists the companies and jobs instead.
 const listJobNumber = z.string().trim().min(1).max(40).optional();
 
+/** Jobs the caller can see, narrowed to the current company when they belong to more than one. */
+export async function listedJobs(sb: Sb, companyId?: string): Promise<{ job_number: string; name: string | null; company_id: string }[]> {
+  const { data: cos, error } = await sb.from("mcp_companies").select("id, name");
+  if (error) throw new Error(error.message);
+  let companies = (cos ?? []) as { id: string; name: string | null }[];
+  if (companyId?.trim()) {
+    const cid = await resolveCompany(sb, companyId);
+    companies = companies.filter((c) => c.id === cid);
+  } else if (companies.length > 1) {
+    const cur = await currentCompany(sb);
+    if (cur && companies.some((c) => c.id === cur)) companies = companies.filter((c) => c.id === cur);
+  }
+  if (!companies.length) return [];
+  const { data: jobs, error: je } = await sb.from("mcp_jobs").select("job_number, name, company_id").in("company_id", companies.map((c) => c.id));
+  if (je) throw new Error(je.message);
+  return (jobs ?? []) as { job_number: string; name: string | null; company_id: string }[];
+}
+
 /** No job named: the caller's companies and their job numbers, in plain text. */
-export async function listCompaniesAndJobs(sb: Sb, companyId?: string): Promise<string> {
+export async function listCompaniesAndJobs(sb: Sb, companyId?: string, tool = "list_open_items"): Promise<string> {
   const { data: cos, error } = await sb.from("mcp_companies").select("id, name");
   if (error) throw new Error(error.message);
   let companies = (cos ?? []) as { id: string; name: string | null }[];
@@ -1198,7 +1219,7 @@ export async function listCompaniesAndJobs(sb: Sb, companyId?: string): Promise<
     out.push(`- ${c.name ?? "unnamed company"}: ${mine.length ? mine.map((j) => `${j.job_number}${j.name ? ` (${j.name})` : ""}`).join(", ") : "no jobs yet"}`);
   }
   if (others.length) out.push(`(Using your current company. Also yours: ${others.join(", ")}; name one to switch.)`);
-  out.push("Which job should I list open items for?");
+  out.push(whichJobAsk(tool));
   return out.join("\n");
 }
 export const listOpenItems = defineTool({
@@ -1214,7 +1235,7 @@ export const listOpenItems = defineTool({
   annotations: { ...READ, idempotentHint: true },
   handler: (args, ctx) =>
     run("list_open_items", ctx, { lookaheadId: args.lookahead_id, jobNumber: args.job_number, sweep: args.date_sweep === true }, async (sb) => {
-      if (!args.job_number?.trim()) return text(await listCompaniesAndJobs(sb, args.company_id));
+      if (!args.job_number?.trim()) return text(await listCompaniesAndJobs(sb, args.company_id, "list_open_items"));
       const job = await resolveJob(sb, args.job_number, args.company_id);
       let q = sb.from("mcp_open_items").select(ITEM_COLS).eq("job_id", job.job_id).eq("status", "open");
       const la = args.lookahead_id ? await lookaheadForJob(sb, job, args.lookahead_id) : null;
@@ -1246,17 +1267,21 @@ export const listOpenItems = defineTool({
       // and the same event + notice type shows once. Display only: nothing is written or deleted, so this is idempotent.
       const { contacts, clauses: cls } = await noticeContext(sb, job);
       const deduped = dedupeNotices((data as unknown as Parameters<typeof itemLine>[0][]).map((it) => fillNotice(it, cls, contacts)));
-      const rows = deduped.items;
+      const today = todayIn(tz);
+      const feed = openItemFeed(deduped.items, today);
+      const rows = feed.items;
       const lines = rows.map((it) => {
         const d = deduped.duplicates.get(it.id);
-        return `- ${itemLine(it, nas, job.scope !== "full", { tz })}${d?.length ? ` | Same notice also logged as: ${d.map((x) => displayRef(x)).join(", ")} (shown once)` : ""}`;
+        const same = d?.length ? ` | Same notice also logged as: ${d.map((x) => itemName(x.action)).join(", ")} (shown once)` : "";
+        return `- ${itemLine(it, nas, job.scope !== "full", { tz, plain: true })}${same}`;
       });
       const dupCount = [...deduped.duplicates.values()].reduce((n, d) => n + d.length, 0);
       const ec = emailContact(contactForRole(contacts, "Project Manager"));
       const dupNote = dupCount ? `\n${dupCount} duplicate notice item${dupCount === 1 ? "" : "s"} shown once (same event and notice type); nothing was deleted.` : "";
-      // 0.8.17: the morning briefing (hosted page + finished view) leads, so hosts without cards still show it styled.
-      const brief = la ? "" : `${briefingView({ title: `${job.job_number} – ${job.name}`, today: todayIn(tz), items: rows.map((it) => { const o = it as unknown as { action: string; accountable?: string | null; owner?: string | null; needed_by?: string | null; due_date?: string | null }; return { action: o.action, owner: o.accountable ?? o.owner ?? null, due: (o.needed_by ?? o.due_date ?? null)?.slice(0, 10) ?? null }; }), pageUrl: job.scope === "full" || job.scope === "super" ? pageUrl("briefing", job.job_id) : null })}\n\n---\n`;
-      return guide({ ...text(`${prefix(job)}${brief}${laHead}Open items (${rows.length}):\n${lines.join("\n")}${dupNote}\n\n${REMINDERS_VIEW_SPEC.join("\n")}\n\n${ec.text}\n${EMAIL_VIEW_SPEC.join("\n")}${laBlock}`), structuredContent: { items: rows.map((i) => ({ item_ref: itemRef(i), item_id: i.id, item_type: itemType(i, nas), duplicate_refs: (deduped.duplicates.get(i.id) ?? []).map((x) => displayRef(x)) })), email_contact: ec.structured } }, EMAIL_CONTACT_RULE);
+      const header = openItemsHeader(feed.counts);
+      const listed = rows.map((i) => ({ action: itemName(i.action), owner: i.accountable ?? i.owner ?? null, due: dueOf(i) || null, overdue: isOverdue(i, today), due_in_7_days: isDueIn7(i, today), item_id: i.id, item_type: itemType(i, nas) }));
+      const card = openItemsCard(`${job.job_number} – ${job.name}`, rows, feed.counts, today);
+      return guide({ ...text(`${prefix(job)}${laHead}${header}\n${lines.join("\n")}${dupNote}\n\n${REMINDERS_VIEW_SPEC.join("\n")}\n\n${ec.text}\n${EMAIL_VIEW_SPEC.join("\n")}${laBlock}`), structuredContent: { counts: feed.counts, items: listed, card, email_contact: ec.structured } }, EMAIL_CONTACT_RULE);
     }),
 });
 
@@ -1337,7 +1362,7 @@ const CONTRACT_FLAGS = ["has_retainage", "has_lds", "beneficial_use", "notice_re
 export const contractTerms = defineTool({
   name: "contract_terms",
   title: "Read contract terms",
-  description: "Reads a job's contract clauses back as one card, with each risk clause on that card and the summary question as the card action, and adds nothing after the card.",
+  description: "Reads contract clauses, the contract value, and the substantial completion date when asked what the contract says, what it is worth, or when the job finishes.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
@@ -1348,12 +1373,17 @@ export const contractTerms = defineTool({
     run("contract_terms", ctx, { jobNumber: args.job_number }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id);
       if (job.scope === "super") throw new ToolError(READ_ONLY_MESSAGE);
-      const [fR, flR] = await Promise.all([
+      const [fR, flR, jobR, valueR, iorR] = await Promise.all([
         sb.from("mcp_job_facts").select("key, value, status, source").eq("job_id", job.job_id).eq("module", "contract"),
         sb.from("mcp_job_flags").select("flag_key, value, source").eq("job_id", job.job_id).in("flag_key", [...CONTRACT_FLAGS]),
+        sb.from("mcp_jobs").select("contract_completion_date, sov_fee_pct").eq("id", job.job_id).maybeSingle(),
+        sb.from("mcp_job_facts").select("module, key, value, status").eq("job_id", job.job_id).in("module", ["contract", "budget", "job", "setup", "sov"]),
+        sb.rpc("mcp_living_report_get", { _job: job.job_id, _type: "ior", _version: null }),
       ]);
       if (fR.error) throw new Error(fR.error.message);
       if (flR.error) throw new Error(flR.error.message);
+      if (jobR.error) throw new Error(jobR.error.message);
+      if (valueR.error) throw new Error(valueR.error.message);
       await audit(sb, job, "contract_terms", "view_contract_terms", null);
       const by = new Map((fR.data ?? []).map((f) => [f.key, f]));
       const src = (s: string) => (s === "member_answer" ? "manual" : s.replace(/_/g, " "));
@@ -1373,8 +1403,22 @@ export const contractTerms = defineTool({
       // with no clauses, the summary fields stay as the fallback. Data is never changed here.
       const withSummary = !cl.length || args.include_summary === true;
       const termLine = (c: (typeof clauses)[number]) => `- ${c.key.replace(/_/g, " ")}: ${c.value ?? "UNKNOWN"}${c.value ? ` (${c.source === "document" ? LEGACY_SUMMARY_TAG : c.source})` : ""}`;
+      const valueFacts = (valueR.data ?? []) as { module: string; key: string; value: unknown; status?: string }[];
+      const sovLines = valueFacts.filter((f) => f.module === "sov").map((f) => {
+        const v = (f.value ?? {}) as { description?: string | null; billable_value?: number | null };
+        return { item_no: f.key, description: v.description ?? null, scheduled_value: typeof v.billable_value === "number" ? v.billable_value : null };
+      });
+      const picked = pickContractValue({
+        setup: setupContractValue(valueFacts),
+        sov: sovContractValue(sovLines, jobR.data?.sov_fee_pct == null ? null : Number(jobR.data.sov_fee_pct), valueFacts.find((f) => f.module === "contract" && f.key === "retainage")?.value),
+        ior: iorR.error ? null : iorContractValue(iorR.data as { contract_total?: number | null; data?: unknown } | null),
+      });
+      const showMoney = job.scope === "full";
+      const completion = completionDate(jobR.data?.contract_completion_date ?? null, valueFacts);
       const lines = [
         `${prefix(job)}CONTRACT CLAUSES (exact contract text)`,
+        contractValueLine(picked.amount, picked.source, showMoney),
+        `Substantial completion: ${completion ?? "Needed"}`,
         ...(cl.length ? cl.map((c) => `- ${clauseLine(c)}`) : ["- None recorded. Record them with intake section clauses, copied exactly from the contract."]),
         ...missingNotices(cl).map((m) => `- Missing: ${m.label} (${missingNoticeNote(cl.length > 0)})`),
         "",
@@ -1386,7 +1430,7 @@ export const contractTerms = defineTool({
             : ["", ...notice.lines, "", "CONTRACT TERMS (as saved)", ...clauses.map(termLine)]
           : ["", SUMMARY_OFFER]),
       ];
-      return { ...text(lines.join("\n")), structuredContent: { include_summary: withSummary, clauses: withSummary ? clauses : [], flags, notice_requirements: { status: notice.status, missing: notice.missing }, contract_clauses: cl.map((c) => ({ section: c.section, heading: c.heading, category: c.category, source: c.source, n_days: c.n_days, day_type: c.day_type, trigger: c.trigger_desc })) } };
+      return { ...text(lines.join("\n")), structuredContent: { include_summary: withSummary, clauses: withSummary ? clauses : [], flags, notice_requirements: { status: notice.status, missing: notice.missing }, contract_clauses: cl.map((c) => ({ section: c.section, heading: c.heading, category: c.category, source: c.source, n_days: c.n_days, day_type: c.day_type, trigger: c.trigger_desc })), contract_value: showMoney ? picked.amount : null, contract_value_display: showMoney && picked.amount != null ? contractValueLine(picked.amount, picked.source, true) : null, contract_value_source: showMoney ? picked.source : null, substantial_completion: completion } };
     }),
 });
 
@@ -1500,7 +1544,8 @@ export async function lookaheadData(sb: Sb, job: Job, laInput: string | { id: st
 async function styledLookahead(sb: Sb, job: Job, la: { id: string; start_date?: string | null; end_date?: string | null }, highlight: string | null): Promise<{ view: string; model: LaModel | null }> {
   const d = await lookaheadData(sb, job, la);
   const title = `${job.job_number} – ${job.name}`;
-  const url = job.scope === "full" || job.scope === "super" ? pageUrl("lookahead", job.job_id) : null;
+  const board = await signedJobPages((fn, a) => sb.rpc(fn, a), job.job_id, job.scope);
+  const url = board.lookahead ?? null;
   if (!d.win)
     return { model: null, view: `${url ? `${pageLine("lookahead", url)}\n\n` : ""}${emptyCard("lookahead", title, d.acts.length ? "Pick a window that overlaps the saved schedule, or send this window's schedule export." : "Send the schedule export (or save the CPM) and Athena fills the lookahead from it.", d.acts.length ? [] : ["Schedule export or saved CPM"])}` };
   const view = lookaheadView({ title, ref: d.ref, start: d.win.start, end: d.win.end, dataDate: d.dataDate, acts: d.acts, items: d.items, highlight, pageUrl: url, today: d.today });

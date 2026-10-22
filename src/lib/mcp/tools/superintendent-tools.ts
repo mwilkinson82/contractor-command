@@ -8,8 +8,9 @@ import { FileRejected, decodeBase64 } from "../file-share";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import { FULL_ACCESS_MESSAGE, audit, jobTimeZone, prefix, resolveJob, type Job } from "../jobs";
 import { photoLogPdf } from "../photo-pdf";
-import { mintJobBoardLinks, type BoardPage, type BoardScope } from "../board-link";
-import { isUuid, pageUrl, type AnyPage } from "../../report-pages";
+import { signedJobPages } from "../board-url";
+import type { BoardPage } from "../board-link";
+import { isUuid } from "../../report-pages";
 import { retainagePct, type SovLineIn } from "../sov";
 import {
   PayAppMismatch,
@@ -63,14 +64,12 @@ function assertField(job: Job) {
   if (fieldAccess(job.scope) !== "field") throw new ToolError(FULL_ACCESS_MESSAGE);
 }
 
-const pageLink = (page: AnyPage, id: string) => (isUuid(id) ? pageUrl(page, id) : null);
-
 async function boardPages(sb: Sb, job: Job): Promise<Partial<Record<BoardPage, string>>> {
-  if (!isUuid(job.job_id) || (job.scope !== "full" && job.scope !== "super")) return {};
-  return mintJobBoardLinks((fn, args) => sb.rpc(fn, args), job.job_id, job.scope as BoardScope);
+  if (!isUuid(job.job_id)) return {};
+  return signedJobPages((fn, args) => sb.rpc(fn, args), job.job_id, job.scope);
 }
 
-const boardHref = (pages: Partial<Record<BoardPage, string>>, page: BoardPage, id: string) => pages[page] ?? pageLink(page, id);
+const boardHref = (pages: Partial<Record<BoardPage, string>>, page: BoardPage) => pages[page] ?? null;
 
 const FIELD_TITLE = "Superintendent field board";
 const FIELD_DESCRIPTION = "Shows the superintendent field board, also called the field board, the super board, or the superintendent board, including the super's plan and what the crew is doing.";
@@ -86,13 +85,13 @@ async function showFieldBoard(tool: "superintendent_view" | "field_board", sb: S
   const board = projectField({ ...raw, today });
       await audit(sb, job, tool, "view_field", null);
       const pages = await boardPages(sb, job);
-      const field = boardHref(pages, "field", job.job_id);
+      const field = boardHref(pages, "field");
       const links = {
         field,
-        daily: boardHref(pages, "daily", job.job_id),
-        photos: boardHref(pages, "photos", job.job_id),
-        items: boardHref(pages, "items", job.job_id),
-        ior: boardHref(pages, "ior", job.job_id),
+        daily: boardHref(pages, "daily"),
+        photos: boardHref(pages, "photos"),
+        items: boardHref(pages, "items"),
+        ior: boardHref(pages, "ior"),
       };
   const card = fieldBoardCard(prefix(job), board, raw.items ?? [], today, links);
   return guide(
@@ -252,7 +251,7 @@ export const dailyReportSave = defineTool({
         _lines: draft.work.map((w) => ({ work: w.work, sov_item: w.sov_item, activity_id: w.activity_id, qty: w.qty, unit: w.unit, crew: w.crew, hours: w.hours, pct_complete: w.pct_complete })),
       });
       await audit(sb, job, "daily_report_save", "save_daily", saved.id);
-      const url = boardHref(await boardPages(sb, job), "daily", job.job_id);
+      const url = boardHref(await boardPages(sb, job), "daily");
       return guide(
         { ...text([...(url ? [`Styled daily (private to your company): ${url}`] : []), dailyCard(prefix(job), args.report_date, { ...draft, follow_ups: [], ready: true }, true)].join("\n")), structuredContent: { saved: true, id: saved.id, report_date: args.report_date, lines: saved.lines, rates: draft.work.map(rateFromLine).filter(Boolean) } },
         "Saved. Production rates are available to estimating. Percent complete is ready for the pay app and the schedule update. The saved schedule is not changed by this save.",
@@ -274,7 +273,7 @@ export const dailyReportGet = defineTool({
       await audit(sb, job, "daily_report_get", "view_daily", null);
       if (!got.found) return guide({ ...text(`${prefix(job)}No daily is saved for ${args.report_date}.`), structuredContent: { found: false, report_date: args.report_date } }, "Nothing saved for that date.");
       const draft = assembleDaily({ ...got, work: got.lines ?? [] });
-      const url = boardHref(await boardPages(sb, job), "daily", job.job_id);
+      const url = boardHref(await boardPages(sb, job), "daily");
       return guide(
         { ...text([...(url ? [`Styled daily (private to your company): ${url}`] : []), dailyCard(prefix(job), args.report_date, { ...draft, follow_ups: [], ready: true }, true)].join("\n")), structuredContent: { found: true, report_date: args.report_date, daily: got } },
         "Show the card as saved.",
@@ -305,7 +304,7 @@ export const fieldPayApp = defineTool({
       const sov = await loadSov(sb, job.job_id);
       try {
         const app = buildFieldPayApp(sov.lines, sov.fee, sov.retainage, current, previous);
-        const url = boardHref(await boardPages(sb, job), "payapp", job.job_id);
+        const url = boardHref(await boardPages(sb, job), "payapp");
         return guide(
           { ...text([...(url ? [`Styled pay app (private to your company): ${url}`] : []), payAppCard(prefix(job), period, app)].join("\n")), structuredContent: { period_to: period, pay_app: app, ties: true } },
           "Show the G702 summary and the G703 lines exactly. Do not recompute them.",
@@ -417,7 +416,7 @@ export const progressPhotoSave = defineTool({
         });
         const signed = await sb.storage.from(PHOTO_BUCKET).createSignedUrl(path, 3600);
         await audit(sb, job, "progress_photo_save", "save_photo", id);
-        const url = boardHref(await boardPages(sb, job), "photos", job.job_id);
+        const url = boardHref(await boardPages(sb, job), "photos");
         return guide(
           { ...text([...(url ? [`Styled photo gallery (private to your company): ${url}`] : []), `${prefix(job)}Photo saved for ${gate.taken_on} at ${args.area}.`, row.linked_daily ? "Linked to that day's daily." : "No daily is saved for that date yet.", args.client_safe === true ? "Marked client-safe." : "Internal only."].join("\n")), structuredContent: { saved: true, id, taken_on: gate.taken_on, area: args.area, client_safe: row.client_safe, linked_daily: row.linked_daily, url: signed.data?.signedUrl ?? null, expires_in: 3600 } },
           "The picture link is private and expires. Client-safe is off unless they asked for it.",
@@ -457,14 +456,14 @@ export const progressPhotos = defineTool({
       }));
       await audit(sb, job, "progress_photos", "view_photos", null);
       const pages = await boardPages(sb, job);
-      const gallery = boardHref(pages, "photos", job.job_id);
+      const gallery = boardHref(pages, "photos");
       const captions = photos.length ? photos.map((p) => {
         const label = [p.area, p.work].filter(Boolean).join(" · ") || "Progress photo";
         const href = gallery ? `${gallery}#photo-${p.id}` : null;
         const linked = href ? `[${label}](${href})` : label;
         return `- ${p.taken_on} · ${linked}${p.client_safe ? " · Client-safe" : " · Internal"}`;
       }) : ["No progress photos in this view."];
-      const url = boardHref(pages, "photos", job.job_id);
+      const url = boardHref(pages, "photos");
       let pdf: string | null = null;
       if ((args.format ?? "gallery") === "pdf") {
         const bytes = photoLogPdf(`${job.job_number} progress photos`, photos);

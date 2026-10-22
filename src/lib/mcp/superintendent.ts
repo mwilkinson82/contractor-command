@@ -6,6 +6,7 @@ import { detailAnchor, mdLink, withAnchor } from "./plain-label";
 import { ALERT_HEX } from "./alert-color";
 import { DEFAULT_TZ, dateIn } from "./deadlines";
 import { activityTitle, lookaheadWindow, shortDate } from "./styled-views";
+import { dedupeOpenRows, itemName } from "./open-feed";
 import { SovMismatch, buildSov, lineBilling, money, type SovLineIn } from "./sov";
 
 export const FIELD_NAVY = "#1E3A5F";
@@ -821,11 +822,11 @@ export function fieldPageHtml(src: FieldSource & { job_number?: string; job_name
     return `<section id="${esc(anchor)}" data-id="${esc(r.id)}">${card(`${r.delay ? `<div style="color:${FIELD_RED};font-size:12px;font-weight:700">DELAY</div>` : ""}<div style="font-weight:700;color:${r.delay ? FIELD_RED : FIELD_NAVY}"><a href="#${esc(anchor)}" style="color:inherit;text-decoration:none">${esc(r.name || "Activity")}</a></div><div style="font-size:11px;color:${FIELD_GRAY}">${esc(r.id)}</div><div style="font-size:13px;color:${FIELD_BLUE};margin-top:4px">${esc(who)}</div>${extra}`, r.delay)}</section>`;
   }).join("");
   const today = src.today?.slice(0, 10) || "";
-  const items = (src.items ?? []).map((i, n) => {
+  const items = dedupeOpenRows((src.items ?? []).map((i, n) => ({ id: i.id || String(n + 1), action: i.action || "Item", owner: i.owner, due: i.due }))).map((i, n) => {
     const due = i.due?.slice(0, 10) ?? "";
     const late = !!(due && today && due < today);
     const anchor = detailAnchor("item", i.id || String(n + 1));
-    return `<section id="${esc(anchor)}"${i.id ? ` data-id="${esc(i.id)}"` : ""}>${card(`${label(late ? "Overdue" : "Lookahead")}${value(i.action ?? "Item", late)}<div style="font-size:12px;color:${late ? FIELD_RED : FIELD_GRAY}">${esc(i.owner ?? "Needed")}${due ? ` · ${esc(shortDate(due))}` : ""}</div>`, late)}</section>`;
+    return `<section id="${esc(anchor)}"${i.id ? ` data-id="${esc(i.id)}"` : ""}>${card(`${label(late ? "Overdue" : "Lookahead")}${value(itemName(i.action || "Item"), late)}<div style="font-size:12px;color:${late ? FIELD_RED : FIELD_GRAY}">${esc(i.owner ?? "Needed")}${due ? ` · ${esc(shortDate(due))}` : ""}</div>`, late)}</section>`;
   }).join("");
   const allItems = `<p style="margin:4px 0 12px"><a href="../items" style="color:${FIELD_BLUE};font-weight:700;text-decoration:none">View all open items</a></p>`;
   return shell(`${title} · Field`, `<p style="margin:0 0 12px;color:${FIELD_GRAY};font-size:13px">Lookahead ${esc(win)}</p>${rows || card(`${value("No activities in this lookahead yet.")}`)}${items}${allItems}`);
