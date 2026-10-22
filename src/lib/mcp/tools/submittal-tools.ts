@@ -11,8 +11,9 @@ import { whichJobAsk } from "../which-job";
 import { guide } from "../visible";
 import type { CardModel } from "../cards/model";
 import { renderHtml } from "../cards/html";
-import { cardReply, renderMarkdown } from "../cards/markdown";
+import { htmlBlock, renderMarkdown } from "../cards/markdown";
 import { applyCardClosing } from "../cards/silence";
+import { cardWidgetMeta } from "../cards/widget";
 import {
   BALL_PARTIES,
   IMPORT_CONFIRM,
@@ -114,13 +115,14 @@ function shown(
 
 function cardResult(_body: string, card: CardModel, extra: Record<string, unknown> = {}) {
   const html = renderHtml({ ...card, show_state: false });
-  const shown = applyCardClosing(cardReply(renderMarkdown(card), html), false);
+  const shown = applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
   return guide(
     {
       ...text(shown),
       structuredContent: { card, html, ...extra },
+      _meta: { ...cardWidgetMeta },
     },
-    "Red only on an overdue row.",
+    "Show this card. Do not add text after it. Red only on an overdue row.",
   );
 }
 
