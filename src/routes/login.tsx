@@ -10,7 +10,7 @@ import { athenaPageReturn } from "@/lib/athena-page-return";
 import { oauthReturnPath, oauthConsentReturn } from "@/lib/oauth-return-path";
 import { onAthenaHost, currentHostname } from "@/lib/athena-host-current";
 import { isLovableHost } from "@/lib/athena-host";
-import { normalizeOtpCode } from "@/lib/login-otp";
+import { completeAthenaCodeSignIn } from "@/lib/athena-code-sign-in";
 import { loginCopy } from "@/lib/login-copy";
 import { boundedStep } from "@/lib/consent-loading";
 import { postSignInDefault } from "@/lib/athena-routes";
@@ -22,7 +22,9 @@ export const Route = createFileRoute("/login")({
   head: (ctx: { match?: { search?: unknown } }) => {
     const redirectTo = (ctx.match?.search as { redirect?: string } | undefined)?.redirect;
     if (onAthenaHost() || isLovableHost(currentHostname()) || oauthConsentReturn(redirectTo)) {
-      return { meta: [{ title: "Sign in — Athena" }, { name: "robots", content: "noindex, nofollow" }] };
+      return {
+        meta: [{ title: "Sign in — Athena" }, { name: "robots", content: "noindex, nofollow" }],
+      };
     }
     return {
       meta: [
@@ -51,6 +53,10 @@ export const Route = createFileRoute("/login")({
 });
 
 function LoginPage() {
+  return <LoginForm />;
+}
+
+export function LoginForm({ initialCodeSent = false }: { initialCodeSent?: boolean } = {}) {
   const router = useRouter();
   const navigate = useNavigate();
   const requestMagicLink = useServerFn(requestMemberMagicLink);
@@ -60,8 +66,11 @@ function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const fromConnect = !!oauthConsentReturn(redirectTo);
+  // OAuth consent, the Athena host, and the lovable.app connect host all use the emailed code.
+  const athenaBrand = fromConnect || onAthenaHost() || isLovableHost(currentHostname());
   const [mode, setMode] = useState<"magic" | "password">("magic");
   const [magicRequested, setMagicRequested] = useState(false);
+  const [codeSent, setCodeSent] = useState(initialCodeSent);
   const [isHydrated, setIsHydrated] = useState(false);
   const [code, setCode] = useState("");
 
@@ -93,6 +102,7 @@ function LoginPage() {
   }, []);
 
   useEffect(() => {
+    if (athenaBrand) return;
     const { data: sub } = supabase.auth.onAuthStateChange((_, session) => {
       if (session && mode === "password") {
         router.invalidate();
@@ -101,7 +111,7 @@ function LoginPage() {
       }
     });
     return () => sub.subscription.unsubscribe();
-  }, [router, navigate, redirectTo, mode]);
+  }, [router, navigate, redirectTo, mode, athenaBrand]);
 
   async function onMagicSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -118,25 +128,37 @@ function LoginPage() {
     }
   }
 
-  // v0.8.19: finish the connect in this same tab with the code from the email,
-  // so a phone never has to switch tabs, browsers or hosts.
-  async function onCodeSubmit(event: React.FormEvent) {
+  async function onAthenaEmailSubmit(event: React.FormEvent) {
     event.preventDefault();
-    const token = normalizeOtpCode(code);
-    if (busy || !token) {
-      setErr("Enter the code from the email.");
-      return;
-    }
+    if (busy || !isHydrated) return;
     setBusy(true);
     setErr(null);
     try {
-      const { error } = await boundedStep("session", () =>
-        supabase.auth.verifyOtp({ email: email.trim(), token, type: "email" }),
-      );
-      if (error) throw error;
-      window.location.assign(redirectTo ?? postSignInDefault(onAthenaHost()));
+      await requestMagicLinkWithTimeout(email.trim());
+      setCodeSent(true);
     } catch {
-      setErr("That code didn't work. Use the newest email, or tap the link in it.");
+      setErr("We could not confirm your request. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Same-tab finish as the Athena board sign-in: type the emailed code, then verifyOtp.
+  async function onAthenaCodeSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setErr(null);
+    const result = await completeAthenaCodeSignIn({
+      email,
+      code,
+      redirectTo,
+      onAthenaHost: onAthenaHost(),
+      verify: (input) => boundedStep("session", () => supabase.auth.verifyOtp(input)),
+      assign: (url) => window.location.assign(url),
+    });
+    if (!result.ok) {
+      setErr(result.message);
       setBusy(false);
     }
   }
@@ -168,37 +190,80 @@ function LoginPage() {
     setBusy(false);
   }
 
-  // The lovable.app host only serves Athena connects; never show the Hub brand there.
-  const athenaBrand = fromConnect || onAthenaHost() || isLovableHost(currentHostname());
-  const copy = loginCopy({ athena: athenaBrand, fromConnect, magicRequested, email });
+  const copy = loginCopy({
+    athena: athenaBrand,
+    fromConnect,
+    magicRequested: athenaBrand ? codeSent : magicRequested,
+    email,
+  });
+
+  if (athenaBrand) {
+    return (
+      <AuthCard brand="athena" title={copy.title} subtitle={copy.subtitle}>
+        {codeSent ? (
+          <form onSubmit={onAthenaCodeSubmit} className="space-y-5" data-signin="email-code">
+            <p className="text-[13px] leading-relaxed text-foreground/75">
+              Check your inbox and spam folder. Open the newest email only; each code works once.
+            </p>
+            <AuthField
+              id="otp"
+              label="8-digit code"
+              type="text"
+              value={code}
+              onChange={setCode}
+              placeholder="12345678"
+              autoComplete="one-time-code"
+              inputMode="numeric"
+              required
+              autoFocus
+            />
+            {err && <p className="text-[12px] text-[color:var(--danger-warm)]">{err}</p>}
+            <AuthSubmit busy={busy} label="Continue" busyLabel="Checking code" />
+            <button
+              type="button"
+              className="mx-auto block text-[12px] font-medium text-clay hover:underline"
+              onClick={() => {
+                setErr(null);
+                setCode("");
+                setCodeSent(false);
+              }}
+            >
+              Try a different email
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={onAthenaEmailSubmit} className="space-y-5" data-signin="email-code">
+            <AuthField
+              id="email"
+              label="Work email"
+              type="email"
+              value={email}
+              onChange={setEmail}
+              placeholder="name@company.com"
+              autoComplete="email"
+              required
+              autoFocus
+            />
+            {err && <p className="text-[12px] text-[color:var(--danger-warm)]">{err}</p>}
+            <AuthSubmit
+              busy={busy || !isHydrated}
+              label="Email me a sign-in code"
+              busyLabel={busy ? "Sending code" : "Email me a sign-in code"}
+            />
+          </form>
+        )}
+      </AuthCard>
+    );
+  }
 
   return (
-    <AuthCard
-      brand={athenaBrand ? "athena" : "hub"}
-      title={copy.title}
-      subtitle={copy.subtitle}
-    >
+    <AuthCard brand="hub" title={copy.title} subtitle={copy.subtitle}>
       {magicRequested ? (
         <div>
           <div className="rounded-xl border border-border bg-muted/45 p-5 text-[13px] leading-relaxed text-foreground/75">
             Check your inbox and spam folder. Open the newest email only; each secure link works
             once.
           </div>
-          {athenaBrand && (
-            <form onSubmit={onCodeSubmit} className="mt-5 space-y-4">
-              <AuthField
-                id="otp"
-                label="Or type the code from the email"
-                type="text"
-                value={code}
-                onChange={setCode}
-                placeholder="123456"
-                required
-              />
-              {err && <p className="text-[12px] text-[color:var(--danger-warm)]">{err}</p>}
-              <AuthSubmit busy={busy} label="Continue" busyLabel="Checking code" />
-            </form>
-          )}
           <button
             type="button"
             className="mx-auto mt-5 block text-[12px] font-medium text-clay hover:underline"
