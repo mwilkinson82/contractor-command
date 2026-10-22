@@ -39,8 +39,8 @@ function whichJobResult(body: string) {
 
 export const gettingStarted = defineTool({
   name: "getting_started",
-  title: "Hey Athena, getting started, let's get going, let's get started",
-  description: "Routes Hey Athena, getting started, let's get going, and let's get started to first-job setup or the morning meeting.",
+  title: "Hey Athena, let's get started",
+  description: "Claims Hey Athena, let's get started, Athena, let's get started, Good morning Athena, and Hey Athena, what's on my plate today?, and let's get started runs guided onboarding: first job setup when there is no job, and the morning meeting when the member already has jobs.",
   inputSchema: {},
   annotations: READ,
   handler: (args, ctx) =>

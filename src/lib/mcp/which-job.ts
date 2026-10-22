@@ -10,6 +10,7 @@ export const WHICH_JOB_ASK = {
   submittals_list: "Which job's submittal log?",
   submittals_import: "Which job should I import this submittal log onto?",
   project_record_search: "Which job's project record?",
+  submittal_chase: "Which job's submittal chase?",
 } as const;
 
 export type WhichJobTool = keyof typeof WHICH_JOB_ASK;

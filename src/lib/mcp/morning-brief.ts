@@ -523,7 +523,27 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
   return { card, counts: { ...countsForOpen, today: today.length }, openItems: opened.items, todayCount: today.length };
 }
 
+const WORK_HEADINGS = new Set(["Today", "This week", "Open items", "Don't forget", "Portfolio", "Chases"]);
+
+export function ensureBriefCard(card: CardModel): CardModel {
+  const sections = card.sections ?? [];
+  const hasWork = sections.some((section) => WORK_HEADINGS.has(section.heading) && section.rows.length);
+  const next = card.next_move?.trim() || "Name the job, or say let's get started.";
+  if (hasWork && sections.some((section) => section.heading === "Next move")) return { ...card, next_move: next };
+  if (hasWork) return { ...card, next_move: next };
+  if (sections.some((section) => section.heading === "Next move")) return { ...card, next_move: next };
+  return {
+    ...card,
+    sections: [
+      ...sections,
+      { heading: "Next move", kind: "list", rows: [{ cells: ["Nothing on the list yet, here's my next move."] }] },
+    ],
+    next_move: next,
+  };
+}
+
 export function presentBrief(card: CardModel) {
+  card = ensureBriefCard(card);
   const html = renderHtml(card);
   const body = applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
   return guide(

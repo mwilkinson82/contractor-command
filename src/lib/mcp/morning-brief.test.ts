@@ -6,11 +6,13 @@ import { renderHtml } from "./cards/html";
 import { renderMarkdown } from "./cards/markdown";
 import { paletteViolations } from "./cards/palette";
 import { CARD_SHOWN } from "./cards/silence";
+import { mergeBriefJobs } from "./morning-brief-load";
 import { countOpenItems, openItemFeed } from "./open-feed";
 import { job2701BriefCard, job2701BriefJob } from "./morning-brief-2701";
 import {
   briefView,
   buildMorningBrief,
+  ensureBriefCard,
   parseBriefingTime,
   presentBrief,
   settingsLine,
@@ -23,6 +25,14 @@ const TODAY = "2026-10-26";
 function textOf(card: ReturnType<typeof buildMorningBrief>["card"]): string {
   return `${renderMarkdown(card)}\n${renderHtml(card)}`;
 }
+
+describe("morning brief feed", () => {
+  it("keeps job 2701 when the feed comes back empty", () => {
+    const kept = mergeBriefJobs([{ job_number: "2701", name: "Harbor Point", company_id: "c" }], []);
+    expect(kept.map((job) => job.job_number)).toEqual(["2701"]);
+    expect(kept[0].name).toBe("Harbor Point");
+  });
+});
 
 describe("morning brief settings", () => {
   it("parses 6am and keeps the 6:30 AM default", () => {
@@ -216,6 +226,16 @@ describe("morning brief builder", () => {
     expect(paletteViolations(renderHtml(pm.card), cardHasAlert(pm.card))).toEqual([]);
     expect(paletteViolations(renderMarkdown(pm.card), cardHasAlert(pm.card))).toEqual([]);
     expect(paletteViolations(renderHtml(superCard.card), cardHasAlert(superCard.card))).toEqual([]);
+    const bare = job2701BriefJob("pm");
+    bare.items = [];
+    bare.activities = [];
+    bare.payApps = [];
+    bare.dailyToday = true;
+    bare.lookahead = null;
+    const quiet = buildMorningBrief({ jobs: [bare], hasCompany: true, now: NOW });
+    const filled = ensureBriefCard(quiet.card);
+    expect(filled.sections?.some((s) => s.rows.some((row) => row.cells[0] === "Nothing on the list yet, here's my next move."))).toBe(true);
+    expect(filled.next_move).toBeTruthy();
     const empty = buildMorningBrief({ jobs: [], hasCompany: true });
     expect(paletteViolations(renderHtml(empty.card), false)).toEqual([]);
   });
