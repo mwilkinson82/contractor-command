@@ -1233,7 +1233,7 @@
       {
         "name": "lookahead_list",
         "title": "List lookaheads",
-        "description": "Lists how many lookaheads a job has, which are visible, and which setup and merged containers are hidden, and writes nothing.",
+        "description": "Lists how many lookaheads a job has, which are visible, and writes nothing.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,

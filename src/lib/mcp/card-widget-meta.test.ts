@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createTanStackMcpHandler } from "@lovable.dev/mcp-js/stacks/tanstack";
 import { defineMcp } from "@lovable.dev/mcp-js";
 import { CARD_TOOLS } from "./cards/attach";
-import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetMeta } from "./cards/widget";
+import { CARD_WIDGET_MIME, CARD_WIDGET_URI } from "./cards/widget";
 import { ATHENA_TOOLS } from "./index";
 import { readFileSync } from "node:fs";
 
@@ -32,17 +32,18 @@ async function rpc(method: string, id: number) {
   return json.result;
 }
 
-describe("ChatGPT card widget is on the tool definition", () => {
-  it("every card tool carries the template and the resource is listed once", async () => {
+describe("ChatGPT card widget stays off tools/list", () => {
+  it("card tools have no openai/outputTemplate in tools/list, and the resource is listed once", async () => {
     const defs = ATHENA_TOOLS.filter((tool) => CARD_NAMES.has(tool.name));
     expect(defs.length).toBeGreaterThan(10);
     for (const tool of defs) {
-      expect(tool._meta, tool.name).toMatchObject(cardWidgetMeta);
+      expect(tool._meta?.["openai/outputTemplate"], tool.name).toBeUndefined();
     }
     const listed = await rpc("tools/list", 2);
     for (const tool of listed.tools as { name: string; _meta?: Record<string, unknown> }[]) {
       if (!CARD_NAMES.has(tool.name)) continue;
-      expect(tool._meta, tool.name).toMatchObject({ "openai/outputTemplate": CARD_WIDGET_URI, "openai/widgetAccessible": true });
+      expect(tool._meta?.["openai/outputTemplate"], tool.name).toBeUndefined();
+      expect(JSON.stringify(tool._meta ?? {}), tool.name).not.toContain(CARD_WIDGET_URI);
     }
     const resources = await rpc("resources/list", 3);
     const cards = (resources.resources as { uri: string; mimeType?: string }[]).filter((resource) => resource.uri === CARD_WIDGET_URI);
