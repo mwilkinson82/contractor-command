@@ -15,6 +15,7 @@ import {
   normalizeSchedules,
   alignGapsToTakeoff,
   autoGaps,
+  bidCheckRefusal,
   checkBids,
   estimateLayout,
   formatQty,
@@ -894,7 +895,7 @@ export const estimateGapAnalysis = defineTool({
 export const estimateBidCheck = defineTool({
   name: "estimate_bid_check",
   title: "Sub bid check",
-  description: "Checks each in-scope sub bid line against the takeoff for a general contractor job and lists out-of-scope callouts in their own section.",
+  description: "Checks each in-scope sub bid line against the takeoff for a general contractor or a self-performer and lists out-of-scope callouts in their own section.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
@@ -906,11 +907,8 @@ export const estimateBidCheck = defineTool({
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const loaded = await load(sb, job.job_id);
       const label = `${prefix(job)}${job.name}`;
-      if (loaded.setup.role !== "gc") {
-        const why =
-          loaded.setup.role === "self_performer"
-            ? "Bid check is for a general contractor. This job is set up as a self-performer. Nothing was checked."
-            : "Save the intake and set the role to general contractor before a bid check. Nothing was checked.";
+      const why = bidCheckRefusal(loaded.setup.role);
+      if (why) {
         const view = renderBidCheck(label, loaded.setup.role, null, why);
         await audit(sb, job, "estimate_bid_check", "skip_estimate_bid_check", null);
         return reply(view);
@@ -919,7 +917,7 @@ export const estimateBidCheck = defineTool({
       if (!bids.length) {
         const view = renderBidCheck(
           label,
-          "gc",
+          loaded.setup.role,
           null,
           "No sub bids are on file. Nothing was checked.",
         );
@@ -928,7 +926,7 @@ export const estimateBidCheck = defineTool({
       await rpc(sb, "mcp_estimate_setup_save", { _job: job.job_id, _patch: { sub_bids: bids } });
       const result = checkBids(bids, loaded.lines);
       await audit(sb, job, "estimate_bid_check", "save_estimate_bid_check", null);
-      const view = renderBidCheck(label, "gc", result, null);
+      const view = renderBidCheck(label, loaded.setup.role, result, null);
       return reply(view);
     }),
 });

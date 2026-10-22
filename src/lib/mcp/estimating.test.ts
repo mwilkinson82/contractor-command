@@ -15,6 +15,7 @@ import {
   preserveGapList,
   basisLabel,
   buildSummary,
+  bidCheckRefusal,
   checkBids,
   coverageLine,
   intakeQuestions,
@@ -332,6 +333,31 @@ describe("coverage, gaps, bids, summary", () => {
       ],
     );
     expect(again.ref).toBe("G-4");
+  });
+
+  it("checks a bid when the company self-performs the work", () => {
+    expect(bidCheckRefusal("self_performer")).toBeNull();
+    expect(bidCheckRefusal("gc")).toBeNull();
+    expect(bidCheckRefusal(null)).toMatch(/self-performer/);
+    const takeoff = prepareLines([
+      {
+        item: "Slab on grade",
+        sheet: "A-099",
+        unit: "SF",
+        basis: "measured",
+        value: 100,
+        trade: "03 Concrete",
+        line_no: 1,
+      },
+    ]);
+    const result = checkBids(
+      [{ sub: "Self", trade: "03 Concrete", total: 1000, lines: [{ description: "Slab on grade", qty: 100, unit: "SF", amount: 1000, exclusion: null }] }],
+      takeoff,
+    );
+    const view = renderBidCheck("QA1022 Crystal", "self_performer", result, null);
+    expect(view.text).not.toMatch(/self-performer. Nothing was checked/i);
+    expect(view.text).toContain("covered");
+    expect(view.structured.checked).not.toBe(false);
   });
 
   it("checks a sub bid and does not send the questions", () => {

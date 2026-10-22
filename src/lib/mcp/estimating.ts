@@ -2293,6 +2293,12 @@ function tradeMatch(a: string, b: string): boolean {
   return tokens(a).size > 0 && overlap(tokens(a), tokens(b)) > 0;
 }
 
+/** Bid check runs for a general contractor and for a company that self-performs the work. */
+export function bidCheckRefusal(role: Setup["role"]): string | null {
+  if (role === "gc" || role === "self_performer") return null;
+  return "Save the intake and set the role to general contractor or self-performer before a bid check. Nothing was checked.";
+}
+
 export function renderBidCheck(
   job: string,
   role: Setup["role"],
@@ -2303,7 +2309,7 @@ export function renderBidCheck(
     return {
       text: frame("Estimate Analysis", [`${job} · Bid check`, reason ?? "Nothing was checked."]),
       structured: { report: "Estimate Analysis", layout: estimateLayout(), checked: false },
-      guidance: ["Bid check is only for a general contractor. Do not invent a sub number."],
+      guidance: ["Set the role before a bid check. Do not invent a sub number."],
     };
   }
   const lines = [
