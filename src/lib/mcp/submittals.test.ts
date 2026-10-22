@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { renderHtml } from "./cards/html";
+import { renderMarkdown } from "./cards/markdown";
 import { paletteViolations } from "./cards/palette";
 import { CARD_SHOWN } from "./cards/silence";
 import { attachAthenaCard } from "./cards/attach";
@@ -122,6 +123,133 @@ describe("import preview", () => {
     expect(card.ask?.prompt).toBe(IMPORT_CONFIRM);
     expect(card.kpis?.find((kpi) => kpi.label === "Ready")?.value).toBe(String(card.sections?.[0].rows.length));
     expect(filterSubmittals([], { today: TODAY })).toEqual([]);
+  });
+});
+
+describe("due column and overdue yes or no", () => {
+  function logRows(card: ReturnType<typeof presentSubmittalLog>["card"]) {
+    return card.sections?.find((section) => section.heading === "Log")?.rows ?? [];
+  }
+
+  function overdueColumn(markdown: string): string[] {
+    const section = markdown.split("### Log")[1] ?? "";
+    return section
+      .split("\n")
+      .filter((line) => line.startsWith("|") && !line.includes("---") && !line.startsWith("| Number |"))
+      .map((line) => line.split("|").slice(1, -1).map((cell) => cell.trim()).at(-1) ?? "");
+  }
+
+  it("shows required_by in Due, Needed when it is empty, and ignores due_back", () => {
+    const presented = presentSubmittalLog({
+      jobNumber: "2701",
+      jobName: "Harbor Point",
+      today: TODAY,
+      boardUrl: null,
+      rows: [
+        row({
+          id: "2b05cb8c-c272-43b7-87b7-36edc79ba1de",
+          number: "05 12 00-001",
+          revision: 0,
+          title: "Structural Steel shop drawings",
+          status: "in_review",
+          required_by: "2026-11-05",
+          due_back: "2026-10-29",
+          submitted_on: "2026-10-15",
+          returned_on: null,
+        }),
+        row({
+          id: "0a256c65-1469-4733-be3e-9a9a6757a10a",
+          number: "08 11 13-001",
+          revision: 0,
+          title: "Hollow Metal Doors product data",
+          status: "approved",
+          ball_in_court: "gc",
+          required_by: null,
+          due_back: "2026-10-20",
+          submitted_on: "2026-10-06",
+          returned_on: "2026-10-18",
+        }),
+      ],
+    });
+    const rows = logRows(presented.card);
+    const steel = rows.find((item) => item.cells[0] === "05 12 00-001");
+    const doors = rows.find((item) => item.cells[0] === "08 11 13-001");
+    expect(steel?.cells[4]).toBe("2026-11-05");
+    expect(steel?.cells).not.toContain("2026-10-29");
+    expect(steel?.cells[5]).toBe("No");
+    expect(steel?.flag ?? null).toBeNull();
+    expect(doors?.cells[4]).toBe("Needed");
+    expect(doors?.cells).not.toContain("2026-10-20");
+    expect(doors?.cells[5]).toBe("No");
+    expect(doors?.flag ?? null).toBeNull();
+    expect(presented.text).toContain("Due 2026-11-05.");
+    expect(presented.text).toContain("Due Needed.");
+    expect(presented.text).not.toContain("2026-10-29");
+    expect(presented.text).not.toContain("2026-10-20");
+
+    const markdown = renderMarkdown(presented.card);
+    const html = renderHtml(presented.card);
+    expect(overdueColumn(markdown)).toEqual(["No", "No"]);
+    expect(overdueColumn(markdown)).not.toContain("Item");
+    expect(markdown).toContain("2026-11-05");
+    expect(markdown).toContain("Needed");
+    expect(markdown).not.toContain("2026-10-29");
+    expect(markdown).not.toContain("2026-10-20");
+    expect(html).toContain(">No</td>");
+    expect(html).not.toContain(">Item</td>");
+    expect(html).not.toContain("data-alert");
+    expect(paletteViolations(html, false)).toEqual([]);
+  });
+
+  it("prints Yes and the overdue flag only when submittalOverdue is true", () => {
+    const presented = presentSubmittalLog({
+      jobNumber: "2701",
+      jobName: "Harbor Point",
+      today: TODAY,
+      boardUrl: null,
+      rows: [
+        row({
+          id: "9baf8520-72f2-4497-9865-f249c246eae2",
+          number: "03 30 00-001",
+          revision: 0,
+          title: "Cast-in-Place Concrete mix design",
+          required_by: "2026-10-01",
+          submitted_on: null,
+          due_back: "2099-01-01",
+          returned_on: null,
+        }),
+        row({
+          id: "2b05cb8c-c272-43b7-87b7-36edc79ba1de",
+          number: "05 12 00-001",
+          revision: 0,
+          title: "Structural Steel shop drawings",
+          status: "in_review",
+          required_by: "2026-11-05",
+          due_back: "2026-10-29",
+          submitted_on: "2026-10-15",
+          returned_on: null,
+        }),
+      ],
+    });
+    const rows = logRows(presented.card);
+    const late = rows.find((item) => item.cells[0] === "03 30 00-001");
+    const quiet = rows.find((item) => item.cells[0] === "05 12 00-001");
+    expect(submittalOverdue(presented.rows.find((item) => item.number === "03 30 00-001")!, TODAY)).toBe(true);
+    expect(late?.cells[5]).toBe("Yes");
+    expect(late?.flag).toBe("overdue");
+    expect(quiet?.cells[5]).toBe("No");
+    expect(quiet?.flag ?? null).toBeNull();
+    expect(headerMatchesRows(presented.card)).toBe(true);
+
+    const markdown = renderMarkdown(presented.card);
+    const html = renderHtml(presented.card);
+    expect(overdueColumn(markdown)).toEqual(["Yes", "No"]);
+    expect(overdueColumn(markdown)).not.toContain("Item");
+    expect(html).toContain(">Yes</td>");
+    expect(html).toContain(">No</td>");
+    expect(html).not.toContain(">Item</td>");
+    expect(html.match(/<tr class="alert" data-alert="overdue">/g)).toHaveLength(1);
+    expect(paletteViolations(html, true)).toEqual([]);
   });
 });
 
