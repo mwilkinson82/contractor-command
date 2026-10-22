@@ -2,12 +2,14 @@
 import { addDays } from "./deadlines";
 import type { CardModel, CardRow } from "./cards/model";
 import type { EmailDraft } from "./email-safety";
+import type { ScheduleActivity } from "./schedule-submittals";
+import { scheduleGroupOverdue } from "./schedule-submittals";
 import { submittalOverdue, type SubmittalRecord, type PackageItem } from "./submittals";
 
 export const CHASE_FOLLOW_DAYS = 7;
 
 export const CHASE_SERVER_RULE =
-  " When a submittal is overdue or a required package item is missing, call submittal_chase and show that card. Do not send the chase in that reply. On yes, call email_confirm_send with confirmed true, the job number, and the submittal id from the card. A follow-up that is due appears on the morning brief. Nothing is sent automatically.";
+  " When someone says chase the missing submittals, chase the submittals, or a submittal is overdue or a required package item is missing, call submittal_chase and show that card. Scheduled submittal groups that are not marked submitted are chase targets. The card includes one draft marked Not sent. Needs confirm. Do not send the chase in that reply. On yes, call email_confirm_send with confirmed true and the job number, and the submittal id only when the card has one. A follow-up that is due appears on the morning brief. Nothing is sent automatically.";
 
 export type ChaseRow = {
   submittal_id: string;
@@ -85,6 +87,26 @@ export function nextChaseDate(today: string): string {
   return addDays(today.slice(0, 10), CHASE_FOLLOW_DAYS);
 }
 
+/** Scheduled packages that are not already logged as submitted. No id is invented for the send. */
+export function chaseFromSchedule(groups: ScheduleActivity[], today: string): ChaseRow[] {
+  return groups.map((group) => {
+    const due = (group.finish ?? "").slice(0, 10);
+    const dated = /^\d{4}-\d{2}-\d{2}$/.test(due) ? due : null;
+    return {
+      submittal_id: "",
+      number: group.id,
+      revision: 0,
+      title: group.name,
+      spec_section: "Needed",
+      overdue: scheduleGroupOverdue(group, today),
+      missing: "not submitted",
+      chase_count: 0,
+      required_by: dated,
+      due_back: dated,
+    };
+  });
+}
+
 export function chaseDraft(jobNumber: string, row: ChaseRow): EmailDraft {
   const who = row.chase_name?.trim() || "there";
   const gap = row.missing ? `Still needed: ${row.missing}.` : "The submittal is still open.";
@@ -157,6 +179,7 @@ export function presentChaseCard(input: {
             heading: "Draft",
             kind: "list" as const,
             rows: [
+              { cells: ["Not sent. Needs confirm."], tone: "action" as const },
               { cells: [`To: ${draft.to || "Needed"}`], tone: "action" as const },
               { cells: [`Subject: ${draft.subject}`] },
               { cells: [draft.body], raw: true },
@@ -176,7 +199,7 @@ export function presentChaseCard(input: {
     `Submittal chase: ${due.length} due, ${overdue} overdue.`,
     "",
     lines.length ? lines.join("\n") : "No chase is due.",
-    draft ? `\nTo: ${draft.to || "Needed"}\nSubject: ${draft.subject}\n\n${draft.body}\n\nSend this chase to ${draft.to || "the contact"}? Yes or no?` : "",
+    draft ? `\nNot sent. Needs confirm.\n\nTo: ${draft.to || "Needed"}\nSubject: ${draft.subject}\n\n${draft.body}\n\nSend this chase to ${draft.to || "the contact"}? Yes or no?` : "",
     input.readOnly ? "\nRead only." : "",
   ].join("\n");
   return { text, card, draft, current };

@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { ALERT, BLUE, GRAY, NAVY, WHITE, paletteViolations } from "./palette";
+import { ALERT, BLUE, GRAY, NAVY, WHITE, cssColor, emptyCssValues, paletteViolations } from "./palette";
 import { renderHtml } from "./html";
 import { renderMarkdown } from "./markdown";
 import { cardWidgetHtml } from "./widget";
@@ -25,6 +25,19 @@ const loud: CardModel = {
 };
 
 describe("palette", () => {
+  it("fails when a CSS declaration has an empty value", () => {
+    expect(emptyCssValues("body{background: ;color: ;}")).toEqual(["background", "color"]);
+    expect(cssColor("", NAVY)).toBe(NAVY);
+    expect(cssColor(undefined, BLUE)).toBe(BLUE);
+    expect(cssColor("  ", GRAY)).toBe(GRAY);
+    const html = renderHtml(quiet);
+    const widget = cardWidgetHtml();
+    expect(emptyCssValues(html)).toEqual([]);
+    expect(emptyCssValues(widget)).toEqual([]);
+    expect(html).not.toMatch(/:\s*;/);
+    expect(widget).not.toMatch(/:\s*;/);
+  });
+
   it("is navy, brand blue, one gray, white, and alert red", () => {
     expect(NAVY).toBe("#1E3A5F");
     expect(BLUE).toBe("#1E5FED");

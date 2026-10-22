@@ -61,7 +61,7 @@ function stripChrome(text: string): string {
 }
 
 function whichJob(tool: string, text: string): boolean {
-  const meeting = tool === "list_open_items" || tool === "pm_meeting" || tool === "pm_morning" || tool === "pm_evening" || tool === "athena_morning_hitlist" || tool === "submittal_log" || tool === "submittals_list" || tool === "submittals_import" || tool === "project_record_search" || tool === "submittal_chase";
+  const meeting = tool === "list_open_items" || tool === "pm_meeting" || tool === "pm_morning" || tool === "pm_evening" || tool === "athena_morning_hitlist" || tool === "submittal_log" || tool === "submittals_list" || tool === "submittals_import" || tool === "project_record_search" || tool === "submittal_chase" || tool === "daily_report_draft" || tool === "daily_report_save" || tool === "daily_report_get";
   return meeting && isWhichJobText(text);
 }
 

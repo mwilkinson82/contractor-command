@@ -9,11 +9,13 @@ import {
   MEMORY_HOST_LINES,
   MEMORY_LINE,
   MEMORY_WAIT,
+  START_AT_EXAMPLES,
   START_BACKUP,
   START_EXAMPLES,
   START_HABIT,
   START_HEADLINE,
   START_HOSTS,
+  START_MEMORY_OFFER,
   START_POINTS,
 } from "../athena-start-copy";
 
@@ -27,7 +29,7 @@ export const GETTING_STARTED_GUIDANCE = [
 ].join(" ");
 
 export const GETTING_STARTED_RULE =
-  " When the member says Hey Athena, let's get started, Athena, let's get started, let's get going, getting started, or Hey Athena, getting started, call getting_started and show that card. Let's get started runs guided onboarding: first job setup for a new member, and the morning meeting for a member who already has jobs. On a member's first tool call, show the getting-started card before the rest of the reply. That card's headline is @Athena, let's get started. Every Try one line starts with @Athena. Good morning Athena and Hey Athena, what's on my plate today? call athena_hello or morning_brief. Hey Athena stays only on the bonus line, and it works after the memory line is saved. Do not answer the setup questions for the member. Keep teaching the one habit: start every message with @Athena. Offer to save this exact line in the member's own AI: When I say Athena, always use the Athena connector. That line is the bonus so plain Hey Athena also works. Ask first. Save nothing in that reply. Only after the member says yes, save the line. ChatGPT: ask ChatGPT to remember it in saved memory. Claude: save it in memory or project instructions. Grok Bot: save it in memory. If the member says no, save nothing.";
+  " When the member says Hey Athena, let's get started, Athena, let's get started, let's get going, getting started, @Athena let's get started, or Hey Athena, getting started, call getting_started and show that card first. Never start that reply with a which-job picker, and never ask Which job's morning hitlist? Do not call athena_morning_hitlist, pm_morning, or morning_brief for that phrase. No jobs: first-job setup, or company setup when there is no company. Jobs already on file stay on that card: the @Athena example lines, the offer to save When I say Athena, always use the Athena connector and how to remove it, then the morning meeting. One job: name it on the card. More than one job: the job list sits inside that same card. On a member's first tool call, show the getting-started card before the rest of the reply. Good morning Athena and Hey Athena, what's on my plate today? call athena_hello or morning_brief. Keep teaching the one habit: start every message with @Athena. Ask first. Save nothing in that reply. Only after the member says yes, save the line. ChatGPT: ask ChatGPT to remember it in saved memory. Claude: save it in memory or project instructions. Grok Bot: save it in memory. If the member says no, save nothing. Do not answer the setup questions for the member.";
 
 /** What the host reads when it is time to save. saved stays false until the member says yes. */
 export function memoryOffer() {
@@ -130,12 +132,42 @@ export async function memberJobs(sb: MemberDb): Promise<{ company: boolean; jobs
   return { company: true, jobs: (jobs.data ?? []) as { job_number: string; name: string | null }[] };
 }
 
-/** No jobs opens setup. One job opens that morning meeting. More than one opens the which-job card. */
+export type StartedJob = { job_number: string; name: string | null };
+
+/**
+ * The get-started card for a member who already has jobs.
+ * The title stays the habit. A job list, when there is more than one job, is a section on this card.
+ */
+export function startedWithJobsCard(jobs: StartedJob[]): CardModel {
+  const base = gettingStartedCard();
+  const one = jobs.length === 1 ? jobs[0] : null;
+  const label = (job: StartedJob) => `${job.job_number}${job.name ? ` (${job.name})` : ""}`;
+  const jobsRows = one
+    ? [{ cells: [`Open it on ${label(one)}.`], tone: "action" as const }]
+    : [
+        ...jobs.map((job) => ({ cells: [label(job)], tone: "action" as const })),
+        { cells: ["Name the job for the morning meeting."], tone: "action" as const },
+      ];
+  return {
+    ...base,
+    title: "Hey Athena, let's get started",
+    ask: null,
+    sections: [
+      ...(base.sections ?? []),
+      { heading: "@Athena", kind: "list", rows: START_AT_EXAMPLES.map((line) => ({ cells: [line] })) },
+      { heading: "Memory", kind: "list", rows: [{ cells: [START_MEMORY_OFFER], tone: "action" }] },
+      { heading: "Morning meeting", kind: "list", rows: jobsRows },
+    ],
+    next_move: one ? `The morning meeting is on ${one.job_number}.` : "Name the job and I will open the morning meeting.",
+  };
+}
+
+/** No jobs opens setup. Jobs already on file stay on the get-started card. The morning meeting is not opened here. */
 export async function branchGettingStarted<T>(sb: MemberDb, morning: (jobNumber?: string) => Promise<T>, setup: (company: boolean) => T): Promise<T> {
   const found = await memberJobs(sb);
   if (!found.jobs.length) return setup(found.company);
-  if (found.jobs.length === 1) return morning(found.jobs[0].job_number);
-  return morning();
+  void morning;
+  return startedWithJobsCard(found.jobs) as T;
 }
 
 export function renderGettingStarted(card: CardModel = gettingStartedCard()): string {

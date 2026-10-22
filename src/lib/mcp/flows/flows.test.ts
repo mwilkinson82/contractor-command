@@ -28,6 +28,7 @@ vi.mock("../guard", () => ({
 }));
 vi.mock("../jobs", () => ({
   FULL_ACCESS_MESSAGE: "This needs full access to the job.",
+  WhichCompanyAsk: class WhichCompanyAsk extends Error {},
   audit: async () => { calls.rpc.push("audit"); },
   resolveJob: async (_sb: unknown, jobNumber: string) => ({ job_id: "j1", job_number: jobNumber, name: "Harbor Point", company_id: "c1", scope: "full" }),
 }));
@@ -235,7 +236,11 @@ describe("sample path on job 2701", () => {
   });
 
   it("refuses the sample on any other job", async () => {
-    await expect(call(pmMeeting, { job_number: "2801", sample: true })).rejects.toThrow(/only on job 2701/);
+    const r = await call(pmMeeting, { job_number: "2801", sample: true });
+    const text = r.content.find((c) => c.type === "text")?.text ?? "";
+    expect(r.structuredContent.card.title).toBe("PM meeting");
+    expect(text).toContain("only on job 2701");
+    expect(text).toContain("<!doctype html>");
   });
 
   it("a bare greeting with one job returns the morning brief and no trailing prose", async () => {
@@ -247,9 +252,11 @@ describe("sample path on job 2701", () => {
     expect(text).toContain("Next move");
     expect(text.trim().endsWith(CARD_SHOWN)).toBe(true);
     const before = text.trim().slice(0, -CARD_SHOWN.length).trim();
-    const fence = before.lastIndexOf("```");
-    expect(before.slice(fence + 3).trim()).toBe("");
-    expect(before.endsWith("```")).toBe(true);
+    expect(before.endsWith("</html>")).toBe(true);
+    expect(before.match(/<!doctype html/gi)).toHaveLength(1);
+    expect(before).not.toContain("```");
+    expect(before).not.toContain("&lt;!doctype");
+    expect(before).not.toMatch(/[a-z-]+\s*:\s*;/);
     expect(text).not.toMatch(/I['’]ll pull/);
     expect(r.content.some((c) => c.type === "resource")).toBe(false);
   });
@@ -281,8 +288,9 @@ describe("sample path on job 2701", () => {
     expect(text).toContain("Next move");
     expect(text.trim().endsWith(CARD_SHOWN)).toBe(true);
     const before = text.trim().slice(0, -CARD_SHOWN.length).trim();
-    expect(before.endsWith("```")).toBe(true);
-    expect(before.slice(before.lastIndexOf("```") + 3).trim()).toBe("");
+    expect(before.endsWith("</html>")).toBe(true);
+    expect(before.match(/<!doctype html/gi)).toHaveLength(1);
+    expect(before).not.toContain("&lt;!doctype");
     expect(r.content.some((c) => c.type === "resource")).toBe(false);
     calls.jobs = [{ job_number: "2701", name: "Harbor Point", company_id: "c1" }];
   });

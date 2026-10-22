@@ -8,10 +8,13 @@ import {
   MEMORY_HOST_LINES,
   MEMORY_LINE,
   MEMORY_WAIT,
+  START_AT_EXAMPLES,
   START_BACKUP,
+  START_CONNECTOR_MEMORY,
   START_EXAMPLES,
   START_HABIT,
   START_HEADLINE,
+  START_MEMORY_OFFER,
   START_POINTS,
 } from "../athena-start-copy";
 import { AthenaStartTip } from "@/components/athena/start-tip";
@@ -31,15 +34,19 @@ import {
   memoryOffer,
   plainGettingStarted,
   renderGettingStarted,
+  startedWithJobsCard,
 } from "./getting-started";
-import { inferCard } from "./cards/infer";
-
 const rpc = vi.hoisted(() => vi.fn());
+const jobsFixture = vi.hoisted(() => ({
+  companies: [] as { id: string }[],
+  jobs: [] as { job_number: string; name: string | null }[],
+}));
 vi.mock("./supabase", () => ({
   supabaseForUser: () => ({
     rpc,
-    from: () => {
-      const done = Promise.resolve({ data: [], error: null });
+    from: (table: string) => {
+      const rows = table === "mcp_companies" ? jobsFixture.companies : table === "mcp_jobs" ? jobsFixture.jobs : [];
+      const done = Promise.resolve({ data: rows, error: null });
       const builder = { in: () => done, then: (ok: (v: unknown) => unknown, bad?: (e: unknown) => unknown) => done.then(ok, bad) };
       return { select: () => builder, insert: async () => ({ error: null }) };
     },
@@ -197,7 +204,11 @@ describe("getting started card", () => {
 });
 
 describe("first tool call", () => {
-  beforeEach(() => rpc.mockReset());
+  beforeEach(() => {
+    rpc.mockReset();
+    jobsFixture.companies = [];
+    jobsFixture.jobs = [];
+  });
 
   it("shows the card once, then stays quiet", async () => {
     let seen = false;
@@ -355,28 +366,115 @@ describe("getting_started branches", () => {
     expect(visibleProblems(shown.split("REQUIRED VIEW:")[0])).toEqual([]);
   });
 
-  it("with one job, opens that morning meeting and keeps its next move", async () => {
-    const morning = vi.fn(async (job?: string) => ({ job, next_move: "Next up is Crews." }));
+  it("with one job, stays on the get-started card and does not open the morning hitlist", async () => {
+    const morning = vi.fn();
     const result = await branchGettingStarted(jobsDb([{ id: "c1" }], [{ job_number: "410", name: "Harbor" }]), morning, () => {
       throw new Error("setup");
     });
-    expect(morning).toHaveBeenCalledWith("410");
-    expect(result).toEqual({ job: "410", next_move: "Next up is Crews." });
+    expect(morning).not.toHaveBeenCalled();
+    expect(result.title).toBe("Hey Athena, let's get started");
+    expect(result.next_move).toBe("The morning meeting is on 410.");
+    expect(renderGettingStarted(result)).not.toContain("Which job's morning hitlist?");
   });
 
-  it("with more than one job, opens the which-job card and names the next move", async () => {
-    const morning = vi.fn(async () => "listed");
+  it("with more than one job, lists them on the card and does not ask which job's morning hitlist", async () => {
+    const morning = vi.fn();
     const result = await branchGettingStarted(
       jobsDb([{ id: "c1" }], [{ job_number: "410", name: "Harbor" }, { job_number: "411", name: "Ridge" }]),
       morning,
       () => { throw new Error("setup"); },
     );
-    expect(morning).toHaveBeenCalledWith();
-    expect(result).toBe("listed");
-    const card = inferCard("pm_morning", "No job named. Your companies and jobs:\n- Harbor Electric: 410 (Harbor), 411 (Ridge)\nWhich job should I list open items for?", {});
-    expect(card.title).toBe("Which job?");
-    expect(card.next_move).toBe("Name the job.");
-    expect(card.show_state).not.toBe(false);
+    expect(morning).not.toHaveBeenCalled();
+    const shown = renderGettingStarted(result);
+    expect(result.title).toBe("Hey Athena, let's get started");
+    expect(shown).toContain("410 (Harbor)");
+    expect(shown).toContain("411 (Ridge)");
+    expect(shown).not.toContain("Which job's morning hitlist?");
+  });
+});
+
+describe("getting_started tool never opens on a picker", () => {
+  beforeEach(() => {
+    rpc.mockReset();
+    rpc.mockImplementation(gate(() => undefined));
+    jobsFixture.companies = [{ id: "c1" }];
+  });
+
+  it("with jobs, returns the habit card and does not ask which job", async () => {
+    jobsFixture.jobs = [
+      { job_number: "2701", name: "Harbor Point" },
+      { job_number: "1234", name: "Riverside" },
+    ];
+    const result = (await gettingStarted.handler({}, ctx)) as {
+      content: { text: string }[];
+      structuredContent: { card: { title: string; ask?: { prompt: string } | null; sections?: { heading: string }[] } };
+    };
+    const plain = result.content[0].text.split("REQUIRED VIEW:")[0];
+    expect(result.structuredContent.card.title).toBe("Hey Athena, let's get started");
+    expect(plain.trimStart().startsWith("Hey Athena, let's get started")).toBe(true);
+    expect(plain).toContain("Try one");
+    expect(plain).toContain(START_MEMORY_OFFER);
+    expect(plain).toContain("Morning meeting");
+    expect(plain).toContain(START_CONNECTOR_MEMORY);
+    expect(plain).toContain("forget that memory");
+    expect(plain).not.toContain("Which job's morning hitlist?");
+    expect(plain.indexOf(START_AT_EXAMPLES[0])).toBeLessThan(plain.indexOf(START_CONNECTOR_MEMORY));
+    expect(plain.indexOf(START_CONNECTOR_MEMORY)).toBeLessThan(plain.indexOf("Morning meeting"));
+    expect(plain.indexOf("Try one")).toBeLessThan(plain.indexOf("Morning meeting"));
+    expect(plain).toContain("2701 (Harbor Point)");
+    expect(plain).toContain("1234 (Riverside)");
+    expect(plain.trimStart().startsWith("Which job?")).toBe(false);
+    expect(result.structuredContent.card.ask ?? null).toBeNull();
+  });
+
+  it("with one job, names that morning meeting on the same card", async () => {
+    jobsFixture.jobs = [{ job_number: "2701", name: "Harbor Point" }];
+    const result = (await gettingStarted.handler({}, ctx)) as {
+      content: { text: string }[];
+      structuredContent: { card: { title: string; next_move?: string } };
+    };
+    expect(result.structuredContent.card.title).toBe("Hey Athena, let's get started");
+    expect(result.content[0].text).toContain("Open it on 2701 (Harbor Point).");
+    expect(result.structuredContent.card.next_move).toBe("The morning meeting is on 2701.");
+    expect(result.content[0].text.split("REQUIRED VIEW:")[0].trimStart().startsWith("Which job?")).toBe(false);
+  });
+});
+
+describe("getting_started card comes before any job picker", () => {
+  it("one job stays on the get-started card and names that morning meeting", () => {
+    const card = startedWithJobsCard([{ job_number: "2701", name: "Harbor Point" }]);
+    const shown = renderGettingStarted(card);
+    expect(card.title).toBe("Hey Athena, let's get started");
+    expect(card.title).not.toBe("Which job?");
+    expect(shown.trimStart().startsWith("Hey Athena, let's get started")).toBe(true);
+    expect(shown).toContain("Try one");
+    expect(shown).toContain(START_BACKUP);
+    expect(shown).toContain(START_MEMORY_OFFER);
+    expect(shown).toContain(START_CONNECTOR_MEMORY);
+    expect(shown).toContain("forget that memory");
+    for (const line of START_AT_EXAMPLES) expect(shown).toContain(line);
+    expect(shown.indexOf(START_AT_EXAMPLES[0])).toBeLessThan(shown.indexOf(START_CONNECTOR_MEMORY));
+    expect(shown.indexOf(START_CONNECTOR_MEMORY)).toBeLessThan(shown.indexOf("Morning meeting"));
+    expect(shown).toContain("Open it on 2701 (Harbor Point).");
+    expect(shown).not.toContain("Which job's morning hitlist?");
+    expect(shown).not.toMatch(/^Which job/m);
+    expect(card.ask ?? null).toBeNull();
+    expect(card.next_move).toBe("The morning meeting is on 2701.");
+  });
+
+  it("several jobs keep the habit card and list the morning meeting inside it", () => {
+    const card = startedWithJobsCard([
+      { job_number: "2701", name: "Harbor Point" },
+      { job_number: "1234", name: "Riverside" },
+    ]);
+    const shown = renderGettingStarted(card);
+    expect(card.title).toBe("Hey Athena, let's get started");
+    expect(shown.indexOf("Try one")).toBeLessThan(shown.indexOf("Morning meeting"));
+    expect(shown.indexOf("Morning meeting")).toBeLessThan(shown.indexOf("2701 (Harbor Point)"));
+    expect(shown).toContain("2701 (Harbor Point)");
+    expect(shown).toContain("1234 (Riverside)");
+    expect(card.sections?.some((section) => section.heading === "Morning meeting")).toBe(true);
+    expect(shown.split("REQUIRED VIEW:")[0].trimStart().startsWith("Which job?")).toBe(false);
   });
 });
 

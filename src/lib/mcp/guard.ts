@@ -1,9 +1,13 @@
 import { CARD_FIRST_TOOLS, attachAthenaCard } from "./cards/attach";
+import { renderHtml } from "./cards/html";
+import { htmlBlock, renderMarkdown } from "./cards/markdown";
+import type { CardModel } from "./cards/model";
 import { sealCardReply } from "./cards/silence";
+import { WhichCompanyAsk } from "./jobs";
 import { attachDailyReminder } from "./field-reminder";
 import { attachGettingStarted } from "./getting-started";
 import { attachMorningCard } from "./morning-brief-card";
-import { HOST_DISPLAY_BLOCK, finalizeVisible, splitGuidance, withStyleLine } from "./visible";
+import { HOST_DISPLAY_BLOCK, finalizeVisible, guide, splitGuidance, withStyleLine } from "./visible";
 import { REMINDERS_VIEW_SPEC } from "./views";
 import { DB_UNAVAILABLE, MCP_DAILY_CAP, MCP_HOURLY_CAP, capMessage, type CapResult } from "./limits";
 import { ToolError, type ToolContext } from "@lovable.dev/mcp-js";
@@ -116,6 +120,11 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
     const morning = await attachMorningCard(sb as never, sealed, { fresh: freshSession, explicit: tool === "morning_brief" });
     return stampCanary(morning, touch.canary);
   } catch (e) {
+    if (e instanceof WhichCompanyAsk) {
+      const reply = whichCompanyReply(e);
+      const carded = attachAthenaCard(tool, finalizeVisible(reply, [HOST_DISPLAY_BLOCK]));
+      return stampCanary(sealCardReply(tool, carded), touch.canary) as R;
+    }
     await logWorkflow(sb, {
       event_type: "failure",
       tool,
@@ -129,6 +138,26 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
 
 export function text(body: string) {
   return { content: [{ type: "text" as const, text: body + FOOTER }] };
+}
+
+function whichCompanyReply(ask: WhichCompanyAsk) {
+  const rows = ask.matches.map((match) => ({
+    cells: [`${match.company_name}: ${ask.jobNumber}${match.job_name ? ` (${match.job_name})` : ""}`],
+    tone: "action" as const,
+  }));
+  const card: CardModel = {
+    state: "ask",
+    title: "Which company?",
+    show_state: false,
+    ask: { prompt: ask.creating ? `Which company should job ${ask.jobNumber} be created in?` : `Which company is job ${ask.jobNumber} in?` },
+    sections: [{ heading: "Companies", kind: "list", rows }],
+    next_move: ask.creating ? "Name the company. Nothing was created." : "Name the company.",
+  };
+  const body = `${renderMarkdown(card)}\n\n${htmlBlock(renderHtml(card))}`;
+  return guide(
+    { ...text(body), structuredContent: { card, which_company: true, job_number: ask.jobNumber, companies: ask.matches } },
+    "Wait for the company. Pass company_id on the next call. Nothing was changed.",
+  );
 }
 
 /** ownerSov: the body is the server-built owner SOV (full job access only), the one client-facing output that carries dollars.

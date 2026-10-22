@@ -5,7 +5,8 @@
 // Piece 5 chases with email_draft, then a separate yes, then email_confirm_send. Nothing here sends email.
 import { addDays } from "./deadlines";
 import { detailAnchor, withAnchor } from "./plain-label";
-import type { CardModel, CardRow } from "./cards/model";
+import type { CardModel, CardRow, CardSection } from "./cards/model";
+import { scheduleGroupOverdue, type ScheduleActivity, type TrackingItem } from "./schedule-submittals";
 
 export const DEFAULT_REVIEW_DAYS = 14;
 
@@ -226,15 +227,18 @@ export function transmittalLabel(n: number): string {
 export type SubmittalRoute =
   | { tool: "submittal_log"; action: "add" }
   | { tool: "submittals_list"; overdue: boolean; jobNumber: string | null }
-  | { tool: "submittals_import"; jobNumber: string | null };
+  | { tool: "submittals_import"; jobNumber: string | null }
+  | { tool: "submittal_chase"; jobNumber: string | null };
 
 const SUBMITTAL_WORD = /\b(?:submittals?|submital|submittle|submittall|sumittal|sumittals|submittels)\b/i;
 
 /** Host routing for the submittal phrases, including the misspellings Marshall named. */
 export function routeSubmittal(text: string): SubmittalRoute | null {
   const t = text.replace(/\s+/g, " ").trim();
+  if (!SUBMITTAL_WORD.test(t) && !/\bchase\b/i.test(t)) return null;
+  const job = t.match(/\bjob\s+#?([A-Za-z0-9][\w.-]{0,39})\b/i)?.[1] ?? t.match(/\b(?:for|on)\s+#?(\d[\w.-]{0,39})\b/i)?.[1] ?? null;
+  if (/\bchase\b/i.test(t)) return { tool: "submittal_chase", jobNumber: job };
   if (!SUBMITTAL_WORD.test(t)) return null;
-  const job = t.match(/\b(?:job|for)\s+#?([A-Za-z0-9][\w.-]{0,39})\b/i)?.[1] ?? null;
   if (/\b(?:import|paste|csv)\b/i.test(t)) return { tool: "submittals_import", jobNumber: job };
   if (/\b(?:overdue|past due)\b/i.test(t)) return { tool: "submittals_list", overdue: true, jobNumber: job };
   if (/\blog\s+(?:a|an|the|my)\b/i.test(t) || /\b(?:add|record|enter|create)\s+(?:a|an|the|my\s+)?(?:subm|sumitt)/i.test(t)) {
@@ -244,7 +248,7 @@ export function routeSubmittal(text: string): SubmittalRoute | null {
 }
 
 export const SUBMITTAL_SERVER_RULE =
-  " When someone says Hey Athena, log a submittal, log a submittal, or a misspelling such as submital, submittle, sumittal, or submittall, call submittal_log. When someone asks what submittals are overdue, which submittals are overdue, or for the submittal log for a job such as 2701, call submittals_list. When someone pastes a log or says import the submittal log, call submittals_import and show the preview card. Write the import only after a separate yes. A submittal request is the submittal log, not the morning brief and not email or calendar. Spec section is required. Due back is the submitted date plus that job's review turnaround, 14 calendar days unless the contract sets another count. Public work is strict. Private work is advisory. Show the submittal card, and when the card is shown do not add text after it. The board link comes from the signed job board for submittals. Do not send a chase email. A chase email is a later draft that uses email_draft, then a separate yes, then email_confirm_send. Do not read the spec book or run the kickoff walkthrough from this log.";
+  " When someone says Hey Athena, log a submittal, log a submittal, or a misspelling such as submital, submittle, sumittal, or submittall, call submittal_log. When someone asks what submittals are overdue, which submittals are overdue, or for the submittal log for a job such as 2701, call submittals_list. submittals_list is the submittal log for every host. It includes scheduled submittal groups and overdue tracking such as E14. Do not answer a submittal log from the schedule activity list or from the morning brief. When someone pastes a log or says import the submittal log, call submittals_import and show the preview card. Write the import only after a separate yes. When someone says chase the missing submittals, chase the submittals, or chase the missing submittals on a job such as 2701, call submittal_chase. A submittal request is the submittal log, not the morning brief and not email or calendar. Spec section is required on a logged row. Due back is the submitted date plus that job's review turnaround, 14 calendar days unless the contract sets another count. Public work is strict. Private work is advisory. Show the submittal card, and when the card is shown do not add text after it. The board link comes from the signed job board for submittals. Do not send a chase email in the same reply. Do not read the spec book or run the kickoff walkthrough from this log.";
 
 export type Presented = { text: string; card: CardModel; rows: SubmittalRecord[] };
 
@@ -267,11 +271,27 @@ export function presentSubmittalLog(input: {
   note?: string | null;
   posture?: string | null;
   filter?: Omit<SubmittalFilter, "today">;
+  schedule?: ScheduleActivity[];
+  tracking?: TrackingItem[];
 }): Presented {
+  const loggedNumbers = new Set(input.rows.map((row) => row.number.trim().toLowerCase()));
+  const schedule = (input.schedule ?? []).filter((group) => !loggedNumbers.has(group.id.trim().toLowerCase()));
+  const tracking = input.tracking ?? [];
   const rows = filterSubmittals(input.rows, { ...input.filter, today: input.today });
-  const overdue = rows.filter((row) => submittalOverdue(row, input.today)).length;
-  const head = `${input.jobNumber} – ${input.jobName}\nSubmittal log: ${rows.length} submittals, ${overdue} overdue.`;
-  const body = rows.length ? rows.map((row) => rowLine(row, input.today)).join("\n") : "No submittals on this job yet.";
+  const scheduleLate = schedule.filter((group) => scheduleGroupOverdue(group, input.today)).length;
+  const trackingLate = tracking.filter((item) => item.overdue).length;
+  const loggedLate = rows.filter((row) => submittalOverdue(row, input.today)).length;
+  const overdue = loggedLate + scheduleLate + trackingLate;
+  const count = rows.length + schedule.length;
+  const head = `${input.jobNumber} – ${input.jobName}\nSubmittal log: ${count} submittals, ${overdue} overdue.`;
+  const scheduleLines = schedule.map((group) => {
+    const due = (group.finish ?? "").slice(0, 10) || "Needed";
+    const late = scheduleGroupOverdue(group, input.today);
+    return `- ${group.id} ${group.name}. Due ${due}.${group.critical ? " Critical path." : ""}${late ? " Overdue." : ""}`;
+  });
+  const trackingLines = tracking.map((item) => `- ${item.action}${item.due ? `. Due ${item.due}.` : ""}${item.overdue ? " Overdue." : ""}`);
+  const loggedBody = rows.length ? rows.map((row) => rowLine(row, input.today)).join("\n") : schedule.length || tracking.length ? "No submittals logged yet." : "No submittals on this job yet.";
+  const body = [scheduleLines.length ? `Schedule\n${scheduleLines.join("\n")}` : "", trackingLines.length ? `Tracking\n${trackingLines.join("\n")}` : "", loggedBody].filter(Boolean).join("\n\n");
   const note = input.note?.trim() ? `${input.note.trim()}\n\n` : "";
   const access = input.readOnly ? "\n\nRead only." : "";
   const text = `${note}${head}\n\n${body}${access}`;
@@ -299,20 +319,43 @@ export function presentSubmittalLog(input: {
     show_state: false,
     job: `${input.jobNumber} – ${input.jobName}`,
     kpis: [
-      { label: "Submittals", value: String(rows.length) },
+      { label: "Submittals", value: String(count) },
       { label: "Overdue", value: String(overdue), flag: overdue ? "overdue" : null },
     ],
     sections: [
       ...(input.posture
         ? [{ heading: "Posture", kind: "chips" as const, rows: [{ cells: [input.posture], tone: "known" as const }] }]
         : []),
+      ...(schedule.length
+        ? [{
+            heading: "Schedule",
+            kind: "table" as const,
+            columns: ["Activity", "Package", "Due", "Path"],
+            rows: schedule.map((group) => ({
+              cells: [group.id, group.name, (group.finish ?? "").slice(0, 10) || "Needed", group.critical ? "Critical path" : ""],
+              flag: scheduleGroupOverdue(group, input.today) ? ("overdue" as const) : null,
+              refId: group.id,
+            })),
+          }]
+        : []),
+      ...(tracking.length
+        ? [{
+            heading: "Tracking",
+            kind: "list" as const,
+            rows: tracking.map((item) => ({
+              cells: [item.action, item.due || "Needed"],
+              flag: item.overdue ? ("overdue" as const) : null,
+              refId: item.id,
+            })),
+          }]
+        : []),
       {
         heading: "Log",
         kind: "table" as const,
         columns: ["Submittal", "Spec", "Status", "Ball in court", "Due back", "Package"],
-        rows: tableRows,
+        rows: tableRows.length ? tableRows : [{ cells: ["No submittals logged yet.", "", "", "", "", ""] }],
       },
-    ],
+    ] as CardSection[],
     next_move: input.readOnly ? "Read only on this job." : "Log the next submittal when it is ready.",
   };
   return { text, card, rows };

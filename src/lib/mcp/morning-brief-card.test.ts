@@ -74,12 +74,8 @@ describe("morning card due once per local day", () => {
     };
     const first = await attachMorningCard(sb, { content: [{ type: "text", text: "Job body" }] }, { fresh: true, explicit: false });
     const text = first.content?.[0]?.text ?? "";
-    expect(text).toContain(INBOX_SECTION);
-    expect(text.indexOf(INBOX_SECTION)).toBeLessThan(text.indexOf("Why"));
+    expect(text).not.toContain("Overnight emails");
     expect(text.indexOf("Why")).toBeLessThan(text.indexOf("Job body"));
-    expect(text.indexOf("Overnight emails")).toBeLessThan(text.indexOf("Job body"));
-    expect(text).toContain("Unanswered emails");
-    expect(text).toContain("Today's meetings");
     const guidance = (first.structuredContent as { assistant_guidance?: string[] }).assistant_guidance ?? [];
     expect(guidance[guidance.length - 1]).toBe(MORNING_CARD_GUIDANCE);
     expect(text).toContain(todayBoardUrl());
@@ -125,12 +121,8 @@ describe("morning card styling", () => {
     const pmCard = buildMorningBrief({ jobs: pmJobs, hasCompany: true, now: NOW, settings });
     const superHtml = renderHtml(superCard.card);
     const pmHtml = renderHtml(pmCard.card);
-    expect(superCard.card.sections?.[0]?.heading).toBe(INBOX_SECTION);
-    expect(superCard.card.sections?.[0]?.rows.map((row) => row.cells[0])).toEqual([
-      "Overnight emails",
-      "Unanswered emails",
-      "Today's meetings",
-    ]);
+    expect(superCard.card.sections?.some((section) => section.heading === INBOX_SECTION)).toBe(false);
+    expect(superHtml).not.toContain("Overnight emails");
     expect(superCard.card.sections?.slice(1).some((section) => section.heading === "Today" || section.heading === "Open items")).toBe(true);
     expect(superCard.card.sections?.findIndex((section) => section.heading === "Board")).toBeGreaterThan(0);
     const shown = presentBrief(superCard.card);

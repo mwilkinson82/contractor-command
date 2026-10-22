@@ -44,7 +44,7 @@ import {
 } from "../estimating";
 import { errorCard, errorMessage } from "../error-card";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
-import { audit, prefix, resolveJob } from "../jobs";
+import { WhichCompanyAsk, audit, prefix, resolveJob } from "../jobs";
 import { htmlBlock, renderMarkdown } from "../cards/markdown";
 import { renderHtml } from "../cards/html";
 import type { CardModel } from "../cards/model";
@@ -703,6 +703,7 @@ export const estimateTakeoffSave = defineTool({
         );
         return reply({ ...view, structured: { ...view.structured, version: loaded.version, created: false } });
       } catch (e) {
+        if (e instanceof WhichCompanyAsk) throw e;
         return errorCard("Takeoff", errorMessage(e, "The takeoff could not be saved."));
       }
     }),
@@ -731,6 +732,7 @@ export const estimateTakeoffGet = defineTool({
           structured: { ...view.structured, found: true, version: loaded.version },
         });
       } catch (e) {
+        if (e instanceof WhichCompanyAsk) throw e;
         return errorCard("Takeoff", errorMessage(e, "The takeoff could not be read."));
       }
     }),
@@ -756,6 +758,7 @@ export const estimateTakeoffExport = defineTool({
         const view = renderExport(`${prefix(job)}${job.name}`, loaded.lines, args.format ?? "csv");
         return reply(view);
       } catch (e) {
+        if (e instanceof WhichCompanyAsk) throw e;
         return errorCard("Takeoff", errorMessage(e, "The takeoff could not be exported."));
       }
     }),

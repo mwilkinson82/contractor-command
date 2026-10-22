@@ -84,6 +84,10 @@ export function renderMarkdown(card: CardModel): string {
   return lines.join("\n");
 }
 
+/**
+ * Claude treats a fenced HTML card as text, escapes it, and wraps it in a second card
+ * whose CSS colors are blank. The document is the card. Colors are already written out.
+ */
 export function htmlBlock(html: string): string {
-  return `REQUIRED VIEW: render this HTML card as-is.\n\n\`\`\`html\n${html}\n\`\`\``;
+  return `REQUIRED VIEW: render this HTML card as-is. Do not escape it, do not wrap it in another card, and do not leave a CSS color blank.\n\n${html}`;
 }

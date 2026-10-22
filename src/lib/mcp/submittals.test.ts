@@ -24,7 +24,8 @@ import {
   IMPORT_CONFIRM,
   type SubmittalRecord,
 } from "./submittals";
-import { kindLabel, presentProjectRecord, recordHeaderMatches, EMAIL_REPLY_KIND } from "./project-record";
+import { kindLabel, presentJobRecord, presentProjectRecord, recordHeaderMatches, isDisputeAsk, EMAIL_REPLY_KIND } from "./project-record";
+import { scheduleSubmittalGroups } from "./schedule-submittals";
 
 const JOB = "11111111-1111-4111-8111-111111111111";
 const TODAY = "2026-10-22";
@@ -183,7 +184,51 @@ describe("card and board", () => {
   });
 });
 
+describe("schedule groups on an empty log", () => {
+  it("keeps submit activities and drops architect review", () => {
+    const groups = scheduleSubmittalGroups([
+      { id: "A1020", name: "Submit long-lead gear (SWGR, SWBD, PNL, GEN)", finish: "2026-10-28", critical: true },
+      { id: "A1030", name: "Submit all other shop drawings & data", finish: "2026-11-06" },
+      { id: "A1040", name: "Architect review of long-lead gear", finish: "2026-11-12" },
+    ]);
+    expect(groups.map((group) => group.id)).toEqual(["A1020", "A1030"]);
+    const presented = presentSubmittalLog({
+      jobNumber: "2701",
+      jobName: "Harbor Point",
+      rows: [],
+      today: TODAY,
+      boardUrl: null,
+      schedule: groups,
+      tracking: [{ id: "e14", action: "2701 – Resolve: E14 Owner/engineer/architect submittal and RFI turnaround times are identified.", due: "2026-10-16", overdue: true }],
+    });
+    expect(presented.text).toContain("A1020");
+    expect(presented.text).toContain("E14");
+    expect(presented.text).not.toContain("A1040");
+    expect(presented.card.kpis?.find((kpi) => kpi.label === "Submittals")?.value).toBe("2");
+    expect(presented.card.kpis?.find((kpi) => kpi.label === "Overdue")?.value).toBe("1");
+    expect(presented.card.sections?.some((section) => section.heading === "Schedule")).toBe(true);
+  });
+});
+
 describe("project record card", () => {
+  it("defaults to the job record unless the ask is a dispute or a claim", () => {
+    expect(isDisputeAsk(null, "project record")).toBe(false);
+    expect(isDisputeAsk("claim", null)).toBe(true);
+    expect(isDisputeAsk(null, "show the disputes")).toBe(true);
+    const card = presentJobRecord({
+      jobNumber: "2701",
+      jobName: "Harbor Point",
+      contractTotal: "$1,400,000.00",
+      open: 22,
+      overdue: 3,
+      items: [{ action: "E14 turnaround", due: "2026-10-16", overdue: true }],
+    }).card;
+    expect(card.title).toBe("Project record");
+    expect(card.kpis?.find((kpi) => kpi.label === "Schedule of values")?.value).toBe("$1,400,000.00");
+    expect(card.kpis?.find((kpi) => kpi.label === "Open")?.value).toBe("22");
+    expect(card.kpis?.find((kpi) => kpi.label === "Overdue")?.flag).toBe("overdue");
+  });
+
   it("counts events once and leaves reply outcomes unwired", () => {
     const card = presentProjectRecord({
       jobNumber: "2701",

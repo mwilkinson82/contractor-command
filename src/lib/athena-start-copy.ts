@@ -39,3 +39,14 @@ export const MEMORY_HOST_LINES = [
   "Claude: save it in memory or project instructions.",
   "Grok Bot: save it in memory.",
 ] as const;
+
+/** Lines that show @Athena as the way to start. They sit on the get-started card, before the memory offer. */
+export const START_AT_EXAMPLES = [
+  "@Athena, run my PM meeting",
+  "@Athena, what's on my plate today?",
+  "@Athena, show the field board",
+] as const;
+
+/** The line the member can save, and the line that removes it. */
+export const START_CONNECTOR_MEMORY = MEMORY_LINE;
+export const START_MEMORY_OFFER = `Want me to save this? ${START_CONNECTOR_MEMORY}. Say yes and I will. To remove it, say forget that memory.`;

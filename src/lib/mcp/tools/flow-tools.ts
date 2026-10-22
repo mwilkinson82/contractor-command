@@ -14,9 +14,9 @@ import { loadFlowData, saveFlowNote } from "../flows/load";
 import { STAGE_LABEL, stagesFor, type FlowData, type FlowName } from "../flows/types";
 import { errorCard, errorMessage } from "../error-card";
 import { run, type Sb } from "../guard";
-import { FULL_ACCESS_MESSAGE, audit, resolveJob } from "../jobs";
+import { FULL_ACCESS_MESSAGE, WhichCompanyAsk, audit, resolveJob } from "../jobs";
 import { loadMorningBrief } from "../morning-brief-load";
-import { chooseJob, listCompaniesAndJobs, listedJobs } from "./workflow-tools";
+import { chooseJob, listCompaniesAndJobs, listedJobs, soleJob } from "./workflow-tools";
 import { guide } from "../visible";
 
 const jobNumber = z.string().trim().max(40).optional();
@@ -30,7 +30,7 @@ const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: false
 
 function present(flow: FlowName, stage: string, data: FlowData) {
   const card = buildFlowCard(flow, stage, data);
-  const html = renderHtml(card);
+  const html = renderHtml({ ...card, show_state: false });
   const stages = [...stagesFor(flow)];
   const next = stages[stages.indexOf(stage) + 1] ?? null;
   const body = applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
@@ -74,7 +74,7 @@ export const MORNING_HITLIST_DESCRIPTION =
   "Runs the per-job morning meeting when a job number was given, and with no job number returns the morning brief across every visible job, not email or calendar and not Gmail.";
 
 function sealedCard(card: ReturnType<typeof inferCard>, pick: boolean) {
-  const html = renderHtml(card);
+  const html = renderHtml({ ...card, show_state: false });
   const body = applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, pick);
   return guide(
     {
@@ -94,6 +94,8 @@ export async function morningGreeting(sb: Sb, companyId?: string) {
 async function lead(flow: FlowName, args: { job_number?: string; company_id?: string; stage?: string; note?: string; crew_mode?: "subcontract" | "self_perform"; sample?: true; plan?: number; realistic?: number; percent_complete?: number }, sb: Sb) {
   if (!args.job_number?.trim()) {
     if (flow === "pm_morning") return morningGreeting(sb, args.company_id);
+    const only = await soleJob(sb, args.company_id);
+    if (only?.job_number) return lead(flow, { ...args, job_number: only.job_number, company_id: args.company_id ?? only.company_id }, sb);
     const jobs = await listedJobs(sb, args.company_id);
     const picked = chooseJob(jobs);
     if (picked?.job_number) return lead(flow, { ...args, job_number: picked.job_number, company_id: args.company_id ?? picked.company_id }, sb);
@@ -133,7 +135,7 @@ async function lead(flow: FlowName, args: { job_number?: string; company_id?: st
 export const pmMeeting = defineTool({
   name: "pm_meeting",
   title: "Run construction PM meeting (Athena)",
-  description: "Runs the construction PM meeting in Athena, the job meeting on the schedule rather than a calendar appointment, when someone says run my PM meeting or start the project meeting, through schedule progress, the locked lookahead, subs suppliers and crews, change orders, billing, and the IOR, and must not fill job_number from chat context or build a generic meeting widget.",
+  description: "Runs the construction PM meeting in Athena as a styled card, the job meeting on the schedule rather than a calendar appointment, when someone says run my PM meeting or start the project meeting, through schedule progress, the locked lookahead, subs suppliers and crews, change orders, billing, and the IOR, using the only job when one exists, and must not fill job_number from chat context or build a generic meeting widget.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
@@ -147,7 +149,14 @@ export const pmMeeting = defineTool({
   },
   annotations: READ,
   handler: (args, ctx) =>
-    run("pm_meeting", ctx, { jobNumber: args.job_number }, async (sb) => lead("pm_meeting", args, sb)),
+    run("pm_meeting", ctx, { jobNumber: args.job_number }, async (sb) => {
+      try {
+        return await lead("pm_meeting", args, sb);
+      } catch (e) {
+        if (e instanceof WhichCompanyAsk) throw e;
+        return errorCard("PM meeting", errorMessage(e, "The PM meeting could not be opened."));
+      }
+    }),
 });
 
 /** One named job opens that morning meeting. No job number is the which-job list for getting started. */
@@ -156,6 +165,7 @@ export async function startMorning(sb: Sb, jobNumber?: string) {
     if (jobNumber?.trim()) return await lead("pm_morning", { job_number: jobNumber }, sb);
     return sealedCard(inferCard("pm_morning", await listCompaniesAndJobs(sb, undefined, "pm_morning")), true);
   } catch (e) {
+    if (e instanceof WhichCompanyAsk) throw e;
     return errorCard("PM morning meeting", errorMessage(e, "The morning meeting could not be opened."));
   }
 }
@@ -171,6 +181,7 @@ export const pmMorning = defineTool({
       try {
         return await lead("pm_morning", args, sb);
       } catch (e) {
+        if (e instanceof WhichCompanyAsk) throw e;
         return errorCard("PM morning meeting", errorMessage(e, "The morning meeting could not be opened."));
       }
     }),
@@ -192,6 +203,7 @@ export const pmMorningMeeting = defineTool({
         }
         return await lead("pm_morning", args, sb);
       } catch (e) {
+        if (e instanceof WhichCompanyAsk) throw e;
         return errorCard("PM morning meeting", errorMessage(e, "The morning meeting could not be opened."));
       }
     }),

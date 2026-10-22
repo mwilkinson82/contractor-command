@@ -3,10 +3,10 @@
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
-import { FULL_ACCESS_MESSAGE, audit, prefix, resolveJob } from "../jobs";
+import { FULL_ACCESS_MESSAGE, audit, jobTimeZone, prefix, resolveJob } from "../jobs";
 import { signedJobPages } from "../board-url";
 import { isUuid } from "../../report-pages";
-import { listCompaniesAndJobs } from "./workflow-tools";
+import { listCompaniesAndJobs, namedOrSoleJob } from "./workflow-tools";
 import { whichJobAsk } from "../which-job";
 import { guide } from "../visible";
 import type { CardModel } from "../cards/model";
@@ -27,7 +27,11 @@ import {
   type ImportDraft,
   type SubmittalRecord,
 } from "../submittals";
-import { presentProjectRecord, type RecordEvent } from "../project-record";
+import { isDisputeAsk, presentJobRecord, presentProjectRecord, type RecordEvent } from "../project-record";
+import { money } from "../sov";
+import { todayIn } from "../deadlines";
+import { dueOf, isOverdue, openItemFeed } from "../open-feed";
+import { readScheduleActivities, readSubmittalTracking, scheduleSubmittalGroups } from "../schedule-submittals";
 
 const jobNumber = z.string().trim().min(1).max(40);
 const companyId = z.string().trim().min(1).max(200).optional();
@@ -79,18 +83,29 @@ async function boardFor(sb: Sb, job: { job_id: string; scope?: string | null }):
   return pages.submittals ?? null;
 }
 
-function shown(payload: LogPayload, boardUrl: string | null, filter?: { status?: string | null; overdue?: boolean | null; ball?: string | null }, note?: string) {
+function shown(
+  payload: LogPayload,
+  boardUrl: string | null,
+  filter?: { status?: string | null; overdue?: boolean | null; ball?: string | null },
+  note?: string,
+  extra?: { schedule?: Awaited<ReturnType<typeof readScheduleActivities>>; tracking?: Awaited<ReturnType<typeof readSubmittalTracking>> },
+) {
+  const today = (payload.today ?? "").slice(0, 10) || "1970-01-01";
   const posture = postureSentence(resolvePosture(payload.posture_set ?? payload.posture, payload.public_job));
+  const logged = new Set((payload.submittals ?? []).map((row) => row.number.trim().toLowerCase()));
+  const schedule = scheduleSubmittalGroups(extra?.schedule ?? []).filter((group) => !logged.has(group.id.trim().toLowerCase()));
   return presentSubmittalLog({
     jobNumber: payload.job_number ?? "",
     jobName: payload.job_name ?? "",
     rows: payload.submittals ?? [],
-    today: (payload.today ?? "").slice(0, 10) || "1970-01-01",
+    today,
     boardUrl,
     readOnly: payload.read_only === true,
     note,
     posture,
     filter,
+    schedule,
+    tracking: extra?.tracking ?? [],
   });
 }
 
@@ -146,8 +161,9 @@ export const submittalLog = defineTool({
   annotations: SAVE,
   handler: (args, ctx) =>
     run("submittal_log", ctx, { jobNumber: args.job_number }, async (sb) => {
-      if (!args.job_number?.trim()) return whichJobCard("submittal_log", await listCompaniesAndJobs(sb, args.company_id, "submittal_log"));
-      const job = await resolveJob(sb, args.job_number, args.company_id, "full");
+      const picked = await namedOrSoleJob(sb, args.job_number, args.company_id);
+      if (!picked) return whichJobCard("submittal_log", await listCompaniesAndJobs(sb, args.company_id, "submittal_log"));
+      const job = await resolveJob(sb, picked.job_number, picked.company_id, "full");
       const payload = { ...args };
       delete payload.job_number;
       delete payload.company_id;
@@ -163,7 +179,7 @@ export const submittalLog = defineTool({
 export const submittalsList = defineTool({
   name: "submittals_list",
   title: "Submittal log and overdue submittals",
-  description: "Lists a job's submittal log, including what submittals are overdue and the submittal log for a job number such as 2701.",
+  description: "Lists a job's submittal log, including scheduled groups and overdue tracking, for a job number such as 2701, and resolves that number when it exists on exactly one company even if another company is active.",
   inputSchema: {
     job_number: jobNumber.optional(),
     company_id: companyId,
@@ -174,11 +190,14 @@ export const submittalsList = defineTool({
   annotations: READ,
   handler: (args, ctx) =>
     run("submittals_list", ctx, { jobNumber: args.job_number }, async (sb) => {
-      if (!args.job_number?.trim()) return whichJobCard("submittals_list", await listCompaniesAndJobs(sb, args.company_id, "submittals_list"));
-      const job = await resolveJob(sb, args.job_number, args.company_id);
+      const picked = await namedOrSoleJob(sb, args.job_number, args.company_id);
+      if (!picked) return whichJobCard("submittals_list", await listCompaniesAndJobs(sb, args.company_id, "submittals_list"));
+      const job = await resolveJob(sb, picked.job_number, picked.company_id);
       if (job.scope !== "full" && job.scope !== "super") throw new ToolError(FULL_ACCESS_MESSAGE);
       const payload = await call<LogPayload>(sb, "mcp_submittal_rows", { _job: job.job_id });
-      const presented = shown(payload, await boardFor(sb, job), { status: args.status, overdue: args.overdue, ball: args.ball_in_court });
+      const today = (payload.today ?? "").slice(0, 10) || "1970-01-01";
+      const [schedule, tracking] = await Promise.all([readScheduleActivities(sb, job.job_id), readSubmittalTracking(sb, job.job_id, today)]);
+      const presented = shown(payload, await boardFor(sb, job), { status: args.status, overdue: args.overdue, ball: args.ball_in_court }, undefined, { schedule, tracking });
       return cardResult(presented.text, presented.card, { read_only: payload.read_only === true });
     }),
 });
@@ -197,8 +216,9 @@ export const submittalsImport = defineTool({
   annotations: SAVE,
   handler: (args, ctx) =>
     run("submittals_import", ctx, { jobNumber: args.job_number }, async (sb) => {
-      if (!args.job_number?.trim()) return whichJobCard("submittals_import", await listCompaniesAndJobs(sb, args.company_id, "submittals_import"));
-      const job = await resolveJob(sb, args.job_number, args.company_id, "full");
+      const picked = await namedOrSoleJob(sb, args.job_number, args.company_id);
+      if (!picked) return whichJobCard("submittals_import", await listCompaniesAndJobs(sb, args.company_id, "submittals_import"));
+      const job = await resolveJob(sb, picked.job_number, picked.company_id, "full");
       const current = await call<LogPayload>(sb, "mcp_submittal_rows", { _job: job.job_id });
       const preview = parseSubmittalImport(args.text, (current.submittals ?? []).map((row) => ({ number: row.number, revision: row.revision })));
       const card = presentImportPreview(current.job_number ?? job.job_number, current.job_name ?? job.name, preview);
@@ -221,7 +241,7 @@ export const submittalsImport = defineTool({
 export const projectRecordSearch = defineTool({
   name: "project_record_search",
   title: "Project record for disputes and claims",
-  description: "Searches the project record for a job by date, kind, or words, including the dispute and claim history.",
+  description: "Shows the job record with the schedule of values, open items, and overdue items, and shows the dispute and claim file only when the member asks for disputes or claims, resolving a unique job number such as 2701 across companies.",
   inputSchema: {
     job_number: jobNumber.optional(),
     company_id: companyId,
@@ -233,8 +253,38 @@ export const projectRecordSearch = defineTool({
   annotations: READ,
   handler: (args, ctx) =>
     run("project_record_search", ctx, { jobNumber: args.job_number }, async (sb) => {
-      if (!args.job_number?.trim()) return whichJobCard("project_record_search", await listCompaniesAndJobs(sb, args.company_id, "project_record_search"));
-      const job = await resolveJob(sb, args.job_number, args.company_id);
+      const picked = await namedOrSoleJob(sb, args.job_number, args.company_id);
+      if (!picked) return whichJobCard("project_record_search", await listCompaniesAndJobs(sb, args.company_id, "project_record_search"));
+      const job = await resolveJob(sb, picked.job_number, picked.company_id);
+      if (!isDisputeAsk(args.kind, args.text)) {
+        const zone = await jobTimeZone(sb, job.job_id);
+        const today = todayIn(zone);
+        const [facts, items] = await Promise.all([
+          sb.from("mcp_job_facts").select("key, value").eq("job_id", job.job_id).eq("module", "sov"),
+          sb.from("mcp_open_items").select("id, action, needed_by, due_date, updated_at, owner, accountable").eq("job_id", job.job_id).eq("status", "open").limit(200),
+        ]);
+        if (facts.error) throw new Error(facts.error.message);
+        if (items.error) throw new Error(items.error.message);
+        const total = ((facts.data ?? []) as { value?: { billable_value?: number | null } }[]).reduce((sum, row) => {
+          const value = row.value?.billable_value;
+          return typeof value === "number" ? sum + value : sum;
+        }, 0);
+        const hasMoney = job.scope === "full" && ((facts.data ?? []) as unknown[]).length > 0;
+        const feed = openItemFeed((items.data ?? []) as { id: string; action: string; needed_by?: string | null; due_date?: string | null; updated_at?: string | null; owner?: string | null; accountable?: string | null }[], today);
+        const presented = presentJobRecord({
+          jobNumber: job.job_number,
+          jobName: job.name,
+          contractTotal: hasMoney ? money(total) : null,
+          open: feed.counts.open,
+          overdue: feed.counts.overdue,
+          items: feed.items.map((item) => ({
+            action: item.action,
+            due: dueOf(item),
+            overdue: isOverdue(item, today),
+          })),
+        });
+        return cardResult(presented.text, presented.card, { record: "job" });
+      }
       const payload = await call<{ job_number?: string; job_name?: string; events?: RecordEvent[] }>(sb, "mcp_project_record_search", {
         _job: job.job_id,
         _from: args.from ?? null,

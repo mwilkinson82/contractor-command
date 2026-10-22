@@ -25,17 +25,6 @@ export function todayBoardUrl(): string {
   return `${athenaAppOrigin()}/today`;
 }
 
-function withInboxSection(card: CardModel): CardModel {
-  const sections = [...(card.sections ?? [])];
-  if (sections.some((section) => section.heading === INBOX_SECTION)) return card;
-  sections.unshift({
-    heading: INBOX_SECTION,
-    kind: "list",
-    rows: [{ cells: ["Overnight emails"] }, { cells: ["Unanswered emails"] }, { cells: ["Today's meetings"] }],
-  });
-  return { ...card, sections };
-}
-
 function withTodayBoard(card: CardModel): CardModel {
   const href = todayBoardUrl();
   const sections = [...(card.sections ?? [])];
@@ -46,7 +35,7 @@ function withTodayBoard(card: CardModel): CardModel {
 }
 
 function finishMorningCard(card: CardModel): CardModel {
-  return withTodayBoard(withInboxSection(card));
+  return withTodayBoard(card);
 }
 export const MORNING_BRIEF_DEFAULTS = {
   enabled: true,
@@ -99,6 +88,7 @@ export type BriefJob = {
   job_number: string;
   name: string;
   company_id: string;
+  company_name?: string;
   time_zone: string;
   scope: BriefScope;
   seat: BriefSeat;
@@ -209,8 +199,40 @@ function money(n: number): string {
   return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+/** Job number once, then the name. A name that already starts with the number is not prefixed again. */
+export function jobTitle(job: { job_number: string; name?: string | null }): string {
+  const number = job.job_number.trim();
+  const name = (job.name ?? "").replace(/\s+/g, " ").trim();
+  if (!number) return name;
+  if (!name || name === number) return number;
+  const escaped = number.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (new RegExp(`^${escaped}(?:\\s|[–—-]|$)`).test(name)) return name;
+  return `${number} ${name}`;
+}
+
 function jobLabel(job: BriefJob): string {
-  return `${job.job_number} ${job.name}`.trim();
+  const base = jobTitle(job);
+  return job.company_name ? `${job.company_name} · ${base}` : base;
+}
+
+/** One section per company, in name order, when the brief covers more than one company. */
+export function companyGroupSections(jobs: BriefJob[]): NonNullable<CardModel["sections"]> {
+  const ids = new Set(jobs.map((job) => job.company_id).filter(Boolean));
+  if (ids.size < 2) return [];
+  const groups = new Map<string, BriefJob[]>();
+  for (const job of jobs) {
+    const name = job.company_name?.trim() || "Company";
+    const list = groups.get(name) ?? [];
+    list.push(job);
+    groups.set(name, list);
+  }
+  return [...groups.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([name, list]) => ({
+      heading: name,
+      kind: "list" as const,
+      rows: list.map((job) => ({ cells: [jobTitle(job)] })),
+    }));
 }
 
 function allowedLinks(view: BriefView, links: BriefJob["links"]): BriefJob["links"] {
@@ -472,6 +494,9 @@ function portfolio(jobs: BriefJob[], tagged: Tagged[], now: Date): { rows: CardR
   return { rows, overdue, open };
 }
 
+export const INBOX_HOST_LINE =
+  "REQUIRED: Fill From your inbox and calendar from your own Gmail and Calendar. Add that section only when you have overnight emails, unanswered emails that need a reply, or today's meetings. If you cannot read Gmail or Calendar, leave the section out. Never render an empty heading.";
+
 export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean; settings?: BriefSettings; now?: Date }): BuiltBrief {
   const now = input.now ?? new Date();
   const settings = input.settings ?? { ...MORNING_BRIEF_DEFAULTS };
@@ -479,25 +504,28 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
     const card = finishMorningCard(firstJobCard(input.hasCompany));
     return { card, counts: { open: 0, overdue: 0, due_in_7_days: 0, today: 0 }, openItems: [], todayCount: 0 };
   }
+  const multi = new Set(input.jobs.map((job) => job.company_id)).size > 1;
+  const jobs = input.jobs.map((job) => (multi ? { ...job, company_name: job.company_name?.trim() || "Company" } : { ...job, company_name: undefined }));
   const viewOf = (job: BriefJob) => briefView(job.seat, job.scope);
-  const same = viewOf(input.jobs[0]);
-  const uniform = input.jobs.every((job) => viewOf(job) === same);
+  const same = viewOf(jobs[0]);
+  const uniform = jobs.every((job) => viewOf(job) === same);
   const view = uniform ? same : "pm";
   const headerToday = jobToday(settings.time_zone, now);
-  const tagged = collect(input.jobs, now, viewOf);
-  const today = todayRows(input.jobs, now, viewOf);
-  const week = weekRows(input.jobs, now, viewOf);
-  const opened = openFor(input.jobs, now, viewOf);
+  const tagged = collect(jobs, now, viewOf);
+  const today = todayRows(jobs, now, viewOf);
+  const week = weekRows(jobs, now, viewOf);
+  const opened = openFor(jobs, now, viewOf);
   const forget = forgetRows(tagged, viewOf);
+  const groups = companyGroupSections(jobs);
   const countsForOpen = {
     open: opened.rows.length,
     overdue: opened.rows.filter((row) => row.flag === "overdue").length,
     due_in_7_days: opened.counts.due_in_7_days,
   };
-  const sections: CardModel["sections"] = [];
+  const sections: CardModel["sections"] = [...groups];
   if (view === "executive") {
-    const port = portfolio(input.jobs, tagged, now);
-    sections.push({ heading: "Portfolio", kind: "list", rows: [{ cells: [`${input.jobs.length} jobs · ${port.open} open · ${port.overdue} overdue`] }] });
+    const port = portfolio(jobs, tagged, now);
+      sections.push({ heading: "Portfolio", kind: "list", rows: [{ cells: [`${jobs.length} jobs · ${port.open} open · ${port.overdue} overdue`] }] });
     sections.push({ heading: "Jobs", kind: "list", rows: port.rows });
     if (forget.length) sections.push({ heading: "Don't forget", kind: "list", rows: forget });
     const card: CardModel = finishMorningCard({
@@ -505,7 +533,7 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
       title: "Morning brief",
       job: shortDate(headerToday),
       kpis: [
-        { label: "Jobs", value: String(input.jobs.length) },
+        { label: "Jobs", value: String(jobs.length) },
         { label: "Open", value: String(port.open) },
         { label: "Overdue", value: String(port.overdue), flag: port.overdue ? "overdue" : null },
       ],
@@ -519,11 +547,11 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
   if (week.length) sections.push({ heading: "This week", kind: "list", rows: week });
   if (opened.rows.length) sections.push({ heading: "Open items", kind: "list", rows: opened.rows });
   if (forget.length) sections.push({ heading: "Don't forget", kind: "list", rows: forget });
-  if (!opened.rows.length && input.jobs.length) {
+  if (!opened.rows.length && jobs.length) {
     sections.push({
       heading: "Jobs",
       kind: "list",
-      rows: input.jobs.map((job) => ({ cells: [jobLabel(job)], href: hrefFor(viewOf(job), job.links, view === "superintendent" ? "field" : view === "accounting" ? "payapp" : "items") })),
+      rows: jobs.map((job) => ({ cells: [jobLabel(job)], href: hrefFor(viewOf(job), job.links, view === "superintendent" ? "field" : view === "accounting" ? "payapp" : "items") })),
     });
   }
   const overdue = countsForOpen.overdue;
@@ -532,7 +560,7 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
     title: "Morning brief",
     job: shortDate(headerToday),
     kpis: [
-      { label: "Jobs", value: String(input.jobs.length) },
+      { label: "Jobs", value: String(jobs.length) },
       { label: "Due today", value: String(today.length) },
       { label: "Open", value: String(countsForOpen.open) },
       { label: "Overdue", value: String(overdue), flag: overdue ? "overdue" : null },
@@ -563,17 +591,39 @@ export function ensureBriefCard(card: CardModel): CardModel {
   };
 }
 
+export const BRIEF_ALREADY = "Your brief is above, want anything else?";
+
+/** Second good morning the same day. The full brief is not built again. */
+export function alreadyShownBrief() {
+  const card: CardModel = {
+    state: "result",
+    show_state: false,
+    title: "Morning brief",
+    sections: [{ heading: "Brief", kind: "list", rows: [{ cells: [BRIEF_ALREADY] }] }],
+  };
+  const html = renderHtml(card);
+  const body = applyCardClosing(`${BRIEF_ALREADY}\n\n${htmlBlock(html)}`, false);
+  return guide(
+    {
+      structuredContent: { card, html, brief_repeat: true, "openai/outputTemplate": CARD_WIDGET_URI },
+      _meta: { ...cardWidgetMeta },
+      content: [{ type: "text" as const, text: body, _meta: { ...cardWidgetMeta } }],
+    },
+    "The brief was already shown today. Reply with this short line only. Do not rebuild the brief.",
+  );
+}
+
 export function presentBrief(card: CardModel) {
   card = ensureBriefCard(card);
-  const html = renderHtml(card);
-  const body = applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
+  const html = renderHtml({ ...card, show_state: false });
+  const body = applyCardClosing(`${INBOX_HOST_LINE}\n\n${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
   return guide(
     {
       structuredContent: { card, html, "openai/outputTemplate": CARD_WIDGET_URI },
       _meta: { ...cardWidgetMeta },
       content: [{ type: "text" as const, text: body, _meta: { ...cardWidgetMeta } }],
     },
-    "Fill the three rows under From your inbox and calendar from the member's mail and calendar: emails that came in overnight, unanswered emails that need a reply, and today's meetings. Keep the job sections after that: schedule, notices, submittals due, overdue items, and what happened yesterday versus what is due today. Do not add text after the card.",
+    "Fill From your inbox and calendar from the host's own Gmail and Calendar: overnight emails, unanswered emails that need a reply, and today's meetings. If Gmail or Calendar is not available, leave that section out. Never render an empty heading. Keep the job sections: schedule, notices, submittals due, overdue items, and what happened yesterday versus what is due today.",
     MORNING_CARD_GUIDANCE,
   );
 }
