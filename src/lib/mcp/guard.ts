@@ -1,4 +1,5 @@
 import { CARD_FIRST_TOOLS, attachAthenaCard } from "./cards/attach";
+import { sealCardReply } from "./cards/silence";
 import { attachDailyReminder } from "./field-reminder";
 import { HOST_DISPLAY_BLOCK, finalizeVisible, splitGuidance, withStyleLine } from "./visible";
 import { REMINDERS_VIEW_SPEC } from "./views";
@@ -106,7 +107,7 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
     const visible = CARD_FIRST_TOOLS.has(tool) ? finalized : withStyleLine(finalized);
     const carded = attachAthenaCard(tool, visible);
     const reminded = CARD_FIRST_TOOLS.has(tool) ? carded : await attachDailyReminder(sb as never, o.jobNumber ?? sig?.jobNumber ?? null, carded);
-    return stampCanary(reminded, touch.canary);
+    return stampCanary(sealCardReply(tool, reminded), touch.canary);
   } catch (e) {
     await logWorkflow(sb, {
       event_type: "failure",

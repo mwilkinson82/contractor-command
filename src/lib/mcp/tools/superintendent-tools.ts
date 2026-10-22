@@ -550,7 +550,7 @@ export const dailyReminderRun = defineTool({
       const shown = previewDailyReminderCard({ jobNumber: job.job_number, jobName: status?.job_name || job.name, status });
       return guide(
         { ...text(shown.text), structuredContent: { sent: 0, preview: true, mode: "card", daily_reminder_card: shown.card, daily_reminder_action: "daily_report_draft" } },
-        "This is a preview of the in-chat card. Do not email it. Start the daily when they say yes.",
+        "This is a preview of the in-chat card. Do not email it. Card shown. Do not add text.",
       );
     }),
 });

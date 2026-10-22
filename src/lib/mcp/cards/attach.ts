@@ -2,6 +2,7 @@ import { htmlBlock, renderMarkdown } from "./markdown";
 import { renderHtml } from "./html";
 import { inferCard } from "./infer";
 import { CARD_WIDGET_URI, cardWidgetMeta } from "./widget";
+import { CARD_SHOWN, CARD_SHOWN_PICK, applyCardClosing, cardClosing, stripSpokenPreview } from "./silence";
 import type { CardModel } from "./model";
 
 type Block = { type: string; text?: string };
@@ -65,7 +66,7 @@ export function attachAthenaCard<R>(tool: string, result: R): R {
     const first = res?.content?.find((c) => c.type === "text" && typeof c.text === "string");
     if (!first?.text) return result;
     const sc = { ...(res.structuredContent ?? {}) };
-    const source = stripChrome(first.text);
+    const source = stripSpokenPreview(stripChrome(first.text));
     const askJob = whichJob(tool, source);
     const card = isCard(sc.card) ? sc.card : inferCard(tool, source, sc);
     const html = typeof sc.html === "string" && !askJob && tool !== "contract_terms" ? sc.html : renderHtml(card);
@@ -81,8 +82,18 @@ export function attachAthenaCard<R>(tool: string, result: R): R {
           ? first.text
           : `${source}\n\n${htmlBlock(html)}`
         : `${markdown}\n\n${first.text}\n\n${htmlBlock(html)}`;
-    const content = res.content!.map((c) => (c === first ? { ...c, text, _meta: { ...(c as { _meta?: Record<string, unknown> })._meta, ...cardWidgetMeta } } : c));
-    const structuredContent = { ...sc, card, html, ...(askJob ? { which_job: true } : {}), "openai/outputTemplate": CARD_WIDGET_URI };
+    const closed = applyCardClosing(text, askJob);
+    const closing = cardClosing(askJob);
+    const priorGuidance = Array.isArray(sc.assistant_guidance) ? (sc.assistant_guidance as unknown[]) : [];
+    const content = res.content!.map((c) => (c === first ? { ...c, text: closed, _meta: { ...(c as { _meta?: Record<string, unknown> })._meta, ...cardWidgetMeta } } : c));
+    const structuredContent = {
+      ...sc,
+      card,
+      html,
+      ...(askJob ? { which_job: true } : {}),
+      "openai/outputTemplate": CARD_WIDGET_URI,
+      assistant_guidance: [...priorGuidance.filter((g) => g !== CARD_SHOWN && g !== CARD_SHOWN_PICK), closing],
+    };
     const meta = { ...(res._meta ?? {}), ...cardWidgetMeta };
     const out: Record<string, unknown> = { structuredContent, _meta: meta };
     for (const [key, value] of Object.entries(res)) if (!(key in out)) out[key] = value;
