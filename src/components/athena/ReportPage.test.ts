@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
   authLoading: false,
   pageQuery: { data: undefined, isLoading: false, error: null } as QueryResult,
   linkQuery: { data: undefined, isLoading: false, error: null } as QueryResult,
+  queryOptions: [] as { queryKey: readonly unknown[]; enabled?: boolean; refetchInterval?: number | false; refetchIntervalInBackground?: boolean }[],
 }));
 
 vi.mock("@/hooks/use-auth", () => ({
@@ -21,7 +22,8 @@ vi.mock("@/hooks/use-auth", () => ({
 }));
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ getQueryData: () => undefined }),
-  useQuery: (opts: { queryKey: readonly unknown[]; enabled?: boolean }) => {
+  useQuery: (opts: { queryKey: readonly unknown[]; enabled?: boolean; refetchInterval?: number | false; refetchIntervalInBackground?: boolean }) => {
+    state.queryOptions.push(opts);
     if (!opts.enabled) return { data: undefined, isLoading: false, error: null };
     return String(opts.queryKey[0]) === "athena-board-link" ? state.linkQuery : state.pageQuery;
   },
@@ -54,6 +56,7 @@ function renderPage(page: "items" | "ior" | "payapp" | "field", token?: string) 
 beforeEach(() => {
   state.session = null;
   state.authLoading = false;
+  state.queryOptions = [];
   state.pageQuery = { data: undefined, isLoading: false, error: null };
   state.linkQuery = { data: undefined, isLoading: false, error: null };
 });
@@ -162,13 +165,13 @@ describe("board link page without a session", () => {
     expect(allowed).not.toContain(BOARD_SIGN_IN_TITLE);
   });
 
-  it("leaves a signed-in member with no row on the no-access card", () => {
+  it("opens a valid key even when another signed-in member cannot read the job", () => {
     state.session = { user: { id: "member-1" } };
     state.pageQuery = { data: undefined, isLoading: false, error: new Error("no row") };
     state.linkQuery = { data: { status: "ok", payload: JSON.stringify(items) }, isLoading: false, error: null };
     const html = renderPage("items", "live-token");
-    expect(html).toContain("have access to this page");
-    expect(html).not.toContain("Buy the switchgear");
+    expect(html).not.toContain("have access to this page");
+    expect(html).toContain("Buy the switchgear");
     expect(html).not.toContain(BOARD_SIGN_IN_TITLE);
   });
 
@@ -180,4 +183,81 @@ describe("board link page without a session", () => {
     expect(html).not.toContain(BOARD_SIGN_IN_TITLE);
     expect(html).not.toContain("have access to this page");
   });
+
+  it.each(["expired", "revoked", "wrong_job", "denied", "unknown"])("recovers a stale session and %s key through email-code sign-in", (status) => {
+    state.session = { user: { id: "another-member" } };
+    state.pageQuery = { data: undefined, isLoading: false, error: new Error("no access") };
+    state.linkQuery = { data: { status, payload: null }, isLoading: false, error: null };
+    vi.stubGlobal("window", { location: { pathname: `/r/job/${JOB}/items`, search: "?t=old-token&utm_source=chatgpt.com", hash: "#item-1" } });
+    const html = renderPage("items", "old-token");
+    expect(html).toContain(BOARD_SIGN_IN_TITLE);
+    expect(html).toContain("Email me a sign-in code");
+    expect(signInReturn(html)).toBe(`/r/job/${JOB}/items#item-1`);
+    expect(html).not.toContain("have access to this page");
+    expect(html).not.toContain("Buy the switchgear");
+  });
+
+  it("recovers a signed-in member without a key and without job access", () => {
+    state.session = { user: { id: "another-member" } };
+    state.pageQuery = { data: undefined, isLoading: false, error: new Error("expired session") };
+    const html = renderPage("field");
+    expect(html).toContain(BOARD_SIGN_IN_TITLE);
+    expect(signInReturn(html)).toBe(`/r/job/${JOB}/field`);
+    expect(html).not.toContain("have access to this page");
+  });
+
+  it("opens a valid key while the stale member read is still loading", () => {
+    state.session = { user: { id: "another-member" } };
+    state.pageQuery = { data: undefined, isLoading: true, error: null };
+    state.linkQuery = { data: { status: "ok", payload: JSON.stringify(items) }, isLoading: false, error: null };
+    const html = renderPage("items", "live-token");
+    expect(html).toContain("Buy the switchgear");
+    expect(html).not.toContain("Loading");
+  });
+
+  it("does not reuse a cached member payload after its access check fails", () => {
+    state.session = { user: { id: "another-member" } };
+    state.pageQuery = { data: { payload: items }, isLoading: false, error: new Error("no access") };
+    state.linkQuery = { data: { status: "revoked", payload: null }, isLoading: false, error: null };
+    const html = renderPage("items", "revoked-token");
+    expect(html).toContain(BOARD_SIGN_IN_TITLE);
+    expect(html).not.toContain("Buy the switchgear");
+  });
+
+  it("waits for a pending key before showing sign-in after a member denial", () => {
+    state.session = { user: { id: "another-member" } };
+    state.pageQuery = { data: undefined, isLoading: false, error: new Error("no access") };
+    state.linkQuery = { data: undefined, isLoading: true, error: null };
+    const html = renderPage("items", "live-token");
+    expect(html).toContain("Loading");
+    expect(html).not.toContain(BOARD_SIGN_IN_TITLE);
+  });
+
+  it("recovers both read failures without accepting a cached key on error", () => {
+    state.session = { user: { id: "another-member" } };
+    state.pageQuery = { data: undefined, isLoading: false, error: new Error("no access") };
+    state.linkQuery = { data: { status: "ok", payload: JSON.stringify(items) }, isLoading: false, error: new Error("link check failed") };
+    const html = renderPage("items", "live-token");
+    expect(html).toContain(BOARD_SIGN_IN_TITLE);
+    expect(html).not.toContain("Buy the switchgear");
+  });
+  it.each(["visible", "hidden"])("refreshes token boards only when the tab is %s", (visibilityState) => {
+    vi.stubGlobal("document", { visibilityState });
+    state.session = { user: { id: "another-member" } };
+    renderPage("items", "live-token");
+    const linked = state.queryOptions.find((q) => q.queryKey[0] === "athena-board-link")!;
+    expect(linked.enabled).toBe(true);
+    expect(linked.refetchInterval).toBe(visibilityState === "visible" ? 60_000 : false);
+    expect(linked.refetchIntervalInBackground).toBe(false);
+  });
+
+  it("keeps the existing portfolio access path separate from job recovery", () => {
+    state.session = { user: { id: "another-member" } };
+    state.pageQuery = { data: undefined, isLoading: false, error: new Error("no access") };
+    const html = renderToStaticMarkup(createElement(ReportPageView, { page: "portfolio", companyId: JOB }));
+    expect(html).toContain("have access to this page");
+    expect(html).not.toContain(BOARD_SIGN_IN_TITLE);
+    expect(state.queryOptions.find((q) => q.queryKey[0] === "athena-board-link")!.enabled).toBe(false);
+  });
+
 });
