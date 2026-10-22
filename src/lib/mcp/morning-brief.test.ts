@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { jobLinksMissingToken } from "./board-url";
+import { attachAthenaCard } from "./cards/attach";
 import { cardHasAlert } from "./cards/model";
 import { renderHtml } from "./cards/html";
 import { renderMarkdown } from "./cards/markdown";
@@ -256,6 +257,14 @@ describe("morning brief builder", () => {
     expect(before).toContain("leave the section out");
     expect(before).toContain("Never render an empty heading");
     expect(shown.structuredContent.html).not.toContain("From your inbox and calendar");
+    const sealed = attachAthenaCard("morning_brief", shown) as { content: { type: string; text?: string }[] };
+    const hostText = sealed.content.find((c) => c.type === "text")?.text ?? "";
+    expect(hostText).toContain(INBOX_HOST_LINE);
+    expect(hostText).toContain("From your inbox and calendar");
+    expect(hostText).toContain("Gmail and Calendar");
+    expect(hostText).toContain("overnight emails");
+    expect(hostText).toContain("unanswered emails");
+    expect(hostText).toContain("today's meetings");
     expect(before).toContain("2701");
     expect(before).toContain("/r/job/");
   });

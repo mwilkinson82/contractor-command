@@ -616,7 +616,8 @@ export function alreadyShownBrief() {
 export function presentBrief(card: CardModel) {
   card = ensureBriefCard(card);
   const html = renderHtml({ ...card, show_state: false });
-  const body = applyCardClosing(`${INBOX_HOST_LINE}\n\n${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
+  const lead = card.title === "Morning briefing" ? "" : `${INBOX_HOST_LINE}\n\n`;
+  const body = applyCardClosing(`${lead}${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
   return guide(
     {
       structuredContent: { card, html, "openai/outputTemplate": CARD_WIDGET_URI },

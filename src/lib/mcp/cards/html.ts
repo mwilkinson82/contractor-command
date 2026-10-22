@@ -71,6 +71,9 @@ export function renderHtml(card: CardModel): string {
     `.tone-unknown{color:${gray}}`,
     `.tone-action{background:${blue};color:${white};border-color:${blue}}`,
     `.ask{margin:12px 0;padding:12px;border-left:4px solid ${blue};background:${white}}`,
+    `.placeholder{margin:12px 0;padding:12px;border:1px solid ${gray};border-left:4px solid ${blue};border-radius:10px;background:${white}}`,
+    `.placeholder h2{margin-top:0;color:${navy}}`,
+    `.placeholder li,.placeholder p{color:${gray}}`,
     `.next{margin:14px 0 0;font-weight:700}`,
     alert ? `.alert,li.alert,p.alert,tr.alert{color:${alertColor}}` : "",
     alert ? `li.alert,p.alert{display:block;margin:8px 0;padding:0;border:2px solid ${alertColor};border-radius:12px;background:${white};overflow:hidden}` : "",
@@ -94,13 +97,13 @@ export function renderHtml(card: CardModel): string {
   const sections = (card.sections ?? [])
     .map((s) => {
       const heading = `<h2>${esc(s.heading)}</h2>`;
-      if (!s.rows.length) return `${heading}<p class="tone-unknown">Nothing on this card yet.</p>`;
-      if (s.kind === "chips") {
-        return `${heading}<p>${s.rows
+      let inner: string;
+      if (!s.rows.length) inner = `${heading}<p class="tone-unknown">Nothing on this card yet.</p>`;
+      else if (s.kind === "chips") {
+        inner = `${heading}<p>${s.rows
           .map((r) => `<span class="chip${r.tone ? ` tone-${r.tone}` : ""}${r.flag ? " alert" : ""}"${r.flag ? ` data-alert="${r.flag}"` : ""}>${linked(r, rowPlain(r).label)}</span>`)
           .join("")}</p>`;
-      }
-      if (s.kind === "table") {
+      } else if (s.kind === "table") {
         const width = Math.max(s.columns?.length ?? 0, ...s.rows.map((r) => r.cells.length), 1);
         const labels = Array.from({ length: width }, (_, i) => `<th>${esc(s.columns?.[i] ?? "")}</th>`).join("");
         const body = s.rows
@@ -114,16 +117,18 @@ export function renderHtml(card: CardModel): string {
             return `<tr ${attr}>${cells}</tr>`;
           })
           .join("");
-        return `${heading}<table><thead><tr>${labels}</tr></thead><tbody>${body}</tbody></table>`;
+        inner = `${heading}<table><thead><tr>${labels}</tr></thead><tbody>${body}</tbody></table>`;
+      } else {
+        const items = s.rows
+          .map((r) => {
+            const attr = rowClass(r);
+            const row = r.raw ? esc(r.cells.filter(Boolean).join(" · ")) : linked(r, "");
+            return `<li ${attr}>${flagged(r, row)}</li>`;
+          })
+          .join("");
+        inner = `${heading}<ul>${items}</ul>`;
       }
-      const items = s.rows
-        .map((r) => {
-          const attr = rowClass(r);
-          const inner = r.raw ? esc(r.cells.filter(Boolean).join(" · ")) : linked(r, "");
-          return `<li ${attr}>${flagged(r, inner)}</li>`;
-        })
-        .join("");
-      return `${heading}<ul>${items}</ul>`;
+      return s.placeholder ? `<section class="placeholder">${inner}</section>` : inner;
     })
     .join("");
   const alerts = (card.alerts ?? [])
