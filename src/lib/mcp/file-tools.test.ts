@@ -22,6 +22,8 @@ vi.mock("./jobs", () => ({
     "Your role has a limited, read-only view of this job (no financials). Ask your owner or PM to make changes.",
   audit: async () => {},
   prefix: () => "Job 2701 · ",
+  named: (job: { job_number: string; name?: string | null }) =>
+    job.name && job.name.startsWith(job.job_number) ? job.name : `${job.job_number} – ${job.name ?? ""}`.trim(),
   resolveJob: async () => ({
     job_id: "j1",
     job_number: "2701",

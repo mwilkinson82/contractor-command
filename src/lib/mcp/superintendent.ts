@@ -8,6 +8,11 @@ import { DEFAULT_TZ, dateIn } from "./deadlines";
 import { activityTitle, lookaheadWindow, shortDate } from "./styled-views";
 import { dedupeOpenRows, itemName } from "./open-feed";
 import { SovMismatch, buildSov, lineBilling, money, type SovLineIn } from "./sov";
+import { jobHeading } from "./job-label";
+
+function pageJobTitle(number?: string | null, name?: string | null, fallback = ""): string {
+  return jobHeading({ job_number: number ?? "", name: name ?? "" }, " ").trim() || fallback;
+}
 
 export const FIELD_NAVY = "#1E3A5F";
 export const FIELD_BLUE = "#1E5FED";
@@ -101,7 +106,7 @@ export function isRecordedDelay(value: string | null | undefined): boolean {
 
 const SECTION_HEAD: [keyof Omit<DailySections, "work"> | "work", RegExp][] = [
   ["weather", /^weather\b/i],
-  ["manpower", /^(manpower|headcount|crew on site)\b/i],
+  ["manpower", /^(manpower|headcount|crew(?: on site)?)\b/i],
   ["subs_on_site", /^(subs|subcontractors)\b/i],
   ["work", /^work( performed)?\b/i],
   ["deliveries", /^deliver(y|ies)\b/i],
@@ -111,9 +116,18 @@ const SECTION_HEAD: [keyof Omit<DailySections, "work"> | "work", RegExp][] = [
 ];
 
 function headingOf(line: string): keyof DailySections | null {
-  const t = line.replace(/[:\-–]+$/, "").trim();
+  const t = line.replace(/^[-*•]+(?:\s+|(?=\S))/, "").replace(/[:\-–]+$/, "").trim();
   for (const [key, re] of SECTION_HEAD) if (re.test(t)) return key;
   return null;
+}
+
+/** Pull "Weather: Clear. Manpower: …" onto separate lines so a transcript-only note still maps. */
+function splitLabeledTranscript(transcript: string): string {
+  const label = "(?:weather|manpower|headcount|crew|subs|subcontractors|work|deliver(?:y|ies)|issues?|delays?|safety)";
+  return transcript
+    .replace(/\r\n/g, "\n")
+    .replace(new RegExp(`(^|\\n)\\s*[-*•]\\s+(?=${label}\\b)`, "gi"), "$1")
+    .replace(new RegExp(`([.!?])\\s+(?=${label}\\b)`, "gi"), "$1\n");
 }
 
 const SOV_RE = /\b(?:SOV\s*)?(\d{2}\.\d{2,3})\b/i;
@@ -150,6 +164,62 @@ export function parseWorkLine(raw: string): WorkLine {
   };
 }
 
+const WORD_COUNT: Record<string, string> = {
+  one: "1", two: "2", three: "3", four: "4", five: "5", six: "6",
+  seven: "7", eight: "8", nine: "9", ten: "10", eleven: "11", twelve: "12",
+};
+
+function sentenceList(transcript: string): string[] {
+  return transcript
+    .replace(/\s+/g, " ")
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** Spoken notes with no field labels. Only fills a section the heading pass left empty. */
+function fillFromProse(transcript: string, out: DailySections): void {
+  const sentences = sentenceList(transcript);
+  const text = sentences.join(" ");
+  const sentence = (re: RegExp) => sentences.find((s) => re.test(s))?.replace(/[.!?]+$/, "").trim() ?? null;
+  if (!out.weather) {
+    const labeled = text.match(/\bweather\b(?:\s+\w+){0,4}?\s*(?:was|is|:|-|–)\s*([^.]{1,80})/i);
+    out.weather = labeled?.[1]?.trim() ?? sentence(/^(?:it was\s+)?(?:clear|sunny|cloudy|overcast|rain|windy|hot|cold)\b/i);
+  }
+  if (!out.manpower) {
+    const crew = text.match(/\b((?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:carpenters|laborers|workers|people|men|guys|operators|ironworkers|finishers)(?:\s+from\s+our\s+crew)?)\b/i);
+    out.manpower = crew?.[1]?.replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b/i, (w) => WORD_COUNT[w.toLowerCase()] ?? w) ?? null;
+  }
+  if (!out.subs_on_site) {
+    if (/\bno subs\b|\bsubs?:?\s*none\b/i.test(text)) out.subs_on_site = "none";
+    else {
+      const subs = text.match(/\bsubs?\s+(?:on site\s+)?(?:were|was|included|:|-|–)\s*([^.]{1,80})/i);
+      if (subs) out.subs_on_site = subs[1].trim();
+    }
+  }
+  if (!out.work.length) {
+    const lines = sentences.filter((s) => SOV_RE.test(s) || /\bwork(?:\s+performed)?\b/i.test(s) || ACT_RE.test(s));
+    out.work.push(...lines.map((s) => parseWorkLine(s.replace(/^(?:work(?:\s+performed)?\s*[:\-–]\s*)/i, ""))));
+  }
+  if (!out.deliveries) {
+    if (/\b(nothing was delivered|no deliveries|deliveries?:?\s*none)\b/i.test(text)) out.deliveries = "none";
+    else out.deliveries = sentence(/\bdeliver(?:y|ies|ed)\b/i);
+  }
+  if (!out.issues) {
+    if (/\b(no issues|issues?:?\s*none)\b/i.test(text)) out.issues = "none";
+    else out.issues = sentence(/\bissues?\b/i);
+  }
+  if (!out.delays) {
+    if (/\bcrane\b/i.test(text) && /\bwaiting\b/i.test(text)) out.delays = sentence(/\bcrane\b/i) ?? "Crane waiting";
+    else if (/\b(no delays|delays?:?\s*none)\b/i.test(text)) out.delays = "none";
+    else out.delays = sentence(/\bdelays?\b/i);
+  }
+  if (!out.safety) {
+    if (/\bsafety\b/i.test(text) && /\bnone\b/i.test(text) && !/\bsafety talk\b/i.test(text)) out.safety = "none";
+    else out.safety = sentence(/\bsafety\b/i);
+  }
+}
+
 export function parseTranscript(transcript: string): DailySections {
   const out: DailySections = {
     weather: null, manpower: null, subs_on_site: null, deliveries: null, issues: null, delays: null, safety: null, work: [],
@@ -168,7 +238,7 @@ export function parseTranscript(transcript: string): DailySections {
       out.work.push(...use.map(parseWorkLine));
     } else out[key] = body;
   };
-  for (const line of transcript.split(/\n/)) {
+  for (const line of splitLabeledTranscript(transcript).split(/\n/)) {
     const head = headingOf(line.trim());
     if (head) {
       flush();
@@ -180,6 +250,9 @@ export function parseTranscript(transcript: string): DailySections {
     if (key) buf.push(line);
   }
   flush();
+  if (!out.weather || !out.manpower || !out.subs_on_site || !out.deliveries || !out.issues || !out.delays || !out.safety || !out.work.length) {
+    fillFromProse(transcript, out);
+  }
   return out;
 }
 
@@ -260,9 +333,10 @@ export function dailyCard(jobLabel: string, date: string, d: DailyDraft, saved: 
         return `- ${bits.join(" · ")}`;
       })
     : ["- Needed"];
+  const who = jobLabel.replace(/[\s·–—-]+$/g, "").trim();
   return [
     "REQUIRED: Show this daily as one phone-width card. Navy, blue and gray only. Red only on the delay line, and only when there is a delay.",
-    `${jobLabel}Daily report · ${date}`,
+    `${who ? `${who} · ` : ""}Daily report · ${date}`,
     saved ? "Saved." : "Draft. Not saved.",
     row("Weather", d.weather),
     row("Manpower", d.manpower),
@@ -811,7 +885,7 @@ const value = (t: string, alert = false) => `<div style="font-size:15px;color:${
 
 export function fieldPageHtml(src: FieldSource & { job_number?: string; job_name?: string; items?: { id?: string | null; action?: string; owner?: string | null; due?: string | null }[] }): string {
   const board = projectField(src);
-  const title = `${src.job_number ?? ""} ${src.job_name ?? ""}`.trim() || "Field board";
+  const title = pageJobTitle(src.job_number, src.job_name, "Field board");
   const win = board.window ? `${shortDate(board.window.start)} – ${shortDate(board.window.end)}` : "Lookahead needed";
   const rows = board.rows.map((r) => {
     const who = r.self_perform === true ? "Self-perform" : r.self_perform === false ? `Sub · ${r.sub ?? "Needed"}` : "Self-perform or sub needed";
@@ -847,7 +921,7 @@ export function dailyPageHtml(p: {
   safety?: string | null;
   lines?: { work?: string; sov_item?: string | null; activity_id?: string | null; qty?: number | null; unit?: string | null; crew?: number | null; hours?: number | null }[];
 }): string {
-  const title = `${p.job_number ?? ""} ${p.job_name ?? ""}`.trim() || "Daily";
+  const title = pageJobTitle(p.job_number, p.job_name, "Daily");
   if (!p.found) return shell(`${title} · Daily`, card(`${value("No daily is saved for this job yet.")}`));
   const delay = isRecordedDelay(p.delays);
   const block = (k: string, v: string | null | undefined, alert = false) => card(`${label(k)}${value(v?.trim() || "Needed", alert)}`, alert);
@@ -873,7 +947,7 @@ export function photoPageHtml(p: {
   job_name?: string;
   photos?: { id?: string | null; taken_on?: string; area?: string; work?: string | null; sov_item?: string | null; activity_id?: string | null; client_safe?: boolean; url?: string | null }[];
 }): string {
-  const title = `${p.job_number ?? ""} ${p.job_name ?? ""}`.trim() || "Photos";
+  const title = pageJobTitle(p.job_number, p.job_name, "Photos");
   const photos = p.photos ?? [];
   if (!photos.length) return shell(`${title} · Photos`, card(`${value("No progress photos in this view.")}`));
   const body = photos.map((ph, n) => {

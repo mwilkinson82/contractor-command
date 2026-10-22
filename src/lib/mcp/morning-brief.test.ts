@@ -22,6 +22,7 @@ import {
   settingsLine,
   type BriefJob,
 } from "./morning-brief";
+import { jobHeading } from "./job-label";
 
 const NOW = new Date("2026-10-26T15:00:00Z");
 const TODAY = "2026-10-26";
@@ -323,11 +324,15 @@ describe("job labels and every company", () => {
     expect(jobTitle({ job_number: "1234", name: "1234 Riverside" })).toBe("1234 Riverside");
     expect(jobTitle({ job_number: "1234", name: "Riverside" })).toBe("1234 Riverside");
     expect(jobTitle({ job_number: "1234", name: "1234" })).toBe("1234");
+    expect(jobTitle({ job_number: "1234", name: "1234 Riverside Clinic Renovation" })).toBe("1234 Riverside Clinic Renovation");
+    expect(jobTitle({ job_number: "1234", name: "1234 1234 Riverside Clinic Renovation" })).toBe("1234 Riverside Clinic Renovation");
+    expect(jobHeading({ job_number: "1234", name: "1234 Riverside Clinic Renovation" })).toBe("1234 Riverside Clinic Renovation");
+    expect(jobHeading({ job_number: "1234", name: "Riverside Clinic Renovation" })).toBe("1234 – Riverside Clinic Renovation");
     const doubled = buildMorningBrief({
       jobs: [{
         ...job2701BriefJob("pm"),
         job_number: "1234",
-        name: "1234 Riverside",
+        name: "1234 Riverside Clinic Renovation",
         company_id: "alp",
         company_name: "ALP Construction",
       }],

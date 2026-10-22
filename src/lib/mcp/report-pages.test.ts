@@ -12,6 +12,8 @@ vi.mock("./jobs", () => ({
   READ_ONLY_MESSAGE: "Your role has a limited, read-only view of this job (no financials).",
   audit: async () => {},
   prefix: () => "2701 – ",
+  named: (job: { job_number?: string; name?: string | null }) =>
+    job?.name && job.job_number && job.name.startsWith(job.job_number) ? job.name : `${job?.job_number ?? ""} – ${job?.name ?? ""}`.trim(),
   resolveCompany: async () => "11111111-1111-4111-8111-111111111111",
   resolveJob: async () => ({ job_id: "22222222-2222-4222-8222-222222222222", job_number: "2701", name: "Harbor", company_id: "11111111-1111-4111-8111-111111111111", scope: state.scope }),
 }));

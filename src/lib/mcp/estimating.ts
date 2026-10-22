@@ -419,6 +419,16 @@ export function formatQty(n: number, unit: string | null): string {
 }
 const qtyNumber = (n: number, unit: string | null) => Number(formatQty(n, unit));
 
+/** A fill or slab depth given in feet stays in feet. Inches are the default when the unit is blank. */
+function depthIsFeet(unit: string | null | undefined, name: string): boolean {
+  const u = (unit ?? "").toLowerCase().replace(/[."']/g, "").trim();
+  if (u === "ft" || u === "feet" || u === "foot" || u === "lf") return true;
+  if (u === "in" || u === "inch" || u === "inches") return false;
+  const n = name.toLowerCase();
+  if (/\b(in|inch|inches)\b/.test(n)) return false;
+  return /\b(ft|feet|foot)\b/.test(n);
+}
+
 function cite(sheet: string, detail: string | null): string {
   return detail ? `${sheet} ${detail}` : sheet;
 }
@@ -591,6 +601,18 @@ export function prepareLine(raw: LineIn): Omit<StoredLine, "line_no"> {
     return holdLine(raw, named, basis === "deduced" ? "deduced" : "measured", where, unit, detail, sheet, note, inputs);
   }
 
+  if (basis === "deduced" && op === "as_read") {
+    if (raw.value == null) return asBlank(named ?? "quantity");
+    const qty = qtyNumber(raw.value, unit);
+    return computed(
+      raw,
+      qty,
+      unit,
+      `DEDUCED: ${formatQty(qty, unit)} ${unit ?? ""} as sent. ${where}.`.replace(/\s+/g, " "),
+      inputs,
+    );
+  }
+
   if (basis === "measured" || op === "as_read") {
     const qty = qtyNumber(raw.value as number, unit);
     return finish(
@@ -623,6 +645,16 @@ export function prepareLine(raw: LineIn): Omit<StoredLine, "line_no"> {
   if (!op) {
     if (named || inputs.some((i) => i.value == null))
       return asBlank(named ?? inputs.find((i) => i.value == null)?.name ?? null);
+    if (basis === "deduced" && raw.value != null) {
+      const qty = qtyNumber(raw.value, unit);
+      return computed(
+        raw,
+        qty,
+        unit,
+        `DEDUCED: ${formatQty(qty, unit)} ${unit ?? ""} as sent. ${where}.`.replace(/\s+/g, " "),
+        inputs,
+      );
+    }
     throw new EstimateError("Say how this DEDUCED quantity is computed. Nothing was saved.");
   }
 
@@ -632,20 +664,23 @@ export function prepareLine(raw: LineIn): Omit<StoredLine, "line_no"> {
     .filter(Boolean);
   if (op === "cy_from_area") {
     const area = inputs.find((i) => /area|sf|slab/i.test(i.name)) ?? inputs[0];
-    const thick = inputs.find((i) => /thick|inch/i.test(i.name)) ?? inputs[1];
+    const thick =
+      inputs.find((i) => i !== area && /thick|depth|fill|inch|height/i.test(i.name)) ??
+      inputs.find((i) => i !== area) ??
+      inputs[1];
     const missing = [area, thick].filter((i) => !i || i.value == null);
     if (missing.length > 1 || (!area && !thick))
       throw new EstimateError("Name the one input that is missing. Nothing was saved.");
     if (!area || area.value == null) return asBlank(area?.name ?? named ?? "area");
     if (!thick || thick.value == null) return asBlank(thick?.name ?? named ?? "thickness");
-    const qty = qtyNumber((area.value * thick.value) / 12 / 27, unit ?? "CY");
-    return computed(
-      raw,
-      qty,
-      unit ?? "CY",
-      `DEDUCED: ${showNum(area.value)} SF × ${showNum(thick.value)} in / 12 / 27 = ${formatQty(qty, unit ?? "CY")} CY. ${where}.`,
-      inputs,
-    );
+    const feet = depthIsFeet(thick.unit, thick.name);
+    const depthIn = feet ? thick.value * 12 : thick.value;
+    const qty = qtyNumber((area.value * depthIn) / 12 / 27, unit ?? "CY");
+    const depth = `${showNum(thick.value)} ${feet ? "ft" : "in"}`;
+    const formula = feet
+      ? `DEDUCED: ${showNum(area.value)} SF × ${depth} / 27 = ${formatQty(qty, unit ?? "CY")} CY. ${where}.`
+      : `DEDUCED: ${showNum(area.value)} SF × ${depth} / 12 / 27 = ${formatQty(qty, unit ?? "CY")} CY. ${where}.`;
+    return computed(raw, qty, unit ?? "CY", formula, inputs);
   }
   if (op === "rebar_lb") {
     const length = inputs.find((i) => i.value != null) ?? inputs[0];
@@ -840,6 +875,16 @@ function isForms(item: string, unit: string | null): boolean {
   return (unit ?? "").toUpperCase() === "SFCA" || /form|contact area|sfca/i.test(item);
 }
 
+/** True when the line already multiplied by both faces, so a second ×2 would double the formwork. */
+function facesAlreadyCounted(raw: LineIn, math: string): boolean {
+  const blob = `${raw.item} ${raw.note ?? ""} ${raw.method ?? ""} ${math}`;
+  if (/\bboth faces\b|\b(?:two|2) faces\b|\bfaces already\b|\balready (?:counted|included)\b/i.test(blob))
+    return true;
+  return (raw.inputs ?? []).some(
+    (input) => /\b(faces?|sides?)\b/i.test(input.name) && input.value != null && input.value >= 2,
+  );
+}
+
 function isRebar(item: string): boolean {
   return /rebar|reinforc/i.test(item);
 }
@@ -873,10 +918,13 @@ function applyConvention(
   let qty = line.qty;
   if (isForms(line.item, line.unit)) {
     const faces = raw.forms_faces ?? convention.forms_faces;
-    if (faces === 2 && qty != null && !line.exclusion) {
+    const already = facesAlreadyCounted(raw, math);
+    if (faces === 2 && qty != null && !line.exclusion && !already) {
       const one = qty;
       qty = qtyNumber(one * 2, line.unit);
       math += ` Forms faces: 2. One face was ${formatQty(one, line.unit)} ${line.unit ?? ""}; both faces are ${formatQty(qty, line.unit)} ${line.unit ?? ""}.`;
+    } else if (faces === 2 && already && qty != null && !line.exclusion) {
+      math += ` Forms faces: 2. Both faces are already in this quantity (${formatQty(qty, line.unit)} ${line.unit ?? ""}).`;
     } else {
       math +=
         faces === 1
@@ -1247,25 +1295,94 @@ export function autoGaps(lines: StoredLine[], pairs: SpecDrawing[]): GapIn[] {
   return [...fromLines, ...fromPairs, ...foundationGapPrompts(lines)];
 }
 
+const FOUNDATION_ALIAS: Record<string, RegExp> = {
+  pi: /under[- ]?slab insulation|perimeter insulation/,
+  pt: /termite/,
+  fg: /fine grad/,
+  bc: /\bbase course\b|granular base/,
+  bt: /trench base/,
+  dw: /\bdowels?\b/,
+  kw: /keyway|key way/,
+  ef: /edge forms?|slab edge/,
+};
+
+function normItem(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/^open question:\s*/i, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function coversFoundation(line: StoredLine, check: { key: string; label: string }): boolean {
+  if (line.checklist_key === check.key) return true;
+  const item = line.item.toLowerCase();
+  if (item.includes(check.label.toLowerCase())) return true;
+  return FOUNDATION_ALIAS[check.key]?.test(item) ?? false;
+}
+
+/** A takeoff line for this title. Name match, not only the checklist key. */
+export function takeoffLineFor(lines: StoredLine[], title: string): StoredLine | null {
+  const want = normItem(title);
+  if (want.length < 4) return null;
+  return (
+    lines.find((line) => {
+      const got = normItem(line.item);
+      if (!got) return false;
+      if (got === want) return true;
+      return want.length >= 6 && (got.includes(want) || want.includes(got));
+    }) ?? null
+  );
+}
+
+/**
+ * Drop a gap whose line is already quantified or marked N/A.
+ * A gap that stays cites the takeoff line's sheet, not some other sheet on the job.
+ */
+export function alignGapsToTakeoff<T extends { title: string; sheet: string; reasoning?: string }>(
+  gaps: T[],
+  lines: StoredLine[],
+): T[] {
+  const out: T[] = [];
+  for (const gap of gaps) {
+    const hit = takeoffLineFor(lines, gap.title);
+    if (hit && (hit.qty != null || hit.exclusion)) continue;
+    if (hit?.sheet && hit.sheet !== gap.sheet) {
+      const from = gap.sheet.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      out.push({
+        ...gap,
+        sheet: hit.sheet,
+        reasoning: gap.reasoning ? gap.reasoning.replace(new RegExp(from, "g"), hit.sheet) : gap.reasoning,
+      });
+    } else out.push(gap);
+  }
+  return out;
+}
+
 /** Missing foundation scope becomes a gap prompt. A quantity or an N/A line closes it. */
 export function foundationGapPrompts(lines: StoredLine[]): GapIn[] {
-  const sheet = lines.find((l) => l.sheet)?.sheet || "foundation";
   return FOUNDATION_CHECKLIST.filter((c) => {
-    const rows = lines.filter((l) => l.checklist_key === c.key);
+    const rows = lines.filter((l) => coversFoundation(l, c));
     if (!rows.length) return true;
     if (rows.some((r) => r.qty != null)) return false;
     if (rows.some((r) => r.exclusion)) return false;
     return true;
-  }).map((c) => ({
-    kind: "verify" as const,
-    category: "scope_seam" as const,
-    severity: "hard" as const,
-    title: c.label,
-    reasoning: `${c.label} is not on the takeoff. Take it off, or mark it N/A with a reason.`,
-    sheet,
-    spec_section: "foundation",
-    holds_bid: true,
-  }));
+  }).map((c) => {
+    const rows = lines.filter((l) => coversFoundation(l, c));
+    const sheet = rows.find((l) => l.sheet)?.sheet || "foundation";
+    return {
+      kind: "verify" as const,
+      category: "scope_seam" as const,
+      severity: "hard" as const,
+      title: c.label,
+      reasoning: rows.length
+        ? `${c.label} is on the takeoff at ${sheet} and still has no quantity. Take it off, or mark it N/A with a reason.`
+        : `${c.label} is not on the takeoff. Take it off, or mark it N/A with a reason.`,
+      sheet,
+      spec_section: "foundation",
+      holds_bid: true,
+    };
+  });
 }
 
 /** Keep every gap number. New items are added. A mark does not mint a new id. */
@@ -2176,6 +2293,12 @@ function tradeMatch(a: string, b: string): boolean {
   return tokens(a).size > 0 && overlap(tokens(a), tokens(b)) > 0;
 }
 
+/** Bid check runs for a general contractor and for a company that self-performs the work. */
+export function bidCheckRefusal(role: Setup["role"]): string | null {
+  if (role === "gc" || role === "self_performer") return null;
+  return "Save the intake and set the role to general contractor or self-performer before a bid check. Nothing was checked.";
+}
+
 export function renderBidCheck(
   job: string,
   role: Setup["role"],
@@ -2186,7 +2309,7 @@ export function renderBidCheck(
     return {
       text: frame("Estimate Analysis", [`${job} · Bid check`, reason ?? "Nothing was checked."]),
       structured: { report: "Estimate Analysis", layout: estimateLayout(), checked: false },
-      guidance: ["Bid check is only for a general contractor. Do not invent a sub number."],
+      guidance: ["Set the role before a bid check. Do not invent a sub number."],
     };
   }
   const lines = [
@@ -2593,7 +2716,7 @@ export function parseState(raw: unknown): {
     sheet: String(l.sheet ?? ""),
     detail: str(l.detail),
     spec_section: str(l.spec_section),
-    basis: l.basis === "deduced" ? "deduced" : "measured",
+    basis: String(l.basis ?? "").trim().toLowerCase() === "deduced" ? "deduced" : "measured",
     math: String(l.math ?? ""),
     confidence: l.confidence === "low" || l.confidence === "medium" ? l.confidence : "high",
     markup_ref: str(l.markup_ref),

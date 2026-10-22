@@ -11,6 +11,11 @@ import { renderIorLayout, type ReportNames } from "./ior-layout";
 import { formatReportNumber, money } from "./report-format";
 import { dedupeOpenRows, itemName } from "./mcp/open-feed";
 import { BALL_LABEL, currentSubmittals, labelOf, packageLine, postureSentence, resolvePosture, sourceLine, STATUS_LABEL, submittalOverdue, transmittalLabel, type SubmittalRecord } from "./mcp/submittals";
+import { jobHeading } from "./mcp/job-label";
+
+function jobPageTitle(number?: string | null, name?: string | null): string {
+  return jobHeading({ job_number: number ?? "", name: name ?? "" }, " ");
+}
 
 export const REPORT_PAGES = ["ior", "schedule", "portfolio"] as const;
 export type ReportPage = (typeof REPORT_PAGES)[number];
@@ -273,17 +278,17 @@ function submittalsPageHtml(p: SubmittalsPagePayload): string {
 
 export function renderReportBody(p: PagePayload): string {
   if (p.page === "submittals") {
-    const title = `${esc(p.job_number ?? "")} ${esc(p.job_name ?? "")} · Submittal log`;
+    const title = `${esc(jobPageTitle(p.job_number, p.job_name))} · Submittal log`;
     return `<div style="max-width:1100px;margin:0 auto;padding:24px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:${NAVY}"><h1 style="margin:0 0 16px;font-size:22px;color:${NAVY}">${title}</h1>${submittalsPageHtml(p)}<p style="margin:24px 0 0;font-size:12px;color:${G2}">Private to your company · Athena powered by ALP</p></div>`;
   }
   if (p.page === "field") return fieldPageHtml(p);
   if (p.page === "daily") return dailyPageHtml(p);
   if (p.page === "photos") return photoPageHtml(p);
   if (p.page === "items") {
-    const title = `${esc(p.job_number ?? "")} ${esc(p.job_name ?? "")} · Open items`;
+    const title = `${esc(jobPageTitle(p.job_number, p.job_name))} · Open items`;
     return `<div style="max-width:1100px;margin:0 auto;padding:24px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:${NAVY}"><h1 style="margin:0 0 16px;font-size:22px;color:${NAVY}">${title}</h1>${itemsPageHtml(p)}<p style="margin:24px 0 0;font-size:12px;color:${G2}">Private to your company · Athena powered by ALP</p></div>`;
   }
-  const title = p.page === "portfolio" ? `${esc(p.company ?? "")} · Portfolio dashboard` : `${esc(p.job_number ?? "")} ${esc(p.job_name ?? "")} · ${PAGE_LABEL[p.page]}`;
+  const title = p.page === "portfolio" ? `${esc(p.company ?? "")} · Portfolio dashboard` : `${esc(jobPageTitle(p.job_number, p.job_name))} · ${PAGE_LABEL[p.page]}`;
   let body: string;
   let st = "";
   if (p.page === "portfolio") body = portfolioView(p);

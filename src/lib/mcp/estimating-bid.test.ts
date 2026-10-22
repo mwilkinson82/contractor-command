@@ -69,6 +69,16 @@ describe("labor, markup, and the basis", () => {
     const priced = gcLineAmount({ key: "supervision", rate: 1500, duration: 10, confirmed: true });
     expect(priced.amount).toBe(15000);
     expect(priced.math).toContain("$15,000.00");
+    const sent = gcLineAmount({ key: "supervision", qty: 6, rate: 1500, duration: 40, confirmed: true });
+    expect(sent.amount).toBe(9000);
+    expect(sent.math).toContain("6 ×");
+    expect(sent.math).toContain("quantity 6 is used");
+    expect(sent.math).not.toContain("40 days ×");
+    const direct = 10000;
+    const ignored = gcLineAmount({ key: "supervision", rate: 583.33, duration: 40, confirmed: true });
+    const share = (ignored.amount ?? 0) / (direct + (ignored.amount ?? 0));
+    expect(share).toBeGreaterThan(0.65);
+    expect((sent.amount ?? 0) / (direct + (sent.amount ?? 0))).toBeLessThan(0.5);
   });
 });
 
@@ -257,6 +267,34 @@ describe("rate references and special requirements", () => {
     expect(open.ready).toBe(false);
     expect(open.lines.join("\n")).toContain("Not a bid yet");
     expect(open.lines.join("\n")).toContain("Holds the bid");
+  });
+
+  it("keeps a $1,850 sub quote in the bid total", () => {
+    const quotes = [
+      { sub: "Acme Waterproofing", description: "Below-grade waterproofing", amount: 1850, ref: null },
+    ];
+    const withQuote = assembleBid({
+      direct: 10000,
+      directPlaceholder: false,
+      gc: [],
+      requirements: [],
+      quotes,
+      overheadPct: 10,
+      profitPct: 10,
+      settled: true,
+    });
+    const dropped = assembleBid({
+      direct: 10000,
+      directPlaceholder: false,
+      gc: [],
+      requirements: [],
+      overheadPct: 10,
+      profitPct: 10,
+      settled: true,
+    });
+    expect(withQuote.lines.join("\n")).toContain("$1,850.00");
+    expect(withQuote.total).toBe(14338.5);
+    expect(withQuote.total).not.toBe(dropped.total);
   });
 });
 

@@ -178,7 +178,7 @@ describe("0.8.9 CPM activity handoff, tie guard, owner-furnished, living reports
       expect(visibleProblems(top)).toEqual([]);
     }
     expect(CPM_REQUIRED_TOP).toMatch(/saved contract completion date/);
-    expect(src("./tools/living-tools.ts")).toContain("CPM_REQUIRED_TOP,\n        `${prefix(job)}");
+    expect(src("./tools/living-tools.ts")).toContain("CPM_REQUIRED_TOP,\n        `${named(job)}");
   });
 
   it("activity lines carry every field the host needs", () => {

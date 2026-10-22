@@ -4,7 +4,7 @@ import { ATHENA_VERSION } from "../server-info-branding";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
-import { ITEM_COLS, READ_ONLY_MESSAGE, FULL_ACCESS_MESSAGE, WhichCompanyAsk, activeNa, audit, companyForCreate, currentCompany, flagWord, itemLine, itemType, jobTimeZone, memberCompanies, prefix, rememberCompany, renderSetupReport, resolveCompany, resolveJob, type Job } from "../jobs";
+import { ITEM_COLS, READ_ONLY_MESSAGE, FULL_ACCESS_MESSAGE, WhichCompanyAsk, activeNa, audit, companyForCreate, currentCompany, flagWord, itemLine, itemType, jobTimeZone, memberCompanies, named, prefix, rememberCompany, renderSetupReport, resolveCompany, resolveJob, type Job } from "../jobs";
 import { computeDue, todayIn, type DayType } from "../deadlines";
 import { INPUT_KEYS, INPUT_LABELS, currentCheck, loadAnswers, loadChecks, loadLookahead, renderReport, type InputKey } from "../workflow";
 import { WARRANTY_CHECK_PREFIX, WARRANTY_SETUP_QUESTIONS, mapTrigger, nextWarrantyQuestion, CONTRACT_WARRANTY_KEY, alignCloseoutSource, renderWarrantyRegister, warrantyAnswerFacts, warrantyHow, warrantyOpenItems, type WarrantyKey } from "../warranty";
@@ -58,6 +58,22 @@ async function rpc<T>(sb: Sb, fn: string, args: Record<string, unknown>): Promis
 }
 
 type ItemResult = { item_id: string; existing: boolean; item_type?: string; delivery_item?: ItemResult | null; owner_defaulted?: boolean; needed_by_defaulted?: boolean; accountable?: string; needed_by?: string };
+/** Create-job reply. A PM sent on create is named; otherwise the reply says the PM is not set. */
+export function jobCreatedText(input: {
+  jobNumber: string;
+  companyName: string;
+  jobName: string;
+  restrictTo?: string[] | null;
+  pm?: string | null;
+}): string {
+  const pm = input.pm?.trim() || null;
+  const restricted = input.restrictTo?.length ? ` Restricted to: ${input.restrictTo.join(", ")}.` : "";
+  const pmLine = pm
+    ? `PM: ${pm}. Open items default to this PM.`
+    : `PM: not set yet. Ask who the PM is and record it with intake section "job_settings" (pm); open items default to the job's PM.`;
+  return `${input.jobNumber} – Job created in ${input.companyName}: ${input.jobName}.${restricted}\n${pmLine}\nNext: intake section "scope" (step 0). Ask the member for job type, owner/client type, sector and pricing model; never assume them.`;
+}
+
 /** Shown when the owner was defaulted: name the PM, or say plainly that no PM is set. */
 export const ownerDefaultNote = (accountable: string | null | undefined) =>
   !accountable?.trim() || /^unassigned\b/i.test(accountable.trim()) ? " — no PM is set on this job, so it stays unassigned until you name one" : " — defaulted to the job's PM";
@@ -403,9 +419,20 @@ export const intake = defineTool({
           _company: choice.companyId, _job_number: args.job_number, _name: args.job_name, _restrict_to: args.restrict_to ?? null,
         });
         if (r.duplicate) throw new ToolError(`Job ${args.job_number} already exists in this company. Use a different number, e.g. ${r.suggestion}. Nothing was created.`);
+        let pmName = args.pm?.trim() || null;
+        if (r.job_id && (pmName || args.pm_email || args.pm_title || args.time_zone)) {
+          const saved = await rpc<{ pm?: string | null }>(sb, "mcp_job_settings", {
+            _job: r.job_id,
+            _time_zone: args.time_zone ?? null,
+            _pm_name: pmName,
+            _pm_email: args.pm_email ?? null,
+            _pm_title: args.pm_title ?? null,
+          });
+          if (saved?.pm) pmName = saved.pm;
+        }
         return {
-          ...text(`${args.job_number} – Job created in ${companyName}: ${args.job_name}.${args.restrict_to?.length ? ` Restricted to: ${args.restrict_to.join(", ")}.` : ""}\nPM: not set yet. Ask who the PM is and record it with intake section "job_settings" (pm); open items default to the job's PM.\nNext: intake section "scope" (step 0). Ask the member for job type, owner/client type, sector and pricing model; never assume them.`),
-          structuredContent: { job_id: r.job_id!, job_number: args.job_number, company_id: choice.companyId, company_name: companyName },
+          ...text(jobCreatedText({ jobNumber: args.job_number, companyName, jobName: args.job_name, restrictTo: args.restrict_to, pm: pmName })),
+          structuredContent: { job_id: r.job_id!, job_number: args.job_number, company_id: choice.companyId, company_name: companyName, pm: pmName },
         };
       }
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
@@ -1335,7 +1362,7 @@ export const listOpenItems = defineTool({
       const listed = rows.map((i) => ({ action: formatBillingText(itemName(i.action)), owner: i.accountable ?? i.owner ?? null, due: dueOf(i) || null, overdue: isOverdue(i, today), due_in_7_days: isDueIn7(i, today), item_id: i.id, item_type: itemType(i, nas) }));
       const counts = { open: listed.length, overdue: listed.filter((i) => i.overdue).length, due_in_7_days: listed.filter((i) => i.due_in_7_days).length };
       const header = openItemsHeader(counts);
-      const card = openItemsCard(`${job.job_number} – ${job.name}`, rows, counts, today);
+      const card = openItemsCard(`${named(job)}`, rows, counts, today);
       return guide({ ...text(`${prefix(job)}${laHead}${header}\n${lines.join("\n")}${dupNote}\n\n${REMINDERS_VIEW_SPEC.join("\n")}\n\n${ec.text}\n${EMAIL_VIEW_SPEC.join("\n")}${laBlock}`), structuredContent: { counts, items: listed, card, email_contact: ec.structured } }, "The open count is the number of items in this list. Overdue is the number of those items marked overdue. Do not count a different set.", EMAIL_CONTACT_RULE);
     }),
 });
@@ -1544,7 +1571,7 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
           line_items: sovLineRows(sov),
           notes: sovNotes(brand, sovFooterMissing(c)),
           specs_note: sovSpecsMissing(sov) ? SOV_SPECS_MISSING_NOTE : null,
-          header: { project: `${job.job_number} – ${job.name}`, prepared: today, contractor: c.name, basis: jr.data?.sov_basis ?? null, contract_sum: sov.summary.contract_total, contract_sum_display: money(sov.summary.contract_total) },
+          header: { project: `${named(job)}`, prepared: today, contractor: c.name, basis: jr.data?.sov_basis ?? null, contract_sum: sov.summary.contract_total, contract_sum_display: money(sov.summary.contract_total) },
           contract_total_display: money(sov.summary.contract_total),
           ...sov,
           footer: sovLayout(brand).footer,
@@ -1605,7 +1632,7 @@ export async function lookaheadData(sb: Sb, job: Job, laInput: string | { id: st
 /** 0.8.17: the lookahead as a finished view, filled from the saved CPM window when no schedule export was sent. */
 async function styledLookahead(sb: Sb, job: Job, la: { id: string; start_date?: string | null; end_date?: string | null }, highlight: string | null): Promise<{ view: string; model: LaModel | null }> {
   const d = await lookaheadData(sb, job, la);
-  const title = `${job.job_number} – ${job.name}`;
+  const title = `${named(job)}`;
   const board = await signedJobPages((fn, a) => sb.rpc(fn, a), job.job_id, job.scope);
   const url = board.lookahead ?? null;
   if (!d.win)

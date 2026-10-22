@@ -55,6 +55,8 @@ vi.mock("./jobs", () => ({
   READ_ONLY_MESSAGE: "Your role has a limited, read-only view of this job (no financials). Ask your owner or PM to make changes.",
   audit: async () => {},
   prefix: (j: { job_number: string }) => `${j.job_number} – `,
+  named: (j: { job_number: string; name?: string | null }) =>
+    j.name && j.name.toLowerCase().startsWith(j.job_number.toLowerCase()) ? j.name : `${j.job_number} – ${j.name ?? ""}`.trim(),
   jobTimeZone: async () => "America/New_York",
   resolveJob: async () => ({
     job_id: "11111111-1111-4111-8111-111111111111",
@@ -198,6 +200,60 @@ describe("daily assembly", () => {
     const draft = await handle(dailyReportDraft, { job_number: "2701", transcript: "Weather: Clear" });
     expect(draft.structuredContent.saved).toBe(false);
     expect(state.rpcs.map((r) => r[0])).not.toContain("mcp_daily_report_save");
+  });
+
+  it("puts the job name in the daily report header", () => {
+    const draft = assembleDaily({ transcript: "Weather: Clear\nManpower: 4 carpenters\nSubs: none\nWork:\n- Footings SOV 03.01 A1000 40 cy crew 4 8 hours\nDeliveries: none\nIssues: none\nDelays: none\nSafety: none" });
+    const card = dailyCard("1234 Riverside Clinic Renovation", "2026-10-22", draft, true);
+    expect(card).toContain("1234 Riverside Clinic Renovation · Daily report · 2026-10-22");
+    expect(card.split("\n")[1]).not.toBe("Daily report · 2026-10-22");
+    const html = dailyPageHtml({
+      job_number: "1234",
+      job_name: "Riverside Clinic Renovation",
+      found: true,
+      report_date: "2026-10-22",
+      weather: "Clear",
+    });
+    expect(html).toContain("1234 Riverside Clinic Renovation");
+    expect(html).toContain("Daily");
+  });
+
+  it("extracts every daily field from a transcript that has no separate inputs", () => {
+    const bullets = [
+      "- Weather: Clear",
+      "- Manpower: 4 carpenters",
+      "- Subs: none",
+      "- Work: Footings SOV 03.01 A1000 40 cy crew 4 8 hours 25%",
+      "- Deliveries: none",
+      "- Issues: none",
+      "- Delays: Crane waiting",
+      "- Safety: none",
+    ].join("\n");
+    const fromBullets = assembleDaily({ transcript: bullets });
+    expect(fromBullets.weather).toBe("Clear");
+    expect(fromBullets.manpower).toBe("4 carpenters");
+    expect(fromBullets.subs_on_site).toBe("none");
+    expect(fromBullets.work[0]).toMatchObject({ sov_item: "03.01", qty: 40, unit: "cy" });
+    expect(fromBullets.deliveries).toBe("none");
+    expect(fromBullets.issues).toBe("none");
+    expect(fromBullets.delays).toBe("Crane waiting");
+    expect(fromBullets.safety).toBe("none");
+    const spoken = assembleDaily({
+      transcript: "Clear and 70 degrees. Four carpenters from our crew. No subs on site. Formed the north footing SOV 03.01 A1000 40 cy crew 4 8 hours. Nothing was delivered. No issues. The crane was waiting. Safety talk done, no incidents.",
+    });
+    const card = dailyCard("2701 – Harbor · ", "2026-10-22", spoken, false);
+    for (const field of ["Weather", "Manpower", "Subs on site", "Deliveries", "Issues", "Delays", "Safety"]) {
+      expect(card, field).not.toContain(`${field}: Needed`);
+    }
+    expect(card).not.toContain("Work performed:\n- Needed");
+    expect(spoken.weather).toMatch(/Clear and 70/);
+    expect(spoken.manpower).toMatch(/4 carpenters/i);
+    expect(spoken.subs_on_site).toBe("none");
+    expect(spoken.work[0]?.sov_item).toBe("03.01");
+    expect(spoken.deliveries).toBe("none");
+    expect(spoken.issues).toBe("none");
+    expect(spoken.delays).toMatch(/crane/i);
+    expect(spoken.safety).toMatch(/Safety talk/i);
   });
 
   it("saves only a complete confirmed daily and records the production rate", async () => {

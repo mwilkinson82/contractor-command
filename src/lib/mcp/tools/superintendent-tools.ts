@@ -6,7 +6,7 @@ import { DEFAULT_TZ, todayIn } from "../deadlines";
 import { previewDailyReminderCard, type ReminderStatus } from "../field-reminder";
 import { FileRejected, decodeBase64 } from "../file-share";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
-import { FULL_ACCESS_MESSAGE, audit, jobTimeZone, prefix, resolveJob, type Job } from "../jobs";
+import { FULL_ACCESS_MESSAGE, audit, jobTimeZone, named, prefix, resolveJob, type Job } from "../jobs";
 import { photoLogPdf } from "../photo-pdf";
 import { signedJobPages } from "../board-url";
 import type { BoardPage } from "../board-link";
@@ -258,7 +258,7 @@ export const dailyReportDraft = defineTool({
       const draft = assembleDaily(args);
       await audit(sb, job, "daily_report_draft", "draft_daily", null);
       return guide(
-        { ...text(dailyCard(prefix(job), day, draft, false)), structuredContent: { saved: false, report_date: day, ready: draft.ready, follow_ups: draft.follow_ups, draft } },
+        { ...text(dailyCard(`${named(job)} `, day, draft, false)), structuredContent: { saved: false, report_date: day, ready: draft.ready, follow_ups: draft.follow_ups, draft } },
         draft.ready ? "The daily is complete. Ask the superintendent to confirm, and only after a yes call daily_report_save with confirmed true." : "Ask every still-needed question. Do not save yet.",
       );
     }),
@@ -288,7 +288,7 @@ export const dailyReportSave = defineTool({
       await audit(sb, job, "daily_report_save", "save_daily", saved.id);
       const url = boardHref(await boardPages(sb, job), "daily");
       return guide(
-        { ...text([...(url ? [`Styled daily (private to your company): ${url}`] : []), dailyCard(prefix(job), day, { ...draft, follow_ups: [], ready: true }, true)].join("\n")), structuredContent: { saved: true, id: saved.id, report_date: day, lines: saved.lines, rates: draft.work.map(rateFromLine).filter(Boolean) } },
+        { ...text([...(url ? [`Styled daily (private to your company): ${url}`] : []), dailyCard(`${named(job)} `, day, { ...draft, follow_ups: [], ready: true }, true)].join("\n")), structuredContent: { saved: true, id: saved.id, report_date: day, lines: saved.lines, rates: draft.work.map(rateFromLine).filter(Boolean) } },
         "Saved. Production rates are available to estimating. Percent complete is ready for the pay app and the schedule update. The saved schedule is not changed by this save.",
       );
     }),
@@ -312,7 +312,7 @@ export const dailyReportGet = defineTool({
       const draft = assembleDaily({ ...got, work: got.lines ?? [] });
       const url = boardHref(await boardPages(sb, job), "daily");
       return guide(
-        { ...text([...(url ? [`Styled daily (private to your company): ${url}`] : []), dailyCard(prefix(job), day, { ...draft, follow_ups: [], ready: true }, true)].join("\n")), structuredContent: { found: true, report_date: day, daily: got } },
+        { ...text([...(url ? [`Styled daily (private to your company): ${url}`] : []), dailyCard(`${named(job)} `, day, { ...draft, follow_ups: [], ready: true }, true)].join("\n")), structuredContent: { found: true, report_date: day, daily: got } },
         "Show the card as saved.",
       );
     }),

@@ -9,11 +9,13 @@ import {
   EstimateError,
   accountTakeoffLines,
   assignGapRefs,
+  alignGapsToTakeoff,
   autoGaps,
   foundationGapPrompts,
   preserveGapList,
   basisLabel,
   buildSummary,
+  bidCheckRefusal,
   checkBids,
   coverageLine,
   intakeQuestions,
@@ -97,6 +99,35 @@ describe("quantity labels and math", () => {
     expect(row.math).toContain("13596.78 SF × 4 in / 12 / 27 = 167.86 CY");
   });
 
+  it("reads a fill depth in feet as feet, not inches", () => {
+    const row = line({
+      item: "Structural fill",
+      sheet: "C-101",
+      unit: "CY",
+      basis: "deduced",
+      op: "cy_from_area",
+      inputs: [
+        { name: "area", value: 2338.2, unit: "SF" },
+        { name: "fill depth", value: 1, unit: "ft" },
+      ],
+    });
+    expect(row.qty).toBe(86.6);
+    expect(row.math).toContain("2338.2 SF × 1 ft / 27 = 86.6 CY");
+    expect(row.math).not.toContain("/ 12 / 27");
+    const named = line({
+      item: "Structural fill",
+      sheet: "C-101",
+      unit: "CY",
+      basis: "deduced",
+      op: "cy_from_area",
+      inputs: [
+        { name: "area", value: 2338.2, unit: "SF" },
+        { name: "fill depth ft", value: 1 },
+      ],
+    });
+    expect(named.qty).toBe(86.6);
+  });
+
   it("uses the published bar weight", () => {
     expect(BAR_LB_PER_LF["6"]).toBe(1.502);
     const row = line({
@@ -157,6 +188,23 @@ describe("quantity labels and math", () => {
     expect(read.basis).toBe("measured");
     expect(read.qty).toBe(19220);
     expect(read.math).toContain("MEASURED");
+    const deduced = line({
+      item: "Wall footing",
+      sheet: "S-100",
+      unit: "LF",
+      basis: "deduced",
+      op: "as_read",
+      value: 174,
+    });
+    expect(deduced.basis).toBe("deduced");
+    expect(deduced.qty).toBe(174);
+    expect(deduced.math).toContain("DEDUCED");
+    expect(deduced.math).not.toContain("MEASURED");
+    const sent = prepareLines([
+      { item: "Wall footing", sheet: "S-100", unit: "LF", basis: "DEDUCED", value: 174, line_no: 1 },
+    ])[0];
+    expect(sent.basis).toBe("deduced");
+    expect(sent.qty).toBe(174);
     const scaled = line({
       item: "Footing centerline",
       sheet: "S3.1",
@@ -285,6 +333,31 @@ describe("coverage, gaps, bids, summary", () => {
       ],
     );
     expect(again.ref).toBe("G-4");
+  });
+
+  it("checks a bid when the company self-performs the work", () => {
+    expect(bidCheckRefusal("self_performer")).toBeNull();
+    expect(bidCheckRefusal("gc")).toBeNull();
+    expect(bidCheckRefusal(null)).toMatch(/self-performer/);
+    const takeoff = prepareLines([
+      {
+        item: "Slab on grade",
+        sheet: "A-099",
+        unit: "SF",
+        basis: "measured",
+        value: 100,
+        trade: "03 Concrete",
+        line_no: 1,
+      },
+    ]);
+    const result = checkBids(
+      [{ sub: "Self", trade: "03 Concrete", total: 1000, lines: [{ description: "Slab on grade", qty: 100, unit: "SF", amount: 1000, exclusion: null }] }],
+      takeoff,
+    );
+    const view = renderBidCheck("QA1022 Crystal", "self_performer", result, null);
+    expect(view.text).not.toMatch(/self-performer. Nothing was checked/i);
+    expect(view.text).toContain("covered");
+    expect(view.structured.checked).not.toBe(false);
   });
 
   it("checks a sub bid and does not send the questions", () => {
@@ -566,6 +639,29 @@ describe("engine conventions", () => {
     expect(fromProfile.qty).toBe(892);
     expect(fromProfile.math).toContain("both faces");
     expect(fromProfile.math).toContain("446");
+    const already = prepareLines(
+      [
+        {
+          item: "Wall forms",
+          sheet: "S-103",
+          unit: "SFCA",
+          basis: "derived",
+          op: "product",
+          forms_faces: 2,
+          note: "both faces",
+          inputs: [
+            { name: "length", value: 100 },
+            { name: "height", value: 4 },
+            { name: "faces", value: 2 },
+          ],
+          line_no: 1,
+        },
+      ],
+      conventionFor("estimator", 2),
+    )[0];
+    expect(already.qty).toBe(800);
+    expect(already.math).toContain("already in this quantity");
+    expect(already.math).not.toContain("One face was");
   });
 
   it("uses gross termite area, follows the estimator profile, and rejects LF sent as CF", () => {
@@ -855,6 +951,64 @@ describe("intake reuse and takeoff save mode", () => {
       })),
     );
     expect(closed).toEqual([]);
+  });
+
+  it("does not flag a line already on the takeoff, and cites that line's sheet", () => {
+    const row = (
+      item: string,
+      sheet: string,
+      qty: number | null,
+    ): StoredLine => ({
+      line_no: 1,
+      item,
+      material: null,
+      qty,
+      unit: "SF",
+      range_text: null,
+      measure_type: null,
+      sheet,
+      detail: null,
+      spec_section: null,
+      basis: "measured",
+      math: qty == null ? "HOLD" : "MEASURED",
+      confidence: "high",
+      markup_ref: null,
+      location_text: null,
+      missing_input: qty == null ? "length" : null,
+      exclusion: null,
+      checklist_key: null,
+      element: null,
+      trade: null,
+      note: null,
+      inputs: [],
+    });
+    const lines = [
+      row("Slab on grade", "S-100", 10),
+      row("Fine grade", "C-200", 5000),
+      row("Keyway", "S-9", null),
+    ];
+    const prompts = foundationGapPrompts(lines);
+    expect(prompts.map((g) => g.title)).not.toContain("Fine grade");
+    expect(prompts.find((g) => g.title === "Keyway")?.sheet).toBe("S-9");
+    const gaps = alignGapsToTakeoff(
+      [
+        {
+          title: "Fine grade",
+          reasoning: "Called missing on S-100.",
+          sheet: "S-100",
+        },
+        {
+          title: "Keyway",
+          reasoning: "Cited on S-100.",
+          sheet: "S-100",
+        },
+      ],
+      lines,
+    );
+    expect(gaps.map((g) => g.title)).toEqual(["Keyway"]);
+    expect(gaps[0].sheet).toBe("S-9");
+    expect(gaps[0].reasoning).toContain("S-9");
+    expect(gaps[0].reasoning).not.toContain("S-100");
   });
 });
 
