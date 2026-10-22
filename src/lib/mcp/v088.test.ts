@@ -20,9 +20,8 @@ describe("0.8.8 blue brand, To field, pinned REQUIRED lines, sweep cards", () =>
   it("version is 0.8.8 or later (0.8.9)", () => expect(ATHENA_VERSION).toBe("0.8.18"));
   it("connector icons are the mono-blue mark at new URLs", () => {
     expect(ATHENA_SERVER_ICONS.map((i) => i.src).filter((s) => !s.startsWith("data:"))).toEqual([
-      "https://app.meetathena.io/brand/athena/athena-mono-blue-64.png",
-      "https://app.meetathena.io/brand/athena/athena-mono-blue-128.png",
       "https://app.meetathena.io/brand/athena/athena-mono-blue-256.png",
+      "https://app.meetathena.io/brand/athena/athena-mono-blue-512.png",
     ]);
     const b = Buffer.from(athenaIcon64Bytes());
     expect(b.readUInt32BE(16)).toBe(64);
