@@ -3,7 +3,7 @@
 // draws them and never recomputes, rebuilds or guesses them.
 import { money } from "./sov";
 import { ALERT_COLOR } from "./alert-color";
-import { addDays, federalHolidays } from "./deadlines";
+import { addCountedDays, addDays, federalHolidays } from "./deadlines";
 
 export const LIVING_REPORT_TYPES = ["cpm", "billing_forecast", "ior", "dashboard"] as const;
 export type LivingReportType = (typeof LIVING_REPORT_TYPES)[number];
@@ -318,11 +318,43 @@ const logicText = (ps: Logic[]) =>
         )
         .join(", ")
     : "none (open start)";
-export function activityLine(a: Activity, showMoney: boolean): string {
+
+const isoDay = (s: string | null | undefined) =>
+  s && /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null;
+
+/** Holidays on the saved job calendar (tia.holidays, or data.calendar.holidays). Null: Monday–Friday only. */
+export function reportCalendarHolidays(data: LivingData | null | undefined): string[] | null {
+  if (!data) return null;
+  const fromTia = data.tia?.holidays;
+  if (Array.isArray(fromTia)) return fromTia;
+  const cal = data.calendar;
+  if (cal && typeof cal === "object" && Array.isArray((cal as { holidays?: unknown }).holidays))
+    return (cal as { holidays: unknown[] }).holidays.filter((d): d is string => typeof d === "string");
+  return null;
+}
+
+/** Bar is Start through Finish, inclusive. A positive float tail starts the next day and runs that many working days. */
+export function ganttBarNote(
+  a: Pick<Activity, "start" | "finish" | "total_float" | "critical">,
+  holidays?: string[] | null,
+): string {
+  const start = isoDay(a.start);
+  const finish = isoDay(a.finish);
+  const bar = `bar ${start ?? "Needed"}→${finish ?? "Needed"}`;
+  if (!start || !finish) return bar;
+  const float = a.total_float;
+  if (float == null) return `${bar}, float tail Needed`;
+  if (float <= 0 || a.critical === true) return `${bar}, no float tail`;
+  const tail = addCountedDays(finish, float, "working", new Set(holidays ?? []));
+  return `${bar}, float tail to ${tail}`;
+}
+
+export function activityLine(a: Activity, showMoney: boolean, holidays?: string[] | null): string {
   const parts = [
     `${a.id} ${a.name}`,
     `${a.duration ?? "Needed"} WD`,
     `${a.start ?? "Needed"} → ${a.finish ?? "Needed"}`,
+    ganttBarNote(a, holidays),
     `after ${logicText(a.predecessors)}`,
     `float ${a.total_float ?? "Needed"}${a.critical ? " (critical)" : ""}`,
     `${a.pct_complete ?? 0}% complete`,
@@ -353,11 +385,11 @@ export const CPM_GANTT_SPEC: string[] = [
   "REQUIRED VIEW: When the user asks to see, show, draw or update the schedule, build ONE styled Gantt as an artifact or canvas, never a plain list or a default chart. Spec:",
   "1. Header: the job name and version, the data date, then the Count check line and the Tie line word for word, then \"Contract completion: <date>\".",
   "2. Layout: a white background, the activity table on the left (ID, Name, Dur WD, Start, Finish, Float, $), and a timeline on the right with month columns and week ticks.",
-  "3. Bars: critical activities (float 0) are solid blue #2563EB. Non-critical activities are gray #9CA3AF, with a light-gray float tail. Milestones are diamonds. Owner-furnished activities are outlined gray bars labeled \"Owner-furnished\".",
+  "3. Bars: each bar starts at the activity's Start date and ends at its Finish date, both inclusive. Never stretch a bar to the chart edge or the contract completion line. Critical activities (float 0) are solid blue #1E5FED with no tail. Use #1E5FED, the Athena mark; don't use #2563EB. Non-critical activities are gray #9CA3AF, followed by a light-gray float tail that starts the day after Finish and is exactly Float working days long. Milestones (0 WD) are diamonds with no bar. Owner-furnished activities are outlined gray bars from Start to Finish.",
   "4. Logic: thin predecessor connector lines, and the critical path highlighted end to end.",
   "5. Today line: a dashed vertical line at the data date (or today if the data date is Needed), labeled.",
   "6. Contract completion: a dashed vertical line labeled with the saved date.",
-  `7. Delay fragnets (only when a delay result exists): a hatched bar labeled \"Fragnet\", plus a ${DELAY_CALLOUT_COLOR} callout reading \"Delay: +X WD (Y CD)\", always both units: X = the fragnet duration in working days on the job calendar, Y = calendar days from the fragnet start to its finish, counting both days (e.g. 15 WD Nov 27 to Dec 17 = \"Delay: +15 WD (21 CD)\"), taken from the saved activities and delay result, and baseline ghost bars under the updated bars.`,
+  `7. Delay fragnets (only when a delay result exists): a hatched bar labeled \"Fragnet\", plus a ${DELAY_CALLOUT_COLOR} callout reading \"Delay: +X WD (Y CD)\", always both units: X = the fragnet duration in working days on the job calendar, Y = calendar days from the fragnet start to its finish, counting both days (e.g. 15 WD Nov 27 to Dec 17 = \"Delay: +15 WD (21 CD)\"), taken from the saved activities and delay result. Draw baseline ghost bars only for activities whose saved baseline Start/Finish appears in the data; if no baseline dates are given, draw none.`,
   "8. Legend under the chart: Critical, Non-critical, Float, Milestone, Owner-furnished, Fragnet, Today.",
   `9. Order rows by start date, keep IDs exactly as given and show all activities. All other colors are blue and gray only; the callout color is only for delays, risks and overdue items. No technical notes; one caveat line at most.`,
 ];

@@ -47,7 +47,9 @@ export const INTERNAL_CODE_RE =
 
 function sentences(line: string): string[] {
   // Split on sentence ends followed by a capital, keeping list markers and labels intact.
-  return line.split(/(?<=[.!?])\s+(?=[A-Z"(])/);
+  // "1. Header" is one item. Splitting on that marker left a blank "1." in the live Gantt spec
+  // once the rest of the line (it says "word for word") moved to guidance.
+  return line.split(/(?<!\d[.!?])(?<=[.!?])\s+(?=[A-Z"(])/);
 }
 
 /** 0.8.8: lines that start with "REQUIRED:" are pinned host directives and are never moved into guidance. */
