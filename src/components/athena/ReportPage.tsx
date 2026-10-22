@@ -28,7 +28,7 @@ export function usePageVisible(): boolean {
 
 type Cached = { stamp: string | null; payload: PagePayload };
 
-// Living report page. A valid board token renders with no session. A missing, expired, or bad token
+// Living report page. A valid board token works independently of the browser session. A missing, expired, or bad token
 // shows Athena's email-code sign-in and returns to this same /r/job path. The database decides access.
 export function itemsFromField(payload: PagePayload): PagePayload {
   if (payload.page !== "field") return payload;
@@ -83,15 +83,17 @@ export function ReportPageView({ page, jobId, companyId, token }: { page: AnyPag
   });
   const linked = useQuery({
     queryKey: ["athena-board-link", token ?? "", jobId ?? "", tokenPage],
-    enabled: !authLoading && !session && !!token && !!jobId && !!tokenPage,
+    enabled: !authLoading && !!token && !!jobId && !!tokenPage,
+    refetchInterval: visible ? REFRESH_MS : false,
+    refetchIntervalInBackground: false,
     queryFn: () => openLink({ data: { token: token!, jobId: jobId!, page: tokenPage as (typeof BOARD_PAGES)[number] } }),
     retry: false,
   });
-  const payload = session
-    ? q.data?.payload
-    : linked.data?.status === "ok"
-      ? (JSON.parse(linked.data.payload) as PagePayload)
-      : undefined;
+  // A rejected refresh must not render a previously cached member payload.
+  const memberPayload = session && !q.error ? q.data?.payload : undefined;
+  const payload = memberPayload ?? (!linked.error && linked.data?.status === "ok"
+    ? (JSON.parse(linked.data.payload) as PagePayload)
+    : undefined);
   // renderReportBody escapes every value it prints. Re-rendered only when a new payload arrives.
   // A live token keeps sibling board links on the same token when the host adds utm params.
   const html = useMemo(() => {
@@ -103,16 +105,16 @@ export function ReportPageView({ page, jobId, companyId, token }: { page: AnyPag
   const jobNumber = payload && payload.page !== "portfolio" ? (payload.job_number ?? null) : null;
   const live = (
     <div style={{ background: "#F3F4F6", minHeight: "100%" }}>
-      {session ? <MorningBriefPushBar /> : null}
+      {memberPayload ? <MorningBriefPushBar /> : null}
       {page === "field" && jobId ? <FieldPushBar jobId={jobId} jobNumber={jobNumber} /> : null}
       <div dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   );
-  if (authLoading || (session && q.isLoading) || (!session && token && tokenPage && linked.isLoading)) return <div style={{ padding: 32, color: "#6B7280" }}>Loading…</div>;
-  // A valid token renders this job with no session. The payload is read live when the link is opened.
-  if (!session && payload) return live;
-  // Missing, expired, revoked, wrong-job, or a page the token's role cannot open: sign in and return to this board.
-  if (!session && page !== "portfolio") {
+  if (authLoading || (!payload && ((session && q.isLoading) || (token && jobId && tokenPage && linked.isLoading)))) return <div style={{ padding: 32, color: "#6B7280" }}>Loading…</div>;
+  // Either the scoped member read or the validated key can open the live board.
+  if (payload) return live;
+  // No readable job: recover with email-code sign-in even if a stale/other-user session exists.
+  if (page !== "portfolio") {
     const location = typeof window === "undefined" ? undefined : `${window.location.pathname}${window.location.search}${window.location.hash}`;
     const returnTo = boardReturnForVisit(page, jobId, location);
     if (returnTo) return <BoardSignIn returnTo={returnTo} />;
@@ -131,8 +133,8 @@ export function ReportPageView({ page, jobId, companyId, token }: { page: AnyPag
       </div>
     );
   }
-  // Signed-in members with no row see "no access". A token payload skips this branch.
-  if (!payload || (session && q.error)) {
+  // The company portfolio retains its existing membership-only access screen.
+  if (!payload) {
     return (
       <div style={{ maxWidth: 480, margin: "15vh auto", background: "#fff", border: "1px solid #D1D5DB", borderRadius: 12, padding: 32, color: "#6B7280" }}>
         <h1 style={{ margin: "0 0 12px", fontSize: 20, color: "#2563EB" }}>You don't have access to this page</h1>
