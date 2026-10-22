@@ -14,6 +14,7 @@ import * as Bid from "./tools/estimate-bid-tools";
 import * as Field from "./tools/superintendent-tools";
 import * as Start from "./tools/getting-started-tool";
 import * as Brief from "./tools/morning-brief-tools";
+import * as Sub from "./tools/submittal-tools";
 import { ATHENA_VERSION } from "./server-info-branding";
 
 type Prop = { format?: string; pattern?: string; description?: string };
@@ -95,6 +96,10 @@ async function liveTools(): Promise<Tool[]> {
       Brief.morningBriefSettings,
       E.emailDraft,
       E.emailConfirmSend,
+      Sub.submittalLog,
+      Sub.submittalsList,
+      Sub.submittalsImport,
+      Sub.projectRecordSearch,
       Start.gettingStarted,
     ],
     metrics: false,
