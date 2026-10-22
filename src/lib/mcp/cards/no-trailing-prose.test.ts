@@ -17,7 +17,7 @@ type CardResult = {
     html: string;
     which_job?: boolean;
     assistant_guidance: string[];
-    "openai/outputTemplate": string;
+    "openai/outputTemplate"?: string;
   };
   _meta: Record<string, string>;
 };
@@ -39,8 +39,9 @@ function assertCardContract(result: CardResult, closing: string) {
   expect(result.structuredContent.card.title.length).toBeGreaterThan(0);
   expect(result.structuredContent.html).toContain(NAVY);
   expect(result.structuredContent.html).toContain("<!doctype html>");
-  expect(result.structuredContent["openai/outputTemplate"]).toBe(CARD_WIDGET_URI);
+  expect(result.structuredContent["openai/outputTemplate"]).toBeUndefined();
   expect(result._meta["openai/outputTemplate"]).toBe(CARD_WIDGET_URI);
+  expect(result._meta["openai/widgetAccessible"]).toBe(true);
   expect(result.structuredContent.assistant_guidance.at(-1)).toBe(closing);
 }
 

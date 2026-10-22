@@ -6,7 +6,7 @@ import { paletteViolations } from "./cards/palette";
 import { zonedClock } from "./field-reminder";
 import { job2701BriefJob } from "./morning-brief-2701";
 import { briefIsDue } from "./morning-brief-push";
-import { buildMorningBrief, INBOX_SECTION, MORNING_CARD_GUIDANCE, presentBrief, todayBoardUrl, TODAY_BOARD_LABEL } from "./morning-brief";
+import { buildMorningBrief, INBOX_PLACEHOLDER, INBOX_SECTION, MORNING_CARD_GUIDANCE, presentBrief, todayBoardUrl, TODAY_BOARD_LABEL } from "./morning-brief";
 import { attachMorningCard, morningCardIsDue, type MorningCardStatus } from "./morning-brief-card";
 
 const NOW = new Date("2026-10-26T15:00:00Z");
@@ -121,7 +121,11 @@ describe("morning card styling", () => {
     const pmCard = buildMorningBrief({ jobs: pmJobs, hasCompany: true, now: NOW, settings });
     const superHtml = renderHtml(superCard.card);
     const pmHtml = renderHtml(pmCard.card);
-    expect(superCard.card.sections?.some((section) => section.heading === INBOX_SECTION)).toBe(false);
+    expect(superCard.card.sections?.[0]?.heading).toBe(INBOX_SECTION);
+    expect(pmCard.card.sections?.[0]?.heading).toBe(INBOX_SECTION);
+    expect(superHtml).toContain("From your inbox and calendar");
+    expect(superHtml).toContain("Connect Gmail and Google Calendar");
+    expect(pmHtml).toContain("From your inbox and calendar");
     expect(superHtml).not.toContain("Overnight emails");
     expect(superCard.card.sections?.slice(1).some((section) => section.heading === "Today" || section.heading === "Open items")).toBe(true);
     expect(superCard.card.sections?.findIndex((section) => section.heading === "Board")).toBeGreaterThan(0);
@@ -138,6 +142,16 @@ describe("morning card styling", () => {
     expect(pmHtml).not.toBe(superHtml);
     expect(paletteViolations(superHtml, cardHasAlert(superCard.card))).toEqual([]);
     expect(paletteViolations(pmHtml, cardHasAlert(pmCard.card))).toEqual([]);
+    const exec = buildMorningBrief({ jobs: [{ ...job2701BriefJob("pm"), seat: "owner" }], hasCompany: true, now: NOW, settings });
+    const execHtml = renderHtml(exec.card);
+    expect(exec.card.sections?.[0]?.heading).toBe(INBOX_SECTION);
+    expect(execHtml).toContain(INBOX_PLACEHOLDER);
+    expect(execHtml.indexOf(INBOX_SECTION)).toBeLessThan(execHtml.indexOf("Portfolio"));
+    expect(paletteViolations(execHtml, cardHasAlert(exec.card))).toEqual([]);
+    const guidance = [MORNING_CARD_GUIDANCE, ...((presentBrief(pmCard.card).structuredContent as { assistant_guidance?: string[] }).assistant_guidance ?? [])].join("\n");
+    expect(guidance).not.toContain("leave that section out");
+    expect(guidance).not.toContain("leave the section out");
+    expect(guidance).not.toContain("Never render an empty heading");
     const quiet = buildMorningBrief({ jobs: [], hasCompany: true });
     expect(paletteViolations(renderHtml(quiet.card), false)).toEqual([]);
     expect(renderHtml(quiet.card)).toContain(todayBoardUrl());

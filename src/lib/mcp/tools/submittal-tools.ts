@@ -13,7 +13,7 @@ import type { CardModel } from "../cards/model";
 import { renderHtml } from "../cards/html";
 import { htmlBlock, renderMarkdown } from "../cards/markdown";
 import { applyCardClosing } from "../cards/silence";
-import { CARD_WIDGET_URI, cardWidgetMeta } from "../cards/widget";
+import { cardWidgetMeta } from "../cards/widget";
 import {
   BALL_PARTIES,
   IMPORT_CONFIRM,
@@ -119,7 +119,7 @@ function cardResult(_body: string, card: CardModel, extra: Record<string, unknow
   return guide(
     {
       ...text(shown),
-      structuredContent: { card, html, ...extra, "openai/outputTemplate": CARD_WIDGET_URI },
+      structuredContent: { card, html, ...extra },
       _meta: { ...cardWidgetMeta },
     },
     "Show this card. Do not add text after it. Red only on an overdue row.",
@@ -155,6 +155,36 @@ export async function readSubmittalRows(sb: Sb, jobId: string): Promise<Submitta
     review_days: row.review_days ?? null,
     package_items: [],
   }));
+}
+
+/** Same job lookup for every submittal tool and every host. A company id that does not own the number is ignored when the number exists once. */
+export async function resolveSubmittalJob(sb: Sb, jobNumber: string | undefined, companyId: string | undefined, need?: "full") {
+  const picked = await namedOrSoleJob(sb, jobNumber, companyId);
+  if (!picked) return null;
+  return resolveJob(sb, picked.job_number, picked.company_id, need);
+}
+
+function submittalViewOnly(args: { spec_section?: string; title?: string; number?: string; submittal_id?: string }): boolean {
+  return !args.spec_section?.trim() && !args.title?.trim() && !args.number?.trim() && !args.submittal_id;
+}
+
+async function showListedLog(
+  sb: Sb,
+  job: { job_id: string; job_number: string; name: string; scope?: string | null },
+  filter?: { status?: string | null; overdue?: boolean | null; ball?: string | null },
+) {
+  const [rows, zone] = await Promise.all([readSubmittalRows(sb, job.job_id), jobTimeZone(sb, job.job_id)]);
+  const today = todayIn(zone);
+  const presented = presentSubmittalLog({
+    jobNumber: job.job_number,
+    jobName: job.name,
+    rows,
+    today,
+    boardUrl: null,
+    readOnly: job.scope !== "full",
+    filter,
+  });
+  return cardResult(presented.text, presented.card, { read_only: job.scope !== "full", job_id: job.job_id });
 }
 
 function whichJobCard(tool: "submittal_log" | "submittals_list" | "submittals_import" | "project_record_search", body: string) {
@@ -202,13 +232,18 @@ export const submittalLog = defineTool({
   annotations: SAVE,
   handler: (args, ctx) =>
     run("submittal_log", ctx, { jobNumber: args.job_number }, async (sb) => {
-      const picked = await namedOrSoleJob(sb, args.job_number, args.company_id);
-      if (!picked) return whichJobCard("submittal_log", await listCompaniesAndJobs(sb, args.company_id, "submittal_log"));
-      const job = await resolveJob(sb, picked.job_number, picked.company_id, "full");
+      const view = submittalViewOnly(args);
+      const job = await resolveSubmittalJob(sb, args.job_number, args.company_id, view ? undefined : "full");
+      if (!job) return whichJobCard("submittal_log", await listCompaniesAndJobs(sb, args.company_id, "submittal_log"));
+      if (view) {
+        if (job.scope !== "full" && job.scope !== "super") throw new ToolError(FULL_ACCESS_MESSAGE);
+        return showListedLog(sb, job);
+      }
       const payload = { ...args };
       delete payload.job_number;
       delete payload.company_id;
       const saved = await call<LogPayload>(sb, "mcp_submittal_log", { _job: job.job_id, _action: args.action, _payload: payload });
+      if (!(saved.submittals ?? []).length) saved.submittals = await readSubmittalRows(sb, job.job_id);
       await audit(sb, job, "submittal_log", args.action, saved.saved_id ?? null);
       const row = (saved.submittals ?? []).find((item) => item.id === saved.saved_id);
       const note = row ? `Saved ${row.number} revision ${row.revision}, ${row.title}. Transmittal T-${row.transmittal_number}.` : "Saved.";
@@ -231,24 +266,12 @@ export const submittalsList = defineTool({
   annotations: READ,
   handler: (args, ctx) =>
     run("submittals_list", ctx, { jobNumber: args.job_number }, async (sb) => {
-      const picked = await namedOrSoleJob(sb, args.job_number, args.company_id);
-      if (!picked) return whichJobCard("submittals_list", await listCompaniesAndJobs(sb, args.company_id, "submittals_list"));
-      const job = await resolveJob(sb, picked.job_number, picked.company_id);
+      const job = await resolveSubmittalJob(sb, args.job_number, args.company_id);
+      if (!job) return whichJobCard("submittals_list", await listCompaniesAndJobs(sb, args.company_id, "submittals_list"));
       if (job.scope !== "full" && job.scope !== "super") throw new ToolError(FULL_ACCESS_MESSAGE);
       // mcp_submittals for this job id only. Company membership is the row policy (full or super).
       // The living-report reader is not called: it returns the whole CPM and its change log and can sit until the host times out.
-      const [rows, zone] = await Promise.all([readSubmittalRows(sb, job.job_id), jobTimeZone(sb, job.job_id)]);
-      const today = todayIn(zone);
-      const presented = presentSubmittalLog({
-        jobNumber: job.job_number,
-        jobName: job.name,
-        rows,
-        today,
-        boardUrl: null,
-        readOnly: job.scope !== "full",
-        filter: { status: args.status, overdue: args.overdue, ball: args.ball_in_court },
-      });
-      return cardResult(presented.text, presented.card, { read_only: job.scope !== "full", job_id: job.job_id });
+      return showListedLog(sb, job, { status: args.status, overdue: args.overdue, ball: args.ball_in_court });
     }),
 });
 
@@ -266,9 +289,8 @@ export const submittalsImport = defineTool({
   annotations: SAVE,
   handler: (args, ctx) =>
     run("submittals_import", ctx, { jobNumber: args.job_number }, async (sb) => {
-      const picked = await namedOrSoleJob(sb, args.job_number, args.company_id);
-      if (!picked) return whichJobCard("submittals_import", await listCompaniesAndJobs(sb, args.company_id, "submittals_import"));
-      const job = await resolveJob(sb, picked.job_number, picked.company_id, "full");
+      const job = await resolveSubmittalJob(sb, args.job_number, args.company_id, "full");
+      if (!job) return whichJobCard("submittals_import", await listCompaniesAndJobs(sb, args.company_id, "submittals_import"));
       const current = await call<LogPayload>(sb, "mcp_submittal_rows", { _job: job.job_id });
       const preview = parseSubmittalImport(args.text, (current.submittals ?? []).map((row) => ({ number: row.number, revision: row.revision })));
       const card = presentImportPreview(current.job_number ?? job.job_number, current.job_name ?? job.name, preview);
@@ -303,9 +325,8 @@ export const projectRecordSearch = defineTool({
   annotations: READ,
   handler: (args, ctx) =>
     run("project_record_search", ctx, { jobNumber: args.job_number }, async (sb) => {
-      const picked = await namedOrSoleJob(sb, args.job_number, args.company_id);
-      if (!picked) return whichJobCard("project_record_search", await listCompaniesAndJobs(sb, args.company_id, "project_record_search"));
-      const job = await resolveJob(sb, picked.job_number, picked.company_id);
+      const job = await resolveSubmittalJob(sb, args.job_number, args.company_id);
+      if (!job) return whichJobCard("project_record_search", await listCompaniesAndJobs(sb, args.company_id, "project_record_search"));
       if (!isDisputeAsk(args.kind, args.text)) {
         const zone = await jobTimeZone(sb, job.job_id);
         const today = todayIn(zone);

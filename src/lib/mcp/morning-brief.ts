@@ -7,7 +7,7 @@ import { activityLine, itemLabel, lookaheadModel, shortDate, type LaItem, type S
 import type { BoardPage } from "./board-link";
 import { htmlBlock, renderMarkdown } from "./cards/markdown";
 import { renderHtml } from "./cards/html";
-import { CARD_WIDGET_URI, cardWidgetMeta } from "./cards/widget";
+import { cardWidgetMeta } from "./cards/widget";
 import { applyCardClosing } from "./cards/silence";
 import { guide } from "./visible";
 import type { CardModel, CardRow } from "./cards/model";
@@ -20,8 +20,10 @@ export { jobTitle };
 export const MORNING_BRIEF_DEFAULT_TIME = "06:30";
 export const TODAY_BOARD_LABEL = "Open today's brief";
 export const INBOX_SECTION = "From your inbox and calendar";
+export const INBOX_PLACEHOLDER =
+  "Connect Gmail and Google Calendar in your AI app to see overnight email, unanswered email and today's meetings here.";
 export const MORNING_CARD_GUIDANCE =
-  'The morning card leads. Add a section titled "From your inbox and calendar" covering overnight emails, unanswered emails, and today\'s meetings, followed by the job items. Use only the connected inbox and calendar. Do not invent a message or a meeting. Do not send email.';
+  "The morning card leads. Always keep the heading From your inbox and calendar. If you can read Gmail and Calendar, replace the placeholder rows with overnight emails, unanswered emails and today's meetings. If you cannot, keep the placeholder rows and write no error text of your own. Use only the connected inbox and calendar. Do not invent a message or a meeting. Do not send email. The card is shown. Add nothing after it.";
 
 /** Absolute board the in-app card and the push both open. */
 export function todayBoardUrl(): string {
@@ -487,7 +489,7 @@ function portfolio(jobs: BriefJob[], tagged: Tagged[], now: Date): { rows: CardR
 }
 
 export const INBOX_HOST_LINE =
-  "REQUIRED: Fill From your inbox and calendar from your own Gmail and Calendar. Add that section only when you have overnight emails, unanswered emails that need a reply, or today's meetings. If you cannot read Gmail or Calendar, leave the section out. Never render an empty heading.";
+  "REQUIRED: Always keep the heading From your inbox and calendar. If you can read Gmail and Calendar, replace the placeholder rows with overnight emails, unanswered emails and today's meetings. If you cannot, keep the placeholder rows and write no error text of your own.";
 
 export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean; settings?: BriefSettings; now?: Date }): BuiltBrief {
   const now = input.now ?? new Date();
@@ -514,7 +516,15 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
     overdue: opened.rows.filter((row) => row.flag === "overdue").length,
     due_in_7_days: opened.counts.due_in_7_days,
   };
-  const sections: CardModel["sections"] = [...groups];
+  const sections: CardModel["sections"] = [
+    ...groups,
+    {
+      heading: INBOX_SECTION,
+      kind: "list",
+      placeholder: true,
+      rows: [{ cells: [INBOX_PLACEHOLDER], tone: "unknown" }],
+    },
+  ];
   if (view === "executive") {
     const port = portfolio(jobs, tagged, now);
       sections.push({ heading: "Portfolio", kind: "list", rows: [{ cells: [`${jobs.length} jobs · ${port.open} open · ${port.overdue} overdue`] }] });
@@ -586,15 +596,15 @@ export function ensureBriefCard(card: CardModel): CardModel {
 export function presentBrief(card: CardModel) {
   card = ensureBriefCard(card);
   const html = renderHtml({ ...card, show_state: false });
-  const lead = card.title === "Morning briefing" ? "" : `${INBOX_HOST_LINE}\n\n`;
+  const lead = `${INBOX_HOST_LINE}\n\n`;
   const body = applyCardClosing(`${lead}${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
   return guide(
     {
-      structuredContent: { card, html, "openai/outputTemplate": CARD_WIDGET_URI },
+      structuredContent: { card, html },
       _meta: { ...cardWidgetMeta },
       content: [{ type: "text" as const, text: body, _meta: { ...cardWidgetMeta } }],
     },
-    "Fill From your inbox and calendar from the host's own Gmail and Calendar: overnight emails, unanswered emails that need a reply, and today's meetings. If Gmail or Calendar is not available, leave that section out. Never render an empty heading. Keep the job sections: schedule, notices, submittals due, overdue items, and what happened yesterday versus what is due today.",
+    "Always keep the heading From your inbox and calendar. If you can read Gmail and Calendar, replace the placeholder rows with overnight emails, unanswered emails that need a reply, and today's meetings. If you cannot, keep the placeholder rows and write no error text of your own. Keep the job sections: schedule, notices, submittals due, overdue items, and what happened yesterday versus what is due today. The card is shown. Add nothing after it.",
     MORNING_CARD_GUIDANCE,
   );
 }

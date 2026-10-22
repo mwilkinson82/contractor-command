@@ -207,7 +207,7 @@ describe("morning brief builder", () => {
     });
     expect(feed.items.filter((it) => it.check_key === "pm:crews")).toHaveLength(1);
     expect(built.card.sections?.find((s) => s.heading === "Don't forget")?.rows.length).toBeLessThanOrEqual(3);
-    expect(built.card.sections?.some((section) => section.heading === "From your inbox and calendar")).toBe(false);
+    expect(built.card.sections?.some((section) => section.heading === "From your inbox and calendar")).toBe(true);
   });
 
   it("renders the shared card, the same text, and signed job links", () => {
@@ -253,9 +253,11 @@ describe("morning brief builder", () => {
     expect(before).toContain("#1E5FED");
     expect(before).toContain(INBOX_HOST_LINE);
     expect(before).toContain("Gmail and Calendar");
-    expect(before).toContain("leave the section out");
-    expect(before).toContain("Never render an empty heading");
-    expect(shown.structuredContent.html).not.toContain("From your inbox and calendar");
+    expect(before).not.toContain("leave the section out");
+    expect(before).not.toContain("leave that section out");
+    expect(before).not.toContain("Never render an empty heading");
+    expect(shown.structuredContent.html).toContain("From your inbox and calendar");
+    expect(shown.structuredContent.html).toContain("Connect Gmail and Google Calendar");
     const sealed = attachAthenaCard("morning_brief", shown) as { content: { type: string; text?: string }[] };
     const hostText = sealed.content.find((c) => c.type === "text")?.text ?? "";
     expect(hostText).toContain(INBOX_HOST_LINE);
@@ -370,10 +372,12 @@ describe("job labels and every company", () => {
     const headings = built.card.sections?.map((section) => section.heading) ?? [];
     expect(headings).toContain("ALP Construction");
     expect(headings).toContain("AOP Construction");
+    expect(headings.indexOf("From your inbox and calendar")).toBeGreaterThan(headings.indexOf("ALP Construction"));
+    expect(headings.indexOf("From your inbox and calendar")).toBeGreaterThan(headings.indexOf("AOP Construction"));
     const text = renderMarkdown(built.card);
     expect(text).toContain("1234 Riverside");
     expect(text).toContain("2701 Harbor Point");
     expect(text).not.toContain("1234 1234");
-    expect(built.card.sections?.some((section) => section.heading === "From your inbox and calendar")).toBe(false);
+    expect(built.card.sections?.some((section) => section.heading === "From your inbox and calendar")).toBe(true);
   });
 });

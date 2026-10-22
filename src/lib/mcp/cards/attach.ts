@@ -1,7 +1,7 @@
 import { htmlBlock, renderMarkdown } from "./markdown";
 import { renderHtml } from "./html";
 import { inferCard } from "./infer";
-import { CARD_WIDGET_URI, cardWidgetMeta } from "./widget";
+import { cardWidgetMeta } from "./widget";
 import { CARD_SHOWN, CARD_SHOWN_PICK, applyCardClosing, cardClosing, stripSpokenPreview } from "./silence";
 import { INBOX_HOST_LINE } from "../morning-brief";
 import { isWhichJobText } from "../which-job";
@@ -107,7 +107,6 @@ export function attachAthenaCard<R>(tool: string, result: R): R {
       card,
       html,
       ...(askJob ? { which_job: true } : {}),
-      "openai/outputTemplate": CARD_WIDGET_URI,
       assistant_guidance: [...priorGuidance.filter((g) => g !== CARD_SHOWN && g !== CARD_SHOWN_PICK), closing],
     };
     const meta = { ...(res._meta ?? {}), ...cardWidgetMeta };

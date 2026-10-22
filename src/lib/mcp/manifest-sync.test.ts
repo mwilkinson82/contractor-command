@@ -46,6 +46,7 @@ async function liveTools(): Promise<Tool[]> {
       W.contractTerms,
       W.carryForward,
       W.listOpenItems,
+      W.lookaheadList,
       W.resolveItem,
       L.cpmActivities,
       L.livingReportGet,

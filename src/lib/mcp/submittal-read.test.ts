@@ -63,7 +63,7 @@ vi.mock("./tools/workflow-tools", () => ({
 
 import { submittalsList } from "./tools/submittal-tools";
 
-type Reply = { content: { type: string; text?: string }[]; structuredContent: { card: { sections?: { heading: string; columns?: string[]; rows: { cells: string[]; flag?: string | null }[] }[]; kpis?: { label: string; value: string; flag?: string | null }[] }; html: string; job_id?: string } };
+type Reply = { content: { type: string; text?: string }[]; structuredContent: { card: { title?: string; sections?: { heading: string; columns?: string[]; rows: { cells: string[]; flag?: string | null }[] }[]; kpis?: { label: string; value: string; flag?: string | null }[] }; html: string; job_id?: string } };
 
 const call = (args: Record<string, unknown>) => (submittalsList as unknown as { handler: (a: Record<string, unknown>, c: unknown) => Promise<Reply> }).handler(args, {});
 
@@ -134,6 +134,8 @@ describe("submittal log read", () => {
     expect(state.writes).toEqual([]);
     expect(text).toContain("No submittals on this job yet.");
     expect(text).toContain("log a submittal");
+    expect(text).toContain("<!doctype html");
+    expect(result.structuredContent.card.title).toBe("Submittal log");
     expect(text).not.toContain("A1020");
     expect(paletteViolations(result.structuredContent.html, false)).toEqual([]);
   });

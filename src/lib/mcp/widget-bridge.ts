@@ -2,11 +2,12 @@
 // drops that field before the MCP server sees the handler return, so this bridge
 // puts it back on the meeting tools and getting_started, and registers the card widget resource.
 import { McpServer } from "@modelcontextprotocol/server";
-import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetHtml } from "./cards/widget";
+import { CARD_TOOLS } from "./cards/attach";
+import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetHtml, cardWidgetMeta } from "./cards/widget";
 
 const MEETINGS = new Set(["pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "athena_hello", "morning_brief", "morning_brief_settings"]);
-const CARD_WIDGET_TOOLS = new Set([...MEETINGS, "getting_started", "submittal_log", "submittals_list", "submittals_import", "project_record_search", "submittal_chase", "list_open_items"]);
-const TEMPLATE = { "openai/outputTemplate": CARD_WIDGET_URI };
+const CARD_WIDGET_TOOLS = new Set<string>([...CARD_TOOLS, "lookahead_list"]);
+const TEMPLATE = { ...cardWidgetMeta };
 const patched = Symbol.for("athena.cardWidgetBridge");
 
 type RegisterTool = (name: string, config: { _meta?: Record<string, unknown> }, cb: (...args: unknown[]) => Promise<Record<string, unknown>>) => unknown;
@@ -50,7 +51,9 @@ if (!proto[patched]) {
   const orig = proto.registerTool;
   proto.registerTool = function (this: { registerResource?: (name: string, uri: string, config: Record<string, unknown>, read: () => Promise<unknown>) => unknown }, name, config, cb) {
     const self = this;
-    if (typeof self.registerResource === "function" && !(self as { _athenaCard?: boolean })._athenaCard) {
+    const registered = (self as { _registeredResources?: Record<string, unknown> })._registeredResources;
+    const already = !!registered?.[CARD_WIDGET_URI];
+    if (!already && typeof self.registerResource === "function" && !(self as { _athenaCard?: boolean })._athenaCard) {
       (self as { _athenaCard?: boolean })._athenaCard = true;
       try {
         self.registerResource("athena-card", CARD_WIDGET_URI, { title: "Athena card", mimeType: CARD_WIDGET_MIME }, async () => ({
