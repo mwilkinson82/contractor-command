@@ -126,6 +126,7 @@ export function renderHtml(card: CardModel): string {
     .join("");
   const ask = card.ask?.prompt ? `<div class="ask"><strong>This question</strong><p>${esc(card.ask.prompt)}</p></div>` : "";
   const next = card.next_move ? `<p class="next">Next move: ${esc(card.next_move)}</p>` : "";
+  const eyebrow = card.show_state === false ? "" : `<p class="eyebrow">${esc(STATE_LABEL[card.state])}</p>`;
 
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(card.title)}</title><style>${css}</style></head><body><article class="card" data-state="${card.state}"><header><p class="mark">Athena</p><h1>${esc(card.title)}</h1>${card.job ? `<p class="job">${esc(card.job)}</p>` : ""}</header><div class="body"><p class="eyebrow">${esc(STATE_LABEL[card.state])}</p>${progress}${kpis ? `<div class="kpis">${kpis}</div>` : ""}${ask}${sections}${alerts}${next}</div></article></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(card.title)}</title><style>${css}</style></head><body><article class="card" data-state="${card.state}"><header><p class="mark">Athena</p><h1>${esc(card.title)}</h1>${card.job ? `<p class="job">${esc(card.job)}</p>` : ""}</header><div class="body">${eyebrow}${progress}${kpis ? `<div class="kpis">${kpis}</div>` : ""}${ask}${sections}${alerts}${next}</div></article></body></html>`;
 }
