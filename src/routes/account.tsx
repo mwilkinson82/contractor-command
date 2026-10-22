@@ -12,6 +12,8 @@ import { createBillingPortalSession, submitBillingQuestion } from "@/lib/billing
 import { TeamSection, useAccountTeam } from "@/components/account/team-section";
 import { planLabel, planRate, seatSummary } from "@/lib/account-team";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { onAthenaHost } from "@/lib/athena-host-current";
+import { pageUrl } from "@/lib/report-pages";
 
 const LOGO_BUCKET = "company-logos";
 
@@ -27,6 +29,40 @@ type AosLink = {
   verified_at: string | null;
   last_sync_at: string | null;
 };
+
+function FieldBoards() {
+  const [jobs, setJobs] = useState<{ id: string; job_number: string | null; name: string }[]>([]);
+  useEffect(() => {
+    let alive = true;
+    void supabase
+      .from("mcp_jobs")
+      .select("id, job_number, name")
+      .order("job_number")
+      .then(({ data }) => {
+        if (alive) setJobs(data ?? []);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  if (!jobs.length) return null;
+  return (
+    <section className="mt-8 rounded-2xl border border-[#D1D5DB] bg-white p-7">
+      <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#6B7280]">Dashboards</p>
+      <ul className="mt-4 space-y-3">
+        {jobs.map((job) => (
+          <li key={job.id}>
+            <a className="text-[15px] font-semibold text-[#1E3A5F] hover:text-[#2563EB]" href={pageUrl("field", job.id)}>
+              {job.job_number ? `${job.job_number} – ` : ""}
+              {job.name}
+            </a>
+            <div className="text-[12px] text-[#6B7280]">Field board</div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 function AccountPage() {
   const { user } = useAuth();
@@ -50,6 +86,10 @@ function AccountPage() {
   const athena = useAccountTeam();
   const tier = athena.state?.seats?.tier ?? null;
   const rate = planRate(tier);
+  const [athenaHost, setAthenaHost] = useState(false);
+  useEffect(() => {
+    setAthenaHost(onAthenaHost());
+  }, []);
 
   useEffect(() => {
     if (!company) return;
@@ -185,6 +225,7 @@ function AccountPage() {
 
   return (
     <Container>
+      {athenaHost ? <FieldBoards /> : null}
       <PageHeader
         eyebrow="Account"
         title="Profile, AOS link & billing."

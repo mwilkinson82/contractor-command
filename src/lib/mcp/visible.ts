@@ -360,7 +360,8 @@ export function visibleProblems(text: string): string[] {
     if (REQUIRED_LINE_RE.test(line)) continue;
     const g = line.match(GUIDANCE_RE);
     if (g) bad.push(`instruction: "${g[0]}" in: ${line.trim().slice(0, 160)}`);
-    const c = line.match(INTERNAL_CODE_RE) ?? line.match(SNAKE_RE);
+    const prose = line.replace(/\[[^\]]*\]\(https?:\/\/[^)]+\)/g, " ").replace(/https?:\/\/\S+/g, " ");
+    const c = prose.match(INTERNAL_CODE_RE) ?? prose.match(SNAKE_RE);
     if (c) bad.push(`code: "${c[0]}" in: ${line.trim().slice(0, 160)}`);
   }
   return bad;

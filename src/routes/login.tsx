@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { sendTransactionalEmail } from "@/lib/email/send";
 import { requestMemberMagicLink } from "@/lib/magic-link.functions";
 
+import { athenaPageReturn } from "@/lib/athena-page-return";
 import { oauthReturnPath, oauthConsentReturn } from "@/lib/oauth-return-path";
 import { onAthenaHost, currentHostname } from "@/lib/athena-host-current";
 import { isLovableHost } from "@/lib/athena-host";
@@ -75,7 +76,11 @@ function LoginPage() {
 
     return Promise.race([
       requestMagicLink({
-        data: { email: emailAddress, continuation: oauthConsentReturn(redirectTo) },
+        data: {
+          email: emailAddress,
+          continuation: oauthConsentReturn(redirectTo),
+          return_to: athenaPageReturn(redirectTo),
+        },
       }),
       timeout,
     ]).finally(() => {
@@ -179,7 +184,7 @@ function LoginPage() {
             Check your inbox and spam folder. Open the newest email only; each secure link works
             once.
           </div>
-          {fromConnect && (
+          {athenaBrand && (
             <form onSubmit={onCodeSubmit} className="mt-5 space-y-4">
               <AuthField
                 id="otp"
