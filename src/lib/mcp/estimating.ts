@@ -1,6 +1,7 @@
 // Estimating tools. Athena keeps the record and the math. The host reads the sheets.
 // Quantity labels are MEASURED (spec READ: straight off a sheet) and DEDUCED (spec DERIVED: computed here).
 import { ALERT_COLOR, ALERT_HEX } from "./alert-color";
+import { drawingMarkupCard } from "./drawing-markup";
 import {
   bytesToBase64,
   groupedCsv,
@@ -1972,6 +1973,16 @@ export function renderTakeoff(
     ),
   ];
   const checklist = state.checklist.filter((c) => c.state !== "not used");
+  const namedMarkups = rows.filter((row) => row.markup);
+  const markupCard = namedMarkups.length
+    ? drawingMarkupCard({
+        sheet: namedMarkups[0].sheet ?? "Drawing",
+        callouts: namedMarkups.map((row) => ({
+          label: row.markup as string,
+          flag: row.holdsBid ? "risk" : null,
+        })),
+      })
+    : null;
   const sheetRows = sheetFrom(rows);
   const grouped = cleanCsv(groupedCsv(sheetRows));
   const text = frame("Takeoff", [
@@ -2019,6 +2030,7 @@ export function renderTakeoff(
     "One fact each",
     "- Contact area is listed ahead of concrete and reinforcing.",
     "- A markup image is included only when a line names one.",
+    ...(markupCard ? ["", markupCard.html] : []),
     "",
     ...takeoffCard(sheetRows, account?.statuses),
     "",
@@ -2056,6 +2068,7 @@ export function renderTakeoff(
       checklist: state.checklist,
       settled: state.settled,
       spreadsheet: { grouped_csv: grouped, xlsx_base64: bytesToBase64(takeoffXlsx(sheetRows)) },
+      ...(markupCard ? { markup: { html: markupCard.html, embedded: true } } : {}),
     },
     guidance: [
       "Show the takeoff card grouped by trade or system, with MEASURED or DEDUCED and a Verify flag. Offer the CSV and the xlsx from spreadsheet.",
