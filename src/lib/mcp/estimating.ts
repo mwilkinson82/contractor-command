@@ -601,6 +601,18 @@ export function prepareLine(raw: LineIn): Omit<StoredLine, "line_no"> {
     return holdLine(raw, named, basis === "deduced" ? "deduced" : "measured", where, unit, detail, sheet, note, inputs);
   }
 
+  if (basis === "deduced" && op === "as_read") {
+    if (raw.value == null) return asBlank(named ?? "quantity");
+    const qty = qtyNumber(raw.value, unit);
+    return computed(
+      raw,
+      qty,
+      unit,
+      `DEDUCED: ${formatQty(qty, unit)} ${unit ?? ""} as sent. ${where}.`.replace(/\s+/g, " "),
+      inputs,
+    );
+  }
+
   if (basis === "measured" || op === "as_read") {
     const qty = qtyNumber(raw.value as number, unit);
     return finish(
@@ -633,6 +645,16 @@ export function prepareLine(raw: LineIn): Omit<StoredLine, "line_no"> {
   if (!op) {
     if (named || inputs.some((i) => i.value == null))
       return asBlank(named ?? inputs.find((i) => i.value == null)?.name ?? null);
+    if (basis === "deduced" && raw.value != null) {
+      const qty = qtyNumber(raw.value, unit);
+      return computed(
+        raw,
+        qty,
+        unit,
+        `DEDUCED: ${formatQty(qty, unit)} ${unit ?? ""} as sent. ${where}.`.replace(/\s+/g, " "),
+        inputs,
+      );
+    }
     throw new EstimateError("Say how this DEDUCED quantity is computed. Nothing was saved.");
   }
 
@@ -2688,7 +2710,7 @@ export function parseState(raw: unknown): {
     sheet: String(l.sheet ?? ""),
     detail: str(l.detail),
     spec_section: str(l.spec_section),
-    basis: l.basis === "deduced" ? "deduced" : "measured",
+    basis: String(l.basis ?? "").trim().toLowerCase() === "deduced" ? "deduced" : "measured",
     math: String(l.math ?? ""),
     confidence: l.confidence === "low" || l.confidence === "medium" ? l.confidence : "high",
     markup_ref: str(l.markup_ref),

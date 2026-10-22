@@ -187,6 +187,23 @@ describe("quantity labels and math", () => {
     expect(read.basis).toBe("measured");
     expect(read.qty).toBe(19220);
     expect(read.math).toContain("MEASURED");
+    const deduced = line({
+      item: "Wall footing",
+      sheet: "S-100",
+      unit: "LF",
+      basis: "deduced",
+      op: "as_read",
+      value: 174,
+    });
+    expect(deduced.basis).toBe("deduced");
+    expect(deduced.qty).toBe(174);
+    expect(deduced.math).toContain("DEDUCED");
+    expect(deduced.math).not.toContain("MEASURED");
+    const sent = prepareLines([
+      { item: "Wall footing", sheet: "S-100", unit: "LF", basis: "DEDUCED", value: 174, line_no: 1 },
+    ])[0];
+    expect(sent.basis).toBe("deduced");
+    expect(sent.qty).toBe(174);
     const scaled = line({
       item: "Footing centerline",
       sheet: "S3.1",
