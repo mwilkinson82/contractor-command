@@ -7,8 +7,11 @@ import {
   ESTIMATE_SERVER_RULE,
   ESTIMATE_VIEW_SPEC,
   EstimateError,
+  accountTakeoffLines,
   assignGapRefs,
   autoGaps,
+  foundationGapPrompts,
+  preserveGapList,
   basisLabel,
   buildSummary,
   checkBids,
@@ -356,7 +359,7 @@ describe("coverage, gaps, bids, summary", () => {
     );
     expect(draft.text).toMatch(/draft/i);
     expect(draft.text).toContain("Open gaps");
-    expect(draft.text).toContain("Perimeter insulation");
+    expect(draft.text).toContain("Under-slab insulation");
     expect(draft.structured.draft).toBe(true);
     const verdicts: StoredVerdict[] = [];
     const closedLines = prepareLines([
@@ -398,6 +401,11 @@ describe("coverage, gaps, bids, summary", () => {
     expect(summary.structured.layout).toMatchObject({
       logo: { position: "top-right", url: ESTIMATE_LOGO_URL },
     });
+    const pdf = Buffer.from(String(summary.structured.pdf_base64), "base64");
+    expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
+    expect(pdf.toString("latin1")).toContain("/MediaBox [0 0 1224");
+    const slab = prepareLines([{ ...base, item: "Slab on grade", basis: "measured", value: 100, unit: "SF" }])[0];
+    expect(slab.math).toContain("Slab area: net");
     expect(problems(summary.text)).toEqual([]);
     const built = buildSummary(closed.items, []);
     expect(built.rows.every((r) => r.rate === "Rate needed" && r.extension == null)).toBe(true);
@@ -541,6 +549,23 @@ describe("engine conventions", () => {
       },
     ])[0];
     expect(both.math).toContain("Forms faces: 2");
+    expect(both.qty).toBe(40);
+    const fromProfile = prepareLines(
+      [
+        {
+          item: "Footing forms",
+          sheet: "S-101",
+          unit: "SF",
+          basis: "measured",
+          value: 446,
+          line_no: 1,
+        },
+      ],
+      conventionFor("estimator", 2),
+    )[0];
+    expect(fromProfile.qty).toBe(892);
+    expect(fromProfile.math).toContain("both faces");
+    expect(fromProfile.math).toContain("446");
   });
 
   it("uses gross termite area, follows the estimator profile, and rejects LF sent as CF", () => {
@@ -646,7 +671,7 @@ describe("intake reuse and takeoff save mode", () => {
 
   it("asks scope, role and profile, and does not assume self-performer", () => {
     expect(intakeQuestions({ role: null, trades: [], in_scope: [], profile: null })).toHaveLength(
-      3,
+      4,
     );
     expect(
       intakeQuestions({
@@ -654,8 +679,12 @@ describe("intake reuse and takeoff save mode", () => {
         trades: ["03 Concrete"],
         in_scope: [],
         profile: "as_drawn",
+        forms_faces: 1,
       }),
     ).toEqual([]);
+    expect(intakeQuestions({ role: "gc", trades: ["03"], in_scope: [], profile: "as_drawn" }).join(" ")).toContain(
+      "one face or both faces",
+    );
     const view = renderIntake("2701 – Crystal", blankSetup, null);
     expect(view.text).toContain("Intake is not complete.");
     expect(view.text).toContain("general contractor or a self-performer");
@@ -669,6 +698,7 @@ describe("intake reuse and takeoff save mode", () => {
       "2701 – Crystal",
       { ...blankSetup, role: "gc", trades: ["03 Concrete"] },
       "estimator",
+      1,
     );
     expect(done.text).toContain("Intake is complete.");
     expect(done.structured.complete).toBe(true);
@@ -725,6 +755,84 @@ describe("intake reuse and takeoff save mode", () => {
     );
     expect(replaced.text).toContain("This save replaced the takeoff.");
     expect(problems(view.text)).toEqual([]);
+  });
+
+  it("accounts for every line in a 92-line save, including null quantities and repeated names", () => {
+    const rows = Array.from({ length: 92 }, (_, i) => {
+      const hold = i < 13;
+      return {
+        ...base,
+        item: hold ? `Hold ${i % 4}` : i % 2 === 0 ? "Footing" : "Slab",
+        sheet: `S-${i + 1}`,
+        basis: "measured" as const,
+        value: hold ? null : i + 1,
+        unit: "SF",
+        method: hold ? "HOLD" : undefined,
+      };
+    });
+    const account = accountTakeoffLines(rows);
+    expect(account.sent).toBe(92);
+    expect(account.saved + account.rejected.length).toBe(92);
+    expect(account.saved).toBe(92);
+    expect(account.rejected).toEqual([]);
+    expect(account.lines).toHaveLength(92);
+    const holds = account.lines.filter((l) => l.qty == null);
+    expect(holds).toHaveLength(13);
+    expect(holds.every((l) => l.missing_input === "quantity pending" && l.math.includes("HOLD"))).toBe(true);
+    const view = renderTakeoff("2701 – Crystal", account.lines, settle(account.lines, [], [], { role: "gc", trades: [] }), "Revision used: not stated.", "replace", account);
+    expect(view.text).toContain("Sent 92. Saved 92. Rejected 0.");
+    const bad = accountTakeoffLines([
+      ...rows.slice(0, 91),
+      { ...base, item: "Bad wall", sheet: "S-9", basis: "measured", value: -3, unit: "SF", line_no: 92 },
+    ]);
+    expect(bad.sent).toBe(92);
+    expect(bad.saved + bad.rejected.length).toBe(92);
+    expect(bad.rejected).toEqual([expect.objectContaining({ line_no: 92, item: "Bad wall" })]);
+    expect(bad.rejected[0].reason).toMatch(/zero or more/);
+  });
+
+  it("keeps gap numbers when a mark is saved again", () => {
+    const prior = [
+      { ref: "G-4", kind: "verify" as const, category: "scope_seam" as const, severity: "hard" as const, title: "Keyway", reasoning: "Missing.", sheet: "S-1", detail: null, spec_section: "foundation", holds_bid: true, qty: null, unit: null, element: null, line_no: null },
+    ];
+    const again = preserveGapList(prior, [
+      { kind: "verify", category: "scope_seam", title: "Keyway", reasoning: "Still missing.", sheet: "S-1", spec_section: "foundation" },
+    ]);
+    expect(again.map((g) => g.ref)).toEqual(["G-4"]);
+    expect(again).toHaveLength(1);
+  });
+
+  it("flags the foundation scope when it is not taken off", () => {
+    const prompts = foundationGapPrompts([]);
+    for (const name of ["Slab edge forms", "Keyway", "Dowels", "Under-slab insulation", "Termite treatment", "Fine grade", "Trench base"])
+      expect(prompts.map((g) => g.title)).toContain(name);
+    const closed = foundationGapPrompts(
+      FOUNDATION_CHECKLIST.map((row, i) => ({
+        line_no: i + 1,
+        item: row.label,
+        material: null,
+        qty: 1,
+        unit: row.unit,
+        range_text: null,
+        measure_type: null,
+        sheet: "S-1",
+        detail: null,
+        spec_section: null,
+        basis: "measured" as const,
+        math: "MEASURED",
+        confidence: "high" as const,
+        markup_ref: null,
+        location_text: null,
+        missing_input: null,
+        exclusion: null,
+        checklist_key: row.key,
+        element: null,
+        trade: null,
+        note: null,
+        inputs: [],
+      })),
+    );
+    expect(closed).toEqual([]);
   });
 });
 
