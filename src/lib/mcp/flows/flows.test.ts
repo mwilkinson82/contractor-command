@@ -63,6 +63,14 @@ describe("job 2701 guided flows", () => {
     const self = buildFlowCard("pm_meeting", "schedule", job2701FlowData({ selfPerform: true }));
     expect(self.ask?.prompt).toContain("self-perform crews and materials");
     const changes = buildFlowCard("pm_meeting", "change_orders", data);
+    const doubled = job2701FlowData();
+    doubled.items.push(
+      { id: "w-dup", action: "CO-12 duct conflict waiting on the architect", owner: "Priya Nandakumar", due: "2026-11-02", kind: "change", status: "open" },
+    );
+    const waitingCard = buildFlowCard("pm_meeting", "change_orders", doubled);
+    const waitingRows = waitingCard.sections?.find((s) => s.heading === "Waiting on")?.rows ?? [];
+    expect(waitingCard.kpis?.find((k) => k.label === "Waiting on")?.value).toBe(String(waitingRows.length));
+    expect(waitingRows.length).toBe(1);
     expect(changes.kpis?.map((k) => k.value)).toEqual(["1", "1", "1"]);
     const books = buildFlowCard("pm_meeting", "accounting", data);
     expect(books.kpis?.find((k) => k.label === "Realistic bill")?.flag).toBe("risk");

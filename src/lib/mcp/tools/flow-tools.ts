@@ -5,7 +5,7 @@ import { renderHtml } from "../cards/html";
 import { htmlBlock, renderMarkdown } from "../cards/markdown";
 import { CARD_WIDGET_URI, cardWidgetMeta } from "../cards/widget";
 import { CARD_SHOWN, applyCardClosing } from "../cards/silence";
-import { mintJobBoardLinks } from "../board-link";
+import { signedJobPages } from "../board-url";
 import { applyMeetingFigures, buildFlowCard } from "../flows/build";
 import { isUuid } from "../../report-pages";
 import { job2701FlowData } from "../flows/job-2701";
@@ -54,7 +54,7 @@ function present(flow: FlowName, stage: string, data: FlowData) {
 }
 
 async function lead(flow: FlowName, args: { job_number?: string; company_id?: string; stage?: string; note?: string; crew_mode?: "subcontract" | "self_perform"; sample?: true; plan?: number; realistic?: number; percent_complete?: number }, sb: Sb) {
-  if (!args.job_number?.trim()) return text(await listCompaniesAndJobs(sb, args.company_id));
+  if (!args.job_number?.trim()) return text(await listCompaniesAndJobs(sb, args.company_id, flow));
   const stages = stagesFor(flow);
   const stage = args.stage ?? stages[0];
   if (!stages.includes(stage)) throw new ToolError(`That stage is not in this meeting. The stages are ${stages.map((s) => STAGE_LABEL[s]).join(", ")}.`);
@@ -76,9 +76,12 @@ async function lead(flow: FlowName, args: { job_number?: string; company_id?: st
   if (!data.showMoney) data.money = { plan: null, realistic: null, billed: null, contract: null, remaining: null, retentionHeld: null, retentionReleasable: data.money.retentionReleasable };
   applyMeetingFigures(data, args);
   if (args.sample !== true && isUuid(job.job_id) && (job.scope === "full" || job.scope === "super")) {
-    const links = await mintJobBoardLinks((fn, a) => sb.rpc(fn, a), job.job_id, job.scope);
+    const links = await signedJobPages((fn, a) => sb.rpc(fn, a), job.job_id, job.scope);
     data.fieldUrl = links.field ?? null;
     data.itemsUrl = links.items ?? null;
+    data.iorUrl = links.ior ?? null;
+    data.dailyUrl = links.daily ?? null;
+    data.photosUrl = links.photos ?? null;
   }
   return present(flow, stage, data);
 }
@@ -104,13 +107,13 @@ export const pmMeeting = defineTool({
 });
 
 export const pmMorning = defineTool({
-  name: "pm_morning",
-  title: "PM morning meeting",
-  description: "Runs the construction project morning meeting for a job the member just named, through the schedule, lookahead, crews, risks, and spillover, and must not fill job_number from chat context or hand the request to a calendar.",
+  name: "athena_morning_hitlist",
+  title: "Athena morning hitlist",
+  description: "Athena morning hitlist for Hey Athena, hitlist, morning briefing, what's on my plate today, overdue, and today's deadlines on my jobs: the construction job hitlist, not email or calendar.",
   inputSchema: { job_number: jobNumber, company_id: companyId, stage: z.enum(["schedule", "crews", "risks", "spillover", "log"]).optional(), note, crew_mode: crewMode, sample },
   annotations: READ,
   handler: (args, ctx) =>
-    run("pm_morning", ctx, { jobNumber: args.job_number }, async (sb) => lead("pm_morning", args, sb)),
+    run("athena_morning_hitlist", ctx, { jobNumber: args.job_number }, async (sb) => lead("pm_morning", args, sb)),
 });
 
 export const pmEvening = defineTool({

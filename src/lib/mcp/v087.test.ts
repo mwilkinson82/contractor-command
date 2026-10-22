@@ -73,7 +73,7 @@ describe("0.8.7 owner link hard no, SOV chart, date sweep", () => {
     expect(g).toContain("(fresh.data === true || o.sweep === true)");
     const w = src("./tools/workflow-tools.ts");
     expect(w).toContain("sweep: args.date_sweep === true");
-    expect(w).toContain("Same notice also logged as: ${d.map((x) => displayRef(x))");
+    expect(w).toContain("Same notice also logged as: ${d.map((x) => itemName(x.action))");
   });
   it("version is 0.8.7", () => expect(ATHENA_VERSION).toBe("0.8.18"));
 });

@@ -3,6 +3,7 @@ import { renderHtml } from "./html";
 import { inferCard } from "./infer";
 import { CARD_WIDGET_URI, cardWidgetMeta } from "./widget";
 import { CARD_SHOWN, CARD_SHOWN_PICK, applyCardClosing, cardClosing, stripSpokenPreview } from "./silence";
+import { isWhichJobText } from "../which-job";
 import type { CardModel } from "./model";
 
 type Block = { type: string; text?: string };
@@ -13,7 +14,7 @@ type Res = {
 };
 
 /** These results open on the card. No sweep, style line, or footer is left outside it. */
-export const CARD_FIRST_TOOLS = new Set(["contract_terms", "pm_meeting", "pm_morning", "pm_evening"]);
+export const CARD_FIRST_TOOLS = new Set(["contract_terms", "pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "report_page_link"]);
 
 /** Tools whose plain text is wrapped in a card. Flow tools set their own card. */
 export const CARD_TOOLS = new Set([
@@ -34,6 +35,7 @@ export const CARD_TOOLS = new Set([
   "report_page_share_revoke",
   "pm_meeting",
   "pm_morning",
+  "athena_morning_hitlist",
   "pm_evening",
   "superintendent_view",
   "field_board",
@@ -50,8 +52,8 @@ function stripChrome(text: string): string {
 }
 
 function whichJob(tool: string, text: string): boolean {
-  const meeting = tool === "list_open_items" || tool === "pm_meeting" || tool === "pm_morning" || tool === "pm_evening";
-  return meeting && /No job named|Which job should I list open items for\?/i.test(text);
+  const meeting = tool === "list_open_items" || tool === "pm_meeting" || tool === "pm_morning" || tool === "pm_evening" || tool === "athena_morning_hitlist";
+  return meeting && isWhichJobText(text);
 }
 
 /**

@@ -72,7 +72,7 @@ describe("0.8.3 retest fixes", () => {
   it("5. date sweep never on report, only when asked or at job open", () => {
     const g = src("./guard.ts");
     expect(g).toContain("(fresh.data === true || o.sweep === true)");
-    expect(g).toContain('const NEVER_SWEEP = new Set(["report", "pm_meeting", "pm_morning", "pm_evening"]);');
+    expect(g).toContain('const NEVER_SWEEP = new Set(["report", "pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "list_open_items"]);');
     expect(HOST_DISPLAY_BLOCK).toContain(DATE_SWEEP_RULE);
     expect(src("./index.ts")).not.toContain("always on report and list_open_items");
   });

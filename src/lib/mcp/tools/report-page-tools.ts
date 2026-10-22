@@ -6,13 +6,20 @@ import { z } from "zod";
 import { dbError, run, text, type Sb } from "../guard";
 import { FULL_ACCESS_MESSAGE, READ_ONLY_MESSAGE, audit, prefix, resolveCompany, resolveJob } from "../jobs";
 import { guide } from "../visible";
-import { mintJobBoardLinks } from "../board-link";
+import { boardLinkExpiry } from "../board-link";
+import { boardPageFor, jobLinksMissingToken, signedJobPages, type BoardLinkPage } from "../board-url";
 import { newToken, tokenHash } from "../file-share";
+import { applyCardClosing } from "../cards/silence";
+import { renderHtml } from "../cards/html";
+import { htmlBlock, renderMarkdown } from "../cards/markdown";
+import type { CardModel } from "../cards/model";
+import { shortDate } from "../styled-views";
 import { PAGE_LABEL, REPORT_PAGES, SHARE_DEFAULT_DAYS, SHARE_MAX_DAYS, pageAllowed, pageUrl, shareExpiry, shareTokenFromLink, shareUrl, type ReportPage } from "../../report-pages";
 
 const jobNumber = z.string().trim().min(1).max(40).optional();
 const companyId = z.string().trim().min(1).max(200).optional();
-const page = z.enum(REPORT_PAGES);
+const sharePage = z.enum(REPORT_PAGES);
+const page = z.string().trim().min(1).max(40);
 
 async function rpc<T>(sb: Sb, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await (sb.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>)(fn, args);
@@ -21,7 +28,7 @@ async function rpc<T>(sb: Sb, fn: string, args: Record<string, unknown>): Promis
 }
 
 async function target(sb: Sb, args: { page: string; job_number?: string; company_id?: string }) {
-  const p = args.page as ReportPage;
+  const p = args.page as BoardLinkPage;
   if (p === "portfolio") {
     const co = await resolveCompany(sb, args.company_id);
     const leader = await rpc<boolean>(sb, "mcp_is_company_leader", { _company: co });
@@ -34,24 +41,53 @@ async function target(sb: Sb, args: { page: string; job_number?: string; company
   return { p, id: job.job_id, job, company: job.company_id, head: prefix(job) };
 }
 
+const BOARD_BUTTON: Partial<Record<string, string>> = {
+  items: "Open items",
+  ior: "Open IOR",
+  field: "Open field board",
+};
+
+function boardLinkCard(page: string, job: string | null, url: string, expiresAt: string | null): CardModel {
+  const label = PAGE_LABEL[page as keyof typeof PAGE_LABEL] ?? "Board";
+  return {
+    state: "result",
+    title: label,
+    job,
+    sections: [
+      { heading: "Open", kind: "chips", rows: [{ cells: [BOARD_BUTTON[page] ?? `Open ${label}`], href: url, tone: "action" }] },
+      ...(expiresAt ? [{ heading: "Link", kind: "list" as const, rows: [{ cells: [`This link works until ${shortDate(expiresAt.slice(0, 10))}.`], tone: "known" as const }] }] : []),
+    ],
+    next_move: null,
+  };
+}
+
 export const reportPageLink = defineTool({
   name: "report_page_link",
-  title: "Permanent report page link",
-  description: "Returns the private page for a saved report.",
+  title: "Board link",
+  description: "Returns the private board link: items opens /items, ior opens /ior, and field opens /field.",
   inputSchema: { page, job_number: jobNumber, company_id: companyId },
   annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   handler: (args, ctx) =>
     run("report_page_link", ctx, { jobNumber: args.job_number }, async (sb) => {
-      const t = await target(sb, args);
-      const board = t.job && (t.job.scope === "full" || t.job.scope === "super") ? await mintJobBoardLinks((fn, a) => sb.rpc(fn, a), t.job.job_id, t.job.scope === "super" ? "super" : "full") : {};
-      const url = (t.p === "ior" ? board.ior : null) ?? pageUrl(t.p, t.id);
+      const asked = boardPageFor(args.page);
+      if (!asked) throw new ToolError("Which board? items, ior, or field.");
+      const t = await target(sb, { ...args, page: asked });
+      const expires = t.p === "portfolio" ? null : boardLinkExpiry();
+      const board = t.job ? await signedJobPages((fn, a) => sb.rpc(fn, a), t.job.job_id, t.job.scope) : {};
+      const signed = t.p === "portfolio" ? null : board[t.p as keyof typeof board] ?? null;
+      if (t.p !== "portfolio" && !signed) throw new ToolError("The board link could not be signed. Ask again in a moment.");
+      const url = signed ?? pageUrl(t.p, t.id);
+      if (jobLinksMissingToken(url).length) throw new ToolError("The board link could not be signed. Ask again in a moment.");
       await audit(sb, t.job, "report_page_link", `page_link_${t.p}`, null, t.company);
+      const card = boardLinkCard(t.p, t.job ? `${t.job.job_number} – ${t.job.name}` : null, url, expires ? expires.toISOString() : null);
+      const html = renderHtml(card);
+      const body = applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
       return guide(
         {
-          ...text([`${t.head}${PAGE_LABEL[t.p]} page: ${url}`, "It stays up to date: every time a new version is saved, the page shows it. Only signed-in people at your company with access to this job can open it."].join("\n")),
-          structuredContent: { url, page: t.p, private: true },
+          ...text(body),
+          structuredContent: { url, page: t.p, private: true, expires_at: expires ? expires.toISOString() : null, card, html },
         },
-        "Give the member the link on its own line. Don't call it public. Only if the member asks to share it with someone outside the company (an owner's rep, a lender), offer an expiring share link with report_page_share after they confirm.",
+        "The card is the whole reply. Do not add prose before or after it.",
       );
     }),
 });
@@ -61,7 +97,7 @@ export const reportPageShare = defineTool({
   title: "Share a report page (expiring link)",
   description: "Makes an expiring link to a report page.",
   inputSchema: {
-    page, job_number: jobNumber, company_id: companyId,
+    page: sharePage, job_number: jobNumber, company_id: companyId,
     confirmed: z.literal(true),
     expires_in_days: z.number().int().min(1).max(SHARE_MAX_DAYS).optional(),
   },

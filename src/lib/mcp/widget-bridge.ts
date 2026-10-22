@@ -4,7 +4,7 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetHtml } from "./cards/widget";
 
-const MEETINGS = new Set(["pm_meeting", "pm_morning", "pm_evening"]);
+const MEETINGS = new Set(["pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist"]);
 const TEMPLATE = { "openai/outputTemplate": CARD_WIDGET_URI };
 const patched = Symbol.for("athena.cardWidgetBridge");
 

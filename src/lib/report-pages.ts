@@ -7,6 +7,8 @@ import { delayCallout, jobWorkingDays } from "./mcp/living";
 import { DEFAULT_TZ, addDays, todayIn } from "./mcp/deadlines";
 import { activityLine, activityTitle, briefingModel, dayHead, lookaheadModel, payModel, shortDate, lookaheadWindow, type BriefItem, type Billing, type LaItem, type LaEntry, type SAct } from "./mcp/styled-views";
 import { dailyPageHtml, fieldPageHtml, photoPageHtml } from "./mcp/superintendent";
+import { renderIorLayout, type ReportNames } from "./ior-layout";
+import { dedupeOpenRows, itemName } from "./mcp/open-feed";
 
 export const REPORT_PAGES = ["ior", "schedule", "portfolio"] as const;
 export type ReportPage = (typeof REPORT_PAGES)[number];
@@ -70,7 +72,7 @@ export type Report = {
   contract_total?: number | null; forecast_total?: number | null; contract_completion_date?: string | null; scope?: string;
   data?: { activities?: Act[]; tia?: Tia | null; kpis?: Record<string, unknown>; items?: unknown[]; risks?: unknown[]; [k: string]: unknown };
 };
-export type JobPayload = { page: "ior" | "schedule"; company?: string; job_number?: string; job_name?: string; report: Report; shared?: boolean; expires_at?: string };
+export type JobPayload = { page: "ior" | "schedule"; company?: string; job_number?: string; job_name?: string; report: Report; names?: ReportNames; shared?: boolean; expires_at?: string };
 export type PortfolioJob = { job_id: string; job_number: string; name: string; pm?: string | null; completion_date?: string | null;
   cpm?: { version: number; data_date?: string | null; updated_at?: string; tia?: Tia | null; contract_total?: number | null; forecast_total?: number | null } | null;
   ior?: { version: number; data_date?: string | null; updated_at?: string; data?: Record<string, unknown> } | null };
@@ -105,9 +107,6 @@ const tile = (label: string, value: string, alert = false) =>
 const tiles = (t: string[]) => `<div style="display:flex;flex-wrap:wrap;gap:12px;margin:0 0 16px">${t.join("")}</div>`;
 const stamp = (r: { version?: number; updated_at?: string | null; updated_by_name?: string | null; data_date?: string | null }) =>
   `<p style="margin:4px 0 16px;font-size:12px;color:${G1}">v${esc(r.version)} · Last updated ${esc(r.updated_at?.slice(0, 10) ?? "")}${r.updated_by_name ? ` by ${esc(r.updated_by_name)}` : ""}${r.data_date ? ` · Data date ${esc(r.data_date)}` : ""}</p>`;
-const fmtVal = (v: unknown, moneyOk: boolean) => (isNum(v) ? (moneyOk ? money(v) : "—") : esc(typeof v === "object" ? JSON.stringify(v) : v));
-const isRiskKey = (k: string) => /risk|delay|overdue|late|behind/i.test(k);
-
 // ---------- views ----------
 function scheduleView(p: JobPayload): string {
   const r = p.report, d = r.data ?? {};
@@ -142,28 +141,7 @@ function scheduleView(p: JobPayload): string {
 }
 
 function iorView(p: JobPayload): string {
-  const r = p.report, d = r.data ?? {};
-  const moneyOk = r.scope === "full";
-  const out: string[] = [];
-  if (isNum(r.contract_total) && isNum(r.forecast_total)) {
-    const ties = Math.round(r.contract_total * 100) === Math.round(r.forecast_total * 100);
-    out.push(`<p style="margin:0 0 12px;font-weight:600;color:${ties ? NAVY : RED}">${ties ? `Forecast ${money(r.forecast_total)} = contract ${money(r.contract_total)}` : `Doesn't tie: off by ${money(Math.abs(r.forecast_total - r.contract_total))}`}</p>`);
-  }
-  const kpis = (d.kpis && typeof d.kpis === "object" ? d.kpis : {}) as Record<string, unknown>;
-  const kt = Object.entries(kpis).slice(0, 8).map(([k, v]) => tile(k.replace(/_/g, " "), fmtVal(v, moneyOk), isRiskKey(k)));
-  if (kt.length) out.push(tiles(kt));
-  const risks = Array.isArray(d.risks) ? d.risks : [];
-  if (risks.length) {
-    out.push(card(`<h2 style="margin:0 0 8px;font-size:15px;color:${NAVY}">Risk register</h2>` + risks.map((x, i) => {
-      const o = (typeof x === "object" && x ? x : { risk: x }) as Record<string, unknown>;
-      const title = String(o.risk ?? o.title ?? o.name ?? "Risk");
-      return `<div id="risk-${i + 1}" style="padding:8px 0;border-top:1px solid ${G4}">${i < 3 ? `<span style="color:${RED};font-weight:700">R${i + 1}</span> ` : `<span style="color:${G1}">R${i + 1}</span> `}<a href="#risk-${i + 1}" style="color:${NAVY};text-decoration:none">${esc(title)}</a>${isNum(o.exposure) && moneyOk ? ` <span style="color:${G1}">${money(o.exposure)}</span>` : ""}</div>`;
-    }).join("")));
-  }
-  const rest = Object.entries(d).filter(([k]) => !["kpis", "risks", "activities", "tia", "billing"].includes(k));
-  if (rest.length) out.push(card(`<table style="border-collapse:collapse;width:100%">${rest.map(([k, v]) => `<tr><td style="padding:6px 8px;color:${G1};font-size:13px;vertical-align:top">${esc(k.replace(/_/g, " "))}</td><td style="padding:6px 8px;color:${NAVY};font-size:13px">${Array.isArray(v) ? v.map((x) => esc(typeof x === "object" ? Object.values(x as object).join(" · ") : x)).join("<br>") : fmtVal(v, moneyOk)}</td></tr>`).join("")}</table>`));
-  if (!out.length) out.push(card(`<p style="margin:0;color:${G1}">The saved IOR has no items yet.</p>`));
-  return out.join("");
+  return renderIorLayout({ report: p.report, names: { ...p.names, job_name: p.names?.job_name ?? p.job_name } });
 }
 
 function portfolioView(p: PortfolioPayload): string {
@@ -246,12 +224,17 @@ function briefingPageView(p: BriefingPayload): string {
 
 /** Page body (no <html>). Used inside the signed-in page and the share page. */
 function itemsPageHtml(p: ItemsPagePayload): string {
-  const items = p.items ?? [];
+  const items = dedupeOpenRows((p.items ?? []).map((item, n) => ({
+    id: item.id || String(n + 1),
+    action: item.action || "Item",
+    due: item.due,
+    owner: item.owner,
+  })));
   if (!items.length) return card(`<p style="margin:0;color:${G1}">No open items on this job.</p>`);
   return items.map((item, n) => {
     const id = item.id || String(n + 1);
     const due = item.due?.slice(0, 10) ?? "";
-    return `<section id="item-${esc(id)}"${item.id ? ` data-id="${esc(item.id)}"` : ""}>${card(`<div style="font-weight:700;color:${NAVY}">${esc(item.action || "Item")}</div><div style="font-size:12px;color:${G1};margin-top:4px">${esc(item.owner || "Needed")}${due ? ` · ${esc(shortDate(due))}` : ""}</div>`)}</section>`;
+    return `<section id="item-${esc(id)}"${item.id ? ` data-id="${esc(item.id)}"` : ""}>${card(`<div style="font-weight:700;color:${NAVY}">${esc(itemName(item.action || "Item"))}</div><div style="font-size:12px;color:${G1};margin-top:4px">${esc(item.owner || "Needed")}${due ? ` · ${esc(shortDate(due))}` : ""}</div>`)}</section>`;
   }).join("");
 }
 

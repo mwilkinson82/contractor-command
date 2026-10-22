@@ -55,6 +55,9 @@ export type FlowData = {
   /** Short-lived board links for the browser that has no Athena session. */
   fieldUrl?: string | null;
   itemsUrl?: string | null;
+  iorUrl?: string | null;
+  dailyUrl?: string | null;
+  photosUrl?: string | null;
 };
 
 export const PM_MEETING_STAGES = ["progress", "schedule", "change_orders", "accounting", "ior"] as const;

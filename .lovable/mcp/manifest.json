@@ -1119,7 +1119,7 @@
       {
         "name": "contract_terms",
         "title": "Read contract terms",
-        "description": "Reads a job's contract clauses back as one card, with each risk clause on that card and the summary question as the card action, and adds nothing after the card.",
+        "description": "Reads contract clauses, the contract value, and the substantial completion date when asked what the contract says, what it is worth, or when the job finishes.",
         "annotations": {
           "readOnlyHint": true,
           "openWorldHint": false,
@@ -1881,8 +1881,8 @@
       },
       {
         "name": "report_page_link",
-        "title": "Permanent report page link",
-        "description": "Returns the private page for a saved report.",
+        "title": "Board link",
+        "description": "Returns the private board link: items opens /items, ior opens /ior, and field opens /field.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -1895,11 +1895,8 @@
           "properties": {
             "page": {
               "type": "string",
-              "enum": [
-                "ior",
-                "schedule",
-                "portfolio"
-              ]
+              "minLength": 1,
+              "maxLength": 40
             },
             "job_number": {
               "type": "string",
@@ -4951,9 +4948,9 @@
         "outputSchema": null
       },
       {
-        "name": "pm_morning",
-        "title": "PM morning meeting",
-        "description": "Runs the construction project morning meeting for a job the member just named, through the schedule, lookahead, crews, risks, and spillover, and must not fill job_number from chat context or hand the request to a calendar.",
+        "name": "athena_morning_hitlist",
+        "title": "Athena morning hitlist",
+        "description": "Athena morning hitlist for Hey Athena, hitlist, morning briefing, what's on my plate today, overdue, and today's deadlines on my jobs: the construction job hitlist, not email or calendar.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
