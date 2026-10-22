@@ -4884,9 +4884,9 @@
       {
         "name": "pm_meeting",
         "title": "Run construction PM meeting (Athena)",
-        "description": "Runs the construction PM meeting in Athena when someone says run my PM meeting or start the project meeting, through schedule progress, the locked lookahead, subs suppliers and crews, change orders, billing, and the IOR, and must not fill job_number from chat context, build a generic meeting widget, or hand the request to a calendar.",
+        "description": "Runs the construction PM meeting in Athena, the job meeting on the schedule rather than a calendar appointment, when someone says run my PM meeting or start the project meeting, through schedule progress, the locked lookahead, subs suppliers and crews, change orders, billing, and the IOR, and must not fill job_number from chat context or build a generic meeting widget.",
         "annotations": {
-          "readOnlyHint": false,
+          "readOnlyHint": true,
           "destructiveHint": false,
           "idempotentHint": false,
           "openWorldHint": false
@@ -4955,7 +4955,7 @@
         "title": "PM morning meeting",
         "description": "Runs the construction project morning meeting for a job the member just named, through the schedule, lookahead, crews, risks, and spillover, and must not fill job_number from chat context or hand the request to a calendar.",
         "annotations": {
-          "readOnlyHint": false,
+          "readOnlyHint": true,
           "destructiveHint": false,
           "idempotentHint": false,
           "openWorldHint": false
@@ -5009,7 +5009,7 @@
         "title": "Evening wrap-up",
         "description": "Runs the construction project evening wrap-up for a job the member just named, through dailies, photos, risks, what happened, schedule disruptions, and the log, and must not fill job_number from chat context or hand the request to a calendar.",
         "annotations": {
-          "readOnlyHint": false,
+          "readOnlyHint": true,
           "destructiveHint": false,
           "idempotentHint": false,
           "openWorldHint": false

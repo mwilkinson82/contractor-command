@@ -6,11 +6,6 @@ import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetHtml } from "./cards/widge
 
 const MEETINGS = new Set(["pm_meeting", "pm_morning", "pm_evening"]);
 const TEMPLATE = { "openai/outputTemplate": CARD_WIDGET_URI };
-const PM_INVOCATION = {
-  ...TEMPLATE,
-  "openai/toolInvocation/invoking": "Running the construction PM meeting",
-  "openai/toolInvocation/invoked": "Construction PM meeting",
-};
 const patched = Symbol.for("athena.cardWidgetBridge");
 
 type RegisterTool = (name: string, config: { _meta?: Record<string, unknown> }, cb: (...args: unknown[]) => Promise<Record<string, unknown>>) => unknown;
@@ -64,15 +59,14 @@ if (!proto[patched]) {
         // A second server in the same process already registered this uri.
       }
     }
-    const meta = name === "pm_meeting" ? PM_INVOCATION : TEMPLATE;
     const next = MEETINGS.has(name)
-      ? { ...config, _meta: { ...(config?._meta ?? {}), ...meta } }
+      ? { ...config, _meta: { ...(config?._meta ?? {}), ...TEMPLATE } }
       : config;
     const wrapped = async (...args: unknown[]) => {
       const result = (await cb(...args)) ?? {};
       if (!MEETINGS.has(name)) return result;
       const safe = boundMeetingResult(result);
-      return { ...safe, _meta: { ...(safe._meta ?? {}), ...meta } };
+      return { ...safe, _meta: { ...(safe._meta ?? {}), ...TEMPLATE } };
     };
     return orig.call(this, name, next, wrapped);
   };

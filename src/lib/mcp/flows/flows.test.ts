@@ -127,7 +127,8 @@ describe("sample path on job 2701", () => {
         expect(text.startsWith("## 🔵"), name).toBe(true);
         expect(text).toContain("Sample on job 2701");
         expect(text).toContain("REQUIRED VIEW: render this HTML card as-is.");
-        expect(r.content[0].type).toBe("resource");
+        expect(r.content[0].type).toBe("text");
+        expect(r.content.some((c) => c.type === "resource")).toBe(false);
         expect(r._meta?.["openai/outputTemplate"]).toBe("ui://athena/card.html");
         expect(Object.keys(r)[0]).toBe("structuredContent");
       }
@@ -184,6 +185,32 @@ describe("sample path on job 2701", () => {
     expect(schedulePercent(scheduleActivities({ activities: [{ pct_complete: "40" }, { percent: 60 }] }))).toBe(50);
     expect(schedulePercent([], { percent_complete: 33 })).toBe(33);
     expect(schedulePercent([])).toBe(null);
+  });
+
+  it("marks meeting steps read-only and leaves the widget template without an inline file", () => {
+    for (const tool of [pmMeeting, pmMorning, pmEvening]) {
+      const ann = (tool as { annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean; openWorldHint?: boolean } }).annotations;
+      expect(ann).toMatchObject({ readOnlyHint: true, destructiveHint: false, openWorldHint: false });
+    }
+    const bridge = readFileSync("src/lib/mcp/widget-bridge.ts", "utf8");
+    expect(bridge).not.toContain("toolInvocation");
+    expect(bridge).toContain("openai/outputTemplate");
+  });
+
+  it("puts the field board and open items on every meeting card", () => {
+    const linked = job2701FlowData();
+    const job = "11111111-1111-4111-8111-111111111111";
+    linked.fieldUrl = `https://app.meetathena.io/r/job/${job}/field?t=abc`;
+    linked.itemsUrl = `https://app.meetathena.io/r/job/${job}/items?t=abc`;
+    for (const flow of ["pm_meeting", "pm_morning", "pm_evening"] as const) {
+      for (const stage of stagesFor(flow)) {
+        const md = renderMarkdown(buildFlowCard(flow, stage, linked));
+        expect(md, `${flow} ${stage}`).toContain("[Open field board]");
+        expect(md, `${flow} ${stage}`).toContain("[Open items]");
+        expect(md).toContain("?t=abc");
+      }
+    }
+    expect(buildFlowCard("pm_meeting", "ior", linked).next_move).toContain("whole reply");
   });
 
   it("refuses the sample on any other job", async () => {

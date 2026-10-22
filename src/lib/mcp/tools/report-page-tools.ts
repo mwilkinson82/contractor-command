@@ -6,6 +6,7 @@ import { z } from "zod";
 import { dbError, run, text, type Sb } from "../guard";
 import { FULL_ACCESS_MESSAGE, READ_ONLY_MESSAGE, audit, prefix, resolveCompany, resolveJob } from "../jobs";
 import { guide } from "../visible";
+import { mintJobBoardLinks } from "../board-link";
 import { newToken, tokenHash } from "../file-share";
 import { PAGE_LABEL, REPORT_PAGES, SHARE_DEFAULT_DAYS, SHARE_MAX_DAYS, pageAllowed, pageUrl, shareExpiry, shareTokenFromLink, shareUrl, type ReportPage } from "../../report-pages";
 
@@ -42,7 +43,8 @@ export const reportPageLink = defineTool({
   handler: (args, ctx) =>
     run("report_page_link", ctx, { jobNumber: args.job_number }, async (sb) => {
       const t = await target(sb, args);
-      const url = pageUrl(t.p, t.id);
+      const board = t.job && (t.job.scope === "full" || t.job.scope === "super") ? await mintJobBoardLinks((fn, a) => sb.rpc(fn, a), t.job.job_id, t.job.scope === "super" ? "super" : "full") : {};
+      const url = (t.p === "ior" ? board.ior : null) ?? pageUrl(t.p, t.id);
       await audit(sb, t.job, "report_page_link", `page_link_${t.p}`, null, t.company);
       return guide(
         {

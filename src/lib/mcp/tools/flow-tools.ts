@@ -3,8 +3,10 @@ import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { renderHtml } from "../cards/html";
 import { htmlBlock, renderMarkdown } from "../cards/markdown";
-import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetHtml, cardWidgetMeta } from "../cards/widget";
+import { CARD_WIDGET_URI, cardWidgetMeta } from "../cards/widget";
+import { mintJobBoardLinks } from "../board-link";
 import { applyMeetingFigures, buildFlowCard } from "../flows/build";
+import { isUuid } from "../../report-pages";
 import { job2701FlowData } from "../flows/job-2701";
 import { loadFlowData, saveFlowNote } from "../flows/load";
 import { STAGE_LABEL, stagesFor, type FlowData, type FlowName } from "../flows/types";
@@ -20,7 +22,7 @@ const crewMode = z.enum(["subcontract", "self_perform"]).optional();
 const sample = z.literal(true).optional();
 const figure = z.number().min(0).max(1_000_000_000).optional();
 const percent = z.number().min(0).max(100).optional();
-const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } as const;
+const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: false } as const;
 
 function present(flow: FlowName, stage: string, data: FlowData) {
   const card = buildFlowCard(flow, stage, data);
@@ -42,22 +44,11 @@ function present(flow: FlowName, stage: string, data: FlowData) {
         "openai/outputTemplate": CARD_WIDGET_URI,
       },
       _meta: { ...cardWidgetMeta },
-      content: [
-        {
-          type: "resource" as const,
-          resource: {
-            uri: CARD_WIDGET_URI,
-            mimeType: CARD_WIDGET_MIME,
-            text: cardWidgetHtml(),
-            _meta: { ...cardWidgetMeta },
-          },
-        },
-        { type: "text" as const, text: body, _meta: { ...cardWidgetMeta } },
-      ],
+      content: [{ type: "text" as const, text: body, _meta: { ...cardWidgetMeta } }],
     },
     next
-      ? `When the PM continues, call ${flow} with stage ${next} only. The PM meeting order is schedule progress, then the locked lookahead, then subs suppliers and crews, then change orders, accounting, and the IOR delta. Record a planned bill and a realistic bill as plan and realistic on stage accounting. Do not call living_report_save for those two figures. Do not add field readiness, financial, open actions, or closeout. Show the card first, with no plain text before it.`
-      : "This meeting is at its last stage. The order was schedule progress, the locked lookahead, subs suppliers and crews, change orders, accounting, then the IOR delta. Show the card first, with no plain text before it.",
+      ? `When the PM continues, call ${flow} with stage ${next} only. The PM meeting order is schedule progress, then the locked lookahead, then subs suppliers and crews, then change orders, accounting, and the IOR delta. Record a planned bill and a realistic bill as plan and realistic on stage accounting. Do not call living_report_save for those two figures. Do not add field readiness, financial, open actions, or closeout. The card is the whole reply. Do not add prose before or after it.`
+      : "The card is the whole reply. Do not add prose before or after it.",
   );
 }
 
@@ -76,20 +67,25 @@ async function lead(flow: FlowName, args: { job_number?: string; company_id?: st
   if (args.sample !== true && args.note) {
     data.note = args.note;
     const card = buildFlowCard(flow, stage, data);
-          const saved = await saveFlowNote(sb as never, job.job_id, flow, stage, args.note, { stage, note: args.note, ior: data.iorNow, risks: card.alerts ?? [] });
-          data.itemFiled = saved.item;
-          data.logged = saved.item && saved.snapshot;
+    const saved = await saveFlowNote(sb as never, job.job_id, flow, stage, args.note, { stage, note: args.note, ior: data.iorNow, risks: card.alerts ?? [] });
+    data.itemFiled = saved.item;
+    data.logged = saved.item && saved.snapshot;
   }
   if (args.sample !== true) await audit(sb, job, flow, `guided_${stage}`, null);
   if (!data.showMoney) data.money = { plan: null, realistic: null, billed: null, contract: null, remaining: null, retentionHeld: null, retentionReleasable: data.money.retentionReleasable };
   applyMeetingFigures(data, args);
+  if (args.sample !== true && isUuid(job.job_id) && (job.scope === "full" || job.scope === "super")) {
+    const links = await mintJobBoardLinks((fn, a) => sb.rpc(fn, a), job.job_id, job.scope);
+    data.fieldUrl = links.field ?? null;
+    data.itemsUrl = links.items ?? null;
+  }
   return present(flow, stage, data);
 }
 
 export const pmMeeting = defineTool({
   name: "pm_meeting",
   title: "Run construction PM meeting (Athena)",
-  description: "Runs the construction PM meeting in Athena when someone says run my PM meeting or start the project meeting, through schedule progress, the locked lookahead, subs suppliers and crews, change orders, billing, and the IOR, and must not fill job_number from chat context, build a generic meeting widget, or hand the request to a calendar.",
+  description: "Runs the construction PM meeting in Athena, the job meeting on the schedule rather than a calendar appointment, when someone says run my PM meeting or start the project meeting, through schedule progress, the locked lookahead, subs suppliers and crews, change orders, billing, and the IOR, and must not fill job_number from chat context or build a generic meeting widget.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
@@ -101,7 +97,7 @@ export const pmMeeting = defineTool({
     realistic: figure,
     percent_complete: percent,
   },
-  annotations: WRITE,
+  annotations: READ,
   handler: (args, ctx) =>
     run("pm_meeting", ctx, { jobNumber: args.job_number }, async (sb) => lead("pm_meeting", args, sb)),
 });
@@ -111,7 +107,7 @@ export const pmMorning = defineTool({
   title: "PM morning meeting",
   description: "Runs the construction project morning meeting for a job the member just named, through the schedule, lookahead, crews, risks, and spillover, and must not fill job_number from chat context or hand the request to a calendar.",
   inputSchema: { job_number: jobNumber, company_id: companyId, stage: z.enum(["schedule", "crews", "risks", "spillover", "log"]).optional(), note, crew_mode: crewMode, sample },
-  annotations: WRITE,
+  annotations: READ,
   handler: (args, ctx) =>
     run("pm_morning", ctx, { jobNumber: args.job_number }, async (sb) => lead("pm_morning", args, sb)),
 });
@@ -121,7 +117,7 @@ export const pmEvening = defineTool({
   title: "Evening wrap-up",
   description: "Runs the construction project evening wrap-up for a job the member just named, through dailies, photos, risks, what happened, schedule disruptions, and the log, and must not fill job_number from chat context or hand the request to a calendar.",
   inputSchema: { job_number: jobNumber, company_id: companyId, stage: z.enum(["dailies", "photos", "risks", "happened", "disruptions", "log"]).optional(), note, crew_mode: crewMode, sample },
-  annotations: WRITE,
+  annotations: READ,
   handler: (args, ctx) =>
     run("pm_evening", ctx, { jobNumber: args.job_number }, async (sb) => lead("pm_evening", args, sb)),
 });

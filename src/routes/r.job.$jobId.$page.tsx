@@ -19,6 +19,7 @@ export const Route = createFileRoute("/r/job/$jobId/$page")({
 
 function JobReportPage() {
   const { jobId, page } = Route.useParams();
-  return <ReportPageView page={hostedPageName(page) as AnyPage} jobId={jobId} />;
+  const { t } = Route.useSearch();
+  return <ReportPageView page={hostedPageName(page) as AnyPage} jobId={jobId} token={t} />;
 }
 

@@ -82,17 +82,26 @@ function noteSection(data: FlowData): CardModel["sections"] {
   return [{ heading: "From this meeting", kind: "list", rows: [{ cells: [data.note], tone: "action" }, { cells: [line], tone: data.logged ? "known" : "unknown" }] }];
 }
 
+function boardSection(data: FlowData): CardModel["sections"] {
+  const rows: CardRow[] = [];
+  if (data.fieldUrl) rows.push({ cells: ["Open field board"], href: data.fieldUrl, tone: "action" });
+  if (data.itemsUrl) rows.push({ cells: ["Open items"], href: data.itemsUrl, tone: "action" });
+  if (!rows.length) return [];
+  return [{ heading: "On the phone", kind: "list", rows }];
+}
+
 function shell(flow: FlowName, stage: string, data: FlowData, card: Omit<CardModel, "job" | "progress">): CardModel {
   const stages = stagesFor(flow);
   const index = Math.max(0, stages.indexOf(stage));
   const next = stages[index + 1];
-  const move = card.next_move ?? (next ? `Next up is ${STAGE_LABEL[next]}.` : "That is the last stage of this meeting.");
+  const last = "This is the last stage. The card is the whole reply.";
+  const move = next ? (card.next_move ?? `Next up is ${STAGE_LABEL[next]}.`) : last;
   return {
     ...card,
     job: `${data.jobNumber} – ${data.jobName}`,
     progress: { done: index + 1, total: stages.length },
     next_move: data.sample ? `${move} Sample on job 2701. Nothing was saved.` : move,
-    sections: [...(card.sections ?? []), ...(noteSection(data) ?? [])],
+    sections: [...(card.sections ?? []), ...(noteSection(data) ?? []), ...(boardSection(data) ?? [])],
   };
 }
 
