@@ -4,6 +4,7 @@ import {
   Outlet,
   Link,
   createRootRouteWithContext,
+  redirect,
   useRouter,
   HeadContent,
   Scripts,
@@ -28,8 +29,9 @@ import { createAuthInvalidationScheduler } from "@/lib/auth-event-invalidation";
 import { setPresence, resetPresence, type PresenceUser } from "@/lib/portal-presence";
 import { toast } from "sonner";
 import { athenaAppOrigin } from "@/lib/athena-host";
-import { onAthenaHost } from "@/lib/athena-host-current";
+import { currentHostname, onAthenaHost } from "@/lib/athena-host-current";
 import { athenaHostRedirect, isHostedReport, isTodayPage } from "@/lib/athena-routes";
+import { LOVABLE_AUTH_REDIRECT_BOOT, lovableAuthRedirectTarget } from "@/lib/lovable-auth-redirect";
 
 const PUBLIC_ROUTES = new Set([
   "/login",
@@ -186,6 +188,22 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  beforeLoad: ({ location }) => {
+    const search = typeof location.searchStr === "string" ? location.searchStr : "";
+    const hash = typeof location.hash === "string" ? location.hash : "";
+    const target = lovableAuthRedirectTarget({
+      hostname: currentHostname(),
+      pathname: location.pathname,
+      search,
+      hash,
+    });
+    if (!target) return;
+    if (typeof window !== "undefined") {
+      document.documentElement.style.visibility = "hidden";
+      window.location.replace(target);
+    }
+    throw redirect({ href: target, statusCode: 302 });
+  },
   head: () => {
     const b = brandForHost();
     const athena = b.siteName === "Athena";
@@ -245,6 +263,7 @@ function RootShell({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
+        <script dangerouslySetInnerHTML={{ __html: LOVABLE_AUTH_REDIRECT_BOOT }} />
         <HeadContent />
       </head>
       <body>

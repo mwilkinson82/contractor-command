@@ -15,7 +15,7 @@ describe("Athena powered by ALP, construction agents branding", () => {
   });
   it("consent page names Athena, not the Hub", () => {
     const c = read("../../routes/oauth.consent.tsx");
-    expect(c).toContain("Connect ${clientName} to Athena`");
+    expect(c).toContain("consentConnectTitle(clientLabel)");
     expect(c).not.toMatch(/PM agent|Contractor Circle/);
   });
   it("agent default and tool text say Athena", () => {
