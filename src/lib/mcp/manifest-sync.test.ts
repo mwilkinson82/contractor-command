@@ -8,6 +8,7 @@ import * as F from "./tools/file-tools";
 import * as R from "./tools/report-page-tools";
 import * as T from "./tools/team-tools";
 import * as E from "./tools/email-tools";
+import * as G from "./tools/flow-tools";
 import * as Est from "./tools/estimate-tools";
 import * as Bid from "./tools/estimate-bid-tools";
 import * as Field from "./tools/superintendent-tools";
@@ -84,6 +85,9 @@ async function liveTools(): Promise<Tool[]> {
       Field.progressPhotos,
       Field.dailyReminder,
       Field.dailyReminderRun,
+      G.pmMeeting,
+      G.pmMorning,
+      G.pmEvening,
       E.emailDraft,
       E.emailConfirmSend,
     ],
