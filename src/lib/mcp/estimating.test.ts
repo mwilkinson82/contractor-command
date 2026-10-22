@@ -13,7 +13,11 @@ import {
   buildSummary,
   checkBids,
   coverageLine,
+  intakeQuestions,
+  mergeTakeoffLines,
   prepareGap,
+  rejectPlaceholderLines,
+  reuseWarning,
   FOUNDATION_CHECKLIST,
   NOT_RELEVANT_ASK,
   conventionFor,
@@ -598,6 +602,129 @@ describe("engine conventions", () => {
   it("asks for the not-relevant reason in the same turn", () => {
     expect(NOT_RELEVANT_ASK).toContain("this same turn");
     expect(NOT_RELEVANT_ASK).toContain("Why is this not relevant");
+  });
+});
+
+const blankSetup = {
+  role: null,
+  trades: [] as string[],
+  bid_due: null,
+  delivery_method: null,
+  documents: [],
+  sub_bids: [],
+  workbook_note: null,
+  in_scope: [] as string[],
+  out_scope: [] as string[],
+  assumptions: [] as string[],
+  doc_review: null,
+  summary_version: null,
+};
+
+describe("intake reuse and takeoff save mode", () => {
+  it("warns when a takeoff already exists and stays quiet when it does not", () => {
+    const hit = reuseWarning({
+      jobNumber: "2701",
+      jobName: "Crystal",
+      lines: 4,
+      version: 2,
+      sameName: [{ jobNumber: "2700", jobName: "Crystal" }],
+    });
+    expect(hit).toContain("already has a takeoff");
+    expect(hit).toContain("Reuse that takeoff, or start fresh?");
+    expect(hit).toContain("Nothing was saved.");
+    expect(hit).toContain("2700");
+    expect(
+      reuseWarning({
+        jobNumber: "2701",
+        jobName: "Crystal",
+        lines: 0,
+        version: null,
+        sameName: [],
+      }),
+    ).toBeNull();
+  });
+
+  it("asks scope, role and profile, and does not assume self-performer", () => {
+    expect(intakeQuestions({ role: null, trades: [], in_scope: [], profile: null })).toHaveLength(
+      3,
+    );
+    expect(
+      intakeQuestions({
+        role: "gc",
+        trades: ["03 Concrete"],
+        in_scope: [],
+        profile: "as_drawn",
+      }),
+    ).toEqual([]);
+    const view = renderIntake("2701 – Crystal", blankSetup, null);
+    expect(view.text).toContain("Intake is not complete.");
+    expect(view.text).toContain("general contractor or a self-performer");
+    expect(view.text).toContain("What is in your scope");
+    expect(view.text).toContain("as drawn, or the estimator key");
+    expect(view.text).toContain("Role: Not answered");
+    expect(view.text).not.toContain("Self-performer");
+    expect(view.structured.complete).toBe(false);
+    expect(problems(view.text)).toEqual([]);
+    const done = renderIntake(
+      "2701 – Crystal",
+      { ...blankSetup, role: "gc", trades: ["03 Concrete"] },
+      "estimator",
+    );
+    expect(done.text).toContain("Intake is complete.");
+    expect(done.structured.complete).toBe(true);
+  });
+
+  it("rejects placeholder lines and merges an upsert by item", () => {
+    for (const item of ["TEMP footing", "A placeholder", "test line", "Do not use"])
+      expect(() => rejectPlaceholderLines([{ item }])).toThrow(/Nothing was saved/);
+    expect(() => rejectPlaceholderLines([{ item: "Footing concrete" }])).not.toThrow();
+    const prior = prepareLines([
+      { ...base, line_no: 1, item: "Slab", basis: "measured", value: 10, unit: "SF" },
+      { ...base, line_no: 2, item: "Wall", basis: "measured", value: 20, unit: "SF" },
+    ]);
+    const incoming = prepareLines([
+      { ...base, line_no: 1, item: "Slab", basis: "measured", value: 12, unit: "SF" },
+    ]);
+    const merged = mergeTakeoffLines(prior, incoming, [false]);
+    expect(merged).toHaveLength(2);
+    expect(merged.find((l) => l.item === "Slab")?.qty).toBe(12);
+    expect(merged.find((l) => l.item === "Wall")?.qty).toBe(20);
+  });
+
+  it("prints basis, sheet and math on each takeoff line", () => {
+    const lines = prepareLines([
+      {
+        ...base,
+        line_no: 1,
+        op: "product",
+        inputs: [
+          { name: "length", value: 10 },
+          { name: "width", value: 4 },
+        ],
+      },
+    ]);
+    const state = settle(lines, [], [], { role: "gc", trades: [] });
+    const view = renderTakeoff(
+      "2701 – Crystal",
+      lines,
+      state,
+      "Revision used: not stated.",
+      "upsert",
+    );
+    expect(view.text).toContain("This save added or updated lines.");
+    expect(view.text).toContain("DEDUCED");
+    expect(view.text).toContain("Sheet S3.1");
+    expect(view.text).toContain("Math:");
+    expect(view.text).toMatch(/Each line[\s\S]*DEDUCED[\s\S]*Sheet S3\.1[\s\S]*Math:/);
+    const replaced = renderTakeoff(
+      "2701 – Crystal",
+      lines,
+      state,
+      "Revision used: not stated.",
+      "replace",
+    );
+    expect(replaced.text).toContain("This save replaced the takeoff.");
+    expect(problems(view.text)).toEqual([]);
   });
 });
 
