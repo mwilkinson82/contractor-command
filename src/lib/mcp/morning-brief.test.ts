@@ -204,9 +204,9 @@ describe("morning brief builder", () => {
     expect(built.card.sections?.find((s) => s.heading === "Don't forget")?.rows.length).toBeLessThanOrEqual(3);
     const inbox = built.card.sections?.find((s) => s.heading === "From your inbox and calendar");
     expect(inbox?.rows.map((row) => row.cells[0])).toEqual([
-      "Emails that came in overnight.",
-      "Unanswered emails that need a reply.",
-      "Today's meetings.",
+      "Overnight emails",
+      "Unanswered emails",
+      "Today's meetings",
     ]);
     expect(built.card.sections?.[0].heading).toBe("From your inbox and calendar");
   });

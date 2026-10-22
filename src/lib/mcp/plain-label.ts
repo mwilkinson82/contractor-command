@@ -12,13 +12,14 @@ export function detailAnchor(kind: "activity" | "item" | "daily" | "photo" | "li
   return `${kind}-${safe || "item"}`;
 }
 
-/** Hosted board links only. Anything else is not turned into an anchor. */
+/** Hosted board links, and the morning brief at /today. Anything else is not turned into an anchor. */
 export function safeBoardHref(href: string | null | undefined): string | null {
   if (!href) return null;
   try {
     const url = new URL(href);
     if (url.protocol !== "https:" || url.hostname !== "app.meetathena.io") return null;
-    if (!url.pathname.startsWith("/r/")) return null;
+    const path = url.pathname.length > 1 ? url.pathname.replace(/\/+$/, "") : url.pathname;
+    if (path !== "/today" && !path.startsWith("/r/")) return null;
     return url.toString();
   } catch {
     return null;
