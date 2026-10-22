@@ -12,6 +12,7 @@ import { CHASE_SERVER_RULE } from "./submittal-chase";
 import { SUBMITTAL_SERVER_RULE } from "./submittals";
 import { PROJECT_RECORD_RULE } from "./project-record";
 import { GETTING_STARTED_RULE } from "./getting-started";
+import { BULK_CLOSE_RULE, OWNER_CHAT_RULE, REOPEN_RULE } from "./host-conduct";
 import { pmEvening, pmMeeting, pmMorning, pmMorningMeeting } from "./tools/flow-tools";
 import { athenaHello, morningBrief, morningBriefSettings } from "./tools/morning-brief-tools";
 import {
@@ -85,7 +86,13 @@ export default defineMcp({
     SUBMITTAL_SERVER_RULE +
     PROJECT_RECORD_RULE +
     CHASE_SERVER_RULE +
-    GETTING_STARTED_RULE,
+    GETTING_STARTED_RULE +
+    " " +
+    OWNER_CHAT_RULE +
+    " " +
+    BULK_CLOSE_RULE +
+    " " +
+    REOPEN_RULE,
   auth: auth.oauth.issuer({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,
     acceptedAudiences: "authenticated",

@@ -33,6 +33,7 @@ import { FLAGS_ASKED_LATER, noGuidance, noGuidanceText, reconcileRecommendation 
 import { isNoneAnswer, mergeScopeFacts, visibleLookaheads } from "../lookahead-items";
 import { addRevision, currentRev, loadRevisions, lookaheadSourceFor, revisionLines, stampItemRev } from "../lookahead-revisions";
 import { LOOKAHEAD_BUILD_QUESTIONS, LOOKAHEAD_EXISTS_ASK, LOOKAHEAD_PUSHBACK, LOOKAHEAD_SETUP_KEY, PUSHBACK_GUIDANCE, buildQuestionsGuidance, buildQuestionsText, pushbackText } from "../lookahead-help";
+import { RESOLVE_ITEM_DESCRIPTION } from "../host-conduct";
 
 const uuid = z.string().uuid();
 const laArg = z.string().trim().min(1).max(64);
@@ -1455,12 +1456,12 @@ export function closedWarrantyKey(checkKey: string | null | undefined, closed: b
 export const resolveItem = defineTool({
   name: "resolve_item",
   title: "Resolve or update an open item",
-  description: "Closes or updates an open item.",
+  description: RESOLVE_ITEM_DESCRIPTION,
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
     item_id: z.string().min(1).max(64),
-    kind: z.enum(["verified", "member_statement", "waive", "commercial_close", "update", "na"]),
+    kind: z.enum(["verified", "member_statement", "waive", "commercial_close", "update", "na", "reopen"]),
     evidence: z.string().trim().max(10_000).optional(),
     stated_by: z.string().max(200).optional(),
     stated_on: date.optional(),
@@ -1474,10 +1475,11 @@ export const resolveItem = defineTool({
     run("resolve_item", ctx, { lookaheadId: undefined, jobNumber: args.job_number }, async (sb) => {
       capInput(args);
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
-      const { data: open, error: oe } = await sb.from("mcp_open_items").select("id, action, check_key").eq("job_id", job.job_id).eq("status", "open");
+      const reopening = args.kind === "reopen";
+      const { data: open, error: oe } = await sb.from("mcp_open_items").select("id, action, check_key").eq("job_id", job.job_id).eq("status", reopening ? "resolved" : "open");
       if (oe) throw new Error(oe.message);
       const hit = matchRef(args.item_id, (open ?? []) as { id: string; action: string | null; check_key: string | null }[]);
-      if ("error" in hit) throw new ToolError(hit.error === "ambiguous" ? `More than one open item matches ${args.item_id}. Use the ref exactly as shown on the item line.` : `No open item ${args.item_id} on job ${job.job_number}. List the open items to see each ref.`);
+      if ("error" in hit) throw new ToolError(hit.error === "ambiguous" ? `More than one ${reopening ? "closed" : "open"} item matches ${args.item_id}. Use the ref exactly as shown on the item line.` : reopening ? `No closed item ${args.item_id} on job ${job.job_number}.` : `No open item ${args.item_id} on job ${job.job_number}. List the open items to see each ref.`);
       const itemId = hit.id;
       const { data: it, error } = await sb.from("mcp_open_items").select("id, job_id, section, check_key, item_type, action").eq("id", itemId).maybeSingle();
       if (error) throw new Error(error.message);
@@ -1492,10 +1494,15 @@ export const resolveItem = defineTool({
       const me = await callerLabel(sb, job, ctx.getUserId?.());
       const statedBy = args.kind === "member_statement" || args.kind === "update" ? (args.stated_by?.trim() || me) : args.stated_by ?? null;
       const evidence = args.kind === "member_statement" && args.evidence ? `${args.evidence.trim()} (recorded by ${me})` : args.evidence ?? null;
-      const r = await rpc<{ closed: boolean; resolution?: string }>(sb, "mcp_resolve_item", {
+      const r = await rpc<{ closed: boolean; resolution?: string; reopened?: boolean }>(sb, "mcp_resolve_item", {
         _item: itemId, _kind: args.kind, _evidence: evidence, _stated_by: statedBy, _stated_on: args.stated_on ?? null,
         _reason: args.reason ?? null, _approval: args.approval ?? null, _billing: args.billing ?? null, _collection: args.collection ?? null,
       });
+      if (args.kind === "reopen") {
+        if (r.reopened !== true) throw new ToolError("That item was not reopened.");
+        const t = itemType(it, await activeNa(sb, job.job_id));
+        return { ...text(`${prefix(job)}Item reopened: ${(it.action ?? "").replace(/^\S+ – /, "")}. It is open again.`), structuredContent: { item_id: itemId, item_ref: ref, item_type: t, closed: false, reopened: true } };
+      }
       // A closed warranty/closeout confirm item answers its setup question: record the answer so the
       // register shows it and it leaves UNKNOWNS.
       let filled = "";
