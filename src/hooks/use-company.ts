@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { companyTabTitle } from "@/lib/host-document";
 import { useAuth } from "@/hooks/use-auth";
 
 export type Company = {
@@ -84,12 +85,12 @@ export function useCompany() {
   const error =
     current && result.status === "error" ? "Could not load your company. Please try again." : null;
 
-  // Keep the browser tab title aligned with the company.
+  // Hub tabs follow the company. Athena keeps the host document title.
   useEffect(() => {
     if (typeof document === "undefined") return;
-    if (company?.name?.trim()) {
-      document.title = `${company.name} · Command Center`;
-    }
+    const host = typeof window === "undefined" ? "" : window.location.hostname;
+    const title = companyTabTitle(host, company?.name);
+    if (title) document.title = title;
   }, [company?.name]);
 
   const logoUrl = logoPublicUrl(company?.logo_path);
