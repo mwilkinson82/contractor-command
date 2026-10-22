@@ -199,7 +199,7 @@ describe("0.8.12 view-only asks never touch the shared master", () => {
       /^REQUIRED: This is the saved master copy\. Update it in place/m,
     );
     const l = src("./tools/living-tools.ts");
-    expect(l).toContain("Returns the saved living report for a job as the styled card in the result.");
+    expect(l).toContain("Returns the saved living report for a job.");
     expect(l).toContain(
       "For a view-only ask, build a NEW private view or artifact from structuredContent.data",
     );

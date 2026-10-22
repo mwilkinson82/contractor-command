@@ -59,8 +59,9 @@ function role(input?: string): TeamRole | undefined {
   if (!r) throw new ToolError("Role must be Owner, PM, All-access, AP, Estimating, Contracts or Super.");
   return r;
 }
+const widgetMeta = { "openai/outputTemplate": TEAM_WIDGET_URI };
 // 0.8.16.1: the card HTML is never put in the result content (Claude, Codex and Grok Bot printed it as text).
-// The numbered list is the reply. A template key on this result hid the Athena icon.
+// ChatGPT loads the card from TEAM_WIDGET_URI via _meta["openai/outputTemplate"]; teamWidgetHtml() is the resource body.
 export const TEAM_WIDGET = { uri: TEAM_WIDGET_URI, mimeType: TEAM_WIDGET_MIME, html: teamWidgetHtml };
 
 export const teamList = defineTool({
@@ -74,8 +75,8 @@ export const teamList = defineTool({
       const co = await ownerCompany(sb, args.company_id);
       const t = await list(sb, co);
       return guide(
-        { ...text(renderTeamList(t)), structuredContent: { team: { ...t, company: co }, roles_menu: rolesMenu(t.roles_allowed) } },
-        "Hosts without the card (Claude, Codex, Grok Bot) already have the numbered list.",
+        { ...text(renderTeamList(t)), structuredContent: { team: { ...t, company: co }, roles_menu: rolesMenu(t.roles_allowed) }, _meta: widgetMeta },
+        "Card shown. Do not add text; wait for the user's pick. Hosts without the card (Claude, Codex, Grok Bot) already have the numbered list. Do not add a question after it.",
       );
     }),
 });
