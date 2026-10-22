@@ -66,9 +66,9 @@ describe("getting started card", () => {
   const html = renderHtml(card);
   const shown = renderGettingStarted(card);
 
-  it("leads with Hey Athena, then the backup @Athena, and gives real asks", () => {
+  it("leads with @Athena, and gives real asks", () => {
     expect(card.title).toBe(START_HEADLINE);
-    expect(card.title).toBe("Hey Athena, let's get started");
+    expect(card.title).toBe("@Athena, let's get started");
     expect(shown.indexOf(START_HEADLINE)).toBeLessThan(shown.indexOf(START_EXAMPLES[0]));
     expect(shown.indexOf(START_EXAMPLES[0])).toBeLessThan(shown.indexOf(START_BACKUP));
     expect(START_BACKUP).toContain("@Athena");
@@ -81,11 +81,14 @@ describe("getting started card", () => {
     for (const line of START_POINTS) expect(shown).toContain(line);
     expect(START_EXAMPLES).toHaveLength(6);
     for (const ask of START_EXAMPLES) {
-      expect(ask.startsWith("Hey Athena, ")).toBe(true);
+      expect(ask.startsWith("@Athena, ")).toBe(true);
+      expect(ask).not.toContain("Hey Athena");
       expect(shown).toContain(ask);
       expect(html).toContain(ask);
     }
-    expect(shown).toContain("Hey Athena, run my PM meeting");
+    expect(shown).toContain("@Athena, run my PM meeting");
+    expect(html.split("Hey Athena").length - 1).toBe(1);
+    expect(html).toContain(MEMORY_BONUS);
     expect(shown).not.toContain("2701");
     expect(html).not.toContain("2701");
     expect(html).not.toContain('class="eyebrow"');
@@ -94,6 +97,8 @@ describe("getting started card", () => {
     expect(shown).toContain("ChatGPT, Claude and Grok Bot");
     expect(shown).not.toMatch(/ChatGPT and Claude|ChatGPT or Claude/);
     const plain = shown.split("REQUIRED VIEW:")[0];
+    expect(plain.split("Hey Athena").length - 1).toBe(1);
+    expect(plain).toContain(MEMORY_BONUS);
     expect(plain.trimStart().startsWith(START_HEADLINE)).toBe(true);
     expect(plain).not.toContain("🔵");
     expect(plain).not.toContain("<h1");
@@ -107,7 +112,7 @@ describe("getting started card", () => {
     const plain = plainGettingStarted(card);
     expect(plain).toBe(
       [
-        "Hey Athena, let's get started",
+        "@Athena, let's get started",
         "ChatGPT, Claude and Grok Bot",
         "",
         "Your work",
@@ -116,12 +121,12 @@ describe("getting started card", () => {
         "Every job has its own dashboard and boards that stay up to date.",
         "",
         "Try one",
-        "Hey Athena, run my PM meeting",
-        "Hey Athena, give me the 2-week lookahead",
-        "Hey Athena, where's my billing forecast",
-        "Hey Athena, log today's daily",
-        "Hey Athena, show open change orders",
-        "Hey Athena, show the field board",
+        "@Athena, run my PM meeting",
+        "@Athena, give me the 2-week lookahead",
+        "@Athena, where's my billing forecast",
+        "@Athena, log today's daily",
+        "@Athena, show open change orders",
+        "@Athena, show the field board",
         "",
         "One habit",
         START_HABIT,
@@ -211,7 +216,8 @@ describe("first tool call", () => {
     expect(first.content[0].text).toContain("Job 2701 is open.");
     expect(first.content[0].text.indexOf(START_HEADLINE)).toBeLessThan(first.content[0].text.indexOf("Job 2701 is open."));
     const lead = first.content[0].text.slice(0, first.content[0].text.indexOf("Job 2701 is open."));
-    expect(lead).toContain("Hey Athena, run my PM meeting");
+    expect(lead).toContain("@Athena, run my PM meeting");
+    expect(lead.split("REQUIRED VIEW:")[0].split("Hey Athena").length - 1).toBe(1);
     expect(lead).toContain("ChatGPT, Claude and Grok Bot");
     expect(lead.split("REQUIRED VIEW:")[0]).not.toContain("🔵");
     expect(first.structuredContent.getting_started.title).toBe(START_HEADLINE);

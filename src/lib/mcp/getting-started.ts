@@ -1,4 +1,4 @@
-// First-chat card: say Hey Athena. @Athena is the one habit. The memory line is the bonus.
+// First-chat card: start with @Athena. Hey Athena is only the bonus, after the memory line is saved.
 // The flag is one row per user. A missing migration fails open (no card, no throw).
 import { htmlBlock } from "./cards/markdown";
 import { renderHtml } from "./cards/html";
@@ -18,7 +18,7 @@ import {
 } from "../athena-start-copy";
 
 export const GETTING_STARTED_GUIDANCE = [
-  "Show the getting-started card first. Its headline example is Hey Athena, let's get started. @Athena is only the backup.",
+  "Show the getting-started card first. Its headline is @Athena, let's get started. Every Try one line starts with @Athena. Hey Athena stays only on the bonus line, and it works after the memory line is saved.",
   `Ask first. The card asks: ${MEMORY_ASK} Save nothing in that reply.`,
   `Only after the member says yes, save this exact line in the member's own AI: ${MEMORY_LINE}.`,
   ...MEMORY_HOST_LINES,
@@ -27,7 +27,7 @@ export const GETTING_STARTED_GUIDANCE = [
 ].join(" ");
 
 export const GETTING_STARTED_RULE =
-  " When the member says Hey Athena, let's get started, Athena, let's get started, let's get going, getting started, or Hey Athena, getting started, call getting_started and show that card. Let's get started runs guided onboarding: first job setup for a new member, and the morning meeting for a member who already has jobs. On a member's first tool call, show the getting-started card before the rest of the reply. That card's headline example is Hey Athena, let's get started. Good morning Athena and Hey Athena, what's on my plate today? call athena_hello or morning_brief. @Athena is only the backup. Do not answer the setup questions for the member. Keep teaching the one habit: start every message with @Athena. Offer to save this exact line in the member's own AI: When I say Athena, always use the Athena connector. That line is the bonus so plain Hey Athena also works. Ask first. Save nothing in that reply. Only after the member says yes, save the line. ChatGPT: ask ChatGPT to remember it in saved memory. Claude: save it in memory or project instructions. Grok Bot: save it in memory. If the member says no, save nothing.";
+  " When the member says Hey Athena, let's get started, Athena, let's get started, let's get going, getting started, or Hey Athena, getting started, call getting_started and show that card. Let's get started runs guided onboarding: first job setup for a new member, and the morning meeting for a member who already has jobs. On a member's first tool call, show the getting-started card before the rest of the reply. That card's headline is @Athena, let's get started. Every Try one line starts with @Athena. Good morning Athena and Hey Athena, what's on my plate today? call athena_hello or morning_brief. Hey Athena stays only on the bonus line, and it works after the memory line is saved. Do not answer the setup questions for the member. Keep teaching the one habit: start every message with @Athena. Offer to save this exact line in the member's own AI: When I say Athena, always use the Athena connector. That line is the bonus so plain Hey Athena also works. Ask first. Save nothing in that reply. Only after the member says yes, save the line. ChatGPT: ask ChatGPT to remember it in saved memory. Claude: save it in memory or project instructions. Grok Bot: save it in memory. If the member says no, save nothing.";
 
 /** What the host reads when it is time to save. saved stays false until the member says yes. */
 export function memoryOffer() {

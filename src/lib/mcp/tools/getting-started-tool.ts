@@ -40,7 +40,7 @@ function whichJobResult(body: string) {
 
 export const gettingStarted = defineTool({
   name: "getting_started",
-  title: "Hey Athena, let's get started",
+  title: "@Athena, let's get started",
   description:
     "Claims Hey Athena, let's get started, Athena, let's get started, Good morning Athena, and Hey Athena, what's on my plate today?, and let's get started runs guided onboarding: first job setup when there is no job, and the morning meeting when the member already has jobs, and asks before saving the line When I say Athena, always use the Athena connector.",
   inputSchema: {},

@@ -12,8 +12,42 @@ import { applyCardClosing } from "./cards/silence";
 import { guide } from "./visible";
 import type { CardModel, CardRow } from "./cards/model";
 import { normalizeRole, type TeamRole } from "./team";
+import { athenaAppOrigin } from "../athena-host";
 
 export const MORNING_BRIEF_DEFAULT_TIME = "06:30";
+export const TODAY_BOARD_LABEL = "Open today's brief";
+export const INBOX_SECTION = "From your inbox and calendar";
+export const MORNING_CARD_GUIDANCE =
+  'The morning card leads. Add a section titled "From your inbox and calendar" covering overnight emails, unanswered emails, and today\'s meetings, followed by the job items. Use only the connected inbox and calendar. Do not invent a message or a meeting. Do not send email.';
+
+/** Absolute board the in-app card and the push both open. */
+export function todayBoardUrl(): string {
+  return `${athenaAppOrigin()}/today`;
+}
+
+function withInboxSection(card: CardModel): CardModel {
+  const sections = [...(card.sections ?? [])];
+  if (sections.some((section) => section.heading === INBOX_SECTION)) return card;
+  sections.unshift({
+    heading: INBOX_SECTION,
+    kind: "list",
+    rows: [{ cells: ["Overnight emails"] }, { cells: ["Unanswered emails"] }, { cells: ["Today's meetings"] }],
+  });
+  return { ...card, sections };
+}
+
+function withTodayBoard(card: CardModel): CardModel {
+  const href = todayBoardUrl();
+  const sections = [...(card.sections ?? [])];
+  if (!sections.some((section) => section.rows.some((row) => row.href === href))) {
+    sections.push({ heading: "Board", kind: "list", rows: [{ cells: [TODAY_BOARD_LABEL], href }] });
+  }
+  return { ...card, sections };
+}
+
+function finishMorningCard(card: CardModel): CardModel {
+  return withTodayBoard(withInboxSection(card));
+}
 export const MORNING_BRIEF_DEFAULTS = {
   enabled: true,
   send_local: MORNING_BRIEF_DEFAULT_TIME,
@@ -438,24 +472,11 @@ function portfolio(jobs: BriefJob[], tagged: Tagged[], now: Date): { rows: CardR
   return { rows, overdue, open };
 }
 
-function inboxSection(): NonNullable<CardModel["sections"]>[number] {
-  return {
-    heading: "From your inbox and calendar",
-    kind: "list",
-    rows: [
-      { cells: ["Emails that came in overnight."], tone: "unknown" },
-      { cells: ["Unanswered emails that need a reply."], tone: "unknown" },
-      { cells: ["Today's meetings."], tone: "unknown" },
-    ],
-  };
-}
-
 export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean; settings?: BriefSettings; now?: Date }): BuiltBrief {
   const now = input.now ?? new Date();
   const settings = input.settings ?? { ...MORNING_BRIEF_DEFAULTS };
   if (!input.jobs.length) {
-    const card = firstJobCard(input.hasCompany);
-    card.sections = [inboxSection(), ...(card.sections ?? [])];
+    const card = finishMorningCard(firstJobCard(input.hasCompany));
     return { card, counts: { open: 0, overdue: 0, due_in_7_days: 0, today: 0 }, openItems: [], todayCount: 0 };
   }
   const viewOf = (job: BriefJob) => briefView(job.seat, job.scope);
@@ -473,13 +494,13 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
     overdue: opened.rows.filter((row) => row.flag === "overdue").length,
     due_in_7_days: opened.counts.due_in_7_days,
   };
-  const sections: CardModel["sections"] = [inboxSection()];
+  const sections: CardModel["sections"] = [];
   if (view === "executive") {
     const port = portfolio(input.jobs, tagged, now);
     sections.push({ heading: "Portfolio", kind: "list", rows: [{ cells: [`${input.jobs.length} jobs · ${port.open} open · ${port.overdue} overdue`] }] });
     sections.push({ heading: "Jobs", kind: "list", rows: port.rows });
     if (forget.length) sections.push({ heading: "Don't forget", kind: "list", rows: forget });
-    const card: CardModel = {
+    const card: CardModel = finishMorningCard({
       state: "result",
       title: "Morning brief",
       job: shortDate(headerToday),
@@ -491,7 +512,7 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
       sections,
       alerts: port.overdue ? [{ level: "overdue", text: `${port.overdue} items` }] : [],
       next_move: port.overdue ? "Clear the overdue item first." : "Review the portfolio.",
-    };
+    });
     return { card, counts: { open: port.open, overdue: port.overdue, due_in_7_days: 0, today: today.length }, openItems: tagged.map((t) => t.item), todayCount: today.length };
   }
   if (today.length) sections.push({ heading: "Today", kind: "list", rows: today });
@@ -506,7 +527,7 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
     });
   }
   const overdue = countsForOpen.overdue;
-  const card: CardModel = {
+  const card: CardModel = finishMorningCard({
     state: "result",
     title: "Morning brief",
     job: shortDate(headerToday),
@@ -519,7 +540,7 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
     sections,
     alerts: overdue ? [{ level: "overdue", text: `${overdue} items` }] : [],
     next_move: overdue ? "Clear the overdue item first." : today.length ? "Start with what is due today." : "Nothing urgent. Review this week.",
-  };
+  });
   return { card, counts: { ...countsForOpen, today: today.length }, openItems: opened.items, todayCount: today.length };
 }
 
@@ -553,5 +574,6 @@ export function presentBrief(card: CardModel) {
       content: [{ type: "text" as const, text: body, _meta: { ...cardWidgetMeta } }],
     },
     "Fill the three rows under From your inbox and calendar from the member's mail and calendar: emails that came in overnight, unanswered emails that need a reply, and today's meetings. Keep the job sections after that: schedule, notices, submittals due, overdue items, and what happened yesterday versus what is due today. Do not add text after the card.",
+    MORNING_CARD_GUIDANCE,
   );
 }

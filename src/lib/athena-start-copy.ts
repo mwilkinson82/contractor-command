@@ -1,7 +1,7 @@
 // Shared copy for the first-chat card and the app.meetathena.io start tip.
 // The asks map to tools Athena already has.
 
-export const START_HEADLINE = "Hey Athena, let's get started";
+export const START_HEADLINE = "@Athena, let's get started";
 export const START_HOSTS = "ChatGPT, Claude and Grok Bot";
 
 export const START_POINTS = [
@@ -11,12 +11,12 @@ export const START_POINTS = [
 ] as const;
 
 export const START_EXAMPLES = [
-  "Hey Athena, run my PM meeting",
-  "Hey Athena, give me the 2-week lookahead",
-  "Hey Athena, where's my billing forecast",
-  "Hey Athena, log today's daily",
-  "Hey Athena, show open change orders",
-  "Hey Athena, show the field board",
+  "@Athena, run my PM meeting",
+  "@Athena, give me the 2-week lookahead",
+  "@Athena, where's my billing forecast",
+  "@Athena, log today's daily",
+  "@Athena, show open change orders",
+  "@Athena, show the field board",
 ] as const;
 
 export const START_BACKUP =
