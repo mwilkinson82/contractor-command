@@ -34,7 +34,8 @@ var labels={intake:"Intake",progress:"What I have so far",ask:"Needed",result:"R
 var state=card.state||"result";
 var h='<article class="card" data-state="'+esc(state)+'"><header><p class="mark">Athena</p><h1>'+esc(card.title||"Athena")+'</h1>';
 if(card.job)h+='<p class="job">'+esc(card.job)+'</p>';
-h+='</header><div class="body"><p class="eyebrow">'+esc(labels[state]||"Result")+'</p>';
+h+='</header><div class="body">';
+if(card.show_state!==false)h+='<p class="eyebrow">'+esc(labels[state]||"Result")+'</p>';
 if(card.progress&&card.progress.total>0){
   var done=Math.max(0,Math.min(card.progress.done,card.progress.total));
   var pct=Math.round(done/card.progress.total*100);

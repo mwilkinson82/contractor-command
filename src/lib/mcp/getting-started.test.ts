@@ -60,7 +60,12 @@ describe("getting started card", () => {
       expect(shown).toContain(ask);
       expect(html).toContain(ask);
     }
-    expect(shown).toContain("Hey Athena, run my PM meeting for job 2701");
+    expect(shown).toContain("Hey Athena, run my PM meeting");
+    expect(shown).not.toContain("2701");
+    expect(html).not.toContain("2701");
+    expect(html).not.toContain('class="eyebrow"');
+    expect(html).not.toContain(">Result<");
+    expect(shown).not.toContain("**Result**");
     expect(shown).not.toMatch(/\bpermanent\b/i);
     expect(html).not.toMatch(/\bpermanent\b/i);
   });
@@ -172,6 +177,7 @@ describe("app tip", () => {
     expect(html.indexOf(START_EXAMPLES[0])).toBeLessThan(html.indexOf(START_BACKUP));
     for (const line of START_POINTS) expect(html).toContain(line);
     for (const ask of START_EXAMPLES) expect(html).toContain(ask);
+    expect(html).not.toContain("2701");
     expect(html).not.toMatch(/\bpermanent\b/i);
     expect(paletteViolations(html, false)).toEqual([]);
     expect(html).not.toMatch(/#DC2626|lovable|supabase/i);

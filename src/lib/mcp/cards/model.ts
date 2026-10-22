@@ -32,6 +32,8 @@ export type CardKpi = {
 export type CardModel = {
   state: CardState;
   title: string;
+  /** Omit the state pill (Result, Intake, Needed, What I have so far). */
+  show_state?: boolean;
   job?: string | null;
   progress?: { done: number; total: number } | null;
   kpis?: CardKpi[];

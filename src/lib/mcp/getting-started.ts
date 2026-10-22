@@ -14,6 +14,7 @@ export const GETTING_STARTED_RULE =
 export function gettingStartedCard(): CardModel {
   return {
     state: "result",
+    show_state: false,
     title: START_HEADLINE,
     job: START_HOSTS,
     sections: [

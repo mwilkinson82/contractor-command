@@ -11,7 +11,7 @@ export const START_POINTS = [
 ] as const;
 
 export const START_EXAMPLES = [
-  "Hey Athena, run my PM meeting for job 2701",
+  "Hey Athena, run my PM meeting",
   "Hey Athena, give me the 2-week lookahead",
   "Hey Athena, where's my billing forecast",
   "Hey Athena, log today's daily",
