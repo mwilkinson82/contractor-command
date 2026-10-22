@@ -1,6 +1,7 @@
 import { billingForecastCardModel, presentPayApp } from "../pay-app-card";
 // 0.8.9: cpm_activities (full activity handoff), living_report_get and living_report_save (master copy per job).
-import { readDelay, ganttPins, noteDateConflicts, pageLine, payModel, emptyCard, type Billing } from "../styled-views";
+import { readDelay, ganttPins, noteDateConflicts, pageLine, payModel, type Billing } from "../styled-views";
+import { PayAppMismatch, buildFieldPayApp, progressByItem } from "../superintendent";
 import { signedJobPages } from "../board-url";
 import { pageUrl } from "../../report-pages";
 import { IOR_VIEW_SPEC, PAY_APP_VIEW_SPEC, PORTFOLIO_VIEW_SPEC } from "../views";
@@ -22,11 +23,11 @@ function boardCardText(jobLabel: string, links: { label: string; href: string }[
 }
 import { dbError, run, text, type Sb } from "../guard";
 import { FULL_ACCESS_MESSAGE, READ_ONLY_MESSAGE, audit, named, prefix, resolveJob, type Job } from "../jobs";
-import { SovMismatch, buildSov, money } from "../sov";
+import { SovMismatch, buildSov, money, retainagePct } from "../sov";
 import { guide } from "../visible";
 import {
   CPM_REQUIRED_TOP, LIVING_LABEL, LIVING_REPORT_TYPES, LIVING_REQUIRED_TOP, LIVING_SAVE_ASK, TIED_TYPES,
-  activityLine, checkSave, costLoadTotal, countCheck, earnedToDate, isOwnerFurnished, ownerFurnishedWithValue, reportCalendarHolidays, stripMoney, tieCheck, tiaResult,
+  activityLine, checkSave, costLoadTotal, countCheck, draftBillingFromSchedule, earnedToDate, isOwnerFurnished, ownerFurnishedWithValue, reportCalendarHolidays, retainageStepDownLines, stripMoney, tieCheck, tiaResult,
   type Activity, type LivingData, type LivingReportType,
   CPM_GANTT_SPEC,
 } from "../living";
@@ -90,11 +91,75 @@ export async function contractTotal(sb: Sb, job: Job): Promise<number | null> {
   }
 }
 
+const ITEM_NO = /^\d{2}\.\d{2,3}$/;
+
+/** Latest pay-app gross, when dailies and the SOV can build one. Null when they cannot. */
+async function latestPayAppBilled(sb: Sb, job: Job, retainageTerm: string | null): Promise<number | null> {
+  const [jobRes, factsRes, daysRes, linesRes] = await Promise.all([
+    sb.from("mcp_jobs").select("sov_fee_pct").eq("id", job.job_id).maybeSingle(),
+    sb.from("mcp_job_facts").select("key, value, module").eq("job_id", job.job_id),
+    sb.from("mcp_daily_reports").select("id, report_date").eq("job_id", job.job_id),
+    sb.from("mcp_daily_work_lines").select("daily_id, sov_item, qty, pct_complete").eq("job_id", job.job_id),
+  ]);
+  if (jobRes.error || factsRes.error || daysRes.error || linesRes.error) return null;
+  const facts = (factsRes.data ?? []) as { key: string; value: unknown; module?: string }[];
+  const lines = facts
+    .filter((f) => f.module === "sov" && ITEM_NO.test(f.key))
+    .map((f) => {
+      const v = (f.value ?? {}) as { description?: string | null; billable_value?: number | null };
+      return { item_no: f.key, description: v.description ?? null, scheduled_value: typeof v.billable_value === "number" ? v.billable_value : null };
+    });
+  if (!lines.length) return null;
+  const dateOf = new Map(((daysRes.data ?? []) as { id: string; report_date: string }[]).map((d) => [d.id, d.report_date]));
+  const saved = ((linesRes.data ?? []) as { daily_id: string; sov_item: string; qty: number | null; pct_complete: number | null }[])
+    .map((line) => ({
+      sov_item: line.sov_item,
+      qty: line.qty == null ? null : Number(line.qty),
+      pct_complete: line.pct_complete == null ? null : Number(line.pct_complete),
+      report_date: dateOf.get(line.daily_id) ?? "",
+    }))
+    .filter((line) => line.report_date);
+  if (!saved.length) return null;
+  const period = saved.map((line) => line.report_date).sort().at(-1)!;
+  const feeRaw = (jobRes.data as { sov_fee_pct?: number | null } | null)?.sov_fee_pct;
+  const fee = feeRaw == null ? null : Number(feeRaw);
+  try {
+    return buildFieldPayApp(lines, fee != null && Number.isFinite(fee) ? fee : null, retainagePct(retainageTerm), progressByItem(saved, [], period), []).completed_and_stored;
+  } catch (e) {
+    if (e instanceof PayAppMismatch) return null;
+    throw e;
+  }
+}
+
+/** Unsaved billing forecast from the cost-loaded schedule, the contract, and the latest pay app. */
+async function unsavedBillingDraft(
+  sb: Sb,
+  job: Job,
+  contract: number,
+): Promise<{ billing: Billing; retainageTerm: string | null } | null> {
+  const [cpm, factsRes] = await Promise.all([
+    getReport(sb, job, "cpm"),
+    sb.from("mcp_job_facts").select("key, value, module").eq("job_id", job.job_id),
+  ]);
+  if (factsRes.error) return null;
+  const facts = (factsRes.data ?? []) as { key: string; value: unknown; module?: string }[];
+  const retainageFact = facts.find((f) => f.key === "retainage" && (f.module == null || f.module === "contract"));
+  const retainageTerm = typeof retainageFact?.value === "string" ? retainageFact.value : null;
+  const acts = (cpm.found ? (cpm.data?.activities ?? []) : []) as Activity[];
+  const payApp = await latestPayAppBilled(sb, job, retainageTerm);
+  const recognized = payApp == null ? earnedToDate(acts) : Math.max(payApp, earnedToDate(acts));
+  const billing = draftBillingFromSchedule(acts, contract, recognized, reportCalendarHolidays(cpm.found ? cpm.data ?? null : null));
+  return billing ? { billing, retainageTerm } : null;
+}
+
 async function whoAmI(sb: Sb, job: Job, userId: string | undefined): Promise<string | null> {
   if (!userId) return null;
   const { data } = await sb.from("mcp_company_members").select("display_name, role").eq("company_id", job.company_id).eq("user_id", userId).maybeSingle();
   return data ? `${data.display_name} (${data.role === "pm" ? "PM" : data.role === "all_access" ? "All-access" : String(data.role).charAt(0).toUpperCase() + String(data.role).slice(1)})` : null;
 }
+
+const SHOW_UNSAVED_BILLING =
+  "Show this card as written. Leave it as Athena drew it. Only after the PM says yes, call living_report_save with base_version 0.";
 
 const stamp = (g: Got) => `Version v${g.version} · Last updated ${g.updated_at ? new Date(g.updated_at).toISOString().slice(0, 16).replace("T", " ") + " UTC" : "Needed"}${g.updated_by_name ? `, ${g.updated_by_name}` : ""} · Data date ${g.data_date ?? "Needed"}`;
 const logLines = (g: Got) => (g.change_log ?? []).slice(0, 5).map((c) => `- v${c.version} · ${c.at.slice(0, 10)} · ${c.who ?? "member"} · ${c.what}${c.why ? ` (why: ${c.why})` : ""}`);
@@ -191,7 +256,32 @@ export const livingReportGet = defineTool({
       const iorUrl = board.ior ?? null;
       const scheduleUrl = board.schedule ?? null;
       if (!g.found && type === "billing_forecast" && job.scope === "full") {
-        // 0.8.17: styled empty pay-app card with the hosted page and a Next move.
+        const contract = await contractTotal(sb, job);
+        const draft = contract == null ? null : await unsavedBillingDraft(sb, job, contract);
+        if (draft && contract != null) {
+          const model = payModel(draft.billing, contract);
+          const card = billingForecastCardModel(named(job), model, payappUrl, {
+            draft: true,
+            retainageLines: retainageStepDownLines(draft.retainageTerm, contract),
+          });
+          const presented = presentPayApp(card);
+          return guide(
+            {
+              ...presented,
+              structuredContent: {
+                ...presented.structuredContent,
+                found: false,
+                report_type: type,
+                version: 0,
+                draft: true,
+                contract_total: contract,
+                tie: tieCheck(model.total, contract),
+                data: { billing: draft.billing },
+              },
+            },
+            `${SHOW_UNSAVED_BILLING} Pass data.billing from this result.`,
+          );
+        }
         const presented = presentPayApp({
           state: "ask", show_state: false, title: "Pay App & Billing Forecast", job: named(job),
           sections: [{ heading: "Needed", kind: "list", rows: [{ cells: ["Billed to date"] }, { cells: ["Latest pay app (SOV lines)"] }] }],
@@ -199,7 +289,7 @@ export const livingReportGet = defineTool({
         });
         return guide(
           { ...presented, structuredContent: { ...presented.structuredContent, found: false, report_type: type, version: 0 } },
-          `Nothing saved: build the ${label} from Athena's data, mark it "Draft: not saved", and after the PM says yes call living_report_save with base_version 0.`,
+          SHOW_UNSAVED_BILLING,
         );
       }
       if (!g.found) {

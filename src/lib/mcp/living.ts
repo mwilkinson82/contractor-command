@@ -149,6 +149,142 @@ export const remainingForecast = (contract: number, billed: number, earned: numb
 export const forecastTotal = (b: LivingData["billing"]) =>
   fromCents((b?.months ?? []).reduce((s, m) => s + cents(m.amount), 0));
 
+export type RetainageBand = { rate: number; throughPct: number | null };
+
+/** "10% through 50% completion; 5% thereafter" → two bands. One percent → a flat rate. */
+export function retainageBands(term: unknown): RetainageBand[] | null {
+  if (typeof term !== "string") return null;
+  const text = term.replace(/\s+/g, " ").trim();
+  if (!text) return null;
+  const step = text.match(/(\d+(?:\.\d+)?)\s*%\s*(?:through|until|to)\s*(\d+(?:\.\d+)?)\s*%/i);
+  const afterLead = text.match(/(?:thereafter|then|after(?:wards)?)\s*(\d+(?:\.\d+)?)\s*%/i);
+  const afterTrail = text.match(/(\d+(?:\.\d+)?)\s*%\s*thereafter/i);
+  const after = afterLead ? Number(afterLead[1]) : afterTrail ? Number(afterTrail[1]) : null;
+  if (step && after != null && Number.isFinite(after)) {
+    const rate = Number(step[1]);
+    const through = Number(step[2]);
+    if (rate >= 0 && after >= 0 && through > 0 && through <= 100)
+      return [
+        { rate, throughPct: through },
+        { rate: after, throughPct: null },
+      ];
+  }
+  const only = text.match(/(\d+(?:\.\d+)?)\s*%/);
+  if (!only) return null;
+  const rate = Number(only[1]);
+  return rate >= 0 ? [{ rate, throughPct: null }] : null;
+}
+
+const rateText = (n: number) => (Number.isInteger(n) ? String(n) : String(n));
+
+/** Retainage held on each band. The rate applies to the work in that band, then the next rate. */
+export function retainageStepDownLines(term: unknown, contract: number): string[] | null {
+  const bands = retainageBands(term);
+  if (!bands || !Number.isFinite(contract) || contract < 0) return null;
+  const total = cents(contract);
+  if (bands.length === 1) {
+    const held = Math.round((total * bands[0].rate) / 100);
+    return [`${rateText(bands[0].rate)}% through completion, held ${money(fromCents(held))}.`];
+  }
+  const [first, second] = bands;
+  const through = first.throughPct ?? 100;
+  const band = Math.round((total * through) / 100);
+  const rest = total - band;
+  const heldFirst = Math.round((band * first.rate) / 100);
+  const heldRest = Math.round((rest * second.rate) / 100);
+  return [
+    `${rateText(first.rate)}% through ${rateText(through)}% complete (${money(fromCents(band))}), held ${money(fromCents(heldFirst))}.`,
+    `${rateText(second.rate)}% thereafter (${money(fromCents(rest))}), held ${money(fromCents(heldRest))}.`,
+    `Retainage at completion ${money(fromCents(heldFirst + heldRest))}.`,
+  ];
+}
+
+function holidaySet(activities: Activity[], holidays?: string[] | null): Set<string> {
+  if (holidays) return new Set(holidays);
+  const years = new Set<number>();
+  for (const a of activities) {
+    for (const raw of [a.start, a.finish]) {
+      if (raw && /^\d{4}-\d{2}-\d{2}/.test(raw)) years.add(+raw.slice(0, 4));
+    }
+  }
+  return new Set([...years].flatMap(federalHolidays));
+}
+
+function workingDays(start: string, finish: string, holidays: Set<string>): string[] {
+  const a = start.slice(0, 10);
+  const b = finish.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(a) || !/^\d{4}-\d{2}-\d{2}$/.test(b) || b < a) return [];
+  const out: string[] = [];
+  for (let d = a; d <= b; d = addDays(d, 1)) {
+    const w = new Date(`${d}T00:00:00Z`).getUTCDay();
+    if (w !== 0 && w !== 6 && !holidays.has(d)) out.push(d);
+  }
+  return out;
+}
+
+/**
+ * Spread cost-loaded activities over their working months so the months sum to the contract.
+ * Dollars up to `billed` are actual; the rest is forecast. Returns null when the activities
+ * do not tie, or a dated value cannot be placed.
+ */
+export function draftBillingFromSchedule(
+  activities: Activity[],
+  contract: number,
+  billed: number,
+  holidays?: string[] | null,
+): { billed_to_date: number; months: BillingMonth[] } | null {
+  if (
+    !activities.length ||
+    !Number.isFinite(contract) ||
+    contract < 0 ||
+    !Number.isFinite(billed) ||
+    billed < 0
+  )
+    return null;
+  if (cents(billed) > cents(contract)) return null;
+  if (cents(costLoadTotal(activities)) !== cents(contract)) return null;
+  const off = holidaySet(activities, holidays);
+  const monthCents = new Map<string, number>();
+  for (const activity of activities) {
+    const value = cents(billableValue(activity));
+    if (value === 0) continue;
+    const start = activity.start?.slice(0, 10);
+    const finish = activity.finish?.slice(0, 10);
+    if (!start || !finish) return null;
+    const days = workingDays(start, finish, off);
+    if (!days.length) return null;
+    const base = Math.floor(value / days.length);
+    let extra = value - base * days.length;
+    for (const day of days) {
+      const add = base + (extra > 0 ? 1 : 0);
+      if (extra > 0) extra -= 1;
+      const month = day.slice(0, 7);
+      monthCents.set(month, (monthCents.get(month) ?? 0) + add);
+    }
+  }
+  let placed = 0;
+  for (const amount of monthCents.values()) placed += amount;
+  if (placed !== cents(contract)) return null;
+  const billedCents = cents(billed);
+  let leftActual = billedCents;
+  const months: BillingMonth[] = [];
+  for (const [month, amount] of [...monthCents.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    if (leftActual <= 0) {
+      months.push({ month, amount: fromCents(amount), kind: "forecast" });
+      continue;
+    }
+    if (amount <= leftActual) {
+      months.push({ month, amount: fromCents(amount), kind: "actual" });
+      leftActual -= amount;
+      continue;
+    }
+    months.push({ month, amount: fromCents(leftActual), kind: "actual" });
+    months.push({ month, amount: fromCents(amount - leftActual), kind: "forecast" });
+    leftActual = 0;
+  }
+  return { billed_to_date: fromCents(billedCents), months };
+}
+
 // ---------- TIA ----------
 const day = (s: string) => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
 export const calendarDays = (from: string, to: string) =>

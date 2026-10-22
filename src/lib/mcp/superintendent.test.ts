@@ -70,17 +70,31 @@ vi.mock("./jobs", () => ({
 }));
 vi.mock("./visible", async () => {
   const actual = await vi.importActual<typeof import("./visible")>("./visible");
-  return { ...actual, guide: (r: unknown) => r };
+  return {
+    ...actual,
+    guide: (r: unknown, ...lines: string[]) => ({ ...(r as object), guidance: lines.filter(Boolean) }),
+  };
 });
 
 function query(rows: unknown[]) {
-  const run = async () => ({ data: rows, error: null });
+  const filters: [string, unknown][] = [];
+  const filtered = () =>
+    rows.filter((row) =>
+      filters.every(([col, val]) => {
+        if (!row || typeof row !== "object" || !(col in (row as Record<string, unknown>))) return true;
+        return (row as Record<string, unknown>)[col] === val;
+      }),
+    );
+  const run = async () => ({ data: filtered(), error: null });
   const b: Record<string, unknown> = {};
   b.select = () => b;
-  b.eq = () => b;
+  b.eq = (col: string, val: unknown) => {
+    filters.push([col, val]);
+    return b;
+  };
   b.order = () => b;
   b.limit = () => b;
-  b.maybeSingle = async () => ({ data: rows[0] ?? null, error: null });
+  b.maybeSingle = async () => ({ data: filtered()[0] ?? null, error: null });
   b.then = (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => run().then(resolve, reject);
   return b;
 }
@@ -103,7 +117,8 @@ function fakeSb() {
     },
     rpc: async (fn: string, args: Record<string, unknown>) => {
       state.rpcs.push([fn, args]);
-      return { data: state.rpc[fn] ?? {}, error: null };
+      const typed = args._type != null ? state.rpc[`${fn}:${String(args._type)}`] : undefined;
+      return { data: typed ?? state.rpc[fn] ?? {}, error: null };
     },
   };
 }
@@ -321,11 +336,110 @@ describe("feeds", () => {
     expect(shown.structuredContent.card).toBeDefined();
     expect(shown.structuredContent.html).toContain("Monthly billing");
     expect(shown.structuredContent.html).toContain("Version v2");
+    expect(shown.structuredContent.html).not.toContain("Draft: not saved");
     expect(shown.content[0].text).toContain("Forecast total $1,400,000.00 = contract $1,400,000.00");
     state.rpc.mcp_living_report_get = { found: false };
     const empty = await handle(livingReportGet, { job_number: "2701", report_type: "billing_forecast" });
     expect(empty.structuredContent.html).toContain("Billed to date");
+    expect(empty.structuredContent.html).toContain("Needed");
+    expect(empty.structuredContent.html).not.toContain("Draft: not saved");
     expect(empty.structuredContent.found).toBe(false);
+  });
+
+  it("builds a Draft: not saved pay app card from the schedule and the latest pay app", async () => {
+    state.tables.mcp_jobs = [{ sov_fee_pct: 0 }];
+    state.tables.mcp_job_facts = [
+      { key: "03.01", module: "sov", value: { description: "Concrete", billable_value: 1_400_000 } },
+      { key: "retainage", module: "contract", value: "§4.1 10% through 50% completion; 5% thereafter" },
+    ];
+    state.tables.mcp_daily_reports = [{ id: "d1", report_date: "2026-10-21" }];
+    state.tables.mcp_daily_work_lines = [{ daily_id: "d1", sov_item: "03.01", pct_complete: 50, qty: null }];
+    state.rpc.mcp_living_report_get = { found: false };
+    state.rpc["mcp_living_report_get:cpm"] = {
+      found: true,
+      data: {
+        activities: [
+          {
+            id: "A1000",
+            name: "Concrete",
+            duration: 22,
+            start: "2026-10-01",
+            finish: "2026-10-30",
+            predecessors: [],
+            total_float: 0,
+            critical: true,
+            pct_complete: 0,
+            value: 1_400_000,
+            sov_line: "03.01",
+            cost_code: "03-100",
+          },
+        ],
+      },
+    };
+    const result = (await handle(livingReportGet, { job_number: "2701", report_type: "billing_forecast" })) as {
+      content: { text: string }[];
+      guidance: string[];
+      structuredContent: {
+        html: string;
+        found: boolean;
+        draft: boolean;
+        contract_total: number;
+        tie: { ties: boolean; line: string };
+        data: { billing: { billed_to_date: number; months: { month: string; amount: number; kind: string }[] } };
+      };
+    };
+    const text = result.content[0].text;
+    expect(result.structuredContent.found).toBe(false);
+    expect(result.structuredContent.draft).toBe(true);
+    expect(result.structuredContent.contract_total).toBe(1_400_000);
+    expect(result.structuredContent.tie.ties).toBe(true);
+    expect(result.structuredContent.tie.line).toBe("Forecast total $1,400,000.00 = contract $1,400,000.00");
+    expect(result.structuredContent.data.billing.billed_to_date).toBe(700_000);
+    expect(result.structuredContent.data.billing.months).toEqual([
+      { month: "2026-10", amount: 700_000, kind: "actual" },
+      { month: "2026-10", amount: 700_000, kind: "forecast" },
+    ]);
+    expect(result.structuredContent.data.billing.months.reduce((sum, row) => sum + Math.round(row.amount * 100), 0)).toBe(140_000_000);
+    expect(text).toContain("Draft: not saved");
+    expect(text).toContain("Tie check");
+    expect(text).toContain("Retainage step-down");
+    expect(text).toContain("10% through 50% complete ($700,000.00), held $70,000.00.");
+    expect(text).toContain("5% thereafter ($700,000.00), held $35,000.00.");
+    expect(text).toContain("Retainage at completion $105,000.00.");
+    expect(text).toContain("Forecast total $1,400,000.00 = contract $1,400,000.00");
+    expect(text).not.toMatch(/Lovable/i);
+    expect(text).not.toContain("living_report_save");
+    expect(visibleProblems(text)).toEqual([]);
+    expect(paletteViolations(result.structuredContent.html, false)).toEqual([]);
+    expect(result.guidance).toEqual([
+      "Show this card as written. Leave it as Athena drew it. Only after the PM says yes, call living_report_save with base_version 0. Pass data.billing from this result.",
+    ]);
+
+    state.rpc["mcp_living_report_get:cpm"] = {
+      found: true,
+      data: {
+        activities: [
+          {
+            id: "A1000",
+            name: "Concrete",
+            duration: 5,
+            start: "2026-10-01",
+            finish: "2026-10-07",
+            predecessors: [],
+            total_float: 0,
+            critical: false,
+            pct_complete: 0,
+            value: 100,
+            sov_line: "03.01",
+            cost_code: null,
+          },
+        ],
+      },
+    };
+    const untied = await handle(livingReportGet, { job_number: "2701", report_type: "billing_forecast" });
+    expect(untied.structuredContent.html).toContain("Needed");
+    expect(untied.structuredContent.html).not.toContain("Draft: not saved");
+    expect(untied.structuredContent.found).toBe(false);
   });
 
   it("keeps every superintendent progress row on the card without dollars", async () => {
