@@ -19,12 +19,12 @@ import {
   formatQty,
   parseState,
   prepareGaps,
+  classifyTakeoffLines,
   prepareLines,
   renderBidCheck,
   renderDocReview,
   renderExport,
   renderGaps,
-  rejectPlaceholderLines,
   renderIntake,
   renderMark,
   renderStatus,
@@ -40,6 +40,7 @@ import {
   type Setup,
   type StoredLine,
   type SubBid,
+  type TakeoffAttempt,
 } from "../estimating";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import { audit, prefix, resolveJob } from "../jobs";
@@ -321,6 +322,66 @@ function noEstimate(jobNumber: string) {
     "There is no estimate on this job yet. Do not say the call failed.",
   );
 }
+async function existingJobs(sb: Sb): Promise<string[]> {
+  try {
+    const { data, error } = await sb.from("mcp_jobs").select("job_number, name");
+    if (error || !Array.isArray(data)) return [];
+    return (data as { job_number?: string; name?: string | null }[])
+      .filter((row) => row.job_number?.trim())
+      .map((row) => `${row.job_number}${row.name ? ` (${row.name})` : ""}`);
+  } catch {
+    return [];
+  }
+}
+
+function missingJobCard(jobNumber: string, detail: string, jobs: string[]) {
+  const named = [...detail.matchAll(/job ([^()\s]+) \(([^)]+)\)/g)].map((hit) => `${hit[1]} (${hit[2]})`);
+  const choices = [...new Set([...named, ...jobs])];
+  const card: CardModel = {
+    state: "ask",
+    title: "Job isn't on file",
+    job: jobNumber,
+    ask: { prompt: `Create job ${jobNumber}, or pick an existing job?` },
+    sections: [
+      {
+        heading: "Nothing was created",
+        kind: "list",
+        rows: [{ cells: [`Job ${jobNumber} is not on file. This save did not create it.`] }],
+      },
+      ...(choices.length
+        ? [{
+            heading: "Existing jobs",
+            kind: "list" as const,
+            rows: choices.map((job) => ({ cells: [job], tone: "action" as const })),
+          }]
+        : []),
+    ],
+    next_move: `Say yes to create ${jobNumber}, or name the job to use. Nothing was saved.`,
+  };
+  const html = renderHtml(card);
+  return guide(
+    {
+      ...text(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`),
+      structuredContent: { report: "Takeoff", found: false, created: false, card, html },
+    },
+    "Nothing was created. Do not create the job unless the member says yes. If they name a different job, save the takeoff on that job.",
+  );
+}
+
+function holdReplace(attempts: TakeoffAttempt[]): TakeoffAttempt[] {
+  if (!attempts.some((row) => row.outcome === "rejected")) return attempts;
+  return attempts.map((row) =>
+    row.outcome === "saved"
+      ? {
+          ...row,
+          outcome: "held",
+          line: null,
+          message: "A replace waits until every line passes, so this line was not written. The takeoff on file stays.",
+        }
+      : row,
+  );
+}
+
 function emptyTakeoff(label: string) {
   return guide(
     {
@@ -591,9 +652,15 @@ export const estimateTakeoffSave = defineTool({
   handler: (args, ctx) =>
     run("estimate_takeoff_save", ctx, { jobNumber: args.job_number }, async (sb) => {
       try {
-        const job = await resolveJob(sb, args.job_number, args.company_id, "write");
+        let job;
+        try {
+          job = await resolveJob(sb, args.job_number, args.company_id, "write");
+        } catch (e) {
+          const message = e instanceof Error ? e.message : "";
+          if (/No job /i.test(message)) return missingJobCard(args.job_number, message, await existingJobs(sb));
+          throw e;
+        }
         const mode = args.mode ?? "upsert";
-        rejectPlaceholderLines(args.lines);
         const prior = await load(sb, job.job_id);
         const convention = conventionFor(args.profile ?? "as_drawn", args.forms_faces);
         if (args.profile)
@@ -605,32 +672,41 @@ export const estimateTakeoffSave = defineTool({
             if (e instanceof ToolError && /not available/.test(e.message)) return null;
             throw e;
           });
-        const numbered = args.lines.map((l) => l.line_no != null);
-        const prepared: StoredLine[] = prepareLines(args.lines.map(asLine), convention);
-        const lines =
-          mode === "upsert" ? mergeTakeoffLines(prior.lines, prepared, numbered) : prepared;
-        const revision = args.revision ?? revisionUsed(prior.setup.documents);
-        const scales = (args.scales ?? []).map((s) => ({ ...s, scale: normalizeScale(s.scale) }));
-        await rpc(sb, "mcp_estimate_takeoff_save", {
-          _job: job.job_id,
-          _revision: revision,
-          _scales: scales,
-          _lines: lines,
+        const attempts = mode === "replace" ? holdReplace(classifyTakeoffLines(args.lines.map(asLine), convention)) : classifyTakeoffLines(args.lines.map(asLine), convention);
+        const prepared = attempts.flatMap((row) => (row.line ? [row.line] : []));
+        const numbered = attempts.filter((row) => row.line).map((row) => row.numbered);
+        let version: number | null = prior.version;
+        let savedLines = prior.lines;
+        let revision = prior.revision;
+        if (prepared.length) {
+          const lines = mode === "upsert" ? mergeTakeoffLines(prior.lines, prepared, numbered) : prepared;
+          revision = args.revision ?? revisionUsed(prior.setup.documents);
+          const scales = (args.scales ?? []).map((s) => ({ ...s, scale: normalizeScale(s.scale) }));
+          const wrote = await rpc<{ version?: number }>(sb, "mcp_estimate_takeoff_save", {
+            _job: job.job_id,
+            _revision: revision,
+            _scales: scales,
+            _lines: lines,
+          });
+          const loaded = await load(sb, job.job_id);
+          version = wrote?.version ?? loaded.version;
+          savedLines = loaded.lines;
+          revision = loaded.revision;
+          await audit(sb, job, "estimate_takeoff_save", "save_estimate_takeoff", null);
+        }
+        const state = settle(savedLines, prior.gaps, prior.verdicts, {
+          role: prior.setup.role,
+          trades: prior.setup.trades,
         });
-        const loaded = await load(sb, job.job_id);
-        const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, {
-          role: loaded.setup.role,
-          trades: loaded.setup.trades,
-        });
-        await audit(sb, job, "estimate_takeoff_save", "save_estimate_takeoff", null);
         const view = renderTakeoff(
           `${prefix(job)}${job.name}`,
-          loaded.lines,
+          savedLines,
           state,
-          loaded.revision,
-          mode,
+          revision,
+          prepared.length ? mode : undefined,
+          attempts,
         );
-        return reply({ ...view, structured: { ...view.structured, version: loaded.version } });
+        return reply({ ...view, structured: { ...view.structured, version, created: false } });
       } catch (e) {
         caught(e);
       }

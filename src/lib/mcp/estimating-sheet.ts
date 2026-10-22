@@ -222,10 +222,14 @@ export function bytesToBase64(bytes: Uint8Array): string {
   return btoa(s);
 }
 
-export function takeoffCard(rows: SheetRow[]): string[] {
-  if (!rows.length) return ["Takeoff card", "- No lines yet."];
+export function takeoffCard(
+  rows: SheetRow[],
+  attempts?: { line_no: number; item: string; outcome: "saved" | "rejected" | "held"; message: string }[],
+): string[] {
   const lines = ["Takeoff card"];
+  if (!rows.length && !attempts?.length) return ["Takeoff card", "- No lines yet."];
   let group = "";
+  const shown = new Set<string>();
   for (const r of rows) {
     if (r.group !== group) {
       group = r.group;
@@ -233,9 +237,18 @@ export function takeoffCard(rows: SheetRow[]): string[] {
     }
     const qty = r.qty ? `${r.qty} ${r.unit}`.trim() : "blank";
     const verify = r.verify ? ` ${r.verify}.` : "";
+    const attempt = attempts?.find((row) => row.item === r.item || `T-${row.line_no}` === r.ref);
+    const word = attempt ? (attempt.outcome === "saved" ? "Saved" : attempt.outcome === "rejected" ? "Rejected" : "Not written") : "";
+    const status = attempt ? `${word}. ${attempt.message} ` : "";
+    if (attempt) shown.add(`${attempt.line_no}:${attempt.item}`);
     lines.push(
-      `- ${r.item} (${r.ref}). ${r.basis || "No basis"}. Sheet ${r.sheet || "not stated"}. Math: ${r.math || "none"}. Qty ${qty}.${verify}`,
+      `- ${status}${r.item} (${r.ref}). ${r.basis || "No basis"}. Sheet ${r.sheet || "not stated"}. Math: ${r.math || "none"}. Qty ${qty}.${verify}`,
     );
+  }
+  for (const attempt of attempts ?? []) {
+    if (shown.has(`${attempt.line_no}:${attempt.item}`)) continue;
+    const word = attempt.outcome === "saved" ? "Saved" : attempt.outcome === "rejected" ? "Rejected" : "Not written";
+    lines.push(`- Line ${attempt.line_no} (${attempt.item}): ${word}. ${attempt.message}`);
   }
   return lines;
 }

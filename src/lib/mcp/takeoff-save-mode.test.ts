@@ -106,6 +106,21 @@ describe("takeoff line errors name the line", () => {
   });
 });
 
+describe("estimate_takeoff_save without a job", () => {
+  it("asks to create the job or pick one, and does not create it", async () => {
+    const result = await (estimateTakeoffSave as unknown as { handler: (a: { job_number: string; lines: unknown[] }, c: unknown) => Promise<{ content: { text: string }[]; isError?: boolean }> }).handler(
+      { job_number: "CCW-005", lines: [oneLine] },
+      {},
+    );
+    expect(result.isError).toBeUndefined();
+    const body = result.content[0].text;
+    expect(body).toContain("Create job CCW-005, or pick an existing job?");
+    expect(body).toContain("Nothing was created");
+    expect(body).toContain("This save did not create it");
+    expect(body).not.toMatch(/create_job/);
+  });
+});
+
 describe("estimate_status without a job", () => {
   it("returns a no-estimate card instead of a blank failure", async () => {
     const result = await (estimateStatus as unknown as { handler: (a: { job_number: string }, c: unknown) => Promise<{ content: { text: string }[]; isError?: boolean }> }).handler(

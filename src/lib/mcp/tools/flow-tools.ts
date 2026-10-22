@@ -2,18 +2,19 @@
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { renderHtml } from "../cards/html";
-import { inferCard } from "../cards/infer";
 import { htmlBlock, renderMarkdown } from "../cards/markdown";
 import { CARD_WIDGET_URI, cardWidgetMeta } from "../cards/widget";
 import { CARD_SHOWN, CARD_SHOWN_PICK, applyCardClosing } from "../cards/silence";
+import { inferCard } from "../cards/infer";
 import { signedJobPages } from "../board-url";
 import { applyMeetingFigures, buildFlowCard } from "../flows/build";
 import { isUuid } from "../../report-pages";
 import { job2701FlowData } from "../flows/job-2701";
 import { loadFlowData, saveFlowNote } from "../flows/load";
 import { STAGE_LABEL, stagesFor, type FlowData, type FlowName } from "../flows/types";
-import { run, type Sb } from "../guard";
+import { run, text, type Sb } from "../guard";
 import { FULL_ACCESS_MESSAGE, audit, resolveJob } from "../jobs";
+import { loadMorningBrief } from "../morning-brief-load";
 import { chooseJob, listCompaniesAndJobs, listedJobs } from "./workflow-tools";
 import { guide } from "../visible";
 
@@ -69,7 +70,7 @@ export const ATHENA_GREETING_PHRASES = [
 export const MORNING_HITLIST_TITLE = "Athena, good morning, Hey Athena, good morning, Good morning Athena, Morning Athena, Athina what's on my hitlist this morning, Athina, Athen, Atena";
 
 export const MORNING_HITLIST_DESCRIPTION =
-  "Athena answers Hey Athena, good morning, Athena, good morning, Good morning Athena, Morning Athena, Athena at the start or mid-sentence, Athina what's on my hitlist this morning, and misspellings Athina, Athen, and Atena, plus hitlist, morning briefing, what's on my plate today, overdue, and today's deadlines on my jobs, as the construction job hitlist, not email or calendar and not Gmail.";
+  "Runs the per-job morning meeting when a job number was given, and with no job number returns the morning brief across every visible job, not email or calendar and not Gmail.";
 
 function sealedCard(card: ReturnType<typeof inferCard>, pick: boolean) {
   const html = renderHtml(card);
@@ -84,18 +85,18 @@ function sealedCard(card: ReturnType<typeof inferCard>, pick: boolean) {
   );
 }
 
-/** A greeting with no other ask. One job, or the most recently updated job, opens directly. */
+/** A greeting with no job number: the per-user morning brief across every job they can see. */
 export async function morningGreeting(sb: Sb, companyId?: string) {
-  return lead("pm_morning", { company_id: companyId }, sb);
+  return loadMorningBrief(sb, companyId);
 }
 
 async function lead(flow: FlowName, args: { job_number?: string; company_id?: string; stage?: string; note?: string; crew_mode?: "subcontract" | "self_perform"; sample?: true; plan?: number; realistic?: number; percent_complete?: number }, sb: Sb) {
   if (!args.job_number?.trim()) {
+    if (flow === "pm_morning") return morningGreeting(sb, args.company_id);
     const jobs = await listedJobs(sb, args.company_id);
     const picked = chooseJob(jobs);
     if (picked?.job_number) return lead(flow, { ...args, job_number: picked.job_number, company_id: args.company_id ?? picked.company_id }, sb);
-    const tool = flow === "pm_morning" ? "athena_morning_hitlist" : flow;
-    return sealedCard(inferCard(tool, await listCompaniesAndJobs(sb, args.company_id, tool)), true);
+    return sealedCard(inferCard(flow, await listCompaniesAndJobs(sb, args.company_id, flow)), true);
   }
   const stages = stagesFor(flow);
   const stage = args.stage ?? stages[0];
@@ -148,9 +149,10 @@ export const pmMeeting = defineTool({
     run("pm_meeting", ctx, { jobNumber: args.job_number }, async (sb) => lead("pm_meeting", args, sb)),
 });
 
-/** Morning briefing for one job, or the which-job list when no job number is given. */
-export function startMorning(sb: Sb, jobNumber?: string) {
-  return lead("pm_morning", { job_number: jobNumber }, sb);
+/** One named job opens that morning meeting. No job number is the which-job list for getting started. */
+export async function startMorning(sb: Sb, jobNumber?: string) {
+  if (jobNumber?.trim()) return lead("pm_morning", { job_number: jobNumber }, sb);
+  return text(await listCompaniesAndJobs(sb, undefined, "pm_morning"));
 }
 
 export const pmMorning = defineTool({
@@ -170,7 +172,14 @@ export const pmMorningMeeting = defineTool({
   inputSchema: { job_number: jobNumber, company_id: companyId, stage: z.enum(["schedule", "crews", "risks", "spillover", "log"]).optional(), note, crew_mode: crewMode, sample },
   annotations: READ,
   handler: (args, ctx) =>
-    run("pm_morning", ctx, { jobNumber: args.job_number }, async (sb) => lead("pm_morning", args, sb)),
+    run("pm_morning", ctx, { jobNumber: args.job_number }, async (sb) => {
+      if (!args.job_number?.trim()) {
+        const jobs = await listedJobs(sb, args.company_id);
+        const picked = chooseJob(jobs);
+        if (picked?.job_number) return lead("pm_morning", { ...args, job_number: picked.job_number, company_id: args.company_id ?? picked.company_id }, sb);
+      }
+      return lead("pm_morning", args, sb);
+    }),
 });
 
 export const pmEvening = defineTool({

@@ -36,6 +36,7 @@ import * as Est from "./tools/estimate-tools";
 import * as Bid from "./tools/estimate-bid-tools";
 import * as Field from "./tools/superintendent-tools";
 import * as Start from "./tools/getting-started-tool";
+import * as Brief from "./tools/morning-brief-tools";
 
 const rpc = vi.fn();
 vi.mock("./supabase", () => ({
@@ -99,6 +100,8 @@ const ALL = [
   G.pmMeeting,
   G.pmMorning,
   G.pmEvening,
+  Brief.morningBrief,
+  Brief.morningBriefSettings,
   E.emailDraft,
   E.emailConfirmSend,
   Start.gettingStarted,
@@ -149,8 +152,8 @@ async function toolsList(tools: unknown[]) {
 }
 
 describe("0.8.22 (0) every tool goes through run() and guard()", () => {
-  it("58 tools, and each handler body starts with run(<its own name>)", () => {
-    expect(ALL).toHaveLength(58);
+  it("60 tools, and each handler body starts with run(<its own name>)", () => {
+    expect(ALL).toHaveLength(60);
     const files = readdirSync(new URL("./tools/", import.meta.url)).filter((f) =>
       f.endsWith(".ts"),
     );
@@ -164,7 +167,7 @@ describe("0.8.22 (0) every tool goes through run() and guard()", () => {
         seen++;
       }
     }
-    expect(seen).toBe(58);
+    expect(seen).toBe(60);
     expect(src("./index.ts")).toContain("tools: ATHENA_TOOLS.map(secureTool)");
     expect(src("./guard.ts")).toMatch(
       /export async function run[\s\S]*?const sb = await guard\(ctx\);/,
@@ -181,7 +184,7 @@ describe("0.8.22 (3) refusal rule", () => {
       "That's how I'm built inside ALP; I can't share it. Want to get back to your job?",
     );
     const list = await toolsList(ALL.map(secureTool));
-    expect(list).toHaveLength(58);
+    expect(list).toHaveLength(60);
     for (const t of list) expect(t.description.includes(REFUSAL_DESC), t.name).toBe(false);
   });
   it("stays short (one sentence under 120 characters) and keeps schemas unchanged", async () => {

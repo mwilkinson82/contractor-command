@@ -937,6 +937,95 @@ export function cleanCsv(text: string): string {
     .join("\n");
 }
 
+export type TakeoffAttempt = {
+  line_no: number;
+  item: string;
+  outcome: "saved" | "rejected" | "held";
+  message: string;
+  line: StoredLine | null;
+  numbered: boolean;
+};
+
+function attemptMessage(e: unknown): string {
+  const raw = e instanceof Error ? e.message : "This line was not saved.";
+  return raw.replace(/\s*Nothing was saved\.?/g, "").replace(/^Line \d+ \([^)]*\):\s*/, "").trim();
+}
+
+/** One status per submitted line. A bad line does not discard the lines that pass. */
+export function classifyTakeoffLines(
+  rows: LineIn[],
+  convention: EstimateConvention = CONVENTIONS.as_drawn,
+): TakeoffAttempt[] {
+  const given = rows.map((r) => r.line_no).filter((n): n is number => typeof n === "number");
+  if (given.length && given.length !== rows.length) {
+    return rows.map((raw, i) => ({
+      line_no: raw.line_no ?? i + 1,
+      item: raw.item?.trim() || "this line",
+      outcome: "rejected" as const,
+      message: "Number every line, or leave the numbers off and Athena will number them.",
+      line: null,
+      numbered: typeof raw.line_no === "number",
+    }));
+  }
+  const prepared = new Map<number, Omit<StoredLine, "line_no">>();
+  const built: TakeoffAttempt[] = rows.map((raw, i) => {
+    const item = raw.item?.trim() || "this line";
+    const lineNo = raw.line_no ?? i + 1;
+    try {
+      rejectPlaceholderLines([raw]);
+      prepared.set(i, applyConvention(prepareLine(raw), raw, convention));
+      return {
+        line_no: lineNo,
+        item,
+        outcome: "saved" as const,
+        message: "",
+        line: null,
+        numbered: typeof raw.line_no === "number",
+      };
+    } catch (e) {
+      return {
+        line_no: lineNo,
+        item,
+        outcome: "rejected" as const,
+        message: attemptMessage(e),
+        line: null,
+        numbered: typeof raw.line_no === "number",
+      };
+    }
+  });
+  const savedAt = built.map((row, i) => (row.outcome === "saved" ? i : -1)).filter((i) => i >= 0);
+  const numbers = given.length ? savedAt.map((i) => rows[i].line_no as number) : savedAt.map((_, n) => n + 1);
+  if (new Set(numbers).size !== numbers.length) {
+    for (const i of savedAt) {
+      built[i] = { ...built[i], outcome: "rejected", message: "Each line number is used once.", line: null };
+      prepared.delete(i);
+    }
+    return built;
+  }
+  savedAt.forEach((i, n) => {
+    const line = { ...prepared.get(i)!, line_no: numbers[n] };
+    built[i] = {
+      ...built[i],
+      line_no: numbers[n],
+      line,
+      message: line.math.replace(/\s+/g, " ").trim(),
+    };
+  });
+  return built;
+}
+
+/** Badge plus one status sentence per submitted line. Saved and Rejected stay the row words. */
+export function saveStatusLines(attempts: TakeoffAttempt[]): string[] {
+  const saved = attempts.filter((row) => row.outcome === "saved").length;
+  return [
+    `${saved} of ${attempts.length} saved`,
+    ...attempts.map((row) => {
+      const word = row.outcome === "saved" ? "Saved" : row.outcome === "rejected" ? "Rejected" : "Not written";
+      return `- Line ${row.line_no} (${row.item}): ${word}. ${row.message}`;
+    }),
+  ];
+}
+
 export function prepareLines(
   rows: LineIn[],
   convention: EstimateConvention = CONVENTIONS.as_drawn,
@@ -1575,6 +1664,7 @@ export function renderTakeoff(
   state: ReturnType<typeof settle>,
   revision: string,
   saveMode?: "upsert" | "replace",
+  attempts?: TakeoffAttempt[],
 ): { text: string; structured: Record<string, unknown>; guidance: string[] } {
   const ordered = [...linesIn].sort(
     (a, b) =>
@@ -1608,10 +1698,12 @@ export function renderTakeoff(
         ? ["This save replaced the takeoff. Only the lines in this call remain."]
         : []),
     "Each line",
-    ...rows.map(
-      (r) =>
-        `- ${r.title} (${r.ref}). ${r.basis ?? "No basis"}. Sheet ${cite(r.sheet, r.detail)}. Math: ${r.math ?? "none"}.`,
-    ),
+    ...(attempts?.length
+      ? saveStatusLines(attempts).slice(1)
+      : rows.map(
+          (r) =>
+            `- ${r.title} (${r.ref}). ${r.basis ?? "No basis"}. Sheet ${cite(r.sheet, r.detail)}. Math: ${r.math ?? "none"}.`,
+        )),
     ...state.stale.map(
       (r) => `An earlier call on ${r} does not match the current item, so it is not applied.`,
     ),
@@ -1630,7 +1722,8 @@ export function renderTakeoff(
     "- Contact area is listed ahead of concrete and reinforcing.",
     "- A markup image is included only when a line names one.",
     "",
-    ...takeoffCard(sheetRows),
+    ...(attempts?.length ? [`${attempts.filter((row) => row.outcome === "saved").length} of ${attempts.length} saved`] : []),
+    ...takeoffCard(sheetRows, attempts),
     "",
     "Spreadsheet",
     "```",
@@ -1650,13 +1743,28 @@ export function renderTakeoff(
         basis_label: r.basis,
         spec_term: r.basis === "MEASURED" ? "READ" : r.basis === "DEDUCED" ? "DERIVED" : null,
         verify: r.status === "open" || r.holdsBid || r.confidence === "low" || Boolean(r.missing),
+        status: attempts?.find((row) => row.line_no === Number(r.ref.replace(/^T-/, "")))?.message ?? null,
       })),
+      ...(attempts?.length
+        ? {
+            saved_badge: `${attempts.filter((row) => row.outcome === "saved").length} of ${attempts.length} saved`,
+            line_statuses: attempts.map((row) => ({
+              line_no: row.line_no,
+              item: row.item,
+              outcome: row.outcome === "saved" ? "Saved" : row.outcome === "rejected" ? "Rejected" : "Not written",
+              status: `${row.outcome === "saved" ? "Saved" : row.outcome === "rejected" ? "Rejected" : "Not written"}. ${row.message}`,
+            })),
+          }
+        : {}),
       checklist: state.checklist,
       settled: state.settled,
       spreadsheet: { grouped_csv: grouped, xlsx_base64: bytesToBase64(takeoffXlsx(sheetRows)) },
     },
     guidance: [
       "Show the takeoff card grouped by trade or system, with MEASURED or DEDUCED and a Verify flag. Offer the CSV and the xlsx from spreadsheet.",
+      ...(attempts?.length
+        ? ["Put each line_statuses status on its own row. Do not fold those row messages into one note under the card."]
+        : []),
       "Show basis_label. READ means MEASURED. DERIVED means DEDUCED.",
       "Do not price a final bid from this takeoff until settled is true.",
     ],

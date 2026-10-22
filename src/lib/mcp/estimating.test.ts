@@ -30,7 +30,9 @@ import {
   renderExport,
   renderIntake,
   renderSummary,
+  classifyTakeoffLines,
   renderTakeoff,
+  saveStatusLines,
   settle,
   toBasis,
   type StoredLine,
@@ -724,6 +726,31 @@ describe("intake reuse and takeoff save mode", () => {
       "replace",
     );
     expect(replaced.text).toContain("This save replaced the takeoff.");
+    expect(problems(view.text)).toEqual([]);
+  });
+
+  it("gives every submitted line its own status and keeps the saved badge", () => {
+    const attempts = classifyTakeoffLines([
+      { ...base, line_no: 1, item: "Continuous footing", basis: "measured", value: 12, unit: "LF" },
+      { ...base, line_no: 2, item: "Slab", basis: "measured", value: -2, unit: "SF" },
+    ]);
+    expect(attempts.map((row) => row.outcome)).toEqual(["saved", "rejected"]);
+    expect(attempts[0].message).toMatch(/MEASURED/);
+    expect(attempts[1].message).toMatch(/zero or more/);
+    expect(attempts[1].message).not.toMatch(/Nothing was saved/);
+    const lines = attempts.flatMap((row) => (row.line ? [row.line] : []));
+    const view = renderTakeoff("CCW-005 – Shop", lines, settle(lines, [], [], { role: "gc", trades: [] }), "Revision used: not stated.", "upsert", attempts);
+    const block = saveStatusLines(attempts).join("\n");
+    expect(block).toContain("1 of 2 saved");
+    expect(block).toContain("Line 1 (Continuous footing): Saved.");
+    expect(block).toContain("Line 2 (Slab): Rejected.");
+    expect(view.text).toContain("Line 1 (Continuous footing): Saved.");
+    expect(view.text).toContain("Line 2 (Slab): Rejected.");
+    expect(view.text).toContain("1 of 2 saved");
+    expect(view.structured.line_statuses).toEqual([
+      expect.objectContaining({ item: "Continuous footing", outcome: "Saved" }),
+      expect.objectContaining({ item: "Slab", outcome: "Rejected" }),
+    ]);
     expect(problems(view.text)).toEqual([]);
   });
 });
