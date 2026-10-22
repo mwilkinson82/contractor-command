@@ -6,7 +6,7 @@ import { paletteViolations } from "./cards/palette";
 import { zonedClock } from "./field-reminder";
 import { job2701BriefJob } from "./morning-brief-2701";
 import { briefIsDue } from "./morning-brief-push";
-import { buildMorningBrief, todayBoardUrl, TODAY_BOARD_LABEL } from "./morning-brief";
+import { buildMorningBrief, INBOX_SECTION, MORNING_CARD_GUIDANCE, presentBrief, todayBoardUrl, TODAY_BOARD_LABEL } from "./morning-brief";
 import { attachMorningCard, morningCardIsDue, type MorningCardStatus } from "./morning-brief-card";
 
 const NOW = new Date("2026-10-26T15:00:00Z");
@@ -74,7 +74,14 @@ describe("morning card due once per local day", () => {
     };
     const first = await attachMorningCard(sb, { content: [{ type: "text", text: "Job body" }] }, { fresh: true, explicit: false });
     const text = first.content?.[0]?.text ?? "";
-    expect(text).toContain("Let's set up your company");
+    expect(text).toContain(INBOX_SECTION);
+    expect(text.indexOf(INBOX_SECTION)).toBeLessThan(text.indexOf("Why"));
+    expect(text.indexOf("Why")).toBeLessThan(text.indexOf("Job body"));
+    expect(text.indexOf("Overnight emails")).toBeLessThan(text.indexOf("Job body"));
+    expect(text).toContain("Unanswered emails");
+    expect(text).toContain("Today's meetings");
+    const guidance = (first.structuredContent as { assistant_guidance?: string[] }).assistant_guidance ?? [];
+    expect(guidance[guidance.length - 1]).toBe(MORNING_CARD_GUIDANCE);
     expect(text).toContain(todayBoardUrl());
     expect(text).toContain(TODAY_BOARD_LABEL);
     expect(text).toContain("Job body");
@@ -105,6 +112,8 @@ describe("morning card due once per local day", () => {
     );
     expect(result.content?.[0]?.text).toBe("The morning card.");
     expect(marks).toEqual(["2026-11-01"]);
+    const guidance = (result.structuredContent as { assistant_guidance?: string[] }).assistant_guidance ?? [];
+    expect(guidance[guidance.length - 1]).toBe(MORNING_CARD_GUIDANCE);
   });
 });
 
@@ -116,6 +125,17 @@ describe("morning card styling", () => {
     const pmCard = buildMorningBrief({ jobs: pmJobs, hasCompany: true, now: NOW, settings });
     const superHtml = renderHtml(superCard.card);
     const pmHtml = renderHtml(pmCard.card);
+    expect(superCard.card.sections?.[0]?.heading).toBe(INBOX_SECTION);
+    expect(superCard.card.sections?.[0]?.rows.map((row) => row.cells[0])).toEqual([
+      "Overnight emails",
+      "Unanswered emails",
+      "Today's meetings",
+    ]);
+    expect(superCard.card.sections?.slice(1).some((section) => section.heading === "Today" || section.heading === "Open items")).toBe(true);
+    expect(superCard.card.sections?.findIndex((section) => section.heading === "Board")).toBeGreaterThan(0);
+    const shown = presentBrief(superCard.card);
+    const host = (shown.structuredContent as { assistant_guidance?: string[] }).assistant_guidance ?? [];
+    expect(host).toContain(MORNING_CARD_GUIDANCE);
     expect(superHtml).toContain(todayBoardUrl());
     expect(pmHtml).toContain("https://app.meetathena.io/today");
     expect(superHtml).toContain("#1E3A5F");
@@ -132,7 +152,7 @@ describe("morning card styling", () => {
   });
 
   it("stores one show per user per day and does not email", () => {
-    const sql = readFileSync("supabase/migrations/20261023220000_athena_morning_brief_card.sql", "utf8");
+    const sql = readFileSync("supabase/migrations/20261024020000_athena_morning_brief_card.sql", "utf8");
     expect(sql).toContain("CREATE TABLE IF NOT EXISTS public.mcp_morning_brief_shows");
     expect(sql).toContain("PRIMARY KEY (user_id, shown_on)");
     expect(sql).toContain("ON CONFLICT (user_id, shown_on) DO NOTHING");
@@ -144,6 +164,9 @@ describe("morning card styling", () => {
     expect(card).not.toMatch(/resend|sendTransactional|mailto:/i);
     expect(guard).toContain("attachMorningCard");
     expect(guard).toContain("explicit: tool === \"morning_brief\"");
+    expect(instructions).toContain("the morning card leads");
+    expect(instructions.indexOf(INBOX_SECTION)).toBeLessThan(instructions.indexOf("followed by the job items"));
+    expect(instructions).toContain(INBOX_SECTION);
     expect(instructions).toContain("It links to /today.");
     expect(instructions).toContain("once per local day");
     expect(instructions).toContain("Nothing is emailed.");

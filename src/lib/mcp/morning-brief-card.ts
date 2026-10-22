@@ -4,7 +4,7 @@ import { htmlBlock, renderMarkdown } from "./cards/markdown";
 import { renderHtml } from "./cards/html";
 import { parseSendTime } from "./field-reminder";
 import type { Sb } from "./guard";
-import { briefSettingsFrom, buildMorningBrief, MORNING_BRIEF_DEFAULT_TIME, type BriefSettings } from "./morning-brief";
+import { briefSettingsFrom, buildMorningBrief, MORNING_BRIEF_DEFAULT_TIME, MORNING_CARD_GUIDANCE, type BriefSettings } from "./morning-brief";
 import { loadBriefJobs, readBriefSettings } from "./morning-brief-load";
 
 export type MorningCardStatus = {
@@ -40,6 +40,16 @@ async function cardStatus(sb: Rpc): Promise<MorningCardStatus | null> {
   return row;
 }
 
+function withMorningGuidance<R>(result: R): R {
+  const res = result as unknown as TextRes;
+  const prior = Array.isArray(res.structuredContent?.assistant_guidance)
+    ? (res.structuredContent.assistant_guidance as string[])
+    : [];
+  const guidance = prior.filter((line) => line !== MORNING_CARD_GUIDANCE);
+  guidance.push(MORNING_CARD_GUIDANCE);
+  return { ...(res as object), structuredContent: { ...(res.structuredContent ?? {}), assistant_guidance: guidance } } as R;
+}
+
 async function markShown(sb: Rpc, day: string): Promise<boolean> {
   const marked = await sb.rpc("mcp_morning_brief_mark_shown", { _day: day });
   return !marked.error && !!marked.data && typeof marked.data === "object" && (marked.data as { recorded?: boolean }).recorded === true;
@@ -62,14 +72,16 @@ export async function attachMorningCard<R>(sb: Rpc, result: R, opts: { fresh: bo
   } catch {
     return result;
   }
-  if (!status || !morningCardIsDue(status)) return result;
+  if (!status || !morningCardIsDue(status)) return opts.explicit ? withMorningGuidance(result) : result;
   if (opts.explicit) {
-    try {
-      await markShown(sb, status.local_date!);
-    } catch {
-      // The tool card is still the reply.
+    if (status?.local_date) {
+      try {
+        await markShown(sb, status.local_date);
+      } catch {
+        // The tool card is still the reply.
+      }
     }
-    return result;
+    return withMorningGuidance(result);
   }
   let built: ReturnType<typeof buildMorningBrief>;
   try {
@@ -93,9 +105,9 @@ export async function attachMorningCard<R>(sb: Rpc, result: R, opts: { fresh: bo
   if (!recorded) return result;
   const block = `${renderMarkdown(built.card)}\n\n${htmlBlock(renderHtml(built.card))}`;
   const content = res.content!.map((blockItem) => (blockItem === first ? { ...blockItem, text: `${block}\n\n${first.text}` } : blockItem));
-  return {
+  return withMorningGuidance({
     ...(res as object),
     content,
     structuredContent: { ...(res.structuredContent ?? {}), morning_card: built.card },
-  } as R;
+  } as R);
 }

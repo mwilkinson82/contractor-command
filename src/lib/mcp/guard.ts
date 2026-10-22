@@ -112,8 +112,9 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
     const carded = attachAthenaCard(tool, visible);
     const reminded = CARD_FIRST_TOOLS.has(tool) ? carded : await attachDailyReminder(sb as never, o.jobNumber ?? sig?.jobNumber ?? null, carded);
     const started = await attachGettingStarted(sb as never, reminded, { prepend: !CARD_FIRST_TOOLS.has(tool) });
-    const morning = await attachMorningCard(sb as never, started, { fresh: freshSession, explicit: tool === "morning_brief" });
-    return stampCanary(sealCardReply(tool, morning), touch.canary);
+    const sealed = sealCardReply(tool, started);
+    const morning = await attachMorningCard(sb as never, sealed, { fresh: freshSession, explicit: tool === "morning_brief" });
+    return stampCanary(morning, touch.canary);
   } catch (e) {
     await logWorkflow(sb, {
       event_type: "failure",
