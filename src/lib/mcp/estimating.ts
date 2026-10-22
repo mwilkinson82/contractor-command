@@ -1302,7 +1302,7 @@ export function settle(
   });
   const blockers = items
     .filter((i) => i.status === "open")
-    .map((i) => `${i.ref} ${i.title}${i.missing ? ` (${i.missing})` : ""}`);
+    .map((i) => `${i.title} (${i.ref})${i.missing ? ` — ${i.missing}` : ""}`);
   if (requireList)
     for (const c of checklist)
       if (c.state === "not on the takeoff" || c.state === "open")
@@ -1610,7 +1610,7 @@ export function renderTakeoff(
     "Each line",
     ...rows.map(
       (r) =>
-        `- ${r.ref} ${r.title}. ${r.basis ?? "No basis"}. Sheet ${cite(r.sheet, r.detail)}. Math: ${r.math ?? "none"}.`,
+        `- ${r.title} (${r.ref}). ${r.basis ?? "No basis"}. Sheet ${cite(r.sheet, r.detail)}. Math: ${r.math ?? "none"}.`,
     ),
     ...state.stale.map(
       (r) => `An earlier call on ${r} does not match the current item, so it is not applied.`,
@@ -2000,7 +2000,7 @@ export function renderSummary(
         revision,
         "Open gaps",
         ...(openGaps.length
-          ? openGaps.map((g) => `- ${g.ref} ${g.title}. Sheet ${g.sheet}.`)
+          ? openGaps.map((g) => `- ${g.title} (${g.ref}). Sheet ${g.sheet}.`)
           : ["- No open gap rows."]),
         ...state.blockers.map((b) => `- ${b}`),
       ]),
@@ -2032,7 +2032,7 @@ export function renderSummary(
     lines.push(trade);
     for (const r of rows)
       lines.push(
-        `- ${r.ref} ${r.title}. ${r.system}. ${r.cost}. ${r.bought}. Qty ${r.qty || "none"}. Rate ${r.rate}.${r.extension ? ` Extension ${r.extension}.` : ""}`,
+        `- ${r.title} (${r.ref}). ${r.system}. ${r.cost}. ${r.bought}. Qty ${r.qty || "none"}. Rate ${r.rate}.${r.extension ? ` Extension ${r.extension}.` : ""}`,
       );
     lines.push("");
   }
@@ -2046,7 +2046,7 @@ export function renderSummary(
   const risks = state.items.filter((i) => i.holdsBid);
   if (risks.length) {
     lines.push("", "Holds the bid");
-    for (const r of risks) lines.push(`- ${r.ref} ${r.title}. Sheet ${r.sheet}.`);
+    for (const r of risks) lines.push(`- ${r.title} (${r.ref}). Sheet ${r.sheet}.`);
   }
   return {
     text: frame("Estimate Summary", lines),
@@ -2077,7 +2077,7 @@ export function renderStatus(
     "Open items",
     ...state.items
       .filter((i) => i.status === "open")
-      .map((i) => `- ${i.ref} ${i.title}. ${i.followUp ?? ""}`),
+      .map((i) => `- ${i.title} (${i.ref}). ${i.followUp ?? ""}`),
     ...(state.items.some((i) => i.status === "open") ? [] : ["- None."]),
   ]);
   return {
