@@ -1,6 +1,7 @@
 // Superintendent field board, daily reports, pay-app feed, schedule percents and production rates.
 // Pure helpers. Dollars stay out of the field board. The pay application is built with the same
 // G702/G703 column math as the schedule of values, and it is refused when it does not tie.
+import { fieldPayAppCardModel, presentPayApp } from "./pay-app-card";
 import type { CardModel, CardRow } from "./cards/model";
 import { detailAnchor, mdLink, withAnchor } from "./plain-label";
 import { ALERT_HEX } from "./alert-color";
@@ -566,22 +567,7 @@ export function buildFieldPayApp(
 }
 
 export function payAppCard(jobLabel: string, period: string, app: G702): string {
-  const line = (r: G703Row) =>
-    `- ${r.item_no} ${r.description}: previous ${r.previous == null ? "blank" : money(r.previous)}, this period ${r.this_period == null ? "blank" : money(r.this_period)}, completed ${r.total_completed == null ? "blank" : money(r.total_completed)}, ${r.pct_complete == null ? "percent needed" : `${r.pct_complete}%`}, balance ${r.balance == null ? "blank" : money(r.balance)}${r.note ? ` (${r.note})` : ""}`;
-  return [
-    "REQUIRED: Show this as a G702 summary and a G703 continuation. Navy, blue and gray only. Do not draw it if a check fails.",
-    `${jobLabel}Pay app through ${period}`,
-    `Contract sum: ${money(app.contract_sum)}`,
-    `Completed and stored: ${money(app.completed_and_stored)}`,
-    `Retainage: ${app.retainage == null ? "Needed" : money(app.retainage)}${app.retainage_note ? ` — ${app.retainage_note}` : ""}`,
-    `Earned less retainage: ${money(app.earned_less_retainage)}`,
-    `Previous certificates: ${money(app.previous_certificates)}`,
-    `Current payment due: ${money(app.current_payment_due)}`,
-    `Balance to finish: ${money(app.balance_to_finish)}`,
-    "Continuation:",
-    ...app.rows.map(line),
-    ...app.checks.map((c) => `Ties: ${c}`),
-  ].join("\n");
+  return presentPayApp(fieldPayAppCardModel(jobLabel, period, app)).content[0].text;
 }
 
 /** Super and anyone without full scope sees percents and quantities, never dollars. */

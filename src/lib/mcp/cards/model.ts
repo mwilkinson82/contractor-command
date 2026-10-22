@@ -20,6 +20,8 @@ export type CardSection = {
   heading: string;
   kind: "table" | "list" | "chips" | "timeline";
   columns?: string[];
+  /** Wide financial continuations pan horizontally inside the card. */
+  scroll?: boolean;
   rows: CardRow[];
   /** Host fills this block. Navy heading, blue rule, gray text. No alert red. */
   placeholder?: boolean;

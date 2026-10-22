@@ -69,6 +69,7 @@ if (!proto[patched]) {
     const wrapped = async (...args: unknown[]) => {
       const result = (await cb(...args)) ?? {};
       if (!CARD_WIDGET_TOOLS.has(name)) return result;
+      if (name === "living_report_get" && (result.structuredContent as Record<string, unknown> | undefined)?.report_type !== "billing_forecast") return result;
       const safe = MEETINGS.has(name) ? boundMeetingResult(result) : result;
       return { ...safe, _meta: { ...(safe._meta ?? {}), ...TEMPLATE } };
     };

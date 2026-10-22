@@ -15,7 +15,7 @@ type Res = {
 };
 
 /** These results open on the card. No sweep, style line, or footer is left outside it. */
-export const CARD_FIRST_TOOLS = new Set(["contract_terms", "pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "athena_hello", "morning_brief", "morning_brief_settings", "report_page_link", "list_open_items", "submittal_log", "submittals_list", "submittals_import", "project_record_search", "submittal_chase"]);
+export const CARD_FIRST_TOOLS = new Set(["contract_terms", "pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "athena_hello", "morning_brief", "morning_brief_settings", "report_page_link", "list_open_items", "submittal_log", "submittals_list", "submittals_import", "project_record_search", "submittal_chase", "field_pay_app", "living_report_get"]);
 
 /** Tools whose plain text is wrapped in a card. Flow tools set their own card. */
 export const CARD_TOOLS = new Set([
@@ -43,6 +43,8 @@ export const CARD_TOOLS = new Set([
   "pm_evening",
   "superintendent_view",
   "field_board",
+  "field_pay_app",
+  "living_report_get",
   "getting_started",
   "submittal_log",
   "submittals_list",
@@ -50,6 +52,12 @@ export const CARD_TOOLS = new Set([
   "project_record_search",
   "submittal_chase",
 ]);
+
+/** Other living report types retain their existing Gantt/IOR presentation. */
+export function isCardFirstTool(tool: string, result: unknown): boolean {
+  const sc = (result as Res)?.structuredContent;
+  return CARD_FIRST_TOOLS.has(tool) && (tool !== "living_report_get" || sc?.report_type === "billing_forecast");
+}
 
 function isCard(value: unknown): value is CardModel {
   return !!value && typeof value === "object" && "state" in value && "title" in value;
@@ -73,6 +81,7 @@ function whichJob(tool: string, text: string): boolean {
  */
 export function attachAthenaCard<R>(tool: string, result: R): R {
   if (!CARD_TOOLS.has(tool)) return result;
+  if (tool === "living_report_get" && (result as Res)?.structuredContent?.report_type !== "billing_forecast") return result;
   try {
     const res = result as unknown as Res;
     const first = res?.content?.find((c) => c.type === "text" && typeof c.text === "string");
@@ -84,7 +93,7 @@ export function attachAthenaCard<R>(tool: string, result: R): R {
     const html = typeof sc.html === "string" && !askJob && tool !== "contract_terms" ? sc.html : renderHtml(card);
     const markdown = renderMarkdown(card);
     const cardText = `${markdown}\n\n${htmlBlock(html)}`;
-    const keepBody = !CARD_FIRST_TOOLS.has(tool) && !askJob;
+    const keepBody = !isCardFirstTool(tool, result) && !askJob;
     const hasHtml = source.includes("REQUIRED VIEW: render this HTML card as-is.");
     const hasMarkdown = source.startsWith("## ") && source.includes(card.title);
     const hasPlain = hasHtml && source.includes(card.title);

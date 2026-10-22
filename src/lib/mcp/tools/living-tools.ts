@@ -1,5 +1,6 @@
+import { billingForecastCardModel, presentPayApp } from "../pay-app-card";
 // 0.8.9: cpm_activities (full activity handoff), living_report_get and living_report_save (master copy per job).
-import { readDelay, ganttPins, noteDateConflicts, pageLine, payAppView, emptyCard, type Billing } from "../styled-views";
+import { readDelay, ganttPins, noteDateConflicts, pageLine, payModel, emptyCard, type Billing } from "../styled-views";
 import { signedJobPages } from "../board-url";
 import { pageUrl } from "../../report-pages";
 import { IOR_VIEW_SPEC, PAY_APP_VIEW_SPEC, PORTFOLIO_VIEW_SPEC } from "../views";
@@ -191,8 +192,13 @@ export const livingReportGet = defineTool({
       const scheduleUrl = board.schedule ?? null;
       if (!g.found && type === "billing_forecast" && job.scope === "full") {
         // 0.8.17: styled empty pay-app card with the hosted page and a Next move.
+        const presented = presentPayApp({
+          state: "ask", show_state: false, title: "Pay App & Billing Forecast", job: named(job),
+          sections: [{ heading: "Needed", kind: "list", rows: [{ cells: ["Billed to date"] }, { cells: ["Latest pay app (SOV lines)"] }] }],
+          next_move: "Send the billed-to-date figure and the latest pay app; Athena builds the forecast from the saved schedule after the PM approves.",
+        });
         return guide(
-          { ...text(`${prefix(job)}${emptyCard("pay_app", `${named(job)}`, "Send the billed-to-date figure and the latest pay app; Athena builds the forecast from the saved schedule, ties it to the contract, and saves it as version 1 after the PM approves.", ["Billed to date", "Latest pay app (SOV lines)"], payappUrl)}`), structuredContent: { found: false, report_type: type, version: 0 } },
+          { ...presented, structuredContent: { ...presented.structuredContent, found: false, report_type: type, version: 0 } },
           `Nothing saved: build the ${label} from Athena's data, mark it "Draft: not saved", and after the PM says yes call living_report_save with base_version 0.`,
         );
       }
@@ -213,10 +219,23 @@ export const livingReportGet = defineTool({
         ...(scheduleUrl ? [{ label: "Open schedule", href: scheduleUrl }] : []),
       ];
       const linkCard = type === "ior" || type === "cpm" ? boardCardText(`${named(job)}`, boardLinks) : "";
+      const billingCard = type === "billing_forecast" && job.scope === "full"
+        ? billingForecastCardModel(named(job), payModel((data as { billing?: Billing }).billing, contract), payappUrl)
+        : null;
+      if (billingCard && tie && !tie.ties) {
+        billingCard.sections = billingCard.sections!.filter((section) => section.heading !== "Monthly billing");
+        billingCard.sections.push({ heading: "Saved forecast tie check", kind: "list", rows: [{ cells: [tie.line], flag: "risk" }] });
+        billingCard.next_move = "Correct the forecast so it ties to the contract before drawing the billing schedule.";
+      }
+      if (billingCard) billingCard.sections!.push(
+        { heading: "Saved version", kind: "list", rows: [{ cells: [stamp(g)] }] },
+        { heading: "Change log (latest 5)", kind: "list", rows: (log.length ? log : ["None yet."]).map((line) => ({ cells: [line] })) },
+      );
+      const presented = billingCard ? presentPayApp(billingCard) : null;
       return guide(
         {
-          ...text([...(type === "billing_forecast" && job.scope === "full" ? [payAppView({ title: `${named(job)}`, version: g.version, dataDate: g.data_date ?? null, billing: (data as { billing?: Billing }).billing ?? null, contract, pageUrl: payappUrl }), "", "---"] : []), ...(linkCard ? [linkCard] : type === "dashboard" && job.scope === "full" ? [pageLine("portfolio dashboard", pageUrl("portfolio", job.company_id))] : []), LIVING_REQUIRED_TOP, `${named(job)} · ${label}`, stamp(g), ...(tie ? [`Tie: ${tie.line}`] : []), ...(type === "cpm" ? [...CPM_GANTT_SPEC, ...(readDelay(data as Record<string, unknown>) ? [readDelay(data as Record<string, unknown>)!.line] : []), ...ganttPins(readDelay(data as Record<string, unknown>))] : []), ...(type === "billing_forecast" && job.scope === "full" ? PAY_APP_VIEW_SPEC : []), ...(type === "ior" && job.scope === "full" ? IOR_VIEW_SPEC : []), ...(type === "dashboard" && job.scope === "full" ? PORTFOLIO_VIEW_SPEC : []), "", "Change log (latest 5):", ...(log.length ? log : ["- None yet."])].join("\n")),
-          structuredContent: { found: true, report_type: type, version: g.version, data_date: g.data_date ?? null, updated_at: g.updated_at ?? null, updated_by: g.updated_by_name ?? null, contract_completion_date: g.contract_completion_date ?? null, tie, data: data as never, change_log: g.change_log ?? [], no_financials: job.scope !== "full", board_links: boardLinks },
+          ...(presented ?? text([ ...(linkCard ? [linkCard] : type === "dashboard" && job.scope === "full" ? [pageLine("portfolio dashboard", pageUrl("portfolio", job.company_id))] : []), LIVING_REQUIRED_TOP, `${named(job)} · ${label}`, stamp(g), ...(tie ? [`Tie: ${tie.line}`] : []), ...(type === "cpm" ? [...CPM_GANTT_SPEC, ...(readDelay(data as Record<string, unknown>) ? [readDelay(data as Record<string, unknown>)!.line] : []), ...ganttPins(readDelay(data as Record<string, unknown>))] : []), ...(type === "billing_forecast" && job.scope === "full" ? PAY_APP_VIEW_SPEC : []), ...(type === "ior" && job.scope === "full" ? IOR_VIEW_SPEC : []), ...(type === "dashboard" && job.scope === "full" ? PORTFOLIO_VIEW_SPEC : []), "", "Change log (latest 5):", ...(log.length ? log : ["- None yet."])].join("\n"))),
+          structuredContent: { ...presented?.structuredContent, found: true, report_type: type, version: g.version, data_date: g.data_date ?? null, updated_at: g.updated_at ?? null, updated_by: g.updated_by_name ?? null, contract_completion_date: g.contract_completion_date ?? null, tie, data: data as never, change_log: g.change_log ?? [], no_financials: job.scope !== "full", board_links: boardLinks },
         },
         `Say "Picked up v${g.version}${g.updated_by_name ? `, last updated by ${g.updated_by_name}` : ""}." For a view-only ask, build a NEW private view or artifact from structuredContent.data in the same layout; never update or replace the saved shared master or an existing shared artifact. Only when the user explicitly asks to update or save it, confirm first, then to save the update ask "${LIVING_SAVE_ASK}" and only after a yes call living_report_save with base_version ${g.version}.`,
         ...(pageFor(type, job.scope) ? [`After you show the ${label}, ask once: "${PERMANENT_LINK_ASK}" On a yes, call report_page_link for page items and for page ${pageFor(type, job.scope)}. Show each link as its own card. Never make a share link unless they ask.`] : []),
