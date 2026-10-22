@@ -253,7 +253,7 @@ export const SUBMITTAL_SERVER_RULE =
 export type Presented = { text: string; card: CardModel; rows: SubmittalRecord[] };
 
 function dueLabel(row: SubmittalRecord): string {
-  const due = (row.due_back ?? "").slice(0, 10);
+  const due = (row.required_by ?? "").slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(due) ? due : "Needed";
 }
 
@@ -310,7 +310,7 @@ export function presentSubmittalLog(input: {
   const tableRows: CardRow[] = rows.map((row) => {
     const late = submittalOverdue(row, input.today);
     return {
-      cells: [row.number, row.title, labelOf(STATUS_LABEL, row.status), ballLabel(row), dueLabel(row), late ? "Overdue" : ""],
+      cells: [row.number, row.title, labelOf(STATUS_LABEL, row.status), ballLabel(row), dueLabel(row), late ? "Yes" : "No"],
       flag: late ? "overdue" : null,
       href: input.boardUrl ? withAnchor(input.boardUrl, detailAnchor("submittal", row.id)) : null,
       refId: row.id,

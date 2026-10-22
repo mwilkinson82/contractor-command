@@ -120,7 +120,15 @@ describe("submittal log read", () => {
     for (const title of ["Switchgear product data", "Lighting shop drawing", "Floor box sample", "Panelboard warranty"]) {
       expect(text).toContain(title);
     }
+    expect(log?.rows.map((item) => item.cells[5])).toEqual(["Yes", "No", "No", "No"]);
+    expect(log?.rows.map((item) => item.flag ?? null)).toEqual(["overdue", null, null, null]);
     expect(log?.rows[0].flag).toBe("overdue");
+    expect(text).toContain("| Yes |");
+    expect(text).toContain("| No |");
+    expect(result.structuredContent.html).toContain(">Yes</td>");
+    expect(result.structuredContent.html).toContain(">No</td>");
+    expect(result.structuredContent.html).not.toContain(">Item</td>");
+    expect(result.structuredContent.html.match(/<tr class="alert" data-alert="overdue">/g)).toHaveLength(1);
     expect(text).toContain("#1E3A5F");
     expect(text).toContain("#1E5FED");
     expect(paletteViolations(result.structuredContent.html, true)).toEqual([]);
