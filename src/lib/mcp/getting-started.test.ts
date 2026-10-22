@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { START_BACKUP, START_EXAMPLES, START_HEADLINE, START_MEMORY_OFFER, START_POINTS } from "../athena-start-copy";
+import { START_AT_EXAMPLES, START_BACKUP, START_CONNECTOR_MEMORY, START_EXAMPLES, START_HEADLINE, START_MEMORY_OFFER, START_POINTS } from "../athena-start-copy";
 import { AthenaStartTip } from "@/components/athena/start-tip";
 import { paletteViolations } from "./cards/palette";
 import { renderHtml } from "./cards/html";
@@ -19,8 +19,6 @@ import {
   renderGettingStarted,
   startedWithJobsCard,
 } from "./getting-started";
-import { inferCard } from "./cards/infer";
-
 const rpc = vi.hoisted(() => vi.fn());
 const jobsFixture = vi.hoisted(() => ({
   companies: [] as { id: string }[],
@@ -248,28 +246,30 @@ describe("getting_started branches", () => {
     expect(visibleProblems(shown.split("REQUIRED VIEW:")[0])).toEqual([]);
   });
 
-  it("with one job, opens that morning meeting and keeps its next move", async () => {
-    const morning = vi.fn(async (job?: string) => ({ job, next_move: "Next up is Crews." }));
+  it("with one job, stays on the get-started card and does not open the morning hitlist", async () => {
+    const morning = vi.fn();
     const result = await branchGettingStarted(jobsDb([{ id: "c1" }], [{ job_number: "410", name: "Harbor" }]), morning, () => {
       throw new Error("setup");
     });
-    expect(morning).toHaveBeenCalledWith("410");
-    expect(result).toEqual({ job: "410", next_move: "Next up is Crews." });
+    expect(morning).not.toHaveBeenCalled();
+    expect(result.title).toBe("Hey Athena, let's get started");
+    expect(result.next_move).toBe("The morning meeting is on 410.");
+    expect(renderGettingStarted(result)).not.toContain("Which job's morning hitlist?");
   });
 
-  it("with more than one job, opens the which-job card and names the next move", async () => {
-    const morning = vi.fn(async () => "listed");
+  it("with more than one job, lists them on the card and does not ask which job's morning hitlist", async () => {
+    const morning = vi.fn();
     const result = await branchGettingStarted(
       jobsDb([{ id: "c1" }], [{ job_number: "410", name: "Harbor" }, { job_number: "411", name: "Ridge" }]),
       morning,
       () => { throw new Error("setup"); },
     );
-    expect(morning).toHaveBeenCalledWith();
-    expect(result).toBe("listed");
-    const card = inferCard("pm_morning", "No job named. Your companies and jobs:\n- Harbor Electric: 410 (Harbor), 411 (Ridge)\nWhich job should I list open items for?", {});
-    expect(card.title).toBe("Which job?");
-    expect(card.next_move).toBe("Name the job.");
-    expect(card.show_state).not.toBe(false);
+    expect(morning).not.toHaveBeenCalled();
+    const shown = renderGettingStarted(result);
+    expect(result.title).toBe("Hey Athena, let's get started");
+    expect(shown).toContain("410 (Harbor)");
+    expect(shown).toContain("411 (Ridge)");
+    expect(shown).not.toContain("Which job's morning hitlist?");
   });
 });
 
@@ -295,6 +295,11 @@ describe("getting_started tool never opens on a picker", () => {
     expect(plain).toContain("Try one");
     expect(plain).toContain(START_MEMORY_OFFER);
     expect(plain).toContain("Morning meeting");
+    expect(plain).toContain(START_CONNECTOR_MEMORY);
+    expect(plain).toContain("forget that memory");
+    expect(plain).not.toContain("Which job's morning hitlist?");
+    expect(plain.indexOf(START_AT_EXAMPLES[0])).toBeLessThan(plain.indexOf(START_CONNECTOR_MEMORY));
+    expect(plain.indexOf(START_CONNECTOR_MEMORY)).toBeLessThan(plain.indexOf("Morning meeting"));
     expect(plain.indexOf("Try one")).toBeLessThan(plain.indexOf("Morning meeting"));
     expect(plain).toContain("2701 (Harbor Point)");
     expect(plain).toContain("1234 (Riverside)");
@@ -325,7 +330,13 @@ describe("getting_started card comes before any job picker", () => {
     expect(shown).toContain("Try one");
     expect(shown).toContain(START_BACKUP);
     expect(shown).toContain(START_MEMORY_OFFER);
+    expect(shown).toContain(START_CONNECTOR_MEMORY);
+    expect(shown).toContain("forget that memory");
+    for (const line of START_AT_EXAMPLES) expect(shown).toContain(line);
+    expect(shown.indexOf(START_AT_EXAMPLES[0])).toBeLessThan(shown.indexOf(START_CONNECTOR_MEMORY));
+    expect(shown.indexOf(START_CONNECTOR_MEMORY)).toBeLessThan(shown.indexOf("Morning meeting"));
     expect(shown).toContain("Open it on 2701 (Harbor Point).");
+    expect(shown).not.toContain("Which job's morning hitlist?");
     expect(shown).not.toMatch(/^Which job/m);
     expect(card.ask ?? null).toBeNull();
     expect(card.next_move).toBe("The morning meeting is on 2701.");

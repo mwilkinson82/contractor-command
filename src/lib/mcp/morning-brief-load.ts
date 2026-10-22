@@ -5,6 +5,7 @@ import { dbError, isMissingFunction, type Sb } from "./guard";
 import { audit } from "./jobs";
 import {
   briefSettingsFrom,
+  alreadyShownBrief,
   buildMorningBrief,
   ensureBriefCard,
   parseBriefingTime,
@@ -151,13 +152,11 @@ async function companies(sb: Sb): Promise<{ id: string; name: string | null }[] 
 }
 
 async function withLinks(sb: Sb, jobs: BriefJob[]): Promise<BriefJob[]> {
-  const out: BriefJob[] = [];
-  for (const job of jobs) {
+  return Promise.all(jobs.map(async (job) => {
     const scope = job.scope === "super" ? "super" : job.scope === "full" ? "full" : null;
     const links = scope ? await signedJobPages((fn, args) => sb.rpc(fn, args), job.job_id, scope) : {};
-    out.push({ ...job, links });
-  }
-  return out;
+    return { ...job, links };
+  }));
 }
 
 function stubJob(j: { job_number: string; name: string | null; company_id: string }): BriefJob {
@@ -187,7 +186,10 @@ export function mergeBriefJobs(listed: { job_number: string; name: string | null
 }
 
 async function fillOpenItems(sb: Sb, jobs: BriefJob[]): Promise<BriefJob[]> {
-  const numbers = [...new Set(jobs.map((job) => job.job_number).filter(Boolean))];
+  // The feed already returned items for jobs it found. This query is only for a stub the feed dropped.
+  const stubs = jobs.filter((job) => !job.job_id);
+  if (!stubs.length) return jobs;
+  const numbers = [...new Set(stubs.map((job) => job.job_number).filter(Boolean))];
   if (!numbers.length) return jobs;
   try {
     const found = await sb.from("mcp_jobs").select("id, job_number").in("job_number", numbers);
@@ -259,7 +261,26 @@ export async function loadBriefJobs(sb: Sb, companyId?: string): Promise<{ hasCo
   return { hasCompany: cos === null ? named.length > 0 : true, jobs: await withLinks(sb, named) };
 }
 
+export function briefIsShown(data: unknown): boolean {
+  return !!data && typeof data === "object" && (data as { shown?: unknown }).shown === true;
+}
+
+async function markBriefShown(sb: Sb): Promise<void> {
+  try {
+    const res = await sb.rpc("mcp_morning_brief_mark_shown");
+    if (res.error && !isMissingFunction(res.error) && (res.error.message ?? "").startsWith("MCP_")) dbError(res.error);
+  } catch (e) {
+    if (e instanceof ToolError) throw e;
+  }
+}
+
 export async function loadMorningBrief(sb: Sb, companyId?: string) {
+  try {
+    const shown = await sb.rpc("mcp_morning_brief_shows");
+    if (!shown.error && briefIsShown(shown.data)) return alreadyShownBrief();
+  } catch (e) {
+    if (e instanceof ToolError) throw e;
+  }
   const loaded = await loadBriefJobs(sb, companyId);
   let settings: BriefSettings | undefined;
   try {
@@ -286,6 +307,7 @@ export async function loadMorningBrief(sb: Sb, companyId?: string) {
   } catch {
     /* audit never blocks the brief */
   }
+  await markBriefShown(sb);
   return presentBrief(built.card);
 }
 

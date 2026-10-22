@@ -567,9 +567,31 @@ export function ensureBriefCard(card: CardModel): CardModel {
   };
 }
 
+export const BRIEF_ALREADY = "Your brief is above, want anything else?";
+
+/** Second good morning the same day. The full brief is not built again. */
+export function alreadyShownBrief() {
+  const card: CardModel = {
+    state: "result",
+    show_state: false,
+    title: "Morning brief",
+    sections: [{ heading: "Brief", kind: "list", rows: [{ cells: [BRIEF_ALREADY] }] }],
+  };
+  const html = renderHtml(card);
+  const body = applyCardClosing(`${BRIEF_ALREADY}\n\n${htmlBlock(html)}`, false);
+  return guide(
+    {
+      structuredContent: { card, html, brief_repeat: true, "openai/outputTemplate": CARD_WIDGET_URI },
+      _meta: { ...cardWidgetMeta },
+      content: [{ type: "text" as const, text: body, _meta: { ...cardWidgetMeta } }],
+    },
+    "The brief was already shown today. Reply with this short line only. Do not rebuild the brief.",
+  );
+}
+
 export function presentBrief(card: CardModel) {
   card = ensureBriefCard(card);
-  const html = renderHtml(card);
+  const html = renderHtml({ ...card, show_state: false });
   const body = applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
   return guide(
     {

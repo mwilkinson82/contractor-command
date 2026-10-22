@@ -26,10 +26,11 @@ function assertCardContract(result: CardResult, closing: string) {
   const text = result.content.find((c) => c.type === "text")?.text ?? "";
   expect(text.trim().endsWith(closing)).toBe(true);
   const before = text.trim().slice(0, -closing.length).trim();
-  const fence = before.lastIndexOf("```");
-  expect(fence).toBeGreaterThan(0);
-  expect(before.slice(fence + 3).trim()).toBe("");
-  expect(before.endsWith("```")).toBe(true);
+  expect(before.endsWith("</html>")).toBe(true);
+  expect(before.match(/<!doctype html/gi)).toHaveLength(1);
+  expect(before).not.toContain("```html");
+  expect(before).not.toContain("&lt;!doctype");
+  expect(before).not.toMatch(/[a-z-]+\s*:\s*;/);
   expect(text).not.toContain(PREVIEW);
   expect(text).not.toMatch(/upcoming commitments/i);
   expect(result.content.some((c) => c.type === "resource")).toBe(false);

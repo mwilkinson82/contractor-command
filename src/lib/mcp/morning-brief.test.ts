@@ -6,10 +6,13 @@ import { renderHtml } from "./cards/html";
 import { renderMarkdown } from "./cards/markdown";
 import { paletteViolations } from "./cards/palette";
 import { CARD_SHOWN } from "./cards/silence";
-import { mergeBriefJobs } from "./morning-brief-load";
+import { briefIsShown, loadMorningBrief, mergeBriefJobs } from "./morning-brief-load";
+import { emptyCssValues } from "./cards/palette";
 import { countOpenItems, openItemFeed } from "./open-feed";
 import { job2701BriefCard, job2701BriefJob } from "./morning-brief-2701";
 import {
+  BRIEF_ALREADY,
+  alreadyShownBrief,
   briefView,
   buildMorningBrief,
   ensureBriefCard,
@@ -238,5 +241,79 @@ describe("morning brief builder", () => {
     expect(filled.next_move).toBeTruthy();
     const empty = buildMorningBrief({ jobs: [], hasCompany: true });
     expect(paletteViolations(renderHtml(empty.card), false)).toEqual([]);
+  });
+
+  it("is one unescaped HTML card for Claude, with inbox, calendar, jobs, and a link", () => {
+    const shown = presentBrief(pm.card);
+    const text = shown.content.find((c) => c.type === "text")?.text ?? "";
+    const before = text.trim().slice(0, -CARD_SHOWN.length).trim();
+    expect(before.match(/<!doctype html/gi)).toHaveLength(1);
+    expect(before.endsWith("</html>")).toBe(true);
+    expect(before).not.toContain("```html");
+    expect(before).not.toContain("&lt;!doctype");
+    expect(before).not.toContain(">Result<");
+    expect(emptyCssValues(before)).toEqual([]);
+    expect(before).toContain("#1E3A5F");
+    expect(before).toContain("#1E5FED");
+    expect(before).toContain("From your inbox and calendar");
+    expect(before).toContain("Emails that came in overnight.");
+    expect(before).toContain("Unanswered emails that need a reply.");
+    expect(before).toContain("Today's meetings.");
+    expect(before).toContain("2701");
+    expect(before).toContain("/r/job/");
+  });
+});
+
+describe("a second good morning", () => {
+  it("returns the short reply and does not rebuild the brief", async () => {
+    expect(briefIsShown({ shown: true, day: "2026-10-22" })).toBe(true);
+    expect(briefIsShown({ shown: false })).toBe(false);
+    const repeat = alreadyShownBrief();
+    const repeatText = repeat.content.find((c) => c.type === "text")?.text ?? "";
+    expect(repeatText).toContain(BRIEF_ALREADY);
+    expect(repeatText).not.toContain("From your inbox and calendar");
+    const sb = {
+      rpc: async (fn: string) => {
+        if (fn === "mcp_morning_brief_shows") return { data: { shown: true, day: "2026-10-22" }, error: null };
+        throw new Error(fn);
+      },
+      from: () => { throw new Error("query"); },
+    };
+    const result = await loadMorningBrief(sb as never);
+    const text = result.content.find((c) => c.type === "text")?.text ?? "";
+    expect(text).toContain("Your brief is above, want anything else?");
+    expect(text).not.toContain("From your inbox and calendar");
+    expect(text.match(/<!doctype html/gi)).toHaveLength(1);
+  });
+
+  it("marks the brief shown after the first build", async () => {
+    const calls: string[] = [];
+    const sb = {
+      rpc: async (fn: string) => {
+        calls.push(fn);
+        if (fn === "mcp_morning_brief_shows") return { data: { shown: false }, error: null };
+        if (fn === "mcp_morning_brief_mark_shown") return { data: { shown: true }, error: null };
+        return { data: null, error: { code: "PGRST202", message: "Could not find the function" } };
+      },
+      from: () => {
+        const done = Promise.resolve({ data: [], error: null });
+        return { select: () => Object.assign(done, { in: () => done, eq: () => done, maybeSingle: () => done }) };
+      },
+    };
+    const result = await loadMorningBrief(sb as never);
+    expect(calls[0]).toBe("mcp_morning_brief_shows");
+    expect(calls).toContain("mcp_morning_brief_mark_shown");
+    expect(result.content.find((c) => c.type === "text")?.text ?? "").not.toContain(BRIEF_ALREADY);
+  });
+
+  it("reads the show flag once and does not reload living reports per job", () => {
+    const sql = readFileSync("supabase/migrations/20261024180000_athena_brief_once_and_fast.sql", "utf8");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS public.mcp_morning_brief_shows");
+    expect(sql).toContain("FUNCTION public.mcp_morning_brief_shows()");
+    expect(sql).toContain("FUNCTION public.mcp_morning_brief_mark_shown()");
+    expect(sql).toContain("ON CONFLICT (user_id, shown_on) DO NOTHING");
+    expect(sql).not.toContain("mcp_living_report_get");
+    expect(sql.match(/PERFORM public\.mcp_assert_active\(\)/g)).toHaveLength(3);
+    expect(sql).not.toMatch(/\bDELETE FROM\b|\bDROP TABLE\b|\bTRUNCATE\b/i);
   });
 });

@@ -30,7 +30,7 @@ const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: false
 
 function present(flow: FlowName, stage: string, data: FlowData) {
   const card = buildFlowCard(flow, stage, data);
-  const html = renderHtml(card);
+  const html = renderHtml({ ...card, show_state: false });
   const stages = [...stagesFor(flow)];
   const next = stages[stages.indexOf(stage) + 1] ?? null;
   const body = applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
@@ -74,7 +74,7 @@ export const MORNING_HITLIST_DESCRIPTION =
   "Runs the per-job morning meeting when a job number was given, and with no job number returns the morning brief across every visible job, not email or calendar and not Gmail.";
 
 function sealedCard(card: ReturnType<typeof inferCard>, pick: boolean) {
-  const html = renderHtml(card);
+  const html = renderHtml({ ...card, show_state: false });
   const body = applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, pick);
   return guide(
     {

@@ -98,9 +98,9 @@ describe("PM tools become cards", () => {
     expect(after.content[0].text).toContain("Incomplete terms");
     expect(after.content[0].text.trim().endsWith(CARD_SHOWN)).toBe(true);
     const beforeClose = after.content[0].text.trim().slice(0, -CARD_SHOWN.length).trim();
-    const fence = beforeClose.lastIndexOf("```");
-    expect(beforeClose.slice(fence + 3).trim()).toBe("");
-    expect(beforeClose.endsWith("```")).toBe(true);
+    expect(beforeClose.endsWith("</html>")).toBe(true);
+    expect(beforeClose.match(/<!doctype html/gi)).toHaveLength(1);
+    expect(beforeClose).not.toContain("&lt;");
     expect(after.content[0].text).not.toContain("Athena powered by ALP");
     expect(after.content[0].text).not.toMatch(/\nDisplay: blue/);
   });

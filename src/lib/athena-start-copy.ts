@@ -22,5 +22,13 @@ export const START_EXAMPLES = [
 export const START_BACKUP =
   "If it misses, start with @Athena. It routes the ask to Athena instead of the general AI.";
 
-/** Offer to keep the @Athena habit. Shown on the get-started card, not as its own picker. */
-export const START_MEMORY_OFFER = "Want me to remember @Athena as the way you start? Say yes and I will.";
+/** Lines that show @Athena as the way to start. They sit on the get-started card, before the memory offer. */
+export const START_AT_EXAMPLES = [
+  "@Athena, run my PM meeting",
+  "@Athena, what's on my plate today?",
+  "@Athena, show the field board",
+] as const;
+
+/** The line the member can save, and the line that removes it. */
+export const START_CONNECTOR_MEMORY = "When I say Athena, always use the Athena connector";
+export const START_MEMORY_OFFER = `Want me to save this? ${START_CONNECTOR_MEMORY}. Say yes and I will. To remove it, say forget that memory.`;

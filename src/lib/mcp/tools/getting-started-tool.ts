@@ -26,7 +26,7 @@ export const gettingStarted = defineTool({
   name: "getting_started",
   title: "Hey Athena, let's get started",
   description:
-    "Shows the get-started card for Hey Athena, let's get started, Athena, let's get started, and @Athena let's get started, never opening with a which-job picker, using first-job or company setup when there are no jobs, and otherwise showing the @Athena habit, the Try one lines, the memory-line offer, and the morning meeting, using the only job or listing several jobs inside that same card.",
+    "Shows the get-started card for Hey Athena, let's get started, Athena, let's get started, and @Athena let's get started, never opening with a which-job picker and never asking which job's morning hitlist, using first-job or company setup when there are no jobs, and otherwise showing the @Athena example lines, the offer to save When I say Athena, always use the Athena connector and how to remove it, then the morning meeting on that same card.",
   inputSchema: {},
   annotations: READ,
   handler: (args, ctx) =>
@@ -40,8 +40,8 @@ export const gettingStarted = defineTool({
       return cardResult(
         card,
         one
-          ? `Show this card. The morning meeting is on ${one}. When they continue, call pm_morning with job_number ${one}. Do not ask which job.`
-          : "Show this card. The jobs are listed on it. When they name one, call pm_morning with that job_number. Do not replace this card with a which-job card.",
+          ? `Show this card and stop. Do not call athena_morning_hitlist, pm_morning, or morning_brief in this reply. Do not ask which job's morning hitlist. The morning meeting on the card is ${one}.`
+          : "Show this card and stop. Do not call athena_morning_hitlist, pm_morning, or morning_brief in this reply. Do not ask which job's morning hitlist. The jobs are listed under Morning meeting.",
       );
     }),
 });

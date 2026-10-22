@@ -3,13 +3,13 @@
 import { htmlBlock } from "./cards/markdown";
 import { renderHtml } from "./cards/html";
 import type { CardModel } from "./cards/model";
-import { START_BACKUP, START_EXAMPLES, START_HEADLINE, START_HOSTS, START_MEMORY_OFFER, START_POINTS } from "../athena-start-copy";
+import { START_AT_EXAMPLES, START_BACKUP, START_EXAMPLES, START_HEADLINE, START_HOSTS, START_MEMORY_OFFER, START_POINTS } from "../athena-start-copy";
 
 export const GETTING_STARTED_GUIDANCE =
   "Show the getting-started card first. Its headline example is Hey Athena, let's get started. @Athena is only the backup.";
 
 export const GETTING_STARTED_RULE =
-  " When the member says Hey Athena, let's get started, Athena, let's get started, let's get going, getting started, @Athena let's get started, or Hey Athena, getting started, call getting_started and show that card first. Never start that reply with a which-job picker. No jobs: first-job setup, or company setup when there is no company. Jobs already on file: the get-started card, with the @Athena habit, the Try one lines, the memory-line offer, and an entry into the morning meeting. One job: use it. More than one job: the job list sits inside that same card. On a member's first tool call, show the getting-started card before the rest of the reply. Good morning Athena and Hey Athena, what's on my plate today? call athena_hello or morning_brief. @Athena is only the backup. Do not answer the setup questions for the member.";
+  " When the member says Hey Athena, let's get started, Athena, let's get started, let's get going, getting started, @Athena let's get started, or Hey Athena, getting started, call getting_started and show that card first. Never start that reply with a which-job picker, and never ask Which job's morning hitlist? Do not call athena_morning_hitlist, pm_morning, or morning_brief for that phrase. No jobs: first-job setup, or company setup when there is no company. Jobs already on file: the get-started card, with the @Athena example lines, the offer to save When I say Athena, always use the Athena connector and how to remove it, then the morning meeting. One job: name it on the card. More than one job: the job list sits inside that same card. On a member's first tool call, show the getting-started card before the rest of the reply. Good morning Athena and Hey Athena, what's on my plate today? call athena_hello or morning_brief. @Athena is only the backup. Do not answer the setup questions for the member.";
 
 export function gettingStartedCard(): CardModel {
   return {
@@ -108,19 +108,20 @@ export function startedWithJobsCard(jobs: StartedJob[]): CardModel {
     ...base,
     sections: [
       ...(base.sections ?? []),
+      { heading: "@Athena", kind: "list", rows: START_AT_EXAMPLES.map((line) => ({ cells: [line] })) },
       { heading: "Memory", kind: "list", rows: [{ cells: [START_MEMORY_OFFER], tone: "action" }] },
       { heading: "Morning meeting", kind: "list", rows: jobsRows },
     ],
-    next_move: one ? `The morning meeting is on ${one.job_number}.` : "Name the job for the morning meeting.",
+    next_move: one ? `The morning meeting is on ${one.job_number}.` : "Name the job and I will open the morning meeting.",
   };
 }
 
-/** No jobs opens setup. One job opens that morning meeting. More than one opens the which-job card. */
+/** No jobs opens setup. Jobs already on file stay on the get-started card. The morning meeting is not opened here. */
 export async function branchGettingStarted<T>(sb: MemberDb, morning: (jobNumber?: string) => Promise<T>, setup: (company: boolean) => T): Promise<T> {
   const found = await memberJobs(sb);
   if (!found.jobs.length) return setup(found.company);
-  if (found.jobs.length === 1) return morning(found.jobs[0].job_number);
-  return morning();
+  void morning;
+  return startedWithJobsCard(found.jobs) as T;
 }
 
 export function renderGettingStarted(card: CardModel = gettingStartedCard()): string {
