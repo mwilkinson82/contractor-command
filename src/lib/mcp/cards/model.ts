@@ -8,6 +8,8 @@ export type CardRow = {
   cells: string[];
   flag?: AlertLevel | null;
   tone?: CardTone | null;
+  /** Print the line unchanged. The HTML still flags it when flag is set. */
+  raw?: boolean;
 };
 
 export type CardSection = {

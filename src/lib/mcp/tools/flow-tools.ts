@@ -3,12 +3,12 @@ import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { renderHtml } from "../cards/html";
 import { htmlBlock, renderMarkdown } from "../cards/markdown";
-import { cardWidgetMeta } from "../cards/widget";
+import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetHtml, cardWidgetMeta } from "../cards/widget";
 import { buildFlowCard } from "../flows/build";
 import { job2701FlowData } from "../flows/job-2701";
 import { loadFlowData, saveFlowNote } from "../flows/load";
 import { STAGE_LABEL, stagesFor, type FlowData, type FlowName } from "../flows/types";
-import { run, text, type Sb } from "../guard";
+import { run, type Sb } from "../guard";
 import { FULL_ACCESS_MESSAGE, audit, resolveJob } from "../jobs";
 import { guide } from "../visible";
 
@@ -24,15 +24,37 @@ function present(flow: FlowName, stage: string, data: FlowData) {
   const html = renderHtml(card);
   const stages = [...stagesFor(flow)];
   const next = stages[stages.indexOf(stage) + 1] ?? null;
+  const body = `${renderMarkdown(card)}\n\n${htmlBlock(html)}`;
   return guide(
     {
-      ...text(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`),
-      structuredContent: { flow, stage, stages, next_stage: next, sample: data.sample, logged: data.logged, card, html },
+      structuredContent: {
+        card,
+        html,
+        flow,
+        stage,
+        stages,
+        next_stage: next,
+        sample: data.sample,
+        logged: data.logged,
+        "openai/outputTemplate": CARD_WIDGET_URI,
+      },
       _meta: { ...cardWidgetMeta },
+      content: [
+        {
+          type: "resource" as const,
+          resource: {
+            uri: CARD_WIDGET_URI,
+            mimeType: CARD_WIDGET_MIME,
+            text: cardWidgetHtml(),
+            _meta: { ...cardWidgetMeta },
+          },
+        },
+        { type: "text" as const, text: body, _meta: { ...cardWidgetMeta } },
+      ],
     },
     next
-      ? `When the PM continues, call ${flow} with stage ${next} and the same job number. Show the card as written.`
-      : "This meeting is at its last stage. Show the card as written.",
+      ? `When the PM continues, call ${flow} with stage ${next} only. The PM meeting order is schedule, change orders, accounting, then the IOR delta. Do not add field readiness, financial, open actions, or closeout. Show the card first, with no plain text before it.`
+      : "This meeting is at its last stage. The order was schedule, change orders, accounting, then the IOR delta. Show the card first, with no plain text before it.",
   );
 }
 
@@ -62,7 +84,7 @@ async function lead(flow: FlowName, args: { job_number: string; company_id?: str
 export const pmMeeting = defineTool({
   name: "pm_meeting",
   title: "PM meeting",
-  description: "Leads the PM meeting one stage at a time.",
+  description: "Leads the PM meeting in this exact order only: schedule, change orders, accounting, then the IOR delta against the stored snapshot, and no other stage.",
   inputSchema: { job_number: jobNumber, company_id: companyId, stage: z.enum(["schedule", "change_orders", "accounting", "ior"]).optional(), note, crew_mode: crewMode, sample },
   annotations: WRITE,
   handler: (args, ctx) =>

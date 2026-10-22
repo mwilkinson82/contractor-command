@@ -35,25 +35,38 @@ describe("PM tools become cards", () => {
     expect(after._meta["openai/outputTemplate"]).toBe(CARD_WIDGET_URI);
   });
 
-  it("contract_terms paints risk flags red and leaves other flags alone", () => {
-    const before = "2701 – CONTRACT CLAUSES (exact contract text)\n- None recorded.\n\nApplicability:\n- has lds: ON\n- has retainage: ON";
+  it("contract_terms paints the liquidated damages clause itself red and keeps every line inside the card", () => {
+    const before = [
+      "2701 – CONTRACT CLAUSES (exact contract text)",
+      "- §6.3 Liquidated Damages: ‹$500 per day› (document)",
+      "- §4.1 Payment: ‹Net 30› (document)",
+      "Applicability:",
+      "- has lds: ON",
+      "- has retainage: ON",
+    ].join("\n");
     const after = attachAthenaCard("contract_terms", {
-      content: [{ type: "text", text: before }],
+      content: [{ type: "text", text: before + "\n\n---\nAthena powered by ALP, construction agents" }],
       structuredContent: { flags: [{ flag: "has_lds", value: "ON" }, { flag: "has_retainage", value: "ON" }], contract_clauses: [] },
     }) as unknown as { content: { text: string }[]; structuredContent: { card: CardModel; html: string } };
-    const risk = after.structuredContent.card.sections?.find((s) => s.heading === "Risk flags")?.rows ?? [];
-    expect(risk.find((r) => r.cells[0] === "has lds")?.flag).toBe("risk");
-    expect(risk.find((r) => r.cells[0] === "has retainage")?.flag).toBeNull();
-    expect(after.structuredContent.html).toContain('data-alert="risk"');
-    expect(after.content[0].text).toContain("🔴 risk: has lds is ON");
-    expect(after.content[0].text).toContain(before);
+    const clauses = after.structuredContent.card.sections?.find((s) => s.heading === "Clauses")?.rows ?? [];
+    expect(clauses.find((r) => r.cells[0].includes("§6.3"))?.flag).toBe("risk");
+    expect(clauses.find((r) => r.cells[0].includes("§4.1"))?.flag).toBeNull();
+    expect(after.structuredContent.html).toContain('data-alert="risk">- §6.3 Liquidated Damages');
+    expect(after.structuredContent.html).not.toContain('data-alert="risk">- §4.1');
+    expect(after.content[0].text).toContain("- §6.3 Liquidated Damages");
+    expect(after.content[0].text.trim().endsWith("```")).toBe(true);
+    expect(after.content[0].text).not.toContain("Athena powered by ALP");
+    expect(after.content[0].text).not.toMatch(/\nDisplay: blue/);
   });
 
   it("list_open_items cards the company list and the item list", () => {
     const companies = "No job named. Your companies and jobs:\n- Harbor Electric: 2701 (Harbor Point)\nWhich job should I list open items for?";
-    const companyCard = attachAthenaCard("list_open_items", { content: [{ type: "text", text: companies }] }) as unknown as { structuredContent: { card: CardModel } };
+    const companyCard = attachAthenaCard("list_open_items", { content: [{ type: "text", text: companies }] }) as unknown as { content: { text: string }[]; structuredContent: { card: CardModel } };
     expect(companyCard.structuredContent.card.state).toBe("ask");
     expect(companyCard.structuredContent.card.title).toBe("Which job?");
+    expect(companyCard.content[0].text.startsWith("## 🔵 Which job?")).toBe(true);
+    expect(companyCard.content[0].text).toContain("Harbor Electric: 2701");
+    expect(companyCard.content[0].text.trim().endsWith("```")).toBe(true);
     const items = "2701 – Open items (2):\n- OVERDUE storm delay\n- Buy the gear";
     const itemCard = attachAthenaCard("list_open_items", { content: [{ type: "text", text: items }] }) as unknown as { structuredContent: { card: CardModel; html: string }; content: { text: string }[] };
     expect(itemCard.structuredContent.card.state).toBe("result");

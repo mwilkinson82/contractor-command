@@ -34,6 +34,8 @@ export type FlowData = {
   money: FlowMoney;
   iorNow: IorRow[];
   iorPrevious: IorRow[];
+  /** True only when mcp_guided_latest returned a stored meeting snapshot. */
+  hasSnapshot: boolean;
   spillover: string[];
   dailies: string[];
   photos: string[];
@@ -61,7 +63,7 @@ export const STAGE_LABEL: Record<string, string> = {
   schedule: "Schedule",
   change_orders: "Change orders",
   accounting: "Accounting",
-  ior: "IOR",
+  ior: "IOR delta",
   crews: "Crews",
   risks: "Risks",
   spillover: "Spillover",

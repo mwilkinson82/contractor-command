@@ -1,0 +1,40 @@
+// ChatGPT reads openai/outputTemplate from the tool result _meta. @lovable.dev/mcp-js
+// drops that field before the MCP server sees the handler return, so this bridge
+// puts it back on the three meeting tools and registers the card widget resource.
+import { McpServer } from "@modelcontextprotocol/server";
+import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetHtml } from "./cards/widget";
+
+const MEETINGS = new Set(["pm_meeting", "pm_morning", "pm_evening"]);
+const TEMPLATE = { "openai/outputTemplate": CARD_WIDGET_URI };
+const patched = Symbol.for("athena.cardWidgetBridge");
+
+type RegisterTool = (name: string, config: { _meta?: Record<string, unknown> }, cb: (...args: unknown[]) => Promise<Record<string, unknown>>) => unknown;
+
+const proto = McpServer.prototype as unknown as { [patched]?: boolean; registerTool: RegisterTool; registerResource?: (name: string, uri: string, config: Record<string, unknown>, read: () => Promise<unknown>) => unknown };
+
+if (!proto[patched]) {
+  proto[patched] = true;
+  const orig = proto.registerTool;
+  proto.registerTool = function (this: { registerResource?: (name: string, uri: string, config: Record<string, unknown>, read: () => Promise<unknown>) => unknown }, name, config, cb) {
+    const self = this;
+    if (typeof self.registerResource === "function" && !(self as { _athenaCard?: boolean })._athenaCard) {
+      (self as { _athenaCard?: boolean })._athenaCard = true;
+      try {
+        self.registerResource("athena-card", CARD_WIDGET_URI, { title: "Athena card", mimeType: CARD_WIDGET_MIME }, async () => ({
+          contents: [{ uri: CARD_WIDGET_URI, mimeType: CARD_WIDGET_MIME, text: cardWidgetHtml() }],
+        }));
+      } catch {
+        // A second server in the same process already registered this uri.
+      }
+    }
+    const next = MEETINGS.has(name)
+      ? { ...config, _meta: { ...(config?._meta ?? {}), ...TEMPLATE } }
+      : config;
+    const wrapped = async (...args: unknown[]) => {
+      const result = (await cb(...args)) ?? {};
+      if (!MEETINGS.has(name)) return result;
+      return { ...result, _meta: { ...(result._meta ?? {}), ...TEMPLATE } };
+    };
+    return orig.call(this, name, next, wrapped);
+  };
+}

@@ -188,7 +188,7 @@ describe("Claude retest units", async () => {
     expect(
       tools.listOpenItems.description ??
         (tools.listOpenItems as never as { config: { description: string } }).config.description,
-    ).toBe("Lists a job's open items.");
+    ).toBe("Lists open items for a job_number the member just gave, and must not fill job_number from chat context.");
     expect(shape(tools.listOpenItems).job_number.safeParse(undefined).success).toBe(true);
     expect(shape(tools.report).company_id.description).toBeUndefined();
   });

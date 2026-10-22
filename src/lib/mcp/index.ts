@@ -1,3 +1,4 @@
+import "./widget-bridge";
 import { auth, defineMcp } from "@lovable.dev/mcp-js";
 import { ATHENA_VERSION } from "./server-info-branding";
 import { GREETING_RULE } from "./greeting";

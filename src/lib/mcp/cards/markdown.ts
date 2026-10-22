@@ -32,6 +32,10 @@ function section(s: CardSection): string[] {
     return lines;
   }
   for (const row of s.rows) {
+    if (row.raw) {
+      lines.push(row.cells.join("\n"));
+      continue;
+    }
     const text = row.cells.map(cell).filter(Boolean).join(" · ");
     lines.push(`- ${toneMark(row)} ${text}`);
   }
