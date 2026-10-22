@@ -169,13 +169,6 @@
       "when": 1792510197479,
       "tag": "0023_athena_lookahead_revisions",
       "breakpoints": true
-    },
-    {
-      "idx": 24,
-      "version": "7",
-      "when": 1792600000000,
-      "tag": "0024_athena_reopen_open_item",
-      "breakpoints": true
     }
   ]
 }
