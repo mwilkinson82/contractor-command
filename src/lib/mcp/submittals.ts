@@ -248,16 +248,23 @@ export function routeSubmittal(text: string): SubmittalRoute | null {
 }
 
 export const SUBMITTAL_SERVER_RULE =
-  " When someone says Hey Athena, log a submittal, log a submittal, or a misspelling such as submital, submittle, sumittal, or submittall, call submittal_log. When someone asks what submittals are overdue, which submittals are overdue, or for the submittal log for a job such as 2701, call submittals_list. submittals_list is the submittal log for every host. It includes scheduled submittal groups and overdue tracking such as E14. Do not answer a submittal log from the schedule activity list or from the morning brief. When someone pastes a log or says import the submittal log, call submittals_import and show the preview card. Write the import only after a separate yes. When someone says chase the missing submittals, chase the submittals, or chase the missing submittals on a job such as 2701, call submittal_chase. A submittal request is the submittal log, not the morning brief and not email or calendar. Spec section is required on a logged row. Due back is the submitted date plus that job's review turnaround, 14 calendar days unless the contract sets another count. Public work is strict. Private work is advisory. Show the submittal card, and when the card is shown do not add text after it. The board link comes from the signed job board for submittals. Do not send a chase email in the same reply. Do not read the spec book or run the kickoff walkthrough from this log.";
+  " When someone says Hey Athena, log a submittal, log a submittal, or a misspelling such as submital, submittle, sumittal, or submittall, call submittal_log. When someone asks what submittals are overdue, which submittals are overdue, or for the submittal log for a job such as 2701, call submittals_list. submittals_list is the submittal log for every host. It returns each saved submittal: number, title, status, ball in court, due date, and overdue. If the job has none, the card says so and points to submittal setup. Do not answer a submittal log from the schedule activity list or from the morning brief. When someone pastes a log or says import the submittal log, call submittals_import and show the preview card. Write the import only after a separate yes. When someone says chase the missing submittals, chase the submittals, or chase the missing submittals on a job such as 2701, call submittal_chase. A submittal request is the submittal log, not the morning brief and not email or calendar. Spec section is required on a logged row. Due back is the submitted date plus that job's review turnaround, 14 calendar days unless the contract sets another count. Public work is strict. Private work is advisory. Show the submittal card, and when the card is shown do not add text after it. The board link comes from the signed job board for submittals. Do not send a chase email in the same reply. Do not read the spec book or run the kickoff walkthrough from this log.";
 
 export type Presented = { text: string; card: CardModel; rows: SubmittalRecord[] };
 
+function dueLabel(row: SubmittalRecord): string {
+  const due = (row.due_back ?? "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(due) ? due : "Needed";
+}
+
+function ballLabel(row: SubmittalRecord): string {
+  const ball = labelOf(BALL_LABEL, row.ball_in_court);
+  return row.ball_in_court_name?.trim() ? `${ball}, ${row.ball_in_court_name.trim()}` : ball;
+}
+
 function rowLine(row: SubmittalRecord, today: string): string {
   const overdue = submittalOverdue(row, today);
-  const ball = labelOf(BALL_LABEL, row.ball_in_court);
-  const who = row.ball_in_court_name?.trim() ? `${ball}, ${row.ball_in_court_name.trim()}` : ball;
-  const due = row.due_back ? row.due_back.slice(0, 10) : "Needed";
-  return `- ${row.number} revision ${row.revision}, ${row.title}. Spec ${row.spec_section}. ${labelOf(STATUS_LABEL, row.status)}. ${sourceLine(row)} Ball in court: ${who}. ${transmittalLabel(row.transmittal_number)}. Due back ${due}. ${packageLine(row.package_items)}.${overdue ? " Overdue." : ""}`;
+  return `- ${row.number}. ${row.title}. ${labelOf(STATUS_LABEL, row.status)}. Ball in court: ${ballLabel(row)}. Due ${dueLabel(row)}.${overdue ? " Overdue." : ""}`;
 }
 
 /** Plain-text fallback. Header counts are the deduped rows, and the card uses that same list. */
@@ -290,24 +297,20 @@ export function presentSubmittalLog(input: {
     return `- ${group.id} ${group.name}. Due ${due}.${group.critical ? " Critical path." : ""}${late ? " Overdue." : ""}`;
   });
   const trackingLines = tracking.map((item) => `- ${item.action}${item.due ? `. Due ${item.due}.` : ""}${item.overdue ? " Overdue." : ""}`);
-  const loggedBody = rows.length ? rows.map((row) => rowLine(row, input.today)).join("\n") : schedule.length || tracking.length ? "No submittals logged yet." : "No submittals on this job yet.";
+  const nothing = !rows.length && !schedule.length && !tracking.length;
+  const loggedBody = rows.length
+    ? rows.map((row) => rowLine(row, input.today)).join("\n")
+    : nothing
+      ? "No submittals on this job yet. Set the log up: say log a submittal, or paste the log to import it."
+      : "No submittals logged yet.";
   const body = [scheduleLines.length ? `Schedule\n${scheduleLines.join("\n")}` : "", trackingLines.length ? `Tracking\n${trackingLines.join("\n")}` : "", loggedBody].filter(Boolean).join("\n\n");
   const note = input.note?.trim() ? `${input.note.trim()}\n\n` : "";
   const access = input.readOnly ? "\n\nRead only." : "";
   const text = `${note}${head}\n\n${body}${access}`;
   const tableRows: CardRow[] = rows.map((row) => {
     const late = submittalOverdue(row, input.today);
-    const ball = labelOf(BALL_LABEL, row.ball_in_court);
-    const who = row.ball_in_court_name?.trim() ? `${ball}, ${row.ball_in_court_name.trim()}` : ball;
     return {
-      cells: [
-        `${row.number} revision ${row.revision}, ${row.title}. ${sourceLine(row)}`,
-        row.spec_section,
-        labelOf(STATUS_LABEL, row.status),
-        who,
-        row.due_back ? row.due_back.slice(0, 10) : "Needed",
-        packageLine(row.package_items),
-      ],
+      cells: [row.number, row.title, labelOf(STATUS_LABEL, row.status), ballLabel(row), dueLabel(row), late ? "Overdue" : ""],
       flag: late ? "overdue" : null,
       href: input.boardUrl ? withAnchor(input.boardUrl, detailAnchor("submittal", row.id)) : null,
       refId: row.id,
@@ -349,14 +352,24 @@ export function presentSubmittalLog(input: {
             })),
           }]
         : []),
-      {
-        heading: "Log",
-        kind: "table" as const,
-        columns: ["Submittal", "Spec", "Status", "Ball in court", "Due back", "Package"],
-        rows: tableRows.length ? tableRows : [{ cells: ["No submittals logged yet.", "", "", "", "", ""] }],
-      },
+      rows.length
+        ? {
+            heading: "Log",
+            kind: "table" as const,
+            columns: ["Number", "Title", "Status", "Ball in court", "Due", "Overdue"],
+            rows: tableRows,
+          }
+        : {
+            heading: "Log",
+            kind: "list" as const,
+            rows: [{ cells: [nothing ? "No submittals on this job yet." : "No submittals logged yet."] }],
+          },
     ] as CardSection[],
-    next_move: input.readOnly ? "Read only on this job." : "Log the next submittal when it is ready.",
+    next_move: input.readOnly
+      ? "Read only on this job."
+      : nothing
+        ? "Set the log up: say log a submittal, or paste the log to import it."
+        : "Log the next submittal when it is ready.",
   };
   return { text, card, rows };
 }
@@ -617,7 +630,9 @@ export function presentImportPreview(jobNumber: string, jobName: string, preview
 
 /** Header KPI equals the table. Overdue KPI equals the overdue rows. Both use the deduped list. */
 export function headerMatchesRows(card: CardModel): boolean {
-  const rows = card.sections?.find((section) => section.heading === "Log")?.rows ?? [];
+  const rows = (card.sections?.find((section) => section.heading === "Log")?.rows ?? []).filter(
+    (row) => !row.cells.every((cell) => !cell.trim() || /^No submittals\b/.test(cell.trim())),
+  );
   const total = card.kpis?.find((kpi) => kpi.label === "Submittals")?.value;
   const late = card.kpis?.find((kpi) => kpi.label === "Overdue")?.value;
   const overdueRows = rows.filter((row) => row.flag === "overdue").length;
