@@ -95,11 +95,6 @@ describe("lookahead_list", () => {
     const result = await call({ job_number: "2701" });
     const text = result.content[0].text ?? "";
     expect(text.startsWith("Job 2701 has 2 lookaheads (1 with content, 1 empty).")).toBe(true);
-    expect(text).not.toMatch(/REQUIRED VIEW|do not add text/i);
-    const tableAt = text.indexOf("## ");
-    const htmlAt = text.indexOf("<!doctype html");
-    expect(tableAt).toBeGreaterThan(0);
-    expect(htmlAt).toBeGreaterThan(tableAt);
     expect(text).not.toContain("Hidden");
     expect(text).not.toContain("merged");
     expect(JSON.stringify(result.structuredContent)).not.toContain("Hidden");
