@@ -28,8 +28,9 @@ export function usePageVisible(): boolean {
 
 type Cached = { stamp: string | null; payload: PagePayload };
 
-// Living report page. A valid board token renders with no session. A missing, expired, or bad token
-// shows Athena's email-code sign-in and returns to this same /r/job path. The database decides access.
+// Living report page. A valid board token renders with or without a session. A missing, expired, or
+// bad token shows Athena's email-code sign-in and returns to this same /r/job path. A signed-in
+// account with no row for the job can use a different account. The database decides access.
 export function itemsFromField(payload: PagePayload): PagePayload {
   if (payload.page !== "field") return payload;
   const field = payload as FieldPagePayload;
@@ -81,17 +82,17 @@ export function ReportPageView({ page, jobId, companyId, token }: { page: AnyPag
     },
     retry: false,
   });
+  // The session read wins when this account has the job. Otherwise a ?t= token is read too,
+  // including while a different account is signed in.
+  const sessionPayload = session && !q.isLoading && !q.error ? q.data?.payload : undefined;
   const linked = useQuery({
     queryKey: ["athena-board-link", token ?? "", jobId ?? "", tokenPage],
-    enabled: !authLoading && !session && !!token && !!jobId && !!tokenPage,
+    enabled: !authLoading && !!token && !!jobId && !!tokenPage && !sessionPayload && (!session || !q.isLoading),
     queryFn: () => openLink({ data: { token: token!, jobId: jobId!, page: tokenPage as (typeof BOARD_PAGES)[number] } }),
     retry: false,
   });
-  const payload = session
-    ? q.data?.payload
-    : linked.data?.status === "ok"
-      ? (JSON.parse(linked.data.payload) as PagePayload)
-      : undefined;
+  const tokenPayload = linked.data?.status === "ok" ? (JSON.parse(linked.data.payload) as PagePayload) : undefined;
+  const payload = sessionPayload ?? tokenPayload;
   // renderReportBody escapes every value it prints. Re-rendered only when a new payload arrives.
   // A live token keeps sibling board links on the same token when the host adds utm params.
   const html = useMemo(() => {
@@ -108,19 +109,22 @@ export function ReportPageView({ page, jobId, companyId, token }: { page: AnyPag
       <div dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   );
-  if (authLoading || (session && q.isLoading) || (!session && token && tokenPage && linked.isLoading)) return <div style={{ padding: 32, color: "#6B7280" }}>Loading…</div>;
-  // A valid token renders this job with no session. The payload is read live when the link is opened.
+  if (authLoading || (session && q.isLoading) || (!sessionPayload && !!token && !!tokenPage && linked.isLoading)) return <div style={{ padding: 32, color: "#6B7280" }}>Loading…</div>;
+  // A valid token renders this job with or without a session. The payload is read live when the link is opened.
   if (!session && payload) return live;
-  // Missing, expired, revoked, wrong-job, or a page the token's role cannot open: sign in and return to this board.
-  if (!session && page !== "portfolio") {
+  // Missing, expired, revoked, wrong-job, or a page the token's role cannot open.
+  // No session, or a signed-in account with no row: email-code sign-in, then this same board.
+  if (!payload && page !== "portfolio") {
     const location = typeof window === "undefined" ? undefined : `${window.location.pathname}${window.location.search}${window.location.hash}`;
     const returnTo = boardReturnForVisit(page, jobId, location);
-    if (returnTo) return <BoardSignIn returnTo={returnTo} />;
-    return (
-      <div style={{ maxWidth: 480, margin: "15vh auto", background: "#fff", border: "1px solid #D1D5DB", borderRadius: 12, padding: 32, color: "#6B7280" }}>
-        <h1 style={{ margin: "0 0 12px", fontSize: 20, color: "#1E3A5F" }}>Sign in to keep this board open</h1>
-      </div>
-    );
+    if (returnTo) return <BoardSignIn returnTo={returnTo} switchAccount={!!session} />;
+    if (!session) {
+      return (
+        <div style={{ maxWidth: 480, margin: "15vh auto", background: "#fff", border: "1px solid #D1D5DB", borderRadius: 12, padding: 32, color: "#6B7280" }}>
+          <h1 style={{ margin: "0 0 12px", fontSize: 20, color: "#1E3A5F" }}>Sign in to keep this board open</h1>
+        </div>
+      );
+    }
   }
   if (!session && !payload) {
     const back = typeof window === "undefined" ? `/r/portfolio/${companyId ?? ""}` : `${window.location.pathname}${window.location.search}${window.location.hash}`;
@@ -131,8 +135,8 @@ export function ReportPageView({ page, jobId, companyId, token }: { page: AnyPag
       </div>
     );
   }
-  // Signed-in members with no row see "no access". A token payload skips this branch.
-  if (!payload || (session && q.error)) {
+  // Portfolio has no job-board return. A job page with a return path never reaches this card.
+  if (!payload) {
     return (
       <div style={{ maxWidth: 480, margin: "15vh auto", background: "#fff", border: "1px solid #D1D5DB", borderRadius: 12, padding: 32, color: "#6B7280" }}>
         <h1 style={{ margin: "0 0 12px", fontSize: 20, color: "#2563EB" }}>You don't have access to this page</h1>
