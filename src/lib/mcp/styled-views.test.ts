@@ -141,7 +141,7 @@ describe("lookahead view", () => {
     expect(v).not.toContain(SHOW_AS_IS);
     expect(v).toContain("### Top 3 priorities");
     expect(v).toMatch(/\| A1020 Submit long-lead gear \| 0 \| 🔵 \| 🔵 \| 🔵 \|/);
-    expect(v).toMatch(/A1130 Underground inspection \(hold point\) \| 18 \|( {2}\|){8} 📋🚩 \|/);
+    expect(v).toMatch(/A1130 Underground inspection \(hold point\) \| 18 \|( {2}\|){8} 🔵INSP🔴 \|/);
     expect(v).toContain("### Risk cards");
     expect(v).not.toContain("D1060");
     expect(v).toContain("**Legend:**");

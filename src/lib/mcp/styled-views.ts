@@ -446,14 +446,14 @@ export function lookaheadModel(
 }
 /** One plain line per item for text outputs (At-Risk section, PDF): label, owner, due, OVERDUE and flags. */
 export function entryLine(e: LaEntry): string {
-  return `${e.overdue ? "OVERDUE · " : e.dueToday ? "DUE TODAY · " : ""}${e.label} · Owner: ${e.item.owner ?? "Needed"} · Due ${e.item.due ? shortDate(e.item.due) : "Needed"}${e.a ? ` · Impact: ${e.a.id} ${e.a.name}${num(e.a.total_float) !== null ? ` (float ${num(e.a.total_float)} WD)` : ""}` : ""}${e.flags.map((f) => ` · ⚠ ${f.text}`).join("")}`;
+  return `${e.overdue ? "OVERDUE · " : e.dueToday ? "DUE TODAY · " : ""}${e.label} · Owner: ${e.item.owner ?? "Needed"} · Due ${e.item.due ? shortDate(e.item.due) : "Needed"}${e.a ? ` · Impact: ${e.a.id} ${e.a.name}${num(e.a.total_float) !== null ? ` (float ${num(e.a.total_float)} WD)` : ""}` : ""}${e.flags.map((f) => ` · ⚪ ${f.text}`).join("")}`;
 }
 const ICON: Record<Cell, string> = {
   crit: "🔵",
   non: "⚪",
-  insp: "📋",
-  deliv: "🚚",
-  mile: "◆",
+  insp: "🔵INSP",
+  deliv: "⚪DLV",
+  mile: "🔵MS",
   "": "",
 };
 export const dayHead = (d: string) => `${DOW[dow(d)]} ${md(d)}`;
@@ -492,14 +492,14 @@ export function lookaheadView(v: {
   if (m.top.length)
     m.top.forEach((t, i) =>
       L.push(
-        `| ${i + 1} | ${t.overdue ? `${RED_MD("OVERDUE")} ` : t.dueToday ? "**DUE TODAY** " : ""}${t.label.replace(/\|/g, "/")}${t.flags.map((f) => ` ⚠ ${f.text}`).join("")} | ${t.item.owner ?? "Needed"} | ${t.item.due ? (t.overdue ? RED_MD(shortDate(t.item.due)) : shortDate(t.item.due)) : "Needed"} |`,
+        `| ${i + 1} | ${t.overdue ? `${RED_MD("OVERDUE")} ` : t.dueToday ? "**DUE TODAY** " : ""}${t.label.replace(/\|/g, "/")}${t.flags.map((f) => ` ⚪ ${f.text}`).join("")} | ${t.item.owner ?? "Needed"} | ${t.item.due ? (t.overdue ? RED_MD(shortDate(t.item.due)) : shortDate(t.item.due)) : "Needed"} |`,
       ),
     );
   else L.push("| – | No open items in this window | – | – |");
   L.push(
     "",
     "### Calendar strip",
-    "🔵 critical (blue #2563EB) · ⚪ non-critical (gray #9CA3AF) · 📋 inspection · 🚚 delivery · ◆ milestone · 🚩 risk (red #DC2626)",
+    "🔵 critical · ⚪ non-critical · 🔵INSP inspection · ⚪DLV delivery · 🔵MS milestone · 🔴 risk, delay, overdue",
     "",
   );
   const head = m.days.map(
@@ -512,7 +512,7 @@ export function lookaheadView(v: {
   );
   for (const r of m.rows)
     L.push(
-      `| ${r.a.id} ${r.a.name.replace(/\|/g, "/")} | ${num(r.a.total_float) ?? ""} | ${r.cells.map((x) => `${ICON[x.kind]}${x.risk ? "🚩" : ""}`).join(" | ")} |`,
+      `| ${r.a.id} ${r.a.name.replace(/\|/g, "/")} | ${num(r.a.total_float) ?? ""} | ${r.cells.map((x) => `${ICON[x.kind]}${x.risk ? "🔴" : ""}`).join(" | ")} |`,
     );
   if (!m.rows.length)
     L.push(
@@ -530,18 +530,18 @@ export function lookaheadView(v: {
     L.push("", "### Risk cards");
     for (const e of m.risks)
       L.push(
-        `> 🚩 **${e.label}** — Impact: ${e.a!.id} ${e.a!.name}${num(e.a!.total_float) !== null ? ` (float ${num(e.a!.total_float)} WD)` : ""}. Owner: ${e.item.owner ?? "Needed"} · Due ${e.item.due ? shortDate(e.item.due) : "Needed"}${e.overdue ? " · OVERDUE" : ""}.`,
+        `> 🔴 **${e.label}** — Impact: ${e.a!.id} ${e.a!.name}${num(e.a!.total_float) !== null ? ` (float ${num(e.a!.total_float)} WD)` : ""}. Owner: ${e.item.owner ?? "Needed"} · Due ${e.item.due ? shortDate(e.item.due) : "Needed"}${e.overdue ? " · OVERDUE" : ""}.`,
         "",
       );
   }
   if (m.flagged.length) {
     L.push("", "### Dates to check");
     for (const e of m.flagged)
-      for (const f of e.flags) L.push(`> ⚠ ${e.label.slice(0, 90)}: ${f.text}.`);
+      for (const f of e.flags) L.push(`> ⚪ ${e.label.slice(0, 90)}: ${f.text}.`);
   }
   L.push(
     "",
-    "**Legend:** 🔵 Critical · ⚪ Non-critical · 📋 Inspection · 🚚 Delivery · ◆ Milestone · 🚩 Risk · 🔴 Overdue · ⚠ Date to check",
+    "**Legend:** 🔵 Critical · ⚪ Non-critical · 🔵INSP Inspection · ⚪DLV Delivery · 🔵MS Milestone · 🔴 Risk, delay, overdue · ⚪ Date to check",
   );
   return L.join("\n");
 }
@@ -659,7 +659,7 @@ export function briefingView(v: {
   if (v.pageUrl) L.push(pageLine("morning briefing", v.pageUrl), "");
   L.push(SHOW_AS_IS, "", `## ${v.title} · Morning Briefing`, `**${shortDate(v.today)}**`, "");
   L.push(
-    "| 🚩 Overdue | Due today | Next 7 days | 8–14 days |",
+    "| 🔴 Overdue | Due today | Next 7 days | 8–14 days |",
     "|---|---|---|---|",
     `| ${m.overdue.length} | ${m.today.length} | ${m.week.length} | ${m.next.length} |`,
     "",
@@ -669,7 +669,7 @@ export function briefingView(v: {
     L.push(`### ${h}`, "| Item | Owner | Due |", "|---|---|---|");
     for (const i of list.slice(0, 12))
       L.push(
-        `| ${flag ? "🚩 " : ""}${i.action.replace(/\|/g, "/").replace(/\s+/g, " ").slice(0, 160)} | ${i.owner ?? "Needed"} | ${i.due ? shortDate(i.due.slice(0, 10)) : "Needed"} |`,
+        `| ${flag ? "🔴 " : ""}${i.action.replace(/\|/g, "/").replace(/\s+/g, " ").slice(0, 160)} | ${i.owner ?? "Needed"} | ${i.due ? shortDate(i.due.slice(0, 10)) : "Needed"} |`,
       );
     if (list.length > 12) L.push(`| …and ${list.length - 12} more | | |`);
     L.push("");

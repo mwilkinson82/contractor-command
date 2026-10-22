@@ -26,7 +26,7 @@ describe("0.8.19 lookahead data quality (2701 LA-31BE8)", () => {
     expect(m.counts.overdue).toBe(m.overdue.length);
     expect(m.risks.map((e) => e.item.action)).toEqual(expect.arrayContaining([ITEMS[2].action]));
     const v = lookaheadView({ title: "2701 – Harbor Point", ref: "LA-31BE8", start: START, end: END, acts: ACTS, items: ITEMS, ...OPTS });
-    const cards = (v.split("### Risk cards")[1] ?? "").split("\n").filter((l) => l.startsWith("> 🚩")).length;
+    const cards = (v.split("### Risk cards")[1] ?? "").split("\n").filter((l) => l.startsWith("> 🔴")).length;
     expect(v).toContain(`${m.risks.length} risks`);
     expect(cards).toBe(m.risks.length);
     expect(m.risks.length).toBeGreaterThan(0);
