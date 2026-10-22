@@ -6,6 +6,7 @@ import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { run, text, type Sb } from "../guard";
 import { resolveJob, type Job } from "../jobs";
+import { recordEvent } from "../project-record";
 import { whoForJob } from "../people";
 import { draftIdentity } from "../drafts";
 import { guide } from "../visible";
@@ -130,6 +131,8 @@ export const emailConfirmSend = defineTool({
     confirmed: z
       .literal(true)
       ,
+    job_number: z.string().trim().max(40).optional(),
+    company_id: z.string().trim().max(200).optional(),
   },
   annotations: {
     readOnlyHint: false,
@@ -138,7 +141,7 @@ export const emailConfirmSend = defineTool({
     openWorldHint: true,
   },
   handler: (args, ctx) =>
-    run("email_confirm_send", ctx, {}, async (sb) => {
+    run("email_confirm_send", ctx, { jobNumber: args.job_number }, async (sb) => {
       if (outboundEmailDisabled())
         throw new ToolError(
           "Sending email from Athena is turned off right now. Nothing was sent; copy the draft into your email app.",
@@ -151,6 +154,21 @@ export const emailConfirmSend = defineTool({
         throw new ToolError(
           "This draft changed after it was reviewed. Show the new draft and ask again. Nothing was sent.",
         );
+      // Reply outcomes are not recorded yet. A later pass uses kind email_reply.
+      let recorded = false;
+      if (args.job_number?.trim()) {
+        const job = await resolveJob(sb as Sb, args.job_number, args.company_id);
+        const id = await recordEvent(sb as Sb, {
+          jobId: job.job_id,
+          kind: "email_sent",
+          title: d.subject,
+          summary: `Email to ${d.to}. Subject: ${d.subject}.`,
+          counterpartyEmail: d.to,
+          payload: { subject: d.subject, to: d.to, draft_key: args.draft_key },
+          actor: "user",
+        });
+        recorded = id != null;
+      }
       return guide(
         {
           ...text(`Confirmed: one email to ${d.to}, subject "${d.subject}".`),
@@ -158,6 +176,7 @@ export const emailConfirmSend = defineTool({
             send_confirmed: true,
             draft_key: args.draft_key,
             sent_by_athena: false,
+            project_record: recorded,
           },
         },
         "You may now send this one email exactly as reviewed with your email tool, then tell the member it went out and from which account.",

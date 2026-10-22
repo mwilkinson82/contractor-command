@@ -7,7 +7,7 @@ const HEX_REF = /#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})\b/g;
 const HASH_NUM = /#\d{1,4}\b/g;
 const RAW_CELL = /^(?:#[0-9A-Fa-f]{3,8}|#\d{1,4}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 
-export function detailAnchor(kind: "activity" | "item" | "daily" | "photo" | "line" | "risk", id: string): string {
+export function detailAnchor(kind: "activity" | "item" | "daily" | "photo" | "line" | "risk" | "submittal", id: string): string {
   const safe = id.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
   return `${kind}-${safe || "item"}`;
 }

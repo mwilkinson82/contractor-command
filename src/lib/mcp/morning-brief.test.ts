@@ -192,6 +192,13 @@ describe("morning brief builder", () => {
     });
     expect(feed.items.filter((it) => it.check_key === "pm:crews")).toHaveLength(1);
     expect(built.card.sections?.find((s) => s.heading === "Don't forget")?.rows.length).toBeLessThanOrEqual(3);
+    const inbox = built.card.sections?.find((s) => s.heading === "From your inbox and calendar");
+    expect(inbox?.rows.map((row) => row.cells[0])).toEqual([
+      "Emails that came in overnight.",
+      "Unanswered emails that need a reply.",
+      "Today's meetings.",
+    ]);
+    expect(built.card.sections?.[0].heading).toBe("From your inbox and calendar");
   });
 
   it("renders the shared card, the same text, and signed job links", () => {

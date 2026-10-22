@@ -10,15 +10,16 @@ import { dailyPageHtml, fieldPageHtml, photoPageHtml } from "./mcp/superintenden
 import { renderIorLayout, type ReportNames } from "./ior-layout";
 import { formatReportNumber, money } from "./report-format";
 import { dedupeOpenRows, itemName } from "./mcp/open-feed";
+import { BALL_LABEL, currentSubmittals, labelOf, packageLine, postureSentence, resolvePosture, sourceLine, STATUS_LABEL, submittalOverdue, transmittalLabel, type SubmittalRecord } from "./mcp/submittals";
 
 export const REPORT_PAGES = ["ior", "schedule", "portfolio"] as const;
 export type ReportPage = (typeof REPORT_PAGES)[number];
 /** 0.8.17: private-only pages (no share links). */
-export const VIEW_PAGES = ["lookahead", "payapp", "briefing", "field", "daily", "photos", "items"] as const;
+export const VIEW_PAGES = ["lookahead", "payapp", "briefing", "field", "daily", "photos", "items", "submittals"] as const;
 export type ViewPage = (typeof VIEW_PAGES)[number];
 export type AnyPage = ReportPage | ViewPage;
 export const JOB_PAGES = ["ior", "schedule", ...VIEW_PAGES] as const;
-export const PAGE_LABEL: Record<AnyPage, string> = { ior: "IOR", schedule: "Schedule", portfolio: "Portfolio dashboard", lookahead: "Two-Week Lookahead", payapp: "Pay App", briefing: "Morning Briefing", field: "Field board", daily: "Daily report", photos: "Progress photos", items: "Open items" };
+export const PAGE_LABEL: Record<AnyPage, string> = { ior: "IOR", schedule: "Schedule", portfolio: "Portfolio dashboard", lookahead: "Two-Week Lookahead", payapp: "Pay App", briefing: "Morning Briefing", field: "Field board", daily: "Daily report", photos: "Progress photos", items: "Open items", submittals: "Submittal log" };
 export const PAGE_ORIGIN = "https://app.meetathena.io";
 export const PERMANENT_LINK_ASK = "Want the job board links I keep updated? Items (/items), the IOR (/ior), the field board (/field), and the schedule.";
 export const SHARE_DEFAULT_DAYS = 30;
@@ -85,8 +86,21 @@ export type FieldPagePayload = { page: "field"; company?: string; job_number?: s
 export type DailyPagePayload = { page: "daily"; company?: string; job_number?: string; job_name?: string; found?: boolean; report_date?: string | null; weather?: string | null; manpower?: string | null; subs_on_site?: string | null; deliveries?: string | null; issues?: string | null; delays?: string | null; safety?: string | null; lines?: { work?: string; sov_item?: string | null; activity_id?: string | null; qty?: number | null; unit?: string | null; crew?: number | null; hours?: number | null }[] };
 export type PhotoPagePayload = { page: "photos"; company?: string; job_number?: string; job_name?: string; photos?: { id?: string; taken_on?: string; area?: string; work?: string | null; sov_item?: string | null; activity_id?: string | null; client_safe?: boolean; url?: string | null; storage_path?: string }[] };
 export type ItemsPagePayload = { page: "items"; company?: string; job_number?: string; job_name?: string; items?: { id?: string | null; action?: string | null; owner?: string | null; due?: string | null }[] };
+export type SubmittalsPagePayload = {
+  page: "submittals";
+  company?: string;
+  job_number?: string;
+  job_name?: string;
+  read_only?: boolean;
+  review_days?: number;
+  today?: string;
+  posture?: string | null;
+  posture_set?: string | null;
+  public_job?: string | null;
+  submittals?: SubmittalRecord[];
+};
 type ViewExtras = { shared?: boolean; expires_at?: string };
-export type PagePayload = JobPayload | PortfolioPayload | FieldPagePayload | DailyPagePayload | PhotoPagePayload | ItemsPagePayload | ((LookaheadPayload | PayAppPayload | BriefingPayload) & ViewExtras);
+export type PagePayload = JobPayload | PortfolioPayload | FieldPagePayload | DailyPagePayload | PhotoPagePayload | ItemsPagePayload | SubmittalsPagePayload | ((LookaheadPayload | PayAppPayload | BriefingPayload) & ViewExtras);
 
 // ---------- helpers ----------
 export const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -241,7 +255,27 @@ function itemsPageHtml(p: ItemsPagePayload): string {
   }).join("");
 }
 
+function submittalsPageHtml(p: SubmittalsPagePayload): string {
+  const today = (p.today ?? "").slice(0, 10);
+  const rows = currentSubmittals(p.submittals ?? []);
+  const overdue = rows.filter((row) => submittalOverdue(row, today)).length;
+  const posture = postureSentence(resolvePosture(p.posture_set ?? p.posture, p.public_job));
+  const head = `<div data-count="${rows.length}" data-overdue="${overdue}">${tiles([tile("Submittals", String(rows.length)), tile("Overdue", String(overdue), overdue > 0), tile("Review days", String(p.review_days ?? 14))])}<p style="margin:0 0 16px;font-size:13px;color:${G1}">${esc(posture)}${p.read_only ? " Read only." : ""}</p></div>`;
+  if (!rows.length) return head + card(`<p style="margin:0;color:${G1}">No submittals on this job yet.</p>`);
+  return head + rows.map((row) => {
+    const late = submittalOverdue(row, today);
+    const who = row.ball_in_court_name?.trim() ? `${labelOf(BALL_LABEL, row.ball_in_court)}, ${row.ball_in_court_name.trim()}` : labelOf(BALL_LABEL, row.ball_in_court);
+    const border = late ? `border-left:4px solid ${RED};` : "";
+    const color = late ? RED : NAVY;
+    return `<section id="submittal-${esc(row.id)}" data-submittal-row="1" data-id="${esc(row.id)}" style="${border}">${card(`<div style="font-weight:700;color:${color}">${late ? "Overdue · " : ""}${esc(row.number)} revision ${esc(row.revision)}, ${esc(row.title)}</div><div style="font-size:12px;color:${G1};margin-top:4px">Spec ${esc(row.spec_section)} · ${esc(labelOf(STATUS_LABEL, row.status))} · ${esc(sourceLine(row))} · ${esc(who)} · ${esc(transmittalLabel(row.transmittal_number))} · Due back ${esc(row.due_back?.slice(0, 10) || "Needed")} · ${esc(packageLine(row.package_items))}</div>`)}</section>`;
+  }).join("");
+}
+
 export function renderReportBody(p: PagePayload): string {
+  if (p.page === "submittals") {
+    const title = `${esc(p.job_number ?? "")} ${esc(p.job_name ?? "")} · Submittal log`;
+    return `<div style="max-width:1100px;margin:0 auto;padding:24px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:${NAVY}"><h1 style="margin:0 0 16px;font-size:22px;color:${NAVY}">${title}</h1>${submittalsPageHtml(p)}<p style="margin:24px 0 0;font-size:12px;color:${G2}">Private to your company · Athena powered by ALP</p></div>`;
+  }
   if (p.page === "field") return fieldPageHtml(p);
   if (p.page === "daily") return dailyPageHtml(p);
   if (p.page === "photos") return photoPageHtml(p);

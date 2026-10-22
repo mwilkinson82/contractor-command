@@ -5,7 +5,7 @@ import { pageUrl, type AnyPage } from "../report-pages";
 import { newToken, TOKEN_RE, tokenHash } from "./file-share";
 
 export const BOARD_LINK_MS = 24 * 60 * 60 * 1000;
-export const BOARD_PAGES = ["field", "items", "daily", "photos", "ior", "payapp", "schedule", "lookahead", "briefing"] as const;
+export const BOARD_PAGES = ["field", "items", "daily", "photos", "ior", "payapp", "schedule", "lookahead", "briefing", "submittals"] as const;
 export type BoardPage = (typeof BOARD_PAGES)[number];
 export type BoardScope = "full" | "super";
 export type BoardLinkStatus = "ok" | "expired" | "revoked" | "wrong_job" | "unknown" | "denied";

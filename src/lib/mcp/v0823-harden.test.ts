@@ -15,6 +15,7 @@ import * as Bid from "./tools/estimate-bid-tools";
 import * as Field from "./tools/superintendent-tools";
 import * as Start from "./tools/getting-started-tool";
 import * as Brief from "./tools/morning-brief-tools";
+import * as Sub from "./tools/submittal-tools";
 
 const ALL = [
   W.onboarding,
@@ -77,6 +78,10 @@ const ALL = [
   Brief.morningBriefSettings,
   E.emailDraft,
   E.emailConfirmSend,
+  Sub.submittalLog,
+  Sub.submittalsList,
+  Sub.submittalsImport,
+  Sub.projectRecordSearch,
   Start.gettingStarted,
 ];
 
@@ -151,7 +156,7 @@ describe("0.8.23 host-facing tool text", () => {
 
   it("each tool description is one sentence and carries no style or rule labels", async () => {
     const list = await toolsList(ALL.map(secureTool));
-    expect(list).toHaveLength(61);
+    expect(list).toHaveLength(65);
     for (const t of list) {
       expect(sentences(t.description), t.name).toEqual([t.description.replace(/\.$/, "")]);
       expect(t.description, t.name).not.toMatch(/#[0-9A-Fa-f]{3,8}/);
