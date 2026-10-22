@@ -92,6 +92,11 @@ describe("ordinary callouts and real alerts", () => {
     const calm = model([routine]);
     expect(calm.flagged).toHaveLength(1);
     expect(calm.counts.risks).toBe(0);
+    expect(calm.callouts).toHaveLength(1);
+    const four = Array.from({ length: 4 }, (_, i) => ({ ...routine, action: `Follow-up ${i + 1} for A1000` }));
+    expect(model(four).callouts).toHaveLength(4);
+    expect(page(four)).toContain("Follow-up 4 for A1000");
+    expect(page(four)).toContain("OPEN FOLLOW-UPS");
     expect(calm.rows.every((r) => r.cells.every((c) => !c.risk))).toBe(true);
     expect(page([routine])).toContain("border-left:4px solid #1E5FED");
     expect(page([routine])).not.toContain("border-left:4px solid #DC2626");

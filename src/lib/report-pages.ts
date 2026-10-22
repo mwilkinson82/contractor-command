@@ -219,6 +219,7 @@ function lookaheadPageView(p: LookaheadPayload): string {
   }
   if (m.overdue.length) out.push(card(h2("OVERDUE") + m.overdue.map((e, n) => `<div id="item-${esc(e.item.id || String(n + 1))}" style="border:1px solid ${G3};border-left:4px solid ${RED};border-radius:10px;padding:12px;margin:0 0 8px">${badge}<strong style="color:${RED}">${esc(e.label)}</strong><span style="color:${NAVY}"> · ${due(e)}</span></div>`).join("")));
   if (m.risks.length) out.push(card(h2("RISKS") + m.risks.map((e) => `<div style="border:1px solid ${G3};border-left:4px solid ${RED};border-radius:10px;padding:12px;margin:0 0 8px"><strong style="color:${RED}">${esc(e.label)}</strong><span style="color:${NAVY}"> · Impact: ${esc(activityLine(e.a!))}${e.a!.total_float !== undefined && e.a!.total_float !== null ? ` (float ${esc(shownFloat(e.a!.total_float))} WD)` : ""}. ${due(e)}</span>${flagsHtml(e)}</div>`).join("")));
+  if (m.callouts.length) out.push(card(h2("OPEN FOLLOW-UPS") + m.callouts.map((e) => `<div style="border-left:4px solid #1E5FED;padding:8px 12px;margin:0 0 8px;color:${NAVY}"><strong>${esc(e.label)}</strong><div style="font-size:12px;color:${G1}">${due(e)}</div></div>`).join("")));
   if (m.flagged.length) out.push(card(h2("DATES TO CHECK") + m.flagged.map((e) => `<div style="padding:8px 0;border-top:1px solid ${G4};color:${NAVY};font-size:13px">${esc(e.label)}${flagsHtml(e)}</div>`).join("")));
   return out.join("");
 }

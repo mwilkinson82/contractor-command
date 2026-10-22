@@ -97,6 +97,7 @@ export function lookaheadPdf(v: { title: string; ref: string; start: string; end
   const who = (e: (typeof m.entries)[number]) => `Owner: ${e.item.owner ?? "Needed"} - Due ${e.item.due ? shortDate(e.item.due) : "Needed"}`;
   section("OVERDUE", m.overdue, true, (e) => `OVERDUE - ${e.label} - ${who(e)}`);
   section("RISKS", m.risks, true, (e) => `${e.overdue ? "OVERDUE - " : ""}${e.label} - Impact: ${e.a!.id} ${e.a!.name}${e.a!.total_float != null ? ` (float ${e.a!.total_float} WD)` : ""}. ${who(e)}`);
+  section("OPEN FOLLOW-UPS", m.callouts, false, (e) => `${e.label} - ${who(e)}`);
   section("DATES TO CHECK", m.flagged, false, (e) => `${e.label.slice(0, 90)}: ${e.flags.map((f) => f.text).join("; ")}`);
   d.setFontSize(7); color(GRAY); d.text("Athena by ALP", W - X - 50, H - 20);
   d.setProperties({ title: pdfText(`${v.title} Two-Week Lookahead`), creator: "Athena", author: "Athena" });

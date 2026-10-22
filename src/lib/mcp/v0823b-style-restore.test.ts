@@ -55,7 +55,7 @@ describe("0.8.23b lookahead result keeps the v0.8.22 drawing", () => {
     const data = dataOnly(view);
     // Severity-aware risk markers: the routine inspection is blue; the recorded high-risk RFI stays red. Activity rows and dates are unchanged.
     expect(createHash("sha256").update(data).digest("hex")).toBe(
-      "34b59ac3dbbd2aed100ddc95d1ca9e511d41fd7db83faa96a75e725fd8990c03",
+      "798ca60d794be1c679aa6de02beacd54d918ba09337212f63ff1282ed49937a9",
     );
     expect(data).toContain("2701 – Harbor Point");
     expect(data).toContain("A1110 Underground conduit rough-in");
