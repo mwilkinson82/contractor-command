@@ -1,7 +1,7 @@
 import { htmlBlock, renderMarkdown } from "./markdown";
 import { renderHtml } from "./html";
 import { inferCard } from "./infer";
-import { cardWidgetMeta } from "./widget";
+import { CARD_WIDGET_URI, cardWidgetMeta } from "./widget";
 import type { CardModel } from "./model";
 
 type Block = { type: string; text?: string };
@@ -10,6 +10,9 @@ type Res = {
   structuredContent?: Record<string, unknown>;
   _meta?: Record<string, unknown>;
 };
+
+/** These results open on the card. No sweep, style line, or footer is left outside it. */
+export const CARD_FIRST_TOOLS = new Set(["contract_terms", "pm_meeting", "pm_morning", "pm_evening"]);
 
 /** Tools whose plain text is wrapped in a card. Flow tools set their own card. */
 export const CARD_TOOLS = new Set([
@@ -37,6 +40,16 @@ function isCard(value: unknown): value is CardModel {
   return !!value && typeof value === "object" && "state" in value && "title" in value;
 }
 
+function stripChrome(text: string): string {
+  const styleAt = text.lastIndexOf("\nDisplay: blue (");
+  const cut = styleAt >= 0 ? text.slice(0, styleAt) : text;
+  return cut.replace(/\n---\nAthena powered by ALP[\s\S]*$/, "").trim();
+}
+
+function whichJob(tool: string, text: string): boolean {
+  return tool === "list_open_items" && /No job named|Which job should I list open items for\?/i.test(text);
+}
+
 /**
  * Presentation pass only. Access checks have already run.
  * The original text stays so the facts and the exact lines stay put.
@@ -49,23 +62,31 @@ export function attachAthenaCard<R>(tool: string, result: R): R {
     const first = res?.content?.find((c) => c.type === "text" && typeof c.text === "string");
     if (!first?.text) return result;
     const sc = { ...(res.structuredContent ?? {}) };
-    const card = isCard(sc.card) ? sc.card : inferCard(tool, first.text, sc);
-    const html = typeof sc.html === "string" ? sc.html : renderHtml(card);
+    const source = stripChrome(first.text);
+    const askJob = whichJob(tool, source);
+    const card = isCard(sc.card) ? sc.card : inferCard(tool, source, sc);
+    const html = typeof sc.html === "string" && !askJob && tool !== "contract_terms" ? sc.html : renderHtml(card);
     const markdown = renderMarkdown(card);
-    const hasHtml = first.text.includes("REQUIRED VIEW: render this HTML card as-is.");
-    const hasMarkdown = first.text.includes(`## `) && first.text.includes(card.title);
-    const text = hasMarkdown
-      ? hasHtml
-        ? first.text
-        : `${first.text}\n\n${htmlBlock(html)}`
-      : `${markdown}\n\n${first.text}\n\n${htmlBlock(html)}`;
-    const content = res.content!.map((c) => (c === first ? { ...c, text } : c));
-    return {
-      ...res,
-      content,
-      structuredContent: { ...sc, card, html },
-      _meta: { ...(res._meta ?? {}), ...cardWidgetMeta },
-    } as unknown as R;
+    const cardText = `${markdown}\n\n${htmlBlock(html)}`;
+    const keepBody = !CARD_FIRST_TOOLS.has(tool) && !askJob;
+    const hasHtml = source.includes("REQUIRED VIEW: render this HTML card as-is.");
+    const hasMarkdown = source.startsWith("## ") && source.includes(card.title);
+    const text = !keepBody
+      ? cardText
+      : hasMarkdown
+        ? hasHtml
+          ? first.text
+          : `${source}\n\n${htmlBlock(html)}`
+        : `${markdown}\n\n${first.text}\n\n${htmlBlock(html)}`;
+    const content = res.content!.map((c) => (c === first ? { ...c, text, _meta: { ...(c as { _meta?: Record<string, unknown> })._meta, ...cardWidgetMeta } } : c));
+    const structuredContent = { ...sc, card, html, ...(askJob ? { which_job: true } : {}), "openai/outputTemplate": CARD_WIDGET_URI };
+    const meta = { ...(res._meta ?? {}), ...cardWidgetMeta };
+    const out: Record<string, unknown> = { structuredContent, _meta: meta };
+    for (const [key, value] of Object.entries(res)) if (!(key in out)) out[key] = value;
+    out.content = content;
+    out.structuredContent = structuredContent;
+    out._meta = meta;
+    return out as unknown as R;
   } catch {
     return result;
   }

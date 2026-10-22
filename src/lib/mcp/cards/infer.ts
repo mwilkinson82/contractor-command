@@ -64,6 +64,15 @@ function riskFlag(flag: string, value: string): AlertLevel | null {
   return null;
 }
 
+/** Risk and delay clauses, matched on the clause line itself (for example §6.3 Liquidated Damages). */
+export function lineAlert(line: string): AlertLevel | null {
+  if (/liquidated damages|\blds?\b/i.test(line)) return "risk";
+  if (/\brisk\b/i.test(line)) return "risk";
+  if (/claim notice|notice of claim/i.test(line)) return "risk";
+  if (/delay notice|notice of delay/i.test(line)) return "delay";
+  return null;
+}
+
 function countMatch(text: string, word: string): number {
   const m = text.match(new RegExp(`(\\d+) ${word}`));
   return m ? Number(m[1]) : 0;
@@ -187,21 +196,28 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
 
   if (tool === "contract_terms") {
     const flags = Array.isArray(structured.flags) ? (structured.flags as { flag?: string; value?: string }[]) : [];
-    const rows: CardRow[] = flags.map((f) => {
+    const flagRows: CardRow[] = flags.map((f) => {
       const name = String(f.flag ?? "").replace(/_/g, " ");
       const value = String(f.value ?? "");
       return { cells: [name, value], flag: riskFlag(String(f.flag ?? ""), value) };
     });
-    const alerts = rows.filter((r) => r.flag).map((r) => ({ level: r.flag!, text: `${r.cells[0]} is ${r.cells[1]}` }));
+    const clauseRows: CardRow[] = linesOf(text).map((line) => ({ cells: [line], flag: lineAlert(line), raw: true }));
+    const alerts = [
+      ...clauseRows.filter((r) => r.flag).map((r) => ({ level: r.flag!, text: r.cells[0] })),
+      ...flagRows.filter((r) => r.flag).map((r) => ({ level: r.flag!, text: `${r.cells[0]} is ${r.cells[1]}` })),
+    ];
     return {
       ...base,
       kpis: [
-        { label: "Clauses", value: String(Array.isArray(structured.contract_clauses) ? structured.contract_clauses.length : linesOf(text).filter((l) => l.startsWith("-")).length) },
-        { label: "Risk flags", value: String(alerts.length), flag: alerts.length ? "risk" : null },
+        { label: "Clauses", value: String(clauseRows.length) },
+        { label: "Risk clauses", value: String(clauseRows.filter((r) => r.flag).length), flag: clauseRows.some((r) => r.flag) ? "risk" : null },
       ],
-      sections: [{ heading: "Risk flags", kind: "table", columns: ["Flag", "Value"], rows }],
+      sections: [
+        { heading: "Clauses", kind: "list", rows: clauseRows },
+        { heading: "Applicability", kind: "table", columns: ["Flag", "Value"], rows: flagRows },
+      ],
       alerts,
-      next_move: alerts.length ? "Read the red flags before you price or bill." : "No risk flags on this read.",
+      next_move: alerts.length ? "Read the red clauses before you price or bill." : "No risk clauses on this read.",
     };
   }
 

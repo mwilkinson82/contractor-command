@@ -39,7 +39,8 @@ export function renderHtml(card: CardModel): string {
     `.tone-action{background:${BLUE};color:${WHITE};border-color:${BLUE}}`,
     `.ask{margin:12px 0;padding:12px;border-left:4px solid ${BLUE};background:${WHITE}}`,
     `.next{margin:14px 0 0;font-weight:700}`,
-    alert ? `.alert{color:${ALERT};border-color:${ALERT}}` : "",
+    alert ? `.alert,li.alert,p.alert,tr.alert{color:${ALERT};border:1px solid ${ALERT};border-radius:10px}` : "",
+    alert ? `li.alert{display:block;margin:8px 0;padding:10px 12px}` : "",
   ]
     .filter(Boolean)
     .join("");

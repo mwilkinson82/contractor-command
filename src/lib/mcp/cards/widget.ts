@@ -84,7 +84,8 @@ td{padding:6px 8px;border-bottom:1px solid ${GRAY}}
 .tone-known{border-color:${BLUE};color:${BLUE}}.tone-unknown{color:${GRAY}}.tone-action{background:${BLUE};color:${WHITE}}
 .ask{margin:12px 0;padding:12px;border-left:4px solid ${BLUE}}
 .next{font-weight:700}
-.alert{color:${ALERT};border-color:${ALERT}}
+.alert{color:${ALERT};border:1px solid ${ALERT};border-radius:10px}
+li.alert{display:block;margin:8px 0;padding:10px 12px}
 </style></head><body><div id="app"></div><script>${SCRIPT}</script></body></html>`;
 }
 

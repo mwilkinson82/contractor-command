@@ -93,12 +93,10 @@ function scheduleCard(flow: FlowName, data: FlowData): CardModel {
   const gaps: string[] = [];
   if (data.lookaheadLocked !== true) gaps.push("Is the two-week lookahead locked in?");
   if (data.crewsConfirmed !== true) gaps.push(crewAsk(data));
-  if (data.superKnowsPlan !== true) gaps.push("Does the superintendent know the plan?");
   const chips: CardRow[] = [
     { cells: [`Progress: ${data.progressLabel ?? "Needed"}`], tone: data.progressLabel ? "known" : "unknown" },
-    { cells: [`Lookahead: ${yn(data.lookaheadLocked, "Locked in", "Not locked")}`], tone: data.lookaheadLocked ? "known" : "unknown" },
+    { cells: [`Two-week lookahead: ${yn(data.lookaheadLocked, "Locked in", "Not locked")}`], tone: data.lookaheadLocked ? "known" : "unknown" },
     { cells: [`${crewLabel(data)}: ${yn(data.crewsConfirmed, "Confirmed", "Not confirmed")}`], tone: data.crewsConfirmed ? "known" : "unknown" },
-    { cells: [`Superintendent: ${yn(data.superKnowsPlan, "Knows the plan", "Not confirmed")}`], tone: data.superKnowsPlan ? "known" : "unknown" },
   ];
   const risks = candidates(data.items);
   if (flow === "pm_morning") {
@@ -203,17 +201,27 @@ export function buildFlowCard(flow: FlowName, stage: string, data: FlowData): Ca
     });
   }
   if (flow === "pm_meeting" && stage === "ior") {
+    if (!data.hasSnapshot) {
+      return shell(flow, stage, data, {
+        state: "result",
+        title: "IOR delta",
+        kpis: [{ label: "Previous snapshot", value: "None stored" }],
+        sections: [{ heading: "Stored snapshot", kind: "list", rows: [{ cells: ["No previous meeting snapshot is stored yet. Slipped, new, and resolved stay empty until one is."], tone: "unknown" }] }],
+        alerts: [],
+      });
+    }
     const d = iorDelta(data.iorNow, data.iorPrevious);
     const row = (r: IorRow, flag: CardRow["flag"]) => ({ cells: [r.title, r.due ?? "Needed"], flag });
     return shell(flow, stage, data, {
       state: "result",
-      title: "IOR since the last meeting",
+      title: "IOR delta",
       kpis: [
         { label: "Slipped", value: String(d.slipped.length), flag: d.slipped.length ? "delay" : null },
         { label: "New", value: String(d.fresh.length), flag: d.fresh.length ? "risk" : null },
         { label: "Resolved", value: String(d.resolved.length) },
       ],
       sections: [
+        { heading: "Against the stored snapshot", kind: "list", rows: [{ cells: ["Compared with the previous meeting snapshot."], tone: "known" }] },
         { heading: "Slipped", kind: "table", columns: ["Item", "Due"], rows: d.slipped.map((r) => row(r, "delay")) },
         { heading: "New", kind: "table", columns: ["Item", "Due"], rows: d.fresh.map((r) => row(r, "risk")) },
         { heading: "Resolved", kind: "table", columns: ["Item", "Due"], rows: d.resolved.map((r) => row(r, null)) },
@@ -265,6 +273,9 @@ export function buildFlowCard(flow: FlowName, stage: string, data: FlowData): Ca
       sections: [{ heading: STAGE_LABEL[stage], kind: "list", rows: bag.map((r) => ({ cells: [r], flag })) }],
       alerts: flag ? bag.map((r) => ({ level: "delay" as const, text: r })) : [],
     });
+  }
+  if (flow === "pm_meeting") {
+    throw new Error("PM meeting stages are Schedule, Change orders, Accounting, and IOR delta. There is no other stage.");
   }
   return shell(flow, "log", data, {
     state: "result",

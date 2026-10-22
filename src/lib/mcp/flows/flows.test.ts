@@ -20,7 +20,11 @@ vi.mock("../jobs", () => ({
 
 import { pmEvening, pmMeeting, pmMorning } from "../tools/flow-tools";
 
-type H = (a: Record<string, unknown>, c: unknown) => Promise<{ content: { text: string }[]; structuredContent: { card: { state: string; title: string }; html: string; stage: string } }>;
+type H = (a: Record<string, unknown>, c: unknown) => Promise<{
+  content: { type: string; text?: string }[];
+  structuredContent: { card: { state: string; title: string }; html: string; stage: string };
+  _meta?: Record<string, string>;
+}>;
 const call = (tool: unknown, args: Record<string, unknown>) => (tool as { handler: H }).handler(args, {});
 
 describe("job 2701 guided flows", () => {
@@ -28,6 +32,10 @@ describe("job 2701 guided flows", () => {
 
   it("keeps the PM meeting order and shows schedule, change orders, accounting, and IOR deltas", () => {
     expect([...PM_MEETING_STAGES]).toEqual(["schedule", "change_orders", "accounting", "ior"]);
+    for (const banned of ["closeout", "open_actions", "field_readiness", "financial"]) {
+      expect(PM_MEETING_STAGES).not.toContain(banned);
+      expect(() => buildFlowCard("pm_meeting", banned, data)).toThrow(/Schedule, Change orders, Accounting, and IOR delta/);
+    }
     const schedule = buildFlowCard("pm_meeting", "schedule", data);
     expect(schedule.state).toBe("ask");
     expect(schedule.ask?.prompt).toContain("subs, suppliers and crews");
@@ -96,8 +104,13 @@ describe("sample path on job 2701", () => {
         const r = await call(tool, { job_number: "2701", stage, sample: true });
         expect(r.structuredContent.stage, name).toBe(stage);
         expect(r.structuredContent.html).toContain("<!doctype html>");
-        expect(r.content[0].text).toContain("Sample on job 2701");
-        expect(r.content[0].text).toContain("REQUIRED VIEW: render this HTML card as-is.");
+        const text = r.content.find((c) => c.type === "text")?.text ?? "";
+        expect(text.startsWith("## 🔵"), name).toBe(true);
+        expect(text).toContain("Sample on job 2701");
+        expect(text).toContain("REQUIRED VIEW: render this HTML card as-is.");
+        expect(r.content[0].type).toBe("resource");
+        expect(r._meta?.["openai/outputTemplate"]).toBe("ui://athena/card.html");
+        expect(Object.keys(r)[0]).toBe("structuredContent");
       }
     }
     expect(calls.rpc).toEqual([]);

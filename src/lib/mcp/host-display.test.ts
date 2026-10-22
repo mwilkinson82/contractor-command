@@ -42,6 +42,6 @@ describe("host-display block", () => {
     expect(withStyleLine(r)).toEqual(r);
   });
   it("guard.run appends it to every tool result", () => {
-    expect(readFileSync("src/lib/mcp/guard.ts", "utf8")).toMatch(/withStyleLine\(finalizeVisible\([^;]*\[HOST_DISPLAY_BLOCK\]\)\)/);
+    expect(readFileSync("src/lib/mcp/guard.ts", "utf8")).toMatch(/withStyleLine\(finalized\)/);
   });
 });

@@ -1204,7 +1204,7 @@ export async function listCompaniesAndJobs(sb: Sb, companyId?: string): Promise<
 export const listOpenItems = defineTool({
   name: "list_open_items",
   title: "List open items",
-  description: "Lists a job's open items.",
+  description: "Lists open items for a job_number the member just gave, and must not fill job_number from chat context.",
   inputSchema: {
     job_number: listJobNumber,
     company_id: companyId,

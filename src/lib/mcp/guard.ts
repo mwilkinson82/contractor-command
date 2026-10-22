@@ -1,4 +1,4 @@
-import { attachAthenaCard } from "./cards/attach";
+import { CARD_FIRST_TOOLS, attachAthenaCard } from "./cards/attach";
 import { attachDailyReminder } from "./field-reminder";
 import { HOST_DISPLAY_BLOCK, finalizeVisible, splitGuidance, withStyleLine } from "./visible";
 import { REMINDERS_VIEW_SPEC } from "./views";
@@ -76,7 +76,7 @@ export async function logWorkflow(
  * 0.8.7: the date sweep shows only at the first call of a session (job open) or when the member asks for it
  * (list_open_items date_sweep: true). It no longer rides on every list_open_items call.
  * report never carries it, so it is never prepended to an SOV or any other deliverable. */
-const NEVER_SWEEP = new Set(["report"]);
+const NEVER_SWEEP = new Set(["report", "pm_meeting", "pm_morning", "pm_evening"]);
 
 /** opts: a lookahead id, or { lookaheadId, jobNumber, client }. With a job number the date sweep shows that job only. */
 export async function run<R>(tool: string, ctx: ToolContext, opts: string | undefined | { lookaheadId?: string; jobNumber?: string; client?: boolean; ownerSov?: boolean; sweep?: boolean }, fn: (sb: Sb) => Promise<R>): Promise<R> {
@@ -99,9 +99,13 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
     const r = await fn(sb);
     // The host-display block rides on every result (assistant_guidance only; members never see it).
     // Card pass is presentation after the guard. It does not change auth, entitlement, or the sweep.
-    const visible = withStyleLine(finalizeVisible(sweep ? withSweep(r, sweep, sweepScope.client === true, o.ownerSov === true) : r, [HOST_DISPLAY_BLOCK]));
+    let swept = sweep ? withSweep(r, sweep, sweepScope.client === true, o.ownerSov === true) : r;
+    const sweptText = (swept as { content?: { text?: string }[] })?.content?.find((c) => c.text)?.text ?? "";
+    if (tool === "list_open_items" && /No job named/.test(sweptText)) swept = r;
+    const finalized = finalizeVisible(swept, [HOST_DISPLAY_BLOCK]);
+    const visible = CARD_FIRST_TOOLS.has(tool) ? finalized : withStyleLine(finalized);
     const carded = attachAthenaCard(tool, visible);
-    const reminded = await attachDailyReminder(sb as never, o.jobNumber ?? sig?.jobNumber ?? null, carded);
+    const reminded = CARD_FIRST_TOOLS.has(tool) ? carded : await attachDailyReminder(sb as never, o.jobNumber ?? sig?.jobNumber ?? null, carded);
     return stampCanary(reminded, touch.canary);
   } catch (e) {
     await logWorkflow(sb, {

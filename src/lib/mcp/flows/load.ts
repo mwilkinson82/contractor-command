@@ -86,7 +86,8 @@ export async function loadFlowData(sb: Query, job: { job_id: string; job_number:
   const ior = reports.ior as { found?: boolean; data?: { items?: IorRow[] } } | undefined;
   if (ior?.found && Array.isArray(ior.data?.items)) data.iorNow = ior.data.items;
   const previous = reports.previous as { found?: boolean; snapshot?: { ior?: IorRow[] } } | undefined;
-  if (previous?.found && Array.isArray(previous.snapshot?.ior)) data.iorPrevious = previous.snapshot.ior;
+  data.hasSnapshot = previous?.found === true;
+  if (data.hasSnapshot && Array.isArray(previous?.snapshot?.ior)) data.iorPrevious = previous.snapshot.ior;
   data.spillover = data.items.filter((i) => /last night|spill/i.test(i.action)).map((i) => i.action);
   data.dailies = data.items.filter((i) => i.kind === "daily").map((i) => i.action);
   data.photos = data.items.filter((i) => i.kind === "photo").map((i) => i.action);
