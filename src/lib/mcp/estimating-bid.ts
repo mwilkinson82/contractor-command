@@ -622,6 +622,7 @@ export function assembleBid(input: {
   directPlaceholder: boolean;
   gc: BidPiece[];
   requirements: RequirementPrice[];
+  quotes?: { sub: string; description: string; amount: number | null; ref?: string | null }[];
   overheadPct: number | null;
   profitPct: number | null;
   settled: boolean;
@@ -637,15 +638,20 @@ export function assembleBid(input: {
   );
   const ownPriced = reqOwn.filter((r) => r.amount != null);
   const ownTotal = cents(ownPriced.reduce((s, r) => s + (r.amount ?? 0), 0));
+  const quotes = input.quotes ?? [];
+  const quoteTotal = cents(
+    quotes.reduce((s, q) => s + (q.amount == null ? 0 : q.amount), 0),
+  );
   const unpriced = [
     ...input.gc.filter((g) => g.amount == null).map((g) => g.label),
     ...input.requirements.filter((r) => !r.excluded && r.amount == null).map((r) => r.ref),
+    ...quotes.filter((q) => q.amount == null).map((q) => `${q.sub} ${q.description}`.trim()),
   ];
   const placeholder =
     input.directPlaceholder ||
     input.gc.some((g) => g.placeholder) ||
     input.requirements.some((r) => !r.excluded && r.amount != null && !r.confirmed);
-  const base = cents(input.direct + gcTotal + ownTotal);
+  const base = cents(input.direct + gcTotal + ownTotal + quoteTotal);
   const lines = [
     `Direct cost (labor and material): ${money(input.direct)}.${input.directPlaceholder ? " Includes a PLACEHOLDER." : ""}`,
     `General conditions: ${money(gcTotal)}.`,
@@ -654,6 +660,15 @@ export function assembleBid(input: {
         `- ${g.label}: ${g.amount == null ? "unpriced" : money(g.amount)}.${g.placeholder ? " PLACEHOLDER." : ""}${g.risk ? " Holds the bid." : ""}`,
     ),
     `Special requirements on their own line: ${money(ownTotal)}.`,
+    ...(quotes.length
+      ? [
+          `Sub quotes: ${money(quoteTotal)}.`,
+          ...quotes.map(
+            (q) =>
+              `- ${q.sub} ${q.description}${q.ref ? ` (${q.ref})` : ""}: ${q.amount == null ? "Unpriced. Holds the bid." : money(q.amount) + "."}`,
+          ),
+        ]
+      : []),
     ...reqOwn.map(
       (r) =>
         `- ${r.label} (${r.ref}). ${sourceLabel(r.sourceType)} ${r.sourceRef}. ${r.amount == null ? "Unpriced. Price or confirm it." : money(r.amount) + (r.confirmed ? " Confirmed." : " PLACEHOLDER.")}${r.amount == null ? " Holds the bid." : ""}`,

@@ -640,6 +640,7 @@ export const estimateBidSummary = defineTool({
         directPlaceholder,
         gc,
         requirements: prior.requirements,
+        quotes: prior.quotes,
         overheadPct: overhead,
         profitPct: profit,
         settled: state.settled,

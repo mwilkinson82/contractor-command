@@ -268,6 +268,34 @@ describe("rate references and special requirements", () => {
     expect(open.lines.join("\n")).toContain("Not a bid yet");
     expect(open.lines.join("\n")).toContain("Holds the bid");
   });
+
+  it("keeps a $1,850 sub quote in the bid total", () => {
+    const quotes = [
+      { sub: "Acme Waterproofing", description: "Below-grade waterproofing", amount: 1850, ref: null },
+    ];
+    const withQuote = assembleBid({
+      direct: 10000,
+      directPlaceholder: false,
+      gc: [],
+      requirements: [],
+      quotes,
+      overheadPct: 10,
+      profitPct: 10,
+      settled: true,
+    });
+    const dropped = assembleBid({
+      direct: 10000,
+      directPlaceholder: false,
+      gc: [],
+      requirements: [],
+      overheadPct: 10,
+      profitPct: 10,
+      settled: true,
+    });
+    expect(withQuote.lines.join("\n")).toContain("$1,850.00");
+    expect(withQuote.total).toBe(14338.5);
+    expect(withQuote.total).not.toBe(dropped.total);
+  });
 });
 
 describe("takeoff card and workbook", () => {
