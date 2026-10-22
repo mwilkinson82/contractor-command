@@ -38,6 +38,11 @@ export function athenaPathAllowed(pathname: string): boolean {
   return ATHENA_PREFIXES.some((prefix) => p === prefix.replace(/\/$/, "") || p.startsWith(prefix));
 }
 
+/** Job pages, the portfolio, and share links. They use the same session as the field board. */
+export function isHostedReport(pathname: string): boolean {
+  return /^\/r\/(job|portfolio|s)(\/|$)/.test(pathname);
+}
+
 /** Where to send a path on the Athena host: null = render it, else the redirect target. */
 export function athenaHostRedirect(pathname: string): string | null {
   if (pathname === "/team") return `${ATHENA_HOME}#team`;

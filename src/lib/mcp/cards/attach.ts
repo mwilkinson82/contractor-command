@@ -49,7 +49,8 @@ function stripChrome(text: string): string {
 }
 
 function whichJob(tool: string, text: string): boolean {
-  return tool === "list_open_items" && /No job named|Which job should I list open items for\?/i.test(text);
+  const meeting = tool === "list_open_items" || tool === "pm_meeting" || tool === "pm_morning" || tool === "pm_evening";
+  return meeting && /No job named|Which job should I list open items for\?/i.test(text);
 }
 
 /**

@@ -311,6 +311,8 @@ describe("field board", () => {
     expect(visibleProblems(card)).toEqual([]);
     const html = fieldPageHtml({ ...src, job_number: "2701", job_name: "Harbor" });
     expect(html).toContain("max-width:420px");
+    expect(html).toContain('href="../items"');
+    expect(html).toContain("View all open items");
     expect(html).toContain("#DC2626");
     expect(html).toContain("#1E3A5F");
     const calm = fieldPageHtml({ ...src, activities: [src.activities[0]], items: [], job_number: "2701", job_name: "Harbor" });

@@ -75,6 +75,8 @@ describe("PM tools become cards", () => {
       "Applicability:",
       "- has lds: ON",
       "- has retainage: ON",
+      "- Missing: claim notice (open item asks to confirm it)",
+      "Do you want me to summarize this legal text so you know what it means in plain English?",
     ].join("\n");
     const after = attachAthenaCard("contract_terms", {
       content: [{ type: "text", text: before + "\n\n---\nAthena powered by ALP, construction agents" }],
@@ -83,9 +85,17 @@ describe("PM tools become cards", () => {
     const clauses = after.structuredContent.card.sections?.find((s) => s.heading === "Clauses")?.rows ?? [];
     expect(clauses.find((r) => r.cells[0].includes("§6.3"))?.flag).toBe("risk");
     expect(clauses.find((r) => r.cells[0].includes("§4.1"))?.flag).toBeNull();
-    expect(after.structuredContent.html).toContain('data-alert="risk">- §6.3 Liquidated Damages');
+    expect(after.structuredContent.html).toContain('data-alert="risk"');
+    expect(after.structuredContent.html).toContain('<div class="flag-head">Risk</div>');
+    expect(after.structuredContent.html).toContain("border:2px solid #DC2626");
+    expect(after.structuredContent.html).toContain("- §6.3 Liquidated Damages");
     expect(after.structuredContent.html).not.toContain('data-alert="risk">- §4.1');
+    expect(after.structuredContent.card.sections?.some((s) => s.heading === "Incomplete terms")).toBe(true);
+    expect(after.structuredContent.card.ask?.prompt).toContain("Do you want me to summarize");
     expect(after.content[0].text).toContain("- §6.3 Liquidated Damages");
+    expect(after.content[0].text).toContain("Incomplete terms");
+    const fence = after.content[0].text.lastIndexOf("```");
+    expect(after.content[0].text.slice(fence + 3).trim()).toBe("");
     expect(after.content[0].text.trim().endsWith("```")).toBe(true);
     expect(after.content[0].text).not.toContain("Athena powered by ALP");
     expect(after.content[0].text).not.toMatch(/\nDisplay: blue/);

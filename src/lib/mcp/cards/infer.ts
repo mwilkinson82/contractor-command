@@ -1,3 +1,4 @@
+import { SUMMARY_OFFER } from "../contract-clauses";
 import type { AlertLevel } from "./palette";
 import type { CardModel, CardRow, CardSection } from "./model";
 
@@ -145,7 +146,7 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
     };
   }
 
-  if (tool === "list_open_items") {
+  if (tool === "list_open_items" || tool === "pm_meeting" || tool === "pm_morning" || tool === "pm_evening") {
     const company = /No job named|Your companies/i.test(text);
     const bullets = linesOf(text).filter((l) => l.startsWith("- ") || l.startsWith("|"));
     if (company) {
@@ -158,6 +159,7 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
         next_move: "Name the job.",
       };
     }
+    if (tool === "list_open_items") {
     const rows = bullets.map((l) => {
       const overdue = /overdue/i.test(l);
       return { cells: [l.replace(/^- /, "")], flag: overdue ? ("overdue" as const) : null };
@@ -171,6 +173,7 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
       alerts: overdueN ? [{ level: "overdue", text: `${overdueN} overdue` }] : [],
       next_move: overdueN ? "Close the overdue item first." : "Pick the next item.",
     };
+    }
   }
 
   if (tool === "resolve_item") {
@@ -201,19 +204,27 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
       const value = String(f.value ?? "");
       return { cells: [name, value], flag: riskFlag(String(f.flag ?? ""), value) };
     });
-    const clauseRows: CardRow[] = linesOf(text).map((line) => ({ cells: [line], flag: lineAlert(line), raw: true }));
+    const rawLines = linesOf(text);
+    const incomplete = rawLines.filter((line) => /incomplete terms/i.test(line) || /^\s*-?\s*Missing:/i.test(line));
+    const askLine = rawLines.find((line) => line.includes(SUMMARY_OFFER) || /do you want me to summarize/i.test(line));
+    const clauseRows: CardRow[] = rawLines
+      .filter((line) => !incomplete.includes(line) && line !== askLine)
+      .map((line) => ({ cells: [line], flag: lineAlert(line), raw: true }));
     const alerts = [
       ...clauseRows.filter((r) => r.flag).map((r) => ({ level: r.flag!, text: r.cells[0] })),
       ...flagRows.filter((r) => r.flag).map((r) => ({ level: r.flag!, text: `${r.cells[0]} is ${r.cells[1]}` })),
     ];
     return {
       ...base,
+      state: askLine ? "ask" : base.state,
+      ask: askLine ? { prompt: SUMMARY_OFFER } : null,
       kpis: [
         { label: "Clauses", value: String(clauseRows.length) },
         { label: "Risk clauses", value: String(clauseRows.filter((r) => r.flag).length), flag: clauseRows.some((r) => r.flag) ? "risk" : null },
       ],
       sections: [
         { heading: "Clauses", kind: "list", rows: clauseRows },
+        ...(incomplete.length ? [listSection("Incomplete terms", incomplete.map((line) => ({ cells: [line.replace(/^- /, "")], tone: "unknown" as const })))] : []),
         { heading: "Applicability", kind: "table", columns: ["Flag", "Value"], rows: flagRows },
       ],
       alerts,

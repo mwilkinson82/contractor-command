@@ -8,11 +8,12 @@ import { buildFlowCard } from "../flows/build";
 import { job2701FlowData } from "../flows/job-2701";
 import { loadFlowData, saveFlowNote } from "../flows/load";
 import { STAGE_LABEL, stagesFor, type FlowData, type FlowName } from "../flows/types";
-import { run, type Sb } from "../guard";
+import { run, text, type Sb } from "../guard";
 import { FULL_ACCESS_MESSAGE, audit, resolveJob } from "../jobs";
+import { listCompaniesAndJobs } from "./workflow-tools";
 import { guide } from "../visible";
 
-const jobNumber = z.string().trim().min(1).max(40);
+const jobNumber = z.string().trim().min(1).max(40).optional();
 const companyId = z.string().trim().min(1).max(200).optional();
 const note = z.string().trim().max(4000).optional();
 const crewMode = z.enum(["subcontract", "self_perform"]).optional();
@@ -53,16 +54,17 @@ function present(flow: FlowName, stage: string, data: FlowData) {
       ],
     },
     next
-      ? `When the PM continues, call ${flow} with stage ${next} only. The PM meeting order is schedule, change orders, accounting, then the IOR delta. Do not add field readiness, financial, open actions, or closeout. Show the card first, with no plain text before it.`
-      : "This meeting is at its last stage. The order was schedule, change orders, accounting, then the IOR delta. Show the card first, with no plain text before it.",
+      ? `When the PM continues, call ${flow} with stage ${next} only. The PM meeting order is schedule progress, then the locked lookahead, then subs suppliers and crews, then change orders, accounting, and the IOR delta. Do not add field readiness, financial, open actions, or closeout. Show the card first, with no plain text before it.`
+      : "This meeting is at its last stage. The order was schedule progress, the locked lookahead, subs suppliers and crews, change orders, accounting, then the IOR delta. Show the card first, with no plain text before it.",
   );
 }
 
-async function lead(flow: FlowName, args: { job_number: string; company_id?: string; stage?: string; note?: string; crew_mode?: "subcontract" | "self_perform"; sample?: true }, sb: Sb) {
+async function lead(flow: FlowName, args: { job_number?: string; company_id?: string; stage?: string; note?: string; crew_mode?: "subcontract" | "self_perform"; sample?: true }, sb: Sb) {
+  if (!args.job_number?.trim()) return text(await listCompaniesAndJobs(sb, args.company_id));
   const stages = stagesFor(flow);
   const stage = args.stage ?? stages[0];
   if (!stages.includes(stage)) throw new ToolError(`That stage is not in this meeting. The stages are ${stages.map((s) => STAGE_LABEL[s]).join(", ")}.`);
-  const job = await resolveJob(sb, args.job_number, args.company_id);
+  const job = await resolveJob(sb, args.job_number!, args.company_id);
   if (job.scope === "contract") throw new ToolError(FULL_ACCESS_MESSAGE);
   if (args.sample === true && job.job_number !== "2701") throw new ToolError("The sample walkthrough is only on job 2701.");
   const selfPerform = args.crew_mode === "self_perform";
@@ -84,8 +86,8 @@ async function lead(flow: FlowName, args: { job_number: string; company_id?: str
 export const pmMeeting = defineTool({
   name: "pm_meeting",
   title: "PM meeting",
-  description: "Leads the PM meeting in this exact order only: schedule, change orders, accounting, then the IOR delta against the stored snapshot, and no other stage.",
-  inputSchema: { job_number: jobNumber, company_id: companyId, stage: z.enum(["schedule", "change_orders", "accounting", "ior"]).optional(), note, crew_mode: crewMode, sample },
+  description: "Runs the construction project manager meeting for a job the member just named, through schedule progress, the locked lookahead, subs suppliers and crews, change orders, billing, and the IOR, and must not fill job_number from chat context or hand the request to a calendar.",
+  inputSchema: { job_number: jobNumber, company_id: companyId, stage: z.enum(["progress", "schedule", "change_orders", "accounting", "ior"]).optional(), note, crew_mode: crewMode, sample },
   annotations: WRITE,
   handler: (args, ctx) =>
     run("pm_meeting", ctx, { jobNumber: args.job_number }, async (sb) => lead("pm_meeting", args, sb)),
@@ -94,7 +96,7 @@ export const pmMeeting = defineTool({
 export const pmMorning = defineTool({
   name: "pm_morning",
   title: "PM morning meeting",
-  description: "Leads the daily morning meeting one stage at a time.",
+  description: "Runs the construction project morning meeting for a job the member just named, through the schedule, lookahead, crews, risks, and spillover, and must not fill job_number from chat context or hand the request to a calendar.",
   inputSchema: { job_number: jobNumber, company_id: companyId, stage: z.enum(["schedule", "crews", "risks", "spillover", "log"]).optional(), note, crew_mode: crewMode, sample },
   annotations: WRITE,
   handler: (args, ctx) =>
@@ -104,7 +106,7 @@ export const pmMorning = defineTool({
 export const pmEvening = defineTool({
   name: "pm_evening",
   title: "Evening wrap-up",
-  description: "Leads the daily evening wrap-up one stage at a time.",
+  description: "Runs the construction project evening wrap-up for a job the member just named, through dailies, photos, risks, what happened, schedule disruptions, and the log, and must not fill job_number from chat context or hand the request to a calendar.",
   inputSchema: { job_number: jobNumber, company_id: companyId, stage: z.enum(["dailies", "photos", "risks", "happened", "disruptions", "log"]).optional(), note, crew_mode: crewMode, sample },
   annotations: WRITE,
   handler: (args, ctx) =>

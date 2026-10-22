@@ -741,7 +741,7 @@ describe("wiring", () => {
     expect(idx).toContain("ESTIMATE_SERVER_RULE");
     expect(idx.indexOf("REFUSAL_RULE")).toBeLessThan(idx.indexOf("ESTIMATE_SERVER_RULE"));
     expect(ESTIMATE_VIEW_SPEC.join("\n")).toContain("top right");
-    expect(ESTIMATE_VIEW_SPEC.join("\n")).toContain("#2563EB");
+    expect(ESTIMATE_VIEW_SPEC.join("\n")).toContain("#1E5FED");
     expect(ESTIMATE_VIEW_SPEC.join("\n")).not.toMatch(/fragment|orange #/i);
   });
 
