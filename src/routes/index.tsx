@@ -18,7 +18,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { vault, type Packet } from "@/lib/vault";
 import { useCompany } from "@/hooks/use-company";
 import { isAllowedReturnTo, RETURN_TO_STORAGE_KEY } from "@/lib/return-to";
-import { onAthenaHost } from "@/lib/athena-host-current";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useIsAdmin } from "@/hooks/use-is-admin";
@@ -125,8 +124,6 @@ function HomePage() {
   // honor the return_to (validated against alpcontractorcircle.com).
   useEffect(() => {
     if (typeof window === "undefined") return;
-    // Athena never follows a checkout return onto a Hub host.
-    if (onAthenaHost()) return;
     let target: string | null = null;
     try {
       const sp = new URLSearchParams(window.location.search);

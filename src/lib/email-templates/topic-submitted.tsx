@@ -72,7 +72,7 @@ export const template = {
     decisionAvoided: "Firing the estimator who refuses.",
     financialConsequence: "~$8k/mo in rework.",
     winLooksLike: "Zero scope questions on Monday handoff.",
-    adminUrl: "https://app.alpcontractorcircle.com/admin/topics",
+    adminUrl: "https://contractor-command.lovable.app/admin/topics",
   },
 } satisfies TemplateEntry;
 
