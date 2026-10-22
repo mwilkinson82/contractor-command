@@ -30,7 +30,7 @@ describe("lovable.app auth host redirect", () => {
     ).toBe(`${ATHENA}/oauth/consent?authorization_id=${ID}&next=1#approve`);
   });
 
-  it("redirects any *.lovable.app host, including a preview, and only /oauth/ and /login", () => {
+  it("redirects OAuth consent on any *.lovable.app host, and leaves a Hub login there", () => {
     const preview = "id-preview--362c776b-68ab-4871-bedb-c42cb9843c1b.lovable.app";
     expect(
       lovableAuthRedirectTarget({
@@ -41,12 +41,19 @@ describe("lovable.app auth host redirect", () => {
     ).toBe(`${ATHENA}/login?redirect=%2Foauth%2Fconsent%3Fauthorization_id%3Dabc`);
     expect(
       lovableAuthRedirectTarget({
+        hostname: "contractor-command.lovable.app",
+        pathname: "/login",
+        search: "",
+      }),
+    ).toBeNull();
+    expect(
+      lovableAuthRedirectTarget({
         hostname: "Contractor-Command.Lovable.App:443",
-        pathname: "/login/extra",
+        pathname: "/login",
         search: "redirect=%2F",
         hash: "done",
       }),
-    ).toBe(`${ATHENA}/login/extra?redirect=%2F#done`);
+    ).toBeNull();
     expect(isLovableAuthPath("/oauth/consent")).toBe(true);
     expect(isLovableAuthPath("/login")).toBe(true);
     for (const pathname of ["/", "/account", "/calls", "/admin/topics", "/logistics", "/oauthx", "/welcome"]) {

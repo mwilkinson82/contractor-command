@@ -13,7 +13,7 @@ import { isLovableHost } from "@/lib/athena-host";
 import { normalizeOtpCode } from "@/lib/login-otp";
 import { loginCopy } from "@/lib/login-copy";
 import { boundedStep } from "@/lib/consent-loading";
-import { postSignInDefault } from "@/lib/athena-routes";
+import { postLoginDestination } from "@/lib/post-login-destination";
 
 const safeRedirect = oauthReturnPath;
 
@@ -45,7 +45,7 @@ export const Route = createFileRoute("/login")({
     } catch {
       hasSession = false;
     }
-    if (hasSession) throw redirect({ href: search.redirect ?? postSignInDefault(onAthenaHost()) });
+    if (hasSession) throw redirect({ href: postLoginDestination(currentHostname(), search.redirect) });
   },
   component: LoginPage,
 });
@@ -96,8 +96,9 @@ function LoginPage() {
     const { data: sub } = supabase.auth.onAuthStateChange((_, session) => {
       if (session && mode === "password") {
         router.invalidate();
-        if (redirectTo?.includes("?")) window.location.assign(redirectTo);
-        else navigate({ to: redirectTo ?? postSignInDefault(onAthenaHost()) });
+        const next = postLoginDestination(window.location.hostname, redirectTo);
+        if (next.includes("?") || next.includes("#")) window.location.assign(next);
+        else navigate({ to: next });
       }
     });
     return () => sub.subscription.unsubscribe();
@@ -134,7 +135,7 @@ function LoginPage() {
         supabase.auth.verifyOtp({ email: email.trim(), token, type: "email" }),
       );
       if (error) throw error;
-      window.location.assign(redirectTo ?? postSignInDefault(onAthenaHost()));
+      window.location.assign(postLoginDestination(window.location.hostname, redirectTo));
     } catch {
       setErr("That code didn't work. Use the newest email, or tap the link in it.");
       setBusy(false);

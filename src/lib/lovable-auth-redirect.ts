@@ -1,11 +1,20 @@
 // Supabase Auth's Site URL still sends the OAuth authorize step to
-// contractor-command.lovable.app/oauth/consent. Members must never see that
-// host. These helpers move /oauth/ and /login onto https://app.meetathena.io
-// before the page renders. Every other path, and the Hub host, stay put.
+// contractor-command.lovable.app/oauth/consent. That consent hop is the only
+// lovable.app path that moves to https://app.meetathena.io. A plain /login on
+// that host is the Hub and stays there. app.alpcontractorcircle.com never moves.
 import { athenaAppOrigin, isLovableHost } from "@/lib/athena-host";
+import { oauthConsentReturn } from "@/lib/oauth-return-path";
 
 export function isLovableAuthPath(pathname: string): boolean {
   return pathname === "/login" || pathname.startsWith("/login/") || pathname.startsWith("/oauth/");
+}
+
+/** /login on lovable.app is Athena only when it is returning to OAuth consent. */
+export function isLovableAthenaLogin(pathname: string, search?: string): boolean {
+  if (pathname.startsWith("/oauth/")) return true;
+  if (pathname !== "/login" && !pathname.startsWith("/login/")) return false;
+  const raw = search?.startsWith("?") ? search.slice(1) : search ?? "";
+  return !!oauthConsentReturn(new URLSearchParams(raw).get("redirect"));
 }
 
 function withPrefix(value: string | undefined, prefix: string): string {
@@ -23,8 +32,9 @@ export function lovableAuthRedirectTarget(input: {
   const hostname = input.hostname.trim().toLowerCase().replace(/:\d+$/, "");
   if (!isLovableHost(hostname)) return null;
   const pathname = input.pathname || "/";
-  if (!isLovableAuthPath(pathname)) return null;
-  return `${athenaAppOrigin()}${pathname}${withPrefix(input.search, "?")}${withPrefix(input.hash, "#")}`;
+  const search = withPrefix(input.search, "?");
+  if (!isLovableAthenaLogin(pathname, search)) return null;
+  return `${athenaAppOrigin()}${pathname}${search}${withPrefix(input.hash, "#")}`;
 }
 
 /** Public host a member's browser used. Forwarded host wins; Lovable's proxy sets it. */
@@ -35,7 +45,7 @@ export function requestHostname(request: Request): string {
   return new URL(request.url).hostname;
 }
 
-/** 302 for /oauth/ and /login on a *.lovable.app host. Null for every other request. */
+/** 302 for OAuth consent on a *.lovable.app host. A Hub /login on that host stays. */
 export function lovableAuthRedirectResponse(request: Request): Response | null {
   const url = new URL(request.url);
   const target = lovableAuthRedirectTarget({
@@ -70,4 +80,4 @@ export function applyBrowserLovableAuthRedirect(): void {
 }
 
 /** Blocking head script. Same rule as lovableAuthRedirectTarget, before the body. */
-export const LOVABLE_AUTH_REDIRECT_BOOT = `(function(){try{var h=location.hostname.toLowerCase();if(!h.endsWith(".lovable.app"))return;var p=location.pathname;if(p!=="/login"&&p.indexOf("/login/")!==0&&p.indexOf("/oauth/")!==0)return;var d=document.documentElement;if(d)d.style.visibility="hidden";location.replace(${JSON.stringify(athenaAppOrigin())}+p+location.search+location.hash);}catch(e){}})();`;
+export const LOVABLE_AUTH_REDIRECT_BOOT = `(function(){try{var h=location.hostname.toLowerCase();if(!h.endsWith(".lovable.app"))return;var p=location.pathname;var oauth=p.indexOf("/oauth/")===0;var login=p==="/login"||p.indexOf("/login/")===0;if(!oauth&&!login)return;if(login){var back=new URLSearchParams(location.search).get("redirect")||"";if(back.indexOf("/oauth/consent?authorization_id=")!==0)return;}var d=document.documentElement;if(d)d.style.visibility="hidden";location.replace(${JSON.stringify(athenaAppOrigin())}+p+location.search+location.hash);}catch(e){}})();`;

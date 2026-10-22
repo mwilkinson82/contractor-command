@@ -75,6 +75,6 @@ describe("Athena-only route shell", () => {
     expect(root).toContain("athenaHostRedirect(pathname)");
     expect(root).toContain("if (athenaHost) return <>{children(false)}</>;");
     const cb = readFileSync(new URL("../routes/auth.callback.tsx", import.meta.url), "utf8");
-    expect(cb).toContain("postSignInDefault(onAthenaHost())");
+    expect(cb).toContain("postLoginDestination(window.location.hostname, destination ?? redirect)");
   });
 });

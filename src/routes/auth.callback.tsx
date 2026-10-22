@@ -5,7 +5,7 @@ import { AuthCard } from "@/components/auth/auth-card";
 import { oauthReturnPath } from "@/lib/oauth-return-path";
 import { resolveOAuthContinuation } from "@/lib/oauth-continuation.functions";
 import { onAthenaHost } from "@/lib/athena-host-current";
-import { postSignInDefault } from "@/lib/athena-routes";
+import { postLoginDestination } from "@/lib/post-login-destination";
 
 const CALLBACK_TIMEOUT_MS = 10_000;
 const AUTH_STEP_TIMEOUT_MS = 8_000;
@@ -53,9 +53,7 @@ function AuthCallbackPage() {
   const { redirect } = Route.useSearch();
   const verification = useRef<ReturnType<typeof supabase.auth.verifyOtp> | null>(null);
   const [phase, setPhase] = useState<"checking" | "signed-in" | "expired">("checking");
-  // Athena host lands on /account; the Hub keeps "/".
-  const signedInDefault = postSignInDefault(onAthenaHost());
-  const [continueTo, setContinueTo] = useState(redirect ?? signedInDefault);
+  const [continueTo, setContinueTo] = useState("/");
 
   useEffect(() => {
     let cancelled = false;
@@ -99,18 +97,19 @@ function AuthCallbackPage() {
       setPhase("expired");
     };
 
-    const finishSignedIn = (destination = redirect ?? signedInDefault) => {
+    const finishSignedIn = (destination?: string) => {
       if (cancelled || settled) return;
       settled = true;
       clearDeadline();
       clearAuthFragment();
-      setContinueTo(destination);
+      const next = postLoginDestination(window.location.hostname, destination ?? redirect);
+      setContinueTo(next);
       setPhase("signed-in");
       // Hard navigation: auth gate, company/tier loaders, and presence all key
       // off the refreshed session. A full reload at the destination guarantees
-      // a clean mount with the new session.
+      // a clean mount with the new session. The path stays on this host.
       timerIds.navigation = window.setTimeout(() => {
-        window.location.replace(destination);
+        window.location.replace(next);
       }, 100);
     };
 
@@ -227,7 +226,7 @@ function AuthCallbackPage() {
       clearDeadline();
       clearNavigation();
     };
-  }, [redirect, signedInDefault]);
+  }, [redirect]);
 
   if (phase === "expired") {
     return (

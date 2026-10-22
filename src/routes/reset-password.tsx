@@ -1,6 +1,5 @@
 import { template as adminActivityNoticeTemplate } from "@/lib/email-templates/admin-activity-notice";
-import { postSignInDefault } from "@/lib/athena-routes";
-import { onAthenaHost } from "@/lib/athena-host-current";
+import { postLoginDestination } from "@/lib/post-login-destination";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -105,7 +104,7 @@ function ResetPasswordPage() {
       }).catch((e) => console.warn("admin notify (password set) failed", e));
     }
     setPhase("done");
-    setTimeout(() => navigate({ to: postSignInDefault(onAthenaHost()) }), 1200);
+    setTimeout(() => navigate({ to: postLoginDestination(window.location.hostname) }), 1200);
   }
 
   if (phase === "checking") {

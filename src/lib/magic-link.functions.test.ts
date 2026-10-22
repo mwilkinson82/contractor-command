@@ -197,6 +197,19 @@ it("Hub sign-in on app.alpcontractorcircle.com stays on the Hub", async () => {
   );
 });
 
+it("a Hub login on contractor-command.lovable.app stays on that host", async () => {
+  req.url = "https://contractor-command.lovable.app/login";
+  const promise = requestMemberMagicLink({ data: { email: "member@example.test" } });
+  await vi.advanceTimersByTimeAsync(600);
+  await promise;
+  expect(m.generateLink.mock.calls[0][0].options.redirectTo).toBe(
+    "https://contractor-command.lovable.app/auth/callback",
+  );
+  expect(new URL(m.send.mock.calls[0][0].confirmationUrl).origin).toBe(
+    "https://contractor-command.lovable.app",
+  );
+});
+
 it("a sign-in started on contractor-command.lovable.app lands on app.meetathena.io", async () => {
   req.url = "https://contractor-command.lovable.app/login?redirect=%2Foauth%2Fconsent%3Fauthorization_id%3Dabc";
   const promise = requestMemberMagicLink({ data: { email: "member@example.test" } });
