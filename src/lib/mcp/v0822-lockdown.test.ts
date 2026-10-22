@@ -39,6 +39,7 @@ import * as Start from "./tools/getting-started-tool";
 import * as Brief from "./tools/morning-brief-tools";
 import * as Sub from "./tools/submittal-tools";
 import * as Chase from "./tools/submittal-chase-tool";
+import * as Frag from "./tools/fragnet-tools";
 
 const rpc = vi.fn();
 vi.mock("./supabase", () => ({
@@ -113,6 +114,8 @@ const ALL = [
   Sub.projectRecordSearch,
   Chase.submittalChase,
   Start.gettingStarted,
+  Frag.fragnetPreview,
+  Frag.fragnetSave,
 ];
 const src = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8");
 
@@ -161,7 +164,7 @@ async function toolsList(tools: unknown[]) {
 
 describe("0.8.22 (0) every tool goes through run() and guard()", () => {
   it("every tool goes through run() and guard()", () => {
-    expect(ALL).toHaveLength(66);
+    expect(ALL).toHaveLength(68);
     const files = readdirSync(new URL("./tools/", import.meta.url)).filter((f) =>
       f.endsWith(".ts"),
     );
@@ -175,7 +178,7 @@ describe("0.8.22 (0) every tool goes through run() and guard()", () => {
         seen++;
       }
     }
-    expect(seen).toBe(68);
+    expect(seen).toBe(70);
     expect(src("./index.ts")).toContain("tools: ATHENA_TOOLS.map(secureTool)");
     expect(src("./guard.ts")).toMatch(
       /export async function run[\s\S]*?const sb = await guard\(ctx\);/,
@@ -192,7 +195,7 @@ describe("0.8.22 (3) refusal rule", () => {
       "That's how I'm built inside ALP; I can't share it. Want to get back to your job?",
     );
     const list = await toolsList(ALL.map(secureTool));
-    expect(list).toHaveLength(66);
+    expect(list).toHaveLength(68);
     for (const t of list) expect(t.description.includes(REFUSAL_DESC), t.name).toBe(false);
   });
   it("stays short (one sentence under 120 characters) and keeps schemas unchanged", async () => {

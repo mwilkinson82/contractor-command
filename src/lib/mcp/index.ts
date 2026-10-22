@@ -27,6 +27,8 @@ import {
   contractTerms,
 } from "./tools/workflow-tools";
 import { cpmActivities, livingReportGet, livingReportSave } from "./tools/living-tools";
+import { fragnetPreview, fragnetSave } from "./tools/fragnet-tools";
+import { FRAGNET_SERVER_RULE } from "./fragnet";
 import { fileShare, fileShareRevoke, lookaheadPdfTool } from "./tools/file-tools";
 import { reportPageLink, reportPageShare, reportPageShareRevoke } from "./tools/report-page-tools";
 import { setCurrentCompany, teamAddSeats, teamInvite, teamList, teamRemoveMember, teamUpdateMember } from "./tools/team-tools";
@@ -65,7 +67,7 @@ import { estimateBidSummary, estimateGeneralConditions, estimatePricing, estimat
 const projectRef = import.meta.env["VITE_SUPABASE_PROJECT_ID"] ?? "project-ref-unset";
 
 /** All Athena tools, in tools/list order. */
-export const ATHENA_TOOLS = [onboarding, intake, nextQuestion, answer, report, contractTerms, carryForward, listOpenItems, lookaheadList, resolveItem, cpmActivities, livingReportGet, livingReportSave, fileShare, fileShareRevoke, lookaheadPdfTool, reportPageLink, reportPageShare, reportPageShareRevoke, teamList, teamInvite, teamUpdateMember, teamRemoveMember, teamAddSeats, setCurrentCompany, estimateIntake, estimateDocReview, estimateTakeoffSave, estimateTakeoffGet, estimateTakeoffExport, estimateGapAnalysis, estimateBidCheck, estimateItemMark, estimateBuild, estimateStatus, estimatePricing, estimateRateSources, estimateGeneralConditions, estimateRequirements, estimateBidSummary, superintendentView, fieldBoard, superintendentActivity, dailyReportDraft, dailyReportSave, dailyReportGet, fieldPayApp, fieldScheduleFeed, fieldProductionRates, progressPhotoSave, progressPhotos, dailyReminder, dailyReminderRun, pmMeeting, pmMorning, pmMorningMeeting, pmEvening, athenaHello, morningBrief, morningBriefSettings, emailDraft, emailConfirmSend, submittalLog, submittalsList, submittalsImport, projectRecordSearch, submittalChase, gettingStarted];
+export const ATHENA_TOOLS = [onboarding, intake, nextQuestion, answer, report, contractTerms, carryForward, listOpenItems, lookaheadList, resolveItem, cpmActivities, livingReportGet, livingReportSave, fileShare, fileShareRevoke, lookaheadPdfTool, reportPageLink, reportPageShare, reportPageShareRevoke, teamList, teamInvite, teamUpdateMember, teamRemoveMember, teamAddSeats, setCurrentCompany, estimateIntake, estimateDocReview, estimateTakeoffSave, estimateTakeoffGet, estimateTakeoffExport, estimateGapAnalysis, estimateBidCheck, estimateItemMark, estimateBuild, estimateStatus, estimatePricing, estimateRateSources, estimateGeneralConditions, estimateRequirements, estimateBidSummary, superintendentView, fieldBoard, superintendentActivity, dailyReportDraft, dailyReportSave, dailyReportGet, fieldPayApp, fieldScheduleFeed, fieldProductionRates, progressPhotoSave, progressPhotos, dailyReminder, dailyReminderRun, pmMeeting, pmMorning, pmMorningMeeting, pmEvening, athenaHello, morningBrief, morningBriefSettings, emailDraft, emailConfirmSend, submittalLog, submittalsList, submittalsImport, projectRecordSearch, submittalChase, gettingStarted, fragnetPreview, fragnetSave];
 
 export default defineMcp({
   name: "athena",
@@ -85,7 +87,8 @@ export default defineMcp({
     SUBMITTAL_SERVER_RULE +
     PROJECT_RECORD_RULE +
     CHASE_SERVER_RULE +
-    GETTING_STARTED_RULE,
+    GETTING_STARTED_RULE +
+    FRAGNET_SERVER_RULE,
   auth: auth.oauth.issuer({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,
     acceptedAudiences: "authenticated",

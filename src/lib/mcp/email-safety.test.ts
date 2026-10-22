@@ -44,7 +44,7 @@ describe("P0: no email is sent without a draft and a separate yes", () => {
   });
 
   it("both email tools are registered and the server instructions carry the draft-only rule", () => {
-    expect(SRC).toMatch(/emailDraft, emailConfirmSend, submittalLog, submittalsList, submittalsImport, projectRecordSearch, submittalChase, gettingStarted\]/);
+    expect(SRC).toMatch(/emailDraft, emailConfirmSend, submittalLog, submittalsList, submittalsImport, projectRecordSearch, submittalChase, gettingStarted, fragnetPreview, fragnetSave\]/);
     expect(SRC).toContain("EMAIL_DRAFT_ONLY_RULE");
     expect(SRC).not.toMatch(/tell the member which account that is before sending/);
     expect(EMAIL_DRAFT_ONLY_RULE).toMatch(/Never send an email in the same reply/);
