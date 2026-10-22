@@ -8,6 +8,7 @@ import {
   LIVING_REQUIRED_TOP,
   activityLine,
   billableValue,
+  ganttBarNote,
   calendarDays,
   checkSave,
   costLoadTotal,
@@ -17,8 +18,10 @@ import {
   remainingForecast,
   stripMoney,
   tiaResult,
+  reportCalendarHolidays,
   tieCheck,
   type Activity,
+  type LivingData,
 } from "./living";
 import { cpmActivities, livingReportGet, livingReportSave } from "./tools/living-tools";
 
@@ -193,9 +196,37 @@ describe("0.8.9 CPM activity handoff, tie guard, owner-furnished, living reports
       true,
     );
     expect(l).toBe(
-      "- A1210 Switchgear set and terminate · 10 WD · 2027-03-01 → 2027-03-12 · after A1060, FRAG-01 SS +2 · float 3 · 0% complete · $103,054.71 · SOV 26.01 · cost code 26-010",
+      "- A1210 Switchgear set and terminate · 10 WD · 2027-03-01 → 2027-03-12 · bar 2027-03-01→2027-03-12, float tail to 2027-03-17 · after A1060, FRAG-01 SS +2 · float 3 · 0% complete · $103,054.71 · SOV 26.01 · cost code 26-010",
     );
     expect(visibleProblems(l)).toEqual([]);
+  });
+
+  it("bar ends on Finish and the float tail is that many working days", () => {
+    const task = act("A2000", 1, {
+      name: "Short task",
+      start: "2026-10-19",
+      finish: "2026-10-23",
+      duration: 5,
+      total_float: 18,
+      critical: false,
+    });
+    expect(ganttBarNote(task)).toBe("bar 2026-10-19→2026-10-23, float tail to 2026-11-18");
+    expect(activityLine(task, false)).toContain("bar 2026-10-19→2026-10-23, float tail to 2026-11-18");
+    // A saved job calendar skips that holiday. With no calendar, count Monday–Friday.
+    expect(ganttBarNote(task, ["2026-11-11"])).toBe("bar 2026-10-19→2026-10-23, float tail to 2026-11-19");
+    expect(activityLine(task, false, ["2026-11-11"])).toContain("float tail to 2026-11-19");
+    const critical = act("A2001", 1, {
+      start: "2026-10-19",
+      finish: "2026-10-23",
+      duration: 5,
+      total_float: 0,
+      critical: true,
+    });
+    expect(ganttBarNote(critical)).toBe("bar 2026-10-19→2026-10-23, no float tail");
+    expect(reportCalendarHolidays(null)).toBeNull();
+    expect(reportCalendarHolidays({ activities: [] })).toBeNull();
+    expect(reportCalendarHolidays({ tia: { holidays: ["2026-11-11"] } } as LivingData)).toEqual(["2026-11-11"]);
+    expect(reportCalendarHolidays({ calendar: { holidays: ["2026-12-25"] } })).toEqual(["2026-12-25"]);
   });
 
   it("tool annotations: two reads, one ask-first destructive save that needs approved: true", () => {

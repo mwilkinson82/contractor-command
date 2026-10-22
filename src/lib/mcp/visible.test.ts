@@ -24,6 +24,15 @@ describe("visible text has no host-directed instructions (retest 4)", () => {
     expect(s.visible).toBe("J-1 – Saved.");
     expect(s.guidance.join(" ")).toContain(l.slice(0, 20));
   });
+  it("keeps a numbered spec item together so a guidance phrase cannot leave a blank 1.", () => {
+    const s = splitGuidance("1. Header: copy the Tie line word for word, then stop.");
+    expect(s.visible).not.toMatch(/^1\.\s*$/m);
+    expect(s.visible).not.toContain("1.");
+    expect(s.guidance.join("\n")).toBe("1. Header: copy the Tie line word for word, then stop.");
+    const kept = splitGuidance("1. Draw the header. Never invent a date.");
+    expect(kept.visible).toBe("1. Draw the header.");
+    expect(kept.guidance).toEqual(["Never invent a date."]);
+  });
   it("keeps PM-facing content, including item actions and the draft data lines", () => {
     const pm = "- [To confirm] 2601 – Confirm delivery method and recipient for: Long-lead switchgear submittals | Accountable: Sam Ortiz (PM) | Needed by: 2026-10-21";
     expect(visibleProblems(pm)).toEqual([]);

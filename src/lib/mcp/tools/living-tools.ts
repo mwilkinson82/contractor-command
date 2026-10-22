@@ -25,7 +25,7 @@ import { SovMismatch, buildSov, money } from "../sov";
 import { guide } from "../visible";
 import {
   CPM_REQUIRED_TOP, LIVING_LABEL, LIVING_REPORT_TYPES, LIVING_REQUIRED_TOP, LIVING_SAVE_ASK, TIED_TYPES,
-  activityLine, checkSave, costLoadTotal, countCheck, earnedToDate, isOwnerFurnished, ownerFurnishedWithValue, stripMoney, tieCheck, tiaResult,
+  activityLine, checkSave, costLoadTotal, countCheck, earnedToDate, isOwnerFurnished, ownerFurnishedWithValue, reportCalendarHolidays, stripMoney, tieCheck, tiaResult,
   type Activity, type LivingData, type LivingReportType,
   CPM_GANTT_SPEC,
 } from "../living";
@@ -125,6 +125,7 @@ export const cpmActivities = defineTool({
       const tie = showMoney ? tieCheck(costLoadTotal(acts), contract) : null;
       const tia = tiaResult(data.tia ?? null);
       const delay = readDelay(data as Record<string, unknown>);
+      const holidays = reportCalendarHolidays(data);
       const of = acts.filter(isOwnerFurnished);
       const ofValued = ownerFurnishedWithValue(acts);
       const scheduleBoard = await signedJobPages((fn, a) => sb.rpc(fn, a), job.job_id, job.scope);
@@ -142,7 +143,7 @@ export const cpmActivities = defineTool({
         ...ganttPins(delay),
         "",
         `Activities (${acts.length}):`,
-        ...acts.map((a) => activityLine(a, showMoney)),
+        ...acts.map((a) => activityLine(a, showMoney, holidays)),
       ];
       return guide(
         {

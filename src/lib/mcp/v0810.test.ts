@@ -137,6 +137,7 @@ describe("0.8.10", () => {
 });
 
 import { CPM_GANTT_SPEC, DELAY_CALLOUT_COLOR } from "./living";
+import { splitGuidance } from "./visible";
 import { isAppHandoff } from "@/lib/consent-loading";
 
 describe("0.8.10 CPM Gantt spec + desktop return", () => {
@@ -146,11 +147,23 @@ describe("0.8.10 CPM Gantt spec + desktop return", () => {
     expect(CPM_GANTT_SPEC[0]).toMatch(/^REQUIRED VIEW/);
     expect(CPM_GANTT_SPEC).toHaveLength(10);
     const all = CPM_GANTT_SPEC.join("\n");
-    expect(all).toContain("#2563EB");
+    expect(all).toContain("solid blue #1E5FED");
+    expect(all).toContain("don't use #2563EB");
+    expect(all).not.toContain("solid blue #2563EB");
     expect(all).toContain("#9CA3AF");
+    expect(all).toContain("ends at its Finish date");
+    expect(all).toContain("Never stretch a bar");
+    expect(all).toContain("if no baseline dates are given, draw none");
     expect(all).toContain('"Fragnet"');
     expect(all).toContain('"Delay: +X WD (Y CD)"');
     expect(all).not.toMatch(/fragment/i);
+  });
+  it("the live spec keeps bar ends and does not leave a blank item 1", () => {
+    const live = splitGuidance(CPM_GANTT_SPEC.join("\n"));
+    expect(live.visible).toContain("ends at its Finish date");
+    expect(live.visible).toContain("Never stretch a bar");
+    expect(live.visible).not.toMatch(/^1\.\s*$/m);
+    expect(`${live.visible}\n${live.guidance.join("\n")}`).toMatch(/^1\. Header:/m);
   });
   it("delay callout color comes from one constant", () => {
     expect(DELAY_CALLOUT_COLOR).toBe("red #DC2626");
