@@ -445,7 +445,9 @@ export const estimateGeneralConditions = defineTool({
         `${prefix(job)}${job.name} · General conditions`,
         duration
           ? `Schedule duration: ${duration} calendar days.`
-          : "Schedule duration is not set. Supervision stays blank until you send the start and finish, or the number of days.",
+          : sent.some((row) => row.key === "supervision" && row.qty != null)
+            ? "Schedule duration is not set. Supervision uses the quantity that was sent."
+            : "Schedule duration is not set. Supervision stays blank until you send a quantity, the start and finish, or the number of days.",
         ...priced.map((p) => `- ${p.math}`),
         "This adder is separate from construction labor and material.",
         nextMove("gc"),

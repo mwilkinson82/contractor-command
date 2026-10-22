@@ -278,28 +278,33 @@ export function gcLineAmount(input: {
   const rate = pos(input.rate, label);
   const duration = pos(input.duration, "Schedule duration");
   if (input.key === "supervision") {
-    if (duration == null)
+    const units = qty ?? duration;
+    if (units == null)
       return {
         amount: null,
-        math: `${label} needs the schedule duration.`,
+        math: `${label} needs a quantity, or the schedule duration.`,
         missing: "schedule duration",
         placeholder: false,
       };
     if (rate == null && amount == null)
       return {
         amount: null,
-        math: `${label} needs a rate for that duration.`,
+        math: `${label} needs a rate for that quantity.`,
         missing: "supervision rate",
         placeholder: false,
       };
-    const value = amount ?? cents(duration * (rate as number));
+    const value = amount ?? cents(units * (rate as number));
     const placeholder = !input.confirmed;
+    const basis =
+      qty != null
+        ? `${qty} × ${money(rate as number)}`
+        : `${duration} days × ${money(rate as number)}`;
     return {
       amount: value,
       math:
         amount != null
-          ? `${label}: ${money(value)} entered for ${duration} days.${placeholder ? " PLACEHOLDER." : " Confirmed by the contractor."}`
-          : `${label}: ${duration} days × ${money(rate as number)} = ${money(value)}.${placeholder ? " PLACEHOLDER until the contractor confirms it." : " Confirmed by the contractor."}`,
+          ? `${label}: ${money(value)} entered${qty != null ? ` for quantity ${qty}` : duration != null ? ` for ${duration} days` : ""}.${placeholder ? " PLACEHOLDER." : " Confirmed by the contractor."}`
+          : `${label}: ${basis} = ${money(value)}.${qty != null && duration != null && qty !== duration ? ` The quantity ${qty} is used. The schedule is ${duration} days.` : ""}${placeholder ? " PLACEHOLDER until the contractor confirms it." : " Confirmed by the contractor."}`,
       missing: null,
       placeholder,
     };
