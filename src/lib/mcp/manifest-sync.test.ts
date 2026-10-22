@@ -74,6 +74,7 @@ async function liveTools(): Promise<Tool[]> {
       Bid.estimateRequirements,
       Bid.estimateBidSummary,
       Field.superintendentView,
+      Field.fieldBoard,
       Field.superintendentActivity,
       Field.dailyReportDraft,
       Field.dailyReportSave,

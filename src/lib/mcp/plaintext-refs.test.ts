@@ -35,6 +35,9 @@ describe("question refs", () => {
 
 describe("leak checks", () => {
   it("flags a raw UUID in visible text", () => expect(visibleProblems(`Item ${items[0].id}`).length).toBeGreaterThan(0));
+  it("allows a uuid inside a hosted page link", () => {
+    expect(visibleProblems(`Dashboard: [Open the field board](https://app.meetathena.io/r/job/${items[0].id}/field)`)).toEqual([]);
+  });
   it("version is 0.8.6", () => expect(ATHENA_VERSION).toBe("0.8.18"));
 });
 
