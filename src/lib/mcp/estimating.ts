@@ -25,7 +25,7 @@ export const REQUIREMENT_OPEN_LIST =
 export const ESTIMATE_SERVER_RULE =
   " Takeoff quantities are MEASURED or DEDUCED. MEASURED is straight off a sheet (READ). DEDUCED is computed (DERIVED): multiply the MEASURED inputs, show the math, and cite the sheet and the detail or grid. Leave a quantity blank only when one named input is missing on every sheet. A vendor or shop-drawing note is not a reason for a blank. Addenda override the base documents. Do not invent quantities, dimensions, unit prices or vendor numbers. Every estimating report (takeoff, Estimate Analysis, estimator loop, Estimate Summary, bid summary) is landscape, 17 by 11 inches, with the Athena logo at the top right. Portrait only if the member asks. Red only for risks and gaps that hold up the bid. Questions go back to the estimator. Do not price a final bid until the takeoff is settled. A rate is the contractor's own figure, or a PLACEHOLDER the contractor supplies and then confirms. Do not attribute a number to RSMeans, NECA, SMACNA or MCAA, and do not reproduce their tables. " +
   REQUIREMENT_OPEN_LIST +
-  " Special requirements stay out of installation labor and material. Overhead is applied first, then profit on top. The bid summary shows direct cost, general conditions, special requirements, overhead and profit, and the total. Forms use one face unless the line sets two. The earth side is not formed by default. Rebar is shown in LF and in LB. Termite treatment is gross area plus a separate perimeter in LF. Concrete, fiber, vapor barrier, base and fine grading follow the active profile, net when the drawings are read as drawn. The foundation checklist is perimeter insulation, perimeter termite, fine grading, base course, base under the trench and pits, dowels, keyways, and edge forms. Each one is quantified or marked N/A with a reason.";
+  " Special requirements stay out of installation labor and material. Overhead is applied first, then profit on top. The bid summary shows direct cost, general conditions, special requirements, overhead and profit, and the total. Forms use one face unless the line sets two. The earth side is not formed by default. Rebar is shown in LF and in LB. Termite treatment is gross area plus a separate perimeter in LF. Concrete, fiber, vapor barrier, base and fine grading follow the active profile, net when the drawings are read as drawn. The foundation checklist is perimeter insulation, perimeter termite, fine grading, base course, base under the trench and pits, dowels, keyways, and edge forms. Each one is quantified or marked N/A with a reason. Ask scope, whether the estimator is the general contractor or a self-performer, and which profile applies. Do not assume self-performer, and do not mark intake complete until those are answered. If a job with the same name or number already has a takeoff, ask whether to reuse it or start fresh. A takeoff save either adds or updates lines, or replaces the whole takeoff; say which. Show MEASURED or DEDUCED, the sheet, and the math on each takeoff line.";
 
 export const NOT_RELEVANT_ASK =
   "Why is this not relevant? Send the reason in this same turn. Nothing was changed.";
@@ -1347,20 +1347,113 @@ function frame(report: string, body: string[]): string {
 const countLine = (c: { open: number; settled: number; dropped: number }) =>
   `Open ${c.open}. Settled ${c.settled}. Dropped ${c.dropped}.`;
 
+export function intakeQuestions(s: {
+  role: Setup["role"];
+  trades: string[];
+  in_scope: string[];
+  profile?: "as_drawn" | "estimator" | null;
+}): string[] {
+  const questions: string[] = [];
+  if (!s.role) questions.push("Are you the general contractor or a self-performer?");
+  if (!s.trades.length && !s.in_scope.length)
+    questions.push("What is in your scope, and what is out?");
+  if (!s.profile)
+    questions.push("Which profile should the quantities follow: as drawn, or the estimator key?");
+  return questions;
+}
+
+export function reuseWarning(input: {
+  jobNumber: string;
+  jobName: string;
+  lines: number;
+  version: number | null;
+  sameName: { jobNumber: string; jobName: string }[];
+}): string | null {
+  const bits: string[] = [];
+  if (input.lines > 0)
+    bits.push(
+      `Job ${input.jobNumber} (${input.jobName}) already has a takeoff${input.version ? `, version ${input.version}` : ""}, ${input.lines} lines.`,
+    );
+  for (const other of input.sameName)
+    bits.push(
+      `Job ${other.jobNumber} (${other.jobName}) has the same name and already has a takeoff.`,
+    );
+  if (!bits.length) return null;
+  return `${bits.join(" ")} Reuse that takeoff, or start fresh? Nothing was saved.`;
+}
+
+const PLACEHOLDER_LINE = /\b(temp|placeholder|test|do not use)\b/i;
+
+export function rejectPlaceholderLines(items: { item: string }[]): void {
+  for (const line of items) {
+    if (PLACEHOLDER_LINE.test(line.item))
+      throw new EstimateError(
+        `"${line.item}" looks like a placeholder or a test line. Nothing was saved.`,
+      );
+  }
+}
+
+/** Upsert by line number when the caller set one, otherwise by item name. Other lines stay. */
+export function mergeTakeoffLines(
+  prior: StoredLine[],
+  incoming: StoredLine[],
+  numbered: boolean[],
+): StoredLine[] {
+  const byNo = new Map(prior.map((l) => [l.line_no, { ...l }]));
+  const byItem = new Map(prior.map((l) => [l.item.trim().toLowerCase(), l.line_no]));
+  let max = prior.reduce((m, l) => Math.max(m, l.line_no), 0);
+  incoming.forEach((line, i) => {
+    if (numbered[i] && byNo.has(line.line_no)) {
+      byNo.set(line.line_no, { ...line, line_no: line.line_no });
+      byItem.set(line.item.trim().toLowerCase(), line.line_no);
+      return;
+    }
+    const existing = byItem.get(line.item.trim().toLowerCase());
+    if (!numbered[i] && existing) {
+      byNo.set(existing, { ...line, line_no: existing });
+      return;
+    }
+    const no = numbered[i] && !byNo.has(line.line_no) ? line.line_no : ++max;
+    if (byNo.has(no) && numbered[i]) {
+      byNo.set(no, { ...line, line_no: no });
+    } else if (byNo.has(no)) {
+      max = Math.max(max, no);
+      const fresh = ++max;
+      byNo.set(fresh, { ...line, line_no: fresh });
+      byItem.set(line.item.trim().toLowerCase(), fresh);
+    } else {
+      max = Math.max(max, no);
+      byNo.set(no, { ...line, line_no: no });
+      byItem.set(line.item.trim().toLowerCase(), no);
+    }
+  });
+  return [...byNo.values()].sort((a, b) => a.line_no - b.line_no);
+}
+
 export function renderIntake(
   job: string,
   s: Setup,
+  profile?: "as_drawn" | "estimator" | null,
 ): { text: string; structured: Record<string, unknown>; guidance: string[] } {
+  const questions = intakeQuestions({
+    role: s.role,
+    trades: s.trades,
+    in_scope: s.in_scope,
+    profile: profile ?? null,
+  });
   const role =
     s.role === "gc"
       ? "General contractor"
       : s.role === "self_performer"
         ? "Self-performer"
-        : "Role not stated";
+        : "Not answered";
   const coord = s.role === "self_performer" ? coordinationFor(s.trades) : [];
   const lines = [
     `${job} · Estimating intake`,
+    questions.length ? "Intake is not complete." : "Intake is complete.",
+    ...questions.map((q) => `- ${q}`),
     `Role: ${role}`,
+    `Profile: ${profile === "as_drawn" ? "As drawn" : profile === "estimator" ? "Estimator key" : "Not answered"}`,
     `Trades: ${s.trades.length ? s.trades.join("; ") : "not stated"}`,
     `Bid due: ${s.bid_due ?? "not stated"}`,
     `Delivery: ${s.delivery_method ?? "not stated"}`,
@@ -1374,13 +1467,14 @@ export function renderIntake(
     );
     lines.push(`Named trades: ${s.trades.length ? s.trades.join("; ") : "none named yet"}.`);
     lines.push(`Out: ${s.out_scope.length ? s.out_scope.join("; ") : "none stated"}.`);
-  } else {
+  } else if (s.role === "self_performer") {
     lines.push(
       `In: ${s.in_scope.length ? s.in_scope.join("; ") : "not stated. Name what this trade takes off."}`,
     );
-    lines.push(
-      `Out: ${s.out_scope.length ? s.out_scope.join("; ") : "other trades. Not quantified."}`,
-    );
+    lines.push(`Out: ${s.out_scope.length ? s.out_scope.join("; ") : "not stated"}.`);
+  } else {
+    lines.push("In: not answered.");
+    lines.push("Out: not answered.");
   }
   lines.push(`Assumed: ${s.assumptions.length ? s.assumptions.join("; ") : "none stated"}.`);
   lines.push("", "Sheets and documents to read");
@@ -1403,12 +1497,14 @@ export function renderIntake(
       report: "Takeoff",
       layout: estimateLayout(),
       role: s.role,
+      profile: profile ?? null,
+      complete: questions.length === 0,
       trades: s.trades,
       revision: revisionUsed(s.documents),
       coordination: coord,
     },
     guidance: [
-      "Ask each missing intake fact. Do not guess the job type, the owner or the pricing model.",
+      "Ask each missing intake question. Do not assume self-performer, scope, or profile. Do not mark intake complete until role, scope, and profile are answered.",
       "Self-performer coordination stays a question. Do not turn it into a quantity.",
     ],
   };
@@ -1463,6 +1559,7 @@ export function renderTakeoff(
   linesIn: StoredLine[],
   state: ReturnType<typeof settle>,
   revision: string,
+  saveMode?: "upsert" | "replace",
 ): { text: string; structured: Record<string, unknown>; guidance: string[] } {
   const ordered = [...linesIn].sort(
     (a, b) =>
@@ -1490,6 +1587,16 @@ export function renderTakeoff(
     narrative,
     revision,
     countLine(state.counts),
+    ...(saveMode === "upsert"
+      ? ["This save added or updated lines. Lines you did not send are still on the takeoff."]
+      : saveMode === "replace"
+        ? ["This save replaced the takeoff. Only the lines in this call remain."]
+        : []),
+    "Each line",
+    ...rows.map(
+      (r) =>
+        `- ${r.ref} ${r.title}. ${r.basis ?? "No basis"}. Sheet ${cite(r.sheet, r.detail)}. Math: ${r.math ?? "none"}.`,
+    ),
     ...state.stale.map(
       (r) => `An earlier call on ${r} does not match the current item, so it is not applied.`,
     ),

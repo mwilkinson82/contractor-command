@@ -2238,7 +2238,7 @@
       {
         "name": "estimate_intake",
         "title": "Estimating intake",
-        "description": "Saves the estimating role, trades, bid date and document list for a job.",
+        "description": "Asks scope, role and profile, and warns before reusing a takeoff already on the job.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -2264,6 +2264,20 @@
               "enum": [
                 "gc",
                 "self_performer"
+              ]
+            },
+            "profile": {
+              "type": "string",
+              "enum": [
+                "as_drawn",
+                "estimator"
+              ]
+            },
+            "reuse": {
+              "type": "string",
+              "enum": [
+                "reuse",
+                "fresh"
               ]
             },
             "trades": {
@@ -2438,10 +2452,7 @@
             }
           },
           "required": [
-            "job_number",
-            "role",
-            "trades",
-            "documents"
+            "job_number"
           ],
           "additionalProperties": false
         },
@@ -2605,7 +2616,7 @@
       {
         "name": "estimate_takeoff_save",
         "title": "Save a takeoff",
-        "description": "Saves takeoff lines and computes deduced quantities from measured inputs.",
+        "description": "Adds or updates lines when mode is upsert, or replaces the whole takeoff when mode is replace.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -2673,6 +2684,13 @@
                   "type": "number",
                   "const": 2
                 }
+              ]
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "upsert",
+                "replace"
               ]
             },
             "lines": {
@@ -2905,6 +2923,7 @@
           },
           "required": [
             "job_number",
+            "mode",
             "lines"
           ],
           "additionalProperties": false
@@ -4039,8 +4058,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4071,8 +4090,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4139,8 +4158,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4299,8 +4318,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4463,8 +4482,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4499,8 +4518,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4534,8 +4553,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4565,8 +4584,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4597,8 +4616,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4672,8 +4691,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4730,8 +4749,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",
@@ -4784,8 +4803,8 @@
           "openWorldHint": true
         },
         "inputSchema": {
-          "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
           "properties": {
             "job_number": {
               "type": "string",

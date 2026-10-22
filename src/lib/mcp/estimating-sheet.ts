@@ -233,7 +233,9 @@ export function takeoffCard(rows: SheetRow[]): string[] {
     }
     const qty = r.qty ? `${r.qty} ${r.unit}`.trim() : "blank";
     const verify = r.verify ? ` ${r.verify}.` : "";
-    lines.push(`- ${r.ref} ${r.item}. Qty ${qty}. ${r.basis || "No basis"}.${verify}`);
+    lines.push(
+      `- ${r.ref} ${r.item}. ${r.basis || "No basis"}. Sheet ${r.sheet || "not stated"}. Math: ${r.math || "none"}. Qty ${qty}.${verify}`,
+    );
   }
   return lines;
 }
