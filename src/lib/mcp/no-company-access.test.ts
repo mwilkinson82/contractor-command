@@ -36,6 +36,7 @@ function access(over: Partial<AthenaAccess> = {}): AthenaAccess {
     has_company: false,
     company_seat: false,
     paid_period: "current",
+    past_due: false,
     ...over,
   };
 }
@@ -92,8 +93,25 @@ describe("decideAccess", () => {
 
   it("keeps a past_due member with a current paid period allowed", () => {
     expect(
-      decideAccess(access({ state: "eligible", reason: "paid_period", paid_period: "current", has_company: true })),
+      decideAccess(access({ state: "eligible", reason: "paid_period", paid_period: "current", has_company: true, past_due: true })),
     ).toEqual({ kind: "allow" });
+  });
+
+  it("past_due with a stale paid period stays allowed", () => {
+    const pastDueStale = access({
+      state: "review",
+      reason: "membership_review_required",
+      has_access: false,
+      circle_active: false,
+      has_company: true,
+      paid_period: "stale",
+      past_due: true,
+    });
+    expect(decideAccess(pastDueStale)).toEqual({ kind: "allow" });
+    expect(decideAccess({ ...pastDueStale, has_company: false }).kind).toBe("setup");
+    expect(
+      decideAccess(access({ state: "ineligible", has_access: false, circle_active: false, has_company: true, paid_period: "stale", past_due: false })).kind,
+    ).toBe("confirming");
   });
 
   it("shows the confirming message for review, stale, and missing paid periods", () => {
@@ -269,6 +287,26 @@ describe("membership messages", () => {
     expect(textOf(result)).not.toContain("Let's set up your company");
   });
 
+  it("past_due with a stale paid period runs the tool and does not confirm membership", async () => {
+    script(
+      access({
+        state: "review",
+        reason: "membership_review_required",
+        has_access: false,
+        circle_active: false,
+        has_company: true,
+        paid_period: "stale",
+        past_due: true,
+      }),
+    );
+    const fn = vi.fn(async () => ({ content: [{ type: "text" as const, text: "Still on the job" }] }));
+    const result = (await run("report", ctx, {}, fn)) as Reply;
+    expect(fn).toHaveBeenCalled();
+    expect(textOf(result)).toContain("Still on the job");
+    expect(textOf(result)).not.toContain(CONFIRMING_MESSAGE);
+    expect(textOf(result)).not.toContain(INACTIVE_MESSAGE);
+  });
+
   it("a past_due member with a current paid period and a company still runs the tool", async () => {
     script(access({ has_company: true, state: "eligible", reason: "paid_period", paid_period: "current" }));
     const fn = vi.fn(async () => ({ content: [{ type: "text" as const, text: "Still on the job" }] }));
@@ -283,7 +321,7 @@ describe("access migration", () => {
 
   it("only adds mcp_athena_access", () => {
     expect(sql).toContain("CREATE OR REPLACE FUNCTION public.mcp_athena_access()");
-    expect(sql).toContain("past_due");
+    expect(sql).toContain("circle_active := circle_active OR past_due");
     expect(sql).not.toMatch(/ALTER TABLE|UPDATE public\.|DELETE FROM|DROP TABLE|DROP FUNCTION/i);
     expect(renderHtml(companySetupCard())).toContain("#1E5FED");
     expect(companySetupCard().title).not.toMatch(/lovable/i);

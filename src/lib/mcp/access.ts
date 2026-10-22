@@ -27,6 +27,8 @@ export type AthenaAccess = {
   has_company: boolean;
   company_seat: boolean;
   paid_period: PaidPeriod;
+  /** Stripe status past_due on a Circle or Hardcore subscription. Counts as active. */
+  past_due: boolean;
 };
 
 export type AccessDecision =
@@ -53,18 +55,21 @@ export function parseAthenaAccess(data: unknown): AthenaAccess | null {
     has_company: row.has_company,
     company_seat: row.company_seat === true,
     paid_period: paid as PaidPeriod,
+    past_due: row.past_due === true,
   };
 }
 
 /**
  * Active Circle or Hardcore (hasAccess) with no company goes to setup.
- * Review, or a stale or missing paid period, is the confirming message when access is off.
- * past_due with a current paid period arrives as eligible / paid_period current and stays allowed.
+ * Stripe past_due counts as active even when the paid period is stale, until the
+ * subscription is canceled, unpaid, or ended. Review, or a stale or missing paid
+ * period, is the confirming message only when access is off.
  * Anything else with no access stays the paused message.
  */
 export function decideAccess(access: AthenaAccess): AccessDecision {
-  if (access.circle_active || access.has_access) {
-    if (access.circle_active && !access.has_company) return { kind: "setup" };
+  const active = access.past_due || access.circle_active || access.has_access;
+  if (active) {
+    if ((access.past_due || access.circle_active) && !access.has_company) return { kind: "setup" };
     return { kind: "allow" };
   }
   if (access.state === "review" || access.paid_period === "stale" || access.paid_period === "missing") {

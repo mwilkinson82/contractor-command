@@ -1,8 +1,8 @@
 -- Athena access detail for the tool guard. Additive: one new function.
 -- Does not change circle_decision, mcp_gate, tables, or rows.
--- past_due with paid_through still in the future is paid_period "current",
--- the same grace subscription_state already treats as eligible. This function
--- does not re-decide eligibility. hasAccess still comes from get_circle_entitlement.
+-- Stripe status past_due on a Circle or Hardcore subscription counts as active
+-- for Athena even when the paid period is stale. Canceled, unpaid, and ended
+-- subscriptions do not. circle_decision itself is unchanged.
 
 CREATE OR REPLACE FUNCTION public.mcp_athena_access()
 RETURNS jsonb
@@ -21,6 +21,7 @@ DECLARE
   current_paid boolean := false;
   stale_paid boolean := false;
   missing_paid boolean := false;
+  past_due boolean := false;
   paid_period text := 'none';
   state text;
   reason text;
@@ -33,7 +34,8 @@ BEGIN
       'circle_active', false,
       'has_company', false,
       'company_seat', false,
-      'paid_period', 'none'
+      'paid_period', 'none',
+      'past_due', false
     );
   END IF;
 
@@ -65,13 +67,14 @@ BEGIN
       e.observed_at IS NOT NULL
       AND e.paid_through IS NOT NULL
       AND e.paid_through <= now()
-      AND s.status = 'active'
+      AND s.status IN ('active', 'past_due')
     ), false),
     coalesce(bool_or(
       s.status IN ('active', 'trialing', 'past_due')
       AND (e.observed_at IS NULL OR e.paid_through IS NULL)
-    ), false)
-  INTO current_paid, stale_paid, missing_paid
+    ), false),
+    coalesce(bool_or(s.status = 'past_due'), false)
+  INTO current_paid, stale_paid, missing_paid, past_due
   FROM public.subscriptions s
   LEFT JOIN public.circle_subscription_evidence e
     ON e.stripe_subscription_id = s.stripe_subscription_id
@@ -85,6 +88,9 @@ BEGIN
     ELSE 'none'
   END;
 
+  -- past_due keeps Athena until Stripe marks the subscription canceled, unpaid, or ended.
+  circle_active := circle_active OR past_due;
+
   RETURN jsonb_build_object(
     'state', state,
     'reason', reason,
@@ -93,6 +99,7 @@ BEGIN
     'has_company', has_company,
     'company_seat', company_seat,
     'paid_period', paid_period,
+    'past_due', past_due,
     'tier', decision->>'tier'
   );
 END;
