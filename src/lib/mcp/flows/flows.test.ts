@@ -7,7 +7,7 @@ import { z } from "zod";
 import { attachAthenaCard } from "../cards/attach";
 import { CARD_SHOWN, CARD_SHOWN_PICK } from "../cards/silence";
 import { applyMeetingFigures, buildFlowCard, iorDelta, readMeetingMoney } from "./build";
-import { scheduleActivities, schedulePercent } from "./load";
+import { isProblemLine, kindOf, saveFlowNote, scheduleActivities, schedulePercent } from "./load";
 import { job2701FlowData } from "./job-2701";
 import { EVENING_STAGES, MORNING_STAGES, PM_MEETING_STAGES, stagesFor, type FlowName } from "./types";
 
@@ -293,5 +293,66 @@ describe("sample path on job 2701", () => {
     expect(before).not.toContain("&lt;!doctype");
     expect(r.content.some((c) => c.type === "resource")).toBe(false);
     calls.jobs = [{ job_number: "2701", name: "Harbor Point", company_id: "c1" }];
+  });
+});
+
+describe("meeting notes stay off the risk log", () => {
+  const jobId = "11111111-1111-4111-8111-111111111111";
+  function noteClient() {
+    const rpc = vi.fn(async () => ({ data: { item_id: "1" }, error: null }));
+    return { rpc, from: () => ({ select: () => ({ eq: () => Promise.resolve({ data: [], error: null }) }) }) };
+  }
+  function categories(sb: { rpc: { mock: { calls: unknown[][] } } }) {
+    return sb.rpc.mock.calls.filter((call) => call[0] === "mcp_add_item").map((call) => (call[1] as { _f: { category: string } })._f.category);
+  }
+
+  it.each([
+    "Subs, suppliers and crews confirmed",
+    "Subs, suppliers, and crews all confirmed",
+    "Subs and crews confirmed, no issues",
+    "Crews — locked in, confirmed, nothing flagged",
+  ])("does not file %s as a risk", async (note) => {
+    const sb = noteClient();
+    await saveFlowNote(sb as never, jobId, "pm_meeting", "schedule", note, { note });
+    expect(categories(sb)).not.toContain("Risk");
+    expect(isProblemLine(note)).toBe(false);
+    expect(sb.rpc).toHaveBeenCalledWith("mcp_meeting_item_save", {
+      _job: jobId, _key: "pm:crews", _action: note, _close: true,
+    });
+  });
+
+  it.each([
+    "Steel delivery slipped to Monday",
+    "Drywall crew short two guys",
+    "Duct conflicts with sprinkler main at grid C",
+  ])("files %s as a risk", async (note) => {
+    const sb = noteClient();
+    await saveFlowNote(sb as never, jobId, "pm_meeting", "schedule", note, { note });
+    expect(isProblemLine(note)).toBe(true);
+    expect(sb.rpc).toHaveBeenCalledWith("mcp_add_item", {
+      _job: jobId, _f: { action: note, category: "Risk", tool: "pm_meeting", section: "schedule" },
+    });
+  });
+
+  it("keeps an evening note on Daily and a negated line off the risk log", async () => {
+    const evening = noteClient();
+    await saveFlowNote(evening as never, jobId, "pm_evening", "risks", "Steel delivery slipped to Monday", { note: "x" });
+    expect(categories(evening)).toEqual(["Daily"]);
+    const quiet = noteClient();
+    await saveFlowNote(quiet as never, jobId, "pm_meeting", "schedule", "No delays, nothing flagged", { note: "x" });
+    expect(isProblemLine("no issues")).toBe(false);
+    expect(isProblemLine("nothing flagged")).toBe(false);
+    expect(isProblemLine("no delays")).toBe(false);
+    expect(categories(quiet)).toEqual(["Meeting"]);
+    expect(kindOf("No delays", "Meeting")).toBe("open");
+  });
+
+  it("does not treat Substantial Completion as a crew", () => {
+    expect(kindOf("Substantial Completion", "")).not.toBe("crew");
+    expect(kindOf("Substantial Completion", "Milestone")).not.toBe("crew");
+    expect(kindOf("Drywall sub", "")).toBe("crew");
+    expect(kindOf("Electrical subcontractor", "")).toBe("crew");
+    expect(kindOf("Supplier confirmation", "")).toBe("crew");
+    expect(kindOf("Crew count", "")).toBe("crew");
   });
 });
