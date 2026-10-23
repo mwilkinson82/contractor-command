@@ -22,7 +22,7 @@ const sb = () => ({
       : table === "mcp_open_items" ? [
         ...Array.from({ length: state.rows }, (_, i) => ({ id: `item-${i.toString().padStart(4, "0")}`, job_id: state.job, lookahead_id: state.la,
           action: `Fictional construction item ${i + 1}`, accountable: "Example PM", due_date: i === 0 ? "2020-01-01" : "2099-01-01",
-          status: i === 5 ? "resolved" : "open", severity: "low", item_type: i === 1 ? "delay" : "deadline" })),
+          status: i === 5 ? "resolved" : "open", severity: "low", item_type: i === 1 ? "delay" : "deadline", category: i === 3 ? "delay_notice" : null })),
         { id: "foreign-item", job_id: "other-job", lookahead_id: state.la, action: "PRIVATE OTHER JOB" },
         { id: "other-lookahead", job_id: state.job, lookahead_id: "other-la", action: "OTHER LOOKAHEAD" },
       ] : [];
@@ -77,6 +77,7 @@ describe("normal lookahead read", () => {
     expect(items.find((r) => r.refId === "item-0000")!.flag).toBe("overdue");
     expect(items.find((r) => r.refId === "item-0001")!.flag).toBe("delay");
     expect(items.find((r) => r.refId === "item-0002")!.flag).toBe("callout");
+    expect(items.find((r) => r.refId === "item-0003")!.flag).toBe("delay");
     expect(items.find((r) => r.refId === "item-0005")!.flag).toBeNull();
     expect(state.writes).toEqual([]);
     expect(state.rpcs).toEqual(["mcp_resolve_job", "mcp_living_report_get"]);

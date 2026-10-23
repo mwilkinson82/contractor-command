@@ -8,6 +8,7 @@ import { lookaheadAlert } from "./styled-views";
 export type SavedLookaheadItem = {
   id: string; action: string; owner: string | null; due: string | null;
   status: string; severity: string | null; type: string | null;
+  kind?: string | null; category?: string | null; check_key?: string | null;
 };
 
 /** Scoped, paged read. Includes closed items so the index count and detail agree. No file/export operation. */
@@ -15,7 +16,7 @@ export async function savedLookaheadItems(sb: Sb, job: Job, lookaheadId: string)
   const items: SavedLookaheadItem[] = [];
   for (let offset = 0; ; offset += 500) {
     const { data, error } = await sb.from("mcp_open_items")
-      .select("id, action, accountable, owner, needed_by, due_date, status, severity, item_type")
+      .select("id, action, accountable, owner, needed_by, due_date, status, severity, item_type, kind, category, check_key")
       .eq("job_id", job.job_id).eq("lookahead_id", lookaheadId)
       .order("id", { ascending: true }).range(offset, offset + 499);
     if (error) throw new Error(error.message);
@@ -24,6 +25,7 @@ export async function savedLookaheadItems(sb: Sb, job: Job, lookaheadId: string)
       id: row.id, action: formatBillingText(itemName(row.action)),
       owner: row.accountable ?? row.owner ?? null, due: dueOf(row) || null,
       status: row.status, severity: row.severity, type: row.item_type,
+      kind: row.kind, category: row.category, check_key: row.check_key,
     });
     if (rows.length < 500) break;
   }
