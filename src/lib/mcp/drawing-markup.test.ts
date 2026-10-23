@@ -198,14 +198,17 @@ async function seed() {
 }
 
 describe("stored drawing markup tool", () => {
-  it("imports the host attachment once, then opens the stored sheet without another download", async () => {
+  it.each([
+    "https://files.oaiusercontent.com/permit.pdf",
+    "https://oaisdmntprbrazilsouth.blob.core.windows.net/fictional/permit.pdf?sig=fictional",
+  ])("imports the host attachment once, then opens the stored sheet without another download (%s)", async (download_url) => {
     const bytes = pdf();
     const original = bytes.slice();
     const fetcher = vi.fn(async () => new Response(bytes.slice()));
     vi.stubGlobal("fetch", fetcher);
     const args = {
       job_number: "2701", sheets: ["S-001", "S-100"],
-      file: { download_url: "https://files.oaiusercontent.com/permit.pdf", file_id: "fictional-file", file_name: "host-permit.pdf" },
+      file: { download_url, file_id: "fictional-file", file_name: "host-permit.pdf" },
     };
     const first = await call(drawingSetImport, args);
     const second = await call(drawingSetImport, args);

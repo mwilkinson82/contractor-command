@@ -209,9 +209,29 @@ function rejectedDrawingLink(raw: string): string {
   return `Athena does not yet accept attachment downloads from ${url.hostname}. Nothing was stored.`;
 }
 
-/** Same ChatGPT file fetch as file_share: https, OpenAI hosts only, no redirects, size-capped. */
+// Observed on the signed-in ChatGPT file-parameter handoff in the live #231 retest.
+// This is one storage account, not an Azure-wide hostname pattern.
+const CHATGPT_DRAWING_HOST = "oaisdmntprbrazilsouth.blob.core.windows.net";
+
+function allowedDrawingDownloadUrl(raw: string): boolean {
+  if (allowedDownloadUrl(raw)) return true;
+  try {
+    const url = new URL(raw);
+    return (
+      url.protocol === "https:" &&
+      url.hostname === CHATGPT_DRAWING_HOST &&
+      !url.username &&
+      !url.password &&
+      !url.port
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** ChatGPT file fetch: existing hosts plus the observed storage account; no redirects, size-capped. */
 async function fetchDrawing(url: string): Promise<Uint8Array> {
-  if (!allowedDownloadUrl(url)) throw new FileRejected(rejectedDrawingLink(url));
+  if (!allowedDrawingDownloadUrl(url)) throw new FileRejected(rejectedDrawingLink(url));
   const res = await fetch(url, { redirect: "error" });
   if (!res.ok || !res.body)
     throw new FileRejected("Athena couldn't download that file. Pass the file's bytes as content_base64 instead. Nothing was stored.");
