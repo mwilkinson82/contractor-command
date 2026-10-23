@@ -201,6 +201,60 @@ async function seed() {
 }
 
 describe("stored drawing markup tool", () => {
+  it("stores a new five-sheet PDF without names, asks once, then indexes and marks up by source ID despite a renamed host filename", async () => {
+    await seed();
+    await call(drawingMarkup, { job_number: "2701", sheet: "S-100", operation: "prepare" });
+    const names = ["S-100", "S-101", "A-100", "A-101", "A-200"];
+    const doc = new jsPDF();
+    names.forEach((name, index) => { if (index) doc.addPage(); doc.text(name, 20, 20); });
+    const bytes = new Uint8Array(doc.output("arraybuffer"));
+    const stored = await call(drawingSetImport, { job_number: "2701", drawing: { filename: "S100-A200(4).pdf", content_base64: bytesToBase64(bytes) } });
+    const source = stored.structuredContent.source as DrawingRecord;
+    expect(stored.structuredContent).toMatchObject({ stored: true, sheet_index_required: true, source_id: source.id, page_count: 5, sheet_index_context: { source_id: source.id } });
+    const originalSource = JSON.stringify(source);
+    // The newly stored, unindexed PDF must block an accidental fallback to the older S-100.
+    const blocked = await call(drawingMarkup, { job_number: "2701", sheet: "S-100", operation: "prepare" });
+    expect(blocked.structuredContent).toMatchObject({ source_id: source.id, sheet_index_required: true, requested_sheet: "S-100" });
+    expect(blocked.content.some((block) => block.type === "image")).toBe(false);
+    expect(blocked.content[0].text).toContain("No older drawing was substituted");
+    const indexed = await call(drawingSetImport, { job_number: "2701", source_id: source.id, stored_filename: "ChatGPT-renamed-it-again.pdf", sheets: names });
+    const indexedSource = indexed.structuredContent.source as DrawingRecord;
+    expect(indexed.structuredContent).toMatchObject({ stored: true, duplicate: true, sheet_index_required: false, page_count: 5 });
+    expect(indexedSource.sheets).toEqual(names);
+    expect(indexedSource.path).toBe(source.path);
+    expect(indexedSource.content_hash).toBe(source.content_hash);
+    expect(JSON.stringify(source)).toBe(originalSource);
+    const read = await call(drawingSetImport, { job_number: "2701", source_id: indexedSource.id });
+    expect((read.structuredContent.source as DrawingRecord).id).toBe(indexedSource.id);
+    const repeated = await call(drawingSetImport, { job_number: "2701", drawing: { filename: "A200(5).pdf", content_base64: bytesToBase64(bytes) } });
+    expect(repeated.structuredContent.duplicate).toBe(true);
+    expect(repeated.structuredContent.source_id).toBe(indexedSource.id);
+    expect(repeated.structuredContent.sheet_index_required).toBe(false);
+    const marked = await call(drawingMarkup, { job_number: "2701", source_id: indexedSource.id, source_filename: "Another-renamed-A200(5).pdf", sheet: "S-100", operation: "save", annotations: [{ label: "Test", text: "Fictional rendering test", severity: "callout", geometry: { kind: "pin", point: { x: .5, y: .22 } } }, { label: "Unlocated", text: "Key only; no position supplied", severity: "callout" }] });
+    expect(marked.structuredContent.saved).toBe(true);
+    expect(marked.structuredContent.markup).toMatchObject({ parent_id: indexedSource.id, page: 1, sheet: "S-100" });
+    expect((marked.structuredContent.card as { kpis: unknown[] }).kpis).toEqual(expect.arrayContaining([{ label: "Callouts", value: "2" }, { label: "Pins on sheet", value: "1" }]));
+    expect(state.uploaded).toHaveLength(2); // one original object, one separate markup
+    expect(state.objects.get(source.path)).toEqual(bytes);
+  });
+  it("rejects an incomplete page-order answer without changing the stored index or requesting another upload", async () => {
+    const stored = await storeDrawingSet(fakeSb(), job, { filename: "new.pdf", content_base64: bytesToBase64(pdf()) });
+    const result = await call(drawingSetImport, { job_number: "2701", source_id: stored.record.id, sheets: ["S-100"] });
+    expect(result.structuredContent.stored).toBe(true);
+    expect(result.structuredContent.index_error).toContain("2 pages");
+    expect(result.structuredContent.upload_context).toBeUndefined();
+    expect(result.content[0].text).toContain("2 pages");
+    expect(result.content[0].text).toContain("No index was changed; no re-upload is needed");
+    expect(state.records).toHaveLength(1);
+    expect(state.uploaded).toHaveLength(1);
+  });
+  it("never resolves an unknown source ID using a supplied valid stored filename", async () => {
+    await seed();
+    const result = await call(drawingSetImport, { job_number: "2701", source_id: crypto.randomUUID(), stored_filename: "set.pdf", sheets: ["Cover", "S-100"] });
+    expect(result.content[0].text).toContain("No other set was selected");
+    expect(state.uploaded).toEqual([]);
+    expect(state.downloads).toEqual([]);
+  });
   it("reindexes a 17.6 MB stored original with one binary download and no base64 upload or new object", async () => {
     const bytes = new Uint8Array(17612902); bytes.fill(32); bytes.set(pdf());
     const path = "c1/j1/drawing-large/source.pdf", hash = await sha256Hex(bytes);

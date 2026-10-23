@@ -44,7 +44,7 @@ class Element {
 function descendants(root: Element): Element[] {
   return [root, ...root.children.flatMap(descendants)];
 }
-function view() {
+function view(initialWidgetState?: unknown) {
   const app = new Element(),
     status = new Element(),
     sent: { data: Record<string, unknown>; origin: string }[] = [];
@@ -55,8 +55,10 @@ function view() {
   };
   let receive: (event: unknown) => void = () => {},
     removed = false;
+  let widgetState = initialWidgetState;
   const window = {
     parent,
+    ...(initialWidgetState !== undefined ? { openai: { widgetState, setWidgetState(next: unknown) { widgetState = next; this.widgetState = next; } } } : {}),
     addEventListener(_type: string, cb: typeof receive) {
       receive = cb;
     },
@@ -86,6 +88,7 @@ function view() {
     parent,
     removed: () => removed,
     all: () => descendants(app),
+    widgetState: () => widgetState,
     ready: (hostCapabilities = {}) =>
       message({
         jsonrpc: "2.0",
@@ -126,6 +129,89 @@ function payload(
 }
 
 describe("drawing card view", () => {
+  it("enables a dated save after one finding is placed while other findings stay explicitly key-only", async () => {
+    const v = view(); v.ready({ serverTools: {} });
+    const p = payload();
+    v.result({ ...p, structuredContent: { ...p.structuredContent, saved: false, job_number: "CCW-003", company_id: "company", sheet: "S-100", drawing_annotations: [{ label: "Located", text: "Fictional finding", severity: "callout" }, { label: "Not located", text: "Do not invent its position", severity: "callout" }] } });
+    const save = v.all().find((e) => e.textContent === "Save dated markup")!;
+    expect((save as unknown as { disabled: boolean }).disabled).toBe(true);
+    const img = v.all().find((e) => e.tagName === "IMG")!;
+    (img.handlers.click as unknown as (e: unknown) => void)({ clientX: 110, clientY: 70 });
+    expect((save as unknown as { disabled: boolean }).disabled).toBe(false);
+    expect(v.app.textContent).toContain("1 of 2 findings placed");
+    expect(v.app.textContent).toContain("1 remains in the key only");
+    const saving = save.handlers.click();
+    const request = v.sent.at(-1)!.data;
+    expect(request).toMatchObject({ method: "tools/call", params: { arguments: { source_id: "original", annotations: [{ label: "Located", geometry: { kind: "pin", point: { x: .5, y: .5 } } }, { label: "Not located" }] } } });
+    const annotations = (request.params as { arguments: { annotations: { geometry?: unknown }[] } }).arguments.annotations;
+    expect(annotations[1].geometry).toBeUndefined();
+    v.message({ jsonrpc: "2.0", id: request.id, result: { structuredContent: { ...p.structuredContent, saved: true } } });
+    await saving;
+  });
+  it("keeps a stored upload result through an empty host replay, saves its page-order index by ID, and opens S-100 by the returned ID", async () => {
+    const v = view({}); v.ready({ serverTools: {} });
+    const context = { job_number: "CCW-003", company_id: "company" };
+    const initial = { structuredContent: { stored: false, upload_context: context, card: { title: "Store your drawing PDF" } } };
+    v.result(initial);
+    Object.assign(v.all().find(e => e.tagName === "INPUT")!, { files: [{ name: "A200(4).pdf", size: 10, arrayBuffer: async () => new Uint8Array(10).buffer }] });
+    const uploading = v.all().find(e => e.textContent === "Store PDF on this job")!.handlers.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const uploadCall = v.sent.filter(e => e.data.method === "tools/call").at(-1)!.data;
+    const stored = { structuredContent: { stored: true, sheet_index_required: true, page_count: 5, source: { id: "unindexed", filename: "A200(4).pdf", sheets: [] }, drawing_source_context: { ...context, source_id: "unindexed" }, sheet_index_context: { ...context, source_id: "unindexed" }, card: { title: "Drawing stored — sheet names needed" } } };
+    v.message({ jsonrpc: "2.0", id: uploadCall.id, result: stored }); await uploading;
+    v.result(initial);
+    expect(v.app.textContent).toContain("Drawing stored — sheet names needed");
+    expect(v.app.textContent).not.toContain("Store PDF on this job");
+    Object.assign(v.all().find(e => e.tagName === "INPUT")!, { value: "S-100, S-101, A-100, A-101, A-200" });
+    const indexing = v.all().find(e => e.textContent === "Save sheet names")!.handlers.click();
+    const indexCall = v.sent.filter(e => e.data.method === "tools/call").at(-1)!.data;
+    expect(indexCall).toMatchObject({ params: { name: "drawing_set_import", arguments: { ...context, source_id: "unindexed", sheets: ["S-100", "S-101", "A-100", "A-101", "A-200"] } } });
+    const indexed = { structuredContent: { stored: true, sheet_index_required: false, source: { id: "indexed-source", filename: "A200(4).pdf", sheets: ["S-100", "S-101", "A-100", "A-101", "A-200"] }, drawing_source_context: { ...context, source_id: "indexed-source" }, card: { title: "Drawing set recognized" } } };
+    v.message({ jsonrpc: "2.0", id: indexCall.id, result: indexed }); await indexing;
+    v.result(stored); v.result(initial);
+    expect(v.app.textContent).toContain("Drawing set recognized");
+    expect(v.all().some(e => e.textContent === "Save sheet names")).toBe(false);
+    expect(v.widgetState()).toMatchObject({ modelContent: { source_id: "indexed-source", sheets: indexed.structuredContent.source.sheets }, privateContent: { athenaDrawing: { ...context, source_id: "indexed-source" } } });
+    expect(v.sent.some(e => e.data.method === "ui/update-model-context" && JSON.stringify(e.data).includes('"source_id":"indexed-source"'))).toBe(true);
+    Object.assign(v.all().find(e => e.tagName === "SELECT")!, { value: "S-100" });
+    const opening = v.all().find(e => e.textContent === "Open stored sheet")!.handlers.click();
+    const openCall = v.sent.filter(e => e.data.method === "tools/call").at(-1)!.data;
+    expect(openCall).toMatchObject({ params: { name: "drawing_markup", arguments: { ...context, source_id: "indexed-source", sheet: "S-100", operation: "prepare" } } });
+    expect((openCall.params as { arguments: object }).arguments).not.toHaveProperty("source_filename");
+    v.message({ jsonrpc: "2.0", id: openCall.id, result: payload() }); await opening;
+  });
+  it("restores a widget's source reference by an authorized source-ID read instead of re-uploading on remount", async () => {
+    const context = { job_number: "CCW-003", company_id: "company", source_id: "persisted-source" };
+    const v = view({ privateContent: { athenaDrawing: context } }); v.ready({ serverTools: {} });
+    const initial = { structuredContent: { stored: false, upload_context: { job_number: context.job_number, company_id: context.company_id }, card: { title: "Store your drawing PDF" } } };
+    v.result(initial); v.result(initial);
+    const calls = v.sent.filter(e => e.data.method === "tools/call");
+    expect(calls).toHaveLength(1);
+    expect(calls[0].data).toMatchObject({ params: { name: "drawing_set_import", arguments: context } });
+    const result = { structuredContent: { stored: true, source: { id: context.source_id, sheets: ["S-100"] }, drawing_source_context: context, card: { title: "Drawing set recognized" } } };
+    v.message({ jsonrpc: "2.0", id: calls[0].data.id, result });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(v.app.textContent).toContain("Drawing set recognized");
+    expect(v.app.textContent).not.toContain("Store PDF on this job");
+    expect((calls[0].data.params as { arguments: object }).arguments).not.toHaveProperty("drawing");
+  });
+  it("does not restore another job's widget reference", () => {
+    const v = view({ privateContent: { athenaDrawing: { job_number: "OTHER", company_id: "company", source_id: "private-source" } } });
+    v.ready({ serverTools: {} });
+    v.result({ structuredContent: { stored: false, upload_context: { job_number: "CCW-003", company_id: "company" }, card: { title: "Store your drawing PDF" } } });
+    expect(v.sent.some(e => e.data.method === "tools/call")).toBe(false);
+    expect(v.app.textContent).toContain("Store PDF on this job");
+  });
+  it("never hides a failed new upload behind a previously stored result", () => {
+    const v = view({}); v.ready({ serverTools: {} });
+    const context = { job_number: "CCW-003", company_id: "company", source_id: "old-source" };
+    v.result({ structuredContent: { stored: true, source: { id: "old-source", sheets: ["S-100"] }, drawing_source_context: context, card: { title: "Old set stored" } } });
+    v.result({ structuredContent: { stored: false, import_failed: true, upload_context: { job_number: context.job_number, company_id: context.company_id }, card: { title: "New upload was not stored" } } });
+    expect(v.app.textContent).toContain("New upload was not stored");
+    expect(v.app.textContent).not.toContain("Old set stored");
+    expect(v.widgetState()).toEqual({});
+    expect(v.sent.some(e => e.data.method === "tools/call")).toBe(false);
+  });
   it("locates an unpositioned finding on the original image and saves that exact source only after the member clicks", async () => {
     const v = view();
     v.ready({ serverTools: {} });

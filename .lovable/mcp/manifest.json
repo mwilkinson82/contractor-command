@@ -2310,7 +2310,7 @@
       {
         "name": "drawing_set_import",
         "title": "Store a drawing set",
-        "description": "Stores an attached drawing PDF, recognizes identical files and indexes sheets, or opens the direct PDF upload card when the host cannot forward an attachment without passing base64 through the model, with Drive/Dropbox links optional.",
+        "description": "Stores an attached drawing PDF once and returns its source_id, asks once for missing sheet names in PDF page order, and reads or indexes that stored source by source_id without re-uploading; a direct PDF upload card is available and Drive/Dropbox links are optional.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -2405,6 +2405,11 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 200
+            },
+            "source_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             },
             "sheets": {
               "minItems": 1,
