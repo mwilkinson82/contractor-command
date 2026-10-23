@@ -13,6 +13,7 @@ import {
 } from "./cards/native";
 import { isMcpPost } from "./server-info-branding";
 import { phoneHostText } from "./phone-reply";
+import { timingFields, type CardTiming } from "./card-timing";
 import { outsideFencedBlocks } from "./cards/verbatim";
 import { claudeCardReply } from "./cards/claude-reply";
 
@@ -287,11 +288,13 @@ function rememberCardSession(response: Response, visit: Visit | null) {
 export async function nativeCardResponse(
   response: Response,
   visit: Visit | null,
+  timing?: CardTiming,
 ): Promise<Response> {
   rememberCardSession(response, visit);
   if (!visit) return response;
-  const cardRead =
-    visit.calls.length === 1 && visit.calls[0].method === "resources/read" ? visit.calls[0] : null;
+  const only = visit.calls.length === 1 ? visit.calls[0] : null;
+  const cardRead = only?.method === "resources/read" ? only : null;
+  const cardCall = only?.method === "tools/call" ? only : null;
   // Static shell diagnostics only: never log headers, identifiers, HTML or tool data.
   const trace = (outcome: string, status = response.status, format?: string) => {
     if (cardRead)
@@ -301,8 +304,18 @@ export async function nativeCardResponse(
         status,
         outcome,
         ...(format ? { format } : {}),
+        ...timingFields(timing),
       });
   };
+  // A native card tool call: the tool name is static; the host kind says which reply shape it got.
+  if (cardCall)
+    console.info("[athena] card.call", {
+      tool: String(cardCall.params.name ?? ""),
+      protocol: cardCall.modern ? "modern" : "legacy",
+      host: cardCall.claude ? "claude" : cardCall.inlineHtml ? "card-host" : "text-host",
+      status: response.status,
+      ...timingFields(timing),
+    });
   const resourceMiss =
     response.status === 404 &&
     visit.calls.length === 1 &&

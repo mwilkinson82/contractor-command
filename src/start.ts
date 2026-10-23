@@ -4,6 +4,7 @@ import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 import { brandInitializeResponse, initializeRequestIds, isMcpPost } from "./lib/mcp/server-info-branding";
 import { nativeCardResponse, nativeCardVisit } from "./lib/mcp/native-card-transport";
+import { beginCardTiming, markSdkDone, timingFields } from "./lib/mcp/card-timing";
 import { isTrustedHost } from "./lib/trusted-hosts";
 import { checkAthenaEntitlement, NO_ENTITLEMENT_MESSAGE } from "./lib/mcp/entitlement";
 import { supabaseForToken } from "./lib/mcp/supabase";
@@ -117,12 +118,19 @@ const mcpEntitlementGate = createMiddleware().server(async ({ next, request }) =
   // initialize, tools/list, ping and notifications skip the database round trip, so a cold
   // first connect (Claude's first fresh chat) gets its tool list fast instead of timing out.
   if (!(await hasToolCall(request))) return next();
+  // Timing only (milliseconds and outcome); the token, member and company never reach the log.
+  const startedAt = Date.now();
   let ent;
   try {
     ent = await checkAthenaEntitlement(supabaseForToken(authz.slice(7).trim()));
   } catch {
+    console.info("[athena] mcp.entitlement", { ms: Date.now() - startedAt, outcome: "check-failed" });
     return next();
   }
+  console.info("[athena] mcp.entitlement", {
+    ms: Date.now() - startedAt,
+    outcome: !ent.allowed && ent.reason === "no_entitlement" ? "denied" : "allowed",
+  });
   if (!ent.allowed && ent.reason === "no_entitlement") {
     return new Response(JSON.stringify({ error: "forbidden", message: NO_ENTITLEMENT_MESSAGE }), {
       status: 403,
@@ -156,11 +164,14 @@ const mcpServerInfoBranding = createMiddleware().server(async ({ next, request }
 const mcpNativeCardPresentation = createMiddleware().server(async ({ next, request }) => {
   // Presentation must never turn a successful SDK response into an application failure.
   const visit = await nativeCardVisit(request).catch(() => null);
+  const timing = visit ? beginCardTiming() : undefined;
   const result = await next();
   if (!visit) return result;
+  if (timing) markSdkDone(timing);
   try {
-    return { ...result, response: await nativeCardResponse(result.response, visit) };
-  } catch {
+    return { ...result, response: await nativeCardResponse(result.response, visit, timing) };
+  } catch (error) {
+    console.info("[athena] card.presentation", { outcome: "failed", ...timingFields(timing), error: error instanceof Error ? error.name : "unknown" });
     return result;
   }
 });

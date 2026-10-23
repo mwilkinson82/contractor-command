@@ -8,7 +8,7 @@ Original Claude base: `codex/athena-passwordless-login-only` at `078c856` (0.8.2
 - Claude's tool text on native card tools is facts only (`cards/claude-reply.ts`, applied in `native-card-transport.ts`):
   - kept: every markdown row, workflow guidance (next question, SOV delivery options, the inbox line);
   - removed: the dumped HTML document, `REQUIRED VIEW:` lines, `Card shown. Do not add text`, the `Display:` style line, and the house-style block (`HOST_DISPLAY_BLOCK`) from `structuredContent.assistant_guidance`;
-  - added: one plain line, "The member sees this result as an Athena card."
+  - no line claims the card is on screen (an earlier candidate added one; the host draws the card only after the resource loads, so the claim was wrong whenever that load failed).
   Claude treats orders inside a tool result as untrusted text, so they never made it render; the card view does.
 - Claude is detected from clientInfo (per call or remembered from initialize) by name `claude`/`anthropic`. Errors are untouched. ChatGPT replies stay byte-for-byte (tested).
 
@@ -71,3 +71,16 @@ GitHub CI runs the full default suite and build on the review PR. The earlier fi
 Claude's review cleared the three contract/SOV corrections and identified a pre-existing #219 draft-rendering issue. #219 now displays exact reviewed draft fields in a literal panel. This branch's companion cleanup recognizes fenced member data and leaves it untouched, including line breaks, pipes, spacing, quoted HTML and sentences that resemble display instructions. Real card HTML and display notes outside the draft still disappear from Claude's model-facing text. Ordinary ChatGPT responses retain the unchanged transport path. Tests cover LF and CRLF, embedded backticks, nested code fences in card HTML, and display-like email content.
 
 Updated standalone default suite: **1,928 passed**. No production email was sent and no live-host acceptance is claimed. This follow-up changes no database schema; #219 retains its existing Lovable Cloud migration handoff.
+
+## Card load timing (diagnostics)
+
+Live claude.ai reproduction on 2026-10-23: the contract terms and SOV cards rendered on the first try in two fresh chats, and the card that had failed earlier rendered from Claude's cache (`assets.claude.ai`) on reopening, with no new `resources/read`. The wire sequence was `server/discover` → `tools/list` (`_meta.ui.resourceUri`) → `resources/read` (`text/html;profile=mcp-app`, served) → card. No CSP or app errors in the console. The failure is intermittent and sits on the host's first fetch of the card HTML.
+
+To place it, every native card request now logs milliseconds, never content:
+
+- `[athena] card.resource` (existing) gains `sdkMs`, `totalMs`, `requestNo`, `isolateAgeMs`, `cold`.
+- `[athena] card.call` for a native card tool call: `tool`, `protocol`, `host` (`claude` / `card-host` / `text-host`), `status`, plus the timing fields.
+- `[athena] mcp.entitlement` on tools/call: `ms` and `outcome` (`allowed` / `denied` / `check-failed`).
+- `[athena] card.presentation` only when the presentation pass itself throws.
+
+`cold` is true on the first MCP request an isolate serves; `isolateAgeMs` is how long the isolate had been up. A failed card whose `card.resource` line shows `served` with a large `totalMs` or `cold: true` is a deadline race on the host side, not a protocol fault. Authentication, the entitlement gate, the SDK path and ChatGPT's `openai/outputTemplate` templates are unchanged.

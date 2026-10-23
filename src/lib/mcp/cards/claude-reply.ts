@@ -10,9 +10,6 @@ import {
 import { CARD_SHOWN, CARD_SHOWN_PICK } from "./silence";
 import { outsideFencedBlocks } from "./verbatim";
 
-/** A plain statement for the model. Not an order. */
-export const CLAUDE_CARD_NOTE = "The member sees this result as an Athena card.";
-
 type Obj = Record<string, unknown>;
 const HOUSE_STYLE_RE = /^HOUSE STYLE \(for the assistant/;
 /** House style, card-shown orders, and the SOV table/chart styling the card replaces. */
@@ -50,14 +47,12 @@ export function claudeCardText(text: string): string {
 export function claudeCardReply(result: Obj): Obj | null {
   if (!Array.isArray(result.content)) return null;
   let changed = false;
-  let noted = false;
+  // No line claims the card is on screen: the host draws it only after the resource loads, and
+  // when that load fails the model would otherwise tell the member to look at a card that is not there.
   const content = result.content.map((block) => {
     const row = block as Obj;
     if (row?.type !== "text" || typeof row.text !== "string") return block;
-    const text = claudeCardText(row.text);
-    const next =
-      noted || !text || text.includes(CLAUDE_CARD_NOTE) ? text : `${text}\n\n${CLAUDE_CARD_NOTE}`;
-    noted ||= !!text;
+    const next = claudeCardText(row.text);
     if (next === row.text) return block;
     changed = true;
     return { ...row, text: next };
