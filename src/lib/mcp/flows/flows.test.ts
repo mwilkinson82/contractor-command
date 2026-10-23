@@ -410,6 +410,58 @@ describe("meeting notes stay off the risk log", () => {
     expect(categories(sb)).toEqual(["Meeting"]);
   });
 
+  it("keeps abbreviation periods inside the sentence", () => {
+    expect(splitNoteLines("Dr. Hale walked the site. Steel slips approx. 4 days.")).toEqual([
+      "Dr. Hale walked the site.",
+      "Steel slips approx. 4 days.",
+    ]);
+    expect(splitNoteLines("See e.g. the east pad, i.e. grid C. No. 12 rebar is at St. James.")).toEqual([
+      "See e.g. the east pad, i.e. grid C.",
+      "No. 12 rebar is at St. James.",
+    ]);
+  });
+
+  it("files case 26 as three risks and two meeting notes, and a repeat adds nothing", async () => {
+    const lines = [
+      "Steel delay on the east side.",
+      "Rebar delay at the dock.",
+      "Crane permit still not issued.",
+      "Owner walkthrough went well.",
+      "The east pad is clear.",
+    ];
+    const note = lines.join("\n");
+    expect(isProblemLine("Crane permit still not issued")).toBe(true);
+    expect(isProblemLine(lines[2])).toBe(true);
+    const items: Record<string, unknown>[] = [];
+    const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
+      if (name === "mcp_add_item") {
+        const field = args._f as { action: string; category: string };
+        items.push({ id: `item-${items.length}`, action: field.action, status: "open", category: field.category });
+      }
+      return { data: { item_id: "1" }, error: null };
+    });
+    const sb = {
+      rpc,
+      from: (table: string) => ({
+        select: () => ({
+          eq: () => Promise.resolve({ data: table === "mcp_open_items" ? items.map((row) => ({ ...row })) : [], error: null }),
+        }),
+      }),
+    };
+    const saved = await saveFlowNote(sb as never, jobId, "pm_meeting", "schedule", note, { note });
+    const rows = added(sb);
+    expect(rows.filter((row) => row.category === "Risk").map((row) => row.action)).toEqual(lines.slice(0, 3));
+    expect(rows.filter((row) => row.category === "Meeting").map((row) => row.action)).toEqual(lines.slice(3));
+    expect(saved.categories).toEqual(["Meeting", "Risk"]);
+    const filed = rpc.mock.calls.filter((call) => call[0] === "mcp_add_item").length;
+    expect(filed).toBe(5);
+    expect(items).toHaveLength(5);
+    await saveFlowNote(sb as never, jobId, "pm_meeting", "schedule", note, { note });
+    expect(rpc.mock.calls.filter((call) => call[0] === "mcp_add_item")).toHaveLength(filed);
+    expect(items.filter((row) => row.category === "Risk")).toHaveLength(3);
+    expect(items.filter((row) => row.category === "Meeting")).toHaveLength(2);
+  });
+
   function confirmationLine(categories: Array<"Meeting" | "Daily" | "Risk">, logged = true): string {
     const data = job2701FlowData({ note: "Noted on the job.", sample: false });
     data.logged = logged;

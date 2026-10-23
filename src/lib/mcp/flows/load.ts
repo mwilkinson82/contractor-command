@@ -17,7 +17,7 @@ type Query = {
 };
 
 const CREW_WORD = /\b(?:subs?|subcontract\w*|suppliers?|crews?|materials?)\b/i;
-const PROBLEM_WORD = /\b(?:delays?|delayed|delaying|slippage|slipped|slipping|slips|slip|shortages?|conflicts?|issues?|blockers?|risks?|risky|late|missing|short|behind|clashes?|clashed|rfis?|failed\s+inspections?|inspections?\s+failed)\b/gi;
+const PROBLEM_WORD = /\b(?:delays?|delayed|delaying|slippage|slipped|slipping|slips|slip|shortages?|conflicts?|issues?|blockers?|risks?|risky|late|missing|short|behind|clashes?|clashed|rfis?|failed\s+inspections?|inspections?\s+failed|not\s+issued|unissued)\b/gi;
 
 function negatedProblem(text: string, index: number): boolean {
   const before = text.slice(0, index);
@@ -199,13 +199,37 @@ export async function loadFlowData(sb: Query, job: { job_id: string; job_number:
   return data;
 }
 
+const ABBREVIATION = /^(?:approx|dr|no|st|e\.g|i\.e)$/i;
+
+/** Sentence ends, except a period that belongs to approx., Dr., No., St., e.g., or i.e. */
+function sentenceParts(line: string): string[] {
+  const parts: string[] = [];
+  let start = 0;
+  const end = /[.!?](?=\s)/g;
+  let match: RegExpExecArray | null;
+  while ((match = end.exec(line))) {
+    if (match[0] === ".") {
+      const token = line.slice(start, match.index).match(/(\S+)$/)?.[1]?.replace(/^[("']+/, "") ?? "";
+      if (ABBREVIATION.test(token)) continue;
+    }
+    const text = line.slice(start, match.index + 1).trim();
+    if (text) parts.push(text);
+    start = match.index + 1;
+    while (start < line.length && /\s/.test(line[start] ?? "")) start += 1;
+    end.lastIndex = start;
+  }
+  const rest = line.slice(start).trim();
+  if (rest) parts.push(rest);
+  return parts;
+}
+
 /** Newlines, bullets, and sentence ends. One call often carries several lines. */
 export function splitNoteLines(note: string): string[] {
   const out: string[] = [];
   for (const raw of note.split(/\r?\n/)) {
     const line = raw.trim().replace(/^(?:[-*•–—]+|\d+[.)])\s+/, "");
     if (!line) continue;
-    for (const part of line.split(/(?<=[.!?])\s+/)) {
+    for (const part of sentenceParts(line)) {
       const text = part.trim();
       if (text) out.push(text);
     }
@@ -223,31 +247,33 @@ function rpcMissing(error: unknown): boolean {
   return /does not exist|schema cache|PGRST202/i.test(`${err.message ?? ""}${err.code ?? ""}`);
 }
 
-/** Open meeting rows keyed by normalized action. The value is the check key, or "" when the row has none. */
-function openMeetingTwins(existing: Record<string, unknown>[]): Map<string, string> {
-  const twins = new Map<string, string>();
+/** Open meeting and risk rows keyed by normalized action. A meeting value is the check key, or "". */
+function openTwins(existing: Record<string, unknown>[]): { meetings: Map<string, string>; risks: Set<string> } {
+  const meetings = new Map<string, string>();
+  const risks = new Set<string>();
   for (const row of existing) {
     const status = String(row.status ?? "open").toLowerCase();
     if (status === "closed" || status === "resolved") continue;
+    const norm = normAction(String(row.action ?? ""));
+    if (!norm) continue;
     const category = String(row.category ?? "");
     const key = typeof row.check_key === "string" ? row.check_key : "";
-    if (!/^meeting$/i.test(category) && !key.startsWith("pm:")) continue;
-    const norm = normAction(String(row.action ?? ""));
-    if (norm && !twins.has(norm)) twins.set(norm, key);
+    if (/^risk$/i.test(category)) risks.add(norm);
+    if ((/^meeting$/i.test(category) || key.startsWith("pm:")) && !meetings.has(norm)) meetings.set(norm, key);
   }
-  return twins;
+  return { meetings, risks };
 }
 
 const CATEGORY_ORDER: FiledCategory[] = ["Meeting", "Daily", "Risk"];
 
 type CheckLine = { key: string; close: boolean; action: string };
 
-/** Each problem line is its own risk. The other lines become one meeting note. A confirmation line still closes its check. */
+/** Each problem line is its own risk. Each other line is its own meeting note. A confirmation line still closes its check. */
 async function fileSplitNote(sb: Query, jobId: string, flow: string, stage: string, note: string, wanted: Set<FiledCategory>): Promise<boolean> {
   let filed = false;
   const mark = (category: FiledCategory) => { wanted.add(category); filed = true; };
   const existing = await rows(sb, "mcp_open_items", "id, action, status, check_key, category", jobId);
-  const twins = openMeetingTwins(existing);
+  const twins = openTwins(existing);
   const risks: string[] = [];
   const notes: string[] = [];
   const checks = new Map<string, CheckLine>();
@@ -265,28 +291,29 @@ async function fileSplitNote(sb: Query, jobId: string, flow: string, stage: stri
   }
   const addItem = async (action: string, category: FiledCategory, checkKey?: string) => {
     const norm = normAction(action);
-    if (category === "Meeting" && twins.has(norm)) { mark("Meeting"); return; }
+    if (category === "Meeting" && twins.meetings.has(norm)) { mark("Meeting"); return; }
+    if (category === "Risk" && twins.risks.has(norm)) { mark("Risk"); return; }
     try {
       const added = await sb.rpc("mcp_add_item", { _job: jobId, _f: { action, category, tool: flow, section: stage, ...(checkKey ? { check_key: checkKey } : {}) } });
       if (!added.error) {
         mark(category);
-        if (category === "Meeting") twins.set(norm, checkKey ?? "");
+        if (category === "Meeting") twins.meetings.set(norm, checkKey ?? "");
+        if (category === "Risk") twins.risks.add(norm);
       }
     } catch { /* this line was not stored */ }
   };
   for (const check of checks.values()) {
     const norm = normAction(check.action);
-    const twinKey = twins.get(norm);
+    const twinKey = twins.meetings.get(norm);
     // Same words already open under a different key would be a second note. Updating the same key is not.
     if (twinKey !== undefined && twinKey !== check.key) { mark("Meeting"); continue; }
     try {
       const added = await sb.rpc("mcp_meeting_item_save", { _job: jobId, _key: check.key, _action: check.action, _close: check.close });
       if (rpcMissing(added.error)) await addItem(check.action, "Meeting", check.key);
-      else if (!added.error) { mark("Meeting"); twins.set(norm, check.key); }
+      else if (!added.error) { mark("Meeting"); twins.meetings.set(norm, check.key); }
     } catch { /* this check was not stored */ }
   }
-  const meetingText = notes.join(" ").trim();
-  if (meetingText) await addItem(meetingText, "Meeting");
+  for (const line of notes) await addItem(line, "Meeting");
   for (const risk of risks) await addItem(risk, "Risk");
   return filed;
 }
