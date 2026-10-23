@@ -21,7 +21,7 @@ lookahead revision before the loader can report a positive confirmation.
 
 ## Local verification
 
-- Default Vitest: 172 files, 1,793 tests passed (1,779 on base plus 14 regression
+- Default Vitest: 172 files, 1,796 tests passed (1,782 on base plus 14 regression
   cases). Focused meeting, readiness, open-feed and brief run: 65 passed.
 - Production build passed.
 - Typecheck: 34 existing errors, same file/code pairs as base; no new errors in
@@ -32,8 +32,9 @@ lookahead revision before the loader can report a positive confirmation.
   remains a release concern; see the role-suite comparison in the PR.
 
 No schema, auth, generated route, connector, ChatGPT template, widget or native
-transport changes. This branch is independent of the drawing PR and the Grokbot
-fallback PR.
+transport changes. This branch remains independent of the drawing PR. It is now updated onto
+`e8f66d3c` (#207), retaining the team's Grokbot fallback. The full default suite,
+build and type baseline were rerun after the update.
 
 ## Live acceptance still required
 
