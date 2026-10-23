@@ -2310,7 +2310,7 @@
       {
         "name": "drawing_set_import",
         "title": "Store a drawing set",
-        "description": "Imports a Drive or Dropbox drawing PDF or uploaded bytes, recognizes identical files, and indexes stored sheets without another upload.",
+        "description": "Stores an attached drawing PDF, recognizes identical files and indexes sheets, or opens the direct PDF upload card when the host cannot forward an attachment without passing base64 through the model, with Drive/Dropbox links optional.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -2427,7 +2427,7 @@
       {
         "name": "drawing_markup",
         "title": "Mark up a stored drawing",
-        "description": "Marks up a stored job sheet with saved findings or supplied pins, lines and areas, preserving a dated copy.",
+        "description": "Prepares the stored sheet image and findings for inspection, then saves supplied pins, lines and areas in a dated copy using normalized 0..1 coordinates from the original image top-left, requiring source_id or source_filename to save the exact set and otherwise returning a source-selection preview, with unlocated findings kept in the key rather than guessed.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -2452,6 +2452,16 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 80
+            },
+            "source_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "source_filename": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
             },
             "operation": {
               "default": "save",

@@ -8,6 +8,7 @@ class Element {
   style: Record<string, string> = {};
   handlers: Record<string, () => void> = {};
   src = "";
+  parent?: Element;
   private value = "";
   constructor(public tagName = "DIV") {}
   set textContent(value: string) {
@@ -18,7 +19,19 @@ class Element {
     return this.value + this.children.map((c) => c.textContent).join(" ");
   }
   append(...children: Element[]) {
+    children.forEach((child) => {
+      child.parent = this;
+    });
     this.children.push(...children);
+  }
+  remove() {
+    if (this.parent) this.parent.children = this.parent.children.filter((child) => child !== this);
+  }
+  querySelectorAll(selector: string) {
+    return descendants(this).filter((child) => child.className === selector.slice(1));
+  }
+  getBoundingClientRect() {
+    return { left: 10, top: 20, width: 200, height: 100 };
   }
   replaceChildren(...children: Element[]) {
     this.value = "";
@@ -59,7 +72,7 @@ function view() {
   const script = drawingCardHtml("https://storage.example.com").match(
     /<script>([\s\S]*?)<\/script>/,
   )![1];
-  runInNewContext(script, { window, document, URL });
+  runInNewContext(script, { window, document, URL, setTimeout, clearTimeout, btoa });
   const message = (data: unknown, source: unknown = parent, origin = "https://host.example.com") =>
     receive({ data, source, origin });
   const result = (payload: unknown) =>
@@ -73,7 +86,12 @@ function view() {
     parent,
     removed: () => removed,
     all: () => descendants(app),
-    ready: () => message({ jsonrpc: "2.0", id: 1, result: { protocolVersion: "2026-07-28" } }),
+    ready: (hostCapabilities = {}) =>
+      message({
+        jsonrpc: "2.0",
+        id: 1,
+        result: { protocolVersion: "2026-07-28", hostCapabilities },
+      }),
   };
 }
 function payload(
@@ -108,6 +126,154 @@ function payload(
 }
 
 describe("drawing card view", () => {
+  it("locates an unpositioned finding on the original image and saves that exact source only after the member clicks", async () => {
+    const v = view();
+    v.ready({ serverTools: {} });
+    const p = payload();
+    v.result({
+      ...p,
+      structuredContent: {
+        ...p.structuredContent,
+        saved: false,
+        job_number: "CCW-003",
+        company_id: "company",
+        sheet: "S-100",
+        drawing_annotations: [{ label: "F1", text: "Fictional test finding", severity: "callout" }],
+      },
+    });
+    const save = v.all().find((e) => e.textContent === "Save dated markup")!;
+    expect((save as unknown as { disabled: boolean }).disabled).toBe(true);
+    const img = v.all().find((e) => e.tagName === "IMG")!;
+    (img.handlers.click as unknown as (event: { clientX: number; clientY: number }) => void)({
+      clientX: 110,
+      clientY: 70,
+    });
+    expect((save as unknown as { disabled: boolean }).disabled).toBe(false);
+    expect(v.all().find((e) => e.className === "drawing-pin")?.style).toMatchObject({
+      left: "50%",
+      top: "50%",
+    });
+    expect(v.sent.some(({ data }) => data.method === "tools/call")).toBe(false);
+    const saving = save.handlers.click();
+    const request = v.sent.at(-1)!.data;
+    expect(request).toMatchObject({
+      method: "tools/call",
+      params: {
+        name: "drawing_markup",
+        arguments: {
+          job_number: "CCW-003",
+          source_id: "original",
+          operation: "save",
+          annotations: [{ label: "F1", geometry: { kind: "pin", point: { x: 0.5, y: 0.5 } } }],
+        },
+      },
+    });
+    v.message({
+      jsonrpc: "2.0",
+      id: request.id,
+      result: { structuredContent: { saved: true, card: p.structuredContent.card } },
+    });
+    await saving;
+    expect(v.status.textContent).toBe("");
+  });
+  it("draws supplied preview pins on the sheet and keeps key-only findings unlocated", () => {
+    const v = view();
+    v.ready();
+    const p = payload();
+    v.result({
+      ...p,
+      structuredContent: {
+        ...p.structuredContent,
+        saved: false,
+        drawing_annotations: [
+          {
+            label: "F1",
+            severity: "callout",
+            geometry: { kind: "pin", point: { x: 0.25, y: 0.6 } },
+          },
+          {
+            label: "Risk",
+            severity: "risk",
+            geometry: { kind: "pin", point: { x: 0.75, y: 0.2 } },
+          },
+          { label: "No position", severity: "callout" },
+        ],
+      },
+    });
+    const pins = v.all().filter((e) => e.className === "drawing-pin");
+    expect(pins).toHaveLength(2);
+    expect(pins[0].style).toMatchObject({ left: "25%", top: "60%", border: "2px solid #1E5FED" });
+    expect(pins[1].style.border).toBe("2px solid #DC2626");
+    const surface = v.all().find((e) => e.children.includes(pins[0]))!;
+    v.all()
+      .find((e) => e.textContent === "Zoom in")!
+      .handlers.click();
+    expect(surface.style.width).toBe("150%");
+    expect(pins[0].style.left).toBe("25%");
+  });
+  it("uploads a normal 2.9 MB PDF directly through the host tool bridge, once and only after a click", async () => {
+    const v = view();
+    v.ready({ serverTools: {} });
+    const p = payload();
+    v.result({
+      content: [],
+      structuredContent: {
+        card: p.structuredContent.card,
+        upload_context: { job_number: "CCW-003", company_id: "company" },
+      },
+    });
+    expect(v.sent.some(({ data }) => data.method === "tools/call")).toBe(false);
+    const bytes = new Uint8Array(2900000);
+    bytes.set(new TextEncoder().encode("%PDF-1.7\nfictional UI upload fixture"));
+    const pick = v.all().find((e) => e.tagName === "INPUT")!;
+    Object.assign(pick, {
+      files: [{ name: "CCW.pdf", size: bytes.length, arrayBuffer: async () => bytes.buffer }],
+    });
+    const submit = v.all().find((e) => e.textContent === "Store PDF on this job")!;
+    const upload = submit.handlers.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    submit.handlers.click();
+    const calls = v.sent.filter(({ data }) => data.method === "tools/call");
+    expect(calls).toHaveLength(1);
+    const request = calls[0].data as {
+      id: number;
+      params: {
+        name: string;
+        arguments: { job_number: string; drawing: { content_base64: string; filename: string } };
+      };
+    };
+    expect(request.params.name).toBe("drawing_set_import");
+    expect(request.params.arguments.job_number).toBe("CCW-003");
+    expect(
+      Buffer.from(request.params.arguments.drawing.content_base64, "base64").equals(
+        Buffer.from(bytes),
+      ),
+    ).toBe(true);
+    v.message({
+      jsonrpc: "2.0",
+      id: request.id,
+      result: { structuredContent: { stored: true, card: p.structuredContent.card } },
+    });
+    await upload;
+    expect(v.status.textContent).toBe("");
+    expect(v.sent.every(({ data }) => data.method !== "ui/message")).toBe(true);
+  });
+  it("keeps direct upload disabled when the host has not granted serverTools", () => {
+    const v = view();
+    v.ready();
+    const p = payload();
+    v.result({
+      structuredContent: {
+        card: p.structuredContent.card,
+        upload_context: { job_number: "CCW-003", company_id: "company" },
+      },
+    });
+    expect(v.app.textContent).toContain("has not enabled uploads");
+    v.all()
+      .find((e) => e.textContent === "Store PDF on this job")!
+      .handlers.click();
+    expect(v.sent.some(({ data }) => data.method === "tools/call")).toBe(false);
+  });
   it("accepts a successful parent handshake, rejects other senders/origins, and tears down", () => {
     const v = view();
     expect(v.sent[0].data).toMatchObject({ method: "ui/initialize" });
@@ -138,11 +304,11 @@ describe("drawing card view", () => {
     v.all()
       .find((e) => e.tagName === "BUTTON" && e.textContent === "Zoom in")!
       .handlers.click();
-    expect(img.style.width).toBe("150%");
+    expect(v.all().find((element) => element.children.includes(img))!.style.width).toBe("150%");
     v.all()
       .find((e) => e.tagName === "BUTTON" && e.textContent === "Reset")!
       .handlers.click();
-    expect(img.style.width).toBe("100%");
+    expect(v.all().find((element) => element.children.includes(img))!.style.width).toBe("100%");
     expect(
       v.sent.every(
         ({ data }) => !["tools/call", "ui/message", "ui/open-link"].includes(String(data.method)),
@@ -179,7 +345,7 @@ describe("drawing card view", () => {
     v.all()
       .find((e) => e.textContent === "Zoom in")!
       .handlers.click();
-    expect(img.style.width).toBe("150%");
+    expect(v.all().find((element) => element.children.includes(img))!.style.width).toBe("150%");
   });
   it.each([
     { type: "image", mimeType: "image/svg+xml", data: "PHN2Zz4=" },
