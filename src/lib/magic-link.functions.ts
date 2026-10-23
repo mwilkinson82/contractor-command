@@ -8,20 +8,23 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
+import { athenaPageReturn } from "@/lib/athena-page-return";
+import { signInReturn } from "@/lib/board-sign-in";
+import { oauthConsentReturn } from "@/lib/oauth-return-path";
 import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
+import { hubOrigin } from "@/lib/auth-origins";
+import { isAthenaHost } from "@/lib/site-icons";
 
 type SupabaseAdminClient = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
 
 const Input = z.object({
   email: z.string().trim().toLowerCase().email().max(255),
+  continuation: z.string().max(512).optional(),
+  return_to: z.string().max(512).optional(),
 });
 
 function fallbackAppOrigin(): string {
-  return (
-    process.env.PUBLIC_APP_ORIGIN ||
-    process.env.APP_ORIGIN ||
-    "https://app.alpcontractorcircle.com"
-  ).replace(/\/$/, "");
+  return hubOrigin();
 }
 
 function allowedRequestOrigin(origin: string | null): string | null {
@@ -33,10 +36,15 @@ function allowedRequestOrigin(origin: string | null): string | null {
       host === "localhost" ||
       host === "127.0.0.1" ||
       host === "app.alpcontractorcircle.com" ||
+      host === "app.meetathena.io" ||
       host === "contractor-command.lovable.app" ||
-      (host.endsWith(".lovable.app") && host.startsWith("id-preview--"));
+      host === "id-preview--362c776b-68ab-4871-bedb-c42cb9843c1b.lovable.app";
 
-    return allowed ? url.origin : null;
+    return allowed &&
+      (url.protocol === "https:" ||
+        (url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(host)))
+      ? url.origin
+      : null;
   } catch {
     return null;
   }
@@ -59,6 +67,14 @@ function appOrigin(): string {
     allowedRequestOrigin(originFromUrl(request?.url));
 
   return requestOrigin ?? fallbackAppOrigin();
+}
+
+function isAthenaOrigin(origin: string): boolean {
+  try {
+    return isAthenaHost(new URL(origin).hostname);
+  } catch {
+    return false;
+  }
 }
 
 function redactEmail(email: string): string {
@@ -146,6 +162,14 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
   .inputValidator(Input.parse)
   .handler(async ({ data }): Promise<MagicLinkResult> => {
     const email = data.email;
+    // Athena sign-ins (an OAuth consent continuation is present) always land on
+    // the Athena app, whatever page the request came from. Hub sign-ins keep
+    // the request-derived origin. Identity and the live-member check below are
+    // the same for both.
+    // v0.8.19: the link lands on the same host that started the connect. Forcing
+    // app.meetathena.io moved phones to a second host mid-connect, and the auth
+    // server rejects consent calls from that origin ("unauthorized request
+    // origin") while the Site URL is elsewhere, so the authorization never got a user.
     const origin = appOrigin();
     const minDelay = new Promise((resolve) => setTimeout(resolve, 600));
     let internalAction:
@@ -157,6 +181,18 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
       | "error" = "not_a_live_member";
 
     try {
+      const path = oauthConsentReturn(data.continuation);
+      if (data.continuation && !path) throw new Error("Invalid continuation");
+      // A job board return is limited to /r/job and drops the token and utm params.
+      // Other Athena pages (a file link, the account page) keep their own allowlist.
+      const pageReturn = path
+        ? undefined
+        : (signInReturn(data.return_to) ?? athenaPageReturn(data.return_to));
+      const { createOAuthContinuation, assertOAuthContinuationConfigured } =
+        await import("./oauth-continuation.server");
+      // Check configuration before identity lookup or token minting. An outage
+      // is observable to operators regardless of whether this email is eligible.
+      if (path) assertOAuthContinuationConfigured();
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
       if (await ensureAuthUserForMember(supabaseAdmin, email)) {
@@ -171,13 +207,18 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
           internalAction = "link_failed";
           console.error("[magic-link] generateLink failed", {
             email: redactEmail(email),
-            error: error?.message ?? "No hashed_token returned from Supabase",
+            reason: "link_generation_failed",
           });
         } else {
+          const continuation = path
+            ? createOAuthContinuation(path, link.user.id, tokenHash)
+            : undefined;
           const confirmationUrl = buildTokenHashAuthUrl({
             origin,
             tokenHash,
             type: "magiclink",
+            continuation,
+            redirect: pageReturn,
           });
           const firstName = await resolveFirstName(supabaseAdmin, email);
           const { sendLoginNudgeNow } = await import("@/lib/email/send-login-nudge-now");
@@ -189,6 +230,16 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
             idempotencyKey: `public-signin-${email}-${Date.now()}`,
             channel: "public_magic_link",
             siteUrl: origin,
+            // v0.8.19: the same one-time code, typed in the tab that started the
+            // connect, so a phone never has to switch tabs or browsers.
+            ...((continuation || isAthenaOrigin(origin)) && link.properties?.email_otp
+              ? { otpCode: String(link.properties.email_otp) }
+              : {}),
+            // Presentation only: a validated consent continuation, or a sign-in
+            // started on the Athena host, gets the Athena email. Not proof of
+            // client identity; the link and checks are the same for both.
+            ...(continuation || isAthenaOrigin(origin) ? { variant: "athena" as const } : {}),
+            ...(continuation ? { connecting: true } : {}),
           });
           internalAction =
             sendResult.status === "sent"
@@ -202,7 +253,7 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
       internalAction = "error";
       console.error("[magic-link] internal error", {
         email: redactEmail(email),
-        err,
+        reason: "request_failed",
       });
     }
 

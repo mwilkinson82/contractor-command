@@ -17,6 +17,11 @@ function env(names: string[]): string | undefined {
 export function supabaseForUser(ctx: ToolContext) {
   const token = ctx.getToken();
   if (!token) throw new Error("Verified OAuth token required");
+  return supabaseForToken(token);
+}
+
+/** User-scoped client for a bearer token (RLS and auth.uid() apply; Supabase verifies the token). */
+export function supabaseForToken(token: string) {
   const url = env(["SUPABASE_URL", "VITE_SUPABASE_URL"]);
   const key = env(["SUPABASE_PUBLISHABLE_KEY", "VITE_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY"]);
   if (!url || !key) throw new Error("Backend not configured");

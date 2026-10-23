@@ -4,6 +4,7 @@ import {
   Outlet,
   Link,
   createRootRouteWithContext,
+  redirect,
   useRouter,
   HeadContent,
   Scripts,
@@ -24,8 +25,14 @@ import { START_HERE_MIN_TIER } from "@/lib/start-here-access";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { supabase } from "@/integrations/supabase/client";
 import { vault } from "@/lib/vault";
+import { createAuthInvalidationScheduler } from "@/lib/auth-event-invalidation";
 import { setPresence, resetPresence, type PresenceUser } from "@/lib/portal-presence";
 import { toast } from "sonner";
+import { athenaAppOrigin } from "@/lib/athena-host";
+import { currentHostname, onAthenaHost } from "@/lib/athena-host-current";
+import { documentBrand, iconLinks } from "@/lib/host-document";
+import { athenaHostRedirect, isHostedReport, isTodayPage } from "@/lib/athena-routes";
+import { LOVABLE_AUTH_REDIRECT_BOOT, lovableAuthRedirectTarget } from "@/lib/lovable-auth-redirect";
 
 const PUBLIC_ROUTES = new Set([
   "/login",
@@ -39,11 +46,10 @@ const PUBLIC_ROUTES = new Set([
   "/.lovable/oauth/consent",
 ]);
 const ONBOARDING_ROUTE = "/onboarding";
-const APP_ORIGIN = "https://app.alpcontractorcircle.com";
-const DEFAULT_TITLE = "Command Center — Contractor Circle";
-const DEFAULT_DESCRIPTION =
-  "The private member portal for Contractor Circle: live calls with Marshall, AOS access, replays, templates, Ask Marshall, and the operating process behind the projects.";
-const SOCIAL_IMAGE_URL = `${APP_ORIGIN}/brand/circle-v1/social.png`;
+
+function brandForHost() {
+  return documentBrand(currentHostname(), athenaAppOrigin());
+}
 
 // Run before the app shell mounts. Auth links can arrive at "/" with tokens in
 // the hash; if the auth gate mounts first, it may send the user to /login and
@@ -147,65 +153,64 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  head: () => ({
-    meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: DEFAULT_TITLE },
-      { name: "application-name", content: "Contractor Circle Command Center" },
-      { name: "apple-mobile-web-app-title", content: "Contractor Circle" },
-      { name: "theme-color", content: "#FAF9F5" },
-      { name: "robots", content: "index, follow" },
-      {
-        name: "description",
-        content: DEFAULT_DESCRIPTION,
-      },
-      { property: "og:title", content: DEFAULT_TITLE },
-      { property: "og:site_name", content: "Contractor Circle" },
-      { property: "og:url", content: APP_ORIGIN },
-      { name: "twitter:title", content: DEFAULT_TITLE },
-      {
-        property: "og:description",
-        content: DEFAULT_DESCRIPTION,
-      },
-      {
-        name: "twitter:description",
-        content: DEFAULT_DESCRIPTION,
-      },
-      {
-        property: "og:image",
-        content: SOCIAL_IMAGE_URL,
-      },
-      { property: "og:image:type", content: "image/png" },
-      { property: "og:image:width", content: "1024" },
-      { property: "og:image:height", content: "1024" },
-      {
-        property: "og:image:alt",
-        content: "Contractor Circle Command Center branded preview.",
-      },
-      {
-        name: "twitter:image",
-        content: SOCIAL_IMAGE_URL,
-      },
-      { name: "twitter:card", content: "summary_large_image" },
-      { property: "og:type", content: "website" },
-    ],
-    links: [
-      { rel: "stylesheet", href: appCss },
-      { rel: "canonical", href: APP_ORIGIN },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Caveat:wght@400;600&family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap",
-      },
-      { rel: "icon", type: "image/x-icon", href: "/brand/circle-v1/favicon.ico" },
-      { rel: "icon", type: "image/png", sizes: "32x32", href: "/brand/circle-v1/favicon-32.png" },
-      { rel: "icon", type: "image/png", sizes: "256x256", href: "/brand/circle-v1/app-icon-256.png" },
-      { rel: "apple-touch-icon", sizes: "512x512", href: "/brand/circle-v1/app-icon-512.png" },
-      { rel: "manifest", href: "/site.webmanifest" },
-    ],
-  }),
+  beforeLoad: ({ location }) => {
+    const search = typeof location.searchStr === "string" ? location.searchStr : "";
+    const hash = typeof location.hash === "string" ? location.hash : "";
+    const target = lovableAuthRedirectTarget({
+      hostname: currentHostname(),
+      pathname: location.pathname,
+      search,
+      hash,
+    });
+    if (!target) return;
+    if (typeof window !== "undefined") {
+      document.documentElement.style.visibility = "hidden";
+      window.location.replace(target);
+    }
+    throw redirect({ href: target, statusCode: 302 });
+  },
+  head: () => {
+    const b = brandForHost();
+    return {
+      meta: [
+        { charSet: "utf-8" },
+        { name: "viewport", content: "width=device-width, initial-scale=1" },
+        { title: b.title },
+        { name: "application-name", content: b.appName },
+        { name: "apple-mobile-web-app-title", content: b.shortName },
+        { name: "theme-color", content: "#FAF9F5" },
+        { name: "robots", content: b.athena ? "noindex, nofollow" : "index, follow" },
+        { name: "description", content: b.description },
+        { property: "og:title", content: b.ogTitle },
+        { property: "og:site_name", content: b.siteName },
+        { property: "og:url", content: b.origin },
+        { name: "twitter:title", content: b.ogTitle },
+        { property: "og:description", content: b.description },
+        { name: "twitter:description", content: b.description },
+        { property: "og:image", content: b.ogImage.url },
+        { property: "og:image:type", content: b.ogImage.type },
+        { property: "og:image:width", content: b.ogImage.width },
+        { property: "og:image:height", content: b.ogImage.height },
+        { property: "og:image:alt", content: b.ogImage.alt },
+        { name: "twitter:image", content: b.ogImage.url },
+        { name: "twitter:card", content: b.twitterCard },
+        { property: "og:type", content: "website" },
+      ],
+      links: [
+        { rel: "stylesheet", href: appCss },
+        { rel: "canonical", href: b.origin },
+        { rel: "preconnect", href: "https://fonts.googleapis.com" },
+        { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+        {
+          rel: "stylesheet",
+          href: "https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Caveat:wght@400;600&family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap",
+        },
+        // Host-aware (src/lib/site-icons.ts): Athena logo on meetathena.io hosts,
+        // Circle icons everywhere else. Athena also links the 64px PNG.
+        ...iconLinks(b.athena),
+      ],
+    };
+  },
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
@@ -216,6 +221,7 @@ function RootShell({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
+        <script dangerouslySetInnerHTML={{ __html: LOVABLE_AUTH_REDIRECT_BOOT }} />
         <HeadContent />
       </head>
       <body>
@@ -349,15 +355,32 @@ function LoadingWorkspace() {
 
 function AuthGate({ children }: { children: (showShell: boolean) => React.ReactNode }) {
   const { session, loading } = useAuth();
-  const { needsOnboarding, loading: companyLoading } = useCompany();
+  const {
+    needsOnboarding,
+    loading: companyLoading,
+    error: companyError,
+    refetch: retryCompany,
+  } = useCompany();
   const { tier, loading: tierLoading } = useTier();
   const isAdmin = useIsAdmin();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // The route actually on screen. During a client navigation the location
+  // updates before the new route has rendered, so "/login" can briefly still
+  // show the previous (protected) page. Gate rendering on what is on screen.
+  const renderedPathname = useRouterState({
+    select: (s) => s.resolvedLocation?.pathname ?? s.location.pathname,
+  });
   const authHashTarget = getAuthHashTarget(pathname);
   const navigate = useNavigate();
   const router = useRouter();
-  const isPublic = PUBLIC_ROUTES.has(pathname);
+  // /r/job/.../field, /items, and /submittals share this gate. A signed-in field board
+  // must not send the open-items page to /login before the session can be read.
+  const isPublic = PUBLIC_ROUTES.has(pathname) || isHostedReport(pathname) || isTodayPage(pathname);
   const isOnboarding = pathname === ONBOARDING_ROUTE;
+  // Athena host: only Athena pages render; Circle routes, Hub onboarding and
+  // tier gates never apply there, and the Hub sidebar never shows.
+  const athenaHost = onAthenaHost();
+  const athenaRedirect = athenaHost ? athenaHostRedirect(pathname) : null;
 
   // Some auth emails still land back at "/" with Supabase tokens in the URL
   // hash ("#access_token=...&refresh_token=...") or with an expired-link
@@ -373,17 +396,26 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
     }
   }, [pathname, authHashTarget]);
 
-  // Invalidate router caches + sync vault when auth changes
+  // Invalidate router caches + sync vault when auth changes. Invalidation is
+  // deferred outside the auth callback, skipped for INITIAL_SESSION/token
+  // refresh, and never restarts the public sign-in/consent flow.
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
-      router.invalidate();
+    const scheduler = createAuthInvalidationScheduler({
+      getPathname: () => router.state.location.pathname,
+      invalidate: () => router.invalidate(),
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      scheduler.onEvent(event);
       if (s?.user?.id) {
         void vault.hydrateFor(s.user.id);
       } else {
         vault.reset();
       }
     });
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      sub.subscription.unsubscribe();
+      scheduler.dispose();
+    };
   }, [router]);
 
   useEffect(() => {
@@ -422,8 +454,12 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
   }, [session?.user?.id, session?.user?.email]);
 
   useEffect(() => {
-    if (loading) return;
     if (authHashTarget) return;
+    if (athenaRedirect) {
+      if (typeof window !== "undefined") window.location.replace(athenaRedirect);
+      return;
+    }
+    if (loading) return;
     if (!session && !isPublic) {
       const redirectTo =
         typeof window === "undefined"
@@ -432,7 +468,10 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
       navigate({ to: "/login", search: { redirect: redirectTo }, replace: true });
       return;
     }
-    if (session && !companyLoading && needsOnboarding && !isOnboarding) {
+    // Auth callbacks and consent own their navigation. In particular, OTP
+    // establishes a session before the signed continuation has been resolved.
+    if (athenaHost) return;
+    if (session && !isPublic && !companyLoading && needsOnboarding && !isOnboarding) {
       navigate({ to: "/onboarding" });
       return;
     }
@@ -458,18 +497,46 @@ function AuthGate({ children }: { children: (showShell: boolean) => React.ReactN
     isAdmin,
     pathname,
     authHashTarget,
+    athenaHost,
+    athenaRedirect,
     navigate,
   ]);
 
   if (authHashTarget) return <LoadingWorkspace />;
+  if (athenaRedirect) return <LoadingWorkspace />;
 
-  if (isPublic) return <>{children(false)}</>;
+  if (isPublic) {
+    // Signed-out redirect to a public page: render nothing until the public
+    // page itself is on screen, so the protected page never flashes.
+    if (!session && !PUBLIC_ROUTES.has(renderedPathname) && !isHostedReport(renderedPathname) && !isTodayPage(renderedPathname)) return null;
+    return <>{children(false)}</>;
+  }
 
   if (loading) {
     return <LoadingWorkspace />;
   }
 
   if (!session) return null;
+  // Athena pages own their layout and never wait on the Hub company/onboarding.
+  if (athenaHost) return <>{children(false)}</>;
+  if (companyLoading) return <LoadingWorkspace />;
+  if (companyError) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-background">
+        <div className="text-center">
+          <p>{companyError}</p>
+          <button
+            type="button"
+            onClick={() => void retryCompany()}
+            className="mt-4 rounded-lg border px-4 py-2"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
+  if (needsOnboarding && !isOnboarding) return <LoadingWorkspace />;
   // Onboarding renders without the app shell — it's a focused setup screen.
   if (isOnboarding) return <>{children(false)}</>;
   return <>{children(true)}</>;

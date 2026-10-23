@@ -39,6 +39,8 @@ import { getActiveWeeklyMove, type WeeklyMove } from "@/lib/weekly-move.function
 import { useControlJourney } from "@/hooks/use-control-journey";
 import type { ControlJourney } from "@/lib/control-journey";
 import { featuredReplayQueryOptions, latestCircleCallQueryOptions } from "@/lib/library-queries";
+import { currentHostname } from "@/lib/athena-host-current";
+import { HUB_HOME_TITLE, pageTitle } from "@/lib/host-document";
 
 import {
   ArrowUpRight,
@@ -53,7 +55,7 @@ import {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Command Center — ALP Contractor Circle" },
+      { title: pageTitle(currentHostname(), HUB_HOME_TITLE) },
       {
         name: "description",
         content:
@@ -100,7 +102,7 @@ function HomePage() {
   const firstName =
     (user?.user_metadata?.full_name as string | undefined)?.split(" ")[0] ||
     user?.email?.split("@")[0] ||
-    "there";
+    "";
   const companyName = company?.name?.trim() || "Your Command Center";
   const shouldSeeCallAnnouncement =
     isAdmin === true || (!tierLoading && tierAtLeast(tier, "circle"));

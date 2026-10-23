@@ -83,7 +83,7 @@ describe.each(ROLES)("role %s", (role) => {
 
   test("answer", async () => {
     const nq = await call("owner", "next_question", { job_number: "J-100" });
-    const key = nq.text.match(/check_key: (\S+)/)?.[1];
+    const key = nq.all.match(/Question ref: (\S+)/)?.[1];
     expect(key, nq.text).toBeTruthy();
     const o = await call(role, "answer", { job_number: "J-100", check_key: key, response: "unknown", owner: "Test Owner" });
     // Contract roles only ever get contract-time questions; the owner's current check is a full-scope one, so it is refused.
@@ -103,9 +103,9 @@ describe.each(ROLES)("role %s", (role) => {
   });
 
   test("carry_forward", async () => {
-    const l1 = await call("owner", "intake", { section: "lookahead", job_number: "J-100", start_date: "2026-10-19", end_date: "2026-11-01" });
-    const l2 = await call("owner", "intake", { section: "lookahead", job_number: "J-100", start_date: "2026-11-02", end_date: "2026-11-15" });
-    const from = laOf(l1.text), to = laOf(l2.text);
+    const l1 = await call("owner", "intake", { section: "lookahead", lookahead_exists: "yes", job_number: "J-100", start_date: "2026-10-19", end_date: "2026-11-01" });
+    const l2 = await call("owner", "intake", { section: "lookahead", lookahead_exists: "yes", job_number: "J-100", start_date: "2026-11-02", end_date: "2026-11-15" });
+    const from = (l1.structured?.lookahead_id as string) ?? laOf(l1.text), to = (l2.structured?.lookahead_id as string) ?? laOf(l2.text);
     expect(from && to, l1.text + l2.text).toBeTruthy();
     const o = await call(role, "carry_forward", { job_number: "J-100", from_lookahead_id: from, to_lookahead_id: to });
     const ok = a === "full" ? !o.isError && /carried forward/.test(o.text) : a === "super" ? denied(o) : o.isError && /needs full access/.test(o.text);
@@ -117,14 +117,14 @@ describe.each(ROLES)("role %s", (role) => {
     const o = await call(role, "list_open_items", { job_number: "J-100" });
     let ok: boolean;
     if (a === "super") ok = !o.isError && /TEST/.test(o.text) && !/cost:|cash:|01-100|50000/i.test(o.text.split("====").pop()!);
-    else ok = !o.isError && /DATE SWEEP/.test(o.text) && (a === "contract" || /\[(unknown|no|na_disposition|pending_document|deadline)\]/.test(o.text));
+    else ok = !o.isError && /DATE SWEEP/.test(o.text) && (a === "contract" || /\[(To confirm|Gap|N\/A, needs a decision|Waiting on a document|Deadline)\]/.test(o.text));
     mark(role, "list_open_items", ok, a === "super" ? "listed, no cost/cash" : "listed + sweep", o.isError ? o.text : "");
     expect(ok, o.text).toBe(true);
   });
 
   test("resolve_item", async () => {
     const mk = await call("owner", "intake", { section: "open_item", job_number: "J-100", action: `TEST resolve by ${role}`, owner: "Test Owner", item_type: "unknown" });
-    const id = idOf(mk.text);
+    const id = (mk.structured?.items as { item_ref: string }[] | undefined)?.[0]?.item_ref ?? idOf(mk.text); // resolve by short ref
     expect(id, mk.text).toBeTruthy();
     const o = await call(role, "resolve_item", { job_number: "J-100", item_id: id, kind: "verified", evidence: "TEST evidence: approved submittal 001" });
     const ok = a === "full" ? !o.isError : denied(o);
@@ -194,8 +194,8 @@ describe("role changes take effect on the very next call (finding 3)", () => {
     await setRole("finance");
     const a = await call("pm2", "intake", { section: "open_item", job_number: "J-200", action: "TEST pm2 as finance", owner: "Test Owner", item_type: "unknown" });
     expect(a.isError, a.text).toBe(false);
-    const lookahead = await call("pm2", "intake", { section: "lookahead", job_number: "J-200", start_date: "2026-10-19", end_date: "2026-11-01" });
-    const la = laOf(lookahead.text);
+    const lookahead = await call("pm2", "intake", { section: "lookahead", lookahead_exists: "yes", job_number: "J-200", start_date: "2026-10-19", end_date: "2026-11-01" });
+    const la = (lookahead.structured?.lookahead_id as string) ?? laOf(lookahead.text);
     await setRole("contracts");
     const b = await call("pm2", "intake", { section: "open_item", job_number: "J-200", action: "TEST pm2 as contracts", owner: "Test Owner", item_type: "unknown" });
     expect(b.isError && /Job not found|needs full access/.test(b.text), b.text).toBe(true);

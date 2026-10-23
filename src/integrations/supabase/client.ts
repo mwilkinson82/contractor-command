@@ -2,6 +2,9 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { brokeredPreviewStorage } from './previewAuthStorage';
+import { restoreAthenaSessionFromCookie, withPersistentSession } from './persistent-auth-storage';
+
+restoreAthenaSessionFromCookie();
 
 function createSupabaseClient() {
   // Use import.meta.env for client-side (Vite build-time replacement)
@@ -21,10 +24,14 @@ function createSupabaseClient() {
 
   return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     auth: {
-      storage: brokeredPreviewStorage(),
+      storage: withPersistentSession(brokeredPreviewStorage()),
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
+      // supabase-js 2.106 forwards an unset value as `undefined`, which
+      // overrides the auth SDK's own 5000 ms default and makes the cross-tab
+      // lock wait forever (no orphaned-lock recovery). Restore the SDK default.
+      lockAcquireTimeout: 5000,
     }
   });
 }

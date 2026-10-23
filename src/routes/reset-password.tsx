@@ -1,3 +1,6 @@
+import { template as adminActivityNoticeTemplate } from "@/lib/email-templates/admin-activity-notice";
+import { postSignInDefault } from "@/lib/athena-routes";
+import { onAthenaHost } from "@/lib/athena-host-current";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -91,7 +94,7 @@ function ResetPasswordPage() {
       const fullName = typeof metadata.full_name === "string" ? metadata.full_name : undefined;
       void sendTransactionalEmail({
         templateName: "admin-activity-notice",
-        recipientEmail: "wilkinson.marshall@gmail.com",
+        recipientEmail: adminActivityNoticeTemplate.to,
         idempotencyKey: `password-set-${u.id}-${Date.now()}`,
         templateData: {
           event: "Member set a new password",
@@ -102,7 +105,7 @@ function ResetPasswordPage() {
       }).catch((e) => console.warn("admin notify (password set) failed", e));
     }
     setPhase("done");
-    setTimeout(() => navigate({ to: "/" }), 1200);
+    setTimeout(() => navigate({ to: postSignInDefault(onAthenaHost()) }), 1200);
   }
 
   if (phase === "checking") {

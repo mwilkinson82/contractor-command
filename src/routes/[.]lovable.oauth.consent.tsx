@@ -8,5 +8,5 @@ export const Route = createFileRoute("/.lovable/oauth/consent")({
   beforeLoad: ({ search }) => {
     throw redirect({ to: "/oauth/consent", search: { authorization_id: search.authorization_id }, replace: true });
   },
-  head: () => ({ meta: [{ title: "Approve connection — ALP Contractor Circle" }, { name: "robots", content: "noindex, nofollow" }] }),
+  head: () => ({ meta: [{ title: "Approve connection — Athena" }, { name: "robots", content: "noindex, nofollow" }] }),
 });

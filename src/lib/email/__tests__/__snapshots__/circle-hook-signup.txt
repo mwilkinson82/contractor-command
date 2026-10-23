@@ -1,0 +1,20 @@
+Email verification
+
+Contractor Circle / Secure access
+
+
+CONFIRM YOUR EMAIL
+
+Thanks for signing up for Contractor Circle https://mail.alpcontractorcircle.com. Confirm your email below to enter the Command Center.
+
+EMAIL TO CONFIRM
+
+member@example.test
+
+Verify email https://qcbbjjjxcacrscfhgfmf.supabase.co/auth/v1/verify?token=inert&type=magiclink&redirect_to=https%3A%2F%2Fapp.alpcontractorcircle.com%2Fauth%2Fcallback
+
+If you didn't create an account, you can safely ignore this email.
+
+Build the company behind the projects.
+
+AN ALP COMMUNITY

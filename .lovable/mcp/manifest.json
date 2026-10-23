@@ -12,15 +12,15 @@
   },
   "mcp": {
     "server": {
-      "name": "contractor-circle-hub",
-      "version": "0.4.0",
-      "title": "Contractor Circle Hub"
+      "name": "athena",
+      "version": "0.8.20",
+      "title": "Athena powered by ALP, construction agents"
     },
     "tools": [
       {
         "name": "onboarding",
         "title": "Company profile and members",
-        "description": "Read or save the company profile the PM agent works for (role, work types, trades, tool stack, decision rights, default applicability), and add members as Owner, PM or All-access.",
+        "description": "Reads or saves the company profile and its members.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -36,33 +36,28 @@
               "enum": [
                 "read",
                 "save_company",
-                "add_member"
-              ],
-              "description": "read, save_company (create or update), or add_member."
+                "add_member",
+                "save_brand"
+              ]
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 200
             },
             "name": {
-              "description": "Company name (required to create).",
               "type": "string",
               "maxLength": 200
             },
             "your_name": {
-              "description": "Your display name on the company (when creating).",
               "type": "string",
               "maxLength": 120
             },
             "agent_name": {
-              "description": "What to call the agent. Default 'PM agent'.",
               "type": "string",
               "maxLength": 60
             },
             "company_role": {
-              "description": "Company role, e.g. mechanical prime / specialty sub.",
               "type": "string",
               "maxLength": 2000
             },
@@ -88,7 +83,6 @@
               }
             },
             "tool_stack": {
-              "description": "Tools by function, e.g. {schedule: 'P6', accounting: '...'}.",
               "type": "object",
               "propertyNames": {
                 "type": "string",
@@ -100,7 +94,6 @@
               }
             },
             "decision_rights": {
-              "description": "Who may approve each: roles (owner, pm, all_access) or member names.",
               "type": "object",
               "properties": {
                 "buyout": {
@@ -151,7 +144,6 @@
               }
             },
             "default_flags": {
-              "description": "Company default applicability flags, e.g. {residential: 'no'}.",
               "type": "object",
               "propertyNames": {
                 "type": "string",
@@ -168,24 +160,42 @@
               }
             },
             "member_email": {
-              "description": "add_member: the person's sign-in email.",
               "type": "string",
               "format": "email",
               "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
             },
             "member_name": {
-              "description": "add_member: display name.",
               "type": "string",
               "maxLength": 120
             },
             "member_role": {
-              "description": "add_member: launch role.",
               "type": "string",
               "enum": [
                 "owner",
                 "pm",
                 "all_access"
               ]
+            },
+            "logo_url": {
+              "type": "string",
+              "maxLength": 2000,
+              "format": "uri"
+            },
+            "license_number": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "contact_name": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "contact_phone": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "website": {
+              "type": "string",
+              "maxLength": 200
             }
           },
           "required": [
@@ -198,7 +208,7 @@
       {
         "name": "intake",
         "title": "Job setup intake",
-        "description": "Create a job (keyed by job number) and record its setup: job settings (time zone, PM), step 0 scoping, contract terms, contract deadlines, estimate handoff, budget and SOV, open items, or a two-week lookahead. Missing data is recorded as unknown, never guessed.",
+        "description": "Records a job and its setup.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -219,30 +229,28 @@
                 "deadline",
                 "handoff",
                 "budget",
+                "warranty",
                 "open_item",
-                "lookahead"
-              ],
-              "description": "Which part of setup to record."
+                "lookahead",
+                "delay_event",
+                "clauses"
+              ]
             },
             "job_number": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 40,
-              "description": "Job number, exact match (e.g. 2417)."
+              "maxLength": 40
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 200
             },
             "job_name": {
-              "description": "create_job: job name.",
               "type": "string",
               "maxLength": 200
             },
             "restrict_to": {
-              "description": "create_job: member names who may see this job (leave out for all members).",
               "maxItems": 30,
               "type": "array",
               "items": {
@@ -252,14 +260,83 @@
               }
             },
             "time_zone": {
-              "description": "job_settings: IANA time zone, e.g. America/Chicago. Deadlines are computed in it.",
               "type": "string",
               "maxLength": 60
             },
             "pm": {
-              "description": "job_settings: member name to assign as the job's PM.",
               "type": "string",
               "maxLength": 120
+            },
+            "pm_email": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "pm_title": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "delay_description": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "delay_activity": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "delay_start_date": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "delay_days": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3650
+            },
+            "delay_cause": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "clauses": {
+              "maxItems": 60,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "section": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "heading": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 10000
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "delay_notice",
+                      "claim_notice",
+                      "nonpayment_notice",
+                      "cure_notice",
+                      "schedule_disagreement",
+                      "other"
+                    ]
+                  }
+                },
+                "required": [
+                  "section",
+                  "text"
+                ]
+              }
+            },
+            "contract_text": {
+              "type": "string",
+              "maxLength": 400000
             },
             "clause_key": {
               "type": "string",
@@ -273,27 +350,22 @@
               ]
             },
             "label": {
-              "description": "deadline: what is due, e.g. 'Delay notice: utility shutdown denied'.",
               "type": "string",
               "maxLength": 2000
             },
             "clause_ref": {
-              "description": "deadline: clause reference, e.g. §8.3.",
               "type": "string",
               "maxLength": 200
             },
             "trigger_desc": {
-              "description": "deadline: the event that starts the clock.",
               "type": "string",
               "maxLength": 2000
             },
             "trigger_date": {
-              "description": "deadline: date of the triggering event.",
               "type": "string",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
             },
             "trigger_alternatives": {
-              "description": "deadline: other plausible trigger dates if the trigger is ambiguous.",
               "maxItems": 5,
               "type": "array",
               "items": {
@@ -302,13 +374,11 @@
               }
             },
             "n_days": {
-              "description": "deadline: number of days in the clause.",
               "type": "integer",
               "minimum": 0,
               "maximum": 3650
             },
             "day_type": {
-              "description": "deadline: only if the contract defines it. Leave out otherwise.",
               "type": "string",
               "enum": [
                 "calendar",
@@ -317,7 +387,6 @@
               ]
             },
             "holidays": {
-              "description": "deadline: holidays listed in the contract. Leave out otherwise.",
               "maxItems": 60,
               "type": "array",
               "items": {
@@ -326,26 +395,21 @@
               }
             },
             "weekend_roll": {
-              "description": "deadline: true only if the contract moves weekend/holiday deadlines later.",
               "type": "boolean"
             },
             "fixed_date": {
-              "description": "deadline: a fixed contract date (e.g. substantial completion).",
               "type": "string",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
             },
             "delivery_method": {
-              "description": "deadline / open_item: how it must be sent, per the contract.",
               "type": "string",
               "maxLength": 2000
             },
             "recipient": {
-              "description": "deadline / open_item: who it must go to.",
               "type": "string",
               "maxLength": 2000
             },
             "item_type": {
-              "description": "open_item: type. na_disposition is applied automatically under N/A sections.",
               "type": "string",
               "enum": [
                 "unknown",
@@ -355,12 +419,10 @@
               ]
             },
             "waiting_on_document": {
-              "description": "open_item pending_document: the named document.",
               "type": "string",
               "maxLength": 2000
             },
             "waiting_on_who": {
-              "description": "open_item pending_document: who it is coming from.",
               "type": "string",
               "maxLength": 2000
             },
@@ -369,27 +431,22 @@
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
             },
             "clause_source": {
-              "description": "open_item deadline: clause or source of the due date.",
               "type": "string",
               "maxLength": 2000
             },
             "recommendation": {
-              "description": "open_item no: recommendation.",
               "type": "string",
               "maxLength": 2000
             },
             "why": {
-              "description": "open_item no: why it matters.",
               "type": "string",
               "maxLength": 2000
             },
             "job_type": {
-              "description": "scope: job type / trade.",
               "type": "string",
               "maxLength": 2000
             },
             "scope_summary": {
-              "description": "scope: short scope summary.",
               "type": "string",
               "maxLength": 2000
             },
@@ -411,7 +468,6 @@
               ]
             },
             "client_type": {
-              "description": "scope: client type.",
               "type": "string",
               "maxLength": 2000
             },
@@ -431,6 +487,9 @@
                 "sub",
                 "sub_sub"
               ]
+            },
+            "use_defaults": {
+              "type": "boolean"
             },
             "work_packages": {
               "maxItems": 50,
@@ -458,7 +517,6 @@
               }
             },
             "major_equipment": {
-              "description": "scope: major equipment; [] means none.",
               "maxItems": 50,
               "type": "array",
               "items": {
@@ -468,7 +526,6 @@
               }
             },
             "key_clauses": {
-              "description": "scope: which key clauses the job has.",
               "type": "object",
               "properties": {
                 "retainage": {
@@ -521,121 +578,155 @@
               }
             },
             "contract_document_provided": {
-              "description": "contract: true only if these terms were read from the contract. Without it every clause stays unknown.",
               "type": "boolean"
             },
+            "contract_document_name": {
+              "type": "string",
+              "maxLength": 300
+            },
             "pay_terms": {
-              "description": "contract",
               "type": "string",
               "maxLength": 2000
             },
             "notice_timing": {
-              "description": "contract: notice deadline and clause, as written",
               "type": "string",
               "maxLength": 2000
             },
             "tia_timing": {
-              "description": "contract",
               "type": "string",
               "maxLength": 2000
             },
             "change_process": {
-              "description": "contract",
               "type": "string",
               "maxLength": 2000
             },
             "claim_process": {
-              "description": "contract",
               "type": "string",
               "maxLength": 2000
             },
             "retainage": {
-              "description": "contract: % and clause",
               "type": "string",
               "maxLength": 2000
             },
             "retainage_reduction": {
-              "description": "contract",
               "type": "string",
               "maxLength": 2000
             },
             "beneficial_use_clause": {
-              "description": "contract",
               "type": "string",
               "maxLength": 2000
             },
             "liquidated_damages": {
-              "description": "contract",
               "type": "string",
               "maxLength": 2000
             },
             "savings_split": {
-              "description": "contract",
               "type": "string",
               "maxLength": 2000
             },
             "closeout": {
-              "description": "contract",
               "type": "string",
               "maxLength": 2000
             },
             "warranty_clauses": {
-              "description": "contract",
+              "type": "string",
+              "maxLength": 2000
+            },
+            "workmanship_warranty": {
+              "type": "string",
+              "enum": [
+                "yes",
+                "no",
+                "na",
+                "unknown"
+              ]
+            },
+            "workmanship_warranty_months": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 240
+            },
+            "warranty_start_trigger": {
+              "type": "string",
+              "enum": [
+                "substantial_completion",
+                "final_acceptance",
+                "other"
+              ]
+            },
+            "warranty_start_trigger_text": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "warranty_start_trigger_other": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "warranty_trigger_date": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "warranty_start_basis": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "closeout_documents": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "punch_final_acceptance": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "manufacturer_warranties": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "closeout_expectations": {
               "type": "string",
               "maxLength": 2000
             },
             "sold_scope": {
-              "description": "handoff",
               "type": "string",
               "maxLength": 2000
             },
             "carried_scope": {
-              "description": "handoff",
               "type": "string",
               "maxLength": 2000
             },
             "exclusions": {
-              "description": "handoff",
               "type": "string",
               "maxLength": 2000
             },
             "allowances": {
-              "description": "handoff",
               "type": "string",
               "maxLength": 2000
             },
             "addenda": {
-              "description": "handoff",
               "type": "string",
               "maxLength": 2000
             },
             "concessions": {
-              "description": "handoff",
               "type": "string",
               "maxLength": 2000
             },
             "quantities": {
-              "description": "handoff",
               "type": "string",
               "maxLength": 2000
             },
             "production_rates": {
-              "description": "handoff",
               "type": "string",
               "maxLength": 2000
             },
             "crew_assumptions": {
-              "description": "handoff",
               "type": "string",
               "maxLength": 2000
             },
             "sub_qualifications": {
-              "description": "handoff",
               "type": "string",
               "maxLength": 2000
             },
             "gaps": {
-              "description": "handoff: each gap becomes an open item with its named owner.",
               "maxItems": 50,
               "type": "array",
               "items": {
@@ -663,7 +754,6 @@
               }
             },
             "budget_lines": {
-              "description": "budget: internal cost budget by cost code (internal only).",
               "maxItems": 300,
               "type": "array",
               "items": {
@@ -688,7 +778,6 @@
               }
             },
             "sov_lines": {
-              "description": "budget: owner SOV lines at billable value, with the cost codes each maps to.",
               "maxItems": 300,
               "type": "array",
               "items": {
@@ -713,6 +802,10 @@
                       "type": "string",
                       "maxLength": 40
                     }
+                  },
+                  "spec_section": {
+                    "type": "string",
+                    "maxLength": 40
                   }
                 },
                 "required": [
@@ -720,8 +813,14 @@
                 ]
               }
             },
+            "fee_pct": {
+              "type": "number"
+            },
+            "sov_basis": {
+              "type": "string",
+              "maxLength": 200
+            },
             "action": {
-              "description": "open_item: what has to happen",
               "type": "string",
               "maxLength": 2000
             },
@@ -743,7 +842,6 @@
               ]
             },
             "owner": {
-              "description": "open_item: accountable named person",
               "type": "string",
               "maxLength": 2000
             },
@@ -752,17 +850,14 @@
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
             },
             "cost_effect": {
-              "description": "open_item",
               "type": "string",
               "maxLength": 2000
             },
             "time_effect": {
-              "description": "open_item",
               "type": "string",
               "maxLength": 2000
             },
             "cash_effect": {
-              "description": "open_item",
               "type": "string",
               "maxLength": 2000
             },
@@ -770,17 +865,23 @@
               "type": "boolean"
             },
             "next_action": {
-              "description": "open_item",
               "type": "string",
               "maxLength": 2000
             },
             "next_action_approved_by": {
-              "description": "open_item",
               "type": "string",
               "maxLength": 2000
             },
             "internal_only": {
               "type": "boolean"
+            },
+            "lookahead_exists": {
+              "type": "string",
+              "enum": [
+                "yes",
+                "no",
+                "build"
+              ]
             },
             "start_date": {
               "type": "string",
@@ -791,32 +892,26 @@
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
             },
             "schedule_export": {
-              "description": "lookahead: schedule export, as plain text. Leave out if you don't have it; it is recorded as unknown.",
               "type": "string",
               "maxLength": 20000
             },
             "crews": {
-              "description": "lookahead: crews/subs by day, as plain text. Leave out if you don't have it; it is recorded as unknown.",
               "type": "string",
               "maxLength": 20000
             },
             "submittal_log": {
-              "description": "lookahead: submittal log, as plain text. Leave out if you don't have it; it is recorded as unknown.",
               "type": "string",
               "maxLength": 20000
             },
             "rfi_log": {
-              "description": "lookahead: RFI log, as plain text. Leave out if you don't have it; it is recorded as unknown.",
               "type": "string",
               "maxLength": 20000
             },
             "inspection_list": {
-              "description": "lookahead: inspection list, as plain text. Leave out if you don't have it; it is recorded as unknown.",
               "type": "string",
               "maxLength": 20000
             },
             "deliveries": {
-              "description": "lookahead: deliveries list, as plain text. Leave out if you don't have it; it is recorded as unknown.",
               "type": "string",
               "maxLength": 20000
             }
@@ -832,7 +927,7 @@
       {
         "name": "next_question",
         "title": "Next question",
-        "description": "Get the next setup question for a job, one at a time (or the next lookahead question when lookahead_id is given). Skips anything marked N/A or already answered.",
+        "description": "Returns the next setup question for a job.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -846,20 +941,17 @@
             "job_number": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 40,
-              "description": "Job number, exact match (e.g. 2417)."
+              "maxLength": 40
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 200
             },
             "lookahead_id": {
-              "description": "Only for a two-week lookahead.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 64
             }
           },
           "required": [
@@ -872,7 +964,7 @@
       {
         "name": "answer",
         "title": "Answer or mark N/A",
-        "description": "Answer the current question (yes / no / na / unknown), mark an item or section N/A, re-enable it, or decline a re-enable suggestion. N/A only stops future questions; it never closes open items. Unknown opens a confirm item.",
+        "description": "Records the answer to the current setup question.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -886,17 +978,14 @@
             "job_number": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 40,
-              "description": "Job number, exact match (e.g. 2417)."
+              "maxLength": 40
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 200
             },
             "action": {
-              "description": "Default answer.",
               "type": "string",
               "enum": [
                 "answer",
@@ -906,13 +995,18 @@
               ]
             },
             "check_key": {
-              "description": "answer: check_key from next_question. mark_na/reenable with scope item: the check_key.",
               "type": "string",
               "minLength": 1,
               "maxLength": 100
             },
+            "lookahead_help": {
+              "type": "string",
+              "enum": [
+                "accept",
+                "decline"
+              ]
+            },
             "response": {
-              "description": "answer: yes / no / na / unknown.",
               "type": "string",
               "enum": [
                 "yes",
@@ -922,22 +1016,18 @@
               ]
             },
             "detail": {
-              "description": "Details, or the N/A reason (max 10,000 characters).",
               "type": "string",
               "maxLength": 10000
             },
             "owner": {
-              "description": "Accountable person for a follow-up. Leave out if unknown.",
               "type": "string",
               "maxLength": 200
             },
             "due_date": {
-              "description": "Needed-by date (YYYY-MM-DD).",
               "type": "string",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
             },
             "scope": {
-              "description": "mark_na / reenable: item or section.",
               "type": "string",
               "enum": [
                 "item",
@@ -945,21 +1035,18 @@
               ]
             },
             "section": {
-              "description": "mark_na / reenable with scope section: section name, e.g. bid_documents, insurance_bonding, contract_time, self_perform_premob.",
               "type": "string",
               "maxLength": 60
             },
             "na_id": {
-              "description": "decline_reenable: na_id from the suggestion.",
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             },
             "lookahead_id": {
-              "description": "Only for a two-week lookahead question.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 64
             }
           },
           "required": [
@@ -972,7 +1059,7 @@
       {
         "name": "report",
         "title": "Job report",
-        "description": "Render the fixed job setup report (internal or client-facing), or the two-week lookahead report when lookahead_id is given. Client-facing reports leave out internal cost and strategy detail.",
+        "description": "Returns the job setup report or a two-week lookahead.",
         "annotations": {
           "readOnlyHint": true,
           "openWorldHint": false,
@@ -985,17 +1072,14 @@
             "job_number": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 40,
-              "description": "Job number, exact match (e.g. 2417)."
+              "maxLength": 40
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 200
             },
             "audience": {
-              "description": "Default internal.",
               "type": "string",
               "enum": [
                 "internal",
@@ -1003,10 +1087,60 @@
               ]
             },
             "lookahead_id": {
-              "description": "Only for a two-week lookahead report.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "deliverable": {
+              "type": "string",
+              "enum": [
+                "setup",
+                "sov"
+              ]
+            },
+            "sov_view": {
+              "type": "string",
+              "enum": [
+                "lines",
+                "divisions"
+              ]
+            },
+            "include_summary": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "contract_terms",
+        "title": "Read contract terms",
+        "description": "Reads contract clauses, the contract value, and the substantial completion date when asked what the contract says, what it is worth, or when the job finishes.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false,
+          "idempotentHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "include_summary": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -1019,7 +1153,7 @@
       {
         "name": "carry_forward",
         "title": "Carry forward open items",
-        "description": "Move open items from last week's lookahead into this week's lookahead for the same job, with history.",
+        "description": "Moves open items from one lookahead into the next.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -1033,26 +1167,22 @@
             "job_number": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 40,
-              "description": "Job number, exact match (e.g. 2417)."
+              "maxLength": 40
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 200
             },
             "from_lookahead_id": {
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Previous lookahead_id."
+              "minLength": 1,
+              "maxLength": 64
             },
             "to_lookahead_id": {
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "New lookahead_id from intake."
+              "minLength": 1,
+              "maxLength": 64
             }
           },
           "required": [
@@ -1067,7 +1197,7 @@
       {
         "name": "list_open_items",
         "title": "List open items",
-        "description": "List a job's open items with accountable person, needed-by date, verified or last-reported status, source and effects. Items under an N/A section are labeled for disposition.",
+        "description": "Lists open items for a job_number the member just gave, and must not fill job_number from chat context.",
         "annotations": {
           "readOnlyHint": true,
           "openWorldHint": false,
@@ -1080,20 +1210,86 @@
             "job_number": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 40,
-              "description": "Job number, exact match (e.g. 2417)."
+              "maxLength": 40
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 200
             },
             "lookahead_id": {
-              "description": "Limit to one lookahead.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "date_sweep": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "lookahead_list",
+        "title": "List lookaheads",
+        "description": "Lists how many lookaheads a job has, which are visible, and writes nothing.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "lookahead_get",
+        "title": "Show saved lookahead and its items",
+        "description": "Reads a job's saved lookahead, its items and current schedule window. Returns the styled card and every saved item directly; no PDF, email or upload needed.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "lookahead_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
             }
           },
           "required": [
@@ -1106,7 +1302,7 @@
       {
         "name": "resolve_item",
         "title": "Resolve or update an open item",
-        "description": "Close an open item with evidence, close a confirm item with a dated statement, waive it (decision right and reason required), close a commercial item on approval + billing + collection, or record a last-reported status update. N/A is not a resolution.",
+        "description": "Closes or updates an open item.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -1120,20 +1316,17 @@
             "job_number": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 40,
-              "description": "Job number, exact match (e.g. 2417)."
+              "maxLength": 40
             },
             "company_id": {
-              "description": "Only needed if you belong to more than one company.",
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "minLength": 1,
+              "maxLength": 200
             },
             "item_id": {
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Open item id."
+              "minLength": 1,
+              "maxLength": 64
             },
             "kind": {
               "type": "string",
@@ -1144,41 +1337,33 @@
                 "commercial_close",
                 "update",
                 "na"
-              ],
-              "description": "How it is being closed or updated."
+              ]
             },
             "evidence": {
-              "description": "Evidence (e.g. approved submittal number, inspection pass), or the statement.",
               "type": "string",
               "maxLength": 10000
             },
             "stated_by": {
-              "description": "member_statement / update: who said it.",
               "type": "string",
               "maxLength": 200
             },
             "stated_on": {
-              "description": "member_statement / update: date of the statement.",
               "type": "string",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
             },
             "reason": {
-              "description": "waive: reason (logged).",
               "type": "string",
               "maxLength": 2000
             },
             "approval": {
-              "description": "commercial_close: approval reference.",
               "type": "string",
               "maxLength": 1000
             },
             "billing": {
-              "description": "commercial_close: billing reference.",
               "type": "string",
               "maxLength": 1000
             },
             "collection": {
-              "description": "commercial_close: collection reference.",
               "type": "string",
               "maxLength": 1000
             }
@@ -1188,6 +1373,5055 @@
             "item_id",
             "kind"
           ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "cpm_activities",
+        "title": "Full CPM activity list",
+        "description": "Returns the saved CPM activities for a job.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false,
+          "idempotentHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "living_report_get",
+        "title": "Living report master copy",
+        "description": "Returns the saved living report for a job.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false,
+          "idempotentHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "report_type": {
+              "type": "string",
+              "enum": [
+                "cpm",
+                "billing_forecast",
+                "ior",
+                "dashboard"
+              ]
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "job_number",
+            "report_type"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "living_report_save",
+        "title": "Save living report version (after approval)",
+        "description": "Saves a new version of a living report after approval.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "report_type": {
+              "type": "string",
+              "enum": [
+                "cpm",
+                "billing_forecast",
+                "ior",
+                "dashboard"
+              ]
+            },
+            "base_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "approved": {
+              "type": "boolean",
+              "const": true
+            },
+            "data_date": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "what_changed": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "why": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "activities": {
+              "maxItems": 400,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "duration": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 5000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "start": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "finish": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "predecessors": {
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 20
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "FS",
+                            "SS",
+                            "FF",
+                            "SF"
+                          ]
+                        },
+                        "lag": {
+                          "type": "integer",
+                          "minimum": -999,
+                          "maximum": 999
+                        }
+                      },
+                      "required": [
+                        "id"
+                      ]
+                    }
+                  },
+                  "total_float": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -5000,
+                        "maximum": 5000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "critical": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "pct_complete": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 100
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "sov_line": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 20
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "cost_code": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 20
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "owner_furnished": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "duration",
+                  "start",
+                  "finish",
+                  "predecessors",
+                  "total_float",
+                  "critical",
+                  "pct_complete",
+                  "value",
+                  "sov_line",
+                  "cost_code"
+                ]
+              }
+            },
+            "billing": {
+              "type": "object",
+              "properties": {
+                "billed_to_date": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "months": {
+                  "maxItems": 120,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "month": {
+                        "type": "string",
+                        "pattern": "^\\d{4}-\\d{2}$"
+                      },
+                      "amount": {
+                        "type": "number"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "actual",
+                          "forecast"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "month",
+                      "amount",
+                      "kind"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "months"
+              ]
+            },
+            "tia": {
+              "type": "object",
+              "properties": {
+                "fragnet": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                "prior_completion": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                "updated_completion": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                "fragnet_only_completion": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "fragnet",
+                "prior_completion",
+                "updated_completion"
+              ]
+            },
+            "details": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            "contract_completion_date": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "replace_completion_date": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "job_number",
+            "report_type",
+            "base_version",
+            "approved",
+            "what_changed"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "file_share",
+        "title": "Share a file as a link",
+        "description": "Stores a file for a job and returns a download link.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "sov",
+                "schedule",
+                "report",
+                "notice",
+                "other"
+              ]
+            },
+            "filename": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "content_base64": {
+              "type": "string",
+              "maxLength": 13981024
+            },
+            "file": {
+              "type": "object",
+              "properties": {
+                "download_url": {
+                  "type": "string"
+                },
+                "file_id": {
+                  "type": "string"
+                },
+                "mime_type": {
+                  "type": "string"
+                },
+                "file_name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "download_url",
+                "file_id"
+              ]
+            },
+            "expires_in_days": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90
+            }
+          },
+          "required": [
+            "job_number",
+            "kind",
+            "filename"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "file_share_revoke",
+        "title": "Turn off a file link",
+        "description": "Turns off a file link and deletes the stored file.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "link": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "job_number",
+            "link"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "lookahead_pdf",
+        "title": "Lookahead as a PDF file (for email)",
+        "description": "Builds the job's two-week lookahead as a PDF and returns a download link.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "lookahead_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "expires_in_days": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "report_page_link",
+        "title": "Job board link",
+        "description": "Returns the private job board link: items opens /items, ior opens /ior, and field opens /field.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "page": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "page"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "report_page_share",
+        "title": "Share a report page (expiring link)",
+        "description": "Makes an expiring link to a report page.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "page": {
+              "type": "string",
+              "enum": [
+                "ior",
+                "schedule",
+                "portfolio"
+              ]
+            },
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "confirmed": {
+              "type": "boolean",
+              "const": true
+            },
+            "expires_in_days": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90
+            }
+          },
+          "required": [
+            "page",
+            "confirmed"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "report_page_share_revoke",
+        "title": "Turn off a report share link",
+        "description": "Turns off a report page share link.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "link": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "link"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "team_list",
+        "title": "Team: people, roles and jobs",
+        "description": "Lists the company's people, roles, and seats.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "team_invite",
+        "title": "Invite a person to the team",
+        "description": "Invites a person to the company.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "email": {
+              "type": "string",
+              "maxLength": 320,
+              "format": "email",
+              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "role": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "job_numbers": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              }
+            },
+            "confirmed": {
+              "type": "boolean",
+              "const": true
+            }
+          },
+          "required": [
+            "email",
+            "name",
+            "role",
+            "confirmed"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "team_update_member",
+        "title": "Change a person's role or job access",
+        "description": "Changes a person's role or job access.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "person": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 320
+            },
+            "user_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "role": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "job_numbers": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              }
+            },
+            "confirmed": {
+              "type": "boolean",
+              "const": true
+            }
+          },
+          "required": [
+            "confirmed"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "team_remove_member",
+        "title": "Remove a person from the team",
+        "description": "Removes a person from the company.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "person": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 320
+            },
+            "confirmed": {
+              "type": "boolean",
+              "const": true
+            }
+          },
+          "required": [
+            "person",
+            "confirmed"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "team_add_seats",
+        "title": "Add seats",
+        "description": "Adds company seats at $49 per seat per month.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "seats": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            },
+            "confirmed": {
+              "type": "boolean",
+              "const": true
+            }
+          },
+          "required": [
+            "seats",
+            "confirmed"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "set_current_company",
+        "title": "Set my current company",
+        "description": "Sets which company to use when the member belongs to more than one.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "company_id"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "drawing_set_import",
+        "title": "Store a drawing set",
+        "description": "Imports a Drive or Dropbox drawing PDF or uploaded bytes, recognizes identical files, and indexes stored sheets without another upload.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "drawing": {
+              "type": "object",
+              "properties": {
+                "filename": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "content_base64": {
+                  "type": "string",
+                  "maxLength": 69905076
+                },
+                "file": {
+                  "type": "object",
+                  "properties": {
+                    "download_url": {
+                      "type": "string"
+                    },
+                    "file_id": {
+                      "type": "string"
+                    },
+                    "mime_type": {
+                      "type": "string"
+                    },
+                    "file_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "download_url",
+                    "file_id"
+                  ]
+                },
+                "sheets": {
+                  "maxItems": 400,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  }
+                },
+                "source_url": {
+                  "type": "string",
+                  "maxLength": 4096,
+                  "format": "uri"
+                }
+              }
+            },
+            "stored_filename": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "sheets": {
+              "minItems": 1,
+              "maxItems": 400,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              }
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "drawing_markup",
+        "title": "Mark up a stored drawing",
+        "description": "Marks up a stored job sheet with saved findings or supplied pins, lines and areas, preserving a dated copy.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "sheet": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "operation": {
+              "default": "save",
+              "type": "string",
+              "enum": [
+                "prepare",
+                "save"
+              ]
+            },
+            "annotations": {
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  "location": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "severity": {
+                    "default": "callout",
+                    "type": "string",
+                    "enum": [
+                      "callout",
+                      "risk",
+                      "delay"
+                    ]
+                  },
+                  "geometry": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "pin"
+                          },
+                          "point": {
+                            "type": "object",
+                            "properties": {
+                              "x": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1
+                              },
+                              "y": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1
+                              }
+                            },
+                            "required": [
+                              "x",
+                              "y"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "point"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "line"
+                          },
+                          "points": {
+                            "minItems": 2,
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "x": {
+                                  "type": "number",
+                                  "minimum": 0,
+                                  "maximum": 1
+                                },
+                                "y": {
+                                  "type": "number",
+                                  "minimum": 0,
+                                  "maximum": 1
+                                }
+                              },
+                              "required": [
+                                "x",
+                                "y"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "points"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "area"
+                          },
+                          "points": {
+                            "minItems": 3,
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "x": {
+                                  "type": "number",
+                                  "minimum": 0,
+                                  "maximum": 1
+                                },
+                                "y": {
+                                  "type": "number",
+                                  "minimum": 0,
+                                  "maximum": 1
+                                }
+                              },
+                              "required": [
+                                "x",
+                                "y"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "points"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "label",
+                  "text"
+                ]
+              }
+            }
+          },
+          "required": [
+            "job_number",
+            "sheet"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_intake",
+        "title": "Estimating intake",
+        "description": "Asks scope, role and profile, warns before reusing a takeoff already on the job, and stores a drawing PDF when one is sent.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "gc",
+                "self_performer"
+              ]
+            },
+            "profile": {
+              "type": "string",
+              "enum": [
+                "as_drawn",
+                "estimator"
+              ]
+            },
+            "reuse": {
+              "type": "string",
+              "enum": [
+                "reuse",
+                "fresh"
+              ]
+            },
+            "trades": {
+              "maxItems": 40,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              }
+            },
+            "bid_due": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "delivery_method": {
+              "type": "string",
+              "maxLength": 80
+            },
+            "documents": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "base",
+                      "addendum",
+                      "sheet",
+                      "spec"
+                    ]
+                  },
+                  "revision": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "date": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "sheets": {
+                    "maxItems": 400,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 40
+                    }
+                  }
+                },
+                "required": [
+                  "name",
+                  "kind"
+                ]
+              }
+            },
+            "sub_bids": {
+              "maxItems": 40,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "sub": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "trade": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "total": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "lines": {
+                    "maxItems": 80,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "description": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 300
+                        },
+                        "qty": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "unit": {
+                          "type": "string",
+                          "maxLength": 20
+                        },
+                        "amount": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "exclusion": {
+                          "type": "string",
+                          "maxLength": 500
+                        }
+                      },
+                      "required": [
+                        "description"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "sub",
+                  "trade"
+                ]
+              }
+            },
+            "workbook_note": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "in_scope": {
+              "maxItems": 40,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "out_scope": {
+              "maxItems": 40,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "assumptions": {
+              "maxItems": 40,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              }
+            },
+            "forms_faces": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "const": 1
+                },
+                {
+                  "type": "number",
+                  "const": 2
+                }
+              ]
+            },
+            "drawing": {
+              "type": "object",
+              "properties": {
+                "filename": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "content_base64": {
+                  "type": "string",
+                  "maxLength": 69905076
+                },
+                "file": {
+                  "type": "object",
+                  "properties": {
+                    "download_url": {
+                      "type": "string"
+                    },
+                    "file_id": {
+                      "type": "string"
+                    },
+                    "mime_type": {
+                      "type": "string"
+                    },
+                    "file_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "download_url",
+                    "file_id"
+                  ]
+                },
+                "sheets": {
+                  "maxItems": 400,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  }
+                },
+                "source_url": {
+                  "type": "string",
+                  "maxLength": 4096,
+                  "format": "uri"
+                }
+              }
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_doc_review",
+        "title": "Estimating document review",
+        "description": "Saves the sheet index, revisions and spec-versus-drawing list for a job.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "sheets": {
+              "maxItems": 400,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "sheet": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "revision": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "date": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "scale": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "notes": {
+                    "maxItems": 40,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 500
+                    }
+                  },
+                  "schedules": {}
+                },
+                "required": [
+                  "sheet",
+                  "title"
+                ]
+              }
+            },
+            "specs": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "section": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "part1": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "part2": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "part3": {
+                    "type": "string",
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "section",
+                  "title"
+                ]
+              }
+            },
+            "pairs": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "spec_section": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "requirement": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "sheet": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "detail": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "drawing_shows": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "spec_section",
+                  "requirement",
+                  "sheet"
+                ]
+              }
+            },
+            "context": {
+              "type": "string",
+              "maxLength": 1000
+            }
+          },
+          "required": [
+            "job_number",
+            "sheets",
+            "specs",
+            "pairs"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_takeoff_save",
+        "title": "Save a takeoff",
+        "description": "Saves takeoff lines with mode upsert, the default, or mode replace, and stores a drawing PDF when one is sent.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "revision": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "scales": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "sheet": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "scale": {},
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "title_block",
+                      "dimensioned_string"
+                    ]
+                  }
+                },
+                "required": [
+                  "sheet",
+                  "scale"
+                ]
+              }
+            },
+            "profile": {
+              "type": "string",
+              "enum": [
+                "as_drawn",
+                "estimator"
+              ]
+            },
+            "forms_faces": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "const": 1
+                },
+                {
+                  "type": "number",
+                  "const": 2
+                }
+              ]
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "upsert",
+                "replace"
+              ]
+            },
+            "lines": {
+              "minItems": 1,
+              "maxItems": 400,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "line_no": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9999
+                  },
+                  "item": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "material": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "unit": {
+                    "type": "string",
+                    "maxLength": 20
+                  },
+                  "basis": {
+                    "type": "string",
+                    "enum": [
+                      "measured",
+                      "deduced",
+                      "read",
+                      "derived",
+                      "MEASURED",
+                      "DEDUCED",
+                      "READ",
+                      "DERIVED"
+                    ]
+                  },
+                  "op": {
+                    "type": "string",
+                    "enum": [
+                      "product",
+                      "sum",
+                      "net",
+                      "quotient",
+                      "cy_from_area",
+                      "rebar_lb",
+                      "scale",
+                      "as_read"
+                    ]
+                  },
+                  "inputs": {
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {},
+                        "value": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "unit": {
+                          "type": "string",
+                          "maxLength": 20
+                        },
+                        "sheet": {
+                          "type": "string",
+                          "maxLength": 80
+                        },
+                        "detail": {
+                          "type": "string",
+                          "maxLength": 80
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "value"
+                      ]
+                    }
+                  },
+                  "divisor": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "bar_size": {
+                    "type": "string",
+                    "maxLength": 8
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "qty": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "range": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "measure_type": {
+                    "type": "string",
+                    "enum": [
+                      "count",
+                      "linear",
+                      "area",
+                      "volume"
+                    ]
+                  },
+                  "sheet": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "detail": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "spec_section": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "confidence": {
+                    "type": "string",
+                    "enum": [
+                      "high",
+                      "medium",
+                      "low"
+                    ]
+                  },
+                  "scale": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "method": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "markup_ref": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "location_text": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "missing_input": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "exclusion": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "checklist_key": {
+                    "type": "string",
+                    "enum": [
+                      "cf",
+                      "if",
+                      "fs",
+                      "fr",
+                      "fd",
+                      "tp",
+                      "cp",
+                      "ts",
+                      "td",
+                      "sg",
+                      "us",
+                      "ew",
+                      "pi",
+                      "pt",
+                      "fg",
+                      "bc",
+                      "bt",
+                      "dw",
+                      "kw",
+                      "ef"
+                    ]
+                  },
+                  "forms_faces": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "const": 1
+                      },
+                      {
+                        "type": "number",
+                        "const": 2
+                      }
+                    ]
+                  },
+                  "area_basis": {
+                    "type": "string",
+                    "enum": [
+                      "net",
+                      "gross"
+                    ]
+                  },
+                  "element": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "trade": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "item",
+                  "basis",
+                  "sheet"
+                ]
+              }
+            },
+            "drawing": {
+              "type": "object",
+              "properties": {
+                "filename": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "content_base64": {
+                  "type": "string",
+                  "maxLength": 69905076
+                },
+                "file": {
+                  "type": "object",
+                  "properties": {
+                    "download_url": {
+                      "type": "string"
+                    },
+                    "file_id": {
+                      "type": "string"
+                    },
+                    "mime_type": {
+                      "type": "string"
+                    },
+                    "file_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "download_url",
+                    "file_id"
+                  ]
+                },
+                "sheets": {
+                  "maxItems": 400,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  }
+                },
+                "source_url": {
+                  "type": "string",
+                  "maxLength": 4096,
+                  "format": "uri"
+                }
+              }
+            }
+          },
+          "required": [
+            "job_number",
+            "lines"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_takeoff_get",
+        "title": "Read a takeoff",
+        "description": "Returns the saved takeoff for a job and includes a stored drawing page when a sheet is named or a line names a markup.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "sheet": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_takeoff_export",
+        "title": "Export a takeoff",
+        "description": "Exports the saved takeoff as CSV or a workbook layout.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "format": {
+              "type": "string",
+              "enum": [
+                "csv",
+                "workbook"
+              ]
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_gap_analysis",
+        "title": "Estimate gap analysis",
+        "description": "Saves sheet-cited gaps after reading the estimator's basis notes and scope callouts, and must not back-solve a quantity to the estimator's number when the drawings do not define it.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "items": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "maxLength": 12
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "seen",
+                      "verify"
+                    ]
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "missing_on_drawings",
+                      "conflict",
+                      "scale_or_dimension",
+                      "scope_seam",
+                      "allowance_or_alternate"
+                    ]
+                  },
+                  "severity": {
+                    "type": "string",
+                    "enum": [
+                      "hard",
+                      "soft",
+                      "cannot_know"
+                    ]
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "reasoning": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "sheet": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "detail": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "spec_section": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "holds_bid": {
+                    "type": "boolean"
+                  },
+                  "qty": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "unit": {
+                    "type": "string",
+                    "maxLength": 20
+                  },
+                  "element": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "line_no": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9999
+                  }
+                },
+                "required": [
+                  "kind",
+                  "category",
+                  "title",
+                  "reasoning",
+                  "sheet",
+                  "spec_section"
+                ]
+              }
+            },
+            "estimator_lines": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "item": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "qty": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "unit": {
+                    "type": "string",
+                    "maxLength": 20
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "sheet": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "detail": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "callout": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "drawing_low": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "drawing_high": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "drawing_defined": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "item"
+                ]
+              }
+            },
+            "requirements": {
+              "maxItems": 80,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "source_type": {
+                    "type": "string",
+                    "enum": [
+                      "sheet",
+                      "spec",
+                      "contract"
+                    ]
+                  },
+                  "source_ref": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "citation": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "kind",
+                  "title",
+                  "source_type",
+                  "source_ref",
+                  "citation"
+                ]
+              }
+            }
+          },
+          "required": [
+            "job_number",
+            "items"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_bid_check",
+        "title": "Sub bid check",
+        "description": "Checks each in-scope sub bid line against the takeoff for a general contractor or a self-performer and lists out-of-scope callouts in their own section.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "bids": {
+              "maxItems": 40,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "sub": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "trade": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "total": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "lines": {
+                    "maxItems": 80,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "description": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 300
+                        },
+                        "qty": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "unit": {
+                          "type": "string",
+                          "maxLength": 20
+                        },
+                        "amount": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "exclusion": {
+                          "type": "string",
+                          "maxLength": 500
+                        }
+                      },
+                      "required": [
+                        "description"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "sub",
+                  "trade"
+                ]
+              }
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_item_mark",
+        "title": "Estimator mark",
+        "description": "Records the estimator mark on an existing takeoff line or gap and does not create a gap or change its number.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "item_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "mark": {
+              "type": "string",
+              "enum": [
+                "relevant",
+                "not_relevant",
+                "good_catch"
+              ]
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "corrected_qty": {
+              "type": "number",
+              "minimum": 0
+            },
+            "owner": {
+              "type": "string",
+              "maxLength": 120
+            }
+          },
+          "required": [
+            "job_number",
+            "item_id",
+            "mark"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_build",
+        "title": "Estimate summary",
+        "description": "Builds the estimate summary from settled quantities and the contractor rates as a landscape PDF.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "rates": {
+              "maxItems": 400,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "line_no": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9999
+                  },
+                  "item": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "trade": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "system": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "cost_type": {
+                    "type": "string",
+                    "enum": [
+                      "labor",
+                      "material",
+                      "equipment",
+                      "sub",
+                      "other"
+                    ]
+                  },
+                  "rate": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "bought": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_status",
+        "title": "Estimate status",
+        "description": "Returns the open, settled and dropped counts for an estimate.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_pricing",
+        "title": "Pricing walkthrough",
+        "description": "Prices a job from the contractor's labor and material rates, and asks for those rates when none are saved.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "labor": {
+              "maxItems": 400,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "production_per_man_hour": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "man_hours": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "man_days": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "crew_size": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "hours_per_day": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "exclusiveMinimum": 0,
+                        "maximum": 24
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "hourly_rate": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "crew_rate": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "confirmed": {
+                    "type": "boolean"
+                  },
+                  "apply_factor": {
+                    "type": "boolean"
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "rsmeans",
+                      "neca",
+                      "smacna",
+                      "mcaa"
+                    ]
+                  }
+                },
+                "required": [
+                  "ref"
+                ]
+              }
+            },
+            "material": {
+              "maxItems": 400,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "unit_price": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "confirmed": {
+                    "type": "boolean"
+                  },
+                  "apply_factor": {
+                    "type": "boolean"
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "rsmeans",
+                      "neca",
+                      "smacna",
+                      "mcaa"
+                    ]
+                  }
+                },
+                "required": [
+                  "ref"
+                ]
+              }
+            },
+            "quotes": {
+              "maxItems": 80,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "sub": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "amount": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "ref": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "trade": {
+                    "type": "string",
+                    "maxLength": 80
+                  }
+                },
+                "required": [
+                  "sub",
+                  "description"
+                ]
+              }
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_rate_sources",
+        "title": "Rate references",
+        "description": "Saves which rate references the contractor chooses to carry for a job.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "sources": {
+              "maxItems": 8,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "rsmeans",
+                      "neca",
+                      "smacna",
+                      "mcaa"
+                    ]
+                  },
+                  "carry": {
+                    "type": "boolean"
+                  },
+                  "metro": {
+                    "type": "string",
+                    "enum": [
+                      "NYC",
+                      "Chicago",
+                      "Miami",
+                      "Austin",
+                      "Dallas",
+                      "LA",
+                      "SF",
+                      "Boston",
+                      "Philly",
+                      "DC"
+                    ]
+                  },
+                  "location_factor": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "work_type": {
+                    "type": "string",
+                    "enum": [
+                      "commercial",
+                      "residential",
+                      "industrial",
+                      "healthcare"
+                    ]
+                  },
+                  "work_factor": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "confirmed": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "source",
+                  "carry"
+                ]
+              }
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_general_conditions",
+        "title": "General conditions",
+        "description": "Builds the general conditions adder from the contractor's figures.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "start_date": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "finish_date": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "duration_days": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5000
+            },
+            "lines": {
+              "maxItems": 12,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "enum": [
+                      "trailer",
+                      "office",
+                      "cad",
+                      "water",
+                      "supplies",
+                      "supervision"
+                    ]
+                  },
+                  "amount": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "qty": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "rate": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "confirmed": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "key"
+                ]
+              }
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_requirements",
+        "title": "Special requirements",
+        "description": "Lists every non-installation project requirement, not only the examples, and keeps it out of labor and material.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "findings": {
+              "maxItems": 80,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "source_type": {
+                    "type": "string",
+                    "enum": [
+                      "sheet",
+                      "spec",
+                      "contract"
+                    ]
+                  },
+                  "source_ref": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "citation": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "kind",
+                  "title",
+                  "source_type",
+                  "source_ref",
+                  "citation"
+                ]
+              }
+            },
+            "prices": {
+              "maxItems": 80,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "maxLength": 12
+                  },
+                  "kind": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "source_ref": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "amount": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "confirmed": {
+                    "type": "boolean"
+                  },
+                  "placement": {
+                    "type": "string",
+                    "enum": [
+                      "gc",
+                      "own_line"
+                    ]
+                  },
+                  "excluded": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_bid_summary",
+        "title": "Bid summary",
+        "description": "Compounds overhead and profit and returns the bid total for a job.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "overhead_pct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "profit_pct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "superintendent_view",
+        "title": "Superintendent field board",
+        "description": "Shows the superintendent field board, also called the field board, the super board, or the superintendent board, including the super's plan and what the crew is doing.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "field_board",
+        "title": "Field board",
+        "description": "Shows the field board, the super board, the superintendent board, the super's plan, and what the crew is doing for a job.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "superintendent_activity",
+        "title": "Self-perform or sub on an activity",
+        "description": "Saves whether an activity is self-perform or a sub, and the crew size.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "activity_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20
+            },
+            "self_perform": {
+              "type": "boolean"
+            },
+            "sub_name": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "crew_size": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 500
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confirmed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "job_number",
+            "activity_id",
+            "self_perform",
+            "confirmed"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "daily_report_draft",
+        "title": "Assemble a daily report",
+        "description": "Assembles a daily report from a transcript or typed notes and lists what is still missing.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "report_date": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "transcript": {
+              "type": "string",
+              "maxLength": 20000
+            },
+            "weather": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "manpower": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "subs_on_site": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "deliveries": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "issues": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "delays": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "safety": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "work": {
+              "maxItems": 80,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "work": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 400
+                  },
+                  "sov_item": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 20
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "activity_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 20
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "qty": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "unit": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 20
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "crew": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "hours": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "pct_complete": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 100
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "work"
+                ]
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "daily_report_save",
+        "title": "Save a confirmed daily report",
+        "description": "Saves a daily report after the superintendent confirms it.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "report_date": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "transcript": {
+              "type": "string",
+              "maxLength": 20000
+            },
+            "weather": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "manpower": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "subs_on_site": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "deliveries": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "issues": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "delays": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "safety": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "work": {
+              "maxItems": 80,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "work": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 400
+                  },
+                  "sov_item": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 20
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "activity_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 20
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "qty": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "unit": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 20
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "crew": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "hours": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "pct_complete": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 100
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "work"
+                ]
+              }
+            },
+            "confirmed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "confirmed"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "daily_report_get",
+        "title": "Saved daily report",
+        "description": "Returns a saved daily report for a job and date.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "report_date": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "field_pay_app",
+        "title": "Pay app from daily progress",
+        "description": "Builds the next pay application from saved daily progress so it ties to the schedule of values.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "period_to": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "field_schedule_feed",
+        "title": "Schedule percent from dailies",
+        "description": "Returns activity percent complete from saved dailies for the schedule update.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "field_production_rates",
+        "title": "Production rates from dailies",
+        "description": "Returns production rates from confirmed daily hours and quantities.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "progress_photo_save",
+        "title": "Save a progress photo",
+        "description": "Stores a progress photo after its date and place on site are confirmed.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "filename": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "content_base64": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12000000
+            },
+            "recognized": {
+              "type": "boolean"
+            },
+            "date_confirmed": {
+              "type": "boolean"
+            },
+            "confirmed": {
+              "type": "boolean"
+            },
+            "taken_on": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "area": {
+              "type": "string",
+              "maxLength": 160
+            },
+            "work": {
+              "type": "string",
+              "maxLength": 400
+            },
+            "sov_item": {
+              "type": "string",
+              "maxLength": 20
+            },
+            "activity_id": {
+              "type": "string",
+              "maxLength": 20
+            },
+            "client_safe": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "job_number",
+            "filename",
+            "content_base64"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "progress_photos",
+        "title": "Progress photo gallery or PDF",
+        "description": "Returns progress photos for a date range, item, or area.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "date_from": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "date_to": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "item": {
+              "type": "string",
+              "maxLength": 80
+            },
+            "area": {
+              "type": "string",
+              "maxLength": 160
+            },
+            "client_safe": {
+              "type": "boolean"
+            },
+            "format": {
+              "type": "string",
+              "enum": [
+                "gallery",
+                "pdf"
+              ]
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "daily_reminder",
+        "title": "Daily report reminder",
+        "description": "Reads or sets when the in-chat daily reminder appears.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "get",
+                "set"
+              ]
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "send_time": {
+              "type": "string",
+              "maxLength": 8
+            },
+            "time_zone": {
+              "type": "string",
+              "maxLength": 80
+            },
+            "confirmed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "job_number",
+            "action"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "daily_reminder_run",
+        "title": "Preview the in-chat daily reminder",
+        "description": "Previews the in-chat daily reminder without sending email.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "preview": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "pm_meeting",
+        "title": "Run construction PM meeting (Athena)",
+        "description": "Runs the construction PM meeting in Athena as a styled card, the job meeting on the schedule rather than a calendar appointment, when someone says run my PM meeting or start the project meeting, through schedule progress, the locked lookahead, subs suppliers and crews, change orders, billing, and the IOR, using the only job when one exists, and must not fill job_number from chat context or build a generic meeting widget; records named confirmations such as subs and crews confirmed, no issues through note and returns the saved checks, with crew confirmation and lookahead lock as separate answers.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "stage": {
+              "type": "string",
+              "enum": [
+                "progress",
+                "schedule",
+                "change_orders",
+                "accounting",
+                "ior"
+              ]
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "crew_mode": {
+              "type": "string",
+              "enum": [
+                "subcontract",
+                "self_perform"
+              ]
+            },
+            "sample": {
+              "type": "boolean",
+              "const": true
+            },
+            "plan": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000000000
+            },
+            "realistic": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000000000
+            },
+            "percent_complete": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "athena_morning_hitlist",
+        "title": "Athena, good morning, Hey Athena, good morning, Good morning Athena, Morning Athena, Athina what's on my hitlist this morning, Athina, Athen, Atena",
+        "description": "Runs the per-job morning meeting when a job number was given, and with no job number returns the morning brief across every visible job, not email or calendar and not Gmail.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "stage": {
+              "type": "string",
+              "enum": [
+                "schedule",
+                "crews",
+                "risks",
+                "spillover",
+                "log"
+              ]
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "crew_mode": {
+              "type": "string",
+              "enum": [
+                "subcontract",
+                "self_perform"
+              ]
+            },
+            "sample": {
+              "type": "boolean",
+              "const": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "pm_morning",
+        "title": "PM morning meeting",
+        "description": "Runs the construction PM morning meeting when someone says morning meeting, PM morning, or start the morning meeting, picks the only job or the most recent job instead of asking which job, and does not hand the request to email or a calendar.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "stage": {
+              "type": "string",
+              "enum": [
+                "schedule",
+                "crews",
+                "risks",
+                "spillover",
+                "log"
+              ]
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "crew_mode": {
+              "type": "string",
+              "enum": [
+                "subcontract",
+                "self_perform"
+              ]
+            },
+            "sample": {
+              "type": "boolean",
+              "const": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "pm_evening",
+        "title": "Evening wrap-up",
+        "description": "Runs the construction project evening wrap-up for a job the member just named, through dailies, photos, risks, what happened, schedule disruptions, and the log, and must not fill job_number from chat context or hand the request to a calendar.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "stage": {
+              "type": "string",
+              "enum": [
+                "dailies",
+                "photos",
+                "risks",
+                "happened",
+                "disruptions",
+                "log"
+              ]
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "crew_mode": {
+              "type": "string",
+              "enum": [
+                "subcontract",
+                "self_perform"
+              ]
+            },
+            "sample": {
+              "type": "boolean",
+              "const": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "athena_hello",
+        "title": "Athena hello",
+        "description": "Returns the full styled morning brief, including From your inbox and calendar, every time the user asks, including Good morning Athena, Hey Athena, what's on my plate today?, good morning, hey Athena, hello, or a misspelling like Athina, Athen, or Atena.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "company_id": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "morning_brief",
+        "title": "Morning brief",
+        "description": "Builds the member's construction morning brief across every job in every company they belong to, grouped by company when there is more than one, when they say Athena, good morning, Good morning Athena, Hey Athena, what's on my plate today?, Morning Athena, Athena at the start or mid-sentence, Athina, Athen, Atena, hitlist, morning briefing, what's on my plate today, overdue, or today's deadlines on my jobs, Athena leads, the card always keeps the heading From your inbox and calendar, and when Gmail and Calendar can be read the placeholder rows are replaced with emails that came in overnight, unanswered emails that need a reply, and today's meetings, and when they cannot the placeholder rows stay and no error text is written, then the job side follows with the schedule, notices, submittals due, overdue items, and what happened yesterday versus what is due today, the reply is the full styled HTML card every time they ask, including From your inbox and calendar, and nothing is sent.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "company_id": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "morning_brief_settings",
+        "title": "Morning briefing time",
+        "description": "Reads or sets this member's morning briefing time and on or off switch, including when they say set my morning briefing to 6am, and shows the saved setting without sending anything.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "get",
+                "set"
+              ]
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "send_time": {
+              "type": "string",
+              "maxLength": 20
+            },
+            "time_zone": {
+              "type": "string",
+              "maxLength": 80
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "email_draft",
+        "title": "Show an email draft for review",
+        "description": "Shows an email draft for review.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "to": {
+              "type": "string",
+              "maxLength": 320,
+              "format": "email",
+              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+            },
+            "cc": {
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 320,
+                "format": "email",
+                "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              }
+            },
+            "subject": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "body": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000
+            },
+            "link": {
+              "type": "string",
+              "maxLength": 2000,
+              "format": "uri"
+            },
+            "attachment": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "job_number": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "sign_as": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "subject",
+            "body"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "email_confirm_send",
+        "title": "Confirm sending one reviewed email",
+        "description": "Confirms that one reviewed email may be sent.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "to": {
+              "type": "string",
+              "maxLength": 320,
+              "format": "email",
+              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+            },
+            "cc": {
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 320,
+                "format": "email",
+                "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              }
+            },
+            "subject": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "body": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000
+            },
+            "link": {
+              "type": "string",
+              "maxLength": 2000,
+              "format": "uri"
+            },
+            "attachment": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "draft_key": {
+              "type": "string",
+              "pattern": "^D[0-9A-F]{8}$"
+            },
+            "confirmed": {
+              "type": "boolean",
+              "const": true
+            },
+            "job_number": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "submittal_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          "required": [
+            "subject",
+            "body",
+            "draft_key",
+            "confirmed"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "submittal_log",
+        "title": "Hey Athena, log a submittal",
+        "description": "Adds, updates, or resubmits a job submittal when someone says Hey Athena, log a submittal, or uses a misspelling such as submital, submittle, sumittal, or submittall.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "add",
+                "update",
+                "resubmit"
+              ]
+            },
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "submittal_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "number": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 99
+            },
+            "spec_section": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "submittal_type": {
+              "type": "string",
+              "enum": [
+                "product_data",
+                "shop_drawing",
+                "sample",
+                "other"
+              ]
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "not_started",
+                "in_prep",
+                "submitted",
+                "in_review",
+                "approved",
+                "approved_as_noted",
+                "revise_and_resubmit",
+                "rejected",
+                "closed"
+              ]
+            },
+            "ball_in_court": {
+              "type": "string",
+              "enum": [
+                "sub",
+                "gc",
+                "architect_engineer",
+                "owner"
+              ]
+            },
+            "ball_in_court_name": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "spec_derived",
+                "user",
+                "imported"
+              ]
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "not_required_reason": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "spec_excerpt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required_by": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "submitted_on": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "returned_on": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "notes": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 4000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "review_days": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365
+            },
+            "posture": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "strict",
+                    "advisory"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "package_items": {
+              "maxItems": 40,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "product_cut",
+                      "shop_drawing",
+                      "sample",
+                      "calc",
+                      "warranty",
+                      "other"
+                    ]
+                  },
+                  "source_party": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "file_ref": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "needed",
+                      "requested",
+                      "received",
+                      "approved"
+                    ]
+                  },
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "requested_at": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "received_at": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "chase_role": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "supplier",
+                          "manufacturer",
+                          "sub"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "chase_name": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "chase_email": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 320
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "last_chased_at": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "next_chase_at": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "chase_count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 999
+                  }
+                },
+                "required": [
+                  "kind",
+                  "source_party"
+                ]
+              }
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "submittals_list",
+        "title": "Submittal log and overdue submittals",
+        "description": "Lists a job's saved submittal log, one row at a time with number, title, status, ball in court, due date, and overdue, for a job number such as 2701, and resolves that number when it exists on exactly one company even if another company is active.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "not_started",
+                "in_prep",
+                "submitted",
+                "in_review",
+                "approved",
+                "approved_as_noted",
+                "revise_and_resubmit",
+                "rejected",
+                "closed"
+              ]
+            },
+            "overdue": {
+              "type": "boolean"
+            },
+            "ball_in_court": {
+              "type": "string",
+              "enum": [
+                "sub",
+                "gc",
+                "architect_engineer",
+                "owner"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "submittals_import",
+        "title": "Import or paste a submittal log",
+        "description": "Previews a CSV or pasted submittal log and writes it only after a separate yes.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100000
+            },
+            "confirmed": {
+              "type": "boolean"
+            },
+            "import_key": {
+              "type": "string",
+              "maxLength": 20
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "project_record_search",
+        "title": "Project record for disputes and claims",
+        "description": "Shows the job record with the schedule of values, open items, and overdue items, and shows the dispute and claim file only when the member asks for disputes or claims, resolving a unique job number such as 2701 across companies.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "from": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "to": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "kind": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "text": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "submittal_chase",
+        "title": "Chase a missing or overdue submittal",
+        "description": "Drafts one chase email for an overdue, missing, or scheduled submittal that is not marked submitted, shows that draft as not sent and needing confirm, and waits for a separate yes before anything is sent.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "submittal_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "getting_started",
+        "title": "Hey Athena, let's get started",
+        "description": "Shows the get-started card for Hey Athena, let's get started, Athena, let's get started, and @Athena let's get started, never opening with a which-job picker and never asking which job's morning hitlist, using first-job or company setup when there are no jobs, and otherwise showing the @Athena example lines, the offer to save When I say Athena, always use the Athena connector and how to remove it, then the morning meeting on that same card.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {},
           "additionalProperties": false
         },
         "outputSchema": null

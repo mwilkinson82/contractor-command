@@ -1,21 +1,33 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthCard } from "@/components/auth/auth-card";
-import { consumeOAuthReturn } from "@/lib/oauth-return-path";
+import { oauthReturnPath } from "@/lib/oauth-return-path";
+import { resolveOAuthContinuation } from "@/lib/oauth-continuation.functions";
+import { onAthenaHost } from "@/lib/athena-host-current";
+import { postSignInDefault } from "@/lib/athena-routes";
 
 const CALLBACK_TIMEOUT_MS = 10_000;
 const AUTH_STEP_TIMEOUT_MS = 8_000;
 type TokenHashOtpType = "email" | "recovery" | "invite";
 
 function safeRedirect(value: unknown): string {
-  if (typeof value !== "string") return "/";
-  if (!value.startsWith("/") || value.startsWith("//")) return "/";
-  return value;
+  const path = oauthReturnPath(value);
+  // OAuth consent must come from the signed, link-bound continuation, never
+  // an unsigned redirect appended to an otherwise valid email link.
+  return new URL(path, "https://app.invalid").pathname.startsWith("/oauth/") ? "/" : path;
 }
 
 export const Route = createFileRoute("/auth/callback")({
-  head: () => ({ meta: [{ title: "Signing in — ALP Contractor Circle" }] }),
+  head: ({ match }) => {
+    const athena = onAthenaHost() || "continuation" in ((match?.search as Record<string, unknown>) ?? {});
+    return {
+      meta: [
+        { title: athena ? "Signing in — Athena" : "Signing in — ALP Contractor Circle" },
+        { name: "referrer", content: "no-referrer" },
+      ],
+    };
+  },
   validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
     redirect: typeof search.redirect === "string" ? safeRedirect(search.redirect) : undefined,
   }),
@@ -39,8 +51,11 @@ function tokenHashOtpType(value: string | null): TokenHashOtpType {
 
 function AuthCallbackPage() {
   const { redirect } = Route.useSearch();
+  const verification = useRef<ReturnType<typeof supabase.auth.verifyOtp> | null>(null);
   const [phase, setPhase] = useState<"checking" | "signed-in" | "expired">("checking");
-  const [continueTo, setContinueTo] = useState(redirect ?? "/");
+  // Athena host lands on /account; the Hub keeps "/".
+  const signedInDefault = postSignInDefault(onAthenaHost());
+  const [continueTo, setContinueTo] = useState(redirect ?? signedInDefault);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,8 +87,7 @@ function AuthCallbackPage() {
     };
 
     const clearAuthFragment = () => {
-      if (typeof window === "undefined" || !window.location.hash) return;
-      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      window.history.replaceState(null, "", window.location.pathname);
     };
 
     const finishExpired = () => {
@@ -85,7 +99,7 @@ function AuthCallbackPage() {
       setPhase("expired");
     };
 
-    const finishSignedIn = (destination = redirect ?? consumeOAuthReturn() ?? "/") => {
+    const finishSignedIn = (destination = redirect ?? signedInDefault) => {
       if (cancelled || settled) return;
       settled = true;
       clearDeadline();
@@ -121,8 +135,8 @@ function AuthCallbackPage() {
         const tokenHash = q.get("token_hash");
         if (tokenHash) {
           const type = tokenHashOtpType(q.get("type"));
-          const { error } = await withTimeout(
-            supabase.auth.verifyOtp({
+          const { data: verified, error } = await withTimeout(
+            verification.current ??= supabase.auth.verifyOtp({
               token_hash: tokenHash,
               type,
             }),
@@ -131,10 +145,18 @@ function AuthCallbackPage() {
           );
           if (cancelled) return;
           if (!error) {
-            finishSignedIn(type === "recovery" ? "/reset-password" : undefined);
+            const continuation = q.get("continuation");
+            if (continuation) {
+              if (type !== "email" || !verified.session) { finishExpired(); return; }
+              const destination = await resolveOAuthContinuation({ data: {
+                continuation, tokenHash, accessToken: verified.session.access_token,
+              } });
+              if (!destination) { finishExpired(); return; }
+              finishSignedIn(destination);
+            } else finishSignedIn(type === "recovery" ? "/reset-password" : undefined);
             return;
           }
-          console.error("[auth/callback] token hash verification failed", error);
+          console.error("[auth/callback] token verification failed");
           finishExpired();
           return;
         }
@@ -142,6 +164,7 @@ function AuthCallbackPage() {
         // Implicit-flow magic + recovery links land here as
         // "#access_token=...&refresh_token=...". Make the exchange explicit so
         // the route works even if auto-detection does not consume the fragment first.
+        if (q.has("continuation")) { finishExpired(); return; }
         const h = hashParams();
         const accessToken = h.get("access_token");
         const refreshToken = h.get("refresh_token");
@@ -159,7 +182,9 @@ function AuthCallbackPage() {
             finishSignedIn();
             return;
           }
-          console.error("[auth/callback] implicit session failed", error);
+          console.error("[auth/callback] implicit session failed");
+          finishExpired();
+          return;
         }
 
         // PKCE flow uses "?code=..." in the query string.
@@ -175,7 +200,9 @@ function AuthCallbackPage() {
             finishSignedIn();
             return;
           }
-          console.error("[auth/callback] code exchange failed", error);
+          console.error("[auth/callback] code exchange failed");
+          finishExpired();
+          return;
         }
 
         const { data } = await withTimeout(
@@ -188,15 +215,10 @@ function AuthCallbackPage() {
         else finishExpired();
       } catch (error) {
         if (cancelled) return;
-        console.error("[auth/callback] sign-in callback failed", error);
+        console.error("[auth/callback] sign-in callback failed");
         finishExpired();
       }
     };
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (cancelled || !session) return;
-      finishSignedIn();
-    });
 
     void finish();
 
@@ -204,13 +226,13 @@ function AuthCallbackPage() {
       cancelled = true;
       clearDeadline();
       clearNavigation();
-      sub.subscription.unsubscribe();
     };
-  }, [redirect]);
+  }, [redirect, signedInDefault]);
 
   if (phase === "expired") {
     return (
       <AuthCard
+        brand={onAthenaHost() ? "athena" : "hub"}
         title="Link expired."
         subtitle="That sign-in link was already used or opened by an email scanner. Send yourself a fresh one and open the newest email only."
       >
@@ -226,19 +248,19 @@ function AuthCallbackPage() {
 
   if (phase === "signed-in") {
     return (
-      <AuthCard title="You're signed in." subtitle="Opening your workspace…">
+      <AuthCard brand={onAthenaHost() ? "athena" : "hub"} title="You're signed in." subtitle="Opening your workspace…">
         <a
           href={continueTo}
           className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-signal px-5 text-[13px] font-semibold text-ink transition-opacity hover:opacity-90"
         >
-          Continue to command center →
+          {onAthenaHost() ? "Continue to Athena →" : "Continue to command center →"}
         </a>
       </AuthCard>
     );
   }
 
   return (
-    <AuthCard title="Signing you in." subtitle="Opening your workspace…">
+    <AuthCard brand={onAthenaHost() ? "athena" : "hub"} title="Signing you in." subtitle="Opening your workspace…">
       <div />
     </AuthCard>
   );

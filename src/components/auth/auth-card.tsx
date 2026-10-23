@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { ContractorCircleBrand } from "@/components/brand/contractor-circle-brand";
+import { ATHENA_LOGIN_COLORS as C, ATHENA_LOGIN_LOGO } from "@/lib/login-copy";
 
 const GATEWAY_SECTIONS = [
   {
@@ -20,6 +21,26 @@ const GATEWAY_SECTIONS = [
   },
 ] as const;
 
+// styles.css uses `@theme inline`, so utilities like bg-signal / text-clay / ring-clay compile to var(--signal),
+// var(--clay), etc. directly. Overriding the --color-* aliases does nothing; the raw tokens must be re-pointed.
+// Custom properties resolve where declared, so --foreground/--primary (defined at :root via var(--ink)) keep
+// their computed values; only direct text-ink/bg-ink uses inside this shell turn white (button labels).
+// Allowed Athena colors: navy, blue, gray; red only for errors and risks.
+export const ATHENA_ACCENTS = {
+  "--signal": "#2563EB",
+  "--clay": "#1D4ED8",
+  "--rail-active": "#2563EB",
+  "--gold": "#2563EB",
+  "--ink": "#FFFFFF",
+  "--primary": "#2563EB",
+  "--primary-foreground": "#FFFFFF",
+  "--accent": "rgb(37 99 235 / 0.1)",
+  "--accent-foreground": "#1D4ED8",
+  "--ring": "rgb(37 99 235 / 0.4)",
+  "--danger-warm": "#B91C1C",
+  "--chart-1": "#2563EB",
+} as React.CSSProperties;
+
 /**
  * Shared public shell for every authentication state. The Hub is the command
  * center for the complete ALP operating system, so this shell orients the user
@@ -30,12 +51,54 @@ export function AuthCard({
   subtitle,
   children,
   footer,
+  brand = "hub",
 }: {
   title: string;
   subtitle?: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  brand?: "hub" | "athena";
 }) {
+  if (brand === "athena") {
+    return (
+      // 0.8.8: Athena blue brand. Raw accent tokens are re-pointed to blue inside the Athena shell only; the Hub keeps its orange.
+      <main
+        data-brand="athena"
+        className="min-h-screen px-4 py-10 sm:py-16 [&_.bg-signal:hover]:bg-[#1D4ED8] [&_.bg-signal:hover]:opacity-100 [&_.bg-primary:hover]:bg-[#1D4ED8]"
+        style={{ ...ATHENA_ACCENTS, backgroundColor: C.paleBlue, color: C.ink }}
+      >
+        <div className="mx-auto w-full max-w-lg">
+          <img
+            src={ATHENA_LOGIN_LOGO}
+            alt="Athena powered by ALP"
+            className="mx-auto h-auto w-64 sm:w-80"
+          />
+          <section
+            className="mt-10 rounded-2xl border border-[#2563EB]/20 bg-white p-6 shadow-sm sm:p-9"
+            style={{ color: C.ink }}
+          >
+            <div className="mb-6 h-1 w-10 bg-[#2563EB]" aria-hidden="true" />
+            <h1 className="font-display text-3xl leading-tight" style={{ color: C.ink }}>
+              {title}
+            </h1>
+            {subtitle && (
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{subtitle}</p>
+            )}
+            <div className="mt-7">{children}</div>
+            <div className="mt-7 border-t border-border pt-5 text-xs text-muted-foreground">
+              {footer ?? "Athena powered by ALP, construction agents"}
+            </div>
+          </section>
+          <a
+            href="mailto:support@alpcontractorcircle.com"
+            className="mt-6 block text-center text-xs text-[#1D4ED8] underline underline-offset-4"
+          >
+            Need help?
+          </a>
+        </div>
+      </main>
+    );
+  }
   return (
     <main className="min-h-screen bg-background px-4 py-5 text-foreground sm:px-6 sm:py-8 lg:px-10">
       <div className="mx-auto w-full max-w-[1450px]">
@@ -122,6 +185,8 @@ export function AuthField({
   required,
   autoFocus,
   hint,
+  autoComplete,
+  inputMode,
 }: {
   id: string;
   label: string;
@@ -132,6 +197,8 @@ export function AuthField({
   required?: boolean;
   autoFocus?: boolean;
   hint?: React.ReactNode;
+  autoComplete?: string;
+  inputMode?: "numeric" | "email" | "text";
 }) {
   return (
     <div>
@@ -149,6 +216,8 @@ export function AuthField({
         placeholder={placeholder}
         required={required}
         autoFocus={autoFocus}
+        autoComplete={autoComplete}
+        inputMode={inputMode}
         className="mt-2 h-11 w-full rounded-lg border border-border bg-card px-3.5 text-[15px] text-foreground outline-none placeholder:text-muted-foreground/55 focus:border-clay focus:ring-2 focus:ring-clay/15"
       />
       {hint && <div className="mt-2">{hint}</div>}

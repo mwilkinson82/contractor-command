@@ -4,6 +4,11 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { createFileRoute } from '@tanstack/react-router'
 import { circleAnnouncementAllowed, queuedAnnouncementNeedsCircle } from '@/lib/membership/announcement-guard.server'
 import { MEMBER_REPLY_TO } from '@/lib/email/reply-to'
+import type { Database } from '@/integrations/supabase/types'
+import {
+  emailSendLogMetadata,
+  stampMembershipEmailSent,
+} from '@/lib/email/circle-welcome-state'
 
 const MAX_RETRIES = 5
 const DEFAULT_BATCH_SIZE = 10
@@ -36,6 +41,36 @@ function getRetryAfterSeconds(error: unknown): number {
     return (error as { retryAfterSeconds: number | null }).retryAfterSeconds ?? 60
   }
   return 60
+}
+
+// The cron worker is the path that actually delivers. Stamp only after the
+// provider accepts the message. A database error leaves the queue row in place;
+// the sent log then makes the next pass skip the provider and retry the stamp.
+async function stampQueueDelivery(
+  supabase: SupabaseClient<any, any>,
+  payload: Record<string, unknown>,
+  sentAt?: string,
+): Promise<boolean> {
+  const templateName = typeof payload.label === 'string' ? payload.label : ''
+  const recipientEmail = typeof payload.to === 'string' ? payload.to : ''
+  const idempotencyKey =
+    typeof payload.idempotency_key === 'string' ? payload.idempotency_key : null
+  const userId = typeof payload.user_id === 'string' ? payload.user_id : null
+  const stamp = await stampMembershipEmailSent({
+    supabase: supabase as unknown as SupabaseClient<Database>,
+    templateName,
+    recipientEmail,
+    idempotencyKey,
+    userId,
+    sentAt,
+  })
+  if (!stamp.error) return true
+  console.error('Failed to stamp subscription send', {
+    templateName,
+    message_id: payload.message_id,
+    error: stamp.error,
+  })
+  return false
 }
 
 async function moveToDlq(
@@ -201,7 +236,7 @@ export const Route = createFileRoute("/lovable/email/queue/process")({
             if (payload.message_id) {
               const { data: alreadySent } = await supabase
                 .from('email_send_log')
-                .select('id')
+                .select('id,created_at')
                 .eq('message_id', payload.message_id)
                 .eq('status', 'sent')
                 .maybeSingle()
@@ -212,6 +247,12 @@ export const Route = createFileRoute("/lovable/email/queue/process")({
                   msg_id: msg.msg_id,
                   message_id: payload.message_id,
                 })
+                const stamped = await stampQueueDelivery(
+                  supabase,
+                  payload,
+                  typeof alreadySent.created_at === 'string' ? alreadySent.created_at : undefined,
+                )
+                if (!stamped) continue
                 const { error: dupDelError } = await supabase.rpc('delete_email', {
                   queue_name: queue,
                   message_id: msg.msg_id,
@@ -251,13 +292,22 @@ export const Route = createFileRoute("/lovable/email/queue/process")({
                 { apiKey, sendUrl: process.env.LOVABLE_SEND_URL }
               )
 
-              // Log success
+              // Log success, including the idempotency key. The webhook recovery
+              // path looks sent rows up by metadata.idempotency_key; a sent row
+              // without it was invisible, so welcome_sent_at stayed null.
               await supabase.from('email_send_log').insert({
                 message_id: payload.message_id,
                 template_name: payload.label || queue,
                 recipient_email: payload.to,
                 status: 'sent',
+                metadata: emailSendLogMetadata({
+                  idempotencyKey: typeof payload.idempotency_key === 'string' ? payload.idempotency_key : null,
+                  queue,
+                }),
               })
+
+              const stamped = await stampQueueDelivery(supabase, payload)
+              if (!stamped) continue
 
               // Delete from queue
               const { error: delError } = await supabase.rpc('delete_email', {

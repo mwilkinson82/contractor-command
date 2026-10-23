@@ -1,0 +1,87 @@
+import { emptyMoney, type FlowData } from "./types";
+
+/** Read-only walkthrough for job 2701. Nothing here is written to the job. */
+export function job2701FlowData(opts: { selfPerform?: boolean; note?: string | null; sample?: boolean } = {}): FlowData {
+  return {
+    jobNumber: "2701",
+    jobName: "Harbor Point",
+    selfPerform: opts.selfPerform === true,
+    lookaheadLocked: true,
+    onSchedule: false,
+    crewsConfirmed: false,
+    superKnowsPlan: null,
+    progressLabel: "Underground rough-in, week of Oct 26",
+    percentComplete: 46,
+    activitiesDone: ["Site demolition", "Layout and excavation"],
+    criticalPath: "Open: underground rough-in",
+    items: [
+      { id: "co1", action: "CO-14 ceiling conflict outstanding", owner: "Elena Brooks", due: "2026-10-28", kind: "change", status: "open" },
+      { id: "co2", action: "CO-15 added receptacles needs pricing", owner: "Marcus Hale", due: "2026-10-30", kind: "change", status: "open" },
+      { id: "co3", action: "CO-12 duct conflict waiting on the architect", owner: "Priya Nandakumar", due: "2026-11-02", kind: "change", status: "open" },
+      { id: "d1", action: "Storm line conflict delay", owner: "Elena Brooks", due: "2026-10-06", kind: "delay", status: "open" },
+      { id: "r1", action: "RFI-001 conduit routing risk", owner: "Marcus Hale", due: "2026-10-30", kind: "risk", status: "open" },
+      { id: "c1", action: "Electrical sub crew not confirmed for the lookahead", owner: "Needed", due: "2026-10-26", kind: "crew", status: "open" },
+    ],
+    money: {
+      plan: 180000,
+      realistic: 140000,
+      billed: 420000,
+      contract: 1400000,
+      remaining: 980000,
+      retentionHeld: 21000,
+      retentionReleasable: false,
+    },
+    iorPrevious: [
+      { id: "r1", title: "Storm line conflict", due: "2026-10-06", state: "open" },
+      { id: "r2", title: "Switchgear delivery", due: "2026-11-01", state: "open" },
+      { id: "r3", title: "RFI-001 answered", due: "2026-10-20", state: "open" },
+    ],
+    iorNow: [
+      { id: "r1", title: "Storm line conflict", due: "2026-10-20", state: "open" },
+      { id: "r2", title: "Switchgear delivery", due: "2026-11-01", state: "open" },
+      { id: "r4", title: "City inspection not requested", due: "2026-11-02", state: "open" },
+    ],
+    hasSnapshot: true,
+    spillover: ["Night shift left the east pad short of the inspection."],
+    dailies: ["Crew exposed the storm line at grid C/4."],
+    photos: ["Grid C/4 underground, Oct 21."],
+    happened: ["Storm line is in the electrical trench."],
+    disruptions: ["Underground inspection held for the storm conflict."],
+    note: opts.note ?? null,
+    logged: false,
+    itemFiled: false,
+    sample: opts.sample !== false,
+    showMoney: true,
+  };
+}
+
+export function blankFlowData(jobNumber: string, jobName: string, showMoney: boolean): FlowData {
+  return {
+    jobNumber,
+    jobName,
+    selfPerform: false,
+    lookaheadLocked: null,
+    onSchedule: null,
+    crewsConfirmed: null,
+    superKnowsPlan: null,
+    progressLabel: null,
+    percentComplete: null,
+    activitiesDone: [],
+    criticalPath: null,
+    items: [],
+    money: emptyMoney(),
+    iorNow: [],
+    iorPrevious: [],
+    hasSnapshot: false,
+    spillover: [],
+    dailies: [],
+    photos: [],
+    happened: [],
+    disruptions: [],
+    note: null,
+    logged: false,
+    itemFiled: false,
+    sample: false,
+    showMoney,
+  };
+}

@@ -5,12 +5,15 @@ import { parseEmailWebhookPayload } from '@lovable.dev/email-js'
 import { WebhookError, verifyWebhookRequest } from '@lovable.dev/webhooks-js'
 import { createClient } from '@supabase/supabase-js'
 import { createFileRoute } from '@tanstack/react-router'
+import { emailSiteFor } from '@/lib/auth-origins'
 import { SignupEmail } from '@/lib/email-templates/signup'
 import { InviteEmail } from '@/lib/email-templates/invite'
 import { MagicLinkEmail } from '@/lib/email-templates/magic-link'
 import { RecoveryEmail } from '@/lib/email-templates/recovery'
 import { EmailChangeEmail } from '@/lib/email-templates/email-change'
 import { ReauthenticationEmail } from '@/lib/email-templates/reauthentication'
+import { athenaHookEmail } from '@/lib/email/athena-hook-email'
+import { ATHENA_FROM, ATHENA_SENDER_DOMAIN } from '@/lib/email/athena-sender'
 
 const EMAIL_SUBJECTS: Record<string, string> = {
   signup: 'Confirm your email',
@@ -133,9 +136,11 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
         }
 
         // Build template props from payload.data (HookData structure)
+        // Brand and site link follow where the email's link goes (its redirect_to), never the Auth Site URL.
+        const site = emailSiteFor(payload.data.url)
         const templateProps = {
-          siteName: SITE_NAME,
-          siteUrl: `https://${ROOT_DOMAIN}`,
+          siteName: site.siteName,
+          siteUrl: site.siteUrl,
           recipient: payload.data.email,
           confirmationUrl: payload.data.url,
           token: payload.data.token,
@@ -144,8 +149,12 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
           newEmail: payload.data.new_email,
         }
 
+        // Athena links (redirect_to on meetathena.io) get the Athena template and
+        // sender. Everything else takes the unchanged Circle path below.
+        const athena = site.athena ? athenaHookEmail(emailType, payload.data) : null
+
         // Render React Email to HTML and plain text
-        const element = React.createElement(EmailTemplate, templateProps)
+        const element = athena ? athena.element : React.createElement(EmailTemplate, templateProps)
         const html = await render(element)
         const text = await render(element, { plainText: true })
 
@@ -178,10 +187,10 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
             run_id,
             message_id: messageId,
             to: payload.data.email,
-            from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
-            sender_domain: SENDER_DOMAIN,
+            from: athena ? ATHENA_FROM : `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
+            sender_domain: athena ? ATHENA_SENDER_DOMAIN : SENDER_DOMAIN,
             reply_to: MEMBER_REPLY_TO,
-            subject: EMAIL_SUBJECTS[emailType] || 'Notification',
+            subject: athena ? athena.subject : EMAIL_SUBJECTS[emailType] || 'Notification',
             html,
             text,
             purpose: 'transactional',

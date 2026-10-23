@@ -2,6 +2,11 @@ import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
+import { brandInitializeResponse, initializeRequestIds, isMcpPost } from "./lib/mcp/server-info-branding";
+import { nativeCardResponse, nativeCardVisit } from "./lib/mcp/native-card-transport";
+import { isTrustedHost } from "./lib/trusted-hosts";
+import { checkAthenaEntitlement, NO_ENTITLEMENT_MESSAGE } from "./lib/mcp/entitlement";
+import { supabaseForToken } from "./lib/mcp/supabase";
 
 const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
   // Bypass app middleware for /lovable/* — these routes (webhooks, cron,
@@ -35,21 +40,6 @@ const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
  *   - external webhook + cron endpoints under /api/public/* and /lovable/*
  *     which authenticate themselves via signatures / shared secrets.
  */
-const TRUSTED_HOST_SUFFIXES = [
-  ".lovable.app",
-  ".lovableproject.com",
-  ".lovable.dev",
-];
-const TRUSTED_HOSTS = new Set([
-  "app.alpcontractorcircle.com",
-  "contractor-command.lovable.app",
-]);
-
-function isTrustedHost(host: string): boolean {
-  if (TRUSTED_HOSTS.has(host)) return true;
-  return TRUSTED_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix));
-}
-
 const csrfOriginGuard = createMiddleware().server(async ({ next, request }) => {
   const method = request.method.toUpperCase();
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") {
@@ -61,6 +51,13 @@ const csrfOriginGuard = createMiddleware().server(async ({ next, request }) => {
     url.pathname.startsWith("/api/public/") ||
     url.pathname.startsWith("/lovable/")
   ) {
+    return next();
+  }
+
+  // /mcp authenticates with OAuth bearer tokens (not cookies) and enforces its
+  // own origin allow-list in @lovable.dev/mcp-js, so browser MCP clients such
+  // as Cursor's web agents must be able to POST cross-site.
+  if (url.pathname === "/mcp" || url.pathname.startsWith("/mcp/")) {
     return next();
   }
 
@@ -93,28 +90,41 @@ const csrfOriginGuard = createMiddleware().server(async ({ next, request }) => {
 });
 
 /**
- * Private MCP prototype gate: a bearer token whose email isn't on the
- * allowlist gets 403 before reaching /mcp. This only ever rejects; the MCP
- * handler still verifies every token's signature and re-checks the email.
- * Requests with no token pass through so the handler returns 401 +
- * WWW-Authenticate.
+ * Athena access gate: a bearer token whose user has no membership entitlement
+ * (src/lib/mcp/entitlement.ts, the same rule the Hub uses) gets 403 before
+ * reaching /mcp. Supabase verifies the token inside the check. Requests with
+ * no token, or where the check can't run (e.g. an expired token), pass through
+ * so the MCP handler returns 401 + WWW-Authenticate; the per-tool guard
+ * re-checks entitlement on every call.
  */
-const MCP_ALLOWED_EMAILS = new Set(["marshall@marshallwilkinson.com"]);
-const mcpAllowlistGate = createMiddleware().server(async ({ next, request }) => {
+async function hasToolCall(request: Request): Promise<boolean> {
+  if (request.method.toUpperCase() !== "POST") return false;
+  try {
+    const parsed = JSON.parse(await request.clone().text()) as { method?: string } | { method?: string }[];
+    const list = Array.isArray(parsed) ? parsed : [parsed];
+    return list.some((m) => m?.method === "tools/call");
+  } catch {
+    return true; // unreadable body: keep the gate
+  }
+}
+
+const mcpEntitlementGate = createMiddleware().server(async ({ next, request }) => {
   const url = new URL(request.url);
   if (url.pathname !== "/mcp" && !url.pathname.startsWith("/mcp/")) return next();
   const authz = request.headers.get("authorization") ?? "";
   if (!authz.startsWith("Bearer ")) return next();
-  let email = "";
+  // 0.8.9: only tools/call needs the membership check here (the per-tool guard re-checks it too).
+  // initialize, tools/list, ping and notifications skip the database round trip, so a cold
+  // first connect (Claude's first fresh chat) gets its tool list fast instead of timing out.
+  if (!(await hasToolCall(request))) return next();
+  let ent;
   try {
-    const part = authz.slice(7).split(".")[1] ?? "";
-    const json = atob(part.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(part.length / 4) * 4, "="));
-    email = String((JSON.parse(json) as { email?: unknown }).email ?? "").trim().toLowerCase();
+    ent = await checkAthenaEntitlement(supabaseForToken(authz.slice(7).trim()));
   } catch {
     return next();
   }
-  if (!MCP_ALLOWED_EMAILS.has(email)) {
-    return new Response(JSON.stringify({ error: "forbidden" }), {
+  if (!ent.allowed && ent.reason === "no_entitlement") {
+    return new Response(JSON.stringify({ error: "forbidden", message: NO_ENTITLEMENT_MESSAGE }), {
       status: 403,
       headers: { "content-type": "application/json" },
     });
@@ -122,8 +132,41 @@ const mcpAllowlistGate = createMiddleware().server(async ({ next, request }) => 
   return next();
 });
 
+/**
+ * Athena icon on the MCP initialize response (serverInfo.icons / websiteUrl).
+ * Runs after the entitlement gate; only a 200 initialize result is rewritten.
+ */
+const mcpServerInfoBranding = createMiddleware().server(async ({ next, request }) => {
+  if (!isMcpPost(request)) return next();
+  let ids: unknown[] = [];
+  try {
+    ids = initializeRequestIds(await request.clone().text());
+  } catch {
+    ids = [];
+  }
+  const result = await next();
+  if (ids.length === 0) return result;
+  try {
+    return { ...result, response: await brandInitializeResponse(result.response, ids) };
+  } catch {
+    return result;
+  }
+});
+
+const mcpNativeCardPresentation = createMiddleware().server(async ({ next, request }) => {
+  // Presentation must never turn a successful SDK response into an application failure.
+  const visit = await nativeCardVisit(request).catch(() => null);
+  const result = await next();
+  if (!visit) return result;
+  try {
+    return { ...result, response: await nativeCardResponse(result.response, visit) };
+  } catch {
+    return result;
+  }
+});
+
 export const startInstance = createStart(() => ({
-  requestMiddleware: [errorMiddleware, mcpAllowlistGate, csrfOriginGuard],
+  requestMiddleware: [errorMiddleware, mcpEntitlementGate, mcpServerInfoBranding, mcpNativeCardPresentation, csrfOriginGuard],
   functionMiddleware: [attachSupabaseAuth],
 }));
 

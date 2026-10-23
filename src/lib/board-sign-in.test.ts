@@ -1,0 +1,54 @@
+import { describe, expect, it } from "vitest";
+import { boardReturnForVisit, boardSignInReturn } from "./board-sign-in";
+
+const JOB = "11111111-1111-4111-8111-111111111111";
+const OTHER = "22222222-2222-4222-8222-222222222222";
+const board = `/r/job/${JOB}/items`;
+
+describe("job board sign-in return", () => {
+  it("keeps a stable board path, including its hash", () => {
+    expect(boardSignInReturn(`${board}#item-8`)).toBe(`${board}#item-8`);
+    expect(boardSignInReturn(`/r/job/${JOB}/field#activity-A2000`)).toBe(
+      `/r/job/${JOB}/field#activity-A2000`,
+    );
+    expect(boardReturnForVisit("ior", JOB)).toBe(`/r/job/${JOB}/ior`);
+  });
+
+  it("strips the token and utm params and keeps the path", () => {
+    expect(
+      boardSignInReturn(`${board}?t=expired-token&utm_source=chatgpt.com&utm_medium=email`),
+    ).toBe(board);
+    expect(
+      boardSignInReturn(`/r/job/${JOB}/field?utm_source=chatgpt.com&utm_campaign=board#today`),
+    ).toBe(`/r/job/${JOB}/field#today`);
+    expect(boardSignInReturn(`${board}?UTM_SOURCE=chatgpt.com&T=abc`)).toBe(board);
+    expect(boardReturnForVisit("items", JOB, `${board}?t=old&utm_source=chatgpt.com#item-1`)).toBe(
+      `${board}#item-1`,
+    );
+  });
+
+  it("rejects open redirects and anything that is not this origin's job board", () => {
+    const rejected = [
+      "https://evil.example/r/job/" + JOB + "/items",
+      "https://app.meetathena.io.evil.example/r/job/" + JOB + "/items",
+      "//evil.example/r/job/" + JOB + "/items",
+      "/\\evil.example",
+      "javascript:alert(1)",
+      "/login",
+      "/login?redirect=https://evil.example",
+      "/account",
+      `/r/portfolio/${JOB}`,
+      `/r/job/${JOB}/items/../../../login`,
+      `/r/job/${JOB}/admin`,
+      `/r/job/not-a-job/items`,
+      `/r/s/tok`,
+      `/f/tok`,
+      `https://app.meetathena.io/r/job/${JOB}/items`,
+      "",
+    ];
+    for (const value of rejected) expect(boardSignInReturn(value), value).toBeUndefined();
+    expect(boardReturnForVisit("items", JOB, "https://evil.example/phish")).toBe(board);
+    expect(boardReturnForVisit("items", JOB, `//evil.example/r/job/${OTHER}/items`)).toBe(board);
+    expect(boardReturnForVisit("items", JOB, "https://evil.example")).not.toContain("evil.example");
+  });
+});

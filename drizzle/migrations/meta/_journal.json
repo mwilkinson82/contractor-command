@@ -113,6 +113,69 @@
       "when": 1792028498057,
       "tag": "0015_mcp_super_limited_view",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792028499057,
+      "tag": "0016_athena_lookahead_setup_branding",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792028500057,
+      "tag": "0017_mcp_abuse_cap_check",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792030003000,
+      "tag": "0018_athena_unassigned_flags_unknown",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792030004000,
+      "tag": "0019_athena_pm_contact_delay_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792030005000,
+      "tag": "0020_athena_items_follow_pm",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792030006000,
+      "tag": "0021_athena_verbatim_contract_clauses",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792030007000,
+      "tag": "0022_athena_sov_lean_v1",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792510197479,
+      "tag": "0023_athena_lookahead_revisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792600000000,
+      "tag": "0024_athena_reopen_open_item",
+      "breakpoints": true
     }
   ]
 }
