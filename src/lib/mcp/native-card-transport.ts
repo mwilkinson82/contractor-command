@@ -12,6 +12,7 @@ import {
 } from "./cards/native";
 import { isMcpPost } from "./server-info-branding";
 import { phoneHostText } from "./phone-reply";
+import { outsideFencedBlocks } from "./cards/verbatim";
 import { claudeCardReply } from "./cards/claude-reply";
 
 export const ATHENA_MCP_APPS_CAPABILITIES = {
@@ -67,12 +68,12 @@ function readHost(request: Request, params: Obj, meta: Obj | null): Host | null 
 
 /** Drop the dumped HTML document from a text block. Markdown rows stay. */
 export function stripInlineCardHtml(text: string): string {
-  return text
+  return outsideFencedBlocks(text, (part) => part
     .replace(/REQUIRED VIEW: render this HTML card as-is\.[^\n]*/g, "")
     .replace(/<!doctype html[\s\S]*?<\/html>/gi, "")
     .replace(/<!doctype html[\s\S]*$/gi, "")
     .replace(/Card shown\. Do not add text(?:; wait for the user's pick)?\.?/g, "")
-    .replace(/\n{3,}/g, "\n\n")
+    .replace(/\n{3,}/g, "\n\n"))
     .trim();
 }
 

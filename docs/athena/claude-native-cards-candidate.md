@@ -56,7 +56,7 @@ Original Claude base: `codex/athena-passwordless-login-only` at `078c856` (0.8.2
 
 ## Corrected candidate verification
 
-The current base was independently tested: 1,904 passed, with the two inherited version-test failures. The corrected candidate has 1,923 default tests passing, including the three reproduced regressions and extra checks across HTML, markdown and ChatGPT's widget. Production build and focused lint pass. Type checking reports the same 34 existing diagnostics as the current base, with no new file/error-code diagnostics. The separate role suite is 114 passed / 56 failed on both current base and candidate; the exact failed test names match.
+The current base was independently tested: 1,904 passed, with the two inherited version-test failures. The corrected candidate has 1,928 default tests passing, including the three reproduced regressions and extra checks across HTML, markdown and ChatGPT's widget. Production build and focused lint pass. Type checking reports the same 34 existing diagnostics as the current base, with no new file/error-code diagnostics. The separate role suite is 114 passed / 56 failed on both current base and candidate; the exact failed test names match.
 
 The source branch on GitHub was not rewritten. The corrected review branch contains Claude's commits, the latest Athena changes and the focused fixes. No migration is required. Auth, Hub, Site URL, email code, connector address and `openai/outputTemplate` are unchanged. Runtime renderer behavior changes are limited to Claude's original layout changes and these data-preservation corrections. No new global SDK override is added.
 
@@ -65,3 +65,9 @@ The combined change with PR #219 needs the union of both `NATIVE_CARD_TOOLS` set
 Combined local verification with PR #219: **1,956 tests pass**, production build passes, and type checking retains the same 34 baseline diagnostics. Resolve `cards/native.ts` with the union of both native tool lists and #219's text-card list. Resolve the inherited `v0810.test.ts` overlap by keeping the numeric minimum-version assertion. The shared current-version import is aligned so it merges once. This trial integration is not part of the published card branch.
 
 GitHub CI runs the full default suite and build on the review PR. The earlier fixture screenshots were produced by Claude; Codex verified the corrected data with the real renderers and did not claim a new live-host or screenshot pass. All normal-Claude and ChatGPT do-not-break acceptance gates above remain pending the team's approved candidate deployment.
+
+## Exact-draft cleanup follow-up
+
+Claude's review cleared the three contract/SOV corrections and identified a pre-existing #219 draft-rendering issue. #219 now displays exact reviewed draft fields in a literal panel. This branch's companion cleanup recognizes fenced member data and leaves it untouched, including line breaks, pipes, spacing, quoted HTML and sentences that resemble display instructions. Real card HTML and display notes outside the draft still disappear from Claude's model-facing text. Ordinary ChatGPT responses retain the unchanged transport path. Tests cover LF and CRLF, embedded backticks, nested code fences in card HTML, and display-like email content.
+
+Updated standalone default suite: **1,928 passed**. No production email was sent and no live-host acceptance is claimed. This follow-up changes no database schema; #219 retains its existing Lovable Cloud migration handoff.

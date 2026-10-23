@@ -1,8 +1,14 @@
 /** Claude reply for a tool with the native card. The card view draws structuredContent.html, so the
  *  model only needs the facts: the markdown rows stay, display orders and the dumped HTML go.
  *  Claude reads orders inside a tool result as untrusted text, so they never helped it render. */
-import { HOST_DISPLAY_BLOCK, SOV_CHART_RULE, SOV_PRESENTATION_LEAD, VISIBLE_STYLE_LINE } from "../visible";
+import {
+  HOST_DISPLAY_BLOCK,
+  SOV_CHART_RULE,
+  SOV_PRESENTATION_LEAD,
+  VISIBLE_STYLE_LINE,
+} from "../visible";
 import { CARD_SHOWN, CARD_SHOWN_PICK } from "./silence";
+import { outsideFencedBlocks } from "./verbatim";
 
 /** A plain statement for the model. Not an order. */
 export const CLAUDE_CARD_NOTE = "The member sees this result as an Athena card.";
@@ -10,24 +16,33 @@ export const CLAUDE_CARD_NOTE = "The member sees this result as an Athena card."
 type Obj = Record<string, unknown>;
 const HOUSE_STYLE_RE = /^HOUSE STYLE \(for the assistant/;
 /** House style, card-shown orders, and the SOV table/chart styling the card replaces. */
-const DISPLAY_GUIDANCE = new Set<string>([HOST_DISPLAY_BLOCK, CARD_SHOWN, CARD_SHOWN_PICK, SOV_CHART_RULE]);
+const DISPLAY_GUIDANCE = new Set<string>([
+  HOST_DISPLAY_BLOCK,
+  CARD_SHOWN,
+  CARD_SHOWN_PICK,
+  SOV_CHART_RULE,
+]);
 
 function isDisplayGuidance(g: unknown): boolean {
-  return typeof g === "string" && (DISPLAY_GUIDANCE.has(g) || HOUSE_STYLE_RE.test(g) || g.startsWith(SOV_PRESENTATION_LEAD));
+  return (
+    typeof g === "string" &&
+    (DISPLAY_GUIDANCE.has(g) || HOUSE_STYLE_RE.test(g) || g.startsWith(SOV_PRESENTATION_LEAD))
+  );
 }
 
 /** Text the model reads: every markdown row, no HTML document and no render orders. */
 export function claudeCardText(text: string): string {
-  return text
-    .replace(/^REQUIRED VIEW[^\n]*$/gm, "")
-    .replace(/<!doctype html[\s\S]*?<\/html>/gi, "")
-    .replace(/<!doctype html[\s\S]*$/gi, "")
-    .replace(/^Card shown\. Do not add text(?:; wait for the user's pick)?\.?$/gm, "")
-    .split("\n")
-    .filter((line) => line.trim() !== VISIBLE_STYLE_LINE)
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  return outsideFencedBlocks(text, (part) =>
+    part
+      .replace(/^REQUIRED VIEW[^\n]*$/gm, "")
+      .replace(/<!doctype html[\s\S]*?<\/html>/gi, "")
+      .replace(/<!doctype html[\s\S]*$/gi, "")
+      .replace(/^Card shown\. Do not add text(?:; wait for the user's pick)?\.?$/gm, "")
+      .split("\n")
+      .filter((line) => line.trim() !== VISIBLE_STYLE_LINE)
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n"),
+  ).trim();
 }
 
 /** Returns null when nothing in the result needed to change. Workflow guidance (which question to ask next,
@@ -40,7 +55,8 @@ export function claudeCardReply(result: Obj): Obj | null {
     const row = block as Obj;
     if (row?.type !== "text" || typeof row.text !== "string") return block;
     const text = claudeCardText(row.text);
-    const next = noted || !text || text.includes(CLAUDE_CARD_NOTE) ? text : `${text}\n\n${CLAUDE_CARD_NOTE}`;
+    const next =
+      noted || !text || text.includes(CLAUDE_CARD_NOTE) ? text : `${text}\n\n${CLAUDE_CARD_NOTE}`;
     noted ||= !!text;
     if (next === row.text) return block;
     changed = true;
