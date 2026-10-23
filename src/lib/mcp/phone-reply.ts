@@ -49,32 +49,67 @@ function kpiNumber(card: CardModel | null, label: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function nextMove(sc: Sc, card: CardModel | null): string | null {
-  const candidates = [card?.next_move, sc.next_move, sc.next_action, sc.top_priority];
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.trim()) return clean(candidate);
-  }
-  return null;
+function ownerName(row: Row): string {
+  const owner = clean(row.owner ?? "");
+  return /^needed$/i.test(owner) ? "" : owner;
 }
 
-function splitAction(action: string): { title: string; sentence: string } {
-  const text = clean(action) || "Item";
-  const cut = text.indexOf(". ");
-  if (cut < 0) return { title: text.replace(/\.$/, ""), sentence: "" };
-  return { title: text.slice(0, cut), sentence: text.slice(cut + 2).replace(/\.$/, "") };
-}
-
-function bullet(row: Row): string {
-  const { title, sentence } = splitAction(row.action ?? "Item");
-  const who = clean(row.owner ?? "") || "Needed";
+function nextMove(overdue: Row[], delay: Row[], job?: string | null): string | null {
+  const row = overdue[0] ?? delay[0];
+  if (!row) return null;
+  const title = splitAction(row.action ?? "Item", job).title;
+  const owner = ownerName(row);
   const due = monthDay(asDate(row.due));
-  const detail = sentence ? ` ${sentence}.` : "";
-  return `- **${title}.**${detail} ${who}${due ? `, due ${due}` : ""}.`;
+  const timing = due ? `, ${overdue.length ? "overdue since" : "due"} ${due}` : "";
+  return `Clear ${title}${owner ? ` with ${owner}` : ""}${timing}.`;
 }
 
-function section(lines: string[], heading: string, rows: Row[]) {
+/** A bounded subject from any note; the complete source stays in the bullet. */
+function shortTitle(text: string): string {
+  const clause = text.split(/[.!?](?:\s|$)|[;:]\s+/)[0] || "Item";
+  const subject = clause.split(/\s+(?:is|are|was|were|has|have|must|should|will)\b/i)[0]
+    .replace(/^(?:a|an|the)\s+/i, "").trim() || clause;
+  const words = subject.split(/\s+/);
+  let title = words[0].slice(0, 47);
+  for (const word of words.slice(1, 6)) {
+    if (`${title} ${word}`.length > 47) break;
+    title += ` ${word}`;
+  }
+  return `${title.charAt(0).toUpperCase()}${title.slice(1)}${title.length < subject.length ? "…" : ""}`;
+}
+
+function splitAction(action: string, job?: string | null, pending = true): { title: string; sentence: string } {
+  let text = clean(action) || "Item";
+  const jobNumber = job?.split(/\s+[·–—-]\s+/)[0]?.trim();
+  if (jobNumber) {
+    const escaped = jobNumber.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    text = text.replace(new RegExp(`^(?:Job\\s+)?${escaped}\\s+[–—-]\\s+`, "i"), "");
+  }
+  const checklist = /^Resolve:\s*/i.test(text);
+  if (checklist) text = text.replace(/^Resolve:\s*(?:[A-Z]\d+\s+)?/i, "");
+  const label = text.match(/^([^:]{1,80}):\s+(.+)$/);
+  const title = shortTitle(label?.[1] ?? text);
+  if (checklist && pending) return { title, sentence: `Can you confirm: ${text.replace(/[.!?]$/, "")}?` };
+  if (label) return { title, sentence: (title === label[1] ? label[2] : text).replace(/\.$/, "") };
+  if (title === text.replace(/[.!?]$/, "")) return { title: `${title}${text.endsWith("?") ? "?" : ""}`, sentence: "" };
+  const cut = text.indexOf(". ");
+  return { title, sentence: (cut >= 0 && title === text.slice(0, cut) ? text.slice(cut + 2) : text).replace(/\.$/, "") };
+}
+
+function bullet(row: Row, job?: string | null): string {
+  const { title, sentence } = splitAction(row.action ?? "Item", job, !isResolved(row));
+  const who = ownerName(row);
+  const due = monthDay(asDate(row.due));
+  const detail = sentence ? ` ${sentence}${/[.!?]$/.test(sentence) ? "" : "."}` : "";
+  const waiting = !isResolved(row) && (/\b(?:unconfirmed|pending|awaiting|waiting)\b|\bnot\s+(?:yet\s+)?(?:confirmed|requested|sent|received|approved|resolved|complete(?:d)?)\b/i.test(row.action ?? "") || /^(?:pending|waiting|awaiting)$/i.test(row.status ?? ""));
+  const question = waiting && !/\?$/.test(sentence || title) ? " What is the current status?" : "";
+  const attribution = due ? `${who ? `${who}, ` : ""}due ${due}.` : `${who ? `${who}. ` : ""}Due date needed.`;
+  return `- **${title}${/[.!?…]$/.test(title) ? "" : "."}**${detail}${question} ${attribution}`;
+}
+
+function section(lines: string[], heading: string, rows: Row[], job?: string | null) {
   if (!rows.length) return;
-  lines.push("", heading, ...rows.map(bullet));
+  lines.push("", heading, ...rows.map((row) => bullet(row, job)));
 }
 
 function rowKey(row: Row): string {
@@ -117,7 +152,7 @@ export function phoneLookaheadText(sc: Sc): string | null {
     seen.add(key);
     bucket.push(row);
   };
-  for (const row of jobOverdue) push(overdue, row);
+  for (const row of jobOverdue) if (!isResolved(row)) push(overdue, row);
   const horizon = today ? addDays(today, 7) : null;
   for (const row of saved) {
     if (isResolved(row)) {
@@ -149,10 +184,10 @@ export function phoneLookaheadText(sc: Sc): string | null {
   if (windowLine) lines.push(windowLine);
   const overdueWords = overdueCount > 0 ? `🔴 ${overdueCount} overdue on the job` : `${overdueCount} overdue on the job`;
   lines.push(`**${savedCount} saved item${savedCount === 1 ? "" : "s"} · ${openCount} open · ${overdueWords}**`);
-  section(lines, "### 🔴 Overdue", overdue);
-  section(lines, "### Due within 7 days", due7);
-  section(lines, "### Coming up", later);
-  section(lines, "### 🔴 Delay / risk notices", delay);
+  section(lines, "### 🔴 Overdue", overdue, card?.job);
+  section(lines, "### Due within 7 days", due7, card?.job);
+  section(lines, "### Coming up", later, card?.job);
+  section(lines, "### 🔴 Delay / risk notices", delay, card?.job);
   const activities = (Array.isArray(sc.activities) ? sc.activities : []) as {
     name?: string | null;
     description?: string | null;
@@ -171,8 +206,8 @@ export function phoneLookaheadText(sc: Sc): string | null {
     })
     .filter(Boolean);
   if (schedule.length) lines.push("", "### Schedule in this window", ...schedule);
-  if (resolved.length) lines.push("", `✅ Resolved: ${resolved.map((row) => splitAction(row.action ?? "Item").title).join(", ")}`);
-  const next = nextMove(sc, card);
+  section(lines, "### Resolved", resolved, card?.job);
+  const next = nextMove(overdue, delay, card?.job);
   if (next) lines.push("", `**Athena's next move:** ${next}`);
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
@@ -240,12 +275,12 @@ export function phoneOpenItemsText(sc: Sc): string | null {
   if (card?.job) lines.push(`**${clean(card.job)}**`);
   const overdueWords = overdueCount > 0 ? `🔴 ${overdueCount} overdue` : `${overdueCount} overdue`;
   lines.push(`**${openCount} open · ${overdueWords} · ${dueCount} due within 7 days**`);
-  section(lines, "### 🔴 Overdue", overdue);
-  section(lines, "### Due within 7 days", due7);
-  section(lines, "### Coming up", later);
-  section(lines, "### 🔴 Delay notices", delay);
-  if (resolved.length) lines.push("", `✅ Resolved: ${resolved.map((row) => splitAction(row.action ?? "Item").title).join(", ")}`);
-  const next = nextMove(sc, card);
+  section(lines, "### 🔴 Overdue", overdue, card?.job);
+  section(lines, "### Due within 7 days", due7, card?.job);
+  section(lines, "### Coming up", later, card?.job);
+  section(lines, "### 🔴 Delay notices", delay, card?.job);
+  section(lines, "### Resolved", resolved, card?.job);
+  const next = nextMove(overdue, delay, card?.job);
   if (next) lines.push("", `**Athena's next move:** ${next}`);
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }

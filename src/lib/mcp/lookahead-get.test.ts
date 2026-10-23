@@ -145,7 +145,6 @@ describe("normal lookahead read", () => {
     });
     try {
       const fullReply = await call();
-      fullReply.structuredContent.card.next_move = "Close the overdue item first.";
       const original = Response.json({ jsonrpc: "2.0", id: 1, result: fullReply });
       const visit = await nativeCardVisit(request);
       const response = await nativeCardResponse(original, visit);
@@ -163,7 +162,7 @@ describe("normal lookahead read", () => {
       expect(body).toContain("due Oct 14");
       expect(body).toContain("due Oct 16");
       expect(body).toContain("due Oct 21");
-      expect(body).toContain("✅ Resolved:");
+      expect(body).toContain("### Resolved");
       const headings = ["### 🔴 Overdue", "### Coming up", "### 🔴 Delay / risk notices", "### Schedule in this window"];
       let at = -1;
       for (const heading of headings) {
@@ -179,7 +178,7 @@ describe("normal lookahead read", () => {
       expect(returned.structuredContent.card.kpis).toContainEqual({ label: "Saved items", value: "6" });
       expect(returned.structuredContent.card.kpis).toContainEqual({ label: "Open saved items", value: "4" });
       expect(returned.structuredContent.card.kpis).toContainEqual({ label: "Overdue on job", value: "3", flag: "overdue" });
-      expect(body.trim().endsWith("**Athena's next move:** Close the overdue item first.")).toBe(true);
+      expect(body.trim().endsWith("**Athena's next move:** Clear Job obligation 1 with Example PM, overdue since Oct 14.")).toBe(true);
       expect(body).not.toContain("<!doctype");
       expect(body).not.toMatch(/\bREQUIRED\b/);
       expect(body).not.toMatch(/\bDo not\b/i);
