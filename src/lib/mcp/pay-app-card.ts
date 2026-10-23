@@ -86,14 +86,24 @@ export function fieldPayAppCardModel(
   };
 }
 
+export type BillingForecastOptions = {
+  /** Unsaved forecast. Labels the card Draft: not saved and shows the retainage step-down. */
+  draft?: boolean;
+  /** Retainage step-down lines. Empty shows Needed. Used only when draft is set. */
+  retainageLines?: string[] | null;
+};
+
 /** Monthly forecast data is not a G703: never invent continuation lines from monthly totals. */
 export function billingForecastCardModel(
   job: string,
   model: PayModel,
   pageUrl?: string | null,
+  options?: BillingForecastOptions,
 ): CardModel {
   const mismatch =
     model.contract !== null && Math.round(model.total * 100) !== Math.round(model.contract * 100);
+  const draft = options?.draft === true;
+  const retainage = options?.retainageLines?.filter((line) => line.trim()) ?? [];
   return {
     state: "result",
     show_state: false,
@@ -106,6 +116,15 @@ export function billingForecastCardModel(
       { label: "Left to bill", value: model.left === null ? "Needed" : money(model.left) },
     ],
     sections: [
+      ...(draft
+        ? [
+            {
+              heading: "Draft: not saved",
+              kind: "list" as const,
+              rows: [{ cells: ["Nothing is stored until you say yes."] }],
+            },
+          ]
+        : []),
       ...(pageUrl
         ? [
             {
@@ -125,6 +144,18 @@ export function billingForecastCardModel(
           },
         ],
       },
+      ...(draft
+        ? [
+            {
+              heading: "Retainage step-down",
+              kind: "list" as const,
+              rows: (retainage.length ? retainage : ["Needed"]).map((line) => ({
+                cells: [line],
+                ...(line === "Needed" ? { tone: "unknown" as const } : {}),
+              })),
+            },
+          ]
+        : []),
       ...(model.contract !== null && !mismatch
         ? [
             {
@@ -152,7 +183,9 @@ export function billingForecastCardModel(
     ],
     next_move: mismatch
       ? "Correct the forecast so it ties to the contract before drawing the billing schedule."
-      : null,
+      : draft
+        ? "Say yes to save this forecast."
+        : null,
   };
 }
 
