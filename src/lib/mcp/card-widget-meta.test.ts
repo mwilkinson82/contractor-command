@@ -34,6 +34,17 @@ async function rpc(method: string, id: number, params?: Record<string, unknown>)
 }
 
 describe("ChatGPT card widget stays off tools/list", () => {
+  it("lists real drawing markup and import tools with input schemas, without widget metadata", async () => {
+    const listed = await rpc("tools/list", 4);
+    const tools = listed.tools as { name: string; inputSchema: { properties: Record<string, unknown> }; _meta?: Record<string, unknown> }[];
+    const markup = tools.find((tool) => tool.name === "drawing_markup");
+    const importer = tools.find((tool) => tool.name === "drawing_set_import");
+    expect(markup?.inputSchema.properties).toHaveProperty("sheet");
+    expect(markup?.inputSchema.properties).toHaveProperty("annotations");
+    expect(importer?.inputSchema.properties).toHaveProperty("drawing");
+    expect(markup?._meta?.["openai/outputTemplate"]).toBeUndefined();
+    expect(importer?._meta?.["openai/outputTemplate"]).toBeUndefined();
+  });
   it("card tools have no openai/outputTemplate in tools/list, and the resource is listed once", async () => {
     const defs = ATHENA_TOOLS.filter((tool) => CARD_NAMES.has(tool.name));
     expect(defs.length).toBeGreaterThan(10);

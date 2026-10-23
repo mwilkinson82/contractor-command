@@ -12,7 +12,10 @@ import {
   FILE_MAX_BYTES,
   FileRejected,
   allowedDownloadUrl,
+  downloadDrawingSource,
+  drawingSource,
   decodeBase64,
+  sha256Hex,
   storagePath,
   validateFile,
 } from "./file-share";
@@ -26,11 +29,17 @@ export type DrawingUpload = {
   content_base64?: string;
   file?: { download_url: string; file_id: string; mime_type?: string; file_name?: string };
   sheets?: string[];
+  source_url?: string;
 };
 
 export type DrawingJob = { company_id: string; job_id: string };
 
-export type StoredDrawing = { name: string; path: string; sheets?: string[] };
+export type StoredDrawing = { name: string; path: string; sheets?: string[]; record: DrawingRecord; duplicate: boolean };
+export type DrawingRecord = {
+  id: string; path: string; filename: string; content_hash: string; source_key: string;
+  source_url: string | null; sheets: string[]; version: number; created_at: string;
+  sheet?: string; page?: number; parent_id?: string;
+};
 
 export type SheetPage = {
   sheet: string;
@@ -55,7 +64,19 @@ type Bucket = {
   remove: (paths: string[]) => Promise<{ error: { message: string } | null }>;
 };
 
-export type DrawingStore = { storage: { from: (bucket: string) => Bucket } };
+export type DrawingStore = {
+  storage: { from: (bucket: string) => Bucket };
+  rpc: (name: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message?: string } | null }>;
+};
+
+export async function drawingRpc<T>(sb: DrawingStore, name: string, args: Record<string, unknown>): Promise<T> {
+  const { data, error } = await sb.rpc(name, args);
+  if (error || data == null) throw new ToolError("Drawing version storage is unavailable. Try again after the drawing storage update is installed.");
+  return data as T;
+}
+
+export const drawingRecords = (sb: DrawingStore, job: DrawingJob) =>
+  drawingRpc<DrawingRecord[]>(sb, "mcp_drawing_records", { _job: job.job_id });
 
 const bucket = (sb: DrawingStore) => sb.storage.from(FILE_BUCKET);
 
@@ -102,7 +123,7 @@ export function keepDrawingPaths(next: Doc[], prior: Doc[]): Doc[] {
 }
 
 /** Record the stored object on the matching document entry, or append one. Other fields stay. */
-export function withDrawingPath(documents: Doc[], stored: StoredDrawing): Doc[] {
+export function withDrawingPath(documents: Doc[], stored: Pick<StoredDrawing, "name" | "path" | "sheets">): Doc[] {
   const docs = documents.map((doc) => ({ ...doc, sheets: doc.sheets ? [...doc.sheets] : doc.sheets }));
   const name = stored.name.trim().toLowerCase();
   let hit = docs.find((doc) => doc.name.trim().toLowerCase() === name);
@@ -163,15 +184,23 @@ async function fetchDrawing(url: string): Promise<Uint8Array> {
 }
 
 export async function readDrawingBytes(upload: DrawingUpload): Promise<{ bytes: Uint8Array; filename: string }> {
-  const filename = upload.filename?.trim() || upload.file?.file_name?.trim() || "";
+  const filename = upload.filename?.trim() || upload.file?.file_name?.trim() || (upload.source_url ? "drawing-set.pdf" : "");
   if (!filename) throw new ToolError("Name the drawing PDF. Nothing was stored.");
   try {
     let bytes: Uint8Array;
     if (upload.content_base64) bytes = decodeBase64(upload.content_base64);
+    else if (upload.source_url) bytes = await downloadDrawingSource(upload.source_url);
     else if (upload.file?.download_url) bytes = await fetchDrawing(upload.file.download_url);
     else throw new FileRejected("Send the drawing PDF as content_base64. Nothing was stored.");
     const checked = validateFile(bytes, filename);
     if (checked.ext !== "pdf") throw new FileRejected("A drawing set has to be a PDF. Nothing was stored.");
+    const names = upload.sheets ?? [];
+    if (new Set(names.map((s) => s.trim().toLowerCase())).size !== names.length)
+      throw new FileRejected("Give each sheet one unique name in PDF page order. Nothing was stored.");
+    const pdf = await (await loadPdfjs()).getDocument({ data: bytes.slice(), disableWorker: true, isEvalSupported: false, useSystemFonts: true }).promise;
+    try {
+      if (names.length > pdf.numPages) throw new FileRejected("There are more sheet names than PDF pages. Correct the page index; nothing was stored.");
+    } finally { await pdf.destroy(); }
     return { bytes, filename: checked.name };
   } catch (e) {
     if (e instanceof FileRejected) throw new ToolError(storedMessage(e.message));
@@ -179,18 +208,71 @@ export async function readDrawingBytes(upload: DrawingUpload): Promise<{ bytes: 
   }
 }
 
-export async function storeDrawingSet(sb: DrawingStore, job: DrawingJob, upload: DrawingUpload): Promise<StoredDrawing> {
+export async function storeDrawingSet(sb: DrawingStore, job: DrawingJob, upload: DrawingUpload, prior: Doc[] = []): Promise<StoredDrawing> {
   const { bytes, filename } = await readDrawingBytes(upload);
-  const path = storagePath(job.company_id, job.job_id, `drawing-${crypto.randomUUID()}`, filename);
+  const hash = await sha256Hex(bytes);
+  const records = await drawingRecords(sb, job);
+  const source = upload.source_url ? drawingSource(upload.source_url) : null;
+  const existing = records.find((row) => row.content_hash === hash);
+  // Index #190 drawings lazily; a re-share of an older stored PDF must not upload a second copy.
+  let legacy: Doc | undefined;
+  if (!existing) {
+    for (const doc of prior) {
+      if (!doc.path || !drawingOwned(doc.path, job.company_id, job.job_id)) continue;
+      const file = await bucket(sb).download(doc.path);
+      if (file.error || !file.data) throw new ToolError("An existing drawing could not be checked for duplicates. Try again; nothing new was stored.");
+      if (await sha256Hex(new Uint8Array(await file.data.arrayBuffer())) === hash) { legacy = doc; break; }
+    }
+  }
+  const path = existing?.path ?? legacy?.path ?? storagePath(job.company_id, job.job_id, `drawing-${hash}`, "source.pdf");
   if (!drawingOwned(path, job.company_id, job.job_id))
     throw new ToolError("Athena couldn't store that drawing. Nothing was stored.");
-  const up = await bucket(sb).upload(path, bytes, {
+  if (!existing && !legacy) {
+    const up = await bucket(sb).upload(path, bytes, {
     contentType: "application/pdf",
     upsert: false,
     cacheControl: "no-store",
+    });
+    // Same hash has a deterministic path: concurrent identical imports cannot create two objects.
+    if (up.error) {
+      const check = await bucket(sb).download(path);
+      if (check.error || !check.data || await sha256Hex(new Uint8Array(await check.data.arrayBuffer())) !== hash)
+        throw new ToolError("Athena couldn't store that drawing right now. Try again in a moment.");
+    }
+  }
+  const sheets = upload.sheets?.length ? upload.sheets : existing?.sheets ?? legacy?.sheets ?? [];
+  const record = await drawingRpc<DrawingRecord>(sb, "mcp_drawing_source_save", {
+    _job: job.job_id,
+    _record: { path, filename: existing?.filename ?? legacy?.name ?? filename, content_hash: hash,
+      source_key: source?.key ?? existing?.source_key ?? `file:${filename.toLowerCase()}`,
+      source_url: source?.url ?? existing?.source_url ?? null, sheets },
   });
-  if (up.error) throw new ToolError("Athena couldn't store that drawing right now. Nothing was stored. Try again in a moment.");
-  return { name: filename, path, sheets: upload.sheets };
+  return { name: record.filename, path: record.path, sheets: record.sheets, record, duplicate: !!existing || !!legacy };
+}
+
+/** Current imported revisions first, then legacy #190 document entries. Original paths never change. */
+export async function storedSheet(sb: DrawingStore, job: DrawingJob, documents: Doc[], requested: string) {
+  const records = await drawingRecords(sb, job);
+  let record = records.find((row) => sheetPageIndex(row.sheets, requested) != null && drawingOwned(row.path, job.company_id, job.job_id));
+  if (!record) {
+    const doc = documents.find((row) => row.path && drawingOwned(row.path, job.company_id, job.job_id) && sheetPageIndex(row.sheets, requested) != null);
+    if (!doc?.path) throw new ToolError(`Sheet ${requested} is not indexed on this job. Name its stored drawing set and page order; do not re-upload a set already stored.`);
+    const file = await bucket(sb).download(doc.path);
+    if (file.error || !file.data) throw new ToolError("The stored drawing could not be opened. Try again; no upload is needed.");
+    const bytes = new Uint8Array(await file.data.arrayBuffer());
+    record = await drawingRpc<DrawingRecord>(sb, "mcp_drawing_source_save", {
+      _job: job.job_id, _record: { path: doc.path, filename: doc.name, content_hash: await sha256Hex(bytes),
+        source_key: `file:${doc.name.toLowerCase()}`, sheets: doc.sheets ?? [] },
+    });
+  }
+  const index = sheetPageIndex(record.sheets, requested)!;
+  const file = await bucket(sb).download(record.path);
+  if (file.error || !file.data) throw new ToolError("The stored drawing could not be opened. Try again; no upload is needed.");
+  const bytes = new Uint8Array(await file.data.arrayBuffer());
+  if (await sha256Hex(bytes) !== record.content_hash) throw new ToolError("The stored drawing does not match its saved fingerprint. Review the source revision before marking it up.");
+  const png = await renderPdfPage(bytes, index);
+  if (!png) throw new ToolError("The sheet index points beyond the stored PDF. Correct the sheet index; no upload is needed.");
+  return { record, sheet: record.sheets[index], page: index + 1, png };
 }
 
 export async function removeDrawing(sb: DrawingStore, path: string): Promise<void> {

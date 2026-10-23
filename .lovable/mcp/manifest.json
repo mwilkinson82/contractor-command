@@ -2302,6 +2302,294 @@
         "outputSchema": null
       },
       {
+        "name": "drawing_set_import",
+        "title": "Store a drawing set",
+        "description": "Imports a Drive or Dropbox drawing PDF or uploaded bytes, recognizes identical files, and indexes stored sheets without another upload.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "drawing": {
+              "type": "object",
+              "properties": {
+                "filename": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "content_base64": {
+                  "type": "string",
+                  "maxLength": 13981024
+                },
+                "file": {
+                  "type": "object",
+                  "properties": {
+                    "download_url": {
+                      "type": "string"
+                    },
+                    "file_id": {
+                      "type": "string"
+                    },
+                    "mime_type": {
+                      "type": "string"
+                    },
+                    "file_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "download_url",
+                    "file_id"
+                  ]
+                },
+                "sheets": {
+                  "maxItems": 400,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  }
+                },
+                "source_url": {
+                  "type": "string",
+                  "maxLength": 4096,
+                  "format": "uri"
+                }
+              }
+            },
+            "stored_filename": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "sheets": {
+              "minItems": 1,
+              "maxItems": 400,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              }
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "drawing_markup",
+        "title": "Mark up a stored drawing",
+        "description": "Marks up a stored job sheet with saved findings or supplied pins, lines and areas, preserving a dated copy.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "sheet": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "operation": {
+              "default": "save",
+              "type": "string",
+              "enum": [
+                "prepare",
+                "save"
+              ]
+            },
+            "annotations": {
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  "location": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "severity": {
+                    "default": "callout",
+                    "type": "string",
+                    "enum": [
+                      "callout",
+                      "risk",
+                      "delay"
+                    ]
+                  },
+                  "geometry": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "pin"
+                          },
+                          "point": {
+                            "type": "object",
+                            "properties": {
+                              "x": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1
+                              },
+                              "y": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1
+                              }
+                            },
+                            "required": [
+                              "x",
+                              "y"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "point"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "line"
+                          },
+                          "points": {
+                            "minItems": 2,
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "x": {
+                                  "type": "number",
+                                  "minimum": 0,
+                                  "maximum": 1
+                                },
+                                "y": {
+                                  "type": "number",
+                                  "minimum": 0,
+                                  "maximum": 1
+                                }
+                              },
+                              "required": [
+                                "x",
+                                "y"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "points"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "area"
+                          },
+                          "points": {
+                            "minItems": 3,
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "x": {
+                                  "type": "number",
+                                  "minimum": 0,
+                                  "maximum": 1
+                                },
+                                "y": {
+                                  "type": "number",
+                                  "minimum": 0,
+                                  "maximum": 1
+                                }
+                              },
+                              "required": [
+                                "x",
+                                "y"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "points"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "label",
+                  "text"
+                ]
+              }
+            }
+          },
+          "required": [
+            "job_number",
+            "sheet"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
         "name": "estimate_intake",
         "title": "Estimating intake",
         "description": "Asks scope, role and profile, warns before reusing a takeoff already on the job, and stores a drawing PDF when one is sent.",
@@ -2569,6 +2857,11 @@
                     "minLength": 1,
                     "maxLength": 40
                   }
+                },
+                "source_url": {
+                  "type": "string",
+                  "maxLength": 4096,
+                  "format": "uri"
                 }
               }
             }
@@ -3117,6 +3410,11 @@
                     "minLength": 1,
                     "maxLength": 40
                   }
+                },
+                "source_url": {
+                  "type": "string",
+                  "maxLength": 4096,
+                  "format": "uri"
                 }
               }
             }

@@ -49,15 +49,19 @@ import { errorCard, errorMessage } from "../error-card";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import {
   attachSheetPages,
+  drawingRecords,
+  drawingOwned,
   keepDrawingPaths,
   loadSheetPages,
-  removeDrawing,
+  storedSheet,
   sheetsForMarkup,
   storeDrawingSet,
   withDrawingPath,
   type DrawingUpload,
 } from "../drawing-set";
-import { FILE_B64_MAX_CHARS } from "../file-share";
+import { FILE_B64_MAX_CHARS, FILE_BUCKET, sha256Hex } from "../file-share";
+import { bytesToBase64 } from "../estimating-sheet";
+import { drawingMarkupCard, saveDrawingMarkup, savedDrawingAnnotations } from "../drawing-markup-render";
 import { WhichCompanyAsk, audit, named, resolveJob } from "../jobs";
 import { htmlBlock, renderMarkdown } from "../cards/markdown";
 import { renderHtml } from "../cards/html";
@@ -229,6 +233,7 @@ const drawingUpload = z
       })
       .optional(),
     sheets: z.array(z.string().trim().min(1).max(40)).max(400).optional(),
+    source_url: z.string().url().max(4096).optional(),
   })
   .optional();
 const bidLine = z.object({
@@ -294,17 +299,12 @@ async function rpc<T>(sb: Sb, fn: string, args: Record<string, unknown>): Promis
 const load = async (sb: Sb, jobId: string) =>
   parseState(await rpc(sb, "mcp_estimate_get", { _job: jobId }));
 
-/** Store a drawing PDF and record its path on the setup documents. Removes the file if the record does not save. */
+/** The version registry retains the source even if the legacy setup patch fails. Never delete a shared original. */
 async function saveDrawing(sb: Sb, job: { company_id: string; job_id: string }, documents: Doc[], drawing: DrawingUpload) {
-  const stored = await storeDrawingSet(sb, job, drawing);
-  try {
-    const next = withDrawingPath(documents, stored);
-    await rpc(sb, "mcp_estimate_setup_save", { _job: job.job_id, _patch: { documents: next } });
-    return { stored, documents: next };
-  } catch (e) {
-    await removeDrawing(sb, stored.path);
-    throw e;
-  }
+  const stored = await storeDrawingSet(sb, job, drawing, documents);
+  const next = withDrawingPath(documents, stored);
+  await rpc(sb, "mcp_estimate_setup_save", { _job: job.job_id, _patch: { documents: next } });
+  return { stored, documents: next };
 }
 const asBids = (rows: BidArg[]): SubBid[] =>
   rows.map((b) => ({
@@ -1153,4 +1153,116 @@ export const estimateStatus = defineTool({
       const view = renderStatus(`${named(job)}`, state, loaded.accuracy);
       return reply(view);
     }),
+});
+
+const drawingPoint = z.object({ x: z.number().finite().min(0).max(1), y: z.number().finite().min(0).max(1) });
+const drawingAnnotation = z.object({
+  label: z.string().trim().min(1).max(60),
+  text: z.string().trim().min(1).max(1000),
+  location: z.string().trim().max(200).optional(),
+  severity: z.enum(["callout", "risk", "delay"]).default("callout"),
+  geometry: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("pin"), point: drawingPoint }),
+    z.object({ kind: z.literal("line"), points: z.array(drawingPoint).min(2).max(100) }),
+    z.object({ kind: z.literal("area"), points: z.array(drawingPoint).min(3).max(100) }),
+  ]).optional(),
+});
+
+function drawingReply(card: CardModel, extra: Record<string, JsonValueInput> = {}, png?: Uint8Array) {
+  const html = renderHtml(card);
+  return {
+    ...text(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`),
+    content: [
+      { type: "text" as const, text: `${renderMarkdown(card)}\n\n${htmlBlock(html)}` },
+      ...(png ? [{ type: "image" as const, data: bytesToBase64(png), mimeType: "image/png" as const }] : []),
+    ],
+    structuredContent: { card, html, ...extra },
+  };
+}
+
+export const drawingSetImport = defineTool({
+  name: "drawing_set_import",
+  title: "Store a drawing set",
+  description: "Imports a Drive or Dropbox drawing PDF or uploaded bytes, recognizes identical files, and indexes stored sheets without another upload.",
+  inputSchema: {
+    job_number: jobNumber, company_id: companyId, drawing: drawingUpload,
+    stored_filename: z.string().trim().min(1).max(200).optional(),
+    sheets: z.array(z.string().trim().min(1).max(40)).min(1).max(400).optional(),
+  },
+  annotations: { ...SAVE, openWorldHint: true },
+  handler: (args, ctx) => run("drawing_set_import", ctx, { jobNumber: args.job_number }, async (sb) => {
+    try {
+      const job = await resolveJob(sb, args.job_number, args.company_id, "write");
+      const prior = await load(sb, job.job_id);
+      let upload = args.drawing;
+      if (args.stored_filename) {
+        if (upload || !args.sheets?.length) throw new ToolError("To index a stored set, give its filename and sheets in PDF page order, without another upload.");
+        const same = (name: string) => name.toLowerCase() === args.stored_filename!.toLowerCase();
+        const records = await drawingRecords(sb, job);
+        const record = records.find((row) => same(row.filename));
+        const legacy = prior.setup.documents.find((doc) => same(doc.name));
+        const path = record?.path ?? legacy?.path;
+        if (!path || !drawingOwned(path, job.company_id, job.job_id)) throw new ToolError("That drawing set is not stored on this job. Choose a stored filename.");
+        const file = await sb.storage.from(FILE_BUCKET).download(path);
+        if (file.error || !file.data) throw new ToolError("The stored drawing could not be opened. Try again; no upload is needed.");
+        const bytes = new Uint8Array(await file.data.arrayBuffer());
+        if (record && await sha256Hex(bytes) !== record.content_hash) throw new ToolError("The stored drawing does not match its saved fingerprint. Review its source revision first.");
+        upload = { filename: record?.filename ?? legacy!.name, content_base64: bytesToBase64(bytes),
+          source_url: record?.source_url ?? undefined, sheets: args.sheets };
+      }
+      if (!upload) throw new ToolError("Provide a drawing PDF or Drive/Dropbox link, or name the stored filename and its sheets in PDF page order.");
+      const stored = await storeDrawingSet(sb, job, upload, prior.setup.documents);
+      // Registry is authoritative. Keep the #190 document index in sync for takeoff reads.
+      await rpc(sb, "mcp_estimate_setup_save", { _job: job.job_id, _patch: { documents: withDrawingPath(prior.setup.documents, stored) } });
+      return drawingReply({
+        state: "result", title: stored.duplicate ? "Drawing set recognized" : "Drawing set stored", job: named(job),
+        kpis: [{ label: "Source revision", value: String(stored.record.version) }, { label: "Indexed sheets", value: String(stored.sheets?.length ?? 0) }],
+        sections: [{ heading: "Drawing set", kind: "list", rows: [
+          { cells: [stored.name, stored.duplicate ? "Identical PDF already stored; no second file uploaded." : "PDF copied into secure job storage."] },
+          { cells: ["Source file", "Unchanged"] },
+          ...(stored.record.source_url ? [{ cells: ["Original source link"], href: stored.record.source_url }] : []),
+        ] }],
+        next_move: stored.sheets?.length ? `Name a sheet to mark up, such as ${stored.sheets[0]}. Why it matters: Athena opens the saved sheet without another upload.` : "Provide sheet names in PDF page order. Why it matters: Athena needs an exact sheet-to-page index before marking up a drawing.",
+      }, { source: stored.record as unknown as JsonValueInput, duplicate: stored.duplicate });
+    } catch (e) {
+      if (e instanceof WhichCompanyAsk) throw e;
+      return errorCard("Drawing set", errorMessage(e, "The drawing could not be imported."));
+    }
+  }),
+});
+
+export const drawingMarkup = defineTool({
+  name: "drawing_markup",
+  title: "Mark up a stored drawing",
+  description: "Marks up a stored job sheet with saved findings or supplied pins, lines and areas, preserving a dated copy.",
+  inputSchema: {
+    job_number: jobNumber, company_id: companyId,
+    sheet: z.string().trim().min(1).max(80),
+    operation: z.enum(["prepare", "save"]).default("save"),
+    annotations: z.array(drawingAnnotation).max(100).optional(),
+  },
+  annotations: SAVE,
+  handler: (args, ctx) => run("drawing_markup", ctx, { jobNumber: args.job_number }, async (sb) => {
+    try {
+      const job = await resolveJob(sb, args.job_number, args.company_id, "write");
+      const prior = await load(sb, job.job_id);
+      const source = await storedSheet(sb, job, prior.setup.documents, args.sheet);
+      const annotations = args.annotations ?? savedDrawingAnnotations(source.sheet, prior.lines, prior.gaps);
+      if (annotations.length > 100) throw new ToolError("This sheet has over 100 findings. Select up to 100 annotations for each markup version.");
+      if (args.operation === "prepare") {
+        return drawingReply(drawingMarkupCard(named(job), source.record, source.sheet, annotations), {
+          saved: false, source: source.record as unknown as JsonValueInput,
+          sheet: source.sheet, page: source.page,
+        }, source.png);
+      }
+      const saved = await saveDrawingMarkup(sb, job, source, annotations);
+      return drawingReply(drawingMarkupCard(named(job), source.record, source.sheet, annotations, saved), {
+        saved: true, markup: saved.record as unknown as JsonValueInput,
+        source: source.record as unknown as JsonValueInput, original_unchanged: true,
+      }, saved.png);
+    } catch (e) {
+      if (e instanceof WhichCompanyAsk) throw e;
+      return errorCard("Drawing markup", errorMessage(e, "The stored sheet could not be marked up."));
+    }
+  }),
 });

@@ -1,8 +1,8 @@
 // 0.8.11: file share links. The host builds the file (PDF, Excel, CSV, PNG, Word) and hands the bytes to
 // Athena's file_share tool; Athena stores them in a private bucket scoped to company/job and returns a
 // tokenized link (https://app.meetathena.io/f/<token>) that opens for anyone who has it, until it expires
-// or is turned off. Only a SHA-256 of the token is stored. Pure helpers only (no database, no network) so
-// they are unit-tested directly.
+// or is turned off. Only a SHA-256 of the token is stored. Link/validation helpers are pure;
+// drawing-source imports use a separate bounded downloader without widening file_share's host policy.
 
 export const FILE_BUCKET = "athena-files";
 export const FILE_LINK_BASE = "https://app.meetathena.io/f/";
@@ -155,6 +155,88 @@ export async function tokenHash(token: string): Promise<string> {
 export async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const d = new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(bytes)));
   return Array.from(d, (x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+/** Drawing imports only. Do not widen file_share's upload-host allowlist. */
+export function drawingSource(raw: string): { url: string; key: string; download: string; provider: "drive" | "dropbox" } {
+  let u: URL;
+  try { u = new URL(raw); } catch { throw new FileRejected("Use a Google Drive or Dropbox file link."); }
+  if (u.protocol !== "https:" || u.username || u.password || u.port)
+    throw new FileRejected("Use a secure Google Drive or Dropbox file link.");
+  if (u.hostname === "drive.google.com") {
+    const id = u.pathname.match(/^\/file\/d\/([\w-]+)(?:\/|$)/)?.[1] ?? u.searchParams.get("id");
+    if (!id || !/^[\w-]+$/.test(id)) throw new FileRejected("Use the Drive link to one drawing PDF, not a folder.");
+    const dl = new URL("https://drive.usercontent.google.com/download");
+    dl.searchParams.set("id", id);
+    dl.searchParams.set("export", "download");
+    dl.searchParams.set("confirm", "t");
+    const resource = u.searchParams.get("resourcekey");
+    if (resource) dl.searchParams.set("resourcekey", resource);
+    return { url: u.href, key: `drive:${id}`, download: dl.href, provider: "drive" };
+  }
+  if (["dropbox.com", "www.dropbox.com", "dl.dropboxusercontent.com"].includes(u.hostname) &&
+      /^\/(?:s\/[^/]+\/[^/]+|scl\/fi\/[^/]+\/[^/]+)$/.test(u.pathname)) {
+    const original = u.href;
+    u.searchParams.delete("raw");
+    u.searchParams.set("dl", "1");
+    const identity = u.pathname.split("/").slice(0, u.pathname.startsWith("/scl/fi/") ? 4 : 3).join("/");
+    return { url: original, key: `dropbox:${identity}`, download: u.href, provider: "dropbox" };
+  }
+  throw new FileRejected("Use the Google Drive or Dropbox link to one drawing PDF.");
+}
+
+function drawingRedirectAllowed(raw: string, provider: "drive" | "dropbox"): boolean {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "https:" || u.username || u.password || u.port) return false;
+    return provider === "drive"
+      ? u.hostname === "drive.google.com" || u.hostname === "drive.usercontent.google.com" ||
+        u.hostname === "googleusercontent.com" || u.hostname.endsWith(".googleusercontent.com")
+      : u.hostname === "dropbox.com" || u.hostname.endsWith(".dropbox.com") ||
+        u.hostname === "dropboxusercontent.com" || u.hostname.endsWith(".dropboxusercontent.com");
+  } catch { return false; }
+}
+
+/** GET only, no account credentials, bounded redirects/body/time; validate every hop before fetching. */
+export async function downloadDrawingSource(raw: string): Promise<Uint8Array> {
+  const source = drawingSource(raw);
+  let url = source.download;
+  const signal = AbortSignal.timeout(30_000);
+  for (let hop = 0; hop < 6; hop++) {
+    if (!drawingRedirectAllowed(url, source.provider)) throw new FileRejected("The drawing link redirected outside its file provider. Nothing was stored.");
+    const response = await fetch(url, { method: "GET", redirect: "manual", signal });
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      const location = response.headers.get("location");
+      await response.body?.cancel();
+      if (!location) break;
+      url = new URL(location, url).href;
+      continue;
+    }
+    if (!response.ok || !response.body) break;
+    if (Number(response.headers.get("content-length") ?? 0) > FILE_MAX_BYTES) {
+      await response.body.cancel();
+      throw new FileRejected(tooBig());
+    }
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.length;
+      if (size > FILE_MAX_BYTES) {
+        await reader.cancel();
+        throw new FileRejected(tooBig());
+      }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+    if (!sniff(bytes, "pdf")) throw new FileRejected("The provider returned a sign-in or preview page instead of a PDF. Use an authorized downloadable link, or have your connected AI pass the PDF bytes. Nothing was stored.");
+    return bytes;
+  }
+  throw new FileRejected("The drawing could not be downloaded. Check that this link permits downloading, or have your connected AI pass the PDF bytes. Nothing was stored.");
 }
 /** Token from a full link, a /f/<token> path, or the bare token. */
 export function tokenFromLink(s: string): string | null {

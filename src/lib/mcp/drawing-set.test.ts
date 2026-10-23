@@ -83,6 +83,10 @@ function fakeSb() {
       }),
     },
     rpc: async (fn: string, args: Record<string, unknown>) => {
+      if (fn === "mcp_drawing_records") return { data: [], error: null };
+      if (fn === "mcp_drawing_source_save") return { data: {
+        ...(args._record as object), id: "drawing-test", version: 1, created_at: "2026-10-22T12:00:00Z",
+      }, error: null };
       if (fn === "mcp_estimate_setup_save") state.patches.push(args._patch);
       if (fn === "mcp_estimate_get") {
         return {
@@ -288,7 +292,7 @@ describe("sharing a drawing set", () => {
       reuse: "reuse",
       drawing: { filename: "CCW.pdf", content_base64: bytesToBase64(state.pdf) },
     });
-    expect(state.uploads[0]).toMatch(/^c1\/j1\/drawing-[0-9a-f-]{36}\/CCW\.pdf$/);
+    expect(state.uploads[0]).toMatch(/^c1\/j1\/drawing-[0-9a-f]{64}\/source\.pdf$/);
     const patch = state.patches[0] as { documents: Doc[] };
     expect(patch.documents[0]).toMatchObject({
       name: "CCW.pdf",
