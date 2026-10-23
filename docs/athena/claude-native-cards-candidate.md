@@ -84,3 +84,11 @@ To place it, every native card request now logs milliseconds, never content:
 - `[athena] card.presentation` only when the presentation pass itself throws.
 
 `cold` is true on the first MCP request an isolate serves; `isolateAgeMs` is how long the isolate had been up. A failed card whose `card.resource` line shows `served` with a large `totalMs` or `cold: true` is a deadline race on the host side, not a protocol fault. Authentication, the entitlement gate, the SDK path and ChatGPT's `openai/outputTemplate` templates are unchanged.
+
+## Editable email card (prototype)
+
+`ui://athena/email-card.html` (`cards/email-card.ts`) is a second MCP Apps view for `email_draft` and `submittal_delivery`: editable To, Cc, Subject and Body, the link or attachment line, and one **Approve and send** button. Pressing it records the exact text with Athena through the host's `tools/call` bridge (`email_draft` → `email_confirm_send` when edited, or `submittal_delivery draft` → `approve`), then posts the approved text to the chat with `ui/message` so the member's connected email account sends it. Athena still sends no mail. The button is disabled when the host does not advertise `serverTools`, or when sending is off; Athena's refusals ("This draft changed after it was reviewed…") show on the card verbatim. Result data is written with `textContent`/`value` only; the CSP allows no network.
+
+`email_draft` now echoes `job_number`/`company_id` and `submittal_delivery` echoes `kind`, `submittal_id`, `package_item_id`, `job_number`, `company_id` in `structuredContent` so the card can re-draft and approve. Claude's text for these tools drops the email artifact spec lines. ChatGPT's `openai/outputTemplate` on `submittal_delivery` is kept next to the email card reference. The chase (`submittal_chase`) stays on the native card because it lists several submittals.
+
+Fixture: `scripts/card-screenshots/run.sh` renders `email-draft` (desktop, phone) and, after editing the body and pressing the button against a mock host, `email-draft-approved`, printing the view→host sequence. Verified locally in Chrome: `tools/call email_draft` → `tools/call email_confirm_send` → `ui/message`. **Not a live Claude pass**: whether claude.ai grants `serverTools` and `message` to the view is read from its `ui/initialize` reply on the first live run.

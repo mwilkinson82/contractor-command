@@ -14,6 +14,7 @@ import {
 import { isMcpPost } from "./server-info-branding";
 import { phoneHostText } from "./phone-reply";
 import { timingFields, type CardTiming } from "./card-timing";
+import { EMAIL_CARD_MIME, EMAIL_CARD_TOOLS, EMAIL_CARD_URI, emailCardHtml, emailCardMeta, emailCardResourceMeta } from "./cards/email-card";
 import { outsideFencedBlocks } from "./cards/verbatim";
 import { claudeCardReply } from "./cards/claude-reply";
 
@@ -33,6 +34,15 @@ type Call = {
 };
 type Visit = { calls: Call[]; acceptsJson?: boolean };
 type Host = { name: string; capabilities: unknown };
+
+/** Every card view: the native card (current and legacy URI) and the editable email card. */
+const CARD_VIEWS: Record<string, { name: string; title: string; mimeType: string; html: () => string; meta: Record<string, unknown> }> = Object.fromEntries([
+  ...[...NATIVE_CARD_URIS].map((uri) => [uri, { name: uri === NATIVE_CARD_URI ? "athena-native-card" : "athena-native-card-legacy", title: "Athena native card", mimeType: NATIVE_CARD_MIME, html: nativeCardHtml, meta: nativeResourceMeta }]),
+  [EMAIL_CARD_URI, { name: "athena-email-card", title: "Athena email card", mimeType: EMAIL_CARD_MIME, html: emailCardHtml, meta: emailCardResourceMeta }],
+]);
+const isCardUri = (uri: unknown): uri is string => typeof uri === "string" && uri in CARD_VIEWS;
+/** Tools that open on a card view, with the `_meta.ui` each advertises. */
+const cardMetaFor = (name: string) => (EMAIL_CARD_TOOLS.has(name) ? emailCardMeta.ui : NATIVE_CARD_TOOLS.has(name) ? nativeCardMeta.ui : null);
 
 /** Session id from initialize → whether that client can show a card, and whether it is Claude. Same isolate only. */
 const cardSessions = new Map<string, { inlineHtml: boolean; claude: boolean }>();
@@ -100,7 +110,7 @@ export async function nativeCardVisit(request: Request): Promise<Visit | null> {
       params = obj(call?.params) ?? {};
     if (!call || call.id == null || typeof call.method !== "string") continue;
     const method = call.method;
-    if (method === "tools/call" && !NATIVE_CARD_TOOLS.has(String(params.name ?? ""))) continue;
+    if (method === "tools/call" && !cardMetaFor(String(params.name ?? ""))) continue;
     if (
       ![
         "initialize",
@@ -113,7 +123,7 @@ export async function nativeCardVisit(request: Request): Promise<Visit | null> {
       ].includes(method)
     )
       continue;
-    if (method === "resources/read" && !NATIVE_CARD_URIS.has(String(params.uri))) continue;
+    if (method === "resources/read" && !isCardUri(params.uri)) continue;
     const meta = obj(call._meta) ?? obj(params._meta);
     const host = readHost(request, params, meta);
     const session = request.headers.get("mcp-session-id");
@@ -152,23 +162,16 @@ function acceptsJson(accept: string | null): boolean {
   return false;
 }
 
-const resourceEntry = () => ({
-  uri: NATIVE_CARD_URI,
-  name: "athena-native-card",
-  title: "Athena native card",
-  mimeType: NATIVE_CARD_MIME,
-  _meta: nativeResourceMeta,
-});
-const resourceContents = (uri: string) => ({
-  contents: [
-    {
-      uri,
-      mimeType: NATIVE_CARD_MIME,
-      text: nativeCardHtml(),
-      _meta: nativeResourceMeta,
-    },
-  ],
-});
+/** Listed views: the current native card and the email card (the legacy URI stays readable, not listed). */
+const LISTED_VIEWS = [NATIVE_CARD_URI, EMAIL_CARD_URI];
+const resourceEntry = (uri: string) => {
+  const view = CARD_VIEWS[uri];
+  return { uri, name: view.name, title: view.title, mimeType: view.mimeType, _meta: view.meta };
+};
+const resourceContents = (uri: string) => {
+  const view = CARD_VIEWS[uri];
+  return { contents: [{ uri, mimeType: view.mimeType, text: view.html(), _meta: view.meta }] };
+};
 
 export function nativeCardPayload(
   payload: unknown,
@@ -203,13 +206,14 @@ export function nativeCardPayload(
       let repaired = false;
       const tools = result.tools.map((value) => {
         const tool = obj(value);
-        if (!tool || !NATIVE_CARD_TOOLS.has(String(tool.name))) return value;
+        const cardUi = tool ? cardMetaFor(String(tool.name)) : null;
+        if (!tool || !cardUi) return value;
         const meta = obj(tool._meta) ?? {},
           ui = obj(meta.ui) ?? {};
         if (typeof ui.resourceUri === "string") return value;
         repaired = true;
         // Do not introduce, remove or alter openai/outputTemplate.
-        return { ...tool, _meta: { ...meta, ui: { ...ui, ...nativeCardMeta.ui } } };
+        return { ...tool, _meta: { ...meta, ui: { ...ui, ...cardUi } } };
       });
       if (repaired) next = { ...result, tools };
     } else if (
@@ -217,8 +221,8 @@ export function nativeCardPayload(
       ((!error && Array.isArray(result?.resources)) || missingMethod)
     ) {
       const resources = Array.isArray(result?.resources) ? result.resources : [];
-      if (!resources.some((r) => obj(r)?.uri === NATIVE_CARD_URI))
-        next = { ...(result ?? {}), resources: [...resources, resourceEntry()] };
+      const missing = LISTED_VIEWS.filter((uri) => !resources.some((r) => obj(r)?.uri === uri));
+      if (missing.length) next = { ...(result ?? {}), resources: [...resources, ...missing.map(resourceEntry)] };
     } else if (call.method === "resources/templates/list" && missingMethod) {
       next = { resourceTemplates: [] };
     } else if (
@@ -226,7 +230,7 @@ export function nativeCardPayload(
       result &&
       result.isError !== true &&
       call.claude &&
-      NATIVE_CARD_TOOLS.has(String(call.params.name ?? ""))
+      cardMetaFor(String(call.params.name ?? ""))
     ) {
       next = claudeCardReply(result);
     } else if (
@@ -255,7 +259,7 @@ export function nativeCardPayload(
       if (edited) next = { ...result, content };
     } else if (
       call.method === "resources/read" &&
-      NATIVE_CARD_URIS.has(String(call.params.uri)) &&
+      isCardUri(call.params.uri) &&
       missingMethod
     ) {
       // Some deployed SDK builds omit resource handlers. Only this static, non-personal shell is repaired,

@@ -9,6 +9,7 @@ import {
   nativeCardVisit,
 } from "./native-card-transport";
 import { NATIVE_CARD_URI, NATIVE_CARD_MIME } from "./cards/native";
+import { EMAIL_CARD_URI } from "./cards/email-card";
 import { HOST_DISPLAY_BLOCK } from "./visible";
 import { CARD_WIDGET_URI, cardWidgetMeta } from "./cards/widget";
 import { openItemsCard } from "./open-feed";
@@ -236,7 +237,7 @@ describe("native card presentation after the SDK", () => {
     expect(html).toContain("ui/notifications/initialized");
     expect(html).not.toContain("protocolVersion!==");
     const list = await transform("resources/list", {}, missing);
-    expect(list.value).toMatchObject(result({ resources: [{ uri: NATIVE_CARD_URI }] }));
+    expect(list.value).toMatchObject(result({ resources: [{ uri: NATIVE_CARD_URI }, { uri: EMAIL_CARD_URI }] }));
     expect(
       await nativeCardVisit(makeRequest("resources/read", { uri: CARD_WIDGET_URI })),
     ).toBeNull();

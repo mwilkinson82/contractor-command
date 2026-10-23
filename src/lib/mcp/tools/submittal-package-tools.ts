@@ -454,6 +454,12 @@ export const submittalDelivery = defineTool({
           draft: saved.draft,
           approved: !!saved.approved_at,
           sent: !!saved.sent_at,
+          // The email card re-drafts and approves with these ids; nothing here is new to the caller.
+          kind: args.kind ?? "package",
+          submittal_id: sid,
+          package_item_id: args.package_item_id ?? null,
+          job_number: job.job_number,
+          company_id: job.company_id,
         }),
         saved.sent_at
           ? "This send is already recorded. Show the card; do not send it again."
