@@ -49,32 +49,55 @@ function kpiNumber(card: CardModel | null, label: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function nextMove(sc: Sc, card: CardModel | null): string | null {
+function nextMove(sc: Sc, card: CardModel | null, priority: Row[], job?: string | null): string {
   const candidates = [card?.next_move, sc.next_move, sc.next_action, sc.top_priority];
   for (const candidate of candidates) {
     if (typeof candidate === "string" && candidate.trim()) return clean(candidate);
   }
-  return null;
+  const row = priority[0];
+  if (!row) return "Review the job board for the next action.";
+  const title = splitAction(row.action ?? "Item", job).title;
+  const owner = clean(row.owner ?? "");
+  const due = monthDay(asDate(row.due));
+  return owner
+    ? `Review “${title}” with ${owner}${due ? ` (due ${due})` : ""}.`
+    : `Assign an owner to review “${title}”${due ? ` (due ${due})` : ""}.`;
 }
 
-function splitAction(action: string): { title: string; sentence: string } {
-  const text = clean(action) || "Item";
+function splitAction(action: string, job?: string | null): { title: string; sentence: string } {
+  let text = clean(action) || "Item";
+  const jobNumber = job?.split(/\s+[·–—-]\s+/)[0]?.trim();
+  if (jobNumber) {
+    const escaped = jobNumber.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    text = text.replace(new RegExp(`^(?:Job\\s+)?${escaped}\\s+[–—-]\\s+`, "i"), "");
+  }
+  const checklist = /^Resolve:\s*/i.test(text);
+  if (checklist) text = text.replace(/^Resolve:\s*(?:[A-Z]\d+\s+)?/i, "");
+  // These are topic labels, not rewritten requirements. Keep the complete note,
+  // including qualifications, amounts and clauses, beneath the shorter title.
+  const topic = /\bsubmittal and RFI turnaround times\b/i.test(text) ? "Turnaround times"
+    : /^A kickoff meeting has been held with the superintendent\b/i.test(text) ? "Superintendent kickoff"
+      : /^Price conditional .*project[- ]supervision exposure\b/i.test(text) ? "Project supervision exposure"
+        : null;
+  if (topic) return { title: topic, sentence: `${checklist ? "To confirm: " : ""}${text.replace(/\.$/, "")}` };
+  const label = text.match(/^(Schedule logic|Submittals|Deliveries|Inspections|RFIs):\s*(.+)$/i);
+  if (label) return { title: label[1], sentence: label[2].replace(/\.$/, "") };
   const cut = text.indexOf(". ");
   if (cut < 0) return { title: text.replace(/\.$/, ""), sentence: "" };
   return { title: text.slice(0, cut), sentence: text.slice(cut + 2).replace(/\.$/, "") };
 }
 
-function bullet(row: Row): string {
-  const { title, sentence } = splitAction(row.action ?? "Item");
+function bullet(row: Row, job?: string | null): string {
+  const { title, sentence } = splitAction(row.action ?? "Item", job);
   const who = clean(row.owner ?? "") || "Needed";
   const due = monthDay(asDate(row.due));
   const detail = sentence ? ` ${sentence}.` : "";
-  return `- **${title}.**${detail} ${who}${due ? `, due ${due}` : ""}.`;
+  return `- **${title}.**${detail} ${who}, ${due ? `due ${due}` : "due date needed"}.`;
 }
 
-function section(lines: string[], heading: string, rows: Row[]) {
+function section(lines: string[], heading: string, rows: Row[], job?: string | null) {
   if (!rows.length) return;
-  lines.push("", heading, ...rows.map(bullet));
+  lines.push("", heading, ...rows.map((row) => bullet(row, job)));
 }
 
 function rowKey(row: Row): string {
@@ -149,10 +172,10 @@ export function phoneLookaheadText(sc: Sc): string | null {
   if (windowLine) lines.push(windowLine);
   const overdueWords = overdueCount > 0 ? `🔴 ${overdueCount} overdue on the job` : `${overdueCount} overdue on the job`;
   lines.push(`**${savedCount} saved item${savedCount === 1 ? "" : "s"} · ${openCount} open · ${overdueWords}**`);
-  section(lines, "### 🔴 Overdue", overdue);
-  section(lines, "### Due within 7 days", due7);
-  section(lines, "### Coming up", later);
-  section(lines, "### 🔴 Delay / risk notices", delay);
+  section(lines, "### 🔴 Overdue", overdue, card?.job);
+  section(lines, "### Due within 7 days", due7, card?.job);
+  section(lines, "### Coming up", later, card?.job);
+  section(lines, "### 🔴 Delay / risk notices", delay, card?.job);
   const activities = (Array.isArray(sc.activities) ? sc.activities : []) as {
     name?: string | null;
     description?: string | null;
@@ -171,9 +194,8 @@ export function phoneLookaheadText(sc: Sc): string | null {
     })
     .filter(Boolean);
   if (schedule.length) lines.push("", "### Schedule in this window", ...schedule);
-  if (resolved.length) lines.push("", `✅ Resolved: ${resolved.map((row) => splitAction(row.action ?? "Item").title).join(", ")}`);
-  const next = nextMove(sc, card);
-  if (next) lines.push("", `**Athena's next move:** ${next}`);
+  section(lines, "### Resolved", resolved, card?.job);
+  lines.push("", `**Athena's next move:** ${nextMove(sc, card, [...overdue, ...delay, ...due7, ...later], card?.job)}`);
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
@@ -240,13 +262,12 @@ export function phoneOpenItemsText(sc: Sc): string | null {
   if (card?.job) lines.push(`**${clean(card.job)}**`);
   const overdueWords = overdueCount > 0 ? `🔴 ${overdueCount} overdue` : `${overdueCount} overdue`;
   lines.push(`**${openCount} open · ${overdueWords} · ${dueCount} due within 7 days**`);
-  section(lines, "### 🔴 Overdue", overdue);
-  section(lines, "### Due within 7 days", due7);
-  section(lines, "### Coming up", later);
-  section(lines, "### 🔴 Delay notices", delay);
-  if (resolved.length) lines.push("", `✅ Resolved: ${resolved.map((row) => splitAction(row.action ?? "Item").title).join(", ")}`);
-  const next = nextMove(sc, card);
-  if (next) lines.push("", `**Athena's next move:** ${next}`);
+  section(lines, "### 🔴 Overdue", overdue, card?.job);
+  section(lines, "### Due within 7 days", due7, card?.job);
+  section(lines, "### Coming up", later, card?.job);
+  section(lines, "### 🔴 Delay notices", delay, card?.job);
+  section(lines, "### Resolved", resolved, card?.job);
+  lines.push("", `**Athena's next move:** ${nextMove(sc, card, [...overdue, ...delay, ...due7, ...later], card?.job)}`);
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 

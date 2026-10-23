@@ -323,15 +323,12 @@ describe("native card presentation after the SDK", () => {
       owner: "Example PM",
       due: i < 3 ? "2026-10-21" : i < 8 ? "2026-10-23" : "2026-11-02",
     }));
-    const card = {
-      ...openItemsCard(
+    const card = openItemsCard(
         "2701 · Fictional job",
         items,
         { open: 17, overdue: 3, due_in_7_days: 5 },
         "2026-10-22",
-      ),
-      next_move: "Close the overdue item first.",
-    };
+      );
     const fullReply = attachAthenaCard("list_open_items", {
       content: [{ type: "text", text: "Full reply" }],
       structuredContent: { card, items },
@@ -364,7 +361,7 @@ describe("native card presentation after the SDK", () => {
     expect(body.slice(body.indexOf("### Due within 7 days"), body.indexOf("### Coming up"))).not.toContain("🔴");
     expect(body.slice(body.indexOf("### Coming up"))).not.toContain("🔴");
     expect(body).not.toMatch(/^\s*\|/m);
-    expect(body.trim().endsWith("**Athena's next move:** Close the overdue item first.")).toBe(true);
+    expect(body.trim().endsWith("**Athena's next move:** Review “Job 2701 task 1” with Example PM (due Oct 21).")).toBe(true);
     expect(body).not.toContain("<!doctype");
     expect(body).not.toMatch(/\bREQUIRED\b/);
     expect(body).not.toMatch(/\bDo not\b/i);
