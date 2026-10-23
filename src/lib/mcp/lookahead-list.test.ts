@@ -114,7 +114,7 @@ describe("lookahead_list", () => {
     expect(paletteViolations(result.structuredContent.html, false)).toEqual([]);
     expect(state.writes).toEqual([]);
     expect(state.rpcs).toEqual(["mcp_resolve_job"]);
-    expect((lookaheadList as { annotations: Record<string, boolean> }).annotations).toMatchObject({
+    expect((lookaheadList as unknown as { annotations: Record<string, boolean> }).annotations).toMatchObject({
       readOnlyHint: true,
       destructiveHint: false,
       idempotentHint: true,

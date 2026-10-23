@@ -294,7 +294,7 @@ describe("first tool call", () => {
         return { data: { show: true }, error: null };
       }),
     );
-    const result = (await gettingStarted.handler({}, ctx)) as {
+    const result = (await gettingStarted.handler({}, ctx)) as unknown as {
       content: { text: string }[];
       structuredContent: { card: { title: string }; getting_started?: unknown };
     };
@@ -335,7 +335,7 @@ describe("getting_started branches", () => {
         const builder = { in: () => done, then: (ok: (v: unknown) => unknown, bad?: (e: unknown) => unknown) => done.then(ok, bad) };
         return { select: () => builder };
       },
-    };
+    } as unknown as Parameters<typeof branchGettingStarted>[0];
   }
 
   it("with no company, opens company setup and says the next step and why", async () => {
@@ -406,7 +406,7 @@ describe("getting_started tool never opens on a picker", () => {
       { job_number: "2701", name: "Harbor Point" },
       { job_number: "1234", name: "Riverside" },
     ];
-    const result = (await gettingStarted.handler({}, ctx)) as {
+    const result = (await gettingStarted.handler({}, ctx)) as unknown as {
       content: { text: string }[];
       structuredContent: { card: { title: string; ask?: { prompt: string } | null; sections?: { heading: string }[] } };
     };
@@ -437,7 +437,7 @@ describe("getting_started tool never opens on a picker", () => {
 
   it("with one job, names that morning meeting on the same card", async () => {
     jobsFixture.jobs = [{ job_number: "2701", name: "Harbor Point" }];
-    const result = (await gettingStarted.handler({}, ctx)) as {
+    const result = (await gettingStarted.handler({}, ctx)) as unknown as {
       content: { text: string }[];
       structuredContent: { card: { title: string; next_move?: string } };
     };
