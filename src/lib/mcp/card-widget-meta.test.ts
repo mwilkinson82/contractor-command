@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createTanStackMcpHandler } from "@lovable.dev/mcp-js/stacks/tanstack";
 import { defineMcp } from "@lovable.dev/mcp-js";
 import { EMAIL_CARD_TOOLS, EMAIL_CARD_URI } from "./cards/email-card";
+import { DRAWING_CARD_TOOLS, DRAWING_CARD_URI } from "./cards/drawing-card";
 import { NATIVE_CARD_URI, NATIVE_CARD_MIME, NATIVE_CARD_TOOLS } from "./cards/native";
 import { CARD_TOOLS } from "./cards/attach";
 import { CARD_WIDGET_MIME, CARD_WIDGET_URI } from "./cards/widget";
@@ -86,13 +87,16 @@ describe("native card resource", () => {
     const listed = await rpc("tools/list", 10);
     for (const tool of listed.tools as { name: string; _meta?: Record<string, unknown> }[]) {
       // The email card takes precedence for a tool in both sets (submittal_delivery).
-      expect(tool._meta?.ui, tool.name).toEqual(EMAIL_CARD_TOOLS.has(tool.name) ? { resourceUri: EMAIL_CARD_URI } : NATIVE_CARD_TOOLS.has(tool.name) ? { resourceUri: NATIVE_CARD_URI } : undefined);
+      expect(tool._meta?.ui, tool.name).toEqual(DRAWING_CARD_TOOLS.has(tool.name) ? { resourceUri: DRAWING_CARD_URI } : EMAIL_CARD_TOOLS.has(tool.name) ? { resourceUri: EMAIL_CARD_URI } : NATIVE_CARD_TOOLS.has(tool.name) ? { resourceUri: NATIVE_CARD_URI } : undefined);
       if (CARD_NAMES.has(tool.name)) expect(tool._meta?.["openai/outputTemplate"]).toBeUndefined();
     }
     const resource = await rpc("resources/read", 11, { uri: NATIVE_CARD_URI });
     expect(resource.contents).toHaveLength(1);
     expect(resource.contents[0]).toMatchObject({ uri: NATIVE_CARD_URI, mimeType: NATIVE_CARD_MIME, _meta: { ui: { csp: { connectDomains: [], resourceDomains: [] } } } });
     expect(resource.contents[0].text).toContain("ui/notifications/tool-result");
+    const drawing = await rpc("resources/read", 13, { uri: DRAWING_CARD_URI });
+    expect(drawing.contents[0]).toMatchObject({ uri: DRAWING_CARD_URI, mimeType: NATIVE_CARD_MIME });
+    expect(drawing.contents[0].text).toContain("Stored sheet preview");
     const original = await rpc("resources/read", 12, { uri: CARD_WIDGET_URI });
     expect(original.contents[0]).toMatchObject({ uri: CARD_WIDGET_URI, mimeType: CARD_WIDGET_MIME });
     expect(original.contents[0].text).toContain("window.openai");
