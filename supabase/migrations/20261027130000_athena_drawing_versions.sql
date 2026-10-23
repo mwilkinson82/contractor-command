@@ -1,5 +1,5 @@
--- Add one table and new guarded functions only. Existing tables, storage policies and auth are untouched.
--- Source and markup objects are immutable uploads (upsert:false) in the existing private drawing path.
+-- Add one application table, guarded functions and a private originals bucket.
+-- Existing tables, buckets, policies and auth are untouched. No production apply in this PR.
 CREATE TABLE public.mcp_drawing_versions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   job_id uuid NOT NULL REFERENCES public.mcp_jobs(id) ON DELETE CASCADE,
@@ -10,6 +10,7 @@ CREATE TABLE public.mcp_drawing_versions (
   source_url text CHECK (length(source_url) <= 4096),
   content_hash text NOT NULL CHECK (content_hash ~ '^[0-9a-f]{64}$'),
   path text NOT NULL,
+  storage_bucket text NOT NULL DEFAULT 'athena-files' CHECK (storage_bucket IN ('athena-files', 'athena-drawings')),
   filename text NOT NULL CHECK (length(filename) BETWEEN 1 AND 200),
   sheets jsonb NOT NULL DEFAULT '[]' CHECK (jsonb_typeof(sheets) = 'array' AND jsonb_array_length(sheets) <= 400),
   sheet text,
@@ -52,9 +53,9 @@ BEGIN
     AND found.sheets = coalesce(_record->'sheets', '[]') THEN RETURN to_jsonb(found); END IF;
   SELECT coalesce(max(version), 0) + 1 INTO seq FROM public.mcp_drawing_versions
     WHERE job_id = _job AND kind = 'source' AND source_key = _record->>'source_key';
-  INSERT INTO public.mcp_drawing_versions(job_id, company_id, kind, source_key, source_url, content_hash, path, filename, sheets, version, created_by)
+  INSERT INTO public.mcp_drawing_versions(job_id, company_id, kind, source_key, source_url, content_hash, path, storage_bucket, filename, sheets, version, created_by)
     VALUES (_job, cid, 'source', _record->>'source_key', _record->>'source_url', _record->>'content_hash',
-      _record->>'path', _record->>'filename', coalesce(_record->'sheets', '[]'), seq, auth.uid()) RETURNING * INTO found;
+      _record->>'path', coalesce(_record->>'storage_bucket', 'athena-files'), _record->>'filename', coalesce(_record->'sheets', '[]'), seq, auth.uid()) RETURNING * INTO found;
   RETURN to_jsonb(found);
 END $$;
 
@@ -82,3 +83,36 @@ BEGIN
 END $$;
 REVOKE EXECUTE ON FUNCTION public.mcp_drawing_records(uuid), public.mcp_drawing_source_save(uuid,jsonb), public.mcp_drawing_markup_save(uuid,uuid,jsonb) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.mcp_drawing_records(uuid), public.mcp_drawing_source_save(uuid,jsonb), public.mcp_drawing_markup_save(uuid,uuid,jsonb) TO authenticated;
+
+-- Drawing originals can exceed file_share's unchanged 10 MiB limit. Keep its
+-- bucket and all #190 paths intact. This only adds a separate PDF-only bucket.
+INSERT INTO storage.buckets(id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('athena-drawings', 'athena-drawings', false, 52428800, ARRAY['application/pdf'])
+ON CONFLICT (id) DO NOTHING;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM storage.buckets WHERE id='athena-drawings' AND
+    (public IS DISTINCT FROM false OR file_size_limit IS DISTINCT FROM 52428800 OR
+     allowed_mime_types IS DISTINCT FROM ARRAY['application/pdf']::text[])) THEN
+    RAISE EXCEPTION 'Unexpected drawing bucket configuration; review before applying.';
+  END IF;
+END $$;
+
+CREATE FUNCTION public.mcp_drawing_path_allowed(_path text) RETURNS boolean
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE parts text[]; cid uuid;
+BEGIN
+  parts := string_to_array(_path, '/');
+  IF cardinality(parts) <> 4 OR parts[3] NOT LIKE 'drawing-%' OR parts[4] = ''
+    OR _path ~ '(\.\.|\\)' THEN RETURN false; END IF;
+  cid := public.mcp_estimate_guard(parts[2]::uuid);
+  RETURN cid::text = parts[1];
+EXCEPTION WHEN OTHERS THEN RETURN false;
+END $$;
+REVOKE EXECUTE ON FUNCTION public.mcp_drawing_path_allowed(text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.mcp_drawing_path_allowed(text) TO authenticated;
+
+CREATE POLICY "athena drawing originals insert" ON storage.objects FOR INSERT TO authenticated
+  WITH CHECK (bucket_id='athena-drawings' AND public.mcp_drawing_path_allowed(name));
+CREATE POLICY "athena drawing originals select" ON storage.objects FOR SELECT TO authenticated
+  USING (bucket_id='athena-drawings' AND public.mcp_drawing_path_allowed(name));
+-- No member UPDATE or DELETE policy: original objects cannot be overwritten or removed.

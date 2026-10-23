@@ -1,6 +1,7 @@
 import { DRAWING_MARKUP_REQUIRED, drawingMarkupCard } from "./drawing-markup";
 import { htmlBlock } from "./cards/markdown";
-// Stored drawing sets. The PDF goes in the private athena-files bucket on the same
+// Stored drawing sets. New originals use a dedicated private drawing bucket; #190
+// originals remain in athena-files. Both use the same guarded
 // company/job path file_share uses. The document entry keeps its old fields and gains
 // a nullable path. A takeoff read returns one rendered page only when that path
 // belongs to the caller's company and job.
@@ -9,7 +10,6 @@ import { bytesToBase64 } from "./estimating-sheet";
 import type { Doc } from "./estimating";
 import {
   FILE_BUCKET,
-  FILE_MAX_BYTES,
   FileRejected,
   allowedDownloadUrl,
   downloadDrawingSource,
@@ -21,6 +21,9 @@ import {
 } from "./file-share";
 
 export const DRAWING_URL_SECONDS = 15 * 60;
+export const DRAWING_BUCKET = "athena-drawings";
+export const DRAWING_MAX_BYTES = 50 * 1024 * 1024;
+export const DRAWING_B64_MAX_CHARS = Math.ceil(DRAWING_MAX_BYTES / 3) * 4 + 8;
 const MAX_PAGES = 4;
 const MAX_EDGE = 1600;
 
@@ -39,6 +42,7 @@ export type DrawingRecord = {
   id: string; path: string; filename: string; content_hash: string; source_key: string;
   source_url: string | null; sheets: string[]; version: number; created_at: string;
   sheet?: string; page?: number; parent_id?: string;
+  storage_bucket?: string;
 };
 
 export type SheetPage = {
@@ -78,7 +82,12 @@ export async function drawingRpc<T>(sb: DrawingStore, name: string, args: Record
 export const drawingRecords = (sb: DrawingStore, job: DrawingJob) =>
   drawingRpc<DrawingRecord[]>(sb, "mcp_drawing_records", { _job: job.job_id });
 
-const bucket = (sb: DrawingStore) => sb.storage.from(FILE_BUCKET);
+export function drawingBucket(record?: Pick<DrawingRecord, "storage_bucket">): string {
+  const name = record?.storage_bucket ?? FILE_BUCKET;
+  if (name !== FILE_BUCKET && name !== DRAWING_BUCKET) throw new ToolError("The stored drawing has an invalid storage location.");
+  return name;
+}
+const bucket = (sb: DrawingStore, name = FILE_BUCKET) => sb.storage.from(name);
 
 /** True only for this company and job, and only for a drawing object. */
 export function drawingOwned(path: string, companyId: string, jobId: string): boolean {
@@ -159,8 +168,10 @@ async function fetchDrawing(url: string): Promise<Uint8Array> {
   if (!res.ok || !res.body)
     throw new FileRejected("Athena couldn't download that file. Pass the file's bytes as content_base64 instead. Nothing was stored.");
   const len = Number(res.headers.get("content-length") ?? "0");
-  if (len > FILE_MAX_BYTES)
-    throw new FileRejected(`That file is over ${FILE_MAX_BYTES / 1024 / 1024} MB, the most Athena can share. Nothing was stored.`);
+  if (len > DRAWING_MAX_BYTES) {
+    await res.body.cancel();
+    throw new FileRejected("That drawing is over 50 MB. Nothing was stored.");
+  }
   const reader = res.body.getReader();
   const parts: Uint8Array[] = [];
   let n = 0;
@@ -168,9 +179,9 @@ async function fetchDrawing(url: string): Promise<Uint8Array> {
     const { done, value } = await reader.read();
     if (done) break;
     n += value.length;
-    if (n > FILE_MAX_BYTES) {
+    if (n > DRAWING_MAX_BYTES) {
       await reader.cancel();
-      throw new FileRejected(`That file is over ${FILE_MAX_BYTES / 1024 / 1024} MB, the most Athena can share. Nothing was stored.`);
+      throw new FileRejected("That drawing is over 50 MB. Nothing was stored.");
     }
     parts.push(value);
   }
@@ -188,11 +199,11 @@ export async function readDrawingBytes(upload: DrawingUpload): Promise<{ bytes: 
   if (!filename) throw new ToolError("Name the drawing PDF. Nothing was stored.");
   try {
     let bytes: Uint8Array;
-    if (upload.content_base64) bytes = decodeBase64(upload.content_base64);
-    else if (upload.source_url) bytes = await downloadDrawingSource(upload.source_url);
+    if (upload.content_base64) bytes = decodeBase64(upload.content_base64, DRAWING_MAX_BYTES);
+    else if (upload.source_url) bytes = await downloadDrawingSource(upload.source_url, DRAWING_MAX_BYTES);
     else if (upload.file?.download_url) bytes = await fetchDrawing(upload.file.download_url);
     else throw new FileRejected("Send the drawing PDF as content_base64. Nothing was stored.");
-    const checked = validateFile(bytes, filename);
+    const checked = validateFile(bytes, filename, DRAWING_MAX_BYTES);
     if (checked.ext !== "pdf") throw new FileRejected("A drawing set has to be a PDF. Nothing was stored.");
     const names = upload.sheets ?? [];
     if (new Set(names.map((s) => s.trim().toLowerCase())).size !== names.length)
@@ -225,17 +236,18 @@ export async function storeDrawingSet(sb: DrawingStore, job: DrawingJob, upload:
     }
   }
   const path = existing?.path ?? legacy?.path ?? storagePath(job.company_id, job.job_id, `drawing-${hash}`, "source.pdf");
+  const storageBucket = existing ? drawingBucket(existing) : legacy ? FILE_BUCKET : DRAWING_BUCKET;
   if (!drawingOwned(path, job.company_id, job.job_id))
     throw new ToolError("Athena couldn't store that drawing. Nothing was stored.");
   if (!existing && !legacy) {
-    const up = await bucket(sb).upload(path, bytes, {
+    const up = await bucket(sb, storageBucket).upload(path, bytes, {
     contentType: "application/pdf",
     upsert: false,
     cacheControl: "no-store",
     });
     // Same hash has a deterministic path: concurrent identical imports cannot create two objects.
     if (up.error) {
-      const check = await bucket(sb).download(path);
+      const check = await bucket(sb, storageBucket).download(path);
       if (check.error || !check.data || await sha256Hex(new Uint8Array(await check.data.arrayBuffer())) !== hash)
         throw new ToolError("Athena couldn't store that drawing right now. Try again in a moment.");
     }
@@ -243,7 +255,7 @@ export async function storeDrawingSet(sb: DrawingStore, job: DrawingJob, upload:
   const sheets = upload.sheets?.length ? upload.sheets : existing?.sheets ?? legacy?.sheets ?? [];
   const record = await drawingRpc<DrawingRecord>(sb, "mcp_drawing_source_save", {
     _job: job.job_id,
-    _record: { path, filename: existing?.filename ?? legacy?.name ?? filename, content_hash: hash,
+    _record: { path, storage_bucket: storageBucket, filename: existing?.filename ?? legacy?.name ?? filename, content_hash: hash,
       source_key: source?.key ?? existing?.source_key ?? `file:${filename.toLowerCase()}`,
       source_url: source?.url ?? existing?.source_url ?? null, sheets },
   });
@@ -266,7 +278,7 @@ export async function storedSheet(sb: DrawingStore, job: DrawingJob, documents: 
     });
   }
   const index = sheetPageIndex(record.sheets, requested)!;
-  const file = await bucket(sb).download(record.path);
+  const file = await bucket(sb, drawingBucket(record)).download(record.path);
   if (file.error || !file.data) throw new ToolError("The stored drawing could not be opened. Try again; no upload is needed.");
   const bytes = new Uint8Array(await file.data.arrayBuffer());
   if (await sha256Hex(bytes) !== record.content_hash) throw new ToolError("The stored drawing does not match its saved fingerprint. Review the source revision before marking it up.");
@@ -346,6 +358,9 @@ export async function loadSheetPages(
   sheets: string[],
 ): Promise<SheetPage[]> {
   const pages: SheetPage[] = [];
+  // Keep #190 reads available before the additive registry migration is installed.
+  let records: DrawingRecord[] = [];
+  try { records = await drawingRecords(sb, job); } catch { /* legacy documents still work */ }
   for (const sheet of sheets) {
     try {
       const doc = documents.find(
@@ -357,12 +372,14 @@ export async function loadSheetPages(
       if (!doc?.path) continue;
       const index = sheetPageIndex(doc.sheets, sheet);
       if (index == null) continue;
-      const file = await bucket(sb).download(doc.path);
+      const record = records.find((r) => r.path === doc.path);
+      const sourceBucket = bucket(sb, drawingBucket(record));
+      const file = await sourceBucket.download(doc.path);
       if (file.error || !file.data) continue;
       const bytes = new Uint8Array(await file.data.arrayBuffer());
       const png = await renderPdfPage(bytes, index);
       if (!png?.length) continue;
-      const signed = await bucket(sb).createSignedUrl(doc.path, DRAWING_URL_SECONDS);
+      const signed = await sourceBucket.createSignedUrl(doc.path, DRAWING_URL_SECONDS);
       if (signed.error || !signed.data?.signedUrl) continue;
       pages.push({ sheet, page: index + 1, png, signedUrl: signed.data.signedUrl });
     } catch {

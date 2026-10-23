@@ -49,6 +49,8 @@ import { errorCard, errorMessage } from "../error-card";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import {
   attachSheetPages,
+  DRAWING_B64_MAX_CHARS,
+  drawingBucket,
   drawingRecords,
   drawingOwned,
   keepDrawingPaths,
@@ -59,7 +61,7 @@ import {
   withDrawingPath,
   type DrawingUpload,
 } from "../drawing-set";
-import { FILE_B64_MAX_CHARS, FILE_BUCKET, sha256Hex } from "../file-share";
+import { sha256Hex } from "../file-share";
 import { bytesToBase64 } from "../estimating-sheet";
 import { drawingMarkupCard, saveDrawingMarkup, savedDrawingAnnotations } from "../drawing-markup-render";
 import { WhichCompanyAsk, audit, named, resolveJob } from "../jobs";
@@ -223,7 +225,7 @@ const doc = z.object({
 const drawingUpload = z
   .object({
     filename: z.string().trim().min(1).max(120).optional(),
-    content_base64: z.string().max(FILE_B64_MAX_CHARS).optional(),
+    content_base64: z.string().max(DRAWING_B64_MAX_CHARS).optional(),
     file: z
       .object({
         download_url: z.string(),
@@ -1203,7 +1205,7 @@ export const drawingSetImport = defineTool({
         const legacy = prior.setup.documents.find((doc) => same(doc.name));
         const path = record?.path ?? legacy?.path;
         if (!path || !drawingOwned(path, job.company_id, job.job_id)) throw new ToolError("That drawing set is not stored on this job. Choose a stored filename.");
-        const file = await sb.storage.from(FILE_BUCKET).download(path);
+        const file = await sb.storage.from(drawingBucket(record)).download(path);
         if (file.error || !file.data) throw new ToolError("The stored drawing could not be opened. Try again; no upload is needed.");
         const bytes = new Uint8Array(await file.data.arrayBuffer());
         if (record && await sha256Hex(bytes) !== record.content_hash) throw new ToolError("The stored drawing does not match its saved fingerprint. Review its source revision first.");

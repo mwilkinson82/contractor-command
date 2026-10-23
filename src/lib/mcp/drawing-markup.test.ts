@@ -1,9 +1,9 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { jsPDF } from "jspdf";
 import { bytesToBase64 } from "./estimating-sheet";
-import { drawingSource, downloadDrawingSource, FILE_MAX_BYTES, sha256Hex } from "./file-share";
+import { drawingSource, downloadDrawingSource, FILE_MAX_BYTES, sha256Hex, validateFile } from "./file-share";
 import { markupColor, renderDrawingMarkup } from "./drawing-markup-render";
-import { storeDrawingSet, storedSheet, type DrawingRecord } from "./drawing-set";
+import { DRAWING_BUCKET, DRAWING_MAX_BYTES, drawingBucket, storeDrawingSet, storedSheet, type DrawingRecord } from "./drawing-set";
 import { attachAthenaCard } from "./cards/attach";
 
 const state = vi.hoisted(() => ({
@@ -15,6 +15,7 @@ const state = vi.hoisted(() => ({
   failRecord: false,
   deny: false,
   downloads: [] as string[],
+  buckets: [] as string[],
 }));
 vi.mock("./guard", () => ({
   run: async (_t: string, _c: unknown, _o: unknown, fn: (sb: unknown) => unknown) => fn(fakeSb()),
@@ -121,7 +122,7 @@ function fakeSb() {
       return { data: {}, error: null };
     },
     storage: {
-      from: () => ({
+      from: (bucketName: string) => { state.buckets.push(bucketName); return ({
         upload: async (path: string, bytes: Uint8Array, options: { upsert: boolean }) => {
           expect(options.upsert).toBe(false);
           if (state.objects.has(path)) return { error: { message: "Already exists" } };
@@ -145,7 +146,7 @@ function fakeSb() {
           paths.forEach((p) => state.objects.delete(p));
           return { error: null };
         },
-      }),
+      }); },
     },
   };
 }
@@ -183,6 +184,7 @@ beforeEach(() => {
   state.failRecord = false;
   state.deny = false;
   state.downloads = [];
+  state.buckets = [];
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -289,6 +291,49 @@ describe("stored drawing markup tool", () => {
 });
 
 describe("drawing set identity and source revisions", () => {
+  it("stores and recognizes a PDF above 10 MiB in the drawing-only bucket while file_share keeps its cap", async () => {
+    // Fictional one-page PDF with an unused large stream: no client fixture or
+    // benchmark answers are committed. Its bytes exceed the old limit.
+    const chunks: Uint8Array[] = [];
+    const offsets = [0];
+    let length = 0;
+    const add = (s: string | Uint8Array) => { const b = typeof s === "string" ? new TextEncoder().encode(s) : s; chunks.push(b); length += b.length; };
+    add("%PDF-1.4\n");
+    for (const [i, body] of [
+      [1, "<< /Type /Catalog /Pages 2 0 R >>"],
+      [2, "<< /Type /Pages /Count 1 /Kids [3 0 R] >>"],
+      [3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 250] >>"],
+    ] as const) { offsets.push(length); add(`${i} 0 obj\n${body}\nendobj\n`); }
+    offsets.push(length);
+    const padding = new Uint8Array(17 * 1024 * 1024).fill(32);
+    add(`4 0 obj\n<< /Length ${padding.length} >>\nstream\n`); add(padding); add("\nendstream\nendobj\n");
+    const xref = length;
+    add(`xref\n0 5\n0000000000 65535 f \n${offsets.slice(1).map((n) => `${String(n).padStart(10, "0")} 00000 n \n`).join("")}trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+    const bytes = new Uint8Array(length);
+    let at = 0; for (const chunk of chunks) { bytes.set(chunk, at); at += chunk.length; }
+    expect(bytes.length).toBeGreaterThan(FILE_MAX_BYTES);
+    expect(() => validateFile(bytes, "set.pdf")).toThrow(/10 MB/);
+    const upload = { filename: "large-set.pdf", content_base64: bytesToBase64(bytes), sheets: ["S-100"] };
+    const first = await storeDrawingSet(fakeSb(), job, upload);
+    const second = await storeDrawingSet(fakeSb(), job, upload);
+    expect(first.record.storage_bucket).toBe(DRAWING_BUCKET);
+    expect(second.duplicate).toBe(true);
+    expect(second.path).toBe(first.path);
+    expect(state.uploaded).toHaveLength(1);
+    expect(state.buckets).not.toContain("athena-files");
+    expect(await sha256Hex(state.objects.get(first.path)!)).toBe(await sha256Hex(bytes));
+  });
+
+  it("cancels a provider body above the drawing cap before storing and rejects unknown buckets", async () => {
+    const cancel = vi.fn();
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200, headers: new Headers({ "content-length": String(DRAWING_MAX_BYTES + 1) }), body: { cancel } })));
+    await expect(storeDrawingSet(fakeSb(), job, { filename: "large.pdf", source_url: source })).rejects.toThrow(/50 MB/);
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(state.uploaded).toEqual([]);
+    expect(() => drawingBucket({ storage_bucket: "public-files" })).toThrow(/invalid storage/);
+    expect(drawingBucket()).toBe("athena-files");
+  });
+
   it("indexes an unindexed legacy stored set by filename without an upload, then marks up that sheet", async () => {
     await seed();
     state.documents[0].sheets = [];

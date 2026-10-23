@@ -39,6 +39,13 @@ const save = async (record = src(), j = job, who = owner) =>
 beforeAll(async () => {
   db = await makeDb();
   await db.exec(readFileSync("supabase/migrations/20261022200000_athena_estimating.sql", "utf8"));
+  // Minimal Storage catalog for executing the actual new bucket policies.
+  await db.exec(`CREATE SCHEMA storage;
+    CREATE TABLE storage.buckets(id text PRIMARY KEY, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
+    CREATE TABLE storage.objects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), bucket_id text, name text);
+    ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+    GRANT USAGE ON SCHEMA storage TO authenticated;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON storage.objects TO authenticated;`);
   await db.exec(
     readFileSync("supabase/migrations/20261027130000_athena_drawing_versions.sql", "utf8"),
   );
@@ -156,6 +163,29 @@ describe("drawing version migration, real Postgres permissions", () => {
     expect(third.version).toBe(3);
     expect(third.path).toBe(first.path);
     expect(third.id).not.toBe(first.id);
+  });
+  it("adds a PDF-only private 50 MiB originals bucket without changing legacy buckets", async () => {
+    const bucket = await db.query("SELECT public, file_size_limit::integer AS bytes, allowed_mime_types FROM storage.buckets WHERE id='athena-drawings'");
+    expect(bucket.rows[0]).toEqual({ public: false, bytes: 52428800, allowed_mime_types: ["application/pdf"] });
+    const original = await save({ ...src("6".repeat(64), "file:new-bucket"), storage_bucket: "athena-drawings" } as ReturnType<typeof src>);
+    expect(original.storage_bucket).toBe("athena-drawings");
+    await expect(save({ ...src("7".repeat(64), "file:bad"), storage_bucket: "public" } as ReturnType<typeof src>)).rejects.toThrow(/check constraint/);
+  });
+  it("enforces membership, company/job scope and immutable originals through real storage RLS", async () => {
+    const name = path("drawing-original/source.pdf");
+    await query("INSERT INTO storage.objects(bucket_id,name) VALUES ('athena-drawings',$1)", [name], estimator);
+    expect((await query("SELECT name FROM storage.objects", [], estimator)).map((r: { name: string }) => r.name)).toContain(name);
+    expect(await query("SELECT name FROM storage.objects", [], outsider)).toEqual([]);
+    await expect(query("INSERT INTO storage.objects(bucket_id,name) VALUES ('athena-drawings',$1)", [name], outsider)).rejects.toThrow(/row-level security/);
+    await expect(query("INSERT INTO storage.objects(bucket_id,name) VALUES ('athena-drawings',$1)", [name], superId)).rejects.toThrow(/row-level security/);
+    await expect(query("INSERT INTO storage.objects(bucket_id,name) VALUES ('athena-drawings',$1)", [`${otherJob}/${job}/drawing-original/source.pdf`])).rejects.toThrow(/row-level security/);
+    expect(await query("UPDATE storage.objects SET name='changed' RETURNING id")).toEqual([]);
+    expect(await query("DELETE FROM storage.objects RETURNING id")).toEqual([]);
+    expect((await query("SELECT name FROM storage.objects")).map((r: { name: string }) => r.name)).toContain(name);
+    await db.query("DELETE FROM public.test_active_members WHERE user_id=$1", [owner]);
+    await db.query("DELETE FROM public.mcp_gate_cache WHERE user_id=$1", [owner]);
+    try { expect(await query("SELECT name FROM storage.objects")).toEqual([]); }
+    finally { await db.query("INSERT INTO public.test_active_members VALUES ($1)", [owner]); await db.query("DELETE FROM public.mcp_gate_cache WHERE user_id=$1", [owner]); }
   });
   it("enforces active membership and job roles at every function; contract scope is allowed, supers and outsiders denied", async () => {
     await expect(save(src(), job, outsider)).rejects.toThrow(/MCP_NO_JOB/);

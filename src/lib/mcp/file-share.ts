@@ -94,9 +94,9 @@ function trimUtf8(b: Uint8Array): Uint8Array {
   return b.subarray(0, end);
 }
 
-export function decodeBase64(s: string): Uint8Array {
+export function decodeBase64(s: string, maxBytes = FILE_MAX_BYTES): Uint8Array {
   const clean = s.replace(/^data:[^;,]+;base64,/, "").replace(/\s+/g, "");
-  if (clean.length > FILE_B64_MAX_CHARS) throw new FileRejected(tooBig());
+  if (clean.length > Math.ceil(maxBytes / 3) * 4 + 8) throw new FileRejected(tooBig(maxBytes));
   if (!/^[A-Za-z0-9+/_-]*={0,2}$/.test(clean) || clean.length % 4 === 1)
     throw new FileRejected("The file data isn't valid base64. Nothing was shared.");
   const std = clean.replace(/-/g, "+").replace(/_/g, "/");
@@ -106,13 +106,13 @@ export function decodeBase64(s: string): Uint8Array {
   return out;
 }
 
-const tooBig = () =>
-  `That file is over ${FILE_MAX_BYTES / 1024 / 1024} MB, the most Athena can share. Nothing was shared.`;
+const tooBig = (maxBytes = FILE_MAX_BYTES) =>
+  `That file is over ${maxBytes / 1024 / 1024} MB, the most Athena can share. Nothing was shared.`;
 
-export function validateFile(bytes: Uint8Array, filename: string) {
+export function validateFile(bytes: Uint8Array, filename: string, maxBytes = FILE_MAX_BYTES) {
   const { name, ext } = safeFilename(filename);
   if (bytes.length === 0) throw new FileRejected("The file is empty. Nothing was shared.");
-  if (bytes.length > FILE_MAX_BYTES) throw new FileRejected(tooBig());
+  if (bytes.length > maxBytes) throw new FileRejected(tooBig(maxBytes));
   if (!sniff(bytes, ext))
     throw new FileRejected(
       `That file isn't a real .${ext} file. Build the file again and share it. Nothing was shared.`,
@@ -198,7 +198,7 @@ function drawingRedirectAllowed(raw: string, provider: "drive" | "dropbox"): boo
 }
 
 /** GET only, no account credentials, bounded redirects/body/time; validate every hop before fetching. */
-export async function downloadDrawingSource(raw: string): Promise<Uint8Array> {
+export async function downloadDrawingSource(raw: string, maxBytes = FILE_MAX_BYTES): Promise<Uint8Array> {
   const source = drawingSource(raw);
   let url = source.download;
   const signal = AbortSignal.timeout(30_000);
@@ -213,9 +213,9 @@ export async function downloadDrawingSource(raw: string): Promise<Uint8Array> {
       continue;
     }
     if (!response.ok || !response.body) break;
-    if (Number(response.headers.get("content-length") ?? 0) > FILE_MAX_BYTES) {
+    if (Number(response.headers.get("content-length") ?? 0) > maxBytes) {
       await response.body.cancel();
-      throw new FileRejected(tooBig());
+      throw new FileRejected(tooBig(maxBytes));
     }
     const reader = response.body.getReader();
     const chunks: Uint8Array[] = [];
@@ -224,9 +224,9 @@ export async function downloadDrawingSource(raw: string): Promise<Uint8Array> {
       const { done, value } = await reader.read();
       if (done) break;
       size += value.length;
-      if (size > FILE_MAX_BYTES) {
+      if (size > maxBytes) {
         await reader.cancel();
-        throw new FileRejected(tooBig());
+        throw new FileRejected(tooBig(maxBytes));
       }
       chunks.push(value);
     }

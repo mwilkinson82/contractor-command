@@ -2335,7 +2335,7 @@
                 },
                 "content_base64": {
                   "type": "string",
-                  "maxLength": 13981024
+                  "maxLength": 69905076
                 },
                 "file": {
                   "type": "object",
@@ -2826,7 +2826,7 @@
                 },
                 "content_base64": {
                   "type": "string",
-                  "maxLength": 13981024
+                  "maxLength": 69905076
                 },
                 "file": {
                   "type": "object",
@@ -3379,7 +3379,7 @@
                 },
                 "content_base64": {
                   "type": "string",
-                  "maxLength": 13981024
+                  "maxLength": 69905076
                 },
                 "file": {
                   "type": "object",
