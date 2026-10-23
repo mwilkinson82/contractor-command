@@ -1263,6 +1263,43 @@
         "outputSchema": null
       },
       {
+        "name": "lookahead_get",
+        "title": "Show saved lookahead and its items",
+        "description": "Reads a job's saved lookahead, its items and current schedule window. Returns the styled card and every saved item directly; no PDF, email or upload needed.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "lookahead_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
         "name": "resolve_item",
         "title": "Resolve or update an open item",
         "description": "Closes or updates an open item.",
@@ -3423,7 +3460,7 @@
       {
         "name": "estimate_bid_check",
         "title": "Sub bid check",
-        "description": "Checks each in-scope sub bid line against the takeoff for a general contractor job and lists out-of-scope callouts in their own section.",
+        "description": "Checks each in-scope sub bid line against the takeoff for a general contractor or a self-performer and lists out-of-scope callouts in their own section.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -5096,7 +5133,7 @@
       {
         "name": "pm_meeting",
         "title": "Run construction PM meeting (Athena)",
-        "description": "Runs the construction PM meeting in Athena, the job meeting on the schedule rather than a calendar appointment, when someone says run my PM meeting or start the project meeting, through schedule progress, the locked lookahead, subs suppliers and crews, change orders, billing, and the IOR, and must not fill job_number from chat context or build a generic meeting widget.",
+        "description": "Runs the construction PM meeting in Athena as a styled card, the job meeting on the schedule rather than a calendar appointment, when someone says run my PM meeting or start the project meeting, through schedule progress, the locked lookahead, subs suppliers and crews, change orders, billing, and the IOR, using the only job when one exists, and must not fill job_number from chat context or build a generic meeting widget.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -5320,7 +5357,7 @@
       {
         "name": "athena_hello",
         "title": "Athena hello",
-        "description": "Returns the morning brief card when the user says Hey Athena, let's get started, Athena, let's get started, Good morning Athena, Hey Athena, what's on my plate today?, good morning, hey Athena, hello, or a misspelling like Athina, Athen, or Atena, and Athena answers first.",
+        "description": "Returns the full styled morning brief, including From your inbox and calendar, every time the user asks, including Good morning Athena, Hey Athena, what's on my plate today?, good morning, hey Athena, hello, or a misspelling like Athina, Athen, or Atena.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -5343,7 +5380,7 @@
       {
         "name": "morning_brief",
         "title": "Morning brief",
-        "description": "Builds the member's construction morning brief across every job they can see when they say Athena, good morning, Hey Athena, let's get started, Athena, let's get started, Good morning Athena, Hey Athena, what's on my plate today?, Morning Athena, Athena at the start or mid-sentence, Athina, Athen, Atena, hitlist, morning briefing, what's on my plate today, overdue, or today's deadlines on my jobs, Athena leads, the host fills From your inbox and calendar with emails that came in overnight, unanswered emails that need a reply, and today's meetings, then the job side follows with the schedule, notices, submittals due, overdue items, and what happened yesterday versus what is due today, and nothing is sent.",
+        "description": "Builds the member's construction morning brief across every job in every company they belong to, grouped by company when there is more than one, when they say Athena, good morning, Good morning Athena, Hey Athena, what's on my plate today?, Morning Athena, Athena at the start or mid-sentence, Athina, Athen, Atena, hitlist, morning briefing, what's on my plate today, overdue, or today's deadlines on my jobs, Athena leads, the card always keeps the heading From your inbox and calendar, and when Gmail and Calendar can be read the placeholder rows are replaced with emails that came in overnight, unanswered emails that need a reply, and today's meetings, and when they cannot the placeholder rows stay and no error text is written, then the job side follows with the schedule, notices, submittals due, overdue items, and what happened yesterday versus what is due today, the reply is the full styled HTML card every time they ask, including From your inbox and calendar, and nothing is sent.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -5898,7 +5935,7 @@
       {
         "name": "submittals_list",
         "title": "Submittal log and overdue submittals",
-        "description": "Lists a job's submittal log, including what submittals are overdue and the submittal log for a job number such as 2701.",
+        "description": "Lists a job's saved submittal log, one row at a time with number, title, status, ball in court, due date, and overdue, for a job number such as 2701, and resolves that number when it exists on exactly one company even if another company is active.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -5997,7 +6034,7 @@
       {
         "name": "project_record_search",
         "title": "Project record for disputes and claims",
-        "description": "Searches the project record for a job by date, kind, or words, including the dispute and claim history.",
+        "description": "Shows the job record with the schedule of values, open items, and overdue items, and shows the dispute and claim file only when the member asks for disputes or claims, resolving a unique job number such as 2701 across companies.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -6042,7 +6079,7 @@
       {
         "name": "submittal_chase",
         "title": "Chase a missing or overdue submittal",
-        "description": "Drafts one chase email for an overdue or missing submittal and waits for a separate yes before anything is sent.",
+        "description": "Drafts one chase email for an overdue, missing, or scheduled submittal that is not marked submitted, shows that draft as not sent and needing confirm, and waits for a separate yes before anything is sent.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -6075,8 +6112,8 @@
       },
       {
         "name": "getting_started",
-        "title": "@Athena, let's get started",
-        "description": "Claims Hey Athena, let's get started, Athena, let's get started, Good morning Athena, and Hey Athena, what's on my plate today?, and let's get started runs guided onboarding: first job setup when there is no job, and the morning meeting when the member already has jobs, and asks before saving the line When I say Athena, always use the Athena connector.",
+        "title": "Hey Athena, let's get started",
+        "description": "Shows the get-started card for Hey Athena, let's get started, Athena, let's get started, and @Athena let's get started, never opening with a which-job picker and never asking which job's morning hitlist, using first-job or company setup when there are no jobs, and otherwise showing the @Athena example lines, the offer to save When I say Athena, always use the Athena connector and how to remove it, then the morning meeting on that same card.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,

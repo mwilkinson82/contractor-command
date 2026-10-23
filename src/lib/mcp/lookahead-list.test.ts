@@ -23,8 +23,8 @@ const state = vi.hoisted(() => {
         { id: EMPTY, job_id: JOB, start_date: "2026-10-01", end_date: "2026-10-14", created_at: "2026-10-01T00:00:00Z", current_rev: 0, inputs: null },
       ];
       const items = [
-        { lookahead_id: CONTENT, job_id: JOB },
-        { lookahead_id: CONTENT, job_id: JOB },
+        { id: "one", action: "Confirm inspection", owner: "Fictional PM", status: "open", severity: "low", lookahead_id: CONTENT, job_id: JOB },
+        { id: "two", action: "Coordinate delivery", owner: "Fictional PM", status: "resolved", severity: "low", lookahead_id: CONTENT, job_id: JOB },
       ];
       return {
         from(table: string) {
@@ -38,6 +38,7 @@ const state = vi.hoisted(() => {
             not() { return api; },
             order() { return api; },
             limit() { return api; },
+            range(start: number, end: number) { rows = rows.slice(start, end + 1); return api; },
             in() { return api; },
             maybeSingle() { return Promise.resolve({ data: rows[0] ?? null, error: null }); },
             insert() { box.writes.push(`insert ${table}`); return Promise.resolve({ error: null }); },
@@ -107,6 +108,9 @@ describe("lookahead_list", () => {
     expect(content).toMatchObject({ start: "2026-10-26", end: "2026-11-06", rev: 2, open_items: 2, items: 2, latest: true, empty: false });
     expect(empty).toMatchObject({ open_items: 0, items: 0, latest: false, empty: true });
     expect(text).toContain("<!doctype html");
+    expect(text).toContain("Confirm inspection");
+    expect(text).toContain("Coordinate delivery");
+    expect(text).toContain("all statuses");
     expect(paletteViolations(result.structuredContent.html, false)).toEqual([]);
     expect(state.writes).toEqual([]);
     expect(state.rpcs).toEqual(["mcp_resolve_job"]);

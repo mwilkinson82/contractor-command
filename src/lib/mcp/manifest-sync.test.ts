@@ -47,6 +47,7 @@ async function liveTools(): Promise<Tool[]> {
       W.carryForward,
       W.listOpenItems,
       W.lookaheadList,
+      W.lookaheadGet,
       W.resolveItem,
       L.cpmActivities,
       L.livingReportGet,
@@ -159,7 +160,7 @@ describe("MCP manifest is in sync with source", () => {
           expect(p.pattern, `${t.name}.${k}`).toBeUndefined();
           expect(p.description, `${t.name}.${k}`).toBeUndefined();
         }
-    expect(n).toBe(7);
+    expect(n).toBe(8);
   });
 
   it("manifest tool schemas equal the source tools/list", async () => {
