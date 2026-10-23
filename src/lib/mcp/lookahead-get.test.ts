@@ -112,7 +112,7 @@ describe("normal lookahead read", () => {
       expect(returned.structuredContent.html).toContain("#1E5FED");
       if (claude) {
         expect(body).not.toContain("<!doctype html");
-        expect(body).toContain("The member sees this result as an Athena card.");
+        expect(body).not.toMatch(/sees this result as an Athena card/);
       } else {
         expect(body).toContain("<!doctype html");
         expect(body).toContain(returned.structuredContent.html);
