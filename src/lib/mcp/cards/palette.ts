@@ -18,6 +18,9 @@ export const MARK = { action: "🔵", neutral: "⚪", alert: "🔴" } as const;
 const ALLOWED = new Set([NAVY, BLUE, GRAY, WHITE, ALERT].map((h) => h.toUpperCase()));
 
 export type AlertLevel = "risk" | "delay" | "overdue";
+export function isAlertLevel(value: unknown): value is AlertLevel {
+  return value === "risk" || value === "delay" || value === "overdue";
+}
 
 /** Hex colors in a render, uppercased, including the leading #. */
 export function hexesIn(text: string): string[] {

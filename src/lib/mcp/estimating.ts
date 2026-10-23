@@ -1,3 +1,4 @@
+import { DRAWING_MARKUP_REQUIRED } from "./drawing-markup";
 // Estimating tools. Athena keeps the record and the math. The host reads the sheets.
 // Quantity labels are MEASURED (spec READ: straight off a sheet) and DEDUCED (spec DERIVED: computed here).
 import { ALERT_COLOR, ALERT_HEX } from "./alert-color";
@@ -39,6 +40,7 @@ export const ESTIMATE_QUANTITY_REQUIRED = [
 ].join("\n");
 
 export const ESTIMATE_VIEW_SPEC = [
+  DRAWING_MARKUP_REQUIRED,
   "REQUIRED VIEW – ESTIMATE: Landscape page, 17 in by 11 in. Portrait only if the member asks.",
   `Logo: Athena mark, top right, every page, ${ESTIMATE_LOGO_URL}.`,
   "Order: a short narrative, then the table or cards, then one-fact bullets.",

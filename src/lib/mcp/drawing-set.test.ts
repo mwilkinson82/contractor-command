@@ -238,6 +238,11 @@ describe("stored sheet page", () => {
     const result = await get({ job_number: "CCW-003" });
     expect(result.content.some((block) => block.type === "image")).toBe(true);
     expect(result.content[0].text).toContain("mark up drawing S-100");
+    expect(result.content[0].text).toContain('class="callout"');
+    expect(result.content[0].text).toContain("Grid A");
+    const markup = result.structuredContent?.markup as { html: string }[];
+    expect(markup[0].html).not.toContain("#DC2626");
+    expect(markup[0].html).toContain("#1E5FED");
   });
 
   it("returns nothing for another company's drawing", async () => {

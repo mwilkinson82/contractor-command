@@ -1,3 +1,5 @@
+import { DRAWING_MARKUP_REQUIRED, drawingMarkupCard } from "./drawing-markup";
+import { htmlBlock } from "./cards/markdown";
 // Stored drawing sets. The PDF goes in the private athena-files bucket on the same
 // company/job path file_share uses. The document entry keeps its old fields and gains
 // a nullable path. A takeoff read returns one rendered page only when that path
@@ -297,9 +299,14 @@ type PageResult = {
 export function attachSheetPages<R extends PageResult>(result: R, pages: SheetPage[]): R {
   if (!pages.length) return result;
   const note = pages.map((page) => `${sheetPageLine(page.sheet, page.page)}\nPage link: ${page.signedUrl}`).join("\n\n");
+  const lines = Array.isArray(result.structuredContent?.lines) ? result.structuredContent.lines as { sheet?: string | null; markup?: string | null; holdsBid?: boolean }[] : [];
+  const markup = pages.flatMap((page) => {
+    const named = lines.filter((line) => line.sheet?.toUpperCase() === page.sheet.toUpperCase() && line.markup?.trim());
+    return named.length ? [{ sheet: page.sheet, ...drawingMarkupCard(page.sheet, named.map((line) => ({ label: line.markup!, flag: line.holdsBid ? "risk" : null }))) }] : [];
+  });
   const content = [...(result.content ?? [])];
   const first = content.findIndex((block) => block.type === "text" && typeof block.text === "string");
-  if (first >= 0) content[first] = { ...content[first], text: `${note}\n\n${content[first].text ?? ""}` };
+  if (first >= 0) content[first] = { ...content[first], text: `${note}\n${DRAWING_MARKUP_REQUIRED}\n\n${content[first].text ?? ""}${markup.map((m) => `\n\n${htmlBlock(m.html)}`).join("")}` };
   else content.unshift({ type: "text", text: note });
   for (const page of pages) {
     content.push({ type: "image", data: bytesToBase64(page.png), mimeType: "image/png" });
@@ -309,6 +316,7 @@ export function attachSheetPages<R extends PageResult>(result: R, pages: SheetPa
     content,
     structuredContent: {
       ...(result.structuredContent ?? {}),
+      ...(markup.length ? { markup } : {}),
       sheet_pages: pages.map((page) => ({ sheet: page.sheet, page: page.page, signed_url: page.signedUrl })),
     },
   };

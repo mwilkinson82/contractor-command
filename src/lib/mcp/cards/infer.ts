@@ -1,7 +1,9 @@
 import { SUMMARY_OFFER } from "../contract-clauses";
 import { whichJobAsk } from "../which-job";
-import type { AlertLevel } from "./palette";
+import { isAlertLevel, type AlertLevel } from "./palette";
 import type { CardModel, CardRow, CardSection } from "./model";
+import { isUuid } from "../refs";
+import { safeBoardHref } from "../plain-label";
 
 const TITLES: Record<string, string> = {
   next_question: "Next question",
@@ -57,6 +59,22 @@ function linesOf(text: string): string[] {
 
 function listSection(heading: string, rows: CardRow[]): CardSection {
   return { heading, kind: "list", rows };
+}
+
+/** Keep the board address out of label cleanup, which removes visible UUIDs. */
+function lookaheadReportRow(line: string): CardRow {
+  const link = line.match(/^(?:.*? – )?Styled lookahead \([^)]*\):\s*(.*)$/);
+  if (!link) return { cells: [line] };
+  const href = safeBoardHref(link[1]);
+  if (href) {
+    const url = new URL(href);
+    const parts = url.pathname.split("/");
+    if (url.origin === "https://app.meetathena.io" && !url.username && !url.password &&
+      parts.length === 5 && parts[1] === "r" && parts[2] === "job" && isUuid(parts[3]) && parts[4] === "lookahead") {
+      return { cells: ["Open live lookahead"], href };
+    }
+  }
+  return { cells: ["Lookahead board link unavailable."] };
 }
 
 function riskFlag(flag: string, value: string): AlertLevel | null {
@@ -234,8 +252,8 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
       .filter((line) => !incomplete.includes(line) && line !== askLine && line !== valueLine && !/^Contract value:/i.test(line))
       .map((line) => ({ cells: [line], flag: lineAlert(line), raw: true }));
     const alerts = [
-      ...clauseRows.filter((r) => r.flag).map((r) => ({ level: r.flag!, text: r.cells[0] })),
-      ...flagRows.filter((r) => r.flag).map((r) => ({ level: r.flag!, text: `${r.cells[0]} is ${r.cells[1]}` })),
+      ...clauseRows.flatMap((r) => isAlertLevel(r.flag) ? [{ level: r.flag, text: r.cells[0] }] : []),
+      ...flagRows.flatMap((r) => isAlertLevel(r.flag) ? [{ level: r.flag, text: `${r.cells[0]} is ${r.cells[1]}` }] : []),
     ];
     return {
       ...base,
@@ -279,7 +297,7 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
       state: setup ? "progress" : "result",
       title: lookahead ? "Two-week lookahead" : setup ? "What I have so far" : /schedule of values|SOV/i.test(text) ? "Schedule of values" : "Report",
       kpis: lookahead ? [{ label: "Overdue", value: String(overdue), flag: overdue ? "overdue" : null }, { label: "Risks", value: String(risks), flag: risks ? "risk" : null }] : [],
-      sections: [listSection("Report", linesOf(text).slice(0, 8).map((l) => ({ cells: [l] })))],
+      sections: [listSection("Report", linesOf(text).slice(0, 8).map((line) => lookahead ? lookaheadReportRow(line) : { cells: [line] }))],
       alerts,
       next_move: lookahead ? "Walk the red items before the meeting moves on." : "Use this card as the report.",
     };
