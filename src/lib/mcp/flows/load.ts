@@ -17,7 +17,7 @@ type Query = {
 };
 
 const CREW_WORD = /\b(?:subs?|subcontract\w*|suppliers?|crews?|materials?)\b/i;
-const PROBLEM_WORD = /\b(?:delays?|delayed|delaying|slippage|slipped|slipping|slips|slip|shortages?|conflicts?|issues?|blockers?|risks?|risky|late|missing|short|behind|clashes?|clashed|rfis?|failed\s+inspections?|inspections?\s+failed|not\s+issued|unissued)\b/gi;
+const PROBLEM_WORD = /\b(?:delays?|delayed|delaying|slippage|slipped|slipping|slips|slip|shortages?|conflicts?|issues?|blockers?|risks?|risky|late|missing|short|behind|clashes?|clashed|rfis?|failed(?:\s+\w+){0,6}\s+inspections?|inspections?(?:\s+\w+){0,6}\s+failed|not\s+issued|unissued)\b/gi;
 
 function negatedProblem(text: string, index: number): boolean {
   const before = text.slice(0, index);

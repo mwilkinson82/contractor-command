@@ -462,6 +462,42 @@ describe("meeting notes stay off the risk log", () => {
     expect(items.filter((row) => row.category === "Meeting")).toHaveLength(2);
   });
 
+  it("files do-not-break 26 as three separate risks and two meeting notes, then a repeat adds nothing", async () => {
+    const note = "Steel delivery slipped two weeks\nOwner walk went well\nInspector failed the rebar inspection\nNext meeting Tuesday\nCrane permit still not issued";
+    const risks = ["Steel delivery slipped two weeks", "Inspector failed the rebar inspection", "Crane permit still not issued"];
+    const meetings = ["Owner walk went well", "Next meeting Tuesday"];
+    expect(isProblemLine("Inspector failed the rebar inspection")).toBe(true);
+    expect(isProblemLine("Next meeting Tuesday")).toBe(false);
+    expect(isProblemLine("Crane permit still not issued")).toBe(true);
+    const items: Record<string, unknown>[] = [];
+    const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
+      if (name === "mcp_add_item") {
+        const field = args._f as { action: string; category: string };
+        items.push({ id: `item-${items.length}`, action: field.action, status: "open", category: field.category });
+      }
+      return { data: { item_id: "1" }, error: null };
+    });
+    const sb = {
+      rpc,
+      from: (table: string) => ({
+        select: () => ({
+          eq: () => Promise.resolve({ data: table === "mcp_open_items" ? items.map((row) => ({ ...row })) : [], error: null }),
+        }),
+      }),
+    };
+    await saveFlowNote(sb as never, jobId, "pm_meeting", "schedule", note, { note });
+    const rows = added(sb);
+    expect(rows.filter((row) => row.category === "Risk").map((row) => row.action)).toEqual(risks);
+    expect(rows.filter((row) => row.category === "Meeting").map((row) => row.action)).toEqual(meetings);
+    expect(rows.filter((row) => row.category === "Risk").some((row) => row.action.includes("\n"))).toBe(false);
+    const filed = items.length;
+    expect(filed).toBe(5);
+    await saveFlowNote(sb as never, jobId, "pm_meeting", "schedule", note, { note });
+    expect(items.filter((row) => row.category === "Risk")).toHaveLength(3);
+    expect(items.filter((row) => row.category === "Meeting")).toHaveLength(2);
+    expect(items).toHaveLength(filed);
+  });
+
   function confirmationLine(categories: Array<"Meeting" | "Daily" | "Risk">, logged = true): string {
     const data = job2701FlowData({ note: "Noted on the job.", sample: false });
     data.logged = logged;
