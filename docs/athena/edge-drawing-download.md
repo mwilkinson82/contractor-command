@@ -1,0 +1,9 @@
+# Drawing download compatibility on the edge
+
+After approved PRs #232 and #233 published at deployment `8c9eae27-4c32-48f2-a82c-9eb969ecc8f1`, the signed-in ChatGPT import of the existing CCW-003 attachment passed hostname validation and reached fetch. The deployed runtime rejected `redirect: "error"` with: `Invalid redirect value, must be one of "follow" or "manual"`. No original was stored, and the existing takeoff was unchanged.
+
+Use `redirect: "manual"` and explicitly refuse every 3xx response before reading or storing bytes. Cancel the response body, never fetch its Location destination, and return a factual error without its URL. The exact-host allowlist, HTTPS and credential checks, 50 MB stream limit, PDF validation, original hashing/deduplication and immutable markup versions are unchanged. No migration, auth, Hub, permissions, palette or email changes.
+
+Verification: 2,082 Vitest tests across 197 files pass, including five new redirect refusal cases; production build passes. `node scripts/verify-drawing-download-worker.mjs` also bundles the real drawing downloader into Miniflare/workerd: a valid PDF imports, five HTTP redirect variants are refused, and each operation makes exactly one intercepted request. This proof uses fictional URLs and an in-memory PDF; no external network or production storage. ESLint passes with the existing formatting-only rule excluded on the touched legacy files; diff whitespace check passes.
+
+Live original storage, duplicate recognition, stored S-100 and two dated markup copies remain unverified until this correction is approved, published and retested. The preceding release's SOV renders in both normal Claude and ChatGPT with all ten rows and the $1,400,000 total. Forthcoming Claude email styling and the private item-closure work are excluded.

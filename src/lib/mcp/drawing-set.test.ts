@@ -346,6 +346,20 @@ describe("drawing import", () => {
     },
   );
 
+  it.each([301, 302, 303, 307, 308])("refuses HTTP %s without following the redirect or storing a file", async (status) => {
+    const body = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new Uint8Array([1])); } });
+    const cancel = vi.spyOn(body, "cancel");
+    const fetcher = vi.fn().mockResolvedValue(new Response(body, { status, headers: { location: "https://127.0.0.1/private?secret=fictional" } }));
+    vi.stubGlobal("fetch", fetcher);
+    try {
+      const download_url = "https://oaisdmntprbrazilsouth.blob.core.windows.net/fictional/permit.pdf?sig=fictional";
+      await expect(readDrawingBytes({ filename: "permit.pdf", file: { download_url, file_id: "fictional-file" } })).rejects.toThrow("The attachment download redirected to another address. Provide a direct download link. Nothing was stored.");
+      expect(fetcher).toHaveBeenCalledExactlyOnceWith(download_url, { redirect: "manual" });
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(state.uploads).toHaveLength(0);
+    } finally { vi.unstubAllGlobals(); }
+  });
+
   it("parses a multi-page PDF without createRequire.resolve", async () => {
     const source = readFileSync(new URL("./drawing-set.ts", import.meta.url), "utf8");
     expect(source).not.toMatch(/createRequire\s*\(/);
@@ -388,7 +402,7 @@ describe("sharing a drawing set", () => {
       };
       const output = await (mode === "intake" ? intake(args) : saveTakeoff(args));
       expect(output.content[0].text).toContain("Drawing set stored: permit-host.pdf.");
-      expect(fetcher).toHaveBeenCalledWith(args.file.download_url, { redirect: "error" });
+      expect(fetcher).toHaveBeenCalledWith(args.file.download_url, { redirect: "manual" });
       expect(state.uploads).toHaveLength(1);
       expect(state.uploads[0]).toMatchObject({ bucket: DRAWING_BUCKET, size: state.pdf.length });
       expect((state.patches[0] as { documents: Doc[] }).documents[0].sheets).toEqual(["S-001", "S-100"]);

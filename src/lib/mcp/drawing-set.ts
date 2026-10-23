@@ -232,7 +232,13 @@ function allowedDrawingDownloadUrl(raw: string): boolean {
 /** ChatGPT file fetch: existing hosts plus the observed storage account; no redirects, size-capped. */
 async function fetchDrawing(url: string): Promise<Uint8Array> {
   if (!allowedDrawingDownloadUrl(url)) throw new FileRejected(rejectedDrawingLink(url));
-  const res = await fetch(url, { redirect: "error" });
+  // The deployed edge runtime supports manual/follow, but rejects redirect:"error".
+  // Inspect the first response ourselves; never fetch a Location destination.
+  const res = await fetch(url, { redirect: "manual" });
+  if (res.status >= 300 && res.status < 400) {
+    await res.body?.cancel();
+    throw new FileRejected("The attachment download redirected to another address. Provide a direct download link. Nothing was stored.");
+  }
   if (!res.ok || !res.body)
     throw new FileRejected("Athena couldn't download that file. Pass the file's bytes as content_base64 instead. Nothing was stored.");
   const len = Number(res.headers.get("content-length") ?? "0");
