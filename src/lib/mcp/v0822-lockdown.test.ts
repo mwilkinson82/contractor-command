@@ -55,6 +55,7 @@ const ALL = [
   W.contractTerms,
   W.carryForward,
   W.listOpenItems,
+  W.lookaheadGet,
   W.resolveItem,
   L.cpmActivities,
   L.livingReportGet,
@@ -161,7 +162,7 @@ async function toolsList(tools: unknown[]) {
 
 describe("0.8.22 (0) every tool goes through run() and guard()", () => {
   it("every tool goes through run() and guard()", () => {
-    expect(ALL).toHaveLength(66);
+    expect(ALL).toHaveLength(67);
     const files = readdirSync(new URL("./tools/", import.meta.url)).filter((f) =>
       f.endsWith(".ts"),
     );
@@ -175,7 +176,7 @@ describe("0.8.22 (0) every tool goes through run() and guard()", () => {
         seen++;
       }
     }
-    expect(seen).toBe(68);
+    expect(seen).toBe(69);
     expect(src("./index.ts")).toContain("tools: ATHENA_TOOLS.map(secureTool)");
     expect(src("./guard.ts")).toMatch(
       /export async function run[\s\S]*?const sb = await guard\(ctx\);/,
@@ -192,7 +193,7 @@ describe("0.8.22 (3) refusal rule", () => {
       "That's how I'm built inside ALP; I can't share it. Want to get back to your job?",
     );
     const list = await toolsList(ALL.map(secureTool));
-    expect(list).toHaveLength(66);
+    expect(list).toHaveLength(67);
     for (const t of list) expect(t.description.includes(REFUSAL_DESC), t.name).toBe(false);
   });
   it("stays short (one sentence under 120 characters) and keeps schemas unchanged", async () => {

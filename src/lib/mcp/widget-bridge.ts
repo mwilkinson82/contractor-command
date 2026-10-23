@@ -3,6 +3,7 @@
 // puts it back on the meeting tools and getting_started, and registers the card widget resource.
 import { McpServer } from "@modelcontextprotocol/server";
 import { CARD_TOOLS } from "./cards/attach";
+import { NATIVE_CARD_URI, NATIVE_CARD_MIME, NATIVE_CARD_TOOLS, nativeCardHtml, nativeCardMeta, nativeResourceMeta } from "./cards/native";
 import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetHtml, cardWidgetMeta } from "./cards/widget";
 
 const MEETINGS = new Set(["pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "athena_hello", "morning_brief", "morning_brief_settings"]);
@@ -50,22 +51,28 @@ if (!proto[patched]) {
   proto[patched] = true;
   const orig = proto.registerTool;
   proto.registerTool = function (this: { registerResource?: (name: string, uri: string, config: Record<string, unknown>, read: () => Promise<unknown>) => unknown }, name, config, cb) {
-    const self = this;
-    const registered = (self as { _registeredResources?: Record<string, unknown> })._registeredResources;
+    const registered = (this as { _registeredResources?: Record<string, unknown> })._registeredResources;
     const already = !!registered?.[CARD_WIDGET_URI];
-    if (!already && typeof self.registerResource === "function" && !(self as { _athenaCard?: boolean })._athenaCard) {
-      (self as { _athenaCard?: boolean })._athenaCard = true;
+    if (!already && typeof this.registerResource === "function" && !(this as { _athenaCard?: boolean })._athenaCard) {
+      (this as { _athenaCard?: boolean })._athenaCard = true;
       try {
-        self.registerResource("athena-card", CARD_WIDGET_URI, { title: "Athena card", mimeType: CARD_WIDGET_MIME }, async () => ({
+        this.registerResource("athena-card", CARD_WIDGET_URI, { title: "Athena card", mimeType: CARD_WIDGET_MIME }, async () => ({
           contents: [{ uri: CARD_WIDGET_URI, mimeType: CARD_WIDGET_MIME, text: cardWidgetHtml() }],
         }));
       } catch {
         // A second server in the same process already registered this uri.
       }
     }
-    // Leave the tool definition alone. openai/outputTemplate on tools/list makes ChatGPT
+    if (NATIVE_CARD_TOOLS.has(name) && typeof this.registerResource === "function" && !(this as { _athenaNativeCard?: boolean })._athenaNativeCard) {
+      // A distinct resource, not a replacement for ChatGPT's skybridge widget.
+      this.registerResource("athena-native-card", NATIVE_CARD_URI, { title: "Athena native card", mimeType: NATIVE_CARD_MIME, _meta: nativeResourceMeta }, async () => ({
+        contents: [{ uri: NATIVE_CARD_URI, mimeType: NATIVE_CARD_MIME, text: nativeCardHtml(), _meta: nativeResourceMeta }],
+      }));
+      (this as { _athenaNativeCard?: boolean })._athenaNativeCard = true;
+    }
+    // openai/outputTemplate on tools/list makes ChatGPT
     // treat the tool as a widget, skip the styled card text, and hide the Athena icon.
-    const next = config;
+    const next = NATIVE_CARD_TOOLS.has(name) ? { ...config, _meta: { ...config._meta, ...nativeCardMeta } } : config;
     const wrapped = async (...args: unknown[]) => {
       const result = (await cb(...args)) ?? {};
       if (!CARD_WIDGET_TOOLS.has(name)) return result;

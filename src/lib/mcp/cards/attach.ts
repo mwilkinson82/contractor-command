@@ -15,7 +15,7 @@ type Res = {
 };
 
 /** These results open on the card. No sweep, style line, or footer is left outside it. */
-export const CARD_FIRST_TOOLS = new Set(["contract_terms", "pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "athena_hello", "morning_brief", "morning_brief_settings", "report_page_link", "list_open_items", "submittal_log", "submittals_list", "submittals_import", "project_record_search", "submittal_chase", "field_pay_app", "living_report_get"]);
+export const CARD_FIRST_TOOLS = new Set(["contract_terms", "pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "athena_hello", "morning_brief", "morning_brief_settings", "report_page_link", "list_open_items", "lookahead_get", "submittal_log", "submittals_list", "submittals_import", "project_record_search", "submittal_chase", "field_pay_app", "living_report_get"]);
 
 /** Tools whose plain text is wrapped in a card. Flow tools set their own card. */
 export const CARD_TOOLS = new Set([
@@ -24,6 +24,7 @@ export const CARD_TOOLS = new Set([
   "intake",
   "onboarding",
   "list_open_items",
+  "lookahead_get",
   "resolve_item",
   "carry_forward",
   "contract_terms",

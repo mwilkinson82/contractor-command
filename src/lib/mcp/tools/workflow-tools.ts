@@ -20,6 +20,8 @@ import { renderHtml } from "../cards/html";
 import { htmlBlock, renderMarkdown } from "../cards/markdown";
 import { applyCardClosing } from "../cards/silence";
 import { cardWidgetMeta } from "../cards/widget";
+import { savedLookaheadItems, savedItemsSection, savedLookaheadCard } from "../lookahead-card";
+import type { CardSection } from "../cards/model";
 import { signedJobPages } from "../board-url";
 import { whichJobAsk } from "../which-job";
 import { dueOf, isDueIn7, isOverdue, itemName, openItemFeed, openItemsCard, openItemsHeader } from "../open-feed";
@@ -1379,6 +1381,36 @@ export function lookaheadListLead(jobNumber: string, visible: { items: number }[
   return `Job ${jobNumber} has ${lookaheads} (${content} with content, ${empty} empty).`;
 }
 
+/** Normal display path: saved rows are returned directly, never through the PDF/export tool. */
+export const lookaheadGet = defineTool({
+  name: "lookahead_get",
+  title: "Show saved lookahead and its items",
+  description: "Reads a job's saved lookahead, its items and current schedule window. Returns the styled card and every saved item directly; no PDF, email or upload needed.",
+  inputSchema: { job_number: jobNumber, company_id: companyId, lookahead_id: laArg.optional() },
+  annotations: { ...READ, destructiveHint: false, idempotentHint: true },
+  handler: (args, ctx) =>
+    run("lookahead_get", ctx, { jobNumber: args.job_number }, async (sb) => {
+      const job = await resolveJob(sb, args.job_number, args.company_id);
+      const la = await lookaheadForJob(sb, job, args.lookahead_id ?? "latest");
+      const [d, items, rev] = await Promise.all([lookaheadData(sb, job, la), savedLookaheadItems(sb, job, la.id), currentRev(sb, la.id)]);
+      const win = lookaheadWindow(la, d.dataDate);
+      const activities = win ? windowActivities(d.acts, win.start, win.end) : [];
+      const context: CardSection[] = [{ heading: "Window", kind: "list", rows: [
+        { cells: [win ? `${win.start} to ${win.end}` : "Window dates needed", rev == null ? "" : `Rev ${rev}`] },
+        ...(d.dataDate ? [{ cells: [dataDateRule(d.dataDate, d.version)] }] : []),
+        ...(win?.note ? [{ cells: [win.note] }] : []),
+      ] }, { heading: "Schedule activities in this window", kind: "table", columns: ["Activity", "Start", "Finish"],
+        rows: activities.length ? activities.map((a) => ({ cells: [a.name || a.description || a.id, a.start?.slice(0, 10) || "Needed", a.finish?.slice(0, 10) || "Needed"] }))
+          : [{ cells: [d.acts.length ? "No saved activities overlap this window" : "No saved CPM activities yet", "", ""] }],
+      }];
+      const card = savedLookaheadCard(named(job), d.ref, items, d.today, context);
+      const html = renderHtml(card);
+      return { ...text(applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false)),
+        structuredContent: { lookahead_ref: d.ref, revision: rev, window: win, data_date: d.dataDate, cpm_version: d.version, activities, items, card, html },
+        _meta: { ...cardWidgetMeta } };
+    }),
+});
+
 export const lookaheadList = defineTool({
   name: "lookahead_list",
   title: "List lookaheads",
@@ -1410,6 +1442,8 @@ export const lookaheadList = defineTool({
         });
       }
       const lead = lookaheadListLead(job.job_number, rows);
+      const savedItems = latest ? await savedLookaheadItems(sb, job, latest.id) : [];
+      const today = todayIn(await jobTimeZone(sb, job.job_id));
       const card = {
         state: "result" as const,
         title: "Lookaheads",
@@ -1429,6 +1463,7 @@ export const lookaheadList = defineTool({
               cells: [item.ref, `${item.start ?? "dates unknown"}${item.end ? ` to ${item.end}` : ""}`, item.rev == null ? "" : `Rev ${item.rev}`, String(item.items)],
             })),
           },
+          ...(latest ? [savedItemsSection(lookaheadRef(latest.id), savedItems, today)] : []),
         ],
       };
       const html = renderHtml(card);
@@ -1436,7 +1471,7 @@ export const lookaheadList = defineTool({
       return guide(
         {
           ...text(body),
-          structuredContent: { total_visible: rows.length, items, card, html },
+          structuredContent: { total_visible: rows.length, items, lookahead_items: savedItems, card, html },
           _meta: { ...cardWidgetMeta },
         },
         "The card is shown. Add nothing after it.",
