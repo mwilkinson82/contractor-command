@@ -223,7 +223,7 @@ describe("first tool call", () => {
     );
     const first = (await run("report", ctx, { jobNumber: "2701" }, async () => ({
       content: [{ type: "text" as const, text: "Job 2701 is open." }],
-    }))) as { content: { text: string }[]; structuredContent: { getting_started: { title: string } } };
+    }))) as unknown as { content: { text: string }[]; structuredContent: { getting_started: { title: string } } };
     expect(first.content[0].text.startsWith(START_HEADLINE)).toBe(true);
     expect(first.content[0].text).toContain("Job 2701 is open.");
     expect(first.content[0].text.indexOf(START_HEADLINE)).toBeLessThan(first.content[0].text.indexOf("Job 2701 is open."));
@@ -245,7 +245,7 @@ describe("first tool call", () => {
 
     const second = (await run("report", ctx, { jobNumber: "2701" }, async () => ({
       content: [{ type: "text" as const, text: "Job 2701 is open." }],
-    }))) as { content: { text: string }[]; structuredContent?: { getting_started?: unknown } };
+    }))) as unknown as { content: { text: string }[]; structuredContent?: { getting_started?: unknown } };
     expect(second.content[0].text).not.toContain(START_HEADLINE);
     expect(second.structuredContent?.getting_started).toBeUndefined();
   });
@@ -255,7 +255,7 @@ describe("first tool call", () => {
     const result = (await run("pm_meeting", ctx, { jobNumber: "2701" }, async () => ({
       content: [{ type: "text" as const, text: "2701 – PM meeting\nSchedule is on track." }],
       structuredContent: { stage: "progress" },
-    }))) as { content: { text: string }[]; structuredContent: { getting_started?: { title: string }; stage?: string } };
+    }))) as unknown as { content: { text: string }[]; structuredContent: { getting_started?: { title: string }; stage?: string } };
     expect(result.content[0].text).not.toContain(START_HEADLINE);
     expect(result.structuredContent.getting_started?.title).toBe(START_HEADLINE);
     expect(JSON.stringify(result.structuredContent.getting_started)).toContain(MEMORY_LINE);
@@ -276,7 +276,7 @@ describe("first tool call", () => {
     );
     const result = (await run("report", ctx, {}, async () => ({
       content: [{ type: "text" as const, text: "Still here." }],
-    }))) as { content: { text: string }[] };
+    }))) as unknown as { content: { text: string }[] };
     expect(result.content[0].text).toContain("Still here.");
     expect(result.content[0].text).not.toContain(START_HEADLINE);
     const sb = { rpc: async () => ({ data: null, error: { message: "function public.mcp_getting_started_claim() does not exist" } }) };
@@ -369,7 +369,7 @@ describe("getting_started branches", () => {
 
   it("with one job, stays on the get-started card and does not open the morning hitlist", async () => {
     const morning = vi.fn();
-    const result = await branchGettingStarted(jobsDb([{ id: "c1" }], [{ job_number: "410", name: "Harbor" }]), morning, () => {
+    const result = await branchGettingStarted(jobsDb([{ id: "c1" }], [{ job_number: "410", name: "Harbor" }]), morning, (): ReturnType<typeof firstJobCard> => {
       throw new Error("setup");
     });
     expect(morning).not.toHaveBeenCalled();
@@ -383,7 +383,7 @@ describe("getting_started branches", () => {
     const result = await branchGettingStarted(
       jobsDb([{ id: "c1" }], [{ job_number: "410", name: "Harbor" }, { job_number: "411", name: "Ridge" }]),
       morning,
-      () => { throw new Error("setup"); },
+      (): ReturnType<typeof firstJobCard> => { throw new Error("setup"); },
     );
     expect(morning).not.toHaveBeenCalled();
     const shown = renderGettingStarted(result);
