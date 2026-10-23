@@ -19,13 +19,43 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
-    plugins: [mcpPlugin()],
-    resolve: {
-      alias: {
-        "entities/lib/decode.js": path.resolve(process.cwd(), "node_modules/entities/lib/decode.js"),
-        "entities/lib/encode.js": path.resolve(process.cwd(), "node_modules/entities/lib/encode.js"),
-        entities: path.resolve(process.cwd(), "node_modules/entities"),
+    plugins: [
+      mcpPlugin(),
+      {
+        name: "athena-pdfium-wasm",
+        enforce: "pre",
+        // Preserve the binary import through Vite. Nitro's Workers preset then
+        // emits a compiled WASM module alongside the server, never a public URL.
+        resolveId(source: string) {
+          if (source !== "@hyzyla/pdfium/pdfium.wasm?module") return;
+          return {
+            id:
+              path.resolve(process.cwd(), "node_modules/@hyzyla/pdfium/dist/pdfium.wasm") +
+              "?module",
+            external: true,
+          };
+        },
       },
+    ],
+    resolve: {
+      alias: [
+        {
+          find: /^@hyzyla\/pdfium$/,
+          replacement: path.resolve(
+            process.cwd(),
+            "node_modules/@hyzyla/pdfium/dist/index.esm.browser.js",
+          ),
+        },
+        {
+          find: "entities/lib/decode.js",
+          replacement: path.resolve(process.cwd(), "node_modules/entities/lib/decode.js"),
+        },
+        {
+          find: "entities/lib/encode.js",
+          replacement: path.resolve(process.cwd(), "node_modules/entities/lib/encode.js"),
+        },
+        { find: "entities", replacement: path.resolve(process.cwd(), "node_modules/entities") },
+      ],
     },
   },
 });

@@ -1,5 +1,5 @@
-/// <reference path="./pdfjs-legacy.d.ts" />
 import { DRAWING_MARKUP_REQUIRED, drawingMarkupCard } from "./drawing-markup";
+import { pdfPageCount } from "./pdf-pages";
 import { htmlBlock } from "./cards/markdown";
 // Stored drawing sets. New originals use a dedicated private drawing bucket; #190
 // originals remain in athena-files. Both use the same guarded
@@ -60,7 +60,6 @@ export function immutableDrawingDeleteRefused(bucketName: string, path: string, 
   return null;
 }
 const MAX_PAGES = 4;
-const MAX_EDGE = 1600;
 
 export type DrawingUpload = {
   filename?: string;
@@ -243,10 +242,16 @@ export async function readDrawingBytes(upload: DrawingUpload): Promise<{ bytes: 
     const names = upload.sheets ?? [];
     if (new Set(names.map((s) => s.trim().toLowerCase())).size !== names.length)
       throw new FileRejected("Give each sheet one unique name in PDF page order. Nothing was stored.");
-    const pdf = await (await loadPdfjs()).getDocument({ data: bytes.slice(), disableWorker: true, isEvalSupported: false, useSystemFonts: true }).promise;
+    // Import uses the existing pure-JavaScript PDF parser, without loading a
+    // renderer or requiring browser globals/native canvas support.
+    let pageCount: number;
     try {
-      if (names.length > pdf.numPages) throw new FileRejected("There are more sheet names than PDF pages. Correct the page index; nothing was stored.");
-    } finally { await pdf.destroy(); }
+      pageCount = await pdfPageCount(bytes);
+    } catch (err) {
+      const reason = err instanceof Error && err.message ? err.message : "This PDF could not be read.";
+      throw new FileRejected(/Nothing was stored\.$/.test(reason) ? reason : `${reason} Nothing was stored.`);
+    }
+    if (names.length > pageCount) throw new FileRejected("There are more sheet names than PDF pages. Correct the page index; nothing was stored.");
     return { bytes, filename: checked.name };
   } catch (e) {
     if (e instanceof FileRejected)
@@ -347,70 +352,9 @@ export async function removeDrawing(sb: DrawingStore, path: string, bucketName =
   await bucket(sb, bucketName).remove([path]);
 }
 
-type PdfjsModule = {
-  getDocument: (src: { data: Uint8Array; disableWorker: boolean; isEvalSupported: boolean; useSystemFonts: boolean }) => {
-    promise: Promise<PdfDoc>;
-  };
-};
-
-type PdfCanvas = {
-  canvas: { toBuffer: (mime: "image/png") => Uint8Array };
-  context: CanvasRenderingContext2D;
-};
-
-type PdfDoc = {
-  numPages: number;
-  canvasFactory: { create: (width: number, height: number) => PdfCanvas; destroy: (canvas: PdfCanvas) => void };
-  getPage: (page: number) => Promise<{
-    getViewport: (opts: { scale: number }) => { width: number; height: number };
-    render: (opts: { canvas: PdfCanvas["canvas"]; canvasContext: CanvasRenderingContext2D; viewport: unknown }) => {
-      promise: Promise<void>;
-    };
-    cleanup: () => void;
-  }>;
-  destroy: () => Promise<void>;
-};
-
-type PdfjsGlobal = typeof globalThis & { pdfjsWorker?: { WorkerMessageHandler?: unknown } };
-
-/** Legacy pdf.js, with the worker module imported directly.
- *  The edge runtime's module helper has no package-path resolve, so the
- *  entry cannot be located on disk. pdf.js uses this worker as its fake
- *  worker and does not look up ./pdf.worker.mjs. */
-async function loadPdfjs(): Promise<PdfjsModule> {
-  const worker = await import("pdfjs-dist/legacy/build/pdf.worker.mjs");
-  const scope = globalThis as PdfjsGlobal;
-  if (!scope.pdfjsWorker?.WorkerMessageHandler) scope.pdfjsWorker = worker;
-  return import("pdfjs-dist/legacy/build/pdf.mjs");
-}
-
-/** Rasterize one PDF page. pageIndex is zero-based. Returns null when that page is not in the file. */
+/** Rasterize the actual stored page. No browser or native canvas dependency. */
 export async function renderPdfPage(bytes: Uint8Array, pageIndex: number): Promise<Uint8Array | null> {
-  if (pageIndex < 0) return null;
-  const { getDocument } = await loadPdfjs();
-  const pdf = await getDocument({
-    data: bytes.slice(),
-    disableWorker: true,
-    isEvalSupported: false,
-    useSystemFonts: true,
-  }).promise;
-  try {
-    if (pageIndex >= pdf.numPages) return null;
-    const page = await pdf.getPage(pageIndex + 1);
-    const base = page.getViewport({ scale: 1 });
-    const longEdge = Math.max(base.width, base.height) || 1;
-    const viewport = page.getViewport({ scale: Math.min(2, MAX_EDGE / longEdge) });
-    const canvasAndCtx = pdf.canvasFactory.create(Math.ceil(viewport.width), Math.ceil(viewport.height));
-    try {
-      await page.render({ canvas: canvasAndCtx.canvas, canvasContext: canvasAndCtx.context, viewport }).promise;
-      return new Uint8Array(canvasAndCtx.canvas.toBuffer("image/png"));
-    } finally {
-      page.cleanup();
-      pdf.canvasFactory.destroy(canvasAndCtx);
-    }
-  } finally {
-    await pdf.destroy();
-  }
+  return (await import("./pdf-renderer")).renderPdfiumPage(bytes, pageIndex);
 }
 
 export async function loadSheetPages(
