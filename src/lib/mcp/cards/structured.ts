@@ -1,16 +1,19 @@
 // Cards built from structured rows rather than inferred from reply text.
 // Contract terms: one framed card per clause, exact wording in a quote panel. SOV: every line in one table.
-import { SUMMARY_OFFER, type ClauseRow } from "../contract-clauses";
+import { SUMMARY_HEADING, SUMMARY_OFFER, type ClauseRow } from "../contract-clauses";
 import { lineAlert } from "./infer";
 import type { CardModel, CardRow, CardSection } from "./model";
 
-/** Markdown emphasis from extraction is formatting, not contract wording. */
+/** Remove paired extraction emphasis only; preserve blanks, literal markers and spacing. */
 export function clauseWording(text: string): string {
-  return text.replace(/\*\*|__/g, "").replace(/[ \t]+/g, " ").trim();
+  return text.replace(/\*\*([^\s*](?:[^*\r\n]*[^\s*])?)\*\*/g, "$1");
 }
 
 function clockLine(c: Pick<ClauseRow, "n_days" | "day_type" | "trigger_desc">): string | null {
-  const days = c.n_days != null ? `${c.n_days} ${c.day_type ? `${c.day_type} ` : ""}day${c.n_days === 1 ? "" : "s"}` : null;
+  const days =
+    c.n_days != null
+      ? `${c.n_days} ${c.day_type ? `${c.day_type} ` : ""}day${c.n_days === 1 ? "" : "s"}`
+      : null;
   return [days, c.trigger_desc].filter(Boolean).join(" · ") || null;
 }
 
@@ -20,9 +23,23 @@ export function clauseSection(c: ClauseRow): CardSection {
   const rows: CardRow[] = [
     ...(clock ? [{ cells: [clock], raw: true }] : []),
     { cells: [clauseWording(c.verbatim_text)], tone: "quote", raw: true },
-    ...(c.source === "document" ? [] : [{ cells: ["Not found word for word in the contract text. Check it before relying on it."], tone: "unknown" as const, raw: true }]),
+    ...(c.source === "document"
+      ? []
+      : [
+          {
+            cells: ["Not found word for word in the contract text. Check it before relying on it."],
+            tone: "unknown" as const,
+            raw: true,
+          },
+        ]),
   ];
-  return { heading: `§${c.section}${c.heading ? ` ${c.heading}` : ""}`, kind: "list", framed: true, flag, rows };
+  return {
+    heading: `§${c.section}${c.heading ? ` ${c.heading}` : ""}`,
+    kind: "list",
+    framed: true,
+    flag,
+    rows,
+  };
 }
 
 export function contractTermsCard(input: {
@@ -33,6 +50,8 @@ export function contractTermsCard(input: {
   missing: string[];
   flags: { flag: string; value: string }[];
   askSummary: boolean;
+  /** Saved summaries and notice explanations, included only on request. */
+  summary?: string[];
   boardLinks: { label: string; url: string }[];
 }): CardModel {
   const sections = input.clauses.map(clauseSection);
@@ -43,18 +62,50 @@ export function contractTermsCard(input: {
     show_state: false,
     job: input.job,
     kpis: [
-      ...(input.valueDisplay ? [{ label: "Contract value", value: input.valueDisplay.replace(/^Contract value:\s*/i, "") }] : []),
+      ...(input.valueDisplay
+        ? [
+            {
+              label: "Contract value",
+              value: input.valueDisplay.replace(/^Contract value:\s*/i, ""),
+            },
+          ]
+        : []),
       { label: "Substantial completion", value: input.completion ?? "Needed" },
       { label: "Clauses", value: String(sections.length) },
       { label: "Risk clauses", value: String(risky), flag: risky ? "risk" : null },
     ],
     sections: [
       ...(input.boardLinks.length
-        ? [{ heading: "Job board", kind: "chips" as const, rows: input.boardLinks.map((l) => ({ cells: [l.label], href: l.url, tone: "action" as const })) }]
+        ? [
+            {
+              heading: "Job board",
+              kind: "chips" as const,
+              rows: input.boardLinks.map((l) => ({
+                cells: [l.label],
+                href: l.url,
+                tone: "action" as const,
+              })),
+            },
+          ]
         : []),
       ...sections,
+      ...(input.summary?.length
+        ? [
+            {
+              heading: SUMMARY_HEADING,
+              kind: "list" as const,
+              rows: input.summary.map((line) => ({ cells: [line], raw: true })),
+            },
+          ]
+        : []),
       ...(input.missing.length
-        ? [{ heading: "Incomplete terms", kind: "list" as const, rows: input.missing.map((m) => ({ cells: [m], tone: "unknown" as const, raw: true })) }]
+        ? [
+            {
+              heading: "Incomplete terms",
+              kind: "list" as const,
+              rows: input.missing.map((m) => ({ cells: [m], tone: "unknown" as const, raw: true })),
+            },
+          ]
         : []),
       {
         heading: "Applicability",
@@ -68,8 +119,21 @@ export function contractTermsCard(input: {
   };
 }
 
-type SovRow = { item_no: string; cost_code: string | null; division: string; division_title: string; description: string; scheduled_value_display: string; pct_of_total: number };
-type SovDivisionTotal = { division: string; title: string; scheduled_value_display: string; pct_of_contract: number };
+type SovRow = {
+  item_no: string;
+  cost_code: string | null;
+  division: string;
+  division_title: string;
+  description: string;
+  scheduled_value_display: string;
+  pct_of_total: number;
+};
+type SovDivisionTotal = {
+  division: string;
+  title: string;
+  scheduled_value_display: string;
+  pct_of_contract: number;
+};
 
 /** Line-item view: every line, then the total that ties to the contract sum. Divisions view: the roll-up. */
 export function sovCard(input: {
@@ -83,22 +147,65 @@ export function sovCard(input: {
   view: "lines" | "divisions";
 }): CardModel {
   const pct = (n: number) => `${n.toFixed(2)}%`;
-  const total: CardRow = { cells: ["Total", "", "", "Contract sum", input.totalDisplay, "100.00%"] };
+  const total: CardRow = {
+    cells: ["Total", "", "", "Contract sum", input.totalDisplay, "100.00%"],
+  };
   const table: CardSection =
     input.view === "divisions"
       ? {
           heading: "By division",
           kind: "table",
           columns: ["Division", "Scheduled value", "% of total"],
-          rows: [...input.divisions.map((d) => ({ cells: [`${d.division} ${d.title}`, d.scheduled_value_display, pct(d.pct_of_contract)] })), { cells: ["Total", input.totalDisplay, "100.00%"] }],
+          rows: [
+            ...input.divisions.map((d) => ({
+              cells: [
+                `${d.division} ${d.title}`,
+                d.scheduled_value_display,
+                pct(d.pct_of_contract),
+              ],
+            })),
+            ...(input.fee
+              ? [{ cells: ["Contractor's fee", input.fee.display, pct(input.fee.pct)] }]
+              : []),
+            { cells: ["Total", input.totalDisplay, "100.00%"] },
+          ],
         }
       : {
           heading: "Line items",
           kind: "table",
-          columns: ["Line", "Cost code", "Division", "Description", "Scheduled value", "% of total"],
+          columns: [
+            "Line",
+            "Cost code",
+            "Division",
+            "Description",
+            "Scheduled value",
+            "% of total",
+          ],
           rows: [
-            ...input.rows.map((r) => ({ cells: [r.item_no, r.cost_code ?? "", `${r.division} ${r.division_title}`, r.description, r.scheduled_value_display, pct(r.pct_of_total)] })),
-            ...(input.fee ? [{ cells: ["CF", "", "", "Contractor's fee", input.fee.display, pct(input.fee.pct)] }] : []),
+            ...input.rows.map((r) => ({
+              cells: [
+                r.item_no,
+                r.cost_code ?? "",
+                `${r.division} ${r.division_title}`,
+                r.description,
+                r.scheduled_value_display,
+                pct(r.pct_of_total),
+              ],
+            })),
+            ...(input.fee
+              ? [
+                  {
+                    cells: [
+                      "CF",
+                      "",
+                      "",
+                      "Contractor's fee",
+                      input.fee.display,
+                      pct(input.fee.pct),
+                    ],
+                  },
+                ]
+              : []),
             total,
           ],
         };

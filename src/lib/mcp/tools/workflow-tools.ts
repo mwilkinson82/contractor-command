@@ -1645,6 +1645,7 @@ export const contractTerms = defineTool({
             missing: missingNotices(cl).map((m) => `Missing: ${m.label} (${missingNoticeNote(true)})`),
             flags,
             askSummary: !withSummary,
+            summary: withSummary ? [...notice.lines, ...clauses.map(termLine)] : undefined,
             boardLinks,
           })
         : undefined;

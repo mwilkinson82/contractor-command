@@ -6,6 +6,7 @@ import mcp from "./index";
 import { clauseFlag, effectiveFlag } from "./clauses";
 import { makeWho, UNASSIGNED } from "./people";
 import { draftHeader, draftIdentityText } from "./drafts";
+import { ATHENA_VERSION } from "./server-info-branding";
 
 describe("tools/list (retest 3, item 1)", () => {
   it("lists all 9 tools, contract_terms included, and answer exposes lookahead_help", async () => {
@@ -21,7 +22,7 @@ describe("tools/list (retest 3, item 1)", () => {
   });
   it("the real server registers contract_terms and bumped its version", () => {
     const src = JSON.stringify(mcp, (_k, v) => (typeof v === "function" ? undefined : v));
-    expect(src).toContain("0.8.18");
+    expect(src).toContain(ATHENA_VERSION);
     expect(src).toContain("contract_terms");
   });
 });
