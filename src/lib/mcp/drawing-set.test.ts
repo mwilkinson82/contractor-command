@@ -290,6 +290,25 @@ describe("stored sheet page", () => {
 
 describe("drawing import", () => {
   it.each([
+    "http://oaisdmntprbrazilsouth.blob.core.windows.net/permit.pdf",
+    "https://oaisdmntprbrazilsouth.blob.core.windows.net:444/permit.pdf",
+    "https://user:fictional@oaisdmntprbrazilsouth.blob.core.windows.net/permit.pdf",
+    "https://oaisdmntprbrazilsouth.blob.core.windows.net.attacker.example.com/permit.pdf",
+    "https://different-account.blob.core.windows.net/permit.pdf",
+    "https://127.0.0.1/permit.pdf",
+  ])("rejects an unapproved attachment destination before fetching (%s)", async (download_url) => {
+    const fetcher = vi.fn();
+    vi.stubGlobal("fetch", fetcher);
+    try {
+      await expect(readDrawingBytes({ filename: "permit.pdf", file: { download_url, file_id: "fictional-file" } })).rejects.toThrow(/Nothing was stored/);
+      expect(fetcher).not.toHaveBeenCalled();
+      expect(state.uploads).toHaveLength(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.each([
     [
       "https://attachment.example.com/private-drawing.pdf?token=fictional-secret#private",
       "Athena does not yet accept attachment downloads from attachment.example.com. Nothing was stored.",
@@ -351,7 +370,12 @@ describe("drawing import", () => {
 });
 
 describe("sharing a drawing set", () => {
-  it.each(["intake", "takeoff"])("downloads the host attachment through %s without sending its bytes through the model", async (mode) => {
+  it.each([
+    ["intake", "https://files.oaiusercontent.com/test.pdf"],
+    ["takeoff", "https://files.oaiusercontent.com/test.pdf"],
+    ["intake", "https://oaisdmntprbrazilsouth.blob.core.windows.net/fictional/permit.pdf?sig=fictional"],
+    ["takeoff", "https://oaisdmntprbrazilsouth.blob.core.windows.net/fictional/permit.pdf?sig=fictional"],
+  ])("downloads the host attachment through %s without sending its bytes through the model (%s)", async (mode, download_url) => {
     const fetcher = vi.fn().mockImplementation(async () => new Response(state.pdf.slice()));
     vi.stubGlobal("fetch", fetcher);
     try {
@@ -359,7 +383,7 @@ describe("sharing a drawing set", () => {
       state.version = null;
       const args = {
         job_number: "CCW-003", reuse: "reuse", lines: [],
-        file: { download_url: "https://files.oaiusercontent.com/test.pdf", file_id: "fictional-file", file_name: "permit-host.pdf" },
+        file: { download_url, file_id: "fictional-file", file_name: "permit-host.pdf" },
         drawing: { sheets: ["S-001", "S-100"] },
       };
       const output = await (mode === "intake" ? intake(args) : saveTakeoff(args));
