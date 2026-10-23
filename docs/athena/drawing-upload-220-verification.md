@@ -10,7 +10,7 @@ No new dependency, migration, auth, Hub, Site URL, email-code, palette, widget, 
 
 ## Verification
 
-Updated onto live branch commit `255d5b26`. The default Vitest suite passes **2,010 tests across 191 files**; production `npm run build` passes. Changed new files pass ESLint; the legacy drawing-set file passes semantic ESLint checks with its pre-existing formatting rule excluded. TypeScript retains the same 34 baseline diagnostics/location-code pairs, with no added pair.
+Updated onto live branch commit `255d5b26`. The default Vitest suite passes **2,010 tests across 191 files**; production `npm run build` passes. New/rewritten parser and runtime-test files pass ESLint. The legacy drawing-set file retains its existing formatting findings and the pre-existing triple-slash-reference lint error at line 1; its declaration reference is unchanged. TypeScript retains the same 34 baseline diagnostics/location-code pairs, with no added pair.
 
 New regression coverage:
 
