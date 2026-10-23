@@ -65,6 +65,8 @@ async function liveTools(): Promise<Tool[]> {
       T.teamAddSeats,
       T.setCurrentCompany,
       Est.estimateIntake,
+      Est.drawingSetImport,
+      Est.drawingMarkup,
       Est.estimateDocReview,
       Est.estimateTakeoffSave,
       Est.estimateTakeoffGet,
