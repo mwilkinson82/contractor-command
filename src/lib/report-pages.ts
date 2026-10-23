@@ -285,7 +285,7 @@ function submittalsPageHtml(p: SubmittalsPagePayload): string {
     const who = row.ball_in_court_name?.trim() ? `${labelOf(BALL_LABEL, row.ball_in_court)}, ${row.ball_in_court_name.trim()}` : labelOf(BALL_LABEL, row.ball_in_court);
     const border = late ? `border-left:4px solid ${RED};` : "";
     const color = late ? RED : NAVY;
-    return `<section id="submittal-${esc(row.id)}" data-submittal-row="1" data-id="${esc(row.id)}" style="${border}">${card(`<div style="font-weight:700;color:${color}">${late ? "Overdue · " : ""}${esc(row.number)} revision ${esc(row.revision)}, ${esc(row.title)}</div><div style="font-size:12px;color:${G1};margin-top:4px">Spec ${esc(row.spec_section)} · ${esc(labelOf(STATUS_LABEL, row.status))} · ${esc(sourceLine(row))} · ${esc(who)} · ${esc(transmittalLabel(row.transmittal_number))} · Due back ${esc(row.due_back?.slice(0, 10) || "Needed")} · ${esc(packageLine(row.package_items))}</div>`)}</section>`;
+    return `<section id="submittal-${esc(row.id)}" data-submittal-row="1" data-id="${esc(row.id)}" style="${border}">${card(`<div style="font-weight:700;color:${color}">${late ? "Overdue · " : ""}${esc(row.number)} revision ${esc(row.revision)}, ${esc(row.title)}</div><div style="font-size:12px;color:${G1};margin-top:4px">Spec ${esc(row.spec_section)} · ${esc(labelOf(STATUS_LABEL, row.status))} · ${esc(sourceLine(row))} · ${esc(who)} · ${esc(transmittalLabel(row.transmittal_number))} · Due back ${esc(row.due_back?.slice(0, 10) || "Needed")} · ${esc(packageLine(row.package_items))} · Overdue: ${late ? "Yes" : "No"} · ${row.submission_sent_at ? `Package sent ${esc(row.submission_sent_at.slice(0, 10))}` : "Package send receipt not recorded"}</div>`)}</section>`;
   }).join("");
 }
 

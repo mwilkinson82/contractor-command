@@ -215,6 +215,8 @@ export const EMAIL_ATTACHMENT_STRUCTURED = {
 export const EMAIL_TO_LABEL_REQUIRED =
   'REQUIRED: Inside every email card, the first line of the card itself is the literal label "To:" followed by the address (or blank and ask in this same reply), above Subject. Never put To: outside the card, above or below it.';
 /** 0.8.7: report sov always comes with a bar chart of scheduled value by line, in the fixed palette. */
+/** Opens the SOV presentation guidance (table and chart styling). Claude's card replaces it. */
+export const SOV_PRESENTATION_LEAD = "Present the SOV as a spreadsheet";
 export const SOV_CHART_RULE =
   "REQUIRED, every host (Claude, ChatGPT, Grok and any other): draw a bar chart of the SOV from structuredContent.sov.chart: one bar per line (x: the line label, y: scheduled value), in the order given, placed directly under the SOV table and before the delivery question. Set the colors explicitly: bars #2563EB; axes, gridlines and labels in the grays #6B7280, #9CA3AF, #D1D5DB and #F3F4F6, with alternating gray bands (chart.band_colors) behind the bars; ChatGPT and every other host must show the gray as well as the blue. Never use the host's default palette, and never the alert color, rose, pink, orange or amber. Money labels with cents (value_display). No chart title text beyond \"Scheduled value by line\" and no extra commentary. Bars alternate blue #2563EB and gray #9CA3AF (chart.bars[].color).";
 export function sovChart(

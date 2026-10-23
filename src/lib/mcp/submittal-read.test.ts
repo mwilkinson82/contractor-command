@@ -115,7 +115,7 @@ describe("submittal log read", () => {
     expect(state.filters.some((f) => f.col === "company_id")).toBe(false);
     expect(result.structuredContent.job_id).toBe(JOB_3101);
     const log = result.structuredContent.card.sections?.find((section) => section.heading === "Log");
-    expect(log?.columns).toEqual(["Number", "Title", "Status", "Ball in court", "Due", "Overdue"]);
+    expect(log?.columns).toEqual(["Number", "Title", "Spec section", "Transmittal", "Revision", "Status", "Ball in court", "Due", "Overdue", "Package delivery"]);
     expect(log?.rows).toHaveLength(4);
     for (const title of ["Switchgear product data", "Lighting shop drawing", "Floor box sample", "Panelboard warranty"]) {
       expect(text).toContain(title);

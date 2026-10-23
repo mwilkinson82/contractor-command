@@ -1,0 +1,29 @@
+name: Athena native card checks
+on:
+  pull_request:
+    branches: [codex/athena-passwordless-login-only]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      # The inherited lock omits the MCP SDK; pin the verified manifest runtime in CI.
+      # This does not change the app dependency range or any deployment configuration.
+      - name: Install verification dependencies
+        run: npm install --no-save --legacy-peer-deps @lovable.dev/mcp-js@3.0.5 zod@4.4.3
+      - name: Unit and local database tests
+        run: npm test -- --reporter=default --reporter=junit --outputFile.junit=verification-results.xml
+      - name: Production build (no deploy)
+        run: npm run build
+      - name: Save test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: athena-native-card-test-results
+          path: verification-results.xml

@@ -9,6 +9,7 @@ import {
   nativeCardVisit,
 } from "./native-card-transport";
 import { NATIVE_CARD_URI, NATIVE_CARD_MIME } from "./cards/native";
+import { HOST_DISPLAY_BLOCK } from "./visible";
 import { CARD_WIDGET_URI, cardWidgetMeta } from "./cards/widget";
 import { openItemsCard } from "./open-feed";
 import { attachAthenaCard } from "./cards/attach";
@@ -266,13 +267,51 @@ describe("native card presentation after the SDK", () => {
     const otherId = Response.json({ ...missing, id: 100 }, { status: 404 });
     expect(await nativeCardResponse(otherId, visit)).toBe(otherId);
   });
-  it.each(["claude-ai", "Anthropic/ClaudeAI", "ChatGPT", "openai-mcp"])(
+  it.each(["ChatGPT", "openai-mcp"])(
     "keeps the complete result byte-for-byte when %s advertises Apps support",
     async (name) => {
       const input = result(cardResult);
       const out = await transform("tools/call", { name: "list_open_items" }, input, meta(name));
       expect(out.changed).toBe(false);
       expect(out.value).toBe(input);
+    },
+  );
+  it.each(["claude-ai", "Anthropic/ClaudeAI"])(
+    "gives %s every row with no HTML document or display orders",
+    async (name) => {
+      const input = result({
+        ...cardResult,
+        structuredContent: {
+          ...cardResult.structuredContent,
+          assistant_guidance: [HOST_DISPLAY_BLOCK, "Ask which job next.", "Card shown. Do not add text."],
+        },
+      });
+      const out = await transform("tools/call", { name: "list_open_items" }, input, meta(name));
+      expect(out.changed).toBe(true);
+      const returned = (out.value as { result: typeof cardResult & { structuredContent: { assistant_guidance?: string[]; html?: string } } }).result;
+      const text = returned.content[0].text!;
+      expect(text).toContain("| Full styled fallback |");
+      expect(text).not.toContain("<!doctype");
+      expect(text).not.toMatch(/sees this result as an Athena card/);
+      expect(returned.content[1]).toEqual(cardResult.content[1]);
+      expect(returned.structuredContent.assistant_guidance).toEqual(["Ask which job next."]);
+      expect(returned.structuredContent.card).toEqual(cardResult.structuredContent.card);
+    },
+  );
+  it.each(["contract_terms", "report", "morning_brief"])(
+    "strips the render orders from Claude's %s reply and keeps its rows",
+    async (name) => {
+      const html = "<!doctype html><html><body><article class=\"card\">Card</article></body></html>";
+      const input = result({
+        content: [{ type: "text", text: `## Athena\n- §6.2 Delay notice: 5 calendar days\n\nREQUIRED VIEW: render this HTML card as-is. Do not escape it.\n\n${html}\n\nCard shown. Do not add text.` }],
+        structuredContent: { html, assistant_guidance: [HOST_DISPLAY_BLOCK] },
+      });
+      const out = await transform("tools/call", { name }, input, meta("claude-ai"));
+      const returned = (out.value as { result: { content: { text: string }[]; structuredContent: Record<string, unknown> } }).result;
+      expect(returned.content[0].text).toBe("## Athena\n- §6.2 Delay notice: 5 calendar days");
+      expect(returned.structuredContent).toEqual({ html });
+      const chatgpt = await transform("tools/call", { name }, input, meta("ChatGPT"));
+      expect(chatgpt.value).toBe(input);
     },
   );
   it.each(["claude-ai", "ChatGPT"])(
@@ -300,7 +339,8 @@ describe("native card presentation after the SDK", () => {
       );
       expect(visit?.calls[0]?.inlineHtml).toBe(true);
       const response = await nativeCardResponse(original, visit);
-      expect(response).toBe(original);
+      const claude = host === "claude-ai";
+      if (!claude) expect(response).toBe(original);
       const returned = (await response.json()).result;
       const body = returned.content.map((block: { text?: string }) => block.text ?? "").join("\n");
       for (let i = 1; i <= 17; i++) expect(body).toContain(`Job 2701 task ${i}`);
@@ -310,9 +350,12 @@ describe("native card presentation after the SDK", () => {
         flag: "overdue",
       });
       expect(returned._meta).toEqual(cardWidgetMeta);
-      expect(body).toContain(returned.structuredContent.html);
-      expect(body).toContain("<!doctype html");
-      expect(body).toContain("#1E5FED");
+      expect(returned.structuredContent.html).toContain("#1E5FED");
+      if (claude) expect(body).not.toContain("<!doctype html");
+      else {
+        expect(body).toContain(returned.structuredContent.html);
+        expect(body).toContain("<!doctype html");
+      }
       expect(body).not.toMatch(/REQUIRED VIEW|Card shown/);
     },
   );
@@ -405,7 +448,10 @@ describe("native card presentation after the SDK", () => {
     const claudeCall = makeRequest("tools/call", { name: "lookahead_get" });
     claudeCall.headers.set("mcp-session-id", "sess-claude");
     const claude = await nativeCardPayload(input, await nativeCardVisit(claudeCall));
-    expect(claude.value).toBe(input);
+    // The remembered session is still Claude's: facts-only text, not Grok's phone list.
+    const claudeText = (claude.value as { result: { content: { text: string }[] } }).result.content[0].text;
+    expect(claudeText).toContain("| Full styled fallback |");
+    expect(claudeText).not.toContain("<!doctype");
   });
   it("keeps unknown/text-only hosts and errors on the full styled fallback", async () => {
     const input = result(cardResult);
@@ -418,7 +464,7 @@ describe("native card presentation after the SDK", () => {
     expect(text).not.toContain("<!doctype");
     expect((plain.value as { result: { structuredContent: { html: string }; _meta: unknown } }).result.structuredContent.html).toContain("<!doctype html");
     expect((plain.value as { result: { _meta: { retained: boolean } } }).result._meta.retained).toBe(true);
-    const noUi = { ...meta(), "io.modelcontextprotocol/clientCapabilities": {} };
+    const noUi = { ...meta("ChatGPT"), "io.modelcontextprotocol/clientCapabilities": {} };
     expect((await transform("tools/call", { name: "lookahead_get" }, input, noUi)).value).toBe(
       input,
     );

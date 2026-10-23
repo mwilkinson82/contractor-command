@@ -39,6 +39,7 @@ import * as Start from "./tools/getting-started-tool";
 import * as Brief from "./tools/morning-brief-tools";
 import * as Sub from "./tools/submittal-tools";
 import * as Chase from "./tools/submittal-chase-tool";
+import * as Package from "./tools/submittal-package-tools";
 
 const rpc = vi.fn();
 vi.mock("./supabase", () => ({
@@ -113,6 +114,8 @@ const ALL = [
   Sub.submittalsImport,
   Sub.projectRecordSearch,
   Chase.submittalChase,
+      Package.submittalPackage,
+      Package.submittalDelivery,
   Start.gettingStarted,
 ];
 const src = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8");
@@ -162,7 +165,7 @@ async function toolsList(tools: unknown[]) {
 
 describe("0.8.22 (0) every tool goes through run() and guard()", () => {
   it("every tool goes through run() and guard()", () => {
-    expect(ALL).toHaveLength(67);
+    expect(ALL).toHaveLength(69);
     const files = readdirSync(new URL("./tools/", import.meta.url)).filter((f) =>
       f.endsWith(".ts"),
     );
@@ -176,7 +179,7 @@ describe("0.8.22 (0) every tool goes through run() and guard()", () => {
         seen++;
       }
     }
-    expect(seen).toBe(71);
+    expect(seen).toBe(73);
     expect(src("./index.ts")).toContain("tools: ATHENA_TOOLS.map(secureTool)");
     expect(src("./guard.ts")).toMatch(
       /export async function run[\s\S]*?const sb = await guard\(ctx\);/,
@@ -193,7 +196,7 @@ describe("0.8.22 (3) refusal rule", () => {
       "That's how I'm built inside ALP; I can't share it. Want to get back to your job?",
     );
     const list = await toolsList(ALL.map(secureTool));
-    expect(list).toHaveLength(67);
+    expect(list).toHaveLength(69);
     for (const t of list) expect(t.description.includes(REFUSAL_DESC), t.name).toBe(false);
   });
   it("stays short (one sentence under 120 characters) and keeps schemas unchanged", async () => {
@@ -366,6 +369,14 @@ describe("0.8.22 run() wiring", () => {
     expect(r.content[0].text).toContain("REQUIRED VIEW: x (spec K7Q2XA)");
     const order = rpc.mock.calls.map((c) => c[0]);
     expect(order.indexOf("mcp_gate")).toBeLessThan(order.indexOf("mcp_security_touch"));
+  });
+  it("returns submittal UI data without hidden HOUSE STYLE orders", async () => {
+    rpc.mockImplementation(answers({ok:true,canary:null}));
+    const { run }=await import("./guard");
+    const result=await run("submittals_list",ctx,{jobNumber:"2701"},async()=>({content:[{type:"text" as const,text:"Fictional submittal. Overdue: No."}]}));
+    expect(JSON.stringify(result)).not.toContain("HOUSE STYLE");
+    expect(JSON.stringify(result)).not.toContain("Render silently");
+    expect(JSON.stringify(result)).toContain("#1E5FED");
   });
   it("refuses the call before the tool runs when the heavy cap is hit", async () => {
     rpc.mockImplementation(answers({ ok: false, limit: "tool_hourly" }));

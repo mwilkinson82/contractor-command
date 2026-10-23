@@ -74,17 +74,31 @@ function candidates(items: FlowItem[]): FlowItem[] {
   return items.filter((i) => i.status === "open" && (i.kind === "risk" || i.kind === "delay"));
 }
 
+function filePhrase(categories: readonly string[] | undefined): string | null {
+  const list = categories ?? [];
+  const bits: string[] = [];
+  if (list.includes("Meeting")) bits.push("as a meeting note");
+  if (list.includes("Daily")) bits.push("as a daily note");
+  if (list.includes("Risk")) bits.push("on the risk log");
+  return bits.length ? `Filed ${bits.join(" and ")}` : null;
+}
+
+function filedSentence(phrase: string, logged: boolean): string {
+  return logged ? `${phrase} and saved for the next IOR comparison.` : `${phrase}. The IOR snapshot was not stored.`;
+}
+
 function noteSection(data: FlowData): CardModel["sections"] {
   if (!data.note) return [];
+  const phrase = filePhrase(data.filedCategories);
+  const filed = phrase && (data.logged || data.itemFiled) ? filedSentence(phrase, data.logged) : null;
+  const riskFiled = (data.filedCategories ?? []).includes("Risk") && (data.logged || data.itemFiled) ? filedSentence("Filed on the risk log", data.logged) : null;
   const line = data.sample
     ? "Sample on job 2701. Nothing was saved."
-    : data.confirmationSaved !== undefined
-      ? data.confirmationSaved ? "Meeting confirmation saved for this lookahead." : "Could not verify the meeting confirmation. Try again."
-    : data.logged
-      ? "Filed on the risk log and saved for the next IOR comparison."
-      : data.itemFiled
-        ? "Filed on the risk log. The IOR snapshot was not stored."
-        : "On this card. It was not stored.";
+    : data.confirmationSaved === false
+      ? "Could not verify the meeting confirmation. Try again."
+      : data.confirmationSaved === true
+        ? riskFiled ? `Meeting confirmation saved for this lookahead. ${riskFiled}` : "Meeting confirmation saved for this lookahead."
+        : filed ?? "On this card. It was not stored.";
   return [{ heading: "From this meeting", kind: "list", rows: [{ cells: [formatBillingText(data.note)], tone: "action" }, { cells: [line], tone: data.logged ? "known" : "unknown" }] }];
 }
 

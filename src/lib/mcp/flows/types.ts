@@ -1,5 +1,8 @@
 export type FlowName = "pm_meeting" | "pm_morning" | "pm_evening";
 
+/** Where a filed meeting line actually went. */
+export type FiledCategory = "Meeting" | "Daily" | "Risk";
+
 export type FlowItem = {
   id: string;
   action: string;
@@ -55,6 +58,8 @@ export type FlowData = {
   logged: boolean;
   /** Open item filed. The snapshot may still be missing. */
   itemFiled: boolean;
+  /** Categories this note was actually filed under. Confirmation copy uses these. */
+  filedCategories?: FiledCategory[];
   sample: boolean;
   showMoney: boolean;
   /** Short-lived board links for the browser that has no Athena session. */

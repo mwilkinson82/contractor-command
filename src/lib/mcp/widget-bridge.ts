@@ -3,7 +3,7 @@
 // puts it back on the meeting tools and getting_started, and registers the card widget resource.
 import { McpServer } from "@modelcontextprotocol/server";
 import { CARD_TOOLS } from "./cards/attach";
-import { NATIVE_CARD_URI, NATIVE_CARD_MIME, NATIVE_CARD_TOOLS, nativeCardHtml, nativeCardMeta, nativeResourceMeta } from "./cards/native";
+import { NATIVE_CARD_URIS, NATIVE_CARD_MIME, NATIVE_CARD_TOOLS, nativeCardHtml, nativeCardMeta, nativeResourceMeta } from "./cards/native";
 import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetHtml, cardWidgetMeta } from "./cards/widget";
 
 const MEETINGS = new Set(["pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "athena_hello", "morning_brief", "morning_brief_settings"]);
@@ -65,9 +65,11 @@ if (!proto[patched]) {
     }
     if (NATIVE_CARD_TOOLS.has(name) && typeof this.registerResource === "function" && !(this as { _athenaNativeCard?: boolean })._athenaNativeCard) {
       // A distinct resource, not a replacement for ChatGPT's skybridge widget.
-      this.registerResource("athena-native-card", NATIVE_CARD_URI, { title: "Athena native card", mimeType: NATIVE_CARD_MIME, _meta: nativeResourceMeta }, async () => ({
-        contents: [{ uri: NATIVE_CARD_URI, mimeType: NATIVE_CARD_MIME, text: nativeCardHtml(), _meta: nativeResourceMeta }],
-      }));
+      for (const uri of NATIVE_CARD_URIS) {
+        this.registerResource(`athena-native-card-${uri === nativeCardMeta.ui.resourceUri ? "current" : "legacy"}`, uri, { title: "Athena native card", mimeType: NATIVE_CARD_MIME, _meta: nativeResourceMeta }, async () => ({
+          contents: [{ uri, mimeType: NATIVE_CARD_MIME, text: nativeCardHtml(), _meta: nativeResourceMeta }],
+        }));
+      }
       (this as { _athenaNativeCard?: boolean })._athenaNativeCard = true;
     }
     // openai/outputTemplate on tools/list makes ChatGPT

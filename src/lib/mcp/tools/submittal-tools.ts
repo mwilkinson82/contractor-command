@@ -128,18 +128,31 @@ function cardResult(_body: string, card: CardModel, extra: Record<string, unknow
 
 /** Saved submittal rows for one job. Select only: no lookahead, no board link, no living report. */
 export async function readSubmittalRows(sb: Sb, jobId: string): Promise<SubmittalRecord[]> {
-  const res = await sb
-    .from("mcp_submittals")
-    .select("id, number, revision, spec_section, title, submittal_type, status, ball_in_court, ball_in_court_name, source, required, required_by, submitted_on, due_back, returned_on, review_days")
-    .eq("job_id", jobId)
-    .order("number", { ascending: true })
-    .limit(500);
-  if (res.error) throw new Error(res.error.message);
-  return ((res.data ?? []) as Partial<SubmittalRecord>[]).map((row) => ({
+  async function all(table: string, columns: string, order: string) {
+    const out: Record<string, unknown>[] = [];
+    for (let offset = 0; offset < 50000; offset += 500) {
+      const query = sb.from(table).select(columns).eq("job_id", jobId).order(order, { ascending: true }).order("id", { ascending: true });
+      const result = await (offset ? query.range(offset, offset + 499) : query.limit(500));
+      if (result.error) throw new Error("The complete submittal log could not be read. Try again.");
+      const rows = (result.data ?? []) as unknown as Record<string, unknown>[];
+      out.push(...rows);
+      if (rows.length < 500) return out;
+    }
+    throw new Error("This log is too large to return safely in one reply. Nothing was changed.");
+  }
+  const [rows, transmittals, pieces, packages] = await Promise.all([
+    all("mcp_submittals", "id,number,revision,transmittal_id,spec_section,title,submittal_type,status,ball_in_court,ball_in_court_name,source,required,required_by,submitted_on,due_back,returned_on,review_days", "number"),
+    all("mcp_transmittals", "id,number", "number"),
+    all("mcp_submittal_package_items", "*", "created_at"),
+    all("mcp_submittal_packages", "id,submittal_id,sent_at", "sent_at"),
+  ]);
+  const numbers = new Map((transmittals as { id: string; number: number }[]).map((t) => [t.id, t.number]));
+  return (rows as (Partial<SubmittalRecord> & { transmittal_id?: string })[]).map((row) => ({
     id: String(row.id ?? ""),
     number: String(row.number ?? ""),
     revision: Number(row.revision ?? 0),
-    transmittal_number: 0,
+    submission_sent_at: (packages as { submittal_id: string; sent_at: string | null }[]).find((p) => p.submittal_id === row.id && p.sent_at)?.sent_at ?? null,
+    transmittal_number: numbers.get(row.transmittal_id ?? "") ?? 0,
     spec_section: String(row.spec_section ?? ""),
     title: String(row.title ?? ""),
     submittal_type: String(row.submittal_type ?? "other"),
@@ -153,7 +166,7 @@ export async function readSubmittalRows(sb: Sb, jobId: string): Promise<Submitta
     due_back: (row.due_back ?? "").slice(0, 10) || null,
     returned_on: row.returned_on ?? null,
     review_days: row.review_days ?? null,
-    package_items: [],
+    package_items: (pieces as (NonNullable<SubmittalRecord["package_items"]>[number] & { submittal_id: string })[]).filter((p) => p.submittal_id === row.id),
   }));
 }
 

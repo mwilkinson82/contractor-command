@@ -75,5 +75,5 @@ describe("0.8.7 owner link hard no, SOV chart, date sweep", () => {
     expect(w).toContain("sweep: args.date_sweep === true");
     expect(w).toContain("Same notice also logged as: ${d.map((x) => itemName(x.action))");
   });
-  it("version is 0.8.7", () => expect(ATHENA_VERSION).toBe("0.8.20"));
+  it("version is 0.8.7", () => expect(ATHENA_VERSION).toBe("0.8.21"));
 });

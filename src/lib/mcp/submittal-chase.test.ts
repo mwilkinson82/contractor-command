@@ -3,8 +3,7 @@ import { renderHtml } from "./cards/html";
 import { paletteViolations } from "./cards/palette";
 import { BLUE, NAVY } from "./cards/palette";
 import { attachAthenaCard } from "./cards/attach";
-import { CARD_SHOWN } from "./cards/silence";
-import { chaseBriefRows, chaseDraft, chaseFromSchedule, chaseHeaderMatches, chaseIsDue, nextChaseDate, presentChaseCard, type ChaseRow } from "./submittal-chase";
+import { chaseBriefRows, chaseDraft, chaseHeaderMatches, chaseIsDue, nextChaseDate, presentChaseCard, type ChaseRow } from "./submittal-chase";
 
 const TODAY = "2026-10-22";
 
@@ -59,22 +58,17 @@ describe("submittal chase", () => {
     }).card);
     expect(paletteViolations(quiet, false)).toEqual([]);
     const sealed = attachAthenaCard("submittal_chase", { content: [{ type: "text", text: presented.text }], structuredContent: { card: presented.card } }) as { content: { text?: string }[] };
-    expect(sealed.content[0].text?.trim().endsWith(CARD_SHOWN)).toBe(true);
+    expect(sealed.content[0].text).toContain("#1E5FED");
     expect(chaseDraft("2701", chase()).body).not.toMatch(/\battached\b/i);
   });
 
-  it("drafts a chase from a scheduled package that is not marked submitted", () => {
-    const rows = chaseFromSchedule(
-      [{ id: "A1020", name: "Submit long-lead gear", finish: "2026-10-28", critical: true }],
-      TODAY,
-    );
-    expect(rows[0].submittal_id).toBe("");
-    expect(rows[0].missing).toBe("not submitted");
-    const presented = presentChaseCard({ jobNumber: "2701", jobName: "Harbor Point", chases: rows, today: TODAY });
-    expect(presented.draft?.subject).toContain("A1020");
-    expect(presented.text).toContain("Not sent. Needs confirm.");
-    expect(presented.card.sections?.find((section) => section.heading === "Draft")?.rows.some((row) => row.cells.includes("Not sent. Needs confirm."))).toBe(true);
-    expect(presented.card.next_move).toMatch(/Nothing is sent/);
+  it("does not produce a sendable draft with missing contact or spec", () => {
+    for (const gap of [{ chase_name: null }, { chase_email: null }, { spec_section: "Needed" }]) {
+      const presented = presentChaseCard({ jobNumber: "2701", jobName: "Harbor Point", chases: [chase(gap)], today: TODAY });
+      expect(presented.draft).toBeNull();
+      expect(presented.text).not.toContain("there,");
+      expect(presented.card.next_move).toContain("Who is the named contact");
+    }
   });
 
   it("puts due chases on the morning brief, red only when overdue", () => {

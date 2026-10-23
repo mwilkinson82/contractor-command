@@ -31,3 +31,6 @@ dist-ssr
 *.sln
 *.sw?
 .claude/
+
+# Card screenshots (scripts/card-screenshots)
+artifacts/

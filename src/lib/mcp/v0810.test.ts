@@ -19,7 +19,10 @@ function files(dir: string): string[] {
 }
 
 describe("0.8.10", () => {
-  it("version is 0.8.10 or later", () => expect(ATHENA_VERSION).toMatch(/^0\.8\.1[0-9]$/));
+  it("version is 0.8.10 or later", () => {
+    const [major, minor, patch] = ATHENA_VERSION.split(".").map(Number);
+    expect(major > 0 || minor > 8 || (minor === 8 && patch >= 10)).toBe(true);
+  });
 
   it("fragnet, never fragment: delay result wording and tool schema", () => {
     const t = tiaResult({

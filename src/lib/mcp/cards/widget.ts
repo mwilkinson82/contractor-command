@@ -1,6 +1,7 @@
 // ChatGPT MCP Apps card. Same shape as the team picker (ui:// resource, outputTemplate,
 // HTML stays out of the tool text). This one paints whatever card the tool put on structuredContent.card.
 import { ALERT, BLUE, GRAY, NAVY, WHITE, cssColor } from "./palette";
+import { responsiveCardCss } from "./responsive";
 
 export const CARD_WIDGET_URI = "ui://athena/card.html";
 export const CARD_WIDGET_MIME = "text/html+skybridge";
@@ -47,8 +48,9 @@ if(card.progress&&card.progress.total>0){
 });
 if(card.ask&&card.ask.prompt)h+='<div class="ask"><strong>This question</strong><p>'+esc(card.ask.prompt)+'</p></div>';
 (card.sections||[]).forEach(function(s){
-  var open=s.placeholder?'<section class="placeholder">':'';
-  var close=s.placeholder?'</section>':'';
+  var framed=s.framed?'<section class="framed'+(isAlert(s.flag)?' alert" data-alert="'+s.flag:'')+'">':'';
+  var open=framed||(s.placeholder?'<section class="placeholder">':'');
+  var close=s.framed||s.placeholder?'</section>':'';
   h+=open+'<h2>'+esc(s.heading)+'</h2>';
   if(s.kind==="chips"){
     h+='<p>';
@@ -62,20 +64,22 @@ if(card.ask&&card.ask.prompt)h+='<div class="ask"><strong>This question</strong>
   function head(flag){return flag==="delay"?"Delay":flag==="overdue"?"Overdue":flag==="risk"?"Risk":"Callout"}
   if(s.kind==="table"){
     var cols=s.columns||[];
-    if(s.scroll)h+='<div class="table-scroll" tabindex="0" role="region" aria-label="Continuation table">';
+    h+=s.scroll?'<div class="table-scroll" tabindex="0" role="region" aria-label="Continuation table">':'<div class="table-wrap">';
     h+='<table><thead><tr>'+cols.map(function(c){return '<th>'+esc(c)+'</th>'}).join('')+'</tr></thead><tbody>';
     (s.rows||[]).forEach(function(r){
       var alert=isAlert(r.flag);
       var seen=view(r);
-      h+='<tr'+(alert?' class="alert" data-alert="'+r.flag+'"':r.flag==="callout"?' class="callout"':'')+'>'+(r.cells||[]).map(function(c,i){var t=raw(c)?"":clean(c);var body=i===0?linked({label:t||seen.label,href:seen.href,ref:seen.ref,secondary:seen.secondary}):esc(t);return '<td>'+((alert||r.flag==="callout")&&i===0?'<div class="flag-head">'+head(r.flag)+'</div><div class="flag-body">'+body+'</div>':body)+'</td>'}).join('')+'</tr>';
+      h+='<tr'+(alert?' class="alert" data-alert="'+r.flag+'"':r.flag==="callout"?' class="callout"':'')+'>'+(r.cells||[]).map(function(c,i){var t=raw(c)?"":clean(c);var body=i===0?linked({label:t||seen.label,href:seen.href,ref:seen.ref,secondary:seen.secondary}):esc(t);return '<td'+(!t&&i>0?' class="blank"':/^[$\\d][\\d.,]*%?$/.test(t)?' class="num"':'')+(cols[i]?' data-label="'+esc(cols[i])+'"':'')+'>'+((alert||r.flag==="callout")&&i===0?'<div class="flag-head">'+head(r.flag)+'</div><div class="flag-body">'+body+'</div>':body)+'</td>'}).join('')+'</tr>';
     });
-    h+='</tbody></table>'+(s.scroll?'</div>':'')+close;
+    h+='</tbody></table></div>'+close;
     return;
   }
   h+='<ul>';
   (s.rows||[]).forEach(function(r){
     var alert=isAlert(r.flag);
-    h+='<li'+(alert?' class="alert" data-alert="'+r.flag+'"':r.flag==="callout"?' class="callout"':'')+'>'+((alert||r.flag==="callout")?'<div class="flag-head">'+head(r.flag)+'</div><div class="flag-body">':'')+linked(view(r))+((alert||r.flag==="callout")?'</div>':'')+'</li>';
+    if(r.tone==="literal"){h+='<li class="tone-literal">'+esc((r.cells||[]).join("\\n"))+'</li>';return}
+    if(r.tone==="quote"){h+='<li class="tone-quote">'+esc((r.cells||[]).join("\\n"))+'</li>';return}
+    h+='<li'+(alert?' class="alert" data-alert="'+r.flag+'"':r.flag==="callout"?' class="callout"':r.tone?' class="tone-'+r.tone+'"':'')+'>'+((alert||r.flag==="callout")?'<div class="flag-head">'+head(r.flag)+'</div><div class="flag-body">':'')+linked(view(r))+((alert||r.flag==="callout")?'</div>':'')+'</li>';
   });
   h+='</ul>'+close;
 });
@@ -99,7 +103,7 @@ export function cardWidgetHtml(): string {
   const gray = cssColor(GRAY, "#6B7280");
   const white = cssColor(WHITE, "#FFFFFF");
   const alert = cssColor(ALERT, "#DC2626");
-  return `<!doctype html><html><head><meta charset="utf-8"><style>
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>
 body{margin:0;background:${white};color:${navy};font:15px/1.45 system-ui,sans-serif}
 .stack{display:flex;flex-direction:column;gap:12px}
 .card{border:1px solid ${gray};border-radius:14px;overflow:hidden;background:${white}}
@@ -116,8 +120,10 @@ h2{margin:16px 0 8px;font-size:14px}
 th{background:${blue};color:${white};text-align:left;padding:6px 8px}
 .table-scroll{overflow-x:auto}.table-scroll table{min-width:960px}
 td{padding:6px 8px;border-bottom:1px solid ${gray}}
+.table-wrap{overflow-x:auto}td.num{white-space:nowrap;text-align:right}
 .chip{display:inline-block;margin:0 6px 6px 0;padding:4px 8px;border-radius:999px;border:1px solid ${gray}}
 .tone-known{border-color:${blue};color:${blue}}.tone-unknown{color:${gray}}.tone-action{background:${blue};color:${white}}
+.chip.tone-action a{color:inherit}
 a{color:${blue};text-decoration:none}
 .ref{display:block;margin-top:2px;font-size:11px;color:${gray}}
 .ask{margin:12px 0;padding:12px;border-left:4px solid ${blue}}
@@ -133,6 +139,15 @@ li.alert,p.alert{display:block;margin:8px 0;padding:0;border:2px solid ${alert};
 li.callout{display:block;margin:8px 0;background:${white}}
 .callout .flag-head{background:${white};color:${navy};padding:6px 10px;font-size:12px;font-weight:700}
 tr.alert td{border:2px solid ${alert}}
+.tone-literal{display:block;padding:8px 12px;border-left:3px solid ${gray};white-space:pre-wrap;overflow-wrap:anywhere}
+.framed{margin:10px 0;border:1px solid ${gray};border-radius:12px;overflow:hidden}
+.framed h2{margin:0;padding:8px 12px;border-bottom:1px solid ${gray}}
+.framed ul{list-style:none;margin:0;padding:8px 12px}
+.framed li{margin:0 0 6px}
+.tone-quote{display:block;padding:8px 12px;border-left:3px solid ${gray};white-space:pre-wrap}
+.framed.alert{border:2px solid ${alert};color:${navy}}
+.framed.alert h2{background:${alert};color:${white};border-bottom:0}
+${responsiveCardCss(true)}
 </style></head><body><div id="app"></div><script>${SCRIPT}</script></body></html>`;
 }
 
