@@ -11,7 +11,9 @@ import { clauseLine, missingNotices, missingNoticeNote, SUMMARY_OFFER } from "..
 import { contractValueLine } from "../../src/lib/mcp/contract-value";
 import { presentBrief } from "../../src/lib/mcp/morning-brief";
 import { job2701BriefCard } from "../../src/lib/mcp/morning-brief-2701";
-import { buildSov, sovLineRows, sovSummaryText } from "../../src/lib/mcp/sov";
+import { buildSov, money, sovLineRows, sovSummaryText } from "../../src/lib/mcp/sov";
+import { contractTermsCard, sovCard } from "../../src/lib/mcp/cards/structured";
+import type { ClauseRow } from "../../src/lib/mcp/contract-clauses";
 import { HOST_DISPLAY_BLOCK } from "../../src/lib/mcp/visible";
 
 type Result = Record<string, unknown>;
@@ -35,24 +37,46 @@ const withHouseStyle = (r: Result): Result => {
   return { ...r, structuredContent: { ...sc, assistant_guidance: [HOST_DISPLAY_BLOCK, ...prior] } };
 };
 
+// Mirrors the contract_terms and report handlers: text from the same helpers, card from the structured rows.
 function contractTerms(): Result {
-  const cl = clauses2701 as Parameters<typeof clauseLine>[0][] & { category: string }[];
+  const cl = clauses2701 as ClauseRow[];
+  const missing = missingNotices(cl).map((m) => `Missing: ${m.label} (${missingNoticeNote(true)})`);
   const text = [
     `${JOB}\nCONTRACT CLAUSES (exact contract text)`,
     contractValueLine(1400000, "SOV", true),
     "Substantial completion: 2027-06-30",
     ...cl.map((c) => `- ${clauseLine(c)}`),
-    ...missingNotices(cl as never).map((m) => `- Missing: ${m.label} (${missingNoticeNote(true)})`),
+    ...missing.map((m) => `- ${m}`),
     "",
     SUMMARY_OFFER,
   ].join("\n");
-  return attachAthenaCard("contract_terms", { content: [{ type: "text", text }], structuredContent: { contract_clauses: cl } });
+  const card = contractTermsCard({
+    job: JOB,
+    clauses: cl,
+    valueDisplay: contractValueLine(1400000, "SOV", true),
+    completion: "2027-06-30",
+    missing,
+    flags: [{ flag: "has_retainage", value: "ON" }, { flag: "has_lds", value: "ON" }, { flag: "beneficial_use", value: "OFF" }, { flag: "notice_requirements", value: "ON" }],
+    askSummary: true,
+    boardLinks: [],
+  });
+  return attachAthenaCard("contract_terms", { content: [{ type: "text", text }], structuredContent: { card } });
 }
 
 function sovReport(): Result {
   const sov = buildSov(SOV_2701, 0, null);
   const text = sovSummaryText(`2701 – `, sov, BRAND, "Exhibit B", [], "internal", "lines");
-  return attachAthenaCard("report", { content: [{ type: "text", text }], structuredContent: { sov: { line_items: sovLineRows(sov) } } });
+  const card = sovCard({
+    job: JOB,
+    rows: sovLineRows(sov),
+    divisions: sov.summary.divisions.map((d) => ({ division: d.division, title: d.title, scheduled_value_display: money(d.scheduled_value), pct_of_contract: d.pct_of_contract })),
+    fee: null,
+    totalDisplay: money(sov.summary.contract_total),
+    basis: "Exhibit B",
+    audience: "internal",
+    view: "lines",
+  });
+  return attachAthenaCard("report", { content: [{ type: "text", text }], structuredContent: { card, sov: { line_items: sovLineRows(sov) } } });
 }
 
 function morningBrief(): Result {

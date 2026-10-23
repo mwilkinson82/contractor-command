@@ -2,7 +2,8 @@ import { isAlertLevel, type AlertLevel } from "./palette";
 
 export type CardState = "intake" | "progress" | "ask" | "result";
 
-export type CardTone = "known" | "unknown" | "action";
+/** quote: exact contract wording, printed unchanged in a ruled panel. */
+export type CardTone = "known" | "unknown" | "action" | "quote";
 
 export type CardRow = {
   cells: string[];
@@ -25,6 +26,10 @@ export type CardSection = {
   rows: CardRow[];
   /** Host fills this block. Navy heading, blue rule, gray text. No alert red. */
   placeholder?: boolean;
+  /** Its own bordered card, heading as the header (one contract clause). */
+  framed?: boolean;
+  /** A framed card for a delay, risk, or overdue clause: red border and red header. */
+  flag?: AlertLevel | null;
 };
 
 export type CardKpi = {
@@ -57,5 +62,6 @@ export const STATE_LABEL: Record<CardState, string> = {
 export function cardHasAlert(card: CardModel): boolean {
   if ((card.alerts ?? []).some((a) => isAlertLevel(a.level))) return true;
   if ((card.kpis ?? []).some((k) => isAlertLevel(k.flag))) return true;
+  if ((card.sections ?? []).some((s) => isAlertLevel(s.flag))) return true;
   return (card.sections ?? []).some((s) => s.rows.some((r) => isAlertLevel(r.flag)));
 }

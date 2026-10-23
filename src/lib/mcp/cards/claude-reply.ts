@@ -1,7 +1,7 @@
 /** Claude reply for a tool with the native card. The card view draws structuredContent.html, so the
  *  model only needs the facts: the markdown rows stay, display orders and the dumped HTML go.
  *  Claude reads orders inside a tool result as untrusted text, so they never helped it render. */
-import { HOST_DISPLAY_BLOCK, VISIBLE_STYLE_LINE } from "../visible";
+import { HOST_DISPLAY_BLOCK, SOV_CHART_RULE, SOV_PRESENTATION_LEAD, VISIBLE_STYLE_LINE } from "../visible";
 import { CARD_SHOWN, CARD_SHOWN_PICK } from "./silence";
 
 /** A plain statement for the model. Not an order. */
@@ -9,10 +9,11 @@ export const CLAUDE_CARD_NOTE = "The member sees this result as an Athena card."
 
 type Obj = Record<string, unknown>;
 const HOUSE_STYLE_RE = /^HOUSE STYLE \(for the assistant/;
-const DISPLAY_GUIDANCE = new Set<string>([HOST_DISPLAY_BLOCK, CARD_SHOWN, CARD_SHOWN_PICK]);
+/** House style, card-shown orders, and the SOV table/chart styling the card replaces. */
+const DISPLAY_GUIDANCE = new Set<string>([HOST_DISPLAY_BLOCK, CARD_SHOWN, CARD_SHOWN_PICK, SOV_CHART_RULE]);
 
 function isDisplayGuidance(g: unknown): boolean {
-  return typeof g === "string" && (DISPLAY_GUIDANCE.has(g) || HOUSE_STYLE_RE.test(g));
+  return typeof g === "string" && (DISPLAY_GUIDANCE.has(g) || HOUSE_STYLE_RE.test(g) || g.startsWith(SOV_PRESENTATION_LEAD));
 }
 
 /** Text the model reads: every markdown row, no HTML document and no render orders. */
@@ -30,7 +31,7 @@ export function claudeCardText(text: string): string {
 }
 
 /** Returns null when nothing in the result needed to change. Workflow guidance (which question to ask next,
- *  the SOV delivery options) stays; only house-style and card-shown orders are removed. */
+ *  the SOV delivery options) stays; house style, card-shown orders and SOV table/chart styling go. */
 export function claudeCardReply(result: Obj): Obj | null {
   if (!Array.isArray(result.content)) return null;
   let changed = false;
