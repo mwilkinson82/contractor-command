@@ -1,0 +1,9 @@
+# Drawing attachment rejection
+
+#229 is published at merge 004ec46e, deployment f5f79b57-0c97-419f-a61a-66d26f9ff216. Supported ChatGPT tool refresh completed. Both the existing attachment and a fresh reference to the same approved 24-page CCW-003 PDF reached the importer but returned the same download-link rejection. Neither attempt stored the original or a markup, or edited the takeoff. A live stored-sheet/markup acceptance pass remains outstanding.
+
+The rejection occurs before fetch at allowedDownloadUrl. Its old message hid the reason and suggested base64 to a host that cannot supply the source that way. This change distinguishes a missing URL, a non-HTTPS/local reference, embedded credentials, and an unsupported HTTPS hostname. Only the hostname is included for that last case; signed paths, query strings, fragments, credentials, file IDs and file contents are excluded. Download hosts, redirect behavior, authentication, size limits, storage and original protections remain unchanged.
+
+The diagnostic is necessary to identify the actual server-side reference. The model's report that it passed a file ID does not establish which URL ChatGPT supplied to the server. This PR does not claim the attachment import is fixed. After an approved release, rerun the same signed-in ChatGPT import, use the rejection category/hostname to prepare the specific correction, and then verify duplicate-safe storage, S-100 reopening without another upload and two dated markup versions.
+
+Verification: 2,046 tests across 195 files pass, production build passes, and ESLint with the existing formatting-only rule excluded passes on both changed TypeScript files. The existing files have unrelated Prettier violations; new blocks are formatted. Four additional cases verify each rejection category, no fetch or upload, and no sensitive signed-link details in the reply. No migration, connector, auth, email or access changes.

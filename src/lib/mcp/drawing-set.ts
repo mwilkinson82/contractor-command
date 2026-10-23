@@ -194,10 +194,24 @@ export function sheetPageLine(sheet: string, page: number): string {
 
 const storedMessage = (message: string) => message.replaceAll("Nothing was shared.", "Nothing was stored.");
 
+/** Explain a rejected host handoff without exposing its signed path or credentials. */
+function rejectedDrawingLink(raw: string): string {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return "The attachment did not include an HTTPS download link. Nothing was stored.";
+  }
+  if (url.protocol !== "https:")
+    return "The attachment supplied a local or non-HTTPS link instead of an HTTPS download link. Nothing was stored.";
+  if (url.username || url.password)
+    return "The attachment download link contains embedded sign-in details. Nothing was stored.";
+  return `Athena does not yet accept attachment downloads from ${url.hostname}. Nothing was stored.`;
+}
+
 /** Same ChatGPT file fetch as file_share: https, OpenAI hosts only, no redirects, size-capped. */
 async function fetchDrawing(url: string): Promise<Uint8Array> {
-  if (!allowedDownloadUrl(url))
-    throw new FileRejected("Athena can't read that file link. Pass the file's bytes as content_base64 instead. Nothing was stored.");
+  if (!allowedDownloadUrl(url)) throw new FileRejected(rejectedDrawingLink(url));
   const res = await fetch(url, { redirect: "error" });
   if (!res.ok || !res.body)
     throw new FileRejected("Athena couldn't download that file. Pass the file's bytes as content_base64 instead. Nothing was stored.");

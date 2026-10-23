@@ -289,6 +289,44 @@ describe("stored sheet page", () => {
 });
 
 describe("drawing import", () => {
+  it.each([
+    [
+      "https://attachment.example.com/private-drawing.pdf?token=fictional-secret#private",
+      "Athena does not yet accept attachment downloads from attachment.example.com. Nothing was stored.",
+    ],
+    [
+      "file_fictional-local-reference",
+      "The attachment did not include an HTTPS download link. Nothing was stored.",
+    ],
+    [
+      "sandbox:/private-drawing.pdf?token=fictional-secret",
+      "The attachment supplied a local or non-HTTPS link instead of an HTTPS download link. Nothing was stored.",
+    ],
+    [
+      "https://fictional-user:fictional-secret@files.oaiusercontent.com/private-drawing.pdf?token=fictional-secret",
+      "The attachment download link contains embedded sign-in details. Nothing was stored.",
+    ],
+  ])(
+    "classifies a rejected attachment without fetching or exposing its signed details (%s)",
+    async (download_url, message) => {
+      const fetcher = vi.fn();
+      vi.stubGlobal("fetch", fetcher);
+      try {
+        await expect(
+          readDrawingBytes({
+            filename: "permit.pdf",
+            file: { download_url, file_id: "fictional-file" },
+          }),
+        ).rejects.toThrow(message);
+        expect(fetcher).not.toHaveBeenCalled();
+        expect(message).not.toMatch(/fictional-secret|private-drawing|fictional-user/);
+        expect(state.uploads).toHaveLength(0);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    },
+  );
+
   it("parses a multi-page PDF without createRequire.resolve", async () => {
     const source = readFileSync(new URL("./drawing-set.ts", import.meta.url), "utf8");
     expect(source).not.toMatch(/createRequire\s*\(/);
