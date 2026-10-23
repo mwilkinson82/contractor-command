@@ -28,6 +28,10 @@ const AFFIRMATIVE_CONFIRMATION =
 const CONFIRMATION_NEGATIVE =
   /\b(?:not|never|no|unconfirmed|pending|awaiting|except|unless|if|once|need|needs|needed|waiting)\b|n't\b|\bissues with crews\b/;
 
+// A reported problem stays open. Checked after affirmative phrases are removed,
+// so "no problems" still counts as a yes. "no issues" is its own affirmative phrase.
+const CONFIRMATION_CAVEAT = /\b(?:problems?|late|failed)\b/;
+
 /** Lowercase, with punctuation folded to spaces so phrase checks ignore case and marks. */
 function confirmationText(note: string): string {
   return note
@@ -42,6 +46,7 @@ function confirmationText(note: string): string {
  * Crew-note polarity. "Subs and crews confirmed, no issues" is a yes.
  * Affirmative phrases are removed before the negative scan, so "no" inside
  * "no issues" does not keep the item open. A real refusal still does.
+ * A confirmation that also reports a problem stays open.
  */
 export function isAffirmativeConfirmation(note: string): boolean {
   if (/\?/.test(note)) return false;
@@ -49,7 +54,14 @@ export function isAffirmativeConfirmation(note: string): boolean {
   const remaining = text.replace(AFFIRMATIVE_CONFIRMATION, " ").replace(/\s+/g, " ").trim();
   // "Confirm subs and crews; no issues elsewhere" still asks for confirmation.
   // The affirmative phrase must not promote that request into a completed check.
-  if (CONFIRMATION_NEGATIVE.test(remaining) || /\bconfirm\b/.test(remaining)) return false;
+  // "Subs confirmed, problems with electrical" reports a problem and stays open.
+  if (
+    CONFIRMATION_NEGATIVE.test(remaining) ||
+    CONFIRMATION_CAVEAT.test(remaining) ||
+    /\bconfirm\b/.test(remaining)
+  ) {
+    return false;
+  }
   if (remaining !== text) return true;
   return /\bconfirmed\b/.test(text);
 }
@@ -59,8 +71,8 @@ export function meetingItem(note: string): MeetingItem | null {
   const a = note.toLowerCase();
   if (/no change orders pending/.test(a) && /confirm/.test(a)) return { key: "pm:change_orders", close: true };
   if (/(subcontractors|\bsubs\b|suppliers)/.test(a) && /crews/.test(a) && /confirm/.test(a)) {
-    // Keep one meeting item. A request, a conditional, or a real negative stays
-    // open. "No issues" and the other affirmative phrases still close it.
+    // Keep one meeting item. A request, a conditional, a real negative, or a
+    // reported problem stays open. "No issues" and the other affirmative phrases still close it.
     return { key: "pm:crews", close: isAffirmativeConfirmation(note) };
   }
   if (/planned billing|realistic billing/.test(a)) return { key: "pm:billing", close: false };
