@@ -16,7 +16,13 @@ type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj | null =>
   v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : null;
 type ClientHint = { name: string; native: boolean };
-type Call = { id: unknown; method: string; params: Obj; client: ClientHint | null };
+type Call = {
+  id: unknown;
+  method: string;
+  params: Obj;
+  client: ClientHint | null;
+  modern: boolean;
+};
 type Visit = { calls: Call[]; cacheKey: string | null; userAgent: string };
 
 function clientHint(info: unknown, caps: unknown): ClientHint | null {
@@ -73,7 +79,14 @@ export async function nativeCardVisit(request: Request): Promise<Visit | null> {
     if (!call || call.id == null || typeof call.method !== "string") continue;
     const method = call.method;
     if (
-      !["initialize", "tools/list", "resources/list", "resources/read"].includes(method) &&
+      ![
+        "initialize",
+        "server/discover",
+        "tools/list",
+        "resources/list",
+        "resources/templates/list",
+        "resources/read",
+      ].includes(method) &&
       !(method === "tools/call" && NATIVE_CARD_TOOLS.has(String(params.name)))
     )
       continue;
@@ -83,6 +96,12 @@ export async function nativeCardVisit(request: Request): Promise<Visit | null> {
       id: call.id,
       method,
       params,
+      modern:
+        String(
+          meta?.["io.modelcontextprotocol/protocolVersion"] ??
+            request.headers.get("MCP-Protocol-Version") ??
+            "",
+        ) >= "2026-07-28",
       client:
         method === "initialize"
           ? clientHint(params.clientInfo, params.capabilities)
@@ -138,15 +157,19 @@ export function nativeCardPayload(
     const error = obj(message.error);
     const missingMethod = error?.code === -32601;
     let next: Obj | null = null;
-    if (call.method === "initialize" && result?.serverInfo && !error) {
-      hints.remember(visit.cacheKey, call.client);
+    if (
+      ((call.method === "initialize" && result?.serverInfo) ||
+        (call.method === "server/discover" && Array.isArray(result?.supportedVersions))) &&
+      !error
+    ) {
+      if (call.method === "initialize") hints.remember(visit.cacheKey, call.client);
       const caps = obj(result.capabilities) ?? {},
         extensions = obj(caps.extensions) ?? {};
       next = {
         ...result,
         capabilities: {
           ...caps,
-          resources: caps.resources ?? {},
+          resources: caps.resources ?? (call.modern ? { listChanged: false } : {}),
           extensions: { ...extensions, ...ATHENA_MCP_APPS_CAPABILITIES.extensions },
         },
       };
@@ -165,21 +188,23 @@ export function nativeCardPayload(
       if (repaired) next = { ...result, tools };
     } else if (
       call.method === "resources/list" &&
-      (Array.isArray(result?.resources) || missingMethod)
+      ((!error && Array.isArray(result?.resources)) || missingMethod)
     ) {
       const resources = Array.isArray(result?.resources) ? result.resources : [];
       if (!resources.some((r) => obj(r)?.uri === NATIVE_CARD_URI))
         next = { ...(result ?? {}), resources: [...resources, resourceEntry()] };
+    } else if (call.method === "resources/templates/list" && missingMethod) {
+      next = { resourceTemplates: [] };
     } else if (
       call.method === "resources/read" &&
       call.params.uri === NATIVE_CARD_URI &&
       missingMethod
     ) {
       // Some deployed SDK builds omit resource handlers. Only this static, non-personal shell is repaired,
-      // after the SDK returns 200. Authentication/authorization failures and other resource URIs are untouched.
+      // after the SDK returns a method-not-found reply. Auth failures and other resource URIs are untouched.
       next = resourceContents();
     } else if (call.method === "tools/call" && result && !error && result.isError !== true) {
-      const client = call.client ?? hints.get(visit.cacheKey);
+      const client = call.client ?? (call.modern ? null : hints.get(visit.cacheKey));
       const sc = obj(result.structuredContent),
         card = obj(sc?.card);
       const chatgpt = /chatgpt|openai/i.test(`${client?.name ?? ""} ${visit.userAgent}`);
@@ -201,6 +226,21 @@ export function nativeCardPayload(
         const summary = [
           `Athena · ${card.title ?? "Card"}${card.job ? ` · ${card.job}` : ""}`,
           ...kpis,
+          // Claude may hide structuredContent from its model when an app fails to mount.
+          // Keep complete row text available without duplicating the HTML or Markdown tables.
+          ...(Array.isArray(card.sections)
+            ? card.sections.flatMap((value) => {
+                const section = obj(value);
+                if (!Array.isArray(section?.rows)) return [];
+                return [
+                  String(section.heading ?? ""),
+                  ...section.rows.map((value) => {
+                    const row = obj(value);
+                    return Array.isArray(row?.cells) ? row.cells.map(String).join(" · ") : "";
+                  }),
+                ];
+              })
+            : []),
         ].join("\n");
         let replaced = false;
         const content = result.content.flatMap((block) => {
@@ -213,6 +253,14 @@ export function nativeCardPayload(
       }
     }
     if (!next) return value;
+    // The SDK's modern codec normally stamps these fields. Synthetic resource replies
+    // are created after that codec, so they must satisfy the same wire contract here.
+    if (
+      call.modern &&
+      ["resources/list", "resources/templates/list", "resources/read"].includes(call.method)
+    ) {
+      next = { resultType: "complete", ttlMs: 0, cacheScope: "private", ...next };
+    }
     changed = true;
     const { error: _error, ...rest } = message;
     return { ...rest, result: next };
@@ -220,20 +268,29 @@ export function nativeCardPayload(
   return { value: Array.isArray(payload) ? payload.map(transform) : transform(payload), changed };
 }
 
-/** Only finite 200 JSON/SSE responses for selected MCP methods are inspected. Errors/non-MCP traffic pass unchanged. */
+/** Inspect finite selected replies. Only the SDK's exact static-resource method miss can turn 404 into 200. */
 export async function nativeCardResponse(
   response: Response,
   visit: Visit | null,
   hints = nativeClientHints,
 ): Promise<Response> {
-  if (!visit || response.status !== 200 || !response.body) return response;
+  if (!visit || !response.body) return response;
+  const resourceMiss =
+    response.status === 404 &&
+    visit.calls.length === 1 &&
+    ["resources/list", "resources/templates/list", "resources/read"].includes(
+      visit.calls[0].method,
+    );
+  if (response.status !== 200 && !resourceMiss) return response;
   const type = (response.headers.get("content-type") ?? "").toLowerCase();
   if (!type.includes("application/json") && !type.includes("text/event-stream")) return response;
   const text = await response.clone().text();
   let changed = false;
   const transform = (raw: string) => {
     try {
-      const out = nativeCardPayload(JSON.parse(raw), visit, hints);
+      const payload = JSON.parse(raw);
+      if (resourceMiss && obj(obj(payload)?.error)?.code !== -32601) return raw;
+      const out = nativeCardPayload(payload, visit, hints);
       changed ||= out.changed;
       return out.changed ? JSON.stringify(out.value) : raw;
     } catch {
@@ -252,5 +309,9 @@ export async function nativeCardResponse(
   const headers = new Headers(response.headers);
   headers.delete("content-length");
   headers.delete("content-encoding");
-  return new Response(body, { status: response.status, statusText: response.statusText, headers });
+  return new Response(body, {
+    status: resourceMiss ? 200 : response.status,
+    statusText: resourceMiss ? "OK" : response.statusText,
+    headers,
+  });
 }

@@ -76,6 +76,57 @@ async function transform(
 }
 
 describe("native card presentation after the SDK", () => {
+  it.each(["server/discover", "resources/list", "resources/templates/list", "resources/read"])(
+    "returns a complete modern-protocol %s reply through the actual SDK",
+    async (method) => {
+      const mcp = defineMcp({
+        name: "athena",
+        title: "Athena",
+        version: "test",
+        instructions: "test",
+        tools: [],
+        metrics: false,
+      });
+      const handler = createTanStackMcpHandler(mcp, { resourcePath: "/mcp" });
+      const params = method === "resources/read" ? { uri: NATIVE_CARD_URI } : {};
+      const request = makeRequest(method, {
+        ...params,
+        _meta: {
+          ...meta(),
+          "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        },
+      });
+      request.headers.set("accept", "application/json, text/event-stream");
+      request.headers.set("MCP-Protocol-Version", "2026-07-28");
+      request.headers.set("Mcp-Method", method);
+      if (method === "resources/read") request.headers.set("Mcp-Name", NATIVE_CARD_URI);
+      const visit = await nativeCardVisit(request);
+      const response = await nativeCardResponse(await handler({ request }), visit);
+      const raw = await response.text();
+      expect(response.status, raw).toBe(200);
+      const json = JSON.parse(
+        raw.startsWith("{")
+          ? raw
+          : raw
+              .split("\n")
+              .find((line) => line.startsWith("data:"))!
+              .slice(5),
+      );
+      expect(json.error).toBeUndefined();
+      expect(json.result).toMatchObject({
+        resultType: "complete",
+        ttlMs: 0,
+        cacheScope: "private",
+      });
+      if (method === "server/discover")
+        expect(json.result.capabilities).toMatchObject({
+          resources: { listChanged: false },
+          ...ATHENA_MCP_APPS_CAPABILITIES,
+        });
+      if (method === "resources/read")
+        expect(json.result.contents[0].text).toContain("ui/initialize");
+    },
+  );
   it("repairs the authenticated live discovery snapshot that exposed the deployment failure", async () => {
     const snapshot = JSON.parse(
       readFileSync("docs/athena/claude-native-discovery-before.json", "utf8"),
@@ -222,6 +273,52 @@ describe("native card presentation after the SDK", () => {
         ],
       }),
     );
+  });
+  it("keeps every backend row in the compact native reply if Claude cannot display the app", async () => {
+    for (const count of [6, 17]) {
+      const input = {
+        ...cardResult,
+        structuredContent: {
+          ...cardResult.structuredContent,
+          card: {
+            ...cardResult.structuredContent.card,
+            sections: [
+              {
+                heading: "Saved items",
+                rows: Array.from({ length: count }, (_, i) => ({
+                  cells: [`Fictional item ${i + 1}`, "Example PM", "2026-11-02"],
+                })),
+              },
+            ],
+          },
+        },
+      };
+      const out = await transform("tools/call", { name: "list_open_items" }, result(input), meta());
+      const reply = out.value as ReturnType<typeof result<typeof input>>;
+      for (let i = 1; i <= count; i++)
+        expect(reply.result.content[0].text).toContain(
+          `Fictional item ${i} · Example PM · 2026-11-02`,
+        );
+      expect(reply.result.structuredContent).toBe(input.structuredContent);
+      expect(reply.result.content[0].text).not.toContain("| --- |");
+    }
+  });
+  it("repairs only exact method-not-found resource errors at HTTP 404", async () => {
+    const visit = await nativeCardVisit(makeRequest("resources/read", { uri: NATIVE_CARD_URI }));
+    for (const error of [
+      { code: -32001, message: "Access denied" },
+      { code: -32602, message: "Invalid params" },
+    ]) {
+      const original = Response.json({ jsonrpc: "2.0", id: 1, error }, { status: 404 });
+      expect(await nativeCardResponse(original, visit)).toBe(original);
+    }
+    const html = new Response("Page not found", {
+      status: 404,
+      headers: { "content-type": "text/html" },
+    });
+    expect(await nativeCardResponse(html, visit)).toBe(html);
+    const otherId = Response.json({ ...missing, id: 100 }, { status: 404 });
+    expect(await nativeCardResponse(otherId, visit)).toBe(otherId);
   });
   it.each(["ChatGPT", "openai-mcp"])(
     "keeps ChatGPT result byte-for-byte even when %s advertises Apps support",

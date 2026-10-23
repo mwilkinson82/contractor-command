@@ -1,0 +1,121 @@
+{
+  "captured_date_local": "2026-10-22 America/Manaus",
+  "reported_deploy": "b4be00c7",
+  "base_commit": "8330f42d",
+  "source": "Fresh OAuth-authenticated MCP inventory and resource read through Codex app-server. This is a normalized projection, not a raw HTTP packet capture or the historical Claude request log.",
+  "discovery": {
+    "name": "athena",
+    "httpOrigin": "https://app.meetathena.io",
+    "authStatus": "oAuth",
+    "serverInfo": {
+      "name": "athena",
+      "title": "Athena powered by ALP, construction agents",
+      "version": "0.8.18",
+      "description": "Athena powered by ALP, construction agents. Built by ALP.",
+      "icons": [
+        {
+          "src": "https://app.meetathena.io/brand/athena/athena-mono-blue-64.png",
+          "mimeType": "image/png",
+          "sizes": [
+            "64x64"
+          ]
+        },
+        {
+          "src": "https://app.meetathena.io/brand/athena/athena-mono-blue-128.png",
+          "mimeType": "image/png",
+          "sizes": [
+            "128x128"
+          ]
+        },
+        {
+          "src": "https://app.meetathena.io/brand/athena/athena-mono-blue-256.png",
+          "mimeType": "image/png",
+          "sizes": [
+            "256x256"
+          ]
+        }
+      ],
+      "websiteUrl": "https://app.meetathena.io"
+    },
+    "serverCapabilities": {
+      "extensions": {
+        "io.modelcontextprotocol/ui": {
+          "mimeTypes": [
+            "text/html;profile=mcp-app"
+          ]
+        }
+      },
+      "resources": {},
+      "tools": {
+        "listChanged": false
+      }
+    },
+    "toolsError": null,
+    "tools": {
+      "list_open_items": {
+        "name": "list_open_items",
+        "_meta": {
+          "ui": {
+            "resourceUri": "ui://athena/native-card.html"
+          }
+        }
+      },
+      "lookahead_get": {
+        "name": "lookahead_get",
+        "_meta": {
+          "ui": {
+            "resourceUri": "ui://athena/native-card.html"
+          }
+        }
+      },
+      "lookahead_list": {
+        "name": "lookahead_list",
+        "_meta": {
+          "ui": {
+            "resourceUri": "ui://athena/native-card.html"
+          }
+        }
+      }
+    },
+    "resources": [
+      {
+        "mimeType": "text/html;profile=mcp-app",
+        "name": "athena-native-card",
+        "title": "Athena native card",
+        "uri": "ui://athena/native-card.html",
+        "_meta": {
+          "ui": {
+            "csp": {
+              "connectDomains": [],
+              "resourceDomains": []
+            },
+            "prefersBorder": true
+          }
+        }
+      }
+    ]
+  },
+  "native_resource_read": {
+    "error": null,
+    "result_keys": [
+      "contents",
+      "originCallId"
+    ],
+    "contents": [
+      {
+        "uri": "ui://athena/native-card.html",
+        "mimeType": "text/html;profile=mcp-app",
+        "html_chars": 3837,
+        "_meta": {
+          "ui": {
+            "csp": {
+              "connectDomains": [],
+              "resourceDomains": []
+            },
+            "prefersBorder": true
+          }
+        }
+      }
+    ]
+  }
+}
