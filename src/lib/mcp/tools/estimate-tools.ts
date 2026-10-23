@@ -1,3 +1,4 @@
+import { drawingFile, drawingWithFile } from "../drawing-file-input";
 // Estimating role. Same gate as the other tools: run() checks auth, the call cap and the membership entitlement.
 import { ToolError, defineTool, type JsonValueInput } from "@lovable.dev/mcp-js";
 import { z } from "zod";
@@ -515,6 +516,7 @@ export const estimateIntake = defineTool({
     assumptions: z.array(z.string().trim().min(1).max(300)).max(40).optional(),
     forms_faces: z.union([z.literal(1), z.literal(2)]).optional(),
     drawing: drawingUpload,
+    file: drawingFile,
   },
   annotations: SAVE,
   handler: (args, ctx) =>
@@ -550,8 +552,9 @@ export const estimateIntake = defineTool({
         ? keepDrawingPaths(args.documents as Doc[], prior.setup.documents)
         : prior.setup.documents;
       let drawingName = "";
-      if (args.drawing) {
-        const saved = await saveDrawing(sb, job, documents, args.drawing);
+      const drawing = drawingWithFile(args.drawing, args.file);
+      if (drawing) {
+        const saved = await saveDrawing(sb, job, documents, drawing);
         documents = saved.documents;
         drawingName = saved.stored.name;
       }
@@ -576,7 +579,7 @@ export const estimateIntake = defineTool({
       if (args.trades) patch.trades = args.trades;
       if (args.bid_due) patch.bid_due = args.bid_due;
       if (args.delivery_method) patch.delivery_method = args.delivery_method;
-      if (args.documents && !args.drawing) patch.documents = documents;
+      if (args.documents && !drawing) patch.documents = documents;
       if (args.sub_bids) patch.sub_bids = asBids(args.sub_bids);
       if (args.workbook_note) patch.workbook_note = args.workbook_note;
       if (args.in_scope) patch.in_scope = args.in_scope;
@@ -703,6 +706,7 @@ export const estimateTakeoffSave = defineTool({
     mode: takeoffMode,
     lines: takeoffLines,
     drawing: drawingUpload,
+    file: drawingFile,
   },
   annotations: SAVE,
   handler: (args, ctx) =>
@@ -716,6 +720,7 @@ export const estimateTakeoffSave = defineTool({
           if (/No job /i.test(message)) return missingJobCard(args.job_number, message, await existingJobs(sb));
           throw e;
         }
+        const drawing = drawingWithFile(args.drawing, args.file);
         const mode = args.mode ?? "upsert";
         const prior = await load(sb, job.job_id);
         const saved = await savedProfileRecord(sb, job.job_id);
@@ -737,8 +742,8 @@ export const estimateTakeoffSave = defineTool({
         const scales = (args.scales ?? []).map((s) => ({ ...s, scale: normalizeScale(s.scale) }));
         let drawingName = "";
         const rememberDrawing = async () => {
-          if (!args.drawing) return;
-          const saved = await saveDrawing(sb, job, prior.setup.documents, args.drawing);
+          if (!drawing) return;
+          const saved = await saveDrawing(sb, job, prior.setup.documents, drawing);
           drawingName = saved.stored.name;
         };
         if (account.saved === 0) {
@@ -1188,7 +1193,7 @@ export const drawingSetImport = defineTool({
   title: "Store a drawing set",
   description: "Imports a Drive or Dropbox drawing PDF or uploaded bytes, recognizes identical files, and indexes stored sheets without another upload.",
   inputSchema: {
-    job_number: jobNumber, company_id: companyId, drawing: drawingUpload,
+    job_number: jobNumber, company_id: companyId, drawing: drawingUpload, file: drawingFile,
     stored_filename: z.string().trim().min(1).max(200).optional(),
     sheets: z.array(z.string().trim().min(1).max(40)).min(1).max(400).optional(),
   },
@@ -1197,7 +1202,7 @@ export const drawingSetImport = defineTool({
     try {
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const prior = await load(sb, job.job_id);
-      let upload = args.drawing;
+      let upload = drawingWithFile(args.drawing, args.file, args.sheets);
       if (args.stored_filename) {
         if (upload || !args.sheets?.length) throw new ToolError("To index a stored set, give its filename and sheets in PDF page order, without another upload.");
         const same = (name: string) => name.toLowerCase() === args.stored_filename!.toLowerCase();

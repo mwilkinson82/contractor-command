@@ -16,6 +16,7 @@ import { phoneHostText } from "./phone-reply";
 import { timingFields, type CardTiming } from "./card-timing";
 import { outsideFencedBlocks } from "./cards/verbatim";
 import { claudeCardReply } from "./cards/claude-reply";
+import { drawingFileMeta } from "./drawing-file-input";
 
 export const ATHENA_MCP_APPS_CAPABILITIES = {
   extensions: { "io.modelcontextprotocol/ui": { mimeTypes: [NATIVE_CARD_MIME] } },
@@ -203,13 +204,18 @@ export function nativeCardPayload(
       let repaired = false;
       const tools = result.tools.map((value) => {
         const tool = obj(value);
-        if (!tool || !NATIVE_CARD_TOOLS.has(String(tool.name))) return value;
+        if (!tool) return value;
+        const name = String(tool.name);
         const meta = obj(tool._meta) ?? {},
           ui = obj(meta.ui) ?? {};
-        if (typeof ui.resourceUri === "string") return value;
+        const fileMeta = drawingFileMeta(name);
+        const repairFile = Object.keys(fileMeta).length > 0 &&
+          JSON.stringify(meta["openai/fileParams"]) !== JSON.stringify(fileMeta["openai/fileParams"]);
+        const repairUi = NATIVE_CARD_TOOLS.has(name) && typeof ui.resourceUri !== "string";
+        if (!repairFile && !repairUi) return value;
         repaired = true;
         // Do not introduce, remove or alter openai/outputTemplate.
-        return { ...tool, _meta: { ...meta, ui: { ...ui, ...nativeCardMeta.ui } } };
+        return { ...tool, _meta: { ...meta, ...fileMeta, ...(repairUi ? { ui: { ...ui, ...nativeCardMeta.ui } } : {}) } };
       });
       if (repaired) next = { ...result, tools };
     } else if (
